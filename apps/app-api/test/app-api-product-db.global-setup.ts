@@ -1,18 +1,20 @@
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import type { TestProject } from "vitest/node";
-import { installAppApiSchema } from "../ops/db/schema.ts";
 
 const POSTGRES_IMAGE =
-	"postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193";
+	"postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15";
 const RYUK_IMAGE =
 	"testcontainers/ryuk:0.14.0@sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0";
 const DATABASE_NAME = "campus_agent";
-const SCHEMA_OWNER = "app_api_schema_owner";
+const SCHEMA_OWNER = "campus_agent";
 const RUNTIME_ROLE = "app_api";
-const SUPPORTING_ROLES = ["execution_control", "ops_web"] as const;
+const SUPPORTING_ROLES = ["execution_control", "ops_web", "model_config"] as const;
 
 export interface AppApiPostgresContext {
 	managementConnectionString: string;
@@ -71,12 +73,23 @@ async function provisionDatabase(
 		runtimePassword,
 	);
 
-	await installAppApiSchema({
-		APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
-		APP_API_SCHEMA_DATABASE_URL: managementConnectionString,
-		AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
-		BETTER_AUTH_SECRET: "testcontainers-app-api-product-database-secret",
-	});
+	const url = new URL(managementConnectionString);
+	await promisify(execFile)(
+		process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+		["--dir", "jobs/campus-agent-schema", "migrate"],
+		{
+			cwd: fileURLToPath(new URL("../../../", import.meta.url)),
+			env: {
+				...process.env,
+				PGHOST: url.hostname,
+				PGPORT: url.port,
+				PGDATABASE: DATABASE_NAME,
+				PGUSER: SCHEMA_OWNER,
+				PGPASSWORD: schemaOwnerPassword,
+				PGSSLMODE: "disable",
+			},
+		},
+	);
 
 	return { managementConnectionString, runtimeConnectionString };
 }

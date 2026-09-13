@@ -10,7 +10,6 @@ on:
         options:
           - go
           - ragas
-          - app-api-migration
           - app-api-product-db
           - execution-control-postgres
           - execution-control-temporal

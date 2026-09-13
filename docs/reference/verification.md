@@ -96,7 +96,7 @@ package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README �
 | Worker route、binding 或 Wrangler 配置 | 所属 Worker 的 worker test、build 和模块测试 |
 | Campus Web 用户可见运行时 | 模块检查和制品完整性；按风险运行本地浏览器路径 |
 | execution-control / model-config Go | 所属 native format、lint、typecheck 和 test |
-| migration 或数据库权限 | 对应 migration、数据库集成和所有者测试 |
+| migration 或数据库权限 | `pnpm --dir jobs/campus-agent-schema test:migration-integration`，以及受影响所有者的数据库集成测试 |
 | eval package、Ragas adapter 或评测合同 | 所属 package test；跨语言时运行对应 adapter |
 | GitHub Actions | `pnpm check`、Actionlint 与 Zizmor |
 | dependency manifest 或 lockfile | frozen install、受影响模块检查，必要时运行漏洞扫描 |
@@ -104,6 +104,10 @@ package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README �
 | Kubernetes 或 deployment source | `scripts/infra/validate.sh` |
 
 ## PR 镜像检查边界
+
+统一 migration 的源码、SQL、测试、依赖声明或 workspace lockfile 变化时，PR 自动选择
+`schema-migration`，使用真实 PostgreSQL 执行升级测试。该 profile 失败或被跳过时不能通过 required
+check；App API 的业务数据库测试也使用同一 schema Job，不保留第二条测试用迁移链。
 
 `container-build` 是廉价的构建定义检查，执行 `docker buildx bake --print`。`image-build` 使用
 `scripts/release/image-targets.mts` 与候选发布共用的受影响目标映射，按 Bake 分组执行

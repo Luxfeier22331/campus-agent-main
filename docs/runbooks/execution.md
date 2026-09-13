@@ -64,9 +64,26 @@ staging 的停止、数据处理与部署由环境仓执行。本条是此次发
 的最终结构。本次涉及的 execution-control、Model Config、Ops Web 和 notice-publisher 自有 schema runner、
 旧 migration 目录及 legacy integration profile 已退役，不是标准本地 bootstrap 或 GitOps 的可执行入口。
 
-统一 Job 不接管包含旧 ledger 或 `execution_config` 的数据库；这是对未知数据库状态的 fail-closed 检查，
-不是线上 upgrade 路径。具体环境是否已经应用某个 revision，以 GitOps 选择、schema Job 结果和统一
+统一 Job 不接管包含旧领域 ledger 或 `execution_config` 的数据库。已有 `drizzle.campus_agent_migrations`
+的 v0 数据库由 Drizzle ORM RC.4 原位升级记录格式，按名称补跑遗漏 SQL；不会修改已应用 SQL。
+具体环境是否已经应用某个 revision，以 GitOps 选择、schema Job 结果和统一
 ledger 为准，不在本文保存一次性审计结果。不得通过双写、兼容 view 或第二条 ledger 延长已退役路径。
+
+### 个人记忆遗漏迁移修复
+
+旧时间戳 migrator 曾跳过 `personal_memory_management`：表现为 `profile.memory_commands.payload`
+不存在（`42703`），或追加租约仍要求 `owner_sequence`（`23502`）。新 Job 的 `status` 应列出
+`20260912000000_0015_personal_memory_management`，不能只用 ledger 条数或 Job 退出码判断。
+
+这条 SQL 会清除旧记忆命令/来源/条目、关闭旧设置并删除退役列。发布前由环境仓暂停自动晋级，进入
+维护窗口并停止目标环境的新请求、记忆写入和旧 worker；按 `memory-plane` 的范围清除本环境产品
+bank、结束明确属于旧个人记忆的未完成 workflow，再选择新 schema image 执行 Job。不得删除全库或
+整个 Temporal namespace，也不得伪造 ledger 把遗漏 SQL 标记为已执行。
+
+Job 完成后用 `status` 确认 `current` 且 pending 为空，再恢复新版本服务和请求准入；开启记忆并通过
+真实会话确认回答完成、后台 append 完成，以及记忆列表/召回/修改/停用/恢复可用。已完成此 SQL 的
+本地数据库只升级 ledger，不重复清除记忆。SQL 已提交后的恢复不能仅回退应用镜像；需要按环境备份
+恢复数据库及配套 bank，或继续向前修复。
 
 ## 配置和 Secret
 

@@ -33,7 +33,8 @@ revision、bundle、activation、history、fallback 或在线 rollback。不同�
 ## 数据库入口状态
 
 新建或重建的本地数据库由 `campus-agent-schema` 直接安装最终 `model_config` 结构和授权。统一 Job
-会拒绝带旧 migration ledger 或 `execution_config` 的数据库，不提供原位兼容路径。
+会拒绝带旧领域 migration ledger 或 `execution_config` 的数据库；已有统一 ledger 的数据库按
+`campus-agent-schema` 的具名迁移合同升级。
 
 统一 schema Job 的期望拓扑位于 `data-postgres` Application。具体环境是否已经应用某个 revision，
 以 GitOps 选择、schema Job 结果和统一 ledger 为准。

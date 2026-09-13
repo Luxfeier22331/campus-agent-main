@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, type ClientConfig } from "pg";
+import { type AppliedMigration, compareHistory, type Migration, readHistory } from "./history.ts";
 
-const MIGRATIONS_FOLDER = resolve(fileURLToPath(new URL("../migrations", import.meta.url)));
+export const MIGRATIONS_FOLDER = resolve(fileURLToPath(new URL("../migrations", import.meta.url)));
 const MIGRATIONS_SCHEMA = "drizzle";
 const MIGRATIONS_TABLE = "campus_agent_migrations";
 const ADVISORY_LOCK_KEY = "campus-agent-schema-migrations";
@@ -20,7 +21,10 @@ const LEGACY_OBJECTS = [
 ] as const;
 
 interface QueryClient {
-	query<T extends object = object>(query: string, values?: readonly unknown[]): Promise<{
+	query<T extends object = object>(
+		query: string,
+		values?: readonly unknown[],
+	): Promise<{
 		rows: T[];
 	}>;
 }
@@ -34,6 +38,7 @@ export interface CampusAgentSchemaStatus {
 	appliedMigrations: number;
 	expectedMigrations: number;
 	legacyObjects: string[];
+	pendingMigrations: string[];
 	status: "current" | "missing" | "pending" | "legacy";
 }
 
@@ -57,25 +62,28 @@ export function readDatabaseConfig(env: NodeJS.ProcessEnv = process.env): Client
 
 export async function migrateCampusAgentSchema(
 	env: NodeJS.ProcessEnv = process.env,
+	migrationsFolder = MIGRATIONS_FOLDER,
 ): Promise<CampusAgentSchemaResult> {
+	const history = readHistory(migrationsFolder);
 	const client = new Client(readDatabaseConfig(env));
 	await client.connect();
 	try {
 		await assertMigrationOwner(client);
-		await assertLegacyObjectsAbsent(client);
 		const result = await withSchemaMigrationLock(client, async () => {
 			await assertLegacyObjectsAbsent(client);
-			const before = await readMigrationCount(client);
-			await migrate(drizzle(client), {
-				migrationsFolder: MIGRATIONS_FOLDER,
+			const before = await readStatus(client, history);
+			await migrate(drizzle({ client }), {
+				migrationsFolder,
 				migrationsSchema: MIGRATIONS_SCHEMA,
 				migrationsTable: MIGRATIONS_TABLE,
 			});
-			await assertLegacyObjectsAbsent(client);
-			const migrationCount = await readMigrationCount(client);
+			const after = await readStatus(client, history);
+			if (after.status !== "current") {
+				throw new Error(`Schema migration incomplete: ${after.pendingMigrations.join(", ")}`);
+			}
 			return {
-				migrationCount,
-				result: migrationCount > before ? "applied" : "current",
+				migrationCount: after.appliedMigrations,
+				result: before.status === "current" ? "current" : "applied",
 			} satisfies CampusAgentSchemaResult;
 		});
 		return result;
@@ -86,7 +94,9 @@ export async function migrateCampusAgentSchema(
 
 export async function inspectCampusAgentSchema(
 	env: NodeJS.ProcessEnv = process.env,
+	migrationsFolder = MIGRATIONS_FOLDER,
 ): Promise<CampusAgentSchemaStatus> {
+	const history = readHistory(migrationsFolder);
 	const client = new Client(readDatabaseConfig(env));
 	await client.connect();
 	try {
@@ -94,31 +104,13 @@ export async function inspectCampusAgentSchema(
 		if (legacyObjects.length > 0) {
 			return {
 				appliedMigrations: 0,
-				expectedMigrations: expectedMigrationCount(),
+				expectedMigrations: history.length,
 				legacyObjects,
+				pendingMigrations: history.map((migration) => migration.name),
 				status: "legacy",
 			};
 		}
-		const relation = await client.query<{ present: boolean }>(
-			"select to_regclass($1) is not null as present",
-			[`${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`],
-		);
-		if (!relation.rows[0]?.present) {
-			return {
-				appliedMigrations: 0,
-				expectedMigrations: expectedMigrationCount(),
-				legacyObjects: [],
-				status: "missing",
-			};
-		}
-		const appliedMigrations = await readMigrationCount(client);
-		const expectedMigrations = expectedMigrationCount();
-		return {
-			appliedMigrations,
-			expectedMigrations,
-			legacyObjects: [],
-			status: appliedMigrations === expectedMigrations ? "current" : "pending",
-		};
+		return await readStatus(client, history);
 	} finally {
 		await client.end();
 	}
@@ -135,9 +127,7 @@ export async function withSchemaMigrationLock<T>(
 		return await operation();
 	} finally {
 		if (locked) {
-			await client.query("select pg_advisory_unlock(hashtextextended($1, 0))", [
-				ADVISORY_LOCK_KEY,
-			]);
+			await client.query("select pg_advisory_unlock(hashtextextended($1, 0))", [ADVISORY_LOCK_KEY]);
 		}
 	}
 }
@@ -151,7 +141,7 @@ export async function assertLegacyObjectsAbsent(client: QueryClient): Promise<vo
 
 async function readLegacyObjects(client: QueryClient): Promise<string[]> {
 	const result = await client.query<{ object_name: string }>(
-					`select object_name
+		`select object_name
 		 from unnest($1::text[]) as legacy(object_name)
 		 where case
 			when object_name = 'execution_config' then to_regnamespace(object_name) is not null
@@ -173,26 +163,39 @@ async function assertMigrationOwner(client: QueryClient): Promise<void> {
 	}
 }
 
-async function readMigrationCount(client: QueryClient): Promise<number> {
+async function readStatus(
+	client: QueryClient,
+	history: Migration[],
+): Promise<CampusAgentSchemaStatus> {
 	const relation = await client.query<{ present: boolean }>(
 		"select to_regclass($1) is not null as present",
 		[`${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`],
 	);
 	if (!relation.rows[0]?.present) {
-		return 0;
+		return {
+			appliedMigrations: 0,
+			expectedMigrations: history.length,
+			legacyObjects: [],
+			pendingMigrations: history.map((migration) => migration.name),
+			status: "missing",
+		};
 	}
-	const result = await client.query<{ count: string }>(
-		`select count(*)::text as count
-		 from ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`,
+	const columns = await client.query<{ column_name: string }>(
+		"select column_name from information_schema.columns where table_schema=$1 and table_name=$2",
+		[MIGRATIONS_SCHEMA, MIGRATIONS_TABLE],
 	);
-	return Number(result.rows[0]?.count ?? 0);
-}
-
-function expectedMigrationCount(): number {
-	const journal = JSON.parse(
-		readFileSync(resolve(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8"),
-	) as { entries?: unknown[] };
-	return Array.isArray(journal.entries) ? journal.entries.length : 0;
+	const named = columns.rows.some((column) => column.column_name === "name");
+	const applied = await client.query<AppliedMigration>(
+		`select id, hash, created_at::text${named ? ", name" : ""} from ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE} order by id`,
+	);
+	const pendingMigrations = compareHistory(history, applied.rows, named);
+	return {
+		appliedMigrations: applied.rows.length,
+		expectedMigrations: history.length,
+		legacyObjects: [],
+		pendingMigrations,
+		status: named && pendingMigrations.length === 0 ? "current" : "pending",
+	};
 }
 
 function readSslConfig(

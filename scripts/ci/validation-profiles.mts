@@ -113,14 +113,14 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresDocker: false,
 		requiresUv: true,
 	},
-	"app-api-migration": {
+	"schema-migration": {
 		shell: "ci-release",
-		installPackages: ["app-api..."],
+		installPackages: ["campus-agent-schema..."],
 		executor: {
-			commands: [turboCommand("app-api", "test:migration-integration")],
+			commands: [turboCommand("campus-agent-schema", "test:migration-integration")],
 			kind: "commands",
 		},
-		lane: "manual",
+		lane: "pull-request",
 		requiresDocker: true,
 		requiresUv: false,
 	},

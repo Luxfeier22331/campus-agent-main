@@ -4,7 +4,6 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
-import { appApiSchema } from "../src/db/schema";
 import {
 	buildEmailAccessService,
 	createPgEmailAccessGrantStore,
@@ -34,7 +33,7 @@ describe("email access PostgreSQL integration", () => {
 			 values ($1, 'Invited User', $2, false, false, false, $3, $3)`,
 			[userId, email, now],
 		);
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgEmailAccessGrantStore({} as never, { getDb: async () => database });
 		const service = buildEmailAccessService({ environment: "test", now: () => now, store });
 		const grant = await service.createGrant({
@@ -153,7 +152,7 @@ describe("email access PostgreSQL integration", () => {
 			);
 		}
 
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgEmailAccessGrantStore({} as never, { getDb: async () => database });
 		await expect(
 			store.list({ environment: "test", limit: 10, now, state: "pending" }),

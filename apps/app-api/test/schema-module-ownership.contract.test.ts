@@ -13,13 +13,8 @@ function readAppFile(relativePath: string): string {
 }
 
 describe("app-api schema and module ownership", () => {
-	it("keeps the Drizzle schema installer inputs under app-api", () => {
+	it("keeps runtime schema and product tests under app-api", () => {
 		const requiredFiles = [
-			"drizzle/0000_initial.sql",
-			"drizzle/baseline/app_auth_pre_0006.sql",
-			"drizzle/baseline/chat_pre_0001.sql",
-			"ops/db/prepare-local.ts",
-			"ops/db/schema.ts",
 			"src/db/schema/managed.ts",
 			"src/script-support/shared-db/database.ts",
 			"vitest.worker.config.mts",

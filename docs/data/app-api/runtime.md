@@ -81,7 +81,7 @@ Ops Web 也没有该表的列读取权限。它不能成为新的跨所有者接
 
 ## execution-control 投影
 
-`execution_control.agent_*` 由 `apps/execution-control` 的 schema installer 管理。`app_api` 角色不能读取
+`execution_control.agent_*` 的 DDL 由统一 `campus-agent-schema` Job 管理。`app_api` 角色不能读取
 这些表，`ops_web` 仅获得合同列的读取权限。chat dispatch、agent run 和 observability fact
 直接通过 `request_id` 关联。
 
@@ -89,6 +89,6 @@ Ops Web 也没有该表的列读取权限。它不能成为新的跨所有者接
 
 - `apps/app-api/src/db/schema/runtime.ts`
 - `apps/app-api/src/db/schema/chat.ts`
-- `apps/app-api/drizzle/0007_execution_runtime_ownership.sql`
+- `jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration.sql`
 - `apps/execution-control/internal/executionpersistence/run_projection_postgres_store.go`
 - `apps/ops-web/ops/db/ops-web-database.ts`

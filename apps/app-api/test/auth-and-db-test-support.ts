@@ -1,5 +1,4 @@
 import { vi } from "vitest";
-import currentBaselineRaw from "../drizzle/0000_initial.sql?raw";
 import * as appModule from "../src/app";
 import * as configModule from "../src/config";
 import * as runtimeDbModule from "../src/db/runtime";
@@ -97,5 +96,4 @@ export const probeAppAuthRuntime = authRuntimeModule.probeAppAuthRuntime;
 export const resolvePasswordResetRedirectTarget =
 	resetMailModule.resolvePasswordResetRedirectTarget;
 export const verifyAppPassword = authPasswordModule.verifyAppPassword;
-export const migration0000 = currentBaselineRaw;
 export { appApiSchema } from "../src/db/schema";

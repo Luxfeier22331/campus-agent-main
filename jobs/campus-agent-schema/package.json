@@ -8,15 +8,18 @@
 	"scripts": {
 		"build": "esbuild ./src/cli.ts --bundle --packages=external --platform=node --format=esm --target=node24 --outfile=dist/cli.js",
 		"migrate": "tsx src/cli.ts migrate",
+		"new": "tsx src/cli.ts new",
+		"test:migration-integration": "tsx --test test/*.integration.ts",
 		"status": "tsx src/cli.ts status",
 		"test": "tsx --test test/*.test.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"drizzle-orm": "^0.45.2",
+		"drizzle-orm": "1.0.0-rc.4",
 		"pg": "^8.23.0"
 	},
 	"devDependencies": {
+		"@testcontainers/postgresql": "12.1.0",
 		"@types/node": "^24.13.3",
 		"@types/pg": "^8.21.0",
 		"esbuild": "^0.28.2",

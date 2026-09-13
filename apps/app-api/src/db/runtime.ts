@@ -2,17 +2,16 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 
 import { type Env, isDeployedEnvironment, resolveEnvironment } from "../config";
-import { appApiSchema } from "./schema";
 
 export const APP_AUTH_SCHEMA = "app_auth";
-export type RuntimeDatabase = NodePgDatabase<typeof appApiSchema>;
+export type RuntimeDatabase = NodePgDatabase;
 export type RuntimeDbGetter = () => Promise<RuntimeDatabase>;
 
 const DEVELOPMENT_POOL_MAX = 1;
 const PRODUCTION_POOL_MAX = 4;
 const DEVELOPMENT_IDLE_TIMEOUT_MS = 5_000;
 const PRODUCTION_IDLE_TIMEOUT_MS = 30_000;
-const runtimeDatabaseCache = new WeakMap<Env, Promise<NodePgDatabase<typeof appApiSchema>>>();
+const runtimeDatabaseCache = new WeakMap<Env, Promise<NodePgDatabase>>();
 const runtimePoolCache = new WeakMap<Env, Promise<Pool>>();
 const cacheHost = globalThis as typeof globalThis & {
 	__appApiPoolCache?: Map<string, Pool>;
@@ -160,9 +159,7 @@ export async function createRuntimePool(env: Env): Promise<Pool> {
 export async function createRuntimeDatabase(env: Env): Promise<RuntimeDatabase> {
 	if (!shouldCacheRuntimeState(env)) {
 		const { drizzle } = await import("drizzle-orm/node-postgres");
-		return drizzle(await createRuntimePool(env), {
-			schema: appApiSchema,
-		});
+		return drizzle({ client: await createRuntimePool(env) });
 	}
 
 	const cached = runtimeDatabaseCache.get(env);
@@ -172,9 +169,7 @@ export async function createRuntimeDatabase(env: Env): Promise<RuntimeDatabase> 
 
 	const databasePromise = (async () => {
 		const { drizzle } = await import("drizzle-orm/node-postgres");
-		return drizzle(await createRuntimePool(env), {
-			schema: appApiSchema,
-		});
+		return drizzle({ client: await createRuntimePool(env) });
 	})();
 	runtimeDatabaseCache.set(env, databasePromise);
 	return databasePromise;
@@ -207,7 +202,7 @@ export async function probeBetterAuthDatabase(env: Env): Promise<void> {
 
 export async function withRuntimeDatabase<T>(
 	env: Env,
-	execute: (database: NodePgDatabase<typeof appApiSchema>) => Promise<T>,
+	execute: (database: NodePgDatabase) => Promise<T>,
 ): Promise<T> {
 	const config = buildRuntimeDatabaseConfig(env);
 	const environment = resolveEnvironment(env);
@@ -219,9 +214,7 @@ export async function withRuntimeDatabase<T>(
 			connectionString: config.connectionString,
 			environment,
 		});
-		const database = drizzle(pool, {
-			schema: appApiSchema,
-		});
+		const database = drizzle({ client: pool });
 
 		return execute(database);
 	}
@@ -233,9 +226,7 @@ export async function withRuntimeDatabase<T>(
 		}),
 	);
 	await client.connect();
-	const database = drizzle(client, {
-		schema: appApiSchema,
-	});
+	const database = drizzle({ client: client });
 
 	try {
 		return await execute(database);

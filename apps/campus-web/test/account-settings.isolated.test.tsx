@@ -30,7 +30,7 @@ const rootSession = vi.hoisted(() => ({
 	status: "authenticated",
 	refresh: vi.fn(),
 }));
-const memoryApi = vi.hoisted(() => ({ getProfileMemory: vi.fn() }));
+const memoryApi = vi.hoisted(() => ({ getProfileMemory: vi.fn(), listProfileMemories: vi.fn() }));
 
 vi.mock("@/platform/auth/client", async (importOriginal) => ({
 	...(await importOriginal<typeof import("../src/platform/auth/client")>()),
@@ -44,6 +44,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 vi.mock("@/features/profile-memory/api", async (importOriginal) => ({
 	...(await importOriginal<typeof import("../src/features/profile-memory/api")>()),
 	getProfileMemory: memoryApi.getProfileMemory,
+	listProfileMemories: memoryApi.listProfileMemories,
 }));
 
 import { Settings } from "../src/components/auth/settings/settings";
@@ -84,11 +85,11 @@ beforeEach(() => {
 	client.signIn.email.mockResolvedValue(rootSession.data);
 	client.requestPasswordReset.mockResolvedValue({ status: true });
 	memoryApi.getProfileMemory.mockResolvedValue({
-		itemCount: 0,
-		items: [],
+		operations: [],
 		lifecycleState: "active",
 		syncStatus: "synced",
 	});
+	memoryApi.listProfileMemories.mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
 });
 
 describe("account settings with shared UI and headless auth hooks", () => {
@@ -102,7 +103,7 @@ describe("account settings with shared UI and headless auth hooks", () => {
 		await user.click(screen.getByRole("tab", { name: "安全" }));
 		expect(navigate).toHaveBeenCalledWith({ to: "/account/settings/security" });
 		view.rerender(<Settings view="memory" />);
-		expect(await screen.findByText("还没有可管理的记忆")).toBeVisible();
+		expect(await screen.findByText("没有匹配的记忆")).toBeVisible();
 		expect(screen.queryByRole("button", { name: "注销账号" })).toBeNull();
 	});
 

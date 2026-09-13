@@ -84,7 +84,6 @@ test("validation profiles have one fail-closed registry", () => {
 	assert.deepEqual(MANUAL_VALIDATION_PROFILES, [
 		"go",
 		"ragas",
-		"app-api-migration",
 		"app-api-product-db",
 		"execution-control-postgres",
 		"execution-control-temporal",
@@ -137,6 +136,38 @@ test("docs-only changes keep automatic evidence empty", () => {
 	);
 });
 
+test("migration changes select real PostgreSQL checks and cannot pass when skipped", () => {
+	for (const file of [
+		"jobs/campus-agent-schema/src/history.ts",
+		"jobs/campus-agent-schema/migrations/20260913080000_example/migration.sql",
+		"jobs/campus-agent-schema/test/upgrade.integration.ts",
+		"jobs/campus-agent-schema/package.json",
+		"pnpm-lock.yaml",
+		"pnpm-workspace.yaml",
+	]) {
+		const plan = validationPlanFromScope(scope([file]));
+		assert(plan.validationProfiles.includes("schema-migration"), file);
+		const outcomes = Object.fromEntries(
+			[
+				"plan",
+				"install-static-dependencies",
+				"repository-lint",
+				"repository-docs",
+				"repository-test",
+				"secrets",
+				...plan.validationProfiles,
+			].map((name) => [name, "success"]),
+		);
+		checkValidationOutcomes(plan, outcomes);
+		for (const status of ["skipped", "failure", "cancelled"]) {
+			assert.throws(
+				() => checkValidationOutcomes(plan, { ...outcomes, "schema-migration": status }),
+				/schema-migration/u,
+			);
+		}
+	}
+});
+
 test("execution-control native checks are automatic while service integrations stay manual", () => {
 	const selected = profiles(
 		["apps/execution-control/internal/temporalruntime/workflow.go"],
@@ -178,10 +209,9 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 	assert.ok(plan.affectedTasks.some((task) => task.package === "app-api"));
 });
 
-test("keeps database, infrastructure, OTel, and browser checks manual", () => {
+test("keeps unrelated service, infrastructure and browser checks manual", () => {
 	for (const file of [
 		"packages/ragas-runner/tests/test_runner.py",
-		"apps/app-api/drizzle/0001.sql",
 		"apps/ops-web/src/server/internal-portal-credential-store.ts",
 		"infra/k8s/data-postgres/base/service.yaml",
 		"infra/otel/collector-local-debug.yaml",
@@ -198,8 +228,16 @@ test("keeps database, infrastructure, OTel, and browser checks manual", () => {
 });
 
 test("selects container and image evidence for Node dependency inputs", () => {
-	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["container-build", "image-build"]);
-	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), ["container-build", "image-build"]);
+	assert.deepEqual(profiles(["pnpm-lock.yaml"]), [
+		"container-build",
+		"image-build",
+		"schema-migration",
+	]);
+	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), [
+		"container-build",
+		"image-build",
+		"schema-migration",
+	]);
 	assert.deepEqual(profiles(["uv.lock"]), []);
 	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["container-build", "image-build"]);
 });
@@ -242,6 +280,7 @@ test("keeps static lint ownership outside the affected validation plan", () => {
 	assert.deepEqual(profiles(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), [
 		"container-build",
 		"image-build",
+		"schema-migration",
 	]);
 	assert.deepEqual(
 		validationPlanFromScope(scope(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"])).lightSurfaces,

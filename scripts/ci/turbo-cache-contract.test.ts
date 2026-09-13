@@ -123,7 +123,7 @@ test("every root Turbo task has a tracked workspace script owner", () => {
 
 test("expensive package tasks declare boundary-specific affected inputs", () => {
 	const owners: [string, string[]][] = [
-		["apps/app-api/turbo.json", ["test:migration-integration", "test:shared-db-integration"]],
+		["apps/app-api/turbo.json", ["test:shared-db-integration"]],
 		["apps/campus-web/turbo.json", ["test:e2e:full", "test:e2e:smoke"]],
 		["apps/execution-control/turbo.json", ["test:database-integration"]],
 		["apps/model-config/turbo.json", ["test:database-integration"]],

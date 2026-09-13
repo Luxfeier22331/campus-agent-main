@@ -91,27 +91,30 @@ Secret。
 
 ## 迁移合同
 
-新建或重建数据库只有一个可执行 DDL 入口：`jobs/campus-agent-schema`。它以 `campus_agent` 连接，
+数据库安装和后续升级只有一个可执行 DDL 入口：`jobs/campus-agent-schema`。它以 `campus_agent` 连接，
 使用 PostgreSQL advisory lock，并把全部产品 schema 记录在
 `drizzle.campus_agent_migrations`。逻辑数据所有权和运行角色权限仍按上节划分；共享 migration ledger
 不表示应用之间共享写权限。
 
-- `migrations/0000_campus_agent_baseline.sql` 是 schema-only 的最终结构基线，不包含校园群组、测试
+- `migrations/20260827151741_0000_campus_agent_baseline/migration.sql` 是 schema-only 的最终结构基线，不包含校园群组、测试
   用户、通知分类、Dining 草稿或其他业务数据；这些内容由独立 seed 写入；
 - 已应用的统一 migration 不得修改或重排。结构变化更新所属声明式 schema，并在
-  `jobs/campus-agent-schema/migrations/` 追加下一条 SQL 与 journal 记录；不再新增领域 ledger；
+  `jobs/campus-agent-schema/migrations/` 追加下一条带时间戳和序号的 SQL 目录；不再新增领域 ledger、journal 或 snapshot；
 - migrator 只接受标准 `PG*` 环境变量，运行用户必须是 `campus_agent`。常驻 Store、Better Auth、
   publisher 和业务 bootstrap 不执行 DDL；
-- 新入口不是旧数据库的原位升级器。发现 `drizzle.app_api_migrations`、
+- 已使用统一 ledger 的 v0 数据库原位升级到 Drizzle ORM `1.0.0-rc.4` 的具名记录，保留原 ID、hash 和
+  `created_at`，按缺失名称补跑 SQL，不再以最大时间戳过滤；已有记录与本地 SQL 不符时明确失败；
+- 不接管仍使用领域 runner 的旧数据库。发现 `drizzle.app_api_migrations`、
   `drizzle.ops_web_dining_migrations`、`public.execution_control_migrations`、
   `model_config.schema_migrations`、`notices.schema_migrations` 或 `execution_config` 时明确失败；
 - 应用自有 migration 文件、runner 和 legacy integration profile 已退役，不构成线上 upgrade 合同；线上统一
   使用 schema Job 按环境 revision 应用当前结构；源码仓不直接修改在线数据库；
 - `0002_remove_runtime_personal_memory_compat_views` 只删除无消费者的 `runtime.*` 个人记忆兼容 View，
   不删除 `execution_control.personal_memory_*` 表或其数据；
-- 修改统一 migration 后，至少验证空库首次执行、重复执行、owner 与关键 ACL、旧对象拒绝、退役 View
-  消失且底层表仍在，以及两个并发 migrator 的串行结果。验证可以直接使用隔离的本地 PostgreSQL，
-  不要求重型 Testcontainers。
+- `status` 只读比较具名历史和 SQL hash，返回具体 `pendingMigrations`；旧 ledger 即使数量相等也不能
+  报 `current`。`migrate` 在同一 advisory lock 内检查历史、执行原生 migrator，并确认没有遗漏后才成功；
+- `pnpm --dir jobs/campus-agent-schema test:migration-integration` 使用隔离 PostgreSQL 验证空库、旧统一
+  ledger（含遗漏 migration）、重复/并发执行、关键 ACL、未知历史拒绝和 SQL 失败回滚/重试。
 
 `campus_docs_serving` 与其他 schema 共用统一 ledger；publisher 只写业务记录，不执行 DDL。
 
@@ -210,13 +213,13 @@ workload 只使用运行角色。
 
 ## 可执行来源
 
-- 当前 DDL、授权和 migration journal：`jobs/campus-agent-schema/`
+- 当前 DDL、授权和具名 SQL migration：`jobs/campus-agent-schema/`
 - App API 声明式 schema：`apps/app-api/src/db/schema/`
 - Ops Web 声明式 schema：`packages/domains/dining/src/schema.ts`、
   `apps/ops-web/ops/db/internal-portal-schema.ts`
 - 本地业务 seed：`apps/app-api/ops/db/`、`jobs/notice-publisher/src/seed-local.ts`、
   `apps/ops-web/ops/db/`
-- `apps/app-api/drizzle/` 仍是 App API 自有声明式迁移的可执行来源；其他应用自有 schema runner、旧 migration
+- `apps/app-api/src/db/schema/` 只描述 App API 所属表，不再提供可执行 migration runner；其他应用自有 schema runner、旧 migration
   目录和 legacy integration profile 已退役。当前新建或重建数据库只通过 `jobs/campus-agent-schema/` 安装。
 
 ## 相关文档

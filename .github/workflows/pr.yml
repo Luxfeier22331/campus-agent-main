@@ -364,6 +364,15 @@ jobs:
             ${{ runner.temp }}/go-cache/mod
             ${{ runner.temp }}/go-cache/lint
           key: ${{ steps.restore_go.outputs.cache-primary-key }}
+      - name: Verify unified database upgrade
+        id: schema_migration
+        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'schema-migration')"
+        continue-on-error: true
+        shell: nix develop .#ci-release --command bash -e {0}
+        run: |
+          pnpm install --frozen-lockfile --filter campus-agent-schema...
+          node --experimental-strip-types scripts/ci/evidence.mts --profiles '["schema-migration"]'
+
       - name: Summarize repository evidence
         if: always()
         shell: nix develop .#ci-core --command bash -e {0}
@@ -372,6 +381,7 @@ jobs:
             {
               "plan":"${{ steps.plan.outcome }}",
               "affected-node":"${{ steps.node_evidence.outcome }}",
+              "schema-migration":"${{ steps.schema_migration.outcome }}",
               "container-build":"${{ steps.container_build.outcome }}",
               "contracts":"${{ steps.contracts.outcome }}",
               "affected-native":"${{ steps.native_evidence.outcome }}",

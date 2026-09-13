@@ -27,7 +27,11 @@ status: active
 
 Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 endpoint、model 或 key
 变化时修改环境仓拥有的 Helm values/Secret，并由 Argo CD 更新工作负载。源码仓与 Ops Web 不维护
-第二套配置投影。Bank Config API 只管理 bank 行为，不会热更新这些 provider 设置。\n\n网关拒绝 SDK 请求但相同认证的普通 HTTP 请求成功时，对照客户端请求头与网关规则。\nHindsight 支持 `HINDSIGHT_API_LLM_DEFAULT_HEADERS`，本地 Compose 可透传；仅在确认需要时\n配置明确的组件 User-Agent。不要把 HTTP 403 当作模型不存在或盲目重试。
+第二套配置投影。Bank Config API 只管理 bank 行为，不会热更新这些 provider 设置。
+
+网关拒绝 SDK 请求但相同认证的普通 HTTP 请求成功时，对照客户端请求头与网关规则。Hindsight 支持
+`HINDSIGHT_API_LLM_DEFAULT_HEADERS`，本地 Compose 可透传；仅在确认需要时配置明确的组件 User-Agent。
+不要把 HTTP 403 当作模型不存在或盲目重试。
 
 ## Bank 配置
 
@@ -77,7 +81,7 @@ Ops 请求页观察 memory.append 从 pending/running 到 completed、skipped �
    不清空 Temporal namespace。确认没有旧调用继续写入后再清除 bank。
 3. 对列明的产品 bank 调用原生 DeleteBank，确认不存在。包括失败擦除留下的旧代次 bank；
    不删除 Hindsight 的整个数据库、其他应用 bank 或共享对象存储。
-4. 按现有 schema job 应用 `0013_personal_memory_management.sql`。此迁移移除旧条目镜像、
+4. 按现有 schema job 应用 `20260912000000_0015_personal_memory_management/migration.sql`。此迁移移除旧条目镜像、
    来源删除表、旧命令正文及聊天调用序号，并把已有设置标为 erased；保留账户、聊天、通知及 RAG。
 5. settings 的 generation/command_sequence 不归零。在已清除 bank 且无在途调用后，对对应 owner
    的 runtime fence 同步为 erased，保持当前 generation 和最后命令序号；移除这些 owner 的旧

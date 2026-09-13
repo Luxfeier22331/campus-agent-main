@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import campusWebWorker from "../../campus-web/test-support/worker";
 import { createApp } from "../src/app";
 import type { Env } from "../src/config";
-import { appApiSchema } from "../src/db/schema";
 import {
 	buildAccountLifecycleService,
 	createPgAccountLifecycleStore,
@@ -255,7 +254,7 @@ describe("account journeys PostgreSQL integration", () => {
 				},
 			},
 		});
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		lifecycle = buildAccountLifecycleService({
 			executionController: {
 				beginOwnerDeletion: async () => ({ activeRunCount: 0, state: "draining" as const }),
@@ -347,7 +346,7 @@ describe("account journeys PostgreSQL integration", () => {
 
 	it("claims an external invitation only after email verification", async () => {
 		const email = `journey-invited-${Date.now()}@example.com`;
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const access = buildEmailAccessService({
 			environment: "test",
 			store: createPgEmailAccessGrantStore(env, { getDb: async () => database }),
@@ -460,7 +459,7 @@ describe("account journeys PostgreSQL integration", () => {
 		const suffix = Date.now();
 		const oldEmail = `journey-change-${suffix}@muc.edu.cn`;
 		const newEmail = `journey-change-${suffix}@example.com`;
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const access = buildEmailAccessService({
 			environment: "test",
 			store: createPgEmailAccessGrantStore(env, { getDb: async () => database }),

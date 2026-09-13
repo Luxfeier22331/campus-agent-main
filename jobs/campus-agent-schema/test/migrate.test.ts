@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { compareHistory, readHistory } from "../src/history.ts";
 
 import {
 	assertLegacyObjectsAbsent,
@@ -14,7 +15,10 @@ import {
 const jobRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("the baseline is a schema-only unified migration", async () => {
-	const baseline = await readFile(resolve(jobRoot, "migrations/0000_campus_agent_baseline.sql"), "utf8");
+	const baseline = await readFile(
+		resolve(jobRoot, "migrations/20260827151741_0000_campus_agent_baseline/migration.sql"),
+		"utf8",
+	);
 	assert.doesNotMatch(baseline, /\\(?:restrict|unrestrict)/u);
 	assert.doesNotMatch(baseline, /CREATE SCHEMA drizzle/u);
 	for (const legacyObject of legacyObjects) {
@@ -27,7 +31,10 @@ test("the baseline is a schema-only unified migration", async () => {
 
 test("the personal-memory cleanup migration only drops the compatibility views", async () => {
 	const migration = await readFile(
-		resolve(jobRoot, "migrations/0002_remove_runtime_personal_memory_compat_views.sql"),
+		resolve(
+			jobRoot,
+			"migrations/20260830172703_0002_remove_runtime_personal_memory_compat_views/migration.sql",
+		),
 		"utf8",
 	);
 	assert.equal(
@@ -43,7 +50,10 @@ test("the personal-memory cleanup migration only drops the compatibility views",
 
 test("the Ops Web step timing migration grants only the required read columns", async () => {
 	const migration = await readFile(
-		resolve(jobRoot, "migrations/0004_grant_ops_web_step_activity_attempt.sql"),
+		resolve(
+			jobRoot,
+			"migrations/20260905233000_0004_grant_ops_web_step_activity_attempt/migration.sql",
+		),
 		"utf8",
 	);
 	assert.equal(
@@ -57,22 +67,19 @@ test("the Ops Web step timing migration grants only the required read columns", 
 	assert.doesNotMatch(migration, /GRANT SELECT ON TABLE|INSERT|UPDATE|DELETE|REVOKE/u);
 });
 
-test("the migration journal records the compatibility-view cleanup after existing migrations", async () => {
-	const journal = JSON.parse(
-		await readFile(resolve(jobRoot, "migrations/meta/_journal.json"), "utf8"),
-	) as {
-		entries?: Array<{ idx?: number; tag?: string }>;
-	};
-	const cleanupEntry = journal.entries?.find(
-		(entry) => entry.tag === "0002_remove_runtime_personal_memory_compat_views",
+test("released v0 history maps uniquely without changing SQL", async () => {
+	const history = readHistory(resolve(jobRoot, "migrations"));
+	const fixture = JSON.parse(
+		await readFile(new URL("fixtures/v0-history.json", import.meta.url), "utf8"),
 	);
-	assert.equal(cleanupEntry?.idx, 2);
-	assert.equal(cleanupEntry?.tag, "0002_remove_runtime_personal_memory_compat_views");
-	const timingEntry = journal.entries?.find(
-		(entry) => entry.tag === "0004_grant_ops_web_step_activity_attempt",
+	assert.deepEqual(
+		compareHistory(
+			history,
+			fixture.map((row: object, index: number) => ({ ...row, id: index + 1 })),
+			false,
+		),
+		[],
 	);
-	assert.equal(timingEntry?.idx, 4);
-	assert.equal(timingEntry?.tag, "0004_grant_ops_web_step_activity_attempt");
 });
 
 test("database configuration uses the standard PostgreSQL environment", () => {
@@ -97,9 +104,7 @@ test("database configuration uses the standard PostgreSQL environment", () => {
 test("schema migration lock is released after success and failure", async () => {
 	const queries: string[] = [];
 	const client = {
-		async query<T extends object = object>(
-			query: string,
-		): Promise<{ rows: T[] }> {
+		async query<T extends object = object>(query: string): Promise<{ rows: T[] }> {
 			queries.push(query);
 			return { rows: [] as T[] };
 		},

@@ -79,6 +79,18 @@ function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	const files = scope.changedFiles;
 	const selected = new Set<ValidationProfile>();
+	if (
+		[
+			"jobs/campus-agent-schema/src",
+			"jobs/campus-agent-schema/migrations",
+			"jobs/campus-agent-schema/test",
+			"jobs/campus-agent-schema/package.json",
+			"pnpm-lock.yaml",
+			"pnpm-workspace.yaml",
+		].some((prefix) => changesPath(files, prefix))
+	) {
+		selected.add("schema-migration");
+	}
 	if (scope.tasks.some(({ task }) => AFFECTED_NODE_TASKS.has(task))) {
 		selected.add("affected-node");
 	}
@@ -98,6 +110,10 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 export function validationPlanFromScope(scope: AffectedScope): ValidationPlan {
 	const validationProfiles = selectValidationProfiles(scope);
 	const reasons: Partial<Record<ValidationProfile, [string, string]>> = {
+		"schema-migration": [
+			"Unified migration or dependency inputs changed",
+			"No unified migration inputs changed",
+		],
 		"affected-node": ["Affected task graph contains Node tasks", "No affected Node tasks"],
 		"affected-native": ["Affected task graph contains native tasks", "No affected native tasks"],
 		"image-build": ["Affected scope selects image targets", "No affected image targets"],

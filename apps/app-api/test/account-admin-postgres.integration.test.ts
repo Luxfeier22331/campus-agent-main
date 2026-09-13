@@ -4,7 +4,6 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
-import { appApiSchema } from "../src/db/schema";
 import { createPgAccountAdminStore } from "../src/modules/account-admin";
 
 const postgres = inject("appApiPostgres");
@@ -51,7 +50,7 @@ describe("account administration PostgreSQL integration", () => {
 				expiredAt,
 			],
 		);
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgAccountAdminStore(testEnv, { getDb: async () => database });
 
 		await expect(store.listUsers({ limit: 10, query: userId })).resolves.toMatchObject({
@@ -89,7 +88,7 @@ describe("account administration PostgreSQL integration", () => {
 				],
 			);
 		}
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgAccountAdminStore(testEnv, { getDb: async () => database });
 		const first = await store.listUsers({ limit: 2, query: `page-${suffix}` });
 		expect(first.items.map((item) => item.id)).toEqual([`page-${suffix}-c`, `page-${suffix}-b`]);
@@ -144,7 +143,7 @@ describe("account administration PostgreSQL integration", () => {
 			[new Date("2026-07-21T00:00:00.000Z"), now, users[1].email, `grant-${suffix}`, users[1].id],
 		);
 
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgAccountAdminStore(testEnv, {
 			getDb: async () => database,
 			now: () => now,
@@ -197,7 +196,7 @@ describe("account administration PostgreSQL integration", () => {
 			 values ($1, $2, $3, $1, 'pending', $1)`,
 			[now, userId, `unban-request-${suffix}`],
 		);
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgAccountAdminStore(testEnv, {
 			getDb: async () => database,
 		});
@@ -227,7 +226,7 @@ describe("account administration PostgreSQL integration", () => {
 				`recent-key-${suffix}`,
 			],
 		);
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgAccountAdminStore(testEnv, { getDb: async () => database });
 		await expect(
 			store.markStaleCommandsIndeterminate(new Date("2026-07-20T00:30:00.000Z")),

@@ -47,7 +47,7 @@ repos:
         # CI sources Nix's prepared environment; local hooks retain their flake entrypoint.
         entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- editorconfig-checker -no-color -disable-indentation -disable-indent-size
         language: system
-        exclude: '(^|/)(dist|node_modules|\.tmp|drizzle/meta)(/|$)'
+        exclude: '(^|/)(dist|node_modules|\.tmp)(/|$)'
 
       - id: ruff-check
         name: Ruff lint
@@ -72,9 +72,7 @@ repos:
         # Match .sqlfluffignore before passing explicit filenames to SQLFluff.
         exclude: >-
           (?x)^(
-            apps/app-api/drizzle/|
-            apps/app-api/test/fixtures/(app-auth-pre-drizzle|chat-pre-0001)\.sql$|
-            jobs/campus-agent-schema/migrations/0000_campus_agent_baseline\.sql$
+            jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration\.sql$
           )
 
       - id: yamllint

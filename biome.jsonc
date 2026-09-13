@@ -14,14 +14,14 @@
 			"turbo.json",
 			"apps/**",
 			"jobs/document-ocr/**",
+			"jobs/campus-agent-schema/**",
 			"packages/**",
 			"configs/**",
 			"scripts/**",
 			"!!apps/campus-web/assets/campus-map",
 			"!!apps/campus-web/data/campus-map",
 			"!!.tmp",
-			"!!var",
-			"!!apps/app-api/drizzle/meta"
+			"!!var"
 		]
 	},
 	"formatter": {

@@ -275,7 +275,7 @@ test("publishes the unified schema image for a schema job change", async (t) => 
 	const runner = syntheticScopeRunner(
 		changed(
 			"jobs/campus-agent-schema/src/migrate.ts",
-			"jobs/campus-agent-schema/migrations/0000_campus_agent_baseline.sql",
+			"jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration.sql",
 		),
 		[],
 	);

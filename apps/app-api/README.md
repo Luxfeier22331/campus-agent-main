@@ -48,21 +48,14 @@ Workers VPC binding 访问集群内对象存储，不持有 S3 凭据或使用�
 校园地图由 Campus Web 独占所有权和静态交付，入口为 Campus Web 的 `/campus-map/manifest.json`；
 App API 不再提供地图路由、地点 read model 或地图静态资产，也不保留兼容 binding。
 
-数据库 schema 与角色边界由 `docs/data/postgres-ownership.md` 维护，安装和迁移实现位于应用
-`ops/db/` 与 schema Job；README 不复制表清单和部署步骤。
+数据库 schema 与角色边界由 `docs/data/postgres-ownership.md` 维护；统一安装和迁移实现位于
+`jobs/campus-agent-schema/`，README 不复制表清单和部署步骤。
 
 Better Auth 负责认证运行时，认证表定义由 `src/db/schema/auth.ts` 统一纳入应用 Drizzle schema。
-`app_auth.*` 的建表、升级和 migration ledger 只由 `apps/app-api/drizzle/` 与 schema Job 管理，
-运行时和部署脚本不调用 Better Auth `getMigrations()`。调整 Better Auth 核心字段或插件时，应先按
-Better Auth 官方 Drizzle adapter schema 更新 `auth.ts`，再使用 Drizzle Kit 生成并审查迁移。
-`drizzle/baseline/chat_pre_0001.sql` 是聊天表接管前的不可变结构，
-`drizzle/baseline/app_auth_pre_0006.sql` 只补齐当时已存在的 `app_auth` namespace；两者都不是
-当前 schema。`test/fixtures/app-auth-pre-drizzle.sql` 只用于验证更早的认证表升级。修改声明式
-schema 后运行
-`pnpm --dir apps/app-api db:generate` 生成下一条 migration，并用
-`pnpm --dir apps/app-api db:check` 检查 journal 与 snapshot；
-不得修改已应用 SQL。提交 PR 前运行 `pnpm --dir apps/app-api test:migration-integration`，同时覆盖历史升级、空数据库、
-未知部分状态和 migration hash 校验。
+`app_auth.*` 的建表、升级和 migration ledger 由 `jobs/campus-agent-schema/` 统一管理；运行时和部署脚本
+不调用 Better Auth `getMigrations()`，也不再维护 App API 专属 migration 目录。调整 Better Auth 核心字段
+或插件时，先按官方 Drizzle adapter schema 更新 `auth.ts`，再在统一 migration Job 中提交审查后的 SQL。
+已应用 SQL 不得修改；空库、旧 ledger、重复执行、未知状态和 hash 校验由 schema Job 的测试覆盖。
 Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET`、`AUTH_SHELL_ORIGIN` 和
 `AUTH_TURNSTILE_SECRET_KEY`；`APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` 是聊天准入和就绪检查的核心
 输入。认证邮件仅在实际发送时读取 `AUTH_EMAIL_FROM` 和 `RESEND_API_KEY`；`AUTH_EMAIL_FROM` 同时作为
@@ -78,15 +71,13 @@ pnpm --dir apps/app-api dev
 pnpm --dir apps/app-api test
 pnpm --dir apps/app-api test:worker
 pnpm --dir apps/app-api test:shared-db-integration
-pnpm --dir apps/app-api test:migration-integration
 pnpm --dir apps/app-api typecheck
-pnpm --dir apps/app-api db:generate
-pnpm --dir apps/app-api db:check
+pnpm --dir jobs/campus-agent-schema test:migration-integration
 ```
 
 `pnpm dev:init -- --target core` 为当前 worktree 生成隔离的本地配置和数据库。数据库结构变化通过声明式 schema 和
 `jobs/campus-agent-schema` 中新增的统一 migration 完成；不得修改已应用 SQL。`ops/db/` 只保留显式
-seed、授权来源和本地 migration 测试所需代码，业务 seed 不进入 migration。
+seed、授权来源和业务测试所需代码，业务 seed 不进入 migration。
 
 ## 相关文档
 

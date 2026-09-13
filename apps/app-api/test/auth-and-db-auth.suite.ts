@@ -8,7 +8,6 @@ import {
 	enforceSignupLegalConsent,
 	hashAppPassword,
 	isCampusEmail,
-	migration0000,
 	resolvePasswordResetRedirectTarget,
 	verifyAppPassword,
 } from "./auth-and-db-test-support";
@@ -577,20 +576,6 @@ export function registerAppApiAuthConfigSuite() {
 				]),
 			);
 			expect(Object.keys(appApiSchema).some((key) => key.startsWith("identity"))).toBe(false);
-		});
-
-		it("creates every table schema before baseline tables", () => {
-			const tableSchemas = new Set(
-				[...migration0000.matchAll(/CREATE TABLE "([^"]+)"/gu)].map((match) => match[1]),
-			);
-			for (const schema of tableSchemas) {
-				const createSchema = `CREATE SCHEMA IF NOT EXISTS "${schema}";`;
-				const firstTable = `CREATE TABLE "${schema}".`;
-				expect(migration0000.indexOf(createSchema), schema).toBeGreaterThanOrEqual(0);
-				expect(migration0000.indexOf(createSchema), schema).toBeLessThan(
-					migration0000.indexOf(firstTable),
-				);
-			}
 		});
 
 		it("admits only the exact muc.edu.cn campus email domain", () => {

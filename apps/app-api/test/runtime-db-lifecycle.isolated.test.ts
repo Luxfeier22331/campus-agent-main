@@ -2,7 +2,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withRuntimeDatabase } from "../src/db/runtime";
-import { appApiSchema } from "../src/db/schema";
 
 const globalScope = globalThis as typeof globalThis & {
 	WebSocketPair?: unknown;
@@ -20,7 +19,6 @@ const runtimeDbState = vi.hoisted(() => ({
 	}>,
 	drizzleCalls: [] as Array<{
 		client: unknown;
-		config: unknown;
 	}>,
 }));
 
@@ -47,15 +45,13 @@ vi.mock("pg", () => ({
 }));
 
 vi.mock("drizzle-orm/node-postgres", () => ({
-	drizzle: vi.fn((client: unknown, config: unknown) => {
+	drizzle: vi.fn(({ client }: { client: unknown }) => {
 		runtimeDbState.drizzleCalls.push({
 			client,
-			config,
 		});
 
 		return {
 			client,
-			config,
 			kind: "mock-runtime-db",
 		};
 	}),
@@ -113,16 +109,10 @@ describe("withRuntimeDatabase", () => {
 
 		expect(firstDatabase).toEqual({
 			client: firstClient,
-			config: {
-				schema: appApiSchema,
-			},
 			kind: "mock-runtime-db",
 		});
 		expect(secondDatabase).toEqual({
 			client: secondClient,
-			config: {
-				schema: appApiSchema,
-			},
 			kind: "mock-runtime-db",
 		});
 	});
@@ -157,16 +147,10 @@ describe("withRuntimeDatabase", () => {
 		});
 		expect(firstDatabase).toEqual({
 			client: pool,
-			config: {
-				schema: appApiSchema,
-			},
 			kind: "mock-runtime-db",
 		});
 		expect(secondDatabase).toEqual({
 			client: pool,
-			config: {
-				schema: appApiSchema,
-			},
 			kind: "mock-runtime-db",
 		});
 	});

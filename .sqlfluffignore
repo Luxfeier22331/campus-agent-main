@@ -1,5 +1,3 @@
-apps/app-api/drizzle/
-apps/app-api/test/fixtures/app-auth-pre-drizzle.sql
 apps/app-api/test/fixtures/chat-pre-0001.sql
 # Immutable pg_dump baseline; executed by the PostgreSQL migration integration suites.
-jobs/campus-agent-schema/migrations/0000_campus_agent_baseline.sql
+jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration.sql

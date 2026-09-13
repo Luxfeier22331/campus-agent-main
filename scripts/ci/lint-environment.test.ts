@@ -177,6 +177,10 @@ test("SQL hook excludes match SQLFluff ignores while later handwritten migration
 			file,
 		);
 	}
-	assert(exclude.test("jobs/campus-agent-schema/migrations/0000_campus_agent_baseline.sql"));
+	assert(
+		exclude.test(
+			"jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration.sql",
+		),
+	);
 	assert(!exclude.test("jobs/campus-agent-schema/migrations/0005_handwritten.sql"));
 });

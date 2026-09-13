@@ -5,7 +5,6 @@ import { Client, Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
 import type { Env } from "../src/config";
-import { appApiSchema } from "../src/db/schema";
 import { createPgAccountLifecycleStore } from "../src/modules/account-lifecycle";
 
 const postgres = inject("appApiPostgres");
@@ -79,7 +78,7 @@ describe("account lifecycle PostgreSQL integration", () => {
 			[`verification-${suffix}`, `reset-password:token-${suffix}`, userId, expiresAt, now],
 		);
 
-		const database = drizzle(client, { schema: appApiSchema });
+		const database = drizzle({ client: client });
 		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });
 		await expect(
 			store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: now }),
@@ -171,7 +170,7 @@ describe("account lifecycle PostgreSQL integration", () => {
 			 values ($1, 'Campus User', $2, true, false, false, $3, $3)`,
 			[userId, `${suffix}@muc.edu.cn`, now],
 		);
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });
 		await store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: now });
 
@@ -241,7 +240,7 @@ describe("account lifecycle PostgreSQL integration", () => {
 			 values ($1, 'Campus User', $2, true, false, false, $3, $3)`,
 			[userId, `${suffix}@muc.edu.cn`, startedAt],
 		);
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });
 		await store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: startedAt });
 		const [claimed] = await store.claimPending({
@@ -344,7 +343,7 @@ describe("account lifecycle PostgreSQL integration", () => {
 			 values ($1, $2, 'campus-web', 'campus_member', 'completed', $3, $3, $3)`,
 			[`request-${suffix}`, conversationId, now],
 		);
-		const database = drizzle(pool, { schema: appApiSchema });
+		const database = drizzle({ client: pool });
 		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });
 		await store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: now });
 		const [claimed] = await store.claimPending({

@@ -35,19 +35,9 @@
 				"$TURBO_ROOT$/turbo.json"
 			]
 		},
-		"test:migration-integration": {
-			"inputs": [
-				"package.json",
-				"drizzle/**",
-				"ops/db/**",
-				"src/db/**",
-				"src/modules/profile-memory/**",
-				"test/app-api-migration-upgrade.integration.test.ts",
-				"vitest.migration-integration.config.mts"
-			]
-		},
 		"test:shared-db-integration": {
 			"inputs": [
+				"$TURBO_ROOT$/jobs/campus-agent-schema/**",
 				"package.json",
 				"src/**",
 				"test/*postgres.integration.test.ts",
