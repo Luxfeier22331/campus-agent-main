@@ -23,8 +23,8 @@ if (!sourceDir) {
 loadEnvFile(resolve(root, "apps/app-api/.env.local"));
 loadEnvFile(resolve(root, "apps/ops-web/.env.local"));
 const profile = JSON.parse(readFileSync(resolve(root, "var/dev/profile.json"), "utf8"));
-const dbUrl = new URL(process.env.APP_API_SCHEMA_DATABASE_URL!);
-const endpoint = new URL(process.env.OBJECT_STORE_ENDPOINT!);
+const dbUrl = new URL(requiredEnv("APP_API_SCHEMA_DATABASE_URL"));
+const endpoint = new URL(requiredEnv("OBJECT_STORE_ENDPOINT"));
 if (
 	dbUrl.hostname !== "127.0.0.1" ||
 	dbUrl.pathname !== `/${profile.databaseName}` ||
@@ -39,52 +39,54 @@ const objectStore = new S3Client({
 	region: "us-east-1",
 	forcePathStyle: true,
 	credentials: {
-		accessKeyId: process.env.OBJECT_STORE_DERIVED_ACCESS_KEY!,
-		secretAccessKey: process.env.OBJECT_STORE_DERIVED_SECRET_KEY!,
+		accessKeyId: requiredEnv("OBJECT_STORE_DERIVED_ACCESS_KEY"),
+		secretAccessKey: requiredEnv("OBJECT_STORE_DERIVED_SECRET_KEY"),
 	},
 });
 const samples = JSON.parse(
 	readFileSync(resolve(sourceDir, "additional-schedule-samples.json"), "utf8"),
 );
-const notices = [355867, 357803, 356341, 357813, 358327, 353903, 354343, 355512, 351862].map(
-	(noticeId) => {
-		const file = resolve(sourceDir, `internal_portal_notices_${noticeId}.json`);
-		const raw = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
-		const sample = samples.find((entry: { notice_id: number }) => entry.notice_id === noticeId);
-		const title = raw?.notice_title ?? sample?.title;
-		if (!title) {
-			throw new Error(`Missing saved notice ${noticeId}`);
-		}
-		const content = raw
-			? normalizeNoticeContent({
-					html: raw.notice_content_html,
-					title,
-					portalHost: "my.muc.edu.cn",
-				})
-			: { contentHtml: sample.content_html, contentText: sample.content_text, images: [] };
-		const images = content.images.map((image) => {
-			const body = readFileSync(
-				resolve(sourceDir, `internal_portal_notices_${noticeId}_images_${image.sourceOrdinal}`),
-			);
-			return {
-				ordinal: image.ordinal,
-				body,
-				sha: createHash("sha256").update(body).digest("hex"),
-				contentType: body[0] === 0x89 ? "image/png" : "image/jpeg",
-			};
-		});
-		if (!raw && /notice-asset:image:/u.test(content.contentHtml ?? "")) {
-			throw new Error(`Raw image source required for ${noticeId}`);
-		}
+// Consume every saved notice that can be imported without inventing attachment
+// contents. Notices without a complete timetable remain notice-only records.
+const notices = [
+	349168, 349494, 351862, 353903, 354343, 355512, 355867, 356341, 357813, 358327, 245395,
+].map((noticeId) => {
+	const file = resolve(sourceDir, `internal_portal_notices_${noticeId}.json`);
+	const raw = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
+	const sample = samples.find((entry: { notice_id: number }) => entry.notice_id === noticeId);
+	const title = raw?.notice_title ?? sample?.title;
+	if (!title) {
+		throw new Error(`Missing saved notice ${noticeId}`);
+	}
+	const content = raw
+		? normalizeNoticeContent({
+				html: raw.notice_content_html,
+				title,
+				portalHost: "my.muc.edu.cn",
+			})
+		: { contentHtml: sample.content_html, contentText: sample.content_text, images: [] };
+	const images = content.images.map((image) => {
+		const body = readFileSync(
+			resolve(sourceDir, `internal_portal_notices_${noticeId}_images_${image.sourceOrdinal}`),
+		);
 		return {
-			noticeId,
-			title,
-			released: raw ? `${raw.notice_release_time.replace(" ", "T")}:00+08:00` : sample.released_at,
-			content,
-			images,
+			ordinal: image.ordinal,
+			body,
+			sha: createHash("sha256").update(body).digest("hex"),
+			contentType: body[0] === 0x89 ? "image/png" : "image/jpeg",
 		};
-	},
-);
+	});
+	if (!raw && /notice-asset:image:/u.test(content.contentHtml ?? "")) {
+		throw new Error(`Raw image source required for ${noticeId}`);
+	}
+	return {
+		noticeId,
+		title,
+		released: raw ? `${raw.notice_release_time.replace(" ", "T")}:00+08:00` : sample.released_at,
+		content,
+		images,
+	};
+});
 await db.connect();
 try {
 	await db.query("begin");
@@ -107,7 +109,7 @@ try {
 		for (const image of notice.images) {
 			await objectStore.send(
 				new PutObjectCommand({
-					Bucket: process.env.OBJECT_STORE_BUCKET_DERIVED!,
+					Bucket: requiredEnv("OBJECT_STORE_BUCKET_DERIVED"),
 					Key: `notices/assets/sha256/${image.sha}`,
 					Body: image.body,
 					ContentType: image.contentType,
@@ -123,10 +125,7 @@ try {
 	const historical = [
 		...MAY_DAY_PERIODS,
 		...SUMMER_PERIODS,
-		...PERMANENT_INCREASE_PERIODS.map((p) => ({
-			...p,
-			input: { ...p.input, validTo: "2026-09-04" },
-		})),
+		...PERMANENT_INCREASE_PERIODS,
 		...SUBWAY_SUSPENSIONS,
 	];
 	for (const fixture of historical) {
@@ -199,4 +198,12 @@ try {
 } finally {
 	await db.end();
 	objectStore.destroy();
+}
+
+function requiredEnv(name: string): string {
+	const value = process.env[name];
+	if (!value) {
+		throw new Error(`Missing required environment variable: ${name}`);
+	}
+	return value;
 }

@@ -67,6 +67,7 @@ export const TransportOpsScheduleItemSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const TransportOpsSchedulePeriodSchema = TransportSchedulePeriodInputSchema.safeExtend({
+	sourceReleasedAt: isoDateTime.nullable(),
 	createdAt: isoDateTime,
 	updatedAt: isoDateTime,
 	updatedBy: identifier,

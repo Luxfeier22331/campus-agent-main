@@ -1,4 +1,8 @@
 import {
+	type NoticeAutomationInput,
+	NoticeAutomationSchema,
+} from "../../shared/notice-automation-contract";
+import {
 	type NoticeCategoryUpdate,
 	NoticeCategoryUpdateSchema,
 	NoticeDetailResponseSchema,
@@ -10,6 +14,19 @@ import {
 	type NoticeState,
 } from "../../shared/ops-contract";
 import { fetchJson } from "./core";
+
+export async function fetchNoticeAutomation(options: { signal?: AbortSignal } = {}) {
+	return NoticeAutomationSchema.parse(await fetchJson("/api/ops/notices/automation", options));
+}
+export async function saveNoticeAutomation(input: NoticeAutomationInput) {
+	return NoticeAutomationSchema.parse(
+		await fetchJson("/api/ops/notices/automation", {
+			method: "PUT",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(input),
+		}),
+	);
+}
 
 export async function fetchNoticeJobs(options: { signal?: AbortSignal } = {}) {
 	return NoticeJobListResponseSchema.parse(await fetchJson("/api/ops/notices/jobs", options));

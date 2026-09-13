@@ -86,7 +86,8 @@ export interface NoticeRunnerFailure {
 export interface NoticeRunnerResult {
 	failures: NoticeRunnerFailure[];
 	maintenanceRange: NoticeMaintenanceRange | null;
-	mode: "backfill" | "sync";
+	mode: "backfill" | "sync" | "rescan";
+	noticesAdded: number;
 	noticesProcessed: number;
 	objectsReused: number;
 	objectsWritten: number;
@@ -123,16 +124,11 @@ export async function syncInternalPortalNotices(
 		);
 	}
 	const latestEnd = await discoverPortalLatestEnd(input);
-	if (latestEnd <= current.coveredUntil) {
-		emitProgress(input, {
-			phase: "finalizing",
-			processed: 0,
-			processedRange: null,
-			total: 0,
-		});
-		return result("sync", current, null, maintenanceRangeFromState(current), 1, undefined, true);
-	}
-	const processedRange = noticeRange(current.coveredUntil, latestEnd);
+	// The final covered day can still receive new notices after the previous run.
+	const processedRange = noticeRange(
+		[current.coveredFrom, previousDate(current.coveredUntil)].sort().at(-1) as string,
+		[current.coveredUntil, latestEnd].sort().at(-1) as string,
+	);
 	const mappings = await fetchMappings(input);
 	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
 	const scan = await scanNotices(input, processedRange, allowedTypes);
@@ -165,7 +161,30 @@ export async function syncInternalPortalNotices(
 		maintenanceRangeFromState(state),
 		scan.pagesFetched + 1,
 		counts,
+		counts.noticesAdded === 0,
 	);
+}
+
+export async function rescanInternalPortalNotices(
+	input: NoticeRunnerInput & { from: string; to: string },
+): Promise<NoticeRunnerResult> {
+	const current = await input.stateStore.load();
+	const from = parseNoticeStartDate(input.from);
+	const to = parseNoticeStartDate(input.to);
+	if (!hasCompleteRange(current) || from >= to || from < current.coveredFrom || to > current.coveredUntil) {
+		throw new Error("notice rescan requires a nonempty range inside the maintained range");
+	}
+	const range = noticeRange(from, to);
+	const mappings = await fetchMappings(input);
+	const scan = await scanNotices(input, range, new Set(Object.keys(mappings.noticeTypes).map(Number)));
+	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
+	await input.inventoryStore.upsertMappings(completeMappings);
+	const counts = await writeCandidates(input, scan.candidates, range);
+	if (counts.failures.length === 0) {
+		await saveMappings(input, completeMappings, now(input));
+	}
+	emitProgress(input, { phase: "finalizing", processed: counts.noticesProcessed, processedRange: range, total: scan.candidates.length });
+	return result("rescan", current, range, counts.failures.length ? null : maintenanceRangeFromState(current), scan.pagesFetched, counts);
 }
 
 export async function backfillInternalPortalNotices(
@@ -396,6 +415,7 @@ async function writeCandidates(
 	range: NoticeMaintenanceRange,
 ): Promise<{
 	failures: NoticeRunnerFailure[];
+	noticesAdded: number;
 	noticesProcessed: number;
 	objectsReused: number;
 	objectsWritten: number;
@@ -405,6 +425,7 @@ async function writeCandidates(
 	let objectsReused = 0;
 	let objectsWritten = 0;
 	let noticesProcessed = 0;
+	let noticesAdded = 0;
 	let candidatesProcessed = 0;
 	let candidatesWritten = 0;
 	const resources = emptyResourceCounts();
@@ -497,7 +518,9 @@ async function writeCandidates(
 			});
 			continue;
 		}
-		await input.inventoryStore.register(source);
+		if (await input.inventoryStore.register(source) === "written") {
+			noticesAdded += 1;
+		}
 		noticesProcessed += 1;
 		addResourceCounts(resources, resourceResult);
 		candidatesWritten += 1;
@@ -508,7 +531,7 @@ async function writeCandidates(
 			total: candidates.length,
 		});
 	}
-	return { failures, noticesProcessed, objectsReused, objectsWritten, resources };
+	return { failures, noticesAdded, noticesProcessed, objectsReused, objectsWritten, resources };
 }
 
 async function saveMappings(
@@ -598,9 +621,10 @@ function result(
 	pagesFetched: number,
 	counts: Pick<
 		NoticeRunnerResult,
-		"failures" | "noticesProcessed" | "objectsReused" | "objectsWritten" | "resources"
+		"failures" | "noticesAdded" | "noticesProcessed" | "objectsReused" | "objectsWritten" | "resources"
 	> = {
 		failures: [],
+		noticesAdded: 0,
 		noticesProcessed: 0,
 		objectsReused: 0,
 		objectsWritten: 0,

@@ -56,6 +56,7 @@ const route: TransportOpsRoute = {
 	updatedBy: "test",
 };
 const source: TransportOpsSchedulePeriod = {
+	sourceReleasedAt: null,
 	scheduleId: "schedule:test",
 	routeId: route.routeId,
 	validFrom: "2026-09-01",

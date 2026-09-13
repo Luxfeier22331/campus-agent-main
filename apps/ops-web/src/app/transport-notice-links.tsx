@@ -303,6 +303,7 @@ function NoticeLinkDraft({
 		onSuccess: (result) => {
 			client.setQueryData(["transport-notice-links", scheduleId], result);
 			void client.invalidateQueries({ queryKey: ["notice-transport-periods"] });
+			void client.invalidateQueries({ queryKey: ["transport"] });
 			onSaved();
 		},
 	});

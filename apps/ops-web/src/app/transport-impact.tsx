@@ -15,9 +15,11 @@ import type {
 export function previewPeriod(
 	value: TransportOpsSchedulePeriodInput,
 	source: TransportOpsSchedulePeriod | null,
+	sourceReleasedAt: string | null = source?.sourceReleasedAt ?? null,
 ) {
 	return {
 		...value,
+		sourceReleasedAt,
 		scheduleId: source?.scheduleId ?? "preview",
 		createdAt: source?.createdAt ?? new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
@@ -123,12 +125,14 @@ export function TransportImpact({
 	route,
 	periods,
 	effectiveDate,
+	sourceReleasedAt,
 }: {
 	source: TransportOpsSchedulePeriod | null;
 	value: TransportOpsSchedulePeriodInput;
 	route: TransportOpsRoute;
 	periods: readonly TransportOpsSchedulePeriod[];
 	effectiveDate?: string;
+	sourceReleasedAt?: string | null;
 }) {
 	const first = source && source.validFrom < value.validFrom ? source.validFrom : value.validFrom;
 	const last =
@@ -149,7 +153,7 @@ export function TransportImpact({
 	const to = last && last < pageEnd ? last : pageEnd;
 	const afterPeriods = [
 		...periods.filter((period) => period.scheduleId !== source?.scheduleId),
-		previewPeriod(value, source),
+		previewPeriod(value, source, sourceReleasedAt),
 	];
 	const days = buildTransportImpactDays(from, to, periods, afterPeriods, route);
 	const changedDays = days.filter((day) => day.changed);

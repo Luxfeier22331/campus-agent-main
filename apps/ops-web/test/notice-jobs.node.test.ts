@@ -14,6 +14,59 @@ import type { NoticeJob } from "../src/shared/ops-contract";
 const createdAt = new Date("2026-08-23T10:00:00.000Z");
 
 describe("notice Kubernetes jobs", () => {
+	it("lists scheduled jobs and checks active jobs beyond the displayed page", async () => {
+		const scheduled = managedJob({ name: "scheduled-old", operation: "notice-sync" });
+		if (scheduled.metadata) {
+			delete scheduled.metadata.labels?.["campus-agent.muc.wiki/managed-by"];
+			scheduled.metadata.ownerReferences = [
+				{
+					apiVersion: "batch/v1",
+					kind: "CronJob",
+					name: "notice-sync",
+					uid: "cron-uid",
+					controller: true,
+				},
+			];
+		}
+		const recent = Array.from({ length: 50 }, (_, i) => ({
+			...managedJob({ name: `manual-${i}`, operation: "notice-sync" }),
+			metadata: {
+				...managedJob({ name: `manual-${i}`, operation: "notice-sync" }).metadata,
+				creationTimestamp: new Date("2026-09-13T00:00:00Z"),
+				ownerReferences: [
+					{
+						apiVersion: "batch/v1",
+						kind: "CronJob",
+						name: "notice-sync",
+						uid: "cron-uid",
+						controller: false,
+					},
+				],
+			},
+			status: { succeeded: 1, conditions: [{ type: "Complete", status: "True" }] },
+		}));
+		const batch = {
+			listNamespacedJob: vi.fn(async (input: { _continue?: string }) =>
+				input._continue
+					? { items: [scheduled] }
+					: { items: recent, metadata: { _continue: "next" } },
+			),
+			readNamespacedJob: vi.fn(async () => scheduled),
+		};
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, emptyCore());
+		const displayed = await store.list();
+		expect(displayed).toHaveLength(50);
+		expect(displayed.every((job) => job.trigger === "manual")).toBe(true);
+		expect(await store.get("scheduled-old")).toMatchObject({ trigger: "scheduled" });
+		expect(await store.findActive("collection")).toBe("scheduled-old");
+		await expect(
+			createNoticeJobService(store).create({ operation: "notice-sync" }),
+		).rejects.toBeInstanceOf(NoticeJobConflictError);
+		expect(batch.listNamespacedJob).toHaveBeenCalledWith(
+			expect.objectContaining({ _continue: "next" }),
+		);
+	});
+
 	it("clones the fixed backfill template and only injects its start date", async () => {
 		const createNamespacedJob = vi.fn(async ({ body }: { body: V1Job }) => ({
 			...body,
@@ -489,6 +542,7 @@ function jobTemplate(name: string): V1CronJob {
 
 function job(overrides: Partial<NoticeJob> = {}): NoticeJob {
 	return {
+		trigger: "manual",
 		completedAt: null,
 		createdAt: createdAt.toISOString(),
 		controllerError: null,

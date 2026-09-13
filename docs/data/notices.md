@@ -51,17 +51,22 @@ internal_portal/notices/_state.json
 ```
 
 `covered_from` 包含，`covered_until` 排除。区间是通知维护范围的唯一边界，不根据通知 ID 数值推断新旧。
-`notice-sync` 发现门户最新边界 `P` 后只采集 `[covered_until, P)`，成功后推进到 `[covered_from, P)`；
+`notice-sync` 发现门户最新边界 `P` 后扫描 `[max(covered_from, covered_until 前一天), max(covered_until, P))`，
+重扫最后一个覆盖日期以发现同日稍后发布的通知；成功后上界只前进、不后退；
 `notice-backfill --start-date S` 只采集 `[S, covered_from)`，成功后推进到
 `[S, covered_until)`。首次初始化必须显式回填（当前约定起点为 `2025-12-01`），不能用一次 sync 只记录
 一个不完整的 head。
+
+`notice-rescan --from F --to T` 显式补查已有维护区间内的遗漏，区间仍为半开区间；不修改维护边界。
+sync、backfill、rescan 都复用已有合法 source，不重新请求旧通知详情或维护同 ID 版本。
+`noticesAdded` 统计本轮新登记的通知，sync 的 `upToDate=true` 只表示本轮没有新增，不宣称历史绝无遗漏。
 
 门户列表的 `end_date` 是闭区间参数，适配器把内部排他上界转换为前一天；详情中的门户发布时间会再次按
 `[start,end)` 校验，以排除边界泄漏。门户最新边界由未过滤列表第一条通知的发布时间，或其详情发布时间，
 推导为该日期的下一天；空门户使用运行时的门户日期下一天。
 
 通知对象、其引用的图片和非永久缺失附件、以及 `meta.json` 全部成功后才推进状态；已有合法 source 对象仍会检查并
-补齐缺失资源，明确返回 HTTP 404 的通知附件除外。增量同步与历史回填通过 PostgreSQL advisory lock 串行执行。旧
+补齐缺失资源，明确返回 HTTP 404 的通知附件除外。增量同步、历史回填与遗漏补查通过 PostgreSQL advisory lock 串行执行。旧
 `internal_portal_notice_sync_state.v2` 只作为迁移输入读取；它没有可靠的排他上界，下一次 backfill 会重新
 建立完整 v3 区间，sync 在此之前拒绝运行。通知独立、随机消费，不创建 `captures/` 批次。
 

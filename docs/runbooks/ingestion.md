@@ -68,10 +68,12 @@ pnpm internal-portal:auth:check
 
 ### 小范围采集
 
-通知维护状态是日期半开区间 `M=[start,end)`：`start` 包含，`end` 排除。两个采集 Job 各自只负责一侧：
+通知维护状态是日期半开区间 `M=[start,end)`：`start` 包含，`end` 排除：
 
-- `notice-sync` 发现门户最新边界 `P`，采集 `[end,P)`，成功后把状态推进到 `[start,P)`；
+- `notice-sync` 发现门户最新边界 `P`，从 `max(start,end 前一天)` 扫描到 `max(end,P)`，
+  补齐最后一个日期稍后发布的通知，成功后只向前推进上界；
 - `notice-backfill --start-date S` 采集 `[S,start)`，成功后把状态扩展到 `[S,end)`。
+- `notice-rescan --from F --to T` 补查已有维护范围内的遗漏，不改变边界，也不重新抓取已有通知详情。
 
 首次初始化必须先从约定起点 `2025-12-01` 回填，再运行 sync。根据目标数据范围明确日期边界，先完成
 小范围验证，再扩大同一来源范围：
@@ -84,7 +86,7 @@ pnpm internal-portal:collect -- --mode notice-sync
 
 回填起点必须是本次明确选择的日期；当前首次初始化约定为 `2025-12-01`。没有完整 v3 区间时，sync
 会拒绝运行。适配器把内部排他上界转换为门户闭区间 `end_date` 的前一天，并用详情发布时间再次执行
-`[start,end)` 校验。sync 与 backfill 通过 PostgreSQL advisory lock 串行执行，不能并发运行。后续
+`[start,end)` 校验。sync、backfill 与 rescan 通过 PostgreSQL advisory lock 串行执行，不能并发运行。后续
 sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查 source bucket 包含
 `internal_portal/meta.json`、通知对象、已成功采集的资源对象和 `_state.json`，确认 v3 状态中的
 `covered_from/covered_until` 区间符合本次 Job，且对应通知已登记到
@@ -217,10 +219,14 @@ publisher；已发布内容与新清洗结果冲突时，由引入清洗合同�
 
 `infra/k8s/ops-web/base` 提供 Ops Web API、数据库授权 Job 和 `ops-web-internal-portal-check` CronJob；
 `infra/k8s/ingestion-runtime/base/runtime` 包含默认暂停的内部门户采集、通知分类和通知发布 CronJob 模板。
-这些模板不包含自动采集或发布调度。internal-portal-collection 镜像的 Job 入口消费
+其中 `notice-sync` 默认为暂停的每 15 分钟调度，时区 `Asia/Shanghai`，补调度时限 300 秒。
+运营可在 Ops 通知维护页修改自动采集开关和 15/30/60 分钟频率；分类、发布、OCR 不会联动开启。
+上线时先部署 GitOps 对该 CronJob 的 `suspend`/`schedule` 精确忽略规则，确保 Argo 同步保留运营设置，
+再部署采集器与 Ops，完成一次遗漏补查及一次手动同步后开启，观察两次真实自动任务。
+internal-portal-collection 镜像的 Job 入口消费
 `OPS_WEB_INTERNAL_URL`、既有
 `OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还使用既有数据库 owner 连接登记通知
-库存。三种采集模式都只能由维护者显式创建一次性 Job：
+库存。仍可由维护者显式创建一次性 Job：
 
 ```bash
 kubectl -n <namespace> create job \

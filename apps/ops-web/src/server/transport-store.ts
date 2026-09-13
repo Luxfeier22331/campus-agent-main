@@ -279,6 +279,7 @@ async function listSchedulePeriods(db: TransportDatabase): Promise<TransportOpsS
 	const [periodResult, itemResult] = await Promise.all([
 		db.query(
 			`SELECT schedule_id, route_id, valid_from::text, valid_to::text, weekdays, status,
+			        (SELECT max(n.released_at) FROM transport.schedule_period_notices l JOIN notices.notices n USING (notice_id) WHERE l.schedule_id = transport.schedule_periods.schedule_id AND n.is_published) AS source_released_at,
 			        boarding_point_override, drop_off_point_override, note, created_at, updated_at, updated_by
 			 FROM transport.schedule_periods
 			 ORDER BY valid_from DESC, schedule_id`,
@@ -407,6 +408,7 @@ async function requireSchedulePeriod(
 ): Promise<TransportOpsSchedulePeriod> {
 	const result = await db.query(
 		`SELECT schedule_id, route_id, valid_from::text, valid_to::text, weekdays, status,
+		        (SELECT max(n.released_at) FROM transport.schedule_period_notices l JOIN notices.notices n USING (notice_id) WHERE l.schedule_id = transport.schedule_periods.schedule_id AND n.is_published) AS source_released_at,
 		        boarding_point_override, drop_off_point_override, note, created_at, updated_at, updated_by
 		 FROM transport.schedule_periods WHERE schedule_id = $1`,
 		[scheduleId],
@@ -448,6 +450,7 @@ function toSchedulePeriod(
 	itemRows: readonly Record<string, unknown>[],
 ): TransportOpsSchedulePeriod {
 	return TransportOpsSchedulePeriodSchema.parse({
+		sourceReleasedAt: row.source_released_at ? isoDateTime(row.source_released_at) : null,
 		boardingPointOverride: nullableText(row.boarding_point_override),
 		dropOffPointOverride: nullableText(row.drop_off_point_override),
 		createdAt: isoDateTime(row.created_at),

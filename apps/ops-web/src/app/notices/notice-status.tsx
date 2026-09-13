@@ -42,6 +42,7 @@ const NOTICE_OPERATION_LABELS: Record<NoticeJobOperation, string> = {
 	"notice-publish-pending": "发布待发布通知",
 	"notice-republish-one": "单条重新发布",
 	"notice-sync": "同步新通知",
+	"notice-rescan": "补查遗漏",
 };
 
 export type NoticeJobFamily = "classification" | "collection" | "publication";
@@ -74,7 +75,11 @@ export function noticeOperationLabel(operation: NoticeJobOperation): string {
 }
 
 export function noticeJobFamily(operation: NoticeJobOperation): NoticeJobFamily {
-	if (operation === "notice-sync" || operation === "notice-backfill") {
+	if (
+		operation === "notice-sync" ||
+		operation === "notice-backfill" ||
+		operation === "notice-rescan"
+	) {
 		return "collection";
 	}
 	if (operation === "notice-classify-missing" || operation === "notice-classify-one") {
@@ -94,6 +99,7 @@ export function isTerminalNoticeJob(job: Pick<NoticeJob, "status">): boolean {
 export function isBatchNoticeJob(job: Pick<NoticeJob, "operation">): boolean {
 	return (
 		job.operation === "notice-sync" ||
+		job.operation === "notice-rescan" ||
 		job.operation === "notice-backfill" ||
 		job.operation === "notice-classify-missing" ||
 		job.operation === "notice-publish-pending"
@@ -111,6 +117,7 @@ export function noticeJobSummaryLabel(
 	const entries =
 		family === "collection"
 			? ([
+					["noticesAdded", "新增通知"],
 					["noticesProcessed", "处理通知"],
 					["noticesFailed", "失败通知"],
 					["pagesFetched", "读取分页"],
@@ -135,8 +142,8 @@ export function noticeJobSummaryLabel(
 	const labels = entries.flatMap(([key, label]) =>
 		summary[key] === undefined ? [] : [`${label} ${summary[key]} 条`],
 	);
-	if (family === "collection" && summary.upToDate !== undefined) {
-		labels.push(summary.upToDate ? "已同步到门户当前最新范围" : "尚未同步到门户当前最新范围");
+	if (family === "collection" && summary.upToDate !== undefined && summary.upToDate) {
+		labels.push("本轮无新增通知");
 	}
 	return labels.length > 0 ? labels.join(" · ") : null;
 }

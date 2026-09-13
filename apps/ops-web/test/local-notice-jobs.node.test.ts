@@ -7,6 +7,17 @@ import { LocalNoticeJobStore, localNoticeCommand } from "../src/server/local-not
 
 describe("local notice jobs", () => {
 	it("maps every operation to a fixed workspace command", () => {
+		expect(
+			localNoticeCommand({ operation: "notice-rescan", from: "2026-04-27", to: "2026-05-06" }, {})
+				.args,
+		).toEqual([
+			...collectionArgs("notice-sync").slice(0, -1),
+			"notice-rescan",
+			"--from",
+			"2026-04-27",
+			"--to",
+			"2026-05-06",
+		]);
 		expect(localNoticeCommand({ operation: "notice-sync" }, {})).toEqual({
 			args: collectionArgs("notice-sync"),
 			env: {},

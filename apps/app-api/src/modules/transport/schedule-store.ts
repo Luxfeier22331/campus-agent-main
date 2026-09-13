@@ -66,17 +66,17 @@ export function createPgTransportScheduleService(
 		async getSchedule(date, options) {
 			const db = await getDb();
 			const schedules = await loadSchedules(db);
-			const notices = options?.includeNotices
-				? await loadNotices(db, schedules, [date])
-				: undefined;
-			return projectSchedule(schedules, date, notices);
+			const notices = await loadNotices(db, schedules, options?.includeNotices ?? false);
+			return projectSchedule(schedules, date, notices, options?.includeNotices ?? false);
 		},
 		async getRange(from, to, options) {
 			const dates = transportDateRange(from, to);
 			const db = await getDb();
 			const schedules = await loadSchedules(db);
-			const notices = options?.includeNotices ? await loadNotices(db, schedules, dates) : undefined;
-			const days = dates.map((date) => projectSchedule(schedules, date, notices));
+			const notices = await loadNotices(db, schedules, options?.includeNotices ?? false);
+			const days = dates.map((date) =>
+				projectSchedule(schedules, date, notices, options?.includeNotices ?? false),
+			);
 			return TransportPublicScheduleRangeSchema.parse({ from, to, days });
 		},
 	};
@@ -85,20 +85,18 @@ export function createPgTransportScheduleService(
 async function loadNotices(
 	db: RuntimeDatabase,
 	{ periodsByRoute }: Awaited<ReturnType<typeof loadSchedules>>,
-	dates: string[],
+	includeNotices: boolean,
 ) {
 	const ids = new Set<string>();
 	for (const periods of periodsByRoute.values()) {
-		for (const date of dates) {
-			const period = selectPeriod(periods, date);
-			if (period) {
-				ids.add(period.scheduleId);
-			}
+		for (const period of periods) {
+			ids.add(period.scheduleId);
 		}
 	}
 	const grouped = new Map<string, TransportPublicNotice[]>();
+	const sourceReleasedAt = new Map<string, string>();
 	if (ids.size === 0) {
-		return grouped;
+		return { grouped, sourceReleasedAt };
 	}
 	const result = await db.execute<{
 		schedule_id: string;
@@ -108,7 +106,7 @@ async function loadNotices(
 		is_external: boolean;
 		external_url: string | null;
 	}>(sql`
-		SELECT l.schedule_id, n.notice_id::text, n.title, n.released_at, n.is_external, n.external_url
+		SELECT l.schedule_id, n.released_at ${includeNotices ? sql`, n.notice_id::text, n.title, n.is_external, n.external_url` : sql``}
 		FROM transport.schedule_period_notices l
 		JOIN notices.notices n ON n.notice_id = l.notice_id
 		WHERE l.schedule_id IN (${sql.join(
@@ -119,19 +117,27 @@ async function loadNotices(
 		ORDER BY n.released_at DESC, n.notice_id DESC
 	`);
 	for (const row of result.rows) {
+		const releasedAt = new Date(row.released_at).toISOString();
+		const currentSource = sourceReleasedAt.get(row.schedule_id);
+		if (!currentSource || releasedAt > currentSource) {
+			sourceReleasedAt.set(row.schedule_id, releasedAt);
+		}
+		if (!includeNotices) {
+			continue;
+		}
 		const notices = grouped.get(row.schedule_id) ?? [];
 		notices.push(
 			TransportPublicNoticeSchema.parse({
 				noticeId: row.notice_id,
 				title: row.title,
-				releasedAt: new Date(row.released_at).toISOString(),
+				releasedAt,
 				isExternal: row.is_external,
 				externalUrl: row.is_external ? row.external_url : null,
 			}),
 		);
 		grouped.set(row.schedule_id, notices);
 	}
-	return grouped;
+	return { grouped, sourceReleasedAt };
 }
 
 async function loadSchedules(db: RuntimeDatabase) {
@@ -170,32 +176,42 @@ async function loadSchedules(db: RuntimeDatabase) {
 function projectSchedule(
 	{ routes, periodsByRoute }: Awaited<ReturnType<typeof loadSchedules>>,
 	date: string,
-	notices?: Map<string, TransportPublicNotice[]>,
+	notices?: Awaited<ReturnType<typeof loadNotices>>,
+	includeNotices = false,
 ): TransportPublicScheduleResponse {
+	const sourceReleasedAt = notices?.sourceReleasedAt;
 	const response: TransportPublicScheduleResponse = {
 		date,
 		routeCatalog: routes.map(({ input: { displayOrder: _order, ...route } }) => ({
 			...route,
 			dropOffPoint:
-				selectPeriod(periodsByRoute.get(route.routeId) ?? [], date)?.input.dropOffPointOverride ??
-				route.dropOffPoint,
-			nextServiceDate: nextServiceDate(periodsByRoute.get(route.routeId) ?? [], date),
+				selectPeriod(periodsByRoute.get(route.routeId) ?? [], date, sourceReleasedAt)?.input
+					.dropOffPointOverride ?? route.dropOffPoint,
+			nextServiceDate: nextServiceDate(
+				periodsByRoute.get(route.routeId) ?? [],
+				date,
+				sourceReleasedAt,
+			),
 		})),
 		routes: [],
 	};
 	for (const route of routes) {
-		const period = selectPeriod(periodsByRoute.get(route.input.routeId) ?? [], date);
+		const period = selectPeriod(
+			periodsByRoute.get(route.input.routeId) ?? [],
+			date,
+			sourceReleasedAt,
+		);
 		if (!period) {
 			continue;
 		}
 		response.routes.push({
-			...(notices
+			...(notices && includeNotices
 				? {
 						noticeContext: {
 							validFrom: period.input.validFrom,
 							validTo: period.input.validTo,
 							weekdays: period.input.weekdays,
-							notices: notices.get(period.scheduleId) ?? [],
+							notices: notices.grouped.get(period.scheduleId) ?? [],
 						},
 					}
 				: {}),
@@ -316,14 +332,26 @@ function groupItems(rows: readonly ItemRow[]): Map<string, ItemRow[]> {
 	return grouped;
 }
 
-function selectPeriod(periods: readonly ParsedPeriod[], date: string): ParsedPeriod | null {
+function selectPeriod(
+	periods: readonly ParsedPeriod[],
+	date: string,
+	sourceReleasedAt?: ReadonlyMap<string, string>,
+): ParsedPeriod | null {
 	return selectTransportPeriod(
-		periods.map((period) => ({ ...period, ...period.input })),
+		periods.map((period) => ({
+			...period,
+			...period.input,
+			sourceReleasedAt: sourceReleasedAt?.get(period.scheduleId) ?? null,
+		})),
 		date,
 	);
 }
 
-function nextServiceDate(periods: readonly ParsedPeriod[], date: string): string | null {
+function nextServiceDate(
+	periods: readonly ParsedPeriod[],
+	date: string,
+	sourceReleasedAt?: ReadonlyMap<string, string>,
+): string | null {
 	// Between period boundaries the winning schedule repeats weekly. Check one week
 	// per segment, including the final unbounded segment, rather than scanning days indefinitely.
 	const boundaries = new Set([date]);
@@ -343,7 +371,7 @@ function nextServiceDate(periods: readonly ParsedPeriod[], date: string): string
 			if (end && candidate >= end) {
 				break;
 			}
-			if (selectPeriod(periods, candidate)?.input.status === "operating") {
+			if (selectPeriod(periods, candidate, sourceReleasedAt)?.input.status === "operating") {
 				return candidate;
 			}
 		}

@@ -6,7 +6,7 @@ status: active
 
 # 通知维护接口
 
-Ops Web 提供通知摘要、已采集正文预览与分类维护，并复用暂停的 CronJob 模板启动固定任务。浏览器不能
+Ops Web 提供通知摘要、已采集正文预览、分类维护和自动采集配置，并复用 CronJob 模板启动固定任务。浏览器不能
 提交任意 Kubernetes 命令、镜像、环境变量或 namespace。
 
 ## 通知
@@ -42,7 +42,8 @@ Ops Web 提供通知摘要、已采集正文预览与分类维护，并复用暂
 - 排班时间段使用 `GET/PUT /api/ops/transport/schedule-periods/:scheduleId/notices` 读取或替换关联通知，关联输入为
   `{ "noticeLinks": [{ "noticeId": number, "summary": string|null }] }`。同一时间段内通知不可重复，最多 100 条。
 - 新建时间段可以在创建请求中携带同样的 `noticeLinks`，与时间段及班次明细原子保存；复制、范围套用和单班次快捷调整
-  不自动复制通知关联。编辑已有时间段保留原关联，关联独立保存不会改变时间段更新时间或生效优先级。
+  不自动复制通知关联。编辑已有时间段保留原关联；关联独立保存不改时间段更新时间，但最新已发布通知的发布时间
+  参与时间段选择，保存后刷新排班数据、月历与影响预览。
 
 ### 摘要与分类
 
@@ -59,19 +60,36 @@ Ops Web 提供通知摘要、已采集正文预览与分类维护，并复用暂
 理由和重新评估条件见 `../../decisions/adr-0094-notice-maintenance-state.md`。已发布通知的分类保存后立即
 影响学生端。
 
-## 任务
+## 自动采集
+
+- `GET /api/ops/notices/automation` 返回 CronJob 实际开关、频率、时区、最近调度与自动成功时间，
+  以及来源维护范围和门户凭据状态；各依赖读取失败分别返回错误，不把未知当作暂停或成功。
+- `PUT /api/ops/notices/automation` 仅接受 `{ enabled, intervalMinutes }`，频率为 15、30 或 60 分钟。
+  Ops 只 patch `notice-sync.spec.suspend` 和 `.schedule`；开启前须存在完整维护范围和可用凭据，暂停不依赖两者。
+- CronJob 是配置唯一事实来源，不增加数据库调度状态。GitOps 精确忽略这两个字段并使用
+  `RespectIgnoreDifferences=true`；其他模板字段保持 GitOps 所有权。默认暂停，时区 `Asia/Shanghai`。
+- 本地不运行定时器，返回 `supported: false`，仍可运行一次性任务。设置写入失败保留草稿，不更新已保存状态。
+- 活动任务每 3 秒刷新；开启自动采集且空闲时每 30 秒刷新，暂停且无活动任务时不轮询；后台标签页不轮询，
+  回到页面重新读取。新发现的已完成自动任务也会刷新通知库存，不能只依赖曾看到运行中状态。
+
+## 任务操作
 
 - `POST /api/ops/notices/jobs`
 - `GET /api/ops/notices/jobs`
 - `GET /api/ops/notices/jobs/:jobName`
 
-允许操作为 `notice-sync`、`notice-backfill`、`notice-classify-missing`、`notice-classify-one`、
+允许操作为 `notice-sync`、`notice-backfill`、`notice-rescan`、`notice-classify-missing`、`notice-classify-one`、
 `notice-publish-pending`、`notice-publish-one` 和 `notice-republish-one`。采集、分类和发布各自构成一个互斥操作族；已有活动 Job
 时返回 `409 OPS_NOTICE_JOB_CONFLICT`。Job 固定零重试，完成 24 小时后回收，不承担长期审计。单条分类和发布 Job 使用
 `campus-agent.muc.wiki/notice-id` label 持久表达通知归属，任务响应通过 `noticeId` 返回该值；批量任务
 以及部署前创建且没有该 label 的单条任务返回 `noticeId: null`。
 
-部署环境从固定暂停 CronJob 模板创建 Kubernetes Job。`local/development` 使用相同接口和任务状态启动
+列表合并手动和 CronJob 自动产生的任务，以 `trigger: manual|scheduled` 区分；只返回最近 50 条，
+互斥检查覆盖全部仍保留的任务，不受展示数量限制。`notice-rescan` 接受 `{ from, to }` 半开区间，
+复用采集模板和数据库锁；仅补已有维护范围内缺少的通知，不刷新旧详情、不推进维护边界。
+页面日期结束值包含当天，提交时转换成次日排他上界。分类、发布、OCR 不随自动采集开启。
+
+部署环境从固定 CronJob 模板创建 Kubernetes Job。`local/development` 使用相同接口和任务状态启动
 当前 worktree 的固定采集、分类或发布 CLI（采集使用其本地 adapter 入口加载自身环境）；本地任务只保存在 Ops Web 进程内，服务重启后消失。两种
 执行方式都不接受浏览器提交 command、环境变量或执行路径，也不在失败后切换到另一种执行方式。
 
@@ -81,7 +99,7 @@ Ops Web 提供通知摘要、已采集正文预览与分类维护，并复用暂
 每个 Job 还返回以下诊断字段：
 
 - `processedRange`：本次 Job 实际处理的日期半开区间 `{ "from": "YYYY-MM-DD", "to": "YYYY-MM-DD" }`；
-  仅采集 Job 有值，未开始、无增量或非采集 Job 时为 `null`；
+  仅采集 Job 有值，未开始、没有执行扫描或非采集 Job 时为 `null`；同日同步即使没有新增通知仍有扫描区间；
 - `maintenanceRange`：采集完成后通知库存维护的日期半开区间 `{ "from": "YYYY-MM-DD", "to": "YYYY-MM-DD" }`；
   只有采集 Job 能从结构化输出确认该范围时有值，其他 Job 为 `null`。失败 Job 仍可能返回本次处理区间，
   但不能据此推断维护边界已经推进；
@@ -90,6 +108,7 @@ Ops Web 提供通知摘要、已采集正文预览与分类维护，并复用暂
 - `summary`：严格允许的业务摘要字段，只返回数量、`upToDate` 等已登记字段，不返回通知 ID 列表或任意日志
   对象。分类摘要使用 `classified`、`requested`、`skipped`；采集摘要使用通知、分页、来源对象和资源计数，资源计数
   可包含 `attachmentsMissing`，表示门户明确返回 HTTP 404 且未创建资源对象的通知附件数量；
+  `noticesAdded` 为本轮新登记数，`upToDate=true` 显示为「本轮无新增通知」；
   首次发布摘要使用 `notices`、`assets`，重新发布还可使用 `updated`、`unchanged`；
 - `error`：应用进程从 Pod 或本地子进程输出的原始错误文本，包括 stack、cause、HTTP 状态和响应体，不做错误码泛化、
   脱敏或 500 字符截断；
@@ -98,10 +117,10 @@ Ops Web 提供通知摘要、已采集正文预览与分类维护，并复用暂
   应用错误。
 
 Ops Web 会读取成功、失败和运行中 Job 的进程输出。若 Kubernetes Job 已失败但 Pod 输出不可用，`error` 为 `null`，
-`controllerError` 仍单独返回；任务中心分别展示两者。采集的 sync 和 backfill 是两个独立 Job，页面只显示
+`controllerError` 仍单独返回；任务中心分别展示两者。采集的 sync、backfill 和 rescan 是独立 Job，页面只显示
 实际创建的 Job，不自动补建或串联另一条。
 
-任务中心的操作族为采集、分类和发布。服务端只接受上述固定操作和回填起始日期；每个操作族同时只能有一个
+任务中心的操作族为采集、分类和发布。服务端只接受上述固定操作、回填起始日期或补查范围；每个操作族同时只能有一个
 待运行或运行中的 Job。浏览器在提交成功等待 Kubernetes 返回期间显示一个本地 pending 行并立即锁定对应操作族；
 服务端返回真实 Job 后，该行替换为真实记录。读取任务列表失败或仍在加载时不会删除 pending 行，也不会把客户端
 临时行当作 Kubernetes Job 返回给其他消费者。

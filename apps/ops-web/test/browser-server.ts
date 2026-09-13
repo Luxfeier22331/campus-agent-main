@@ -222,6 +222,7 @@ function createBrowserNoticeJobStore(): NoticeJobStore & { reset(): void } {
 		async create(input) {
 			const now = new Date("2026-08-26T06:00:00.000Z");
 			const job: NoticeJob = {
+				trigger: "manual",
 				completedAt: null,
 				createdAt: new Date(now.valueOf() + sequence++).toISOString(),
 				controllerError: null,

@@ -384,7 +384,8 @@ describe("notice maintenance page", () => {
 		expect(pendingCreates).toHaveLength(2);
 	});
 
-	it("keeps an optimistic row visible over a jobs read failure and preserves create errors", async () => {
+	it("blocks creation until jobs recover and preserves create errors", async () => {
+		let jobsAvailable = false;
 		let resolveCreate: ((response: Response) => void) | undefined;
 		vi.stubGlobal(
 			"fetch",
@@ -399,6 +400,9 @@ describe("notice maintenance page", () => {
 					});
 				}
 				if (url.pathname === "/api/ops/notices/jobs") {
+					if (jobsAvailable) {
+						return Response.json({ jobs: [] });
+					}
 					return Response.json(
 						{ error: { code: "OPS_NOTICE_JOBS_UNAVAILABLE", message: "任务列表连接失败" } },
 						{ status: 503 },
@@ -421,6 +425,12 @@ describe("notice maintenance page", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "任务中心" }));
 		const taskCenter = await screen.findByRole("dialog", { name: "通知任务中心" });
 		expect(await within(taskCenter).findByText("任务列表连接失败")).toBeInTheDocument();
+		expect(within(taskCenter).getByRole("button", { name: "同步新通知" })).toBeDisabled();
+		jobsAvailable = true;
+		fireEvent.click(within(taskCenter).getByRole("button", { name: /重试/ }));
+		await waitFor(() =>
+			expect(within(taskCenter).getByRole("button", { name: "同步新通知" })).toBeEnabled(),
+		);
 		fireEvent.click(within(taskCenter).getByRole("button", { name: "同步新通知" }));
 
 		expect(await within(taskCenter).findByText("正在创建任务")).toBeInTheDocument();
@@ -535,6 +545,72 @@ describe("notice maintenance page", () => {
 		expect(screen.getByRole("heading", { hidden: true, name: "测试通知" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "放弃更改" }));
 		expect(await screen.findByText("选择一条通知")).toBeInTheDocument();
+	});
+
+	it("discovers a completed automatic job between idle polls and stops polling when paused", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		useDesktopViewport();
+		let jobsRequests = 0;
+		let noticesRequests = 0;
+		let completed = false;
+		let enabled = true;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/automation") {
+					return Response.json({
+						supported: true,
+						enabled,
+						intervalMinutes: 15,
+						timeZone: "Asia/Shanghai",
+						lastScheduleTime: null,
+						lastSuccessfulTime: null,
+						maintenanceRange: { from: "2025-12-01", to: "2026-09-14" },
+						credentialAvailable: true,
+						scheduleError: null,
+						stateError: null,
+						credentialError: null,
+					});
+				}
+				if (url.pathname === "/api/ops/notices/jobs") {
+					jobsRequests++;
+					return Response.json({
+						jobs: completed
+							? [
+									job({
+										jobName: "notice-sync-auto",
+										operation: "notice-sync",
+										trigger: "scheduled",
+										noticeId: null,
+										status: "succeeded",
+									}),
+								]
+							: [],
+					});
+				}
+				if (url.pathname === "/api/ops/notices") {
+					noticesRequests++;
+					return noticeListResponse([]);
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+		render(<OpsWebApp initialPath="/notices" />);
+		await screen.findByText("已开启 · 每 15 分钟");
+		await waitFor(() => expect(noticesRequests).toBe(1));
+		completed = true;
+		await vi.advanceTimersByTimeAsync(30_000);
+		await waitFor(() => expect(noticesRequests).toBeGreaterThan(1));
+		enabled = false;
+		await vi.advanceTimersByTimeAsync(30_000);
+		await screen.findByText("已暂停");
+		const count = jobsRequests;
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(jobsRequests).toBe(count);
 	});
 
 	it.each(["succeeded", "failed"] as const)(
@@ -740,6 +816,7 @@ function notice(overrides: Record<string, unknown> = {}) {
 
 function job(overrides: Record<string, unknown> = {}) {
 	return {
+		trigger: "manual",
 		completedAt: null,
 		createdAt: "2026-08-23T10:00:00.000Z",
 		controllerError: null,
@@ -777,6 +854,7 @@ function useDesktopViewport() {
 		"ResizeObserver",
 		class {
 			observe = vi.fn();
+			unobserve = vi.fn();
 			disconnect = vi.fn();
 		},
 	);

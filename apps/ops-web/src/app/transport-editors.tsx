@@ -419,6 +419,15 @@ export function TransportPeriodEditor({
 			preview={
 				preview ? (
 					<PeriodPreview
+						sourceReleasedAt={
+							source && !copy
+								? source.sourceReleasedAt
+								: (noticeLinks
+										.filter((link) => link.isPublished)
+										.map((link) => link.releasedAt)
+										.sort()
+										.at(-1) ?? null)
+						}
 						source={source && !copy ? source : null}
 						value={preview}
 						route={route}
@@ -775,6 +784,7 @@ function EditorFrame({
 }
 
 function PeriodPreview({
+	sourceReleasedAt,
 	source,
 	value,
 	route,
@@ -782,6 +792,7 @@ function PeriodPreview({
 	effectiveDate,
 }: {
 	source: TransportOpsSchedulePeriod | null;
+	sourceReleasedAt: string | null;
 	value: TransportOpsSchedulePeriodInput;
 	route: TransportOpsRoute;
 	periods: TransportOpsSchedulePeriod[];
@@ -841,6 +852,7 @@ function PeriodPreview({
 				</ul>
 			) : null}
 			<TransportImpact
+				sourceReleasedAt={sourceReleasedAt}
 				source={source}
 				value={value}
 				route={route}

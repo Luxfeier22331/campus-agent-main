@@ -266,6 +266,7 @@ export function selectTransportPeriod<
 	T extends Pick<TransportSchedulePeriodInput, "validFrom" | "validTo" | "weekdays"> & {
 		scheduleId?: string;
 		updatedAt?: string;
+		sourceReleasedAt?: string | null;
 	},
 >(periods: readonly T[], date: string): T | null {
 	return (
@@ -273,6 +274,7 @@ export function selectTransportPeriod<
 			.filter((period) => transportPeriodIncludesDate(period, date))
 			.sort(
 				(left, right) =>
+					(right.sourceReleasedAt ?? "").localeCompare(left.sourceReleasedAt ?? "") ||
 					right.validFrom.localeCompare(left.validFrom) ||
 					compareNullableDates(left.validTo, right.validTo) ||
 					(right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") ||

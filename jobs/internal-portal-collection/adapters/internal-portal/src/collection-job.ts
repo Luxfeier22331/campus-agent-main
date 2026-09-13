@@ -16,7 +16,7 @@ export async function main(
 	env: NodeJS.ProcessEnv = process.env,
 ): Promise<number> {
 	if (isCollectionHelp(argv)) {
-		console.log("Usage: notice-sync | notice-backfill | file-sync");
+		console.log("Usage: notice-sync | notice-backfill | notice-rescan | file-sync");
 		return 0;
 	}
 	loadInternalPortalEnv(env);
@@ -32,6 +32,12 @@ export function parseCollectionJobCommand(
 ): CollectionCommand {
 	if (argv.length !== 1) throw jobUsageError();
 	const mode = argv[0];
+	if (mode === "notice-rescan") {
+		const from = parseNoticeStartDate(env.INTERNAL_PORTAL_NOTICE_FROM ?? "");
+		const to = parseNoticeStartDate(env.INTERNAL_PORTAL_NOTICE_TO ?? "");
+		if (from >= to) throw new Error("notice rescan requires from < to");
+		return { mode, from, to };
+	}
 	if (mode === "notice-sync" || mode === "file-sync") return { mode };
 	if (mode === "notice-backfill") {
 		const startDate = env.INTERNAL_PORTAL_NOTICE_START_DATE?.trim();
@@ -44,7 +50,7 @@ export function parseCollectionJobCommand(
 }
 
 function jobUsageError(): Error {
-	return new Error("Usage: notice-sync | notice-backfill | file-sync");
+	return new Error("Usage: notice-sync | notice-backfill | notice-rescan | file-sync");
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

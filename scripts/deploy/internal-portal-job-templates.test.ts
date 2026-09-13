@@ -41,6 +41,15 @@ test("internal portal manual Job templates express one fixed operation each", ()
 	}
 
 	assert.doesNotMatch(source, /INTERNAL_PORTAL_NOTICE_START_DATE/u);
+	const sync = record(requiredManifest(byName, "notice-sync").spec, "sync spec");
+	assert.equal(sync.schedule, "*/15 * * * *");
+	assert.equal(sync.timeZone, "Asia/Shanghai");
+	assert.equal(sync.startingDeadlineSeconds, 300);
+	const metadata = record(record(sync.jobTemplate, "jobTemplate").metadata, "job metadata");
+	assert.equal(
+		record(metadata.labels, "job labels")["campus-agent.muc.wiki/notice-operation"],
+		"notice-sync",
+	);
 });
 
 function nameOf(manifest: Record<string, unknown>): string {

@@ -76,7 +76,7 @@ describe("通知关联编辑的读取与退出", () => {
 		expect(result.onSaved).not.toHaveBeenCalled();
 	});
 
-	it("保存失败保留选择和说明，重试成功不改排班缓存", async () => {
+	it("保存失败保留选择和说明，重试成功刷新排班优先级", async () => {
 		vi.mocked(fetchTransportNoticeLinks).mockResolvedValue({ noticeLinks: [link] });
 		vi.mocked(saveTransportNoticeLinks)
 			.mockRejectedValueOnce(new Error("保存失败"))
@@ -104,7 +104,7 @@ describe("通知关联编辑的读取与退出", () => {
 		);
 		expect(
 			result.client.getQueryState(["transport", "ops", "schedule-periods"])?.isInvalidated,
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("保存中禁止取消及重复提交", async () => {

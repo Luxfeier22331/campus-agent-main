@@ -6,10 +6,16 @@ metadata:
     app.kubernetes.io/name: internal-portal-collection
     app.kubernetes.io/part-of: campus-agent
 spec:
-  schedule: "0 0 1 1 *"
+  schedule: "*/15 * * * *"
+  timeZone: Asia/Shanghai
+  startingDeadlineSeconds: 300
   suspend: true
   concurrencyPolicy: Forbid
   jobTemplate:
+    metadata:
+      labels:
+        campus-agent.muc.wiki/notice-operation: notice-sync
+        campus-agent.muc.wiki/notice-operation-family: collection
     spec:
       ttlSecondsAfterFinished: 86400
       activeDeadlineSeconds: 3600

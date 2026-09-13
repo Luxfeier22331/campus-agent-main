@@ -10,6 +10,7 @@ import type {
 import {
 	backfillInternalPortalNotices,
 	parseNoticeStartDate,
+	rescanInternalPortalNotices,
 	syncInternalPortalNotices,
 	type NoticeRunnerInput,
 } from "../src/notice-runner.js";
@@ -58,7 +59,7 @@ describe("notice runner maintenance ranges", () => {
 		);
 	});
 
-	it("syncs only the gap after covered_until and advances the exclusive upper bound", async () => {
+	it("rescans the final covered day and advances the exclusive upper bound", async () => {
 		const stateStore = new MemoryStateStore(
 			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
 		);
@@ -76,10 +77,10 @@ describe("notice runner maintenance ranges", () => {
 
 		expect(fetchNoticePage.mock.calls.map(([input]) => input)).toEqual([
 			{ apiContext, currentPage: 1, endDate: "", startDate: "" },
-			{ apiContext, currentPage: 1, endDate: "2026-08-11", startDate: "2026-08-10" },
+			{ apiContext, currentPage: 1, endDate: "2026-08-11", startDate: "2026-08-09" },
 		]);
 		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([101, 102]);
-		expect(result.processedRange).toEqual({ from: "2026-08-10", to: "2026-08-12" });
+		expect(result.processedRange).toEqual({ from: "2026-08-09", to: "2026-08-12" });
 		expect(result.maintenanceRange).toEqual({ from: "2026-08-01", to: "2026-08-12" });
 		expect(result.state).toEqual(
 			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-12", updatedAt: now }),
@@ -91,25 +92,48 @@ describe("notice runner maintenance ranges", () => {
 		const progress: unknown[] = [];
 		const sourceStore = new MemorySourceStore();
 
-		const result = await syncInternalPortalNotices(
-			runnerInput({
-				fetchNoticePage: async () => page([notice(300, 5, "2026-08-26 09:00")], 1),
-				onProgress: (value) => progress.push(value),
-				sourceStore,
-				stateStore: new MemoryStateStore(current),
-			}),
-		);
+		const input = runnerInput({
+			fetchNoticePage: async () => page([notice(300, 5, "2026-08-26 09:00")], 1),
+			fetchNoticeDetail: async ({ noticeId }) => detail(noticeId, "2026-08-26 09:00"),
+			onProgress: (value) => progress.push(value), sourceStore,
+			stateStore: new MemoryStateStore(current),
+		});
+		await syncInternalPortalNotices(input);
+		const result = await syncInternalPortalNotices(input);
 
 		expect(result).toMatchObject({
 			maintenanceRange: { from: "2026-08-01", to: "2026-08-27" },
-			pagesFetched: 1,
-			processedRange: null,
+			pagesFetched: 2,
+			noticesAdded: 0,
+			processedRange: { from: "2026-08-26", to: "2026-08-27" },
 			upToDate: true,
 		});
-		expect(progress).toEqual([
-			{ phase: "finalizing", processed: 0, processedRange: null, total: 0 },
-		]);
-		expect(sourceStore.sources).toEqual([]);
+		expect(progress.at(-1)).toMatchObject({ phase: "finalizing", processed: 1 });
+		expect(sourceStore.sources).toHaveLength(1);
+	});
+
+	it("collects an afternoon notice without refetching the morning source", async () => {
+		const stateStore = new MemoryStateStore(state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-26" }));
+		let ids = [301];
+		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) => detail(noticeId, "2026-08-26 09:00"));
+		const input = runnerInput({ stateStore, fetchNoticeDetail, fetchNoticePage: async () => page(ids.map(id => notice(id, 5, "2026-08-26 09:00")), ids.length) });
+		expect((await syncInternalPortalNotices(input)).noticesAdded).toBe(1);
+		ids = [302, 301];
+		expect((await syncInternalPortalNotices(input)).noticesAdded).toBe(1);
+		expect(fetchNoticeDetail.mock.calls.map(([call]) => call.noticeId)).toEqual([301, 302]);
+		expect((await stateStore.load())?.coveredUntil).toBe("2026-08-27");
+	});
+
+	it("rescans a covered interval idempotently without changing its state", async () => {
+		const current = state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-27" });
+		const stateStore = new MemoryStateStore(current);
+		const input = { ...runnerInput({ stateStore, fetchNoticePage: async () => page([notice(101, 5, "2026-08-10 09:00")], 1) }), from: "2026-08-10", to: "2026-08-11" };
+		expect((await rescanInternalPortalNotices(input)).noticesAdded).toBe(1);
+		expect((await rescanInternalPortalNotices(input)).noticesAdded).toBe(0);
+		expect(await stateStore.load()).toEqual(current);
+		expect(stateStore.saveCalls).toBe(0);
+		await expect(rescanInternalPortalNotices({ ...input, to: "2026-08-28" })).rejects.toThrow("inside the maintained range");
+		await expect(rescanInternalPortalNotices({ ...input, to: input.from })).rejects.toThrow("nonempty");
 	});
 
 	it("extends a complete range backwards without overlapping the maintained upper range", async () => {
@@ -228,7 +252,7 @@ describe("notice runner maintenance ranges", () => {
 		expect(failed).toMatchObject({
 			maintenanceRange: null,
 			noticesProcessed: 2,
-			processedRange: { from: "2026-08-10", to: "2026-08-12" },
+			processedRange: { from: "2026-08-09", to: "2026-08-12" },
 		});
 		expect(failed.failures).toHaveLength(1);
 		expect(failed.failures[0]).toMatchObject({
@@ -599,7 +623,8 @@ class MemoryInventoryStore implements NoticeInventoryStore {
 	readonly mappings: NoticeInventoryMappings[] = [];
 	readonly registered: number[] = [];
 
-	async register(source: InternalPortalNoticeSource): Promise<"written"> {
+	async register(source: InternalPortalNoticeSource): Promise<"written" | "reused"> {
+		if (this.registered.includes(source.notice_id)) return "reused";
 		this.registered.push(source.notice_id);
 		return "written";
 	}

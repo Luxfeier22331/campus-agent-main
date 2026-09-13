@@ -24,6 +24,11 @@ const FAMILY_LABEL = "campus-agent.muc.wiki/notice-operation-family";
 const NOTICE_ID_LABEL = "campus-agent.muc.wiki/notice-id";
 const MANAGED_BY_VALUE = "ops-web";
 
+function isNoticeJob(job: V1Job): boolean {
+	const operation = job.metadata?.labels?.[OPERATION_LABEL];
+	return Boolean(operation && Object.hasOwn(OPERATIONS, operation));
+}
+
 type OperationFamily = "collection" | "classification" | "publication";
 
 interface OperationDefinition {
@@ -34,6 +39,7 @@ interface OperationDefinition {
 
 const OPERATIONS: Record<NoticeJobOperation, OperationDefinition> = {
 	"notice-sync": { container: "collection", family: "collection", template: "notice-sync" },
+	"notice-rescan": { container: "collection", family: "collection", template: "notice-sync" },
 	"notice-backfill": { container: "collection", family: "collection", template: "notice-backfill" },
 	"notice-classify-missing": {
 		container: "classifier",
@@ -87,6 +93,7 @@ export class NoticeJobNotFoundError extends Error {
 }
 
 export interface NoticeJobStore {
+	findActive?(family: OperationFamily): Promise<string | null>;
 	create(input: NoticeJobCreate): Promise<NoticeJob>;
 	get(jobName: string): Promise<NoticeJob | null>;
 	list(): Promise<NoticeJob[]>;
@@ -98,9 +105,15 @@ export function createNoticeJobService(store: NoticeJobStore): NoticeJobService 
 	return {
 		async create(input) {
 			const family = OPERATIONS[input.operation].family;
-			const running = (await store.list()).find(
-				(job) => OPERATIONS[job.operation].family === family && isActive(job.status),
-			);
+			const active = store.findActive ? await store.findActive(family) : null;
+			if (active) {
+				throw new NoticeJobConflictError(active);
+			}
+			const running = store.findActive
+				? undefined
+				: (await store.list()).find(
+						(job) => OPERATIONS[job.operation].family === family && isActive(job.status),
+					);
 			if (running) {
 				throw new NoticeJobConflictError(running.jobName);
 			}
@@ -165,7 +178,7 @@ export class KubernetesNoticeJobStore implements NoticeJobStore {
 	async get(jobName: string): Promise<NoticeJob | null> {
 		try {
 			const job = await this.batch.readNamespacedJob({ name: jobName, namespace: this.namespace });
-			if (job.metadata?.labels?.[MANAGED_BY_LABEL] !== MANAGED_BY_VALUE) {
+			if (!isNoticeJob(job)) {
 				return null;
 			}
 			return await this.toJob(job);
@@ -179,16 +192,46 @@ export class KubernetesNoticeJobStore implements NoticeJobStore {
 
 	async list(): Promise<NoticeJob[]> {
 		try {
-			const result = await this.batch.listNamespacedJob({
-				labelSelector: `${MANAGED_BY_LABEL}=${MANAGED_BY_VALUE}`,
-				limit: 50,
-				namespace: this.namespace,
-			});
-			const jobs = await Promise.all(result.items.map((job) => this.toJob(job)));
+			const selected = (await this.listMetadata())
+				.sort((a, b) =>
+					String(iso(b.metadata?.creationTimestamp)).localeCompare(
+						String(iso(a.metadata?.creationTimestamp)),
+					),
+				)
+				.slice(0, 50);
+			const jobs = await Promise.all(selected.map((job) => this.toJob(job)));
 			return jobs.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 		} catch (error) {
 			throw mapKubernetesError(error);
 		}
+	}
+
+	async findActive(family: OperationFamily): Promise<string | null> {
+		try {
+			const active = (await this.listMetadata()).find((job) => {
+				const operation = job.metadata?.labels?.[OPERATION_LABEL] as NoticeJobOperation;
+				return OPERATIONS[operation].family === family && isActive(jobStatus(job));
+			});
+			return active?.metadata?.name ?? null;
+		} catch (error) {
+			throw mapKubernetesError(error);
+		}
+	}
+
+	private async listMetadata(): Promise<V1Job[]> {
+		const jobs: V1Job[] = [];
+		let continuation: string | undefined;
+		do {
+			const result = await this.batch.listNamespacedJob({
+				namespace: this.namespace,
+				labelSelector: `${OPERATION_LABEL} in (${Object.keys(OPERATIONS).join(",")})`,
+				limit: 100,
+				...(continuation ? { _continue: continuation } : {}),
+			});
+			jobs.push(...result.items.filter(isNoticeJob));
+			continuation = result.metadata?._continue;
+		} while (continuation);
+		return jobs;
 	}
 
 	private async toJob(job: V1Job): Promise<NoticeJob> {
@@ -215,6 +258,11 @@ export class KubernetesNoticeJobStore implements NoticeJobStore {
 			maintenanceRange: diagnostics.maintenanceRange,
 			noticeId,
 			operation,
+			trigger: job.metadata?.ownerReferences?.some(
+				(owner) => owner.kind === "CronJob" && owner.controller === true,
+			)
+				? "scheduled"
+				: "manual",
 			processedRange: diagnostics.processedRange,
 			progress: diagnostics.progress,
 			startedAt: iso(job.status?.startTime),
@@ -308,6 +356,17 @@ function buildJob(
 }
 
 function applyOperation(container: V1Container, input: NoticeJobCreate): void {
+	if (input.operation === "notice-rescan") {
+		container.args = ["notice-rescan"];
+		container.env = [
+			...(container.env ?? []).filter(
+				(entry) =>
+					!["INTERNAL_PORTAL_NOTICE_FROM", "INTERNAL_PORTAL_NOTICE_TO"].includes(entry.name),
+			),
+			{ name: "INTERNAL_PORTAL_NOTICE_FROM", value: input.from },
+			{ name: "INTERNAL_PORTAL_NOTICE_TO", value: input.to },
+		];
+	}
 	if (input.operation === "notice-backfill") {
 		container.env = [
 			...(container.env ?? []).filter(

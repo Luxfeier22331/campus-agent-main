@@ -12,8 +12,10 @@ import type { NoticeJob, NoticeJobCreate, NoticeState } from "../../shared/ops-c
 import {
 	createNoticeJob,
 	fetchNotice,
+	fetchNoticeAutomation,
 	fetchNoticeJobs,
 	fetchNotices,
+	saveNoticeAutomation,
 	updateNoticeCategory,
 } from "../ops-api/notices";
 import {
@@ -27,6 +29,7 @@ import {
 export const noticesQueryKey = ["notices"] as const;
 export const noticeQueryKey = ["notice"] as const;
 export const noticeJobsQueryKey = ["notice-jobs"] as const;
+export const noticeAutomationQueryKey = ["notice-automation"] as const;
 export const noticeJobCreateMutationKey = ["notice-job-create"] as const;
 
 export interface NoticeMaintenanceFilters {
@@ -70,6 +73,20 @@ export function useNoticeMaintenance() {
 	const [pendingIntent, setPendingIntent] = useState<NoticeNavigationIntent | null>(null);
 	const [taskCenterOpen, setTaskCenterOpen] = useState(false);
 	const previousJobStatuses = useRef(new Map<string, NoticeJob["status"]>());
+	const automation = useQuery({
+		queryKey: noticeAutomationQueryKey,
+		queryFn: ({ signal }) => fetchNoticeAutomation({ signal }),
+		refetchInterval: (query) => (query.state.data?.enabled ? 30_000 : false),
+		refetchIntervalInBackground: false,
+		refetchOnWindowFocus: "always",
+	});
+	const saveAutomation = useMutation({
+		mutationFn: saveNoticeAutomation,
+		onSuccess: (value) => {
+			queryClient.setQueryData(noticeAutomationQueryKey, value);
+			void queryClient.invalidateQueries({ queryKey: noticeJobsQueryKey });
+		},
+	});
 
 	const filters = useMemo<NoticeMaintenanceFilters>(
 		() => ({ category, page, q, state }),
@@ -95,7 +112,14 @@ export function useNoticeMaintenance() {
 	const jobs = useQuery({
 		queryFn: ({ signal }) => fetchNoticeJobs({ signal }),
 		queryKey: noticeJobsQueryKey,
-		refetchInterval: (query) => (query.state.data?.jobs.some(isActiveNoticeJob) ? 3_000 : false),
+		refetchInterval: (query) =>
+			query.state.data?.jobs.some(isActiveNoticeJob)
+				? 3_000
+				: automation.data?.enabled
+					? 30_000
+					: false,
+		refetchIntervalInBackground: false,
+		refetchOnWindowFocus: "always",
 	});
 
 	const saveCategory = useMutation({
@@ -186,8 +210,8 @@ export function useNoticeMaintenance() {
 		for (const job of jobs.data.jobs) {
 			const previousStatus = previousJobStatuses.current.get(job.jobName);
 			if (
-				previousStatus &&
-				isActiveNoticeJob({ status: previousStatus }) &&
+				((previousStatus && isActiveNoticeJob({ status: previousStatus })) ||
+					(!previousStatus && job.trigger === "scheduled")) &&
 				isTerminalNoticeJob(job)
 			) {
 				noticeDataChanged = true;
@@ -204,6 +228,7 @@ export function useNoticeMaintenance() {
 			return;
 		}
 		const invalidations = [
+			queryClient.invalidateQueries({ queryKey: noticeAutomationQueryKey }),
 			queryClient.invalidateQueries({ queryKey: noticesQueryKey }),
 			...[...detailNoticeIds].map((noticeId) =>
 				queryClient.invalidateQueries({ queryKey: [...noticeQueryKey, noticeId] }),
@@ -399,8 +424,8 @@ export function useNoticeMaintenance() {
 	);
 
 	const isFamilyBusy = useCallback(
-		(family: NoticeJobFamily) => activeFamilies.has(family),
-		[activeFamilies],
+		(family: NoticeJobFamily) => jobs.isPending || jobs.isError || activeFamilies.has(family),
+		[activeFamilies, jobs.isPending, jobs.isError],
 	);
 
 	const currentNoticeJobs = useMemo(() => {
@@ -420,6 +445,8 @@ export function useNoticeMaintenance() {
 	}, [pendingJobSubmissions, selectedNoticeId]);
 
 	return {
+		automation,
+		saveAutomation,
 		activeJobCount,
 		activeFamilies,
 		blocker,

@@ -194,18 +194,23 @@ describe("transport PostgreSQL store integration", () => {
 				[id, `通知 ${id}`, released, published],
 			);
 		}
-		await store.replaceSchedulePeriodNotices(saved[0]!.scheduleId, [
+		const [original, changed] = saved;
+		if (!(original && changed)) {
+			throw new Error("Missing schedule fixtures");
+		}
+		await store.replaceSchedulePeriodNotices(original.scheduleId, [
 			{ noticeId: 353905, summary: "非生效时间段" },
 		]);
-		await store.replaceSchedulePeriodNotices(saved[1]!.scheduleId, [
+		await store.replaceSchedulePeriodNotices(changed.scheduleId, [
 			{ noticeId: 353903, summary: "后台备注不公开" },
 			{ noticeId: 353904, summary: null },
 			{ noticeId: 353905, summary: null },
 		]);
 		const after = (await store.listSchedulePeriods()).find(
-			(p) => p.scheduleId === saved[1]!.scheduleId,
+			(p) => p.scheduleId === saved[1]?.scheduleId,
 		);
-		expect(after?.updatedAt).toBe(saved[1]!.updatedAt);
+		expect(after?.updatedAt).toBe(saved[1]?.updatedAt);
+		expect(after?.sourceReleasedAt).toBe("2025-12-14T00:00:00.000Z");
 		const service = createTransportScheduleServiceTestAdapter(appApi);
 		const days = await service.getRange("2025-12-14", "2025-12-16", { includeNotices: true });
 		expect(days.days.map((d) => d.routeCatalog[0]?.dropOffPoint)).toEqual([
@@ -218,6 +223,19 @@ describe("transport PostgreSQL store integration", () => {
 			"353903",
 		]);
 		expect(JSON.stringify(days)).not.toContain("后台备注");
+		const withoutNotices = await service.getSchedule("2025-12-15");
+		expect(withoutNotices.routes[0]?.boardingPoint).toBe(days.days[1]?.routes[0]?.boardingPoint);
+		// A newer published notice on the other overlapping period changes every consumer together.
+		await store.replaceSchedulePeriodNotices(changed.scheduleId, [
+			{ noticeId: 353903, summary: null },
+		]);
+		const olderPeriodWins = await service.getSchedule("2025-12-15");
+		const olderWithNotices = await service.getSchedule("2025-12-15", { includeNotices: true });
+		expect(olderWithNotices.routes[0]?.noticeContext?.notices.map((n) => n.noticeId)).toEqual([
+			"353905",
+		]);
+		expect(olderPeriodWins.routeCatalog[0]?.dropOffPoint).toBe("受控起始下车点");
+		expect(olderPeriodWins.routeCatalog).toEqual(olderWithNotices.routeCatalog);
 		await management.query("update notices.notices set is_published=false where notice_id=353905");
 		expect(
 			(

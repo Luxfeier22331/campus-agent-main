@@ -41,7 +41,9 @@ describe("notice command", () => {
 		expect(() => parseNoticeCommand(["sync", "--concurrency", "2"])).toThrow(
 			"does not accept additional arguments",
 		);
-		expect(() => parseNoticeCommand(["status"])).toThrow("sync or backfill");
+		expect(() => parseNoticeCommand(["status"])).toThrow("sync, backfill or rescan");
+		expect(parseNoticeCommand(["rescan", "--from", "2026-08-01", "--to", "2026-08-02"])).toEqual({ name: "rescan", from: "2026-08-01", to: "2026-08-02" });
+		expect(() => parseNoticeCommand(["rescan", "--from", "2026-08-02", "--to", "2026-08-01"])).toThrow("from < to");
 	});
 
 	it("rejects a second collection when the advisory lock is held", async () => {

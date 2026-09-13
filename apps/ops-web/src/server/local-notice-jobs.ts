@@ -49,6 +49,7 @@ export class LocalNoticeJobStore implements NoticeJobStore {
 			maintenanceRange: null,
 			noticeId: "noticeId" in input ? input.noticeId : null,
 			operation: input.operation,
+			trigger: "manual",
 			processedRange: null,
 			progress: null,
 			startedAt: null,
@@ -70,6 +71,24 @@ export class LocalNoticeJobStore implements NoticeJobStore {
 			.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
 			.slice(0, MAX_LISTED_JOBS)
 			.map((job) => structuredClone(job));
+	}
+
+	async findActive(
+		family: "collection" | "classification" | "publication",
+	): Promise<string | null> {
+		const prefixes =
+			family === "collection"
+				? ["notice-sync", "notice-backfill", "notice-rescan"]
+				: family === "classification"
+					? ["notice-classify-missing", "notice-classify-one"]
+					: ["notice-publish-pending", "notice-publish-one", "notice-republish-one"];
+		return (
+			[...this.jobs.values()].find(
+				(job) =>
+					prefixes.includes(job.operation) &&
+					(job.status === "pending" || job.status === "running"),
+			)?.jobName ?? null
+		);
 	}
 
 	private run(jobName: string, input: NoticeJobCreate): void {
@@ -161,6 +180,11 @@ export function localNoticeCommand(
 ): LocalNoticeCommand {
 	const env = { ...environment };
 	switch (input.operation) {
+		case "notice-rescan":
+			return {
+				args: [...collectionArgs("notice-rescan"), "--from", input.from, "--to", input.to],
+				env,
+			};
 		case "notice-sync":
 			return { args: collectionArgs("notice-sync"), env };
 		case "notice-backfill":
@@ -186,7 +210,7 @@ export function localNoticeCommand(
 	}
 }
 
-function collectionArgs(operation: "notice-backfill" | "notice-sync"): string[] {
+function collectionArgs(operation: "notice-backfill" | "notice-sync" | "notice-rescan"): string[] {
 	return [
 		"--dir",
 		"jobs/internal-portal-collection",

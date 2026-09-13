@@ -34,6 +34,7 @@ const route: TransportOpsRoute = {
 };
 
 const period: TransportOpsSchedulePeriod = {
+	sourceReleasedAt: null,
 	boardingPointOverride: null,
 	createdAt: NOW,
 	items: [

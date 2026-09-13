@@ -10,6 +10,7 @@ import {
 	isNoticeHistoryCovered,
 	type NoticeRunnerResult,
 	parseNoticeStartDate,
+	rescanInternalPortalNotices,
 	syncInternalPortalNotices,
 } from "./notice-runner.js";
 import { createInternalPortalNoticeSourceStore } from "./notice-source.js";
@@ -19,7 +20,7 @@ import { createPortalApiContext } from "./portal.js";
 const NOTICE_MAINTENANCE_LOCK_NAMESPACE = 1_315_928_137;
 const NOTICE_MAINTENANCE_LOCK_ID = 1;
 
-export type NoticeCommand = { name: "backfill"; startDate: string } | { name: "sync" };
+export type NoticeCommand = { name: "backfill"; startDate: string } | { name: "sync" } | { name: "rescan"; from: string; to: string };
 
 export interface NoticeCommandOptions {
 	env?: NodeJS.ProcessEnv;
@@ -64,6 +65,7 @@ export async function runNoticeCommand(
 					failures: [],
 					maintenanceRange: { from: state.coveredFrom, to: state.coveredUntil },
 					mode: "backfill",
+					noticesAdded: 0,
 					noticesProcessed: 0,
 					objectsReused: 0,
 					objectsWritten: 0,
@@ -99,6 +101,9 @@ export async function runNoticeCommand(
 				sourceStore: createInternalPortalNoticeSourceStore({ objectStore }),
 				stateStore,
 			};
+			if (command.name === "rescan") {
+				return await rescanInternalPortalNotices({ ...runnerInput, from: command.from, to: command.to });
+			}
 			return await (command.name === "sync"
 				? syncInternalPortalNotices(runnerInput)
 				: backfillInternalPortalNotices({
@@ -146,6 +151,12 @@ export async function runNoticeCommand(
 
 export function parseNoticeCommand(argv: string[]): NoticeCommand {
 	const [name, ...args] = argv;
+	if (name === "rescan" && args.length === 4 && args[0] === "--from" && args[2] === "--to") {
+		const from = parseNoticeStartDate(args[1] ?? "");
+		const to = parseNoticeStartDate(args[3] ?? "");
+		if (from >= to) throw new Error("notice rescan requires from < to");
+		return { name, from, to };
+	}
 	if (name === "sync") {
 		if (args.length > 0) {
 			throw new Error("notice sync does not accept additional arguments");
@@ -162,5 +173,5 @@ export function parseNoticeCommand(argv: string[]): NoticeCommand {
 			"notice backfill requires --start-date YYYY-MM-DD and accepts no other arguments",
 		);
 	}
-	throw new Error("notice command must be sync or backfill");
+	throw new Error("notice command must be sync, backfill or rescan --from YYYY-MM-DD --to YYYY-MM-DD");
 }

@@ -11,6 +11,7 @@ import {
 import { RefreshCw } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ErrorState, PageHeader, StaleDataWarning } from "../ops-display";
+import { NoticeAutomationPanel } from "./notice-automation";
 import { NoticeInspector } from "./notice-inspector";
 import { NoticeMaintenanceToolbar } from "./notice-maintenance-toolbar";
 import { NoticeQueue } from "./notice-queue";
@@ -103,6 +104,25 @@ export function NoticeMaintenancePage() {
 				title="通知维护"
 			/>
 
+			<NoticeAutomationPanel
+				data={model.automation.data}
+				error={model.automation.error}
+				saving={model.saveAutomation.isPending}
+				saveError={model.saveAutomation.error}
+				busy={model.isFamilyBusy("collection")}
+				latest={model.jobs.data?.jobs.find((job) =>
+					["notice-sync", "notice-rescan", "notice-backfill"].includes(job.operation),
+				)}
+				onSave={(value) => model.saveAutomation.mutateAsync(value)}
+				onRun={() => {
+					model.setTaskCenterOpen(true);
+					model.startJob({ operation: "notice-sync" });
+				}}
+				onTasks={() => model.setTaskCenterOpen(true)}
+				onRetry={() => {
+					void model.automation.refetch();
+				}}
+			/>
 			<NoticeMaintenanceToolbar
 				category={model.category}
 				counts={model.notices.data?.counts ?? null}
@@ -223,6 +243,9 @@ export function NoticeMaintenancePage() {
 				isFamilyBusy={model.isFamilyBusy}
 				jobs={model.jobs.data?.jobs ?? []}
 				jobsError={model.jobs.error}
+				onRetry={() => {
+					void model.jobs.refetch();
+				}}
 				jobsPending={model.jobs.isPending}
 				onCreate={model.startJob}
 				onOpenChange={model.setTaskCenterOpen}

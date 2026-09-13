@@ -64,6 +64,14 @@ describe("collection Job entry", () => {
 		);
 	});
 
+	it("reads a fixed rescan range from the Job environment", () => {
+		expect(parseCollectionJobCommand(["notice-rescan"], {
+			INTERNAL_PORTAL_NOTICE_FROM: "2026-09-01",
+			INTERNAL_PORTAL_NOTICE_TO: "2026-09-14",
+		})).toEqual({ mode: "notice-rescan", from: "2026-09-01", to: "2026-09-14" });
+		expect(() => parseCollectionJobCommand(["notice-rescan"], {})).toThrow();
+	});
+
 	it("does not resolve credentials for help", async () => {
 		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 		await expect(main(["--help"], {})).resolves.toBe(0);

@@ -25,6 +25,7 @@ export const OpsDataStateSchema = z.enum(["FRESH", "PARTIAL", "STALE", "NO_DATA"
 
 export const NoticeJobOperationSchema = z.enum([
 	"notice-sync",
+	"notice-rescan",
 	"notice-backfill",
 	"notice-classify-missing",
 	"notice-classify-one",
@@ -60,6 +61,10 @@ export type NoticeJobProgress = z.infer<typeof NoticeJobProgressSchema>;
 
 export const NoticeJobCreateSchema = z.discriminatedUnion("operation", [
 	z.object({ operation: z.literal("notice-sync") }).strict(),
+	z
+		.object({ operation: z.literal("notice-rescan"), from: NoticeDateSchema, to: NoticeDateSchema })
+		.strict()
+		.refine((value) => value.from < value.to, "补查结束日期必须晚于开始日期"),
 	z.object({ operation: z.literal("notice-backfill"), startDate: NoticeDateSchema }).strict(),
 	z.object({ operation: z.literal("notice-classify-missing") }).strict(),
 	z.object({ operation: z.literal("notice-classify-one"), noticeId: NoticeIdSchema }).strict(),
@@ -82,6 +87,7 @@ export const NoticeJobSummarySchema = z
 		notices: z.number().int().nonnegative().optional(),
 		noticesFailed: z.number().int().nonnegative().optional(),
 		noticesProcessed: z.number().int().nonnegative().optional(),
+		noticesAdded: z.number().int().nonnegative().optional(),
 		objectsReused: z.number().int().nonnegative().optional(),
 		objectsWritten: z.number().int().nonnegative().optional(),
 		pagesFetched: z.number().int().nonnegative().optional(),
@@ -102,6 +108,7 @@ export const NoticeJobSchema = z
 		maintenanceRange: NoticeJobRangeSchema.nullable(),
 		noticeId: NoticeIdSchema.nullable(),
 		operation: NoticeJobOperationSchema,
+		trigger: z.enum(["manual", "scheduled"]),
 		processedRange: NoticeJobRangeSchema.nullable(),
 		progress: NoticeJobProgressSchema.nullable(),
 		startedAt: IsoDateTimeSchema.nullable(),

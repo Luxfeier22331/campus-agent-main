@@ -62,6 +62,10 @@ import {
 import { createPgInternalPortalCredentialStore } from "./internal-portal-credential-store.ts";
 import { createLocalNoticeJobStore } from "./local-notice-jobs.ts";
 import {
+	createNoticeAutomationService,
+	type NoticeAutomationService,
+} from "./notice-automation.ts";
+import {
 	createKubernetesNoticeJobStore,
 	createNoticeJobService,
 	NoticeJobConflictError,
@@ -120,6 +124,7 @@ import {
 	providerConfigAdminErrorResponse,
 	registerModelSettingsRoutes,
 } from "./routes/model-settings.ts";
+import { registerNoticeAutomationRoutes } from "./routes/notice-automation.ts";
 import { registerNoticePreviewRoutes } from "./routes/notice-preview.ts";
 import { registerNoticeRoutes } from "./routes/notices.ts";
 import { registerObservabilityRoutes, registerOverviewRoute } from "./routes/observability.ts";
@@ -164,6 +169,7 @@ interface OpsAppOptions {
 	internalPortalAutomationTokenService?: InternalPortalAutomationTokenService;
 	overviewService?: OpsOverviewService;
 	noticeJobService?: NoticeJobService;
+	noticeAutomationService?: NoticeAutomationService;
 	noticeStore?: NoticeStore;
 	noticePreviewStore?: NoticePreviewStore;
 	transportStore?: TransportStore;
@@ -555,6 +561,18 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	registerEmailAccessRoutes({ admission, app, client: emailAccessClient, publicOrigin });
 	registerObservabilityRoutes({ admission, app, store });
 	registerCampusGroupsRoutes({ admission, app, client: campusGroupsClient, publicOrigin });
+	registerNoticeAutomationRoutes({
+		admission,
+		app,
+		service:
+			options.noticeAutomationService ??
+			createNoticeAutomationService({
+				local: isLocalOpsEnvironment(env),
+				namespace: env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default",
+				source: options.noticePreviewStore ?? createNoticePreviewStore(env),
+				credentials: internalPortalCredentialService,
+			}),
+	});
 	registerNoticeRoutes({ admission, app, jobService: noticeJobService, store: noticeStore });
 	registerNoticePreviewRoutes({
 		admission,

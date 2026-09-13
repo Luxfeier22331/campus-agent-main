@@ -7,6 +7,7 @@ import type { NoticeJob, NoticeSummary } from "../src/shared/ops-contract";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 const fixture: NoticeJob = {
+	trigger: "manual",
 	completedAt: null,
 	createdAt: "2026-08-23T10:00:00.000Z",
 	controllerError: null,

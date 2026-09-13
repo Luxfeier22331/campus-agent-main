@@ -26,11 +26,18 @@ import type { PendingNoticeJobSubmission } from "./use-notice-maintenance";
 
 const INITIAL_NOTICE_BACKFILL_DATE = "2025-12-01";
 
+function exclusiveEndDate(value: string): string {
+	const date = new Date(`${value}T00:00:00Z`);
+	date.setUTCDate(date.getUTCDate() + 1);
+	return date.toISOString().slice(0, 10);
+}
+
 export function NoticeTaskCenter({
 	createError,
 	isFamilyBusy,
 	jobs,
 	jobsError,
+	onRetry,
 	jobsPending,
 	onCreate,
 	onOpenChange,
@@ -41,6 +48,7 @@ export function NoticeTaskCenter({
 	isFamilyBusy: (family: NoticeJobFamily) => boolean;
 	jobs: NoticeJob[];
 	jobsError: unknown;
+	onRetry?: () => void;
 	jobsPending: boolean;
 	onCreate: (input: NoticeJobCreate) => void;
 	onOpenChange: (open: boolean) => void;
@@ -48,6 +56,8 @@ export function NoticeTaskCenter({
 	pendingSubmissions: PendingNoticeJobSubmission[];
 }) {
 	const [startDate, setStartDate] = useState(INITIAL_NOTICE_BACKFILL_DATE);
+	const [rescanFrom, setRescanFrom] = useState("");
+	const [rescanEnd, setRescanEnd] = useState("");
 	const activeJobs = jobs.filter(isActiveNoticeJob);
 	const recentJobs = jobs.filter((job) => !isActiveNoticeJob(job));
 
@@ -60,9 +70,7 @@ export function NoticeTaskCenter({
 			>
 				<SheetHeader className="border-border border-b px-5 py-5 pr-14">
 					<SheetTitle>通知任务中心</SheetTitle>
-					<SheetDescription>
-						启动库存、分类和发布任务，并查看全部手动任务状态。单条操作留在通知详情中。
-					</SheetDescription>
+					<SheetDescription>查看自动与手动任务，按需补采、分类和发布通知。</SheetDescription>
 				</SheetHeader>
 				<div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
 					<div className="grid gap-8">
@@ -77,7 +85,7 @@ export function NoticeTaskCenter({
 							</div>
 							<div className="grid gap-3">
 								<ActionGroup
-									description="同步新通知，或从指定日期重新采集历史通知。"
+									description="采集新增通知，补查遗漏，或向前扩展历史范围。"
 									icon={<DatabaseZap aria-hidden="true" />}
 									title="库存更新"
 								>
@@ -86,6 +94,54 @@ export function NoticeTaskCenter({
 										onClick={() => onCreate({ operation: "notice-sync" })}
 										title="同步新通知"
 									/>
+									<details className="border-t pt-2">
+										<summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
+											补查遗漏
+										</summary>
+										<form
+											className="grid gap-3"
+											onSubmit={(event) => {
+												event.preventDefault();
+												if (rescanFrom && rescanEnd && rescanFrom <= rescanEnd) {
+													onCreate({
+														operation: "notice-rescan",
+														from: rescanFrom,
+														to: exclusiveEndDate(rescanEnd),
+													});
+												}
+											}}
+										>
+											<Field label="补查开始日期">
+												<Input
+													type="date"
+													required
+													value={rescanFrom}
+													onChange={(event) => setRescanFrom(event.target.value)}
+												/>
+											</Field>
+											<Field label="补查结束日期（含当天）">
+												<Input
+													type="date"
+													required
+													min={rescanFrom}
+													value={rescanEnd}
+													onChange={(event) => setRescanEnd(event.target.value)}
+												/>
+											</Field>
+											<Button
+												type="submit"
+												variant="outline"
+												disabled={
+													isFamilyBusy("collection") ||
+													!rescanFrom ||
+													!rescanEnd ||
+													rescanFrom > rescanEnd
+												}
+											>
+												开始补查
+											</Button>
+										</form>
+									</details>
 									<details className="group border-border border-t pt-2">
 										<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-md px-2 font-medium text-sm hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
 											<span className="flex items-center gap-2">
@@ -161,6 +217,11 @@ export function NoticeTaskCenter({
 								<p className="text-muted-foreground text-xs">最多显示 50 条</p>
 							</div>
 							{jobsError ? <InlineError error={jobsError} title="任务读取失败" /> : null}
+							{jobsError && onRetry ? (
+								<Button onClick={onRetry} variant="outline">
+									重试任务读取
+								</Button>
+							) : null}
 							{jobsPending && jobs.length === 0 ? <TaskListSkeleton /> : null}
 							{jobs.length === 0 && pendingSubmissions.length === 0 ? (
 								jobsPending || jobsError ? null : (
@@ -305,6 +366,7 @@ function TaskList({
 						</div>
 						<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
 							<span>{noticeJobScopeLabel(job)}</span>
+							<span>{job.trigger === "scheduled" ? "自动触发" : "手动触发"}</span>
 							<span className="min-w-0 break-all font-mono">{job.jobName}</span>
 						</div>
 						<div className="mt-2 grid gap-1 text-muted-foreground text-xs">

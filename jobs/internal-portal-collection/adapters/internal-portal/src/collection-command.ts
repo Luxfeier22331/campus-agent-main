@@ -5,13 +5,15 @@ export const COLLECTION_USAGE = [
 	"Usage:",
 	"  --mode notice-sync",
 	"  --mode notice-backfill --start-date YYYY-MM-DD",
+	"  --mode notice-rescan --from YYYY-MM-DD --to YYYY-MM-DD",
 	"  --mode file-sync",
 ].join("\n");
 
 export type CollectionCommand =
 	| { mode: "file-sync" }
 	| { mode: "notice-sync" }
-	| { mode: "notice-backfill"; startDate: string };
+	| { mode: "notice-backfill"; startDate: string }
+	| { mode: "notice-rescan"; from: string; to: string };
 
 export interface CollectionCommandOptions {
 	env?: NodeJS.ProcessEnv;
@@ -26,6 +28,12 @@ export function isCollectionHelp(argv: readonly string[]): boolean {
 export function parseCollectionCommand(argv: string[]): CollectionCommand {
 	const flags = parseFlags(argv[0] === "--" ? argv.slice(1) : argv);
 	const mode = required(flags, "--mode");
+	if (mode === "notice-rescan") {
+		assertOnlyFlags(flags, ["--mode", "--from", "--to"]);
+		const command = parseNoticeCommand(["rescan", "--from", required(flags, "--from"), "--to", required(flags, "--to")]);
+		if (command.name !== "rescan") throw usageError();
+		return { mode, from: command.from, to: command.to };
+	}
 	if (mode === "file-sync") {
 		assertOnlyFlags(flags, ["--mode"]);
 		return { mode };
@@ -71,7 +79,9 @@ export async function runCollectionCommand(
 		return summary.failed > 0 ? 1 : 0;
 	}
 	const noticeSummary = await runNoticeCommand(
-		command.mode === "notice-sync"
+		command.mode === "notice-rescan"
+			? { name: "rescan", from: command.from, to: command.to }
+			: command.mode === "notice-sync"
 			? { name: "sync" }
 			: {
 					name: "backfill",
@@ -106,6 +116,7 @@ export async function runCollectionCommand(
 				imagesReused: counts.resources.imagesReused,
 				noticesFailed: counts.failures.length,
 				noticesProcessed: counts.noticesProcessed,
+				noticesAdded: counts.noticesAdded,
 				objectsReused: counts.objectsReused,
 				objectsWritten: counts.objectsWritten,
 				pagesFetched: counts.pagesFetched,

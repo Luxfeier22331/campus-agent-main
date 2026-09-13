@@ -16,7 +16,7 @@ const ROUTE_ID = "route:test";
 const DATE = "2026-09-07";
 
 describe("transport schedule public projection", () => {
-	it("loads only winning-period published metadata in one batch and keeps the old shape without include", async () => {
+	it("loads candidate-period metadata in one batch and keeps the old shape without include", async () => {
 		const execute = vi.fn().mockResolvedValue({
 			rows: [
 				{
@@ -54,12 +54,14 @@ describe("transport schedule public projection", () => {
 		db.execute = execute;
 		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
 		expect((await service.getSchedule(DATE)).routes[0]).not.toHaveProperty("noticeContext");
-		expect(execute).not.toHaveBeenCalled();
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(new PgDialect().sqlToQuery(execute.mock.calls[0]?.[0]).sql).not.toContain("n.title");
+		execute.mockClear();
 		const result = await service.getRange("2026-09-07", "2026-09-09", { includeNotices: true });
 		expect(execute).toHaveBeenCalledTimes(1);
 		const query = new PgDialect().sqlToQuery(execute.mock.calls[0]?.[0]);
 		expect(query.sql).toContain("AND n.is_published");
-		expect(query.params).toEqual(["special", "baseline"]);
+		expect(query.params).toEqual(["baseline", "special"]);
 		expect(query.sql).not.toMatch(/summary|content_html|ocr/);
 		const first = result.days[0];
 		expect(first?.routes[0]).toMatchObject({
@@ -79,6 +81,95 @@ describe("transport schedule public projection", () => {
 		expect(result.days[2]?.routes[0]?.noticeContext?.notices).toEqual([]);
 		for (const day of result.days) {
 			expect(await service.getSchedule(day.date, { includeNotices: true })).toEqual(day);
+		}
+	});
+	it("prefers the newer notice when two complete periods overlap", async () => {
+		const execute = vi.fn().mockResolvedValue({
+			rows: [
+				{
+					schedule_id: "older",
+					notice_id: "349494",
+					title: "旧安排",
+					released_at: "2026-04-24T14:16:00Z",
+					is_external: false,
+					external_url: null,
+				},
+				{
+					schedule_id: "newer",
+					notice_id: "355867",
+					title: "新安排",
+					released_at: "2026-04-25T05:11:00Z",
+					is_external: false,
+					external_url: null,
+				},
+			],
+		});
+		const db = fakeDatabase({
+			routes: [route()],
+			periods: [
+				period({ scheduleId: "older", validFrom: "2026-04-27", validTo: "2026-05-05" }),
+				period({ scheduleId: "newer", validFrom: "2026-04-27", validTo: "2026-05-05" }),
+			],
+			items: [
+				item({ scheduleId: "older", itemId: "older:0", departureTime: "08:00" }),
+				item({ scheduleId: "newer", itemId: "newer:0", departureTime: "09:00" }),
+			],
+		});
+		db.execute = execute;
+		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		const result = await service.getSchedule("2026-04-28", { includeNotices: true });
+		const departure = result.routes[0]?.departures[0];
+		expect(departure?.kind).toBe("fixed");
+		if (departure?.kind === "fixed") {
+			expect(departure.departureTime).toBe("09:00");
+		}
+		expect(result.routes[0]?.noticeContext?.notices.map((notice) => notice.noticeId)).toEqual([
+			"355867",
+		]);
+		const without = await service.getSchedule("2026-04-28");
+		expect(without.routes).toEqual(
+			result.routes.map(({ noticeContext: _context, ...value }) => value),
+		);
+		expect(without.routeCatalog).toEqual(result.routeCatalog);
+		expect((await service.getRange("2026-04-28", "2026-04-29")).days[0]).toEqual(without);
+	});
+	it("uses future notice priorities for the next running date", async () => {
+		const db = fakeDatabase({
+			routes: [route()],
+			periods: [
+				period({ scheduleId: "old", validFrom: "2026-09-01", validTo: "2026-09-10" }),
+				period({
+					scheduleId: "closed",
+					validFrom: "2026-09-01",
+					validTo: "2026-09-10",
+					status: "suspended",
+				}),
+				period({ scheduleId: "restored", validFrom: "2026-09-11", validTo: null }),
+			],
+			items: [
+				item({ scheduleId: "old", itemId: "old:0" }),
+				item({ scheduleId: "restored", itemId: "restored:0" }),
+			],
+		});
+		db.execute = vi.fn().mockResolvedValue({
+			rows: [
+				{
+					schedule_id: "closed",
+					released_at: "2026-08-30T00:00:00Z",
+					notice_id: "357813",
+					title: "停运",
+					is_external: false,
+					external_url: null,
+				},
+			],
+		});
+		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		for (const includeNotices of [false, true]) {
+			const result = await service.getSchedule("2026-08-31", { includeNotices });
+			expect(result.routeCatalog[0]?.nextServiceDate).toBe("2026-09-11");
+			expect((await service.getSchedule("2026-09-07", { includeNotices })).routes[0]?.status).toBe(
+				"suspended",
+			);
 		}
 	});
 	it("projects shared complete historical tables without merging overlapping periods", async () => {
@@ -437,6 +528,7 @@ function fakeDatabase(input: {
 		throw new Error("unexpected transport table");
 	};
 	return {
+		execute: vi.fn().mockResolvedValue({ rows: [] }),
 		select: () => ({
 			from: (table: unknown) => {
 				const rows = rowsFor(table);
