@@ -5,6 +5,7 @@ description = "Isolated RAGAS scoring runner for campus-agent eval artifacts."
 license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
+    # Ragas 0.4.3 imports VertexAI modules removed in langchain-community 0.4.2.
     "langchain-community<0.4.2",
     "ragas>=0.4.3",
 ]

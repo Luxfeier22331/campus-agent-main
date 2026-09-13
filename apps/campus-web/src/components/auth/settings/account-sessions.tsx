@@ -1,4 +1,4 @@
-import { isSessionNotFreshError } from "@better-auth-ui/core";
+import { isReauthenticationRequiredError } from "@better-auth-ui/core";
 import {
 	useListSessions,
 	useRevokeOtherSessions,
@@ -69,7 +69,7 @@ export function AccountSessions() {
 	return (
 		<SettingsSection title="登录设备">
 			<div className="grid gap-4">
-				{isSessionNotFreshError(error) ? (
+				{isReauthenticationRequiredError(error) ? (
 					<FreshSessionForm onFresh={fresh} />
 				) : (
 					<SettingsFeedback
@@ -185,7 +185,7 @@ export function AccountSessions() {
 							? "包括当前设备在内的所有登录设备都会退出，需要重新登录。"
 							: "其他设备会退出登录，当前设备保持登录。"}
 					</AlertDialogDescription>
-					{isSessionNotFreshError(bulkError) ? (
+					{isReauthenticationRequiredError(bulkError) ? (
 						<FreshSessionForm
 							onFresh={async () => {
 								others.reset();

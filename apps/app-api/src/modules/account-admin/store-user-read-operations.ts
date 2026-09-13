@@ -1,4 +1,3 @@
-import { createLocalAccountIssuer } from "@better-auth/core/db";
 import {
 	and,
 	count,
@@ -59,7 +58,6 @@ export function createAccountAdminUserReadOperations(
 						and(
 							eq(account.userId, userId),
 							eq(account.providerId, "credential"),
-							eq(account.issuer, createLocalAccountIssuer("credential")),
 							eq(account.accountId, userId),
 						),
 					)
