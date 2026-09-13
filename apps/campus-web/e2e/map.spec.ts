@@ -54,7 +54,8 @@ test.describe("campus map browser flow", () => {
 		await page.setViewportSize({ height: 812, width: 390 });
 		await page.goto("/map");
 
-		const errorState = page.getByRole("alert", { name: "校园地图暂时无法打开" });
+		const errorState = page.getByRole("alert");
+		await expect(errorState.getByRole("heading", { name: "校园地图暂时无法打开" })).toBeVisible();
 		await expect(page.getByRole("button", { name: "打开全局菜单" })).toBeVisible();
 		await expect(errorState).toContainText("校园地图暂时无法打开。");
 		await expect(errorState.getByRole("button", { name: "重试" })).toBeVisible();
@@ -68,7 +69,7 @@ test.describe("campus map browser flow", () => {
 		await mockCampusApi(page, { emptyMapPlaces: true });
 		await page.goto("/map");
 
-		await expect(page.getByRole("heading", { name: "暂无内容" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "暂无校园地点" })).toBeVisible();
 		await expect(page.getByText("当前没有可展示的地图地点。")).toBeVisible();
 	});
 
