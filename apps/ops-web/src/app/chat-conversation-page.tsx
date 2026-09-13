@@ -45,7 +45,9 @@ export function ChatConversationPage({
 		? "返回回答反馈"
 		: returnPath.startsWith("/requests/")
 			? "返回运行详情"
-			: "返回运行记录";
+			: returnPath.startsWith("/conversations")
+				? "返回历史会话"
+				: "返回运行诊断";
 	const targetExists = data?.messages.some((message) => message.id === messageId);
 	const answeredRequests = new Set(
 		data?.messages

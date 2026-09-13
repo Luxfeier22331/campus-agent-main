@@ -5,7 +5,7 @@
 ## 职责
 
 - 关联 PostgreSQL 有界投影、Temporal 和 Langfuse 跳转信息；
-- 读取固定范围的运行概况、运行记录，以及 execution-control 持久化的净化步骤和尝试；
+- 读取固定范围的运行概况、运行诊断，以及 execution-control 持久化的净化步骤和尝试；
 - 在运行详情读取步骤结果的独立失败输出诊断列，纯文本展示模型 JSON/结构校验失败时的可见输出；
   不读取完整业务 result payload，也不从 trace 或 receipt 补录正文；
 - 在运行详情展示 Campus Search 调用进度、RAG 候选、分数、排除原因与最终引用；使用专用的有界诊断
@@ -22,7 +22,7 @@
 ## 页面
 
 - `/overview`：运行概况；
-- `/requests`、`/requests/:requestId`：运行记录与详情；
+- `/requests`、`/requests/:requestId`：运行诊断与详情；
 - `/conversations/:conversationId`：从运行或反馈进入的会话只读详情，可定位消息并查看各轮运行；
 - `/chat-feedback`：当前回答反馈的筛选、数量统计和对应问答详情，通过 App API 读取；
 - `/providers`：在线模型配置；

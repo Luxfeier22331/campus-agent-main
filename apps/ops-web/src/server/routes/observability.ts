@@ -63,10 +63,10 @@ export function registerObservabilityRoutes(input: {
 		}
 		const parsed = RequestListQuerySchema.safeParse(context.req.query());
 		if (!parsed.success) {
-			return jsonError("OPS_INVALID_QUERY", "运行记录查询参数无效。", 400);
+			return jsonError("OPS_INVALID_QUERY", "运行诊断查询参数无效。", 400);
 		}
 		if (parsed.data.cursor && !decodeRequestCursor(parsed.data.cursor, parsed.data.view)) {
-			return jsonError("OPS_INVALID_QUERY", "运行记录翻页参数无效。", 400);
+			return jsonError("OPS_INVALID_QUERY", "运行诊断翻页参数无效。", 400);
 		}
 		const query = parsed.data;
 		return context.json(

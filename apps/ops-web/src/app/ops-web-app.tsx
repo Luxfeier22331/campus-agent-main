@@ -131,7 +131,11 @@ const conversationsListRoute = createRoute({
 				? search.feedback
 				: undefined,
 		hasFailures:
-			search.hasFailures === "true" ? true : search.hasFailures === "false" ? false : undefined,
+			search.hasFailures === true || search.hasFailures === "true"
+				? true
+				: search.hasFailures === false || search.hasFailures === "false"
+					? false
+					: undefined,
 	}),
 	component: () => <ConversationsPage search={conversationsListRoute.useSearch()} />,
 });
@@ -322,21 +326,41 @@ export function OpsWebApp({ initialPath }: { initialPath?: string }) {
 function RootLayout() {
 	return (
 		<SidebarLayout
-			navItems={[
-				{ href: "/overview", icon: Activity, label: "运行概览" },
-				{ href: "/conversations", icon: History, label: "历史会话" },
-				{ href: "/requests", icon: ClipboardList, label: "运行诊断" },
-				{ href: "/chat-feedback", icon: ClipboardList, label: "回答反馈" },
-				{ href: "/providers", icon: ServerCog, label: "模型配置" },
-				{ href: "/internal-portal", icon: KeyRound, label: "内部门户凭据" },
-				{ href: "/notices", icon: ListChecks, label: "通知维护" },
-				{ href: "/ocr", icon: ListChecks, label: "文档识别" },
-				{ href: "/email-access", icon: UserRoundCheck, label: "账号准入" },
-				{ href: "/users", icon: UsersRound, label: "用户管理" },
-				{ href: "/users/activity", icon: History, label: "账号操作记录" },
-				{ href: "/dining", icon: Utensils, label: "食堂" },
-				{ href: "/transport", icon: Bus, label: "班车" },
-				{ href: "/groups", icon: UsersRound, label: "同好群" },
+			navGroups={[
+				{
+					label: "观测",
+					items: [
+						{ href: "/overview", icon: Activity, label: "运行概览" },
+						{ href: "/conversations", icon: History, label: "历史会话" },
+						{ href: "/requests", icon: ClipboardList, label: "运行诊断" },
+						{ href: "/chat-feedback", icon: ClipboardList, label: "回答反馈" },
+					],
+				},
+				{
+					label: "内容维护",
+					items: [
+						{ href: "/notices", icon: ListChecks, label: "通知维护" },
+						{ href: "/ocr", icon: ListChecks, label: "文档识别" },
+					],
+				},
+				{
+					label: "账号与权限",
+					items: [
+						{ href: "/email-access", icon: UserRoundCheck, label: "账号准入" },
+						{ href: "/users", icon: UsersRound, label: "用户管理" },
+						{ href: "/users/activity", icon: History, label: "账号操作记录" },
+					],
+				},
+				{
+					label: "运营配置",
+					items: [
+						{ href: "/providers", icon: ServerCog, label: "模型配置" },
+						{ href: "/internal-portal", icon: KeyRound, label: "内部门户凭据" },
+						{ href: "/dining", icon: Utensils, label: "食堂" },
+						{ href: "/transport", icon: Bus, label: "班车" },
+						{ href: "/groups", icon: UsersRound, label: "同好群" },
+					],
+				},
 			]}
 		>
 			<Outlet />

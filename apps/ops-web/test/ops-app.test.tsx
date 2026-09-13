@@ -55,13 +55,13 @@ describe("OpsWebApp", () => {
 		render(<OpsWebApp initialPath="/unknown-ops-page" />);
 
 		expect(await screen.findByRole("heading", { name: "页面不存在" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "返回运行记录" })).toHaveAttribute("href", "/requests");
+		expect(screen.getByRole("link", { name: "返回运行诊断" })).toHaveAttribute("href", "/requests");
 	});
 
 	it("renders recent run records", async () => {
 		render(<OpsWebApp initialPath="/requests" />);
 
-		expect(await screen.findByRole("heading", { name: "运行记录" })).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "运行诊断" })).toBeInTheDocument();
 		expect(screen.getByRole("navigation", { name: "运维导航" })).toBeInTheDocument();
 		expect((await screen.findAllByText("req_ops_001")).length).toBeGreaterThan(0);
 		expect((await screen.findAllByText("缓考申请需要哪些材料？")).length).toBeGreaterThan(0);
@@ -69,7 +69,7 @@ describe("OpsWebApp", () => {
 		expect((await screen.findAllByText("回答已写入会话")).length).toBeGreaterThan(0);
 		expect(screen.getByRole("combobox", { name: "运行范围" })).toHaveValue("recent");
 		expect(screen.getByRole("combobox", { name: "状态" })).toHaveValue("");
-		const requestTable = screen.getByRole("table", { name: "运行记录" });
+		const requestTable = screen.getByRole("table", { name: "运行诊断" });
 		expect(requestTable).toBeInTheDocument();
 		expect(screen.getByRole("columnheader", { name: "用户问题" })).toHaveAttribute("scope", "col");
 		expect(screen.getByRole("columnheader", { name: "产品结果" })).toBeInTheDocument();
@@ -165,7 +165,7 @@ describe("OpsWebApp", () => {
 		const mobileNav = await screen.findByRole("dialog");
 		fireEvent.click(within(mobileNav).getByRole("link", { name: "运行诊断" }));
 
-		expect(await screen.findByRole("heading", { name: "运行记录" })).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "运行诊断" })).toBeInTheDocument();
 		await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
 	});
 
@@ -174,7 +174,7 @@ describe("OpsWebApp", () => {
 
 		const trigger = await screen.findByRole("button", { name: "筛选" });
 		fireEvent.click(trigger);
-		expect(await screen.findByRole("dialog", { name: "筛选运行记录" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "筛选运行诊断" })).toBeInTheDocument();
 
 		fireEvent.keyDown(document, { key: "Escape" });
 		await waitFor(() => expect(trigger).toHaveFocus());
@@ -426,7 +426,7 @@ describe("OpsWebApp", () => {
 	it("shows an empty request list state for filters with no matches", async () => {
 		render(<OpsWebApp initialPath="/requests?q=no-such-request" />);
 
-		expect(await screen.findByText("没有匹配的运行记录。")).toBeInTheDocument();
+		expect(await screen.findByText("没有匹配的运行诊断。")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "重置" })).toBeEnabled();
 		expect(screen.getByRole("link", { name: "清除筛选" })).toBeInTheDocument();
 	});
@@ -478,7 +478,7 @@ describe("OpsWebApp", () => {
 					JSON.stringify({
 						error: {
 							code: "OPS_INVALID_QUERY",
-							message: "运行记录查询参数无效。",
+							message: "运行诊断查询参数无效。",
 						},
 					}),
 					{ headers: { "content-type": "application/json" }, status: 400 },
@@ -490,8 +490,8 @@ describe("OpsWebApp", () => {
 		try {
 			render(<OpsWebApp initialPath="/requests?status=done&limit=999" />);
 
-			expect(await screen.findByText("运行记录读取失败")).toBeInTheDocument();
-			expect(await screen.findByText("运行记录查询参数无效。")).toBeInTheDocument();
+			expect(await screen.findByText("运行诊断读取失败")).toBeInTheDocument();
+			expect(await screen.findByText("运行诊断查询参数无效。")).toBeInTheDocument();
 			expect(await screen.findByText("OPS_INVALID_QUERY")).toBeInTheDocument();
 			expect(screen.getByRole("combobox", { name: "时间范围" })).toBeInTheDocument();
 			expect(screen.getByRole("button", { name: "重置" })).toBeEnabled();
@@ -524,12 +524,12 @@ describe("OpsWebApp", () => {
 			render(<OpsWebApp initialPath="/requests" />);
 			expect((await screen.findAllByText("req_ops_001")).length).toBeGreaterThan(0);
 
-			fireEvent.click(screen.getByRole("button", { name: "刷新运行记录" }));
+			fireEvent.click(screen.getByRole("button", { name: "刷新运行诊断" }));
 
-			expect(await screen.findByText("运行记录刷新失败")).toBeInTheDocument();
+			expect(await screen.findByText("运行诊断刷新失败")).toBeInTheDocument();
 			expect(await screen.findByText(/仍显示最后一次成功数据/)).toBeInTheDocument();
 			expect(screen.getAllByText("req_ops_001").length).toBeGreaterThan(0);
-			expect(screen.queryByText("运行记录读取失败")).not.toBeInTheDocument();
+			expect(screen.queryByText("运行诊断读取失败")).not.toBeInTheDocument();
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
@@ -542,7 +542,7 @@ describe("OpsWebApp", () => {
 
 		expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
 		expect(await screen.findByText("缓考申请需要哪些材料？")).toBeInTheDocument();
-		expect(await screen.findByRole("link", { name: "返回运行记录" })).toHaveAttribute(
+		expect(await screen.findByRole("link", { name: "返回运行诊断" })).toHaveAttribute(
 			"href",
 			"/requests?status=RUNNING&q=req_ops_003",
 		);
@@ -620,7 +620,7 @@ describe("OpsWebApp", () => {
 		render(<OpsWebApp initialPath="/requests/no-such-id?from=%2Frequests%3Flimit%3D1" />);
 
 		expect(await screen.findByText("运行详情读取失败")).toBeInTheDocument();
-		expect(await screen.findByRole("link", { name: "返回运行记录" })).toHaveAttribute(
+		expect(await screen.findByRole("link", { name: "返回运行诊断" })).toHaveAttribute(
 			"href",
 			"/requests?limit=1",
 		);

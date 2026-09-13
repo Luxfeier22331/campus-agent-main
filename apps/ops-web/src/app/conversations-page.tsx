@@ -1,6 +1,6 @@
 import { Button, Input } from "@campus-agent/ui";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { formatTimestamp } from "./format";
 import { fetchChatConversations } from "./ops-api/chat-conversations";
@@ -8,47 +8,33 @@ import { ErrorState, PageHeader, PageShell, StatusBadge } from "./ops-display";
 
 export function ConversationsPage({ search }: { search: Record<string, unknown> }) {
 	const navigate = useNavigate();
+	const location = useLocation();
 	const params = new URLSearchParams();
-	const q = typeof search.q === "string" ? search.q : "";
-	if (q) {
-		params.set("q", q);
-	}
-	if (typeof search.cursor === "string") {
-		params.set("cursor", search.cursor);
-	}
-	if (typeof search.from === "string") {
-		params.set("from", search.from);
-	}
-	if (typeof search.to === "string") {
-		params.set("to", search.to);
-	}
-	if (typeof search.status === "string") {
-		params.set("status", search.status);
-	}
-	if (typeof search.feedback === "string") {
-		params.set("feedback", search.feedback);
+	for (const key of ["q", "cursor", "from", "to", "status", "feedback"]) {
+		const value = search[key];
+		if (typeof value === "string" && value) {
+			params.set(key, value);
+		}
 	}
 	if (typeof search.hasFailures === "boolean") {
 		params.set("hasFailures", String(search.hasFailures));
 	}
-	if (typeof search.from === "string") {
-		params.set("from", search.from);
-	}
-	if (typeof search.to === "string") {
-		params.set("to", search.to);
-	}
 	const query = useQuery({
 		queryKey: ["ops", "chat-conversations", params.toString()],
 		queryFn: ({ signal }) => fetchChatConversations(params, signal),
+		placeholderData: keepPreviousData,
 	});
-	if (query.isPending) {
+	if (query.isPending && !query.data) {
 		return <PageShell title="历史会话">正在读取历史会话...</PageShell>;
 	}
-	if (query.isError) {
+	if (query.isError && !query.data) {
 		return (
 			<ErrorState error={query.error} onRetry={() => query.refetch()} title="历史会话读取失败" />
 		);
 	}
+	const hasFilters = ["q", "status", "feedback", "hasFailures", "from", "to"].some(
+		(k) => search[k] !== undefined && search[k] !== "",
+	);
 	return (
 		<section>
 			<PageHeader
@@ -60,7 +46,7 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 						variant="outline"
 					>
 						<RefreshCw className="size-4" />
-						刷新
+						{query.isFetching ? "刷新中" : "刷新"}
 					</Button>
 				}
 				description="按会话查看用户问题、助手回答和需要排查的运行。"
@@ -71,31 +57,30 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 				onSubmit={(event) => {
 					event.preventDefault();
 					const form = new FormData(event.currentTarget);
-					const date = (name: string, end = false) => {
-						const value = String(form.get(name) ?? "");
-						return value
-							? new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}Z`).toISOString()
-							: undefined;
-					};
+					const value = (n: string) => String(form.get(n) ?? "") || undefined;
 					void navigate({
 						to: "/conversations",
 						search: {
-							q: String(form.get("q") ?? "") || undefined,
-							status: String(form.get("status") ?? "") || undefined,
-							feedback: String(form.get("feedback") ?? "") || undefined,
+							q: value("q"),
+							status: value("status"),
+							feedback: value("feedback"),
 							hasFailures:
-								form.get("hasFailures") === ""
-									? undefined
-									: String(form.get("hasFailures")) === "true",
-							from: date("from"),
-							to: date("to", true),
+								value("hasFailures") === undefined ? undefined : value("hasFailures") === "true",
+							from: (() => {
+								const v = value("from");
+								return v ? new Date(`${v}T00:00:00.000+08:00`).toISOString() : undefined;
+							})(),
+							to: (() => {
+								const v = value("to");
+								return v ? new Date(`${v}T23:59:59.999+08:00`).toISOString() : undefined;
+							})(),
 						},
 					});
 				}}
 			>
 				<Input
 					aria-label="搜索会话"
-					defaultValue={q}
+					defaultValue={typeof search.q === "string" ? search.q : ""}
 					name="q"
 					placeholder="搜索标题、问题、回答或 request ID"
 				/>
@@ -149,57 +134,75 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 				/>
 				<Button type="submit">搜索</Button>
 			</form>
-			<p className="mb-3 text-sm text-muted-foreground">
-				共显示 {query.data.data.length} 个会话 · 按最近活动时间排序
-			</p>
-			{query.data.data.length === 0 ? (
+			<div className="mb-3 flex flex-wrap justify-between gap-2 text-sm text-muted-foreground">
+				<span>当前页 {query.data?.data.length ?? 0} 个会话 · 按最近活动时间排序</span>
+				{query.isFetching ? <span role="status">正在更新结果…</span> : null}
+			</div>
+			{query.isRefetchError ? (
+				<p className="mb-3 text-sm text-warning" role="status">
+					刷新失败，当前显示上一次成功结果。{" "}
+					<button className="underline" onClick={() => void query.refetch()} type="button">
+						重试
+					</button>
+				</p>
+			) : null}
+			{query.data?.data.length === 0 ? (
 				<div className="border-border border-y bg-secondary p-4 text-sm">没有匹配的历史会话。</div>
 			) : (
 				<div className="divide-y divide-border border-y">
-					{query.data.data.map((conversation) => (
-						<article className="grid gap-2 py-4" key={conversation.id}>
+					{query.data?.data.map((c) => (
+						<article className="grid gap-2 py-4" key={c.id}>
 							<div className="flex flex-wrap items-center justify-between gap-2">
 								<Link
 									className="font-medium text-foreground hover:underline"
-									params={{ conversationId: conversation.id }}
-									search={{ from: "/conversations" }}
+									params={{ conversationId: c.id }}
+									search={{ from: location.href }}
 									to="/conversations/$conversationId"
 								>
-									{conversation.title}
+									{c.title}
 								</Link>
-								<StatusBadge status={conversation.latestStatus} />
+								<StatusBadge status={c.latestStatus} />
 							</div>
 							<div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-								<span>用户：{conversation.owner.displayName ?? conversation.owner.id}</span>
-								<span>创建于 {formatTimestamp(conversation.createdAt)}</span>
-								<span>更新于 {formatTimestamp(conversation.updatedAt)}</span>
-								<span>{conversation.turnCount} 轮</span>
+								<span>用户：{c.owner.displayName ?? c.owner.id}</span>
+								<span>创建于 {formatTimestamp(c.createdAt)}</span>
+								<span>更新于 {formatTimestamp(c.updatedAt)}</span>
+								<span>{c.turnCount} 轮</span>
 							</div>
-							<p className="text-sm text-foreground">
-								{conversation.latestQuestionPreview ?? "暂无用户问题"}
-							</p>
-							{conversation.latestAnswerPreview ? (
+							<p className="text-sm text-foreground">{c.latestQuestionPreview ?? "暂无用户问题"}</p>
+							{c.latestAnswerPreview ? (
 								<p className="line-clamp-2 text-sm text-muted-foreground">
-									{conversation.latestAnswerPreview}
+									{c.latestAnswerPreview}
 								</p>
 							) : null}
 							<div className="flex gap-3 text-xs text-muted-foreground">
-								<span>{conversation.hasFailures ? "包含失败运行" : "运行正常"}</span>
-								<span>{conversation.hasFeedback ? "有用户反馈" : "暂无反馈"}</span>
+								<span>{c.hasFailures ? "包含失败运行" : "运行正常"}</span>
+								<span>{c.hasFeedback ? "有用户反馈" : "暂无反馈"}</span>
 							</div>
 						</article>
 					))}
 				</div>
 			)}
-			{query.data.page.nextCursor ? (
-				<Link
-					className="mt-4 inline-flex font-medium text-info hover:underline"
-					search={{ ...search, cursor: query.data.page.nextCursor }}
-					to="/conversations"
-				>
-					下一页
-				</Link>
-			) : null}
+			<div className="flex gap-3">
+				{query.data?.page.nextCursor ? (
+					<Link
+						className="mt-4 inline-flex font-medium text-info hover:underline"
+						search={{ ...search, cursor: query.data.page.nextCursor }}
+						to="/conversations"
+					>
+						下一页
+					</Link>
+				) : null}
+				{hasFilters ? (
+					<Button
+						className="mt-4"
+						onClick={() => void navigate({ to: "/conversations", search: {} })}
+						variant="ghost"
+					>
+						清除筛选
+					</Button>
+				) : null}
+			</div>
 		</section>
 	);
 }

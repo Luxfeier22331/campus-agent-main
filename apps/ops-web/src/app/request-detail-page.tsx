@@ -144,7 +144,7 @@ function BackToRequests({ href }: { href: string }) {
 					? "返回会话"
 					: href.startsWith("/requests/")
 						? "返回运行详情"
-						: "返回运行记录"}
+						: "返回运行诊断"}
 		</a>
 	);
 }

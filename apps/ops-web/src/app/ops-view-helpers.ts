@@ -129,7 +129,7 @@ export function normalizeRequestListReturnPath(value: string | undefined) {
 		if (
 			parsed.origin !== "https://ops-web.local" ||
 			!(
-				["/requests", "/chat-feedback"].includes(parsed.pathname) ||
+				["/requests", "/chat-feedback", "/conversations"].includes(parsed.pathname) ||
 				/^\/(requests|conversations)\/[^/]+$/.test(parsed.pathname)
 			)
 		) {

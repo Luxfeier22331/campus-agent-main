@@ -467,15 +467,15 @@ test("总览在各宽度下保持可读", async ({ page }) => {
 	await expectStableViewport(page, errors);
 });
 
-test("运行记录进入同页产品结果和执行诊断", async ({ page }) => {
+test("运行诊断进入同页产品结果和执行诊断", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/requests");
 
-	await expect(page.getByRole("heading", { name: "运行记录" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "运行诊断" })).toBeVisible();
 	const compactLayout = (page.viewportSize()?.width ?? 0) < 1280;
 	const recentResults = compactLayout
 		? page.getByTestId("request-mobile-list")
-		: page.getByRole("table", { name: "运行记录" });
+		: page.getByRole("table", { name: "运行诊断" });
 	await expect(recentResults).toContainText("缓考申请需要哪些材料？");
 	const completedRequest = recentResults
 		.getByRole("link", { name: "缓考申请需要哪些材料？" })
@@ -506,7 +506,7 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 	}
 	const attentionResults = compactLayout
 		? page.getByTestId("request-mobile-list")
-		: page.getByRole("table", { name: "运行记录" });
+		: page.getByRole("table", { name: "运行诊断" });
 	await expect(attentionResults).toContainText("产品请求失败");
 	await expect(attentionResults).toContainText("等待用户补充信息");
 	await expect(attentionResults).toContainText("会话结果缺失");
@@ -566,13 +566,13 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 	await expectStableViewport(page, errors);
 });
 
-test("运行记录在中等宽度使用任务卡片并在宽桌面使用表格", async ({ page }, testInfo) => {
+test("运行诊断在中等宽度使用任务卡片并在宽桌面使用表格", async ({ page }, testInfo) => {
 	testInfo.skip(testInfo.project.name !== "desktop-1440", "只在桌面浏览器项目中运行响应式边界验证");
 
 	await page.setViewportSize({ height: 900, width: 898 });
 	await page.goto("/requests");
 	await expect(page.getByTestId("request-mobile-list")).toBeVisible();
-	await expect(page.getByRole("table", { name: "运行记录" })).toBeHidden();
+	await expect(page.getByRole("table", { name: "运行诊断" })).toBeHidden();
 	await expect(page.getByRole("combobox", { name: "运行范围" })).toBeVisible();
 	await expect
 		.poll(() =>
@@ -592,11 +592,11 @@ test("运行记录在中等宽度使用任务卡片并在宽桌面使用表格",
 
 	await page.setViewportSize({ height: 900, width: 1280 });
 	await page.goto("/requests");
-	await expect(page.getByRole("table", { name: "运行记录" })).toBeVisible();
+	await expect(page.getByRole("table", { name: "运行诊断" })).toBeVisible();
 	await expect(page.getByTestId("request-mobile-list")).toBeHidden();
 	await expect(page.getByRole("columnheader", { name: "关注原因" })).toBeVisible();
 	const duration = page
-		.getByRole("table", { name: "运行记录" })
+		.getByRole("table", { name: "运行诊断" })
 		.locator("tbody tr")
 		.first()
 		.locator("td")
@@ -608,7 +608,7 @@ test("运行记录在中等宽度使用任务卡片并在宽桌面使用表格",
 		.toBeGreaterThanOrEqual(120);
 });
 
-test("六类运行记录保留产品结果和执行诊断语义", async ({ page }) => {
+test("六类运行诊断保留产品结果和执行诊断语义", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 
 	await page.goto("/requests/req_ops_002");
@@ -666,10 +666,10 @@ test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) 
 		await page
 			.getByRole("navigation", { name: "运维导航" })
 			.last()
-			.getByRole("link", { name: "运行记录" })
+			.getByRole("link", { name: "运行诊断" })
 			.click();
 		await expect(page).toHaveURL(/\/requests$/u);
-		await expect(page.getByRole("heading", { name: "运行记录" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "运行诊断" })).toBeVisible();
 		await expect(page.locator("#ops-main-content")).toBeFocused();
 
 		await toggle.click();
@@ -680,7 +680,7 @@ test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) 
 		await page
 			.getByRole("navigation", { name: "运维导航" })
 			.first()
-			.getByRole("link", { name: "运行记录" })
+			.getByRole("link", { name: "运行诊断" })
 			.click();
 		await expect(page).toHaveURL(/\/requests$/u);
 		await expect(page.locator("#ops-main-content")).not.toBeFocused();
