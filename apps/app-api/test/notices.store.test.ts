@@ -44,7 +44,7 @@ describe("pg notice store", () => {
 				],
 			};
 		});
-		const store = createPgNoticeStore({} as never, {
+		const store = createPgNoticeStore({
 			getDb: async () => ({ execute }) as never,
 		});
 
@@ -61,7 +61,7 @@ describe("pg notice store", () => {
 			queries.push({ params: query.params, sql: query.sql });
 			return query.sql.includes("count(*)") ? { rows: [{ count: "0" }] } : { rows: [] };
 		});
-		const store = createPgNoticeStore({} as never, {
+		const store = createPgNoticeStore({
 			getDb: async () => ({ execute }) as never,
 		});
 
@@ -87,7 +87,7 @@ describe("pg notice store", () => {
 			queries.push({ params: query.params, sql: query.sql });
 			return query.sql.includes("count(*)") ? { rows: [{ count: "0" }] } : { rows: [] };
 		});
-		const store = createPgNoticeStore({} as never, {
+		const store = createPgNoticeStore({
 			getDb: async () => ({ execute }) as never,
 		});
 
@@ -125,7 +125,7 @@ describe("pg notice store", () => {
 			}
 			return { rows: [] };
 		});
-		const store = createPgNoticeStore({} as never, {
+		const store = createPgNoticeStore({
 			getDb: async () => ({ execute }) as never,
 		});
 

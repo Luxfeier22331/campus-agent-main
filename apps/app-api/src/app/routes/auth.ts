@@ -1,13 +1,13 @@
 import { CAMPUS_PASSWORD_MAX_LENGTH } from "campus-contracts/auth";
 import type { Hono } from "hono";
-
 import { type Env, readAuthShellOrigin } from "../../config";
 import { AppApiRouteError, errorEnvelope, jsonResponse, withNoStore } from "../../http";
+import type { AppAuthResolutionInput } from "../../modules/auth";
 import { resolveEmailVerificationReturnTarget } from "../../modules/auth";
 import { requireSessionPrincipal } from "../principal";
 import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
 import type { AppRequestScope } from "../types";
-import { authenticationDependencyFailure } from "./auth-failure";
+import { authenticationDependencyFailure, normalizeAuthFailureResponse } from "./auth-failure";
 
 const APP_AUTH_ROUTE_PREFIX = "/api/auth";
 const EMAIL_VERIFICATION_ROUTE = "/api/auth/verify-email";
@@ -126,14 +126,14 @@ export function registerAuthRoutes(input: {
 	authHandler: (
 		request: Request,
 		env: Env,
-		authInput?: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<Response> | Response;
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 	getPrincipal: (
 		request: Request,
 		env: Env,
-		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: AppAuthResolutionInput,
 	) => Promise<import("../../modules/auth").ResolvedAppPrincipal | null>;
 }) {
 	input.app.all("/api/auth/*", async (c) => {
@@ -147,9 +147,12 @@ export function registerAuthRoutes(input: {
 		}
 
 		try {
-			const response = await input.authHandler(rewriteApiAuthRequest(c.req.raw), input.env, {
-				getAppAuth: scope.getAppAuth,
-			});
+			const response = await normalizeAuthFailureResponse(
+				await input.authHandler(rewriteApiAuthRequest(c.req.raw), input.env, {
+					getAppAuth: scope.getAppAuth,
+				}),
+				"auth_handler",
+			);
 			return withNoStore(
 				verificationContext
 					? await normalizeBrowserEmailVerificationResponse(response, verificationContext)
@@ -158,7 +161,6 @@ export function registerAuthRoutes(input: {
 		} catch (error) {
 			const response = authenticationDependencyFailure({
 				error,
-				request: c.req.raw,
 				source: "auth_handler",
 			});
 			return withNoStore(

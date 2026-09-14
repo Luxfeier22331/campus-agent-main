@@ -4,8 +4,7 @@ import type {
 } from "campus-contracts/product-availability";
 import { desc, gte } from "drizzle-orm";
 
-import type { Env } from "../../config";
-import { createRuntimeDbGetter, type RuntimeDbGetter } from "../../db/runtime";
+import type { RuntimeDbGetter } from "../../db/runtime";
 import { turnDispatches } from "../../db/schema";
 
 export const CHAT_AVAILABILITY_WINDOW_MS = 15 * 60 * 1_000;
@@ -48,11 +47,10 @@ export function buildChatAvailabilityService(input: {
 	};
 }
 
-export function createPgChatAvailabilityStore(
-	env: Env,
-	input: { getDb?: RuntimeDbGetter } = {},
-): ChatAvailabilityStore {
-	const getDb = input.getDb ?? createRuntimeDbGetter(env);
+export function createPgChatAvailabilityStore(input: {
+	getDb: RuntimeDbGetter;
+}): ChatAvailabilityStore {
+	const getDb = input.getDb;
 	return {
 		async getLatestStatusSince(since) {
 			const rows = await (await getDb())

@@ -14,15 +14,17 @@ import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
 import type { TransportScheduleService } from "../modules/transport";
+import type { RequestRuntimeScopeDependencies } from "../request-runtime-scope";
 
 export interface AppDependencies {
+	runtimeScopeDependencies?: RequestRuntimeScopeDependencies;
 	accountAdminService?: AccountAdminService;
 	accountLifecycleService?: AccountLifecycleService;
 	accessInvitationEmailSender?: AuthEmailSender;
 	authHandler?: (
 		request: Request,
 		env: Env,
-		input?: AppAuthResolutionInput,
+		input: Pick<AppAuthResolutionInput, "getAppAuth">,
 	) => Promise<Response> | Response;
 	campusExperienceService?: CampusExperienceService;
 	campusGroupsService?: CampusGroupsService;
@@ -38,7 +40,7 @@ export interface AppDependencies {
 	getPrincipal?: (
 		request: Request,
 		env: Env,
-		input?: AppAuthResolutionInput,
+		input: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
 	profileMemoryService?: ProfileMemoryService;
 	runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
@@ -55,6 +57,7 @@ export interface AppRuntimeReadinessResult {
 }
 
 export interface AppRequestScope {
+	getDb: import("../db/runtime").RuntimeDbGetter;
 	getAppAuth: AppAuthGetter;
 	resolveAccountAdminService(): AccountAdminService;
 	resolveAccountLifecycleService(): AccountLifecycleService;

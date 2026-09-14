@@ -1,7 +1,8 @@
 // @vitest-environment node
 
 import { createHash } from "node:crypto";
-import { Client } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Client, Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
 import { createApp } from "../src/app";
@@ -36,6 +37,10 @@ function createPgChatCommandStore(...args: Parameters<typeof createPgChatCommand
 
 const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 const postgres = inject("appApiPostgres");
+const runtimePool = new Pool({ connectionString: postgres.runtimeConnectionString, max: 4 });
+const runtimeDatabase = drizzle({ client: runtimePool });
+const getDb = async () => runtimeDatabase;
+afterAll(() => runtimePool.end());
 
 interface CapturedEmail {
 	subject: string;
@@ -174,6 +179,7 @@ describe("app-api shared product DB integration", () => {
 		});
 
 		auth = createAppAuth(env, {
+			database: runtimeDatabase,
 			emailSender: {
 				async send(message) {
 					emails.push({ subject: message.subject, text: message.text, to: message.to });
@@ -181,7 +187,10 @@ describe("app-api shared product DB integration", () => {
 				},
 			},
 		});
-		app = createApp(env, { getAppAuth: () => auth });
+		app = createApp(env, {
+			runtimeScopeDependencies: { createRuntimeDatabase: getDb },
+			getAppAuth: () => auth,
+		});
 		client = new Client({
 			connectionString: postgres.managementConnectionString,
 			ssl: false,
@@ -251,7 +260,7 @@ describe("app-api shared product DB integration", () => {
 			runtimeConnectionString: postgres.runtimeConnectionString,
 			overrides: { DEPLOYMENT_ENVIRONMENT: "staging" },
 		});
-		const deployedAuth = createAppAuth(deployedEnv);
+		const deployedAuth = createAppAuth(deployedEnv, { database: drizzle({ client: runtimePool }) });
 		const deployedApp = createApp(deployedEnv, { getAppAuth: () => deployedAuth });
 		const request = () =>
 			new Request("https://app-api.internal/api/auth/get-session", {
@@ -370,7 +379,7 @@ describe("app-api shared product DB integration", () => {
 		const secondConversationId = `search-second-${suffix}`;
 		const otherConversationId = `search-other-${suffix}`;
 		const literalMessageText = `${"前文".repeat(60)}100% literal_underscore\\literal${"后文".repeat(60)}`;
-		const chatStore = createPgChatConversationStore(env);
+		const chatStore = createPgChatConversationStore({ getDb: getDb });
 		for (const [conversationId, title, updatedAt] of [
 			[firstConversationId, "不相关标题", "2026-07-16T03:00:00.000Z"],
 			[secondConversationId, "命中词标题", "2026-07-16T02:00:00.000Z"],
@@ -454,7 +463,7 @@ describe("app-api shared product DB integration", () => {
 	});
 
 	it("converges TTFT timing across finalization order and preserves the first observation", async () => {
-		const store = createPgChatCommandStore(env);
+		const store = createPgChatCommandStore({ getDb: getDb });
 		const dbClient = requireClient(client);
 		const principal = createPrincipal();
 
@@ -695,11 +704,8 @@ describe("app-api shared product DB integration", () => {
 	it("serializes commands without blocking chat memory and retains failed payloads for explicit retry", async () => {
 		const suffix = Date.now().toString(36);
 		const ownerUserId = `memory-owner-${suffix}`;
-		const env = buildSharedDbIntegrationEnv({
-			runtimeConnectionString: postgres.runtimeConnectionString,
-		});
-		const first = createPgProfileMemoryStore(env);
-		const second = createPgProfileMemoryStore(env);
+		const first = createPgProfileMemoryStore({ getDb: getDb });
+		const second = createPgProfileMemoryStore({ getDb: getDb });
 		const base = (id: string) => ({
 			commandId: `${id}-${suffix}`,
 			idempotencyKeyHash: `${id}-idem-${suffix}`,
@@ -798,9 +804,7 @@ describe("app-api shared product DB integration", () => {
 	it("coalesces repeated erase requests and retries failed erase in the same generation", async () => {
 		const suffix = Date.now().toString(36);
 		const ownerUserId = `erase-owner-${suffix}`;
-		const store = createPgProfileMemoryStore(
-			buildSharedDbIntegrationEnv({ runtimeConnectionString: postgres.runtimeConnectionString }),
-		);
+		const store = createPgProfileMemoryStore({ getDb: getDb });
 		const dbClient = requireClient(client);
 
 		await expect(
@@ -942,7 +946,7 @@ describe("app-api shared product DB integration", () => {
 		const suffix = Date.now().toString(36);
 		const ownerUserId = `source-owner-${suffix}`;
 		const conversationId = `source-conversation-${suffix}`;
-		const chatStore = createPgChatConversationStore(env);
+		const chatStore = createPgChatConversationStore({ getDb: getDb });
 		await chatStore.createConversationDraft({
 			conversationId,
 			createdAt: "2026-07-16T02:00:00.000Z",
@@ -976,7 +980,9 @@ describe("app-api shared product DB integration", () => {
 			[ownerUserId],
 		);
 		expect(commands.rows).toEqual([]);
-		expect(await createPgProfileMemoryStore(env).listByOwner(ownerUserId)).toMatchObject({
+		expect(
+			await createPgProfileMemoryStore({ getDb: getDb }).listByOwner(ownerUserId),
+		).toMatchObject({
 			lifecycleState: "active",
 			syncStatus: "synced",
 		});
@@ -987,7 +993,7 @@ describe("app-api shared product DB integration", () => {
 		const ownerUserId = `prune-owner-${suffix}`;
 		const conversationId = `prune-conversation-${suffix}`;
 		const sourcePrefix = `prune-message-${suffix}-`;
-		const chatStore = createPgChatConversationStore(env);
+		const chatStore = createPgChatConversationStore({ getDb: getDb });
 		await chatStore.createConversationDraft({
 			conversationId,
 			createdAt: "2026-07-16T03:00:00.000Z",
@@ -1028,7 +1034,7 @@ describe("app-api shared product DB integration", () => {
 		);
 		expect(remainingMessages.rows).toEqual([{ id: `${sourcePrefix}1` }]);
 
-		const memoryStore = createPgProfileMemoryStore(env);
+		const memoryStore = createPgProfileMemoryStore({ getDb: getDb });
 		const pending = (await memoryStore.listPendingAdmissions({ limit: 20 })).filter(
 			(command) => command.ownerUserId === ownerUserId,
 		);

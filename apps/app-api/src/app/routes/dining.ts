@@ -3,10 +3,9 @@ import {
 	DiningReviewReportCreateSchema,
 } from "@campus-agent/dining/domain";
 import type { Hono } from "hono";
-
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse, routeErrorResponse } from "../../http";
-import type { ResolvedAppPrincipal } from "../../modules/auth";
+import type { AppAuthResolutionInput, ResolvedAppPrincipal } from "../../modules/auth";
 import { requireSessionPrincipal, resolvePrincipalForScope } from "../principal";
 import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
@@ -20,7 +19,7 @@ export function registerDiningContentRoutes(input: {
 	getPrincipal: (
 		request: Request,
 		env: Env,
-		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
 }) {
 	input.app.get("/api/dining/windows/:windowId/menu", async (c) => {

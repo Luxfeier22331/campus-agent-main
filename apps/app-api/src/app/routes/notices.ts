@@ -1,9 +1,8 @@
 import { NoticeIdSchema, NoticeListRequestQuerySchema } from "campus-contracts/notices";
 import type { Hono } from "hono";
-
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
-import type { ResolvedAppPrincipal } from "../../modules/auth";
+import type { AppAuthResolutionInput, ResolvedAppPrincipal } from "../../modules/auth";
 import { requireSessionPrincipal } from "../principal";
 import type { AppRequestScope } from "../types";
 
@@ -14,7 +13,7 @@ export function registerNoticeRoutes(input: {
 	getPrincipal: (
 		request: Request,
 		env: Env,
-		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
 }) {
 	input.app.get("/api/notices", async (c) => {

@@ -5,7 +5,6 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
-import type { Env } from "../src/config";
 import { createPgCampusGroupsStore } from "../src/modules/campus-groups";
 
 const postgres = inject("appApiPostgres");
@@ -44,7 +43,7 @@ describe("campus groups PostgreSQL store", () => {
 		});
 		await managementClient.connect();
 		const database = drizzle({ client: runtimePool });
-		store = createPgCampusGroupsStore({} as Env, { getDb: async () => database });
+		store = createPgCampusGroupsStore({ getDb: async () => database });
 	});
 
 	afterAll(async () => {

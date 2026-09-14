@@ -47,7 +47,10 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 		: undefined;
 	return {
 		createRequestScope(): AppRequestScope {
-			const runtime = createRequestRuntimeScope(input.env);
+			const runtime = createRequestRuntimeScope(
+				input.env,
+				input.dependencies.runtimeScopeDependencies,
+			);
 			const getAppAuth = input.dependencies.getAppAuth ?? runtime.getAppAuth;
 			let accountAdmin = input.dependencies.accountAdminService ?? null;
 			let accountLifecycle = input.dependencies.accountLifecycleService ?? null;
@@ -67,7 +70,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
 			let transportSchedule = input.dependencies.transportScheduleService ?? null;
 			const resolveProfileMemoryPersistence = () =>
-				(profileMemoryPersistence ??= createPgProfileMemoryPersistence(input.env, {
+				(profileMemoryPersistence ??= createPgProfileMemoryPersistence({
 					getDb: runtime.getDb,
 				}));
 			const resolveProfileMemoryService = () => {
@@ -85,15 +88,15 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 			};
 			const resolveChatConversationService = () =>
 				(chat ??= buildChatConversationService({
-					detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
-					store: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
+					detailStore: createPgChatConversationStore({ getDb: runtime.getDb }),
+					store: createPgChatConversationStore({ getDb: runtime.getDb }),
 				}));
 			const resolveChatCommandService = () => {
 				if (command) {
 					return command;
 				}
 				if (!chatCommandPersistence) {
-					chatCommandPersistence = createPgChatCommandPersistence(input.env, {
+					chatCommandPersistence = createPgChatCommandPersistence({
 						getDb: runtime.getDb,
 					});
 				}
@@ -101,7 +104,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				command = buildChatCommandService({
 					abuseThrottleEnabled: isAbuseThrottleEnabled(resolveEnvironment(input.env)),
 					commandStore: persistence.commands,
-					conversationStore: createPgChatConversationStore(input.env, {
+					conversationStore: createPgChatConversationStore({
 						getDb: runtime.getDb,
 					}),
 					...(executionRuntime ? { executionRuntime } : {}),
@@ -114,6 +117,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				return command;
 			};
 			return {
+				getDb: runtime.getDb,
 				getAppAuth,
 				resolveAccountAdminService: () =>
 					(accountAdmin ??= buildAccountAdminService({
@@ -134,36 +138,36 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 								userId,
 								input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET ?? "",
 							),
-						store: createPgAccountLifecycleStore(input.env, { getDb: runtime.getDb }),
+						store: createPgAccountLifecycleStore({ getDb: runtime.getDb }),
 					})),
 				resolveCampusExperienceService: () => (campusExperience ??= buildCampusExperienceService()),
 				resolveCampusGroupsService: () =>
 					(campusGroups ??= buildCampusGroupsService(
-						createPgCampusGroupsStore(input.env, { getDb: runtime.getDb }),
+						createPgCampusGroupsStore({ getDb: runtime.getDb }),
 					)),
 				resolveChatAvailabilityService: () =>
 					(chatAvailability ??= buildChatAvailabilityService({
-						store: createPgChatAvailabilityStore(input.env, { getDb: runtime.getDb }),
+						store: createPgChatAvailabilityStore({ getDb: runtime.getDb }),
 					})),
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDiningMapReadService: () =>
-					(dining ??= createPgDiningMapReadService(input.env, {
+					(dining ??= createPgDiningMapReadService({
 						getDb: runtime.getDb,
 					})),
 				resolveDiningContentService: () =>
-					(diningContent ??= createPgDiningContentService(input.env, {
+					(diningContent ??= createPgDiningContentService({
 						getDb: runtime.getDb,
 					})),
 				resolveEmailAccessService: () =>
 					(emailAccess ??= buildEmailAccessService({
 						environment: resolveEnvironment(input.env),
-						store: createPgEmailAccessGrantStore(input.env, { getDb: runtime.getDb }),
+						store: createPgEmailAccessGrantStore({ getDb: runtime.getDb }),
 					})),
 				resolveNoticeService: () =>
 					(notices ??= buildNoticeService({
 						objectStore: createNoticeObjectStore(input.env),
-						store: createPgNoticeStore(input.env, { getDb: runtime.getDb }),
+						store: createPgNoticeStore({ getDb: runtime.getDb }),
 					})),
 				resolveProfileMemoryService,
 				resolveRuntimeRunService: () =>
@@ -174,7 +178,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 							executionRuntime: runtimeClient,
 							ensureRun: ({ requestId }) => {
 								if (!chatCommandPersistence) {
-									chatCommandPersistence = createPgChatCommandPersistence(input.env, {
+									chatCommandPersistence = createPgChatCommandPersistence({
 										getDb: runtime.getDb,
 									});
 								}
@@ -185,11 +189,11 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 									requestId,
 								});
 							},
-							store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
+							store: createPgRuntimeRunStore({ getDb: runtime.getDb }),
 						});
 					})()),
 				resolveTransportScheduleService: () =>
-					(transportSchedule ??= createPgTransportScheduleService(input.env, {
+					(transportSchedule ??= createPgTransportScheduleService({
 						getDb: runtime.getDb,
 					})),
 			};

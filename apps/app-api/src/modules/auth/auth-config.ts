@@ -25,6 +25,7 @@ import {
 	extractAuthResetRedirect,
 } from "./auth-policy";
 import { assertAccountReady, CAMPUS_AUTH_USER_ADDITIONAL_FIELDS } from "./campus-access";
+import { authLogger } from "./dependency-failure";
 import {
 	type OpsAccountAdminPluginOptions,
 	opsAccountAdminPlugin,
@@ -112,6 +113,8 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 
 	return {
 		appName: input.appName,
+		logger: authLogger,
+		onAPIError: { throw: true },
 		baseURL: appOrigin,
 		basePath: "/",
 		disabledPaths: ["/token", ...DISABLED_BETTER_AUTH_ADMIN_PATHS],

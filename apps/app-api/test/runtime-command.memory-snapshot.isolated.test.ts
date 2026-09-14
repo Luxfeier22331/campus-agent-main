@@ -70,7 +70,7 @@ function createAcceptanceHarness(requestKind: "internal_eval" | "public_chat") {
 	createRuntimeDatabase.mockResolvedValue({
 		transaction: vi.fn(async (callback: (input: typeof tx) => Promise<unknown>) => callback(tx)),
 	});
-	const store = createPgChatCommandPersistence({} as never).commands;
+	const store = createPgChatCommandPersistence({ getDb: createRuntimeDatabase }).commands;
 	const write = buildAcceptedWrite({
 		assistantMessageId: "msg_assistant_01HQ",
 		branchId: "branch_active",

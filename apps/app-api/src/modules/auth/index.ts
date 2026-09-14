@@ -1,7 +1,6 @@
 export type { AppAuth, AppAuthGetter, AppAuthResolutionInput, CreateAppAuthInput } from "./auth";
 export {
 	createAppAuth,
-	getAppAuth,
 	handleAuthRequest,
 	probeAppAuthRuntime,
 } from "./auth";

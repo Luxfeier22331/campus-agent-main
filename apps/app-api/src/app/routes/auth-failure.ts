@@ -1,66 +1,29 @@
-import { errorEnvelope, jsonResponse } from "../../http";
-import { normalizeAppApiRoute } from "../route-normalization";
-
-const AUTH_SURFACE = "app_api_auth";
-
-function normalizeErrorType(error: unknown): string {
-	const name = error instanceof Error ? error.name : "UnknownError";
-	return name.replace(/[^a-z0-9_.-]/giu, "_").slice(0, 64) || "UnknownError";
-}
+import { isAPIError } from "better-auth/api";
+import { toResponse } from "better-call";
+import { AppApiRouteError, errorEnvelope, jsonResponse, routeErrorResponse } from "../../http";
+import { AuthDependencyFailure } from "../../modules/auth/dependency-failure";
+import { databaseFailureMetadata, reportRuntimeFailure } from "../../runtime-diagnostics";
 
 export function classifyAuthenticationDependencyFailure(error: unknown): string {
-	const parts: string[] = [];
-	const seen = new Set<object>();
-	let current: unknown = error;
-	for (let depth = 0; depth < 5 && current != null; depth += 1) {
-		if (typeof current === "object") {
-			if (seen.has(current)) {
-				break;
-			}
-			seen.add(current);
-			const record = current as Record<string, unknown>;
-			for (const key of ["name", "message", "code"]) {
-				if (typeof record[key] === "string") {
-					parts.push(record[key]);
-				}
-			}
-			current = record.cause;
-		} else {
-			parts.push(String(current));
-			break;
-		}
-	}
-	const text = parts.join(" ");
-	if (/timeout|timed out|etimedout|connection timeout/i.test(text)) {
-		return "connect_timeout";
-	}
-	if (/econnreset|connection reset|connection terminated|socket hang up/i.test(text)) {
-		return "connection_reset";
-	}
-	if (/pool|client.*available|too many clients/i.test(text)) {
-		return "pool_unavailable";
-	}
-	if (/query|sql|drizzle|postgres|better auth/i.test(text)) {
-		return "query_failure";
-	}
-	return "unknown";
+	return databaseFailureMetadata(error).failure_class;
 }
 
 export function authenticationDependencyFailure(input: {
 	error: unknown;
-	request: Request;
-	source: "auth_handler" | "federation_handler" | "federation_metadata";
+	source: "auth_handler" | "principal" | "federation_handler" | "federation_metadata";
 }): Response {
-	const route = normalizeAppApiRoute(input.request.url, input.request.method);
-	console.error({
-		error_code: "authentication_dependency_not_ready",
-		error_type: normalizeErrorType(input.error),
-		failure_class: classifyAuthenticationDependencyFailure(input.error),
-		cf_ray: input.request.headers.get("cf-ray"),
-		route,
-		source: input.source,
-		surface: AUTH_SURFACE,
-	});
+	if (input.error instanceof AppApiRouteError) {
+		return routeErrorResponse(input.error);
+	}
+	if (isAPIError(input.error) && input.error.statusCode < 500) {
+		return toResponse(input.error);
+	}
+	if (!(input.error instanceof AuthDependencyFailure)) {
+		reportRuntimeFailure(input.error, {
+			error_code: "authentication_dependency_not_ready",
+			source: input.source,
+		});
+	}
 	return jsonResponse(
 		errorEnvelope({
 			code: "dependency_not_ready",
@@ -69,4 +32,23 @@ export function authenticationDependencyFailure(input: {
 		}),
 		{ status: 503 },
 	);
+}
+
+export async function normalizeAuthFailureResponse(
+	response: Response,
+	source: "auth_handler" | "federation_handler",
+): Promise<Response> {
+	if (response.status < 500) {
+		return response;
+	}
+	const payload = (await response
+		.clone()
+		.json()
+		.catch(() => null)) as { code?: unknown } | null;
+	// The adapter already recorded this failure before converting it to an SDK APIError.
+	const error =
+		payload?.code === "dependency_not_ready"
+			? new AuthDependencyFailure()
+			: new Error("Authentication handler failed.");
+	return authenticationDependencyFailure({ error, source });
 }

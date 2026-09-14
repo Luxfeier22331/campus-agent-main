@@ -1,18 +1,14 @@
 import type { CampusGroup, CampusGroupsCatalog } from "campus-contracts/campus-groups";
 import { asc, eq } from "drizzle-orm";
 
-import type { Env } from "../../config";
-import { createRuntimeDbGetter, type RuntimeDatabase } from "../../db/runtime";
+import type { RuntimeDatabase } from "../../db/runtime";
 import { campusGroupSections, campusGroups } from "../../db/schema";
 import type { CampusGroupsStore } from "./types";
 
 type RuntimeDbGetter = () => Promise<RuntimeDatabase>;
 
-export function createPgCampusGroupsStore(
-	env: Env,
-	input: { getDb?: RuntimeDbGetter } = {},
-): CampusGroupsStore {
-	const getDb = input.getDb ?? createRuntimeDbGetter(env);
+export function createPgCampusGroupsStore(input: { getDb: RuntimeDbGetter }): CampusGroupsStore {
+	const getDb = input.getDb;
 
 	return {
 		async getCatalog() {

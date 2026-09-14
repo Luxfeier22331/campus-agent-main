@@ -1,7 +1,6 @@
 import type { Hono } from "hono";
-
 import type { Env } from "../../config";
-import type { ResolvedAppPrincipal } from "../../modules/auth";
+import type { AppAuthResolutionInput, ResolvedAppPrincipal } from "../../modules/auth";
 import type { AppRequestScope } from "../types";
 
 export interface ChatRouteRegistrationInput {
@@ -11,6 +10,6 @@ export interface ChatRouteRegistrationInput {
 	getPrincipal: (
 		request: Request,
 		env: Env,
-		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
 }

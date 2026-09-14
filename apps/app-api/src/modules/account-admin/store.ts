@@ -10,7 +10,7 @@ export type { AccountAdminStore } from "./store-contract";
 
 export function createPgAccountAdminStore(
 	env: Env,
-	input: { getDb?: RuntimeDbGetter; now?: () => Date } = {},
+	input: { getDb: RuntimeDbGetter; now?: () => Date },
 ): AccountAdminStore {
 	const context = createAccountAdminStoreContext(env, input);
 	return {

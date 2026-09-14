@@ -4,15 +4,12 @@ import {
 	withCampusEdgeCacheBypass,
 } from "../worker-proxy/public-cache";
 import type { CampusWorkerEnv } from "./env";
-import {
-	dependencyNotReadyResponse,
-	isHtmlServerErrorResponse,
-	SECURITY_HEADERS,
-	withNoStore,
-} from "./response-policy";
+import { proxyFailureResponse } from "./proxy-failure";
+import { isHtmlServerErrorResponse, SECURITY_HEADERS, withNoStore } from "./response-policy";
 
 const FORWARDED_HEADERS = [
 	"accept",
+	"cf-ray",
 	"baggage",
 	"content-type",
 	"cookie",
@@ -45,7 +42,7 @@ async function proxyNoStoreAppApiRequest(
 ): Promise<Response> {
 	const appApiBaseUrl = env.APP_API_BASE_URL?.trim();
 	if (!appApiBaseUrl) {
-		return dependencyNotReadyResponse();
+		return proxyFailureResponse(request, "missing_config");
 	}
 	let appApiFetch: (request: Request) => Promise<Response> | Response;
 	if (isLoopbackAppApiBaseUrl(appApiBaseUrl)) {
@@ -53,7 +50,7 @@ async function proxyNoStoreAppApiRequest(
 	} else if (env.APP_API) {
 		appApiFetch = env.APP_API.fetch.bind(env.APP_API);
 	} else {
-		return dependencyNotReadyResponse();
+		return proxyFailureResponse(request, "missing_binding");
 	}
 
 	const inboundUrl = new URL(request.url);
@@ -79,11 +76,11 @@ async function proxyNoStoreAppApiRequest(
 			}),
 		);
 		if (isHtmlServerErrorResponse(response)) {
-			return dependencyNotReadyResponse();
+			return proxyFailureResponse(request, "invalid_upstream_response");
 		}
 		return withNoStore(response);
 	} catch {
-		return dependencyNotReadyResponse();
+		return proxyFailureResponse(request, "transport_failure");
 	}
 }
 
@@ -93,16 +90,16 @@ async function proxyCacheableAppApiRequestWithEnv(
 ): Promise<Response> {
 	const appApiBaseUrl = env.APP_API_BASE_URL?.trim();
 	if (!appApiBaseUrl) {
-		return withCampusEdgeCacheBypass(dependencyNotReadyResponse());
+		return withCampusEdgeCacheBypass(proxyFailureResponse(request, "missing_config"));
 	}
 	const appApiFetch = resolveAppApiFetch(appApiBaseUrl, env);
 	if (!appApiFetch) {
-		return withCampusEdgeCacheBypass(dependencyNotReadyResponse());
+		return withCampusEdgeCacheBypass(proxyFailureResponse(request, "missing_binding"));
 	}
 	const response = await proxyCacheableAppApiRequest({
 		appApiBaseUrl,
 		appApiFetch,
-		buildDependencyNotReadyResponse: dependencyNotReadyResponse,
+		buildDependencyNotReadyResponse: (reason) => proxyFailureResponse(request, reason),
 		isHtmlServerErrorResponse,
 		request,
 		securityHeaders: SECURITY_HEADERS,

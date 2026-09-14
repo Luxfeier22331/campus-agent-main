@@ -85,7 +85,7 @@ describe("conversation principal dependency failures", () => {
 		expect(await response.json()).toMatchObject({
 			error: {
 				code: "dependency_not_ready",
-				message: "Runtime dependencies are not ready.",
+				message: "Authentication service is temporarily unavailable.",
 				retryable: true,
 			},
 		});

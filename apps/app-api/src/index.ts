@@ -1,29 +1,14 @@
 import { type AppDependencies, createApp } from "./app";
+import { createRequestScopeFactory } from "./app/request-scope";
 import { type Env, isDeployedEnvironment, resolveEnvironment } from "./config";
 import { createPgAccountAdminStore } from "./modules/account-admin";
-import {
-	buildAccountLifecycleService,
-	createPgAccountLifecycleStore,
-} from "./modules/account-lifecycle";
-import { getAppAuth } from "./modules/auth";
-import { getOpsAccountAdminApi } from "./modules/auth/ops-account-admin-plugin";
-import {
-	buildEmailAccessService,
-	createPgEmailAccessGrantStore,
-	type EmailAccessService,
-} from "./modules/email-access";
-import {
-	createExecutionControlPersonalMemoryClient,
-	createExecutionControlRuntimeClient,
-	isExecutionControlRuntimeConfigured,
-} from "./modules/integration";
-import {
-	buildProfileMemoryService,
-	createPgProfileMemoryPersistence,
-	type ProfileMemoryService,
-} from "./modules/profile-memory";
-import { deriveSafetyIdentifierForUser } from "./modules/runtime-command";
+import { isExecutionControlRuntimeConfigured } from "./modules/integration";
 import { runWithAppApiExecutionContext } from "./request-execution-context";
+import {
+	reportRuntimeFailure,
+	safeRuntimeFailure,
+	withScheduledDiagnostics,
+} from "./runtime-diagnostics";
 
 export type { Env } from "./config";
 
@@ -42,51 +27,6 @@ export function createWorkerRuntime(
 	env: Env,
 	dependencies: WorkerRuntimeDependencies = {},
 ): WorkerRuntime {
-	let profileMemoryService: ProfileMemoryService | null = dependencies.profileMemoryService ?? null;
-	let accountLifecycleService:
-		| import("./modules/account-lifecycle").AccountLifecycleService
-		| null = dependencies.accountLifecycleService ?? null;
-	let emailAccessService: EmailAccessService | null = dependencies.emailAccessService ?? null;
-	function resolveProfileMemoryService(): ProfileMemoryService {
-		if (profileMemoryService) {
-			return profileMemoryService;
-		}
-		const persistence = createPgProfileMemoryPersistence(env);
-		profileMemoryService = buildProfileMemoryService({
-			commandAdmitter: createExecutionControlPersonalMemoryClient(env),
-			commandStore: persistence.commands,
-			mutationStore: persistence.mutations,
-			readStore: persistence.reads,
-		});
-		return profileMemoryService;
-	}
-	function resolveAccountLifecycleService() {
-		if (accountLifecycleService) {
-			return accountLifecycleService;
-		}
-		accountLifecycleService = buildAccountLifecycleService({
-			executionController: createExecutionControlRuntimeClient(env),
-			profileMemoryService: resolveProfileMemoryService(),
-			removeAuthUser: async (userId) => {
-				const auth = await getAppAuth(env);
-				await getOpsAccountAdminApi(auth).opsRemoveUser({ body: { userId } });
-			},
-			safetyIdentifierForUser: (userId) =>
-				deriveSafetyIdentifierForUser(userId, env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET ?? ""),
-			store: createPgAccountLifecycleStore(env),
-		});
-		return accountLifecycleService;
-	}
-	function resolveEmailAccessService(): EmailAccessService {
-		if (emailAccessService) {
-			return emailAccessService;
-		}
-		emailAccessService = buildEmailAccessService({
-			environment: resolveEnvironment(env),
-			store: createPgEmailAccessGrantStore(env),
-		});
-		return emailAccessService;
-	}
 	const { chatCommandService, runtimeRunService, ...requestDependencies } = dependencies;
 	const app = createApp(env, {
 		...requestDependencies,
@@ -100,14 +40,15 @@ export function createWorkerRuntime(
 			);
 		},
 		async scheduled(): Promise<void> {
+			const scope = createRequestScopeFactory({ env, dependencies }).createRequestScope();
 			const jobs: { name: string; run: () => Promise<unknown> }[] = [];
 			if (isDeployedEnvironment(resolveEnvironment(env))) {
 				jobs.push({
 					name: "account-admin",
 					run: async () => {
-						const indeterminate = await createPgAccountAdminStore(
-							env,
-						).markStaleCommandsIndeterminate(new Date(Date.now() - 5 * 60_000));
+						const indeterminate = await createPgAccountAdminStore(env, {
+							getDb: scope.getDb,
+						}).markStaleCommandsIndeterminate(new Date(Date.now() - 5 * 60_000));
 						if (indeterminate > 0) {
 							console.error({ indeterminate, source: "app-api.account-admin-reconciler" });
 						}
@@ -115,27 +56,40 @@ export function createWorkerRuntime(
 				});
 			}
 			if (isDeployedEnvironment(resolveEnvironment(env)) || dependencies.emailAccessService) {
-				jobs.push({ name: "email-access", run: () => resolveEmailAccessService().expire() });
+				jobs.push({ name: "email-access", run: () => scope.resolveEmailAccessService().expire() });
 			}
 			if (isExecutionControlRuntimeConfigured(env)) {
-				jobs.push({ name: "memory", run: () => resolveProfileMemoryService().dispatchPending() });
+				jobs.push({
+					name: "memory",
+					run: () => scope.resolveProfileMemoryService().dispatchPending(),
+				});
 				jobs.push({
 					name: "account-lifecycle",
-					run: () => resolveAccountLifecycleService().dispatchPending(),
+					run: () => scope.resolveAccountLifecycleService().dispatchPending(),
 				});
 			}
-			const results = await Promise.allSettled(jobs.map((job) => Promise.resolve().then(job.run)));
+			const results = await Promise.allSettled(
+				jobs.map((job) =>
+					withScheduledDiagnostics(job.name, async () => {
+						try {
+							return await job.run();
+						} catch (error) {
+							reportRuntimeFailure(error, {
+								source: "app-api.scheduled",
+								error_code: "scheduled_job_failed",
+							});
+							throw safeRuntimeFailure(error, "app-api.scheduled");
+						}
+					}),
+				),
+			);
 			const errors: unknown[] = [];
-			for (const [index, result] of results.entries()) {
+			for (const result of results) {
 				if (result.status === "rejected") {
-					console.error({
-						source: "app-api.scheduled",
-						job: jobs[index]?.name,
-						errorCode: "scheduled_job_failed",
-					});
 					errors.push(result.reason);
 				}
 			}
+
 			if (errors.length > 0) {
 				throw new AggregateError(errors, "Scheduled jobs failed");
 			}

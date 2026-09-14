@@ -34,7 +34,7 @@ describe("PostgreSQL notice store", () => {
 					},
 				],
 			});
-		const store = createPgNoticeStore({ query });
+		const store = createPgNoticeStore({ getDb: createRuntimeDatabase });
 
 		await expect(
 			store.list({

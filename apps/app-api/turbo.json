@@ -53,8 +53,6 @@
 				"package.json",
 				"scripts/**",
 				"src/**",
-				"test/federation-runtime-readiness.test.ts",
-				"test/worker-scheduled-sweepers.test.ts",
 				"test/worker.test.ts",
 				"tsconfig.json",
 				"vitest.worker.config.mts",

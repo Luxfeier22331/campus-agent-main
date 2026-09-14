@@ -34,7 +34,7 @@ describe("email access PostgreSQL integration", () => {
 			[userId, email, now],
 		);
 		const database = drizzle({ client: pool });
-		const store = createPgEmailAccessGrantStore({} as never, { getDb: async () => database });
+		const store = createPgEmailAccessGrantStore({ getDb: async () => database });
 		const service = buildEmailAccessService({ environment: "test", now: () => now, store });
 		const grant = await service.createGrant({
 			actorId: "ops@example.test",
@@ -153,7 +153,7 @@ describe("email access PostgreSQL integration", () => {
 		}
 
 		const database = drizzle({ client: pool });
-		const store = createPgEmailAccessGrantStore({} as never, { getDb: async () => database });
+		const store = createPgEmailAccessGrantStore({ getDb: async () => database });
 		await expect(
 			store.list({ environment: "test", limit: 10, now, state: "pending" }),
 		).resolves.toMatchObject({ items: [{ id: `current-pending-${suffix}`, state: "pending" }] });

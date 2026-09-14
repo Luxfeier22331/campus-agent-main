@@ -1,8 +1,7 @@
 import type { Context, Hono } from "hono";
-
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
-import type { ResolvedAppPrincipal } from "../../modules/auth";
+import type { AppAuthResolutionInput, ResolvedAppPrincipal } from "../../modules/auth";
 import type { ProfileMemoryService } from "../../modules/profile-memory";
 import { requireSessionPrincipal } from "../principal";
 import {
@@ -69,7 +68,7 @@ async function requirePrincipal(input: {
 	getPrincipal: (
 		request: Request,
 		env: Env,
-		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
 	request: Request;
 	scope: AppRequestScope;
@@ -98,7 +97,7 @@ export function registerProfileMemoryRoutes(input: {
 	getPrincipal: (
 		request: Request,
 		env: Env,
-		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: AppAuthResolutionInput,
 	) => Promise<ResolvedAppPrincipal | null>;
 }) {
 	async function handle(

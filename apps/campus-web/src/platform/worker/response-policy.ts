@@ -49,6 +49,9 @@ export function dependencyNotReadyResponse(): Response {
 	return jsonResponse(503, {
 		error: {
 			code: "dependency_not_ready",
+			retryable: true,
+			requestId: null,
+			details: null,
 			message: "服务暂不可用，请稍后再试。",
 		},
 	});

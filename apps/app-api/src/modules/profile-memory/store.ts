@@ -1,5 +1,4 @@
-import type { Env } from "../../config";
-import { createRuntimeDbGetter, type RuntimeDbGetter } from "../../db/runtime";
+import type { RuntimeDbGetter } from "../../db/runtime";
 import { createProfileMemoryCommandStore } from "./store-command-operations";
 import type { ProfileMemoryStoreContext } from "./store-context";
 import { createProfileMemoryMutationStore } from "./store-mutation-operations";
@@ -15,12 +14,11 @@ export type {
 } from "./store-contract";
 export { ProfileMemoryStoreConflict } from "./store-contract";
 
-export function createPgProfileMemoryPersistence(
-	env: Env,
-	input: { getDb?: RuntimeDbGetter } = {},
-): import("./store-contract").ProfileMemoryPersistence {
+export function createPgProfileMemoryPersistence(input: {
+	getDb: RuntimeDbGetter;
+}): import("./store-contract").ProfileMemoryPersistence {
 	const context: ProfileMemoryStoreContext = {
-		getDb: input.getDb ?? createRuntimeDbGetter(env),
+		getDb: input.getDb,
 	};
 	return {
 		commands: createProfileMemoryCommandStore(context),

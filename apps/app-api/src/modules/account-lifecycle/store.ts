@@ -1,8 +1,6 @@
 import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
-import type { Env } from "../../config";
 import type { RuntimeDbGetter } from "../../db/runtime";
-import { createRuntimeDatabase } from "../../db/runtime";
 import {
 	accountDeletionRequests,
 	conversations,
@@ -24,11 +22,10 @@ function accountError(code: string, message: string, status: number): AppApiRout
 	return new AppApiRouteError({ code, message, retryable: false, status });
 }
 
-export function createPgAccountLifecycleStore(
-	env: Env,
-	input: { getDb?: RuntimeDbGetter } = {},
-): AccountLifecycleStore {
-	const getDb = input.getDb ?? (() => createRuntimeDatabase(env));
+export function createPgAccountLifecycleStore(input: {
+	getDb: RuntimeDbGetter;
+}): AccountLifecycleStore {
+	const getDb = input.getDb;
 	return {
 		async requestDeletion(request) {
 			const db = await getDb();

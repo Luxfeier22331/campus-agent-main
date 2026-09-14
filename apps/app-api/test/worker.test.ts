@@ -82,7 +82,7 @@ describe("app-api worker foundation", () => {
 			expect(dispatchAccount).toHaveBeenCalledOnce();
 			expect(expire).toHaveBeenCalledOnce();
 			expect(log).toHaveBeenCalledWith(
-				expect.objectContaining({ job: "memory", errorCode: "scheduled_job_failed" }),
+				expect.objectContaining({ job: "memory", error_code: "scheduled_job_failed" }),
 			);
 		} finally {
 			log.mockRestore();
