@@ -790,17 +790,38 @@ function remapWebEvidenceToOutput(
 ): NonNullable<AgentRunnerResult["webEvidence"]> {
 	return evidence.flatMap((item) => {
 		// Supports for structured Solve may include the JSON envelope/escaping.
-		const excerpt = partialJSONStringField(item.excerpt, "answer") ?? item.excerpt;
-		const index = output.indexOf(excerpt);
-		if (!excerpt || index < 0) {
+		const escaped = partialJSONStringField(item.excerpt, "answer");
+		let excerpt = escaped ?? item.excerpt;
+		if (!escaped && excerpt.includes("\\")) {
+			try {
+				excerpt = JSON.parse(`"${excerpt}"`);
+			} catch {
+				// Preserve the raw excerpt when it is not a JSON string fragment.
+			}
+		}
+		let startIndex = -1;
+		if (item.startIndex !== undefined && item.endIndex !== undefined) {
+			const candidate = [...output].slice(item.startIndex, item.endIndex).join("");
+			if (candidate === excerpt) {
+				startIndex = item.startIndex;
+			}
+		}
+		if (startIndex < 0) {
+			const first = output.indexOf(excerpt);
+			const second = first < 0 ? -1 : output.indexOf(excerpt, first + Math.max(excerpt.length, 1));
+			if (first >= 0 && second < 0) {
+				startIndex = [...output.slice(0, first)].length;
+			}
+		}
+		if (!excerpt || startIndex < 0) {
 			return [];
 		}
 		return [
 			{
 				...item,
 				excerpt,
-				startIndex: [...output.slice(0, index)].length,
-				endIndex: [...output.slice(0, index + excerpt.length)].length,
+				startIndex,
+				endIndex: startIndex + [...excerpt].length,
 			},
 		];
 	});

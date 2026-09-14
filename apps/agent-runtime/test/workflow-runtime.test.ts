@@ -336,6 +336,38 @@ describe("workflow operation runtime", () => {
 		});
 	});
 
+	it.each([
+		{ answer: "😀海淀校区地址。", span: { startIndex: 1, endIndex: 8 }, expectedStart: 1 },
+		{ answer: "😀海淀校区地址。", span: {}, expectedStart: 1 },
+		{
+			answer: "😀海淀校区地址。海淀校区地址。",
+			span: { startIndex: 8, endIndex: 15 },
+			expectedStart: 8,
+		},
+	])(
+		"keeps codepoint grounding spans in Solve answers: $answer / $span",
+		async ({ answer, span, expectedStart }) => {
+			const excerpt = "海淀校区地址。";
+			const runtime = createWorkflowOperationRuntime({
+				catalog,
+				runner: async () =>
+					runnerResult({
+						finalOutput: JSON.stringify({ outcome: "answer", answer }),
+						webSearchUsed: true,
+						webEvidence: [{ excerpt, title: "学校官网", url: "https://www.muc.edu.cn/", ...span }],
+					}),
+			});
+			const result = await runtime.run(solveInput("海淀校区地址？", 4));
+			expect(result).toMatchObject({
+				status: "completed",
+				finalOutput: answer,
+				webEvidence: [{ excerpt, startIndex: expectedStart, endIndex: expectedStart + 7 }],
+			});
+			const evidence = result.webEvidence?.[0];
+			expect([...answer].slice(evidence?.startIndex, evidence?.endIndex).join("")).toBe(excerpt);
+		},
+	);
+
 	it("executes only the sources admitted by the current step and builds evidence", async () => {
 		let observed: AgentRunnerInput | undefined;
 		let observedWorkflowStepId = "";

@@ -9,7 +9,28 @@ function normalizeErrorType(error: unknown): string {
 }
 
 export function classifyAuthenticationDependencyFailure(error: unknown): string {
-	const text = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+	const parts: string[] = [];
+	const seen = new Set<object>();
+	let current: unknown = error;
+	for (let depth = 0; depth < 5 && current != null; depth += 1) {
+		if (typeof current === "object") {
+			if (seen.has(current)) {
+				break;
+			}
+			seen.add(current);
+			const record = current as Record<string, unknown>;
+			for (const key of ["name", "message", "code"]) {
+				if (typeof record[key] === "string") {
+					parts.push(record[key]);
+				}
+			}
+			current = record.cause;
+		} else {
+			parts.push(String(current));
+			break;
+		}
+	}
+	const text = parts.join(" ");
 	if (/timeout|timed out|etimedout|connection timeout/i.test(text)) {
 		return "connect_timeout";
 	}

@@ -49,6 +49,20 @@ func TestLocalSeedConfigsMapEachNameToItsEnvironmentContract(t *testing.T) {
 			},
 		},
 		{
+			name: modelconfig.ConfigNoticeClassification,
+			environment: map[string]string{
+				"NOTICE_CLASSIFICATION_API_KEY":      "classifier-key",
+				"NOTICE_CLASSIFICATION_BASE_URL":     "https://classifier.example/v1",
+				"NOTICE_CLASSIFICATION_MODEL":        "classifier-model",
+				"NOTICE_CLASSIFICATION_PROVIDER":     "openai",
+				"NOTICE_CLASSIFICATION_API_PROTOCOL": "openai.chat_completions",
+			},
+			want: modelconfig.LocalSeedConfig{
+				APIKey: "classifier-key", Name: modelconfig.ConfigNoticeClassification, Provider: "openai",
+				APIProtocol: "openai.chat_completions", BaseURL: "https://classifier.example/v1", Model: "classifier-model",
+			},
+		},
+		{
 			name: modelconfig.ConfigCampusDocsEmbedding,
 			environment: map[string]string{
 				"EMBEDDING_API_KEY":  "embedding-key",

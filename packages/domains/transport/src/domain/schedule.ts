@@ -274,7 +274,6 @@ export function selectTransportPeriod<
 			.filter((period) => transportPeriodIncludesDate(period, date))
 			.sort(
 				(left, right) =>
-					(right.sourceReleasedAt ?? "").localeCompare(left.sourceReleasedAt ?? "") ||
 					right.validFrom.localeCompare(left.validFrom) ||
 					compareNullableDates(left.validTo, right.validTo) ||
 					(right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") ||

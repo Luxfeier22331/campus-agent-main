@@ -143,8 +143,7 @@ export async function createRuntimePool(env: Env): Promise<Pool> {
 		});
 	}
 	if (!shouldCacheRuntimeState(env)) {
-		return createCachedPool({
-			cacheKey: `runtime:${config.connectionString}|${environment}`,
+		return createPool({
 			connectionString: config.connectionString,
 			environment,
 		});

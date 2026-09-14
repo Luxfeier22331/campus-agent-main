@@ -191,6 +191,16 @@ func localSeedConfigs(
 				values["LLM_API_PROTOCOL"] = "openai.responses"
 			}
 		}
+		if name == modelconfig.ConfigNoticeClassification {
+			values["NOTICE_CLASSIFICATION_PROVIDER"], _ = lookup("NOTICE_CLASSIFICATION_PROVIDER")
+			values["NOTICE_CLASSIFICATION_API_PROTOCOL"], _ = lookup("NOTICE_CLASSIFICATION_API_PROTOCOL")
+			if values["NOTICE_CLASSIFICATION_PROVIDER"] == "" {
+				values["NOTICE_CLASSIFICATION_PROVIDER"] = "openai-compatible"
+			}
+			if values["NOTICE_CLASSIFICATION_API_PROTOCOL"] == "" {
+				values["NOTICE_CLASSIFICATION_API_PROTOCOL"] = "openai.responses"
+			}
+		}
 		configs = append(configs, definition.build(values))
 	}
 	missing := make([]string, 0, len(missingSet))
@@ -227,8 +237,8 @@ func localSeedEnvironment(name modelconfig.ConfigName) (localSeedDefinition, boo
 			},
 			build: func(values map[string]string) modelconfig.LocalSeedConfig {
 				return modelconfig.LocalSeedConfig{
-					APIKey: values["NOTICE_CLASSIFICATION_API_KEY"], Name: name, Provider: "openai-compatible",
-					APIProtocol: "openai.responses", BaseURL: values["NOTICE_CLASSIFICATION_BASE_URL"], Model: values["NOTICE_CLASSIFICATION_MODEL"],
+					APIKey: values["NOTICE_CLASSIFICATION_API_KEY"], Name: name, Provider: values["NOTICE_CLASSIFICATION_PROVIDER"],
+					APIProtocol: values["NOTICE_CLASSIFICATION_API_PROTOCOL"], BaseURL: values["NOTICE_CLASSIFICATION_BASE_URL"], Model: values["NOTICE_CLASSIFICATION_MODEL"],
 				}
 			},
 		}, true

@@ -115,6 +115,10 @@ function visibleText(response: GenerateContentResponse): string {
 		.join("");
 }
 
+function codePointOffset(text: string, byteOffset: number): number {
+	return [...Buffer.from(text, "utf8").subarray(0, byteOffset).toString("utf8")].length;
+}
+
 type GeminiFunctionCall = NonNullable<NonNullable<Content["parts"]>[number]["functionCall"]>;
 type GeminiGroundingMetadata = NonNullable<
 	NonNullable<GenerateContentResponse["candidates"]>[number]["groundingMetadata"]
@@ -437,21 +441,31 @@ export function geminiGrounding(
 					discard("invalid_source");
 					continue;
 				}
-				const key = JSON.stringify([excerpt, url.toString()]);
+				const visible = visibleText(response);
+				const startByte = segment.startIndex;
+				const endByte = segment.endIndex;
+				const hasByteOffsets = Number.isInteger(startByte) && Number.isInteger(endByte);
+				const textIndex = visible.indexOf(excerpt);
+				const excerptStart = hasByteOffsets
+					? codePointOffset(visible, startByte as number)
+					: textIndex >= 0
+						? [...visible.slice(0, textIndex)].length
+						: -1;
+				const key = JSON.stringify([excerpt, url.toString(), excerptStart, endByte]);
 				if (converted.has(key)) {
 					continue;
 				}
 				converted.add(key);
-				const visible = visibleText(response);
-				const excerptStart = visible.indexOf(excerpt);
 				evidence.push({
 					url: url.toString(),
 					title: web.title,
 					excerpt,
 					...(excerptStart >= 0
 						? {
-								startIndex: [...visible.slice(0, excerptStart)].length,
-								endIndex: [...visible.slice(0, excerptStart + excerpt.length)].length,
+								startIndex: excerptStart,
+								endIndex: hasByteOffsets
+									? codePointOffset(visible, endByte as number)
+									: excerptStart + [...excerpt].length,
 							}
 						: {}),
 				});

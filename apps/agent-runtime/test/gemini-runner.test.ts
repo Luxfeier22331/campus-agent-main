@@ -687,6 +687,28 @@ describe("Gemini native runner", () => {
 		});
 	});
 
+	it.each([{}, { endIndex: 999 }])(
+		"maps text-only grounding after emoji to codepoints: %j",
+		(offsets) => {
+			const grounded = response("😀海淀校区地址。");
+			grounded.candidates[0].groundingMetadata = {
+				groundingChunks: [{ web: { uri: "https://www.muc.edu.cn/", title: "学校官网" } }],
+				groundingSupports: [
+					{ segment: { text: "海淀校区地址。", ...offsets }, groundingChunkIndices: [0] },
+				],
+			};
+			expect(geminiGrounding(grounded).evidence).toEqual([
+				{
+					excerpt: "海淀校区地址。",
+					startIndex: 1,
+					endIndex: 8,
+					title: "学校官网",
+					url: "https://www.muc.edu.cn/",
+				},
+			]);
+		},
+	);
+
 	it("distinguishes metadata-only search from an unused search tool", () => {
 		const grounded = response("答案");
 		expect(geminiGrounding(grounded).diagnostic.state).toBe("not_used");

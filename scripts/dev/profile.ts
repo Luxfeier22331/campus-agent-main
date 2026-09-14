@@ -278,9 +278,10 @@ function resolveRegistryPaths(repoRoot: string): {
 	};
 }
 
-async function allocateAvailableSlot(
+export async function allocateAvailableSlot(
 	instances: Pick<LocalDevProfileV2, "slot">[],
 	firstSlot: number,
+	probe: typeof probeLocalPorts = probeLocalPorts,
 ): Promise<number> {
 	for (let slot = firstSlot; slot <= MAX_SLOT; slot += 1) {
 		if (instances.some((instance) => instance.slot === slot)) {
@@ -290,7 +291,7 @@ async function allocateAvailableSlot(
 			...Object.values(calculateLocalDevPorts(slot)),
 			...Object.values(calculateLocalDevRuntimePorts(slot)),
 		];
-		const result = await probeLocalPorts(ports);
+		const result = await probe(ports);
 		if (result.unknown.length > 0) {
 			throw new Error(`Unable to inspect local development ports: ${result.unknown.join(", ")}.`);
 		}

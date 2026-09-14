@@ -79,8 +79,8 @@ App API 读取：
 - `transport.schedule_periods`；
 - `transport.schedule_items`。
 
-始终读取 `transport.schedule_period_notices` 与已发布 `notices.notices` 的发布时间用于选择；
-只有请求包含通知时才加载标题、外链等展示字段。
+同时读取 `transport.schedule_period_notices` 与已发布 `notices.notices` 的关联发布时间投影；
+该投影不参与时间段选择，只有请求包含通知时才加载标题、外链等展示字段。
 
 对每条线路，先筛选 `valid_from`、`valid_to` 和 ISO 星期均匹配请求日期的时间段，再按时间段的生效范围选择
 一条完整班次表。班次明细上的 `boarding_point` 优先于时间段上的 `boarding_point_override`，后者优先于线路
@@ -89,9 +89,9 @@ App API 读取：
 `routeCatalog[].dropOffPoint` 使用当天生效时间段的 `drop_off_point_override`，未设置时沿用线路
 `drop_off_point`。不新增逐班次下车点字段。
 
-匹配日期的时间段先按最新已发布关联通知的发布时间降序，再按开始日期降序、结束日期升序（长期最后）、
-更新时间降序、标识升序选择；无关联通知时自然沿用日期规则。
+匹配日期的时间段按开始日期降序、结束日期升序（长期最后）、更新时间降序、标识升序选择；
+关联通知及其发布时间不改变人工维护的排班优先级。
 单日、日期范围、下一运行日、Ops 月历和变更预览复用相同规则。Ops 返回的 `sourceReleasedAt`
-是关联发布时间的只读投影，不作为排班写入字段。
+是关联发布时间的只读投影，不参与时间段选择，也不作为排班写入字段。
 
 接口只提供当前结构化投影，不提供通知浏览、OCR、编辑操作或实时车辆位置。

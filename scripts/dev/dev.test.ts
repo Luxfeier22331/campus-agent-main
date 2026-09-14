@@ -40,6 +40,7 @@ import {
 import * as lifecycle from "./lifecycle";
 import { captureCommandResult } from "./process";
 import {
+	allocateAvailableSlot,
 	allocateLocalDevSlot,
 	calculateLocalDevPorts,
 	calculateLocalDevRuntimePorts,
@@ -106,6 +107,42 @@ describe("local development profiles", () => {
 		assert.equal(allocateLocalDevSlot([], 0), 0);
 	});
 
+	it("starts at the requested slot when its ports are available", async () => {
+		for (const firstSlot of [0, 1]) {
+			const checked: number[][] = [];
+			const slot = await allocateAvailableSlot([], firstSlot, async (ports) => {
+				checked.push([...ports]);
+				return { occupied: [], unknown: [] };
+			});
+			assert.equal(slot, firstSlot);
+			assert.deepEqual(checked, [
+				[
+					...Object.values(calculateLocalDevPorts(firstSlot)),
+					...Object.values(calculateLocalDevRuntimePorts(firstSlot)),
+				],
+			]);
+		}
+	});
+
+	it("skips occupied ports and registered slots when allocating a profile", async () => {
+		const checked: number[][] = [];
+		const slot = await allocateAvailableSlot([{ slot: 1 }], 0, async (ports) => {
+			checked.push([...ports]);
+			return {
+				occupied: ports.includes(27062) ? [27062] : [],
+				unknown: [],
+			};
+		});
+		assert.equal(slot, 2);
+		assert.deepEqual(
+			checked,
+			[0, 2].map((value) => [
+				...Object.values(calculateLocalDevPorts(value)),
+				...Object.values(calculateLocalDevRuntimePorts(value)),
+			]),
+		);
+	});
+
 	it("registers main and linked worktrees with isolated resource identities", async () => {
 		const repository = mkdtempSync(resolve(tmpdir(), "campus-agent-profile-test-"));
 		temporaryDirectories.push(repository);
@@ -136,14 +173,15 @@ describe("local development profiles", () => {
 			assert.equal(isMainWorktree(repository), true);
 			assert.equal(isMainWorktree(linked), false);
 			assert.equal(resolveMainCheckoutRoot(linked), realpathSync(repository));
-			assert.equal(main.slot, 0);
+			assert.ok(main.slot >= 0);
 			assert.ok(worktree.slot >= 1);
+			assert.notEqual(main.slot, worktree.slot);
 			assert.notEqual(main.databaseName, worktree.databaseName);
 			assert.notEqual(main.bucketName, worktree.bucketName);
 			assert.notDeepEqual(main.ports, worktree.ports);
 			assert.equal(listLocalDevProfiles(repository).length, 2);
-			assert.equal((await ensureLocalDevProfile(repository)).instanceId, main.instanceId);
-			assert.equal((await ensureLocalDevProfile(linked)).instanceId, worktree.instanceId);
+			assert.deepEqual(await ensureLocalDevProfile(repository), main);
+			assert.deepEqual(await ensureLocalDevProfile(linked), worktree);
 			assert.equal(listLocalDevProfiles(repository).length, 2);
 		} finally {
 			if (previousStateHome === undefined) {
@@ -317,6 +355,8 @@ describe("managed worktree environment", () => {
 				"NOTICE_CLASSIFICATION_BASE_URL=https://notice.example/v1",
 				"NOTICE_CLASSIFICATION_API_KEY=notice-key",
 				"NOTICE_CLASSIFICATION_MODEL=deepseek-v4-flash-0731",
+				"NOTICE_CLASSIFICATION_PROVIDER=openai",
+				"NOTICE_CLASSIFICATION_API_PROTOCOL=openai.responses",
 				"RERANK_API_KEY=must-not-reach-classifier",
 				"",
 			].join("\n"),
@@ -333,6 +373,8 @@ describe("managed worktree environment", () => {
 			NOTICE_CLASSIFICATION_BASE_URL: "https://notice.example/v1",
 			NOTICE_CLASSIFICATION_API_KEY: "process-notice-key",
 			NOTICE_CLASSIFICATION_MODEL: "deepseek-v4-flash-0731",
+			NOTICE_CLASSIFICATION_PROVIDER: "openai",
+			NOTICE_CLASSIFICATION_API_PROTOCOL: "openai.responses",
 		});
 
 		const commandEnvironment = localModelConfigCommandEnvironment({
@@ -347,6 +389,8 @@ describe("managed worktree environment", () => {
 		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_API_KEY, "process-notice-key");
 		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_BASE_URL, "https://notice.example/v1");
 		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_MODEL, "deepseek-v4-flash-0731");
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_PROVIDER, "openai");
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_API_PROTOCOL, "openai.responses");
 		assert.equal(commandEnvironment.LLM_API_KEY, undefined);
 		assert.equal(commandEnvironment.LLM_BASE_URL, undefined);
 		assert.equal(commandEnvironment.RERANK_API_KEY, undefined);

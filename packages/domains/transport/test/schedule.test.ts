@@ -54,10 +54,16 @@ describe("transport schedule model", () => {
 
 	it("selects the narrowest newer override without mutating the input", () => {
 		const periods = [
-			{ ...operatingPeriod, scheduleId: "base", updatedAt: "2026-09-01T00:00:00.000Z" },
+			{
+				...operatingPeriod,
+				scheduleId: "base",
+				sourceReleasedAt: "2026-09-09T00:00:00.000Z",
+				updatedAt: "2026-09-01T00:00:00.000Z",
+			},
 			{
 				...operatingPeriod,
 				scheduleId: "special",
+				sourceReleasedAt: null,
 				validFrom: "2026-09-10",
 				validTo: "2026-09-12",
 				updatedAt: "2026-09-01T00:00:00.000Z",
