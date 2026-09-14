@@ -19,7 +19,23 @@ export function createOpsConversationQueryService({ getDb }: { getDb: RuntimeDbG
 							.limit(1)
 					)[0]
 				: undefined;
-			const latestStatus = sql<string>`coalesce((select case when d.status in ('error','rejected') then 'FAILED' when d.status = 'approval_required' then 'ACTION_REQUIRED' when d.status in ('accepted') then 'PENDING' when d.status = 'cancelled' then 'CANCELLED' else 'COMPLETED' end from chat.turn_dispatches d where d.conversation_id = ${conversations.id} order by d.created_at desc, d.request_id desc limit 1), 'COMPLETED')`;
+			// Keep accepted/finalizing requests aligned with Ops runtime diagnostics.
+			const latestStatus = sql<string>`coalesce((
+				select case
+					when d.status in ('error', 'rejected') then 'FAILED'
+					when d.status = 'approval_required' then 'ACTION_REQUIRED'
+					when d.status = 'cancelled' then 'CANCELLED'
+					when d.status = 'accepted' then case
+						when r.status in ('running', 'streaming', 'completed', 'failed', 'expired', 'canceled') then 'RUNNING'
+						else 'PENDING'
+					end
+					else 'COMPLETED'
+				end
+				from chat.turn_dispatches d
+				left join execution_control.agent_runs r on r.request_id = d.request_id
+				where d.conversation_id = ${conversations.id}
+				order by d.created_at desc, d.request_id desc limit 1
+			), 'COMPLETED')`;
 			const rows = await db
 				.select({
 					id: conversations.id,

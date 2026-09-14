@@ -2,13 +2,47 @@ import { Button, Input } from "@campus-agent/ui";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { formatTimestamp } from "./format";
 import { fetchChatConversations } from "./ops-api/chat-conversations";
 import { ErrorState, PageHeader, PageShell, StatusBadge } from "./ops-display";
 
+const dateFormatter = new Intl.DateTimeFormat("en", {
+	timeZone: "Asia/Shanghai",
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+});
+
+function beijingDate(value: unknown): string {
+	if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) {
+		return "";
+	}
+	const parts = dateFormatter.formatToParts(new Date(value));
+	return ["year", "month", "day"]
+		.map((type) => parts.find((part) => part.type === type)?.value)
+		.join("-");
+}
+
+function filterDraft(search: Record<string, unknown>) {
+	return {
+		q: typeof search.q === "string" ? search.q : "",
+		status: typeof search.status === "string" ? search.status : "",
+		feedback: typeof search.feedback === "string" ? search.feedback : "",
+		hasFailures: typeof search.hasFailures === "boolean" ? String(search.hasFailures) : "",
+		from: beijingDate(search.from),
+		to: beijingDate(search.to),
+	};
+}
+
 export function ConversationsPage({ search }: { search: Record<string, unknown> }) {
 	const navigate = useNavigate();
 	const location = useLocation();
+	const { q, status, feedback, hasFailures, from, to } = search;
+	const [draft, setDraft] = useState(() => filterDraft(search));
+	useEffect(() => {
+		setDraft(filterDraft({ q, status, feedback, hasFailures, from, to }));
+	}, [q, status, feedback, hasFailures, from, to]);
 	const params = new URLSearchParams();
 	for (const key of ["q", "cursor", "from", "to", "status", "feedback"]) {
 		const value = search[key];
@@ -49,15 +83,14 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 						{query.isFetching ? "刷新中" : "刷新"}
 					</Button>
 				}
-				description="按会话查看用户问题、助手回答和需要排查的运行。"
+				description="按会话查看用户问题、助手回答和需要排查的运行。日期按北京时间计算。"
 				title="历史会话"
 			/>
 			<form
 				className="my-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem_10rem_auto]"
 				onSubmit={(event) => {
 					event.preventDefault();
-					const form = new FormData(event.currentTarget);
-					const value = (n: string) => String(form.get(n) ?? "") || undefined;
+					const value = (name: keyof typeof draft) => draft[name] || undefined;
 					void navigate({
 						to: "/conversations",
 						search: {
@@ -80,14 +113,18 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 			>
 				<Input
 					aria-label="搜索会话"
-					defaultValue={typeof search.q === "string" ? search.q : ""}
+					value={draft.q}
+					onChange={(event) => setDraft((previous) => ({ ...previous, q: event.target.value }))}
 					name="q"
 					placeholder="搜索标题、问题、回答或 request ID"
 				/>
 				<select
 					aria-label="会话状态"
 					className="rounded-md border border-input bg-background px-3"
-					defaultValue={typeof search.status === "string" ? search.status : ""}
+					value={draft.status}
+					onChange={(event) =>
+						setDraft((previous) => ({ ...previous, status: event.target.value }))
+					}
 					name="status"
 				>
 					<option value="">全部状态</option>
@@ -101,7 +138,10 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 				<select
 					aria-label="反馈状态"
 					className="rounded-md border border-input bg-background px-3"
-					defaultValue={typeof search.feedback === "string" ? search.feedback : ""}
+					value={draft.feedback}
+					onChange={(event) =>
+						setDraft((previous) => ({ ...previous, feedback: event.target.value }))
+					}
 					name="feedback"
 				>
 					<option value="">全部反馈</option>
@@ -111,7 +151,10 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 				<select
 					aria-label="失败筛选"
 					className="rounded-md border border-input bg-background px-3"
-					defaultValue={typeof search.hasFailures === "boolean" ? String(search.hasFailures) : ""}
+					value={draft.hasFailures}
+					onChange={(event) =>
+						setDraft((previous) => ({ ...previous, hasFailures: event.target.value }))
+					}
 					name="hasFailures"
 				>
 					<option value="">全部运行</option>
@@ -121,14 +164,16 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 				<input
 					aria-label="开始日期"
 					className="rounded-md border border-input bg-background px-3"
-					defaultValue={typeof search.from === "string" ? search.from.slice(0, 10) : ""}
+					value={draft.from}
+					onChange={(event) => setDraft((previous) => ({ ...previous, from: event.target.value }))}
 					name="from"
 					type="date"
 				/>
 				<input
 					aria-label="结束日期"
 					className="rounded-md border border-input bg-background px-3"
-					defaultValue={typeof search.to === "string" ? search.to.slice(0, 10) : ""}
+					value={draft.to}
+					onChange={(event) => setDraft((previous) => ({ ...previous, to: event.target.value }))}
 					name="to"
 					type="date"
 				/>
@@ -196,7 +241,10 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 				{hasFilters ? (
 					<Button
 						className="mt-4"
-						onClick={() => void navigate({ to: "/conversations", search: {} })}
+						onClick={() => {
+							setDraft(filterDraft({}));
+							void navigate({ to: "/conversations", search: {} });
+						}}
 						variant="ghost"
 					>
 						清除筛选

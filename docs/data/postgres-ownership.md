@@ -58,7 +58,7 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 | `profile.*` | App API 账号设置 | App API |
 | `campus_groups.sections`、`campus_groups.groups` | App API 同好群模块 | App API、通过内部接口访问的 Ops Web |
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
-| `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影 |
+| `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
 | `campus_docs_serving.current_index` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher、execution-control Campus Search |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
@@ -181,8 +181,13 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 - `campus-agent-schema` 为 `execution_control` 授予所属 schema `USAGE` 和表的
   `SELECT`、`INSERT`、`UPDATE`、`DELETE`。该角色不获得 schema `CREATE`、表 `TRUNCATE`、
   `REFERENCES`、`TRIGGER`，也不能访问 App API 所有的 `runtime.request_observability_fact`；
-- execution-control 表所有者只向 `ops_web` 授予 `agent_runs` 和 `agent_step_attempts` 当前运维
+- execution-control 表所有者向 `ops_web` 授予 `agent_runs` 和 `agent_step_attempts` 当前运维
   投影使用的精确列读取。Ops Web bootstrap 不创建、扩大或收回 execution-control 表权限；
+- `app_api` 仅可读取 `execution_control.agent_runs` 的 `request_id`、`status` 两列，供 App API 的
+  Ops 会话摘要查询关联最新 dispatch，在分页前区分和筛选待处理、运行中；执行状态仍由
+  execution-control 写入。chat dispatch 不记录执行阶段，逐请求 HTTP 查询不能承担该列表的 SQL
+  筛选。授权由统一 migration 安装，其他执行列、事件及写权限保持关闭；消费者退役时由新 migration
+  收回这两列授权。
 - `execution_control.agent_campus_search_diagnostics` 保存 Ops 检查 RAG 所需的有界候选和阶段快照，
   `execution_control` 读写、`ops_web` 只读列级诊断字段，`app_api` 无权限。它与所属 run 级联删除；
   不因此向 Ops Web 开放 `agent_run_events` 或 `agent_step_results`；

@@ -1,3 +1,4 @@
+import { OpsConversationListQuerySchema } from "campus-contracts/chat-conversations";
 import { describe, expect, it, vi } from "vitest";
 import { createChatConversationClient } from "../src/server/chat-conversation-client";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
@@ -12,6 +13,41 @@ const conversation = {
 	messages: [],
 };
 describe("Ops conversation API", () => {
+	it.each(["true", "false"])("preserves hasFailures=%s through HTTP forwarding", async (value) => {
+		const page = {
+			data: [],
+			page: { nextCursor: null },
+			generatedAt: conversation.updatedAt,
+			filters: { from: null, to: null },
+		};
+		const fetchImplementation = vi.fn().mockResolvedValue(Response.json(page));
+		const app = createTestOpsApp({
+			admission: createAllowAllOpsAdmission(),
+			chatConversationClient: createChatConversationClient(
+				{ OPS_WEB_APP_API_URL: "http://app.internal", OPS_WEB_INTERNAL_TOKEN: "test-token" },
+				{ fetchImplementation },
+			),
+		});
+		const response = await app.request(
+			`/api/ops/chat-conversations?hasFailures=${value}&status=RUNNING`,
+		);
+		expect(response.status).toBe(200);
+		const upstream = new URL(fetchImplementation.mock.calls[0]?.[0] as string);
+		expect(upstream.searchParams.get("hasFailures")).toBe(value);
+		expect(
+			OpsConversationListQuerySchema.parse(Object.fromEntries(upstream.searchParams)),
+		).toMatchObject({ hasFailures: value === "true", status: "RUNNING" });
+	});
+	it("rejects invalid failure filters before calling App API", async () => {
+		const list = vi.fn();
+		const app = createTestOpsApp({
+			admission: createAllowAllOpsAdmission(),
+			chatConversationClient: { list, getDetail: vi.fn() },
+		});
+		expect((await app.request("/api/ops/chat-conversations?hasFailures=no")).status).toBe(400);
+		expect(list).not.toHaveBeenCalled();
+	});
+
 	it("reads through App API with server authentication and no browser caching", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(Response.json(conversation));
 		const client = createChatConversationClient(

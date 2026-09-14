@@ -43,16 +43,7 @@ export function registerChatConversationAdminRoutes(input: {
 						latestQuestionPreview: row.latestQuestion,
 						latestAnswerPreview: row.latestAnswer,
 						latestRequestId: row.latestRequestId,
-						latestStatus:
-							row.latestStatus === "FAILED"
-								? "FAILED"
-								: row.latestStatus === "ACTION_REQUIRED"
-									? "ACTION_REQUIRED"
-									: row.latestStatus === "PENDING"
-										? "PENDING"
-										: row.latestStatus === "CANCELLED"
-											? "CANCELLED"
-											: "COMPLETED",
+						latestStatus: row.latestStatus,
 						hasFailures: Boolean(row.hasFailures),
 						hasFeedback: Boolean(row.hasFeedback),
 					})),

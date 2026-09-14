@@ -1,11 +1,13 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
+import { OpsConversationListQuerySchema } from "campus-contracts/chat-conversations";
 import type { ChatFeedbackQuery } from "campus-contracts/chat-feedback";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
-import { appApiSchema, conversations, messageFeedback, messages } from "../src/db/schema";
+import type { RuntimeDatabase } from "../src/db/runtime";
+import { conversations, messageFeedback, messages } from "../src/db/schema";
 import { createChatFeedbackQueryService } from "../src/modules/chat/feedback-query";
 import { createOpsConversationQueryService } from "../src/modules/chat/ops-conversation-query";
 import { createPgChatConversationFeedbackStore } from "../src/modules/chat/store-feedback-operations";
@@ -16,7 +18,7 @@ const window = { from: "2040-09-13T00:00:00Z", to: "2040-09-14T00:00:00Z", limit
 
 describe("chat feedback PostgreSQL queries", () => {
 	let pool: Pool;
-	let db: ReturnType<typeof drizzle<typeof appApiSchema>>;
+	let db: RuntimeDatabase;
 	let service: ReturnType<typeof createChatFeedbackQueryService>;
 	let writer: ReturnType<typeof createPgChatConversationFeedbackStore>;
 	let conversationId: string;
@@ -24,7 +26,7 @@ describe("chat feedback PostgreSQL queries", () => {
 	const list = (query: Partial<ChatFeedbackQuery> = {}) => service.list({ ...window, ...query });
 	beforeAll(() => {
 		pool = new Pool({ connectionString: postgres.runtimeConnectionString, max: 2, ssl: false });
-		db = drizzle(pool, { schema: appApiSchema });
+		db = drizzle({ client: pool });
 		service = createChatFeedbackQueryService({ getDb: async () => db });
 		writer = createPgChatConversationFeedbackStore({ getDb: async () => db });
 	});
@@ -212,5 +214,148 @@ describe("chat feedback PostgreSQL queries", () => {
 		);
 		expect(answer).toMatchObject({ parentMessageId: "missing-parent", feedback: null });
 		expect(await query.getDetail("missing-conversation")).toBeNull();
+	});
+});
+
+describe("conversation summaries PostgreSQL queries", () => {
+	let runtime: Pool;
+	let management: Pool;
+	let service: ReturnType<typeof createOpsConversationQueryService>;
+	let owner: string;
+	beforeAll(() => {
+		runtime = new Pool({ connectionString: postgres.runtimeConnectionString, max: 2 });
+		management = new Pool({ connectionString: postgres.managementConnectionString, max: 1 });
+		const db = drizzle({ client: runtime });
+		service = createOpsConversationQueryService({ getDb: async () => db });
+	});
+	beforeEach(() => {
+		owner = `summary-${randomUUID()}`;
+	});
+	afterEach(async () => {
+		await management.query("delete from execution_control.agent_runs where owner_user_id = $1", [
+			owner,
+		]);
+		await runtime.query("delete from chat.conversations where owner_user_id = $1", [owner]);
+	});
+	afterAll(async () => {
+		await management.end();
+		await runtime.end();
+	});
+	async function conversation(suffix: string) {
+		const id = `${owner}-${suffix}`;
+		await runtime.query(
+			"insert into chat.conversations (id, owner_user_id, title, created_at, updated_at) values ($1, $2, 'Summary fixture', $3, $3)",
+			[id, owner, at],
+		);
+		return id;
+	}
+	async function dispatch(id: string, status: string, runStatus: string | null, turn = 1) {
+		const requestId = `${id}-r${turn}`;
+		const createdAt = new Date(at.valueOf() + turn * 1000);
+		await runtime.query(
+			"insert into chat.messages (id, conversation_id, role, text, created_at, turn_sequence) values ($1, $2, 'user', 'Question', $3, $4)",
+			[`${id}-q${turn}`, id, createdAt, turn],
+		);
+		await runtime.query(
+			`insert into chat.turn_dispatches
+			(request_id, conversation_id, user_message_id, assistant_message_id, turn_sequence, surface, owner_user_id, actor_user_id, principal_snapshot_json, status, created_at, updated_at, execution_input_json, execution_input_sha256)
+			values ($1, $2, $3, $4, $5, 'campus_web', $6, $6, '{}', $7, $8, $8, '{}', $9)`,
+			[
+				requestId,
+				id,
+				`${id}-q${turn}`,
+				`${id}-a${turn}`,
+				turn,
+				owner,
+				status,
+				createdAt,
+				"a".repeat(64),
+			],
+		);
+		if (runStatus !== null) {
+			await management.query(
+				`insert into execution_control.agent_runs
+				(request_id, conversation_id, owner_user_id, surface, task_queue, status, created_at, updated_at)
+				values ($1, $2, $3, 'campus_web', 'test', $4, $5, $5)`,
+				[requestId, id, owner, runStatus, createdAt],
+			);
+		}
+	}
+	const list = (query: Record<string, unknown> = {}) =>
+		service.listSummaries(OpsConversationListQuerySchema.parse({ ownerId: owner, ...query }));
+
+	it.each([
+		["accepted", null, "PENDING"],
+		["accepted", "created", "PENDING"],
+		["accepted", "queued", "PENDING"],
+		["accepted", "admitted", "PENDING"],
+		["accepted", "running", "RUNNING"],
+		["accepted", "streaming", "RUNNING"],
+		["accepted", "completed", "RUNNING"],
+		["accepted", "failed", "RUNNING"],
+		["accepted", "expired", "RUNNING"],
+		["accepted", "canceled", "RUNNING"],
+		["completed", "running", "COMPLETED"],
+		["error", "running", "FAILED"],
+		["rejected", "completed", "FAILED"],
+		["approval_required", "running", "ACTION_REQUIRED"],
+		["cancelled", "running", "CANCELLED"],
+	] as const)(
+		"projects %s / %s as %s using the runtime role",
+		async (status, runStatus, expected) => {
+			const id = await conversation("one");
+			await dispatch(id, status, runStatus);
+			expect((await list()).rows).toMatchObject([{ id, latestStatus: expected }]);
+			expect((await list({ status: expected })).rows).toHaveLength(1);
+			expect(
+				(await list({ status: expected === "RUNNING" ? "PENDING" : "RUNNING" })).rows,
+			).toHaveLength(0);
+		},
+	);
+
+	it("can read only the two granted execution columns", async () => {
+		await expect(
+			runtime.query("select request_id, status from execution_control.agent_runs limit 0"),
+		).resolves.toMatchObject({ rowCount: 0 });
+		for (const statement of [
+			"select * from execution_control.agent_runs limit 0",
+			"select metadata_json from execution_control.agent_runs limit 0",
+			"select request_id from execution_control.agent_run_events limit 0",
+			"update execution_control.agent_runs set status = status where false",
+			"delete from execution_control.agent_runs where false",
+		]) {
+			await expect(runtime.query(statement)).rejects.toMatchObject({ code: "42501" });
+		}
+	});
+
+	it("filters the latest dispatch and failure history before paginating", async () => {
+		const first = await conversation("a");
+		const withFailure = await conversation("b");
+		const second = await conversation("c");
+		const pending = await conversation("d");
+		await dispatch(first, "accepted", "running");
+		await dispatch(withFailure, "error", "failed");
+		await dispatch(withFailure, "accepted", "streaming", 2);
+		await dispatch(second, "accepted", "completed");
+		await dispatch(pending, "accepted", "queued");
+		const query = { status: "RUNNING", hasFailures: "false", limit: 1 };
+		const page = await list(query);
+		expect(page.rows).toMatchObject([{ id: second, hasFailures: false, latestStatus: "RUNNING" }]);
+		expect(page.nextCursor).toBe(second);
+		const next = await list({ ...query, cursor: page.nextCursor });
+		expect(next.rows).toMatchObject([{ id: first, latestStatus: "RUNNING" }]);
+		expect(next.nextCursor).toBeNull();
+		expect((await list({ status: "RUNNING", hasFailures: "true" })).rows).toMatchObject([
+			{ id: withFailure, latestRequestId: `${withFailure}-r2`, hasFailures: true },
+		]);
+	});
+
+	it("keeps empty conversations and includes both date boundaries", async () => {
+		const id = await conversation("empty");
+		expect((await list({ from: at.toISOString(), to: at.toISOString() })).rows).toMatchObject([
+			{ id, latestStatus: "COMPLETED" },
+		]);
+		expect((await list({ from: new Date(at.valueOf() + 1).toISOString() })).rows).toHaveLength(0);
+		expect((await list({ to: new Date(at.valueOf() - 1).toISOString() })).rows).toHaveLength(0);
 	});
 });

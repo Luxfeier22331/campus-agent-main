@@ -81,8 +81,9 @@ Ops Web 也没有该表的列读取权限。它不能成为新的跨所有者接
 
 ## execution-control 投影
 
-`execution_control.agent_*` 的 DDL 由统一 `campus-agent-schema` Job 管理。`app_api` 角色不能读取
-这些表，`ops_web` 仅获得合同列的读取权限。chat dispatch、agent run 和 observability fact
+`execution_control.agent_*` 的 DDL 由统一 `campus-agent-schema` Job 管理。`app_api` 仅可读取
+`agent_runs` 的 `request_id`、`status` 两列，用于 Ops 会话列表在分页前判定和筛选运行状态；
+其余执行投影不可读取。`ops_web` 仅获得合同列的读取权限。chat dispatch、agent run 和 observability fact
 直接通过 `request_id` 关联。
 
 ## 可执行来源

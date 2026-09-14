@@ -110,6 +110,23 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 			"select has_table_privilege('app_api','chat.messages','SELECT,INSERT,UPDATE,DELETE') as chat, has_table_privilege('ops_web','transport.schedule_period_notices','SELECT') as transport, has_schema_privilege('execution_control','execution_control','CREATE') as ddl",
 		);
 		assert.deepEqual(grants.rows[0], { chat: true, transport: true, ddl: false });
+		const runGrants = await client.query(`select
+			has_schema_privilege('app_api', 'execution_control', 'USAGE') as usage,
+			has_column_privilege('app_api', 'execution_control.agent_runs', 'request_id', 'SELECT') as request,
+			has_column_privilege('app_api', 'execution_control.agent_runs', 'status', 'SELECT') as status,
+			has_table_privilege('app_api', 'execution_control.agent_runs', 'SELECT') as full_table,
+			has_column_privilege('app_api', 'execution_control.agent_runs', 'metadata_json', 'SELECT') as metadata,
+			has_table_privilege('app_api', 'execution_control.agent_runs', 'INSERT,UPDATE,DELETE') as write,
+			has_any_column_privilege('app_api', 'execution_control.agent_run_events', 'SELECT') as events`);
+		assert.deepEqual(runGrants.rows[0], {
+			usage: true,
+			request: true,
+			status: true,
+			full_table: false,
+			metadata: false,
+			write: false,
+			events: false,
+		});
 	}
 	await t.test("empty database, repeated run and concurrent migrators", async () => {
 		const { config, client } = await database();
@@ -152,7 +169,15 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 				);
 				const status = await inspectCampusAgentSchema(config);
 				assert.equal(status.status, "pending");
-				assert.deepEqual(status.pendingMigrations, withMemory ? [] : [fixture.at(-1)?.name]);
+				const appliedNames = new Set(
+					fixture
+						.filter((entry) => withMemory || !entry.name.endsWith("personal_memory_management"))
+						.map((entry) => entry.name),
+				);
+				assert.deepEqual(
+					status.pendingMigrations,
+					local.filter((entry) => !appliedNames.has(entry.name)).map((entry) => entry.name),
+				);
 				await migrateCampusAgentSchema(config);
 				await ready(client);
 				const after = await client.query(
@@ -246,10 +271,17 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 				.map((entry) => entry.name),
 		);
 		await assert.rejects(client.query("select payload from profile.memory_commands limit 1"));
-		assert.deepEqual((await inspectCampusAgentSchema(config, folder)).pendingMigrations, [
-			fixture.at(-1)?.name,
-			name,
-		]);
+		const appliedNames = new Set(
+			fixture
+				.filter((entry) => !entry.name.endsWith("personal_memory_management"))
+				.map((entry) => entry.name),
+		);
+		assert.deepEqual(
+			(await inspectCampusAgentSchema(config, folder)).pendingMigrations,
+			readHistory(folder)
+				.filter((entry) => !appliedNames.has(entry.name))
+				.map((entry) => entry.name),
+		);
 		await writeFile(path, "select 1;");
 		await migrateCampusAgentSchema(config, folder);
 		await ready(client);

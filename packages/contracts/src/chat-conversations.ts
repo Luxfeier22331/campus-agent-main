@@ -52,7 +52,9 @@ export const OpsConversationListQuerySchema = z
 		ownerId: z.string().trim().min(1).max(200).optional(),
 		status: OpsConversationListStatusSchema.optional(),
 		feedback: z.enum(["ANY", "WITH_FEEDBACK", "WITHOUT_FEEDBACK"]).default("ANY"),
-		hasFailures: z.coerce.boolean().optional(),
+		hasFailures: z
+			.union([z.boolean(), z.enum(["true", "false"]).transform((value) => value === "true")])
+			.optional(),
 		from: timestamp.optional(),
 		to: timestamp.optional(),
 		cursor: z.string().trim().min(1).max(512).optional(),

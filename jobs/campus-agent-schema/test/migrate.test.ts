@@ -78,7 +78,11 @@ test("released v0 history maps uniquely without changing SQL", async () => {
 			fixture.map((row: object, index: number) => ({ ...row, id: index + 1 })),
 			false,
 		),
-		[],
+		history
+			.filter(
+				(entry) => !fixture.some((released: { name: string }) => released.name === entry.name),
+			)
+			.map((entry) => entry.name),
 	);
 });
 

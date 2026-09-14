@@ -12,6 +12,16 @@ status: active
 作为会话轮次的诊断入口。列表支持关键词、用户 ID、状态、失败和时间范围筛选，并使用游标分页。
 完整消息继续由详情接口提供。
 
+`hasFailures` 接受 `true`、`false`，缺省表示全部；非法值返回 400。状态按最新 dispatch 判定，
+产品终态优先。dispatch 为 `accepted` 时，关联执行记录的 `running`、`streaming`，以及执行已结束但
+产品尚未终结的 `completed`、`failed`、`expired`、`canceled` 均显示 `RUNNING`；其余显示 `PENDING`。
+状态和失败条件在数据库分页前筛选；列表与运行诊断采用同一状态规则。
+
+日期以北京时间填写和回显，URL 的 `from`、`to` 保留 ISO 时间；开始日零点与结束日
+23:59:59.999 均包含在查询范围。清除筛选同步清空输入、URL 和游标；前进后退或从详情返回时
+恢复已应用条件，手动刷新保留未提交的输入。部署顺序为先应用两列只读授权 migration，再发布
+App API 和 Ops Web。
+
 ## 接口与所有权
 
 - 浏览器：`GET /api/ops/chat-conversations/:conversationId`，沿用 Ops 准入。

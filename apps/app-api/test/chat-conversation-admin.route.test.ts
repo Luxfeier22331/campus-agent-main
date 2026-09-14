@@ -14,38 +14,68 @@ function setup() {
 	return { app, service };
 }
 describe("Ops conversation read route", () => {
-	it("lists conversation summaries with internal authentication", async () => {
-		const { app, service } = setup();
-		service.listSummaries.mockResolvedValue({
-			rows: [
+	it.each(["COMPLETED", "RUNNING", "PENDING", "FAILED", "ACTION_REQUIRED", "CANCELLED"])(
+		"preserves %s in the list response",
+		async (status) => {
+			const { app, service } = setup();
+			service.listSummaries.mockResolvedValue({
+				rows: [
+					{
+						id: "conv-1",
+						title: "问题",
+						ownerId: "user-1",
+						displayName: null,
+						createdAt: new Date("2026-09-01T00:00:00Z"),
+						updatedAt: new Date("2026-09-01T00:00:00Z"),
+						messageCount: 2,
+						turnCount: 1,
+						latestQuestion: "问题",
+						latestAnswer: "回答",
+						latestRequestId: "req-1",
+						latestStatus: status,
+						hasFailures: false,
+						hasFeedback: true,
+					},
+				],
+				nextCursor: null,
+			});
+			const response = await app.request(
+				`/api/internal/admin/chat-conversations?status=${status}`,
 				{
-					id: "conv-1",
-					title: "问题",
-					ownerId: "user-1",
-					displayName: null,
-					createdAt: new Date("2026-09-01T00:00:00Z"),
-					updatedAt: new Date("2026-09-01T00:00:00Z"),
-					messageCount: 2,
-					turnCount: 1,
-					latestQuestion: "问题",
-					latestAnswer: "回答",
-					latestRequestId: "req-1",
-					latestStatus: "COMPLETED",
-					hasFailures: false,
-					hasFeedback: true,
+					headers,
 				},
-			],
-			nextCursor: null,
-		});
-		const response = await app.request("/api/internal/admin/chat-conversations?status=COMPLETED", {
+			);
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as {
+				data: Array<{ id: string; latestRequestId: string }>;
+			};
+			expect(body.data[0]).toMatchObject({
+				id: "conv-1",
+				latestRequestId: "req-1",
+				latestStatus: status,
+			});
+			expect(service.listSummaries).toHaveBeenCalled();
+		},
+	);
+
+	it.each(["true", "false"])("passes hasFailures=%s to the query service", async (value) => {
+		const { app, service } = setup();
+		const response = await app.request(
+			`/api/internal/admin/chat-conversations?hasFailures=${value}`,
+			{ headers },
+		);
+		expect(response.status).toBe(200);
+		expect(service.listSummaries).toHaveBeenCalledWith(
+			expect.objectContaining({ hasFailures: value === "true" }),
+		);
+	});
+	it("rejects invalid failure filters before querying", async () => {
+		const { app, service } = setup();
+		const response = await app.request("/api/internal/admin/chat-conversations?hasFailures=no", {
 			headers,
 		});
-		expect(response.status).toBe(200);
-		const body = (await response.json()) as {
-			data: Array<{ id: string; latestRequestId: string }>;
-		};
-		expect(body.data[0]).toMatchObject({ id: "conv-1", latestRequestId: "req-1" });
-		expect(service.listSummaries).toHaveBeenCalled();
+		expect(response.status).toBe(400);
+		expect(service.listSummaries).not.toHaveBeenCalled();
 	});
 
 	it("requires internal authentication before reading", async () => {
