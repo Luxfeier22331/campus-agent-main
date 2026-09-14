@@ -21,7 +21,7 @@
 		"@campus-agent/notices": "workspace:*",
 		"campus-contracts": "workspace:*",
 		"openai": "7.15.0",
-		"zod": "^4.6.4"
+		"zod": "^4.6.5"
 	},
 	"devDependencies": {
 		"@types/node": "^24.13.4",

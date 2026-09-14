@@ -69,14 +69,21 @@ func TestHindsightHTTPClientSendsSynchronousReplaceRetain(t *testing.T) {
 			t.Fatalf("authorization = %q", request.Header.Get("Authorization"))
 		}
 		var payload struct {
-			Async *bool                 `json:"async"`
-			Items []hindsightMemoryItem `json:"items"`
+			Async *bool            `json:"async"`
+			Items []map[string]any `json:"items"`
 		}
 		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
 			t.Fatal(err)
 		}
-		if payload.Async == nil || *payload.Async || len(payload.Items) != 1 || payload.Items[0].UpdateMode != "replace" {
+		if payload.Async == nil || *payload.Async || len(payload.Items) != 1 {
 			t.Fatalf("payload = %#v", payload)
+		}
+		item := payload.Items[0]
+		if item["content"] != "user message" || item["update_mode"] != "replace" || item["document_id"] != "conversation:abc:message:def" {
+			t.Errorf("item = %#v", item)
+		}
+		if _, ok := item["resolve_entities"]; ok {
+			t.Errorf("retain unexpectedly sets resolve_entities: %#v", item)
 		}
 		response.Header().Set("content-type", "application/json")
 		_, _ = response.Write([]byte(`{"success":true,"bank_id":"bank-01","items_count":1,"async":false}`))
@@ -87,7 +94,7 @@ func TestHindsightHTTPClientSendsSynchronousReplaceRetain(t *testing.T) {
 	result, err := client.RetainMemories(context.Background(), "bank-01", hindsightRetainRequest{
 		Async: boolPtr(false),
 		Items: []hindsightMemoryItem{{
-			Content: "user message", DocumentID: "conversation:abc:message:def", UpdateMode: "replace",
+			Content: " user message ", DocumentID: "conversation:abc:message:def", UpdateMode: "replace",
 		}},
 	})
 	if err != nil {
@@ -95,6 +102,36 @@ func TestHindsightHTTPClientSendsSynchronousReplaceRetain(t *testing.T) {
 	}
 	if result.Async || result.ItemsCount != 1 || result.BankID != "bank-01" {
 		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestHindsightHTTPClientBankExists(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusNotFound, http.StatusUnauthorized, http.StatusForbidden, http.StatusGone, http.StatusInternalServerError} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				if request.Method != http.MethodGet || request.URL.Path != "/v1/default/banks/bank-01/profile" {
+					t.Errorf("request = %s %s", request.Method, request.URL.Path)
+				}
+				if request.Header.Get("Authorization") != "Bearer hindsight-secret" {
+					t.Errorf("authorization = %q", request.Header.Get("Authorization"))
+				}
+				response.Header().Set("content-type", "application/json")
+				response.WriteHeader(status)
+				if status == http.StatusOK {
+					_, _ = response.Write([]byte(`{"bank_id":"bank-01","name":"test","disposition":{"skepticism":3,"literalism":3,"empathy":3},"mission":"","background":""}`))
+				} else {
+					_, _ = response.Write([]byte(`{"detail":"lookup failed"}`))
+				}
+			}))
+			defer server.Close()
+
+			client := newHindsightHTTPClient(hindsightClientOptions{apiSecret: "hindsight-secret", baseURL: server.URL})
+			exists, err := client.BankExists(context.Background(), " bank-01 ")
+			wantError := status != http.StatusOK && status != http.StatusNotFound
+			if exists != (status == http.StatusOK) || (err != nil) != wantError {
+				t.Fatalf("BankExists = (%t, %v), status = %d", exists, err, status)
+			}
+		})
 	}
 }
 

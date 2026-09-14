@@ -263,8 +263,9 @@ func requireHindsightBankConfig(response *hindsight.BankConfigResponse, expected
 }
 
 func toHindsightSDKMemoryItem(item hindsightMemoryItem) (hindsight.MemoryItem, error) {
+	content := strings.TrimSpace(item.Content)
 	output := hindsight.MemoryItem{
-		Content:  strings.TrimSpace(item.Content),
+		Content:  hindsight.Content{String: &content},
 		Metadata: copyStringMap(item.Metadata),
 		Tags:     append([]string{}, item.Tags...),
 	}

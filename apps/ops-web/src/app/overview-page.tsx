@@ -115,7 +115,7 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 
 			<dl className="grid border-border border-y md:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-border">
 				<div className="grid content-start gap-2 border-border border-b px-1 py-4 md:border-r md:px-4 xl:border-b-0 xl:border-r-0 xl:pl-0">
-					<dt className="font-medium ui-metadata">整体状态</dt>
+					<dt className="font-medium ui-metadata text-muted-foreground">整体状态</dt>
 					<dd>
 						<StatusBadge status={data.health.status} />
 					</dd>
@@ -202,7 +202,7 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 function OverviewMetric({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid content-center gap-1 border-border border-b px-1 py-4 md:px-4 xl:border-b-0">
-			<dt className="font-medium ui-metadata">{label}</dt>
+			<dt className="font-medium ui-metadata text-muted-foreground">{label}</dt>
 			<dd className="font-semibold text-2xl text-foreground tabular-nums">{value}</dd>
 		</div>
 	);
@@ -404,7 +404,7 @@ function TrendSummaryTable({ trends }: { trends: OpsOverviewResponse["trends"]["
 function TrendValue({ label, value }: { label: string; value: number | string }) {
 	return (
 		<div className="grid gap-1">
-			<span className="ui-metadata">{label}</span>
+			<span className="ui-metadata text-muted-foreground">{label}</span>
 			<span className="font-semibold text-foreground tabular-nums">{value}</span>
 		</div>
 	);

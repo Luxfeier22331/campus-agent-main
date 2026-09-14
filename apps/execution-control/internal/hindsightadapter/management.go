@@ -131,7 +131,7 @@ func (c hindsightHTTPClient) GetMemory(ctx context.Context, bankID, memoryID str
 	return memoryRecord(body)
 }
 func (c hindsightHTTPClient) UpdateMemory(ctx context.Context, bankID, memoryID string, edit memoryruntime.PersonalMemoryCommandItem) error {
-	payload := hindsight.NewUpdateMemoryRequest()
+	payload := hindsight.UpdateMemoryRequest{}
 	if edit.Text != "" {
 		payload.SetText(strings.TrimSpace(edit.Text))
 	}
@@ -142,7 +142,7 @@ func (c hindsightHTTPClient) UpdateMemory(ctx context.Context, bankID, memoryID 
 		}
 		payload.SetState(state)
 	}
-	_, response, err := c.client.MemoryAPI.UpdateMemory(ctx, bankID, memoryID).UpdateMemoryRequest(*payload).Execute()
+	_, response, err := c.client.MemoryAPI.UpdateMemory(ctx, bankID, memoryID).UpdateMemoryRequest(payload).Execute()
 	if response != nil && response.Body != nil {
 		defer func() { _ = response.Body.Close() }()
 	}

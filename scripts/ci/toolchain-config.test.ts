@@ -18,8 +18,8 @@ for (const app of ["execution-control", "model-config"]) {
 		const goWork = readFileSync(path.join(ROOT, "go.work"), "utf8");
 		const languageVersion = capture(
 			goMod,
-			/^go ([0-9]+[.][0-9]+)$/mu,
-			"go.mod must declare a major/minor language version",
+			/^go ([0-9]+[.][0-9]+)(?:[.][0-9]+)?$/mu,
+			"go.mod must declare a valid Go language version",
 		);
 		const toolchainVersion = capture(
 			goMod,

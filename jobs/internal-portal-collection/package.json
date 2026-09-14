@@ -24,7 +24,7 @@
 		"jsdom": "^30.0.1",
 		"mime-types": "^3.0.2",
 		"pg": "^8.22.0",
-		"tldts": "^7.4.12",
+		"tldts": "^7.4.13",
 		"undici": "^8.10.2"
 	},
 	"devDependencies": {

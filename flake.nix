@@ -37,7 +37,7 @@
             if goLanguageDirective == null then
               throw "go.work must declare a go language version"
             else
-              builtins.match "go ([0-9]+)[.]([0-9]+)" goLanguageDirective;
+              builtins.match "go ([0-9]+)[.]([0-9]+)([.][0-9]+)?" goLanguageDirective;
           goToolchainMatch =
             if goToolchainDirective == null then
               throw "go.work must declare a toolchain version"

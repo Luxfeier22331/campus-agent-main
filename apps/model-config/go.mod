@@ -6,7 +6,7 @@ toolchain go1.26.7
 
 require (
 	github.com/caarlos0/env/v11 v11.4.1
-	github.com/jackc/pgx/v5 v5.10.0
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 )
