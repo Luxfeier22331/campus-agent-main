@@ -21,12 +21,7 @@ import {
 	transportSchedulePeriods,
 } from "@campus-agent/transport/schema";
 import { asc, sql } from "drizzle-orm";
-import type { Env } from "../../config";
-import {
-	createRuntimeDbGetter,
-	type RuntimeDatabase,
-	type RuntimeDbGetter,
-} from "../../db/runtime";
+import type { RuntimeDatabase, RuntimeDbGetter } from "../../db/runtime";
 import { AppApiRouteError } from "../../http";
 
 export type { TransportPublicScheduleResponse as TransportScheduleResponse } from "@campus-agent/transport/domain";
@@ -57,11 +52,10 @@ interface ParsedPeriod {
 	readonly updatedAt: string;
 }
 
-export function createPgTransportScheduleService(
-	env: Env,
-	options: { getDb?: RuntimeDbGetter } = {},
-): TransportScheduleService {
-	const getDb = options.getDb ?? createRuntimeDbGetter(env);
+export function createPgTransportScheduleService(options: {
+	getDb: RuntimeDbGetter;
+}): TransportScheduleService {
+	const getDb = options.getDb;
 	return {
 		async getSchedule(date, options) {
 			const db = await getDb();

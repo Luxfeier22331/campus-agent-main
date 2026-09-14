@@ -1,8 +1,7 @@
 import type { NoticeListRequestQuery } from "campus-contracts/notices";
 import { type SQL, sql } from "drizzle-orm";
 
-import type { Env } from "../../config";
-import { createRuntimeDbGetter, type RuntimeDatabase } from "../../db/runtime";
+import type { RuntimeDatabase } from "../../db/runtime";
 import type { NoticeAssetRecord, NoticeListRecords, NoticeRecord, NoticeStore } from "./types";
 
 type RuntimeDbGetter = () => Promise<RuntimeDatabase>;
@@ -34,11 +33,8 @@ interface NoticeAssetRow extends Record<string, unknown> {
 	portal_annex_id: string | null;
 }
 
-export function createPgNoticeStore(
-	env: Env,
-	input: { getDb?: RuntimeDbGetter } = {},
-): NoticeStore {
-	const getDb = input.getDb ?? createRuntimeDbGetter(env);
+export function createPgNoticeStore(input: { getDb: RuntimeDbGetter }): NoticeStore {
+	const getDb = input.getDb;
 
 	return {
 		async getDetail(noticeId) {

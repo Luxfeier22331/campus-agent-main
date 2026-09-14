@@ -52,7 +52,7 @@ describe("transport schedule public projection", () => {
 			items: [item({ scheduleId: "baseline", itemId: "baseline:0" })],
 		});
 		db.execute = execute;
-		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		const service = createPgTransportScheduleService({ getDb: async () => db });
 		expect((await service.getSchedule(DATE)).routes[0]).not.toHaveProperty("noticeContext");
 		expect(execute).toHaveBeenCalledTimes(1);
 		expect(new PgDialect().sqlToQuery(execute.mock.calls[0]?.[0]).sql).not.toContain("n.title");
@@ -116,7 +116,7 @@ describe("transport schedule public projection", () => {
 			],
 		});
 		db.execute = execute;
-		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		const service = createPgTransportScheduleService({ getDb: async () => db });
 		const result = await service.getSchedule("2026-04-28", { includeNotices: true });
 		const departure = result.routes[0]?.departures[0];
 		expect(departure?.kind).toBe("fixed");
@@ -163,7 +163,7 @@ describe("transport schedule public projection", () => {
 				},
 			],
 		});
-		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		const service = createPgTransportScheduleService({ getDb: async () => db });
 		for (const includeNotices of [false, true]) {
 			const result = await service.getSchedule("2026-08-31", { includeNotices });
 			expect(result.routeCatalog[0]?.nextServiceDate).toBe("2026-09-11");
@@ -185,7 +185,7 @@ describe("transport schedule public projection", () => {
 				})),
 			),
 		});
-		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		const service = createPgTransportScheduleService({ getDb: async () => db });
 		expect(
 			(await service.getSchedule("2026-04-27")).routes.reduce((n, r) => n + r.departures.length, 0),
 		).toBe(24);
@@ -212,7 +212,7 @@ describe("transport schedule public projection", () => {
 			],
 		});
 		const select = vi.spyOn(db, "select");
-		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		const service = createPgTransportScheduleService({ getDb: async () => db });
 		const range = await service.getRange("2026-09-01", "2026-09-30");
 		expect(select).toHaveBeenCalledTimes(3);
 		expect(range.days).toHaveLength(30);
@@ -268,7 +268,7 @@ describe("transport schedule public projection", () => {
 				.filter((p) => p.status === "operating")
 				.map((p) => item({ itemId: `${p.scheduleId}:0`, scheduleId: p.scheduleId })),
 		});
-		const result = await createPgTransportScheduleService({} as never, {
+		const result = await createPgTransportScheduleService({
 			getDb: async () => db,
 		}).getSchedule(date);
 		expect(result.routeCatalog).toHaveLength(1);
@@ -289,7 +289,7 @@ describe("transport schedule public projection", () => {
 				periods,
 				items: periods.map((p) => item({ scheduleId: p.scheduleId, itemId: "ended:0" })),
 			});
-			const result = await createPgTransportScheduleService({} as never, {
+			const result = await createPgTransportScheduleService({
 				getDb: async () => db,
 			}).getSchedule(DATE);
 			expect(result.routes).toEqual([]);
@@ -314,7 +314,7 @@ describe("transport schedule public projection", () => {
 			],
 		});
 
-		const result = await createPgTransportScheduleService({} as never, {
+		const result = await createPgTransportScheduleService({
 			getDb: async () => db,
 		}).getSchedule(DATE);
 
@@ -363,7 +363,7 @@ describe("transport schedule public projection", () => {
 			items: [],
 		});
 
-		const result = await createPgTransportScheduleService({} as never, {
+		const result = await createPgTransportScheduleService({
 			getDb: async () => db,
 		}).getSchedule(DATE);
 
@@ -397,7 +397,7 @@ describe("transport schedule public projection", () => {
 			],
 		});
 
-		const result = await createPgTransportScheduleService({} as never, {
+		const result = await createPgTransportScheduleService({
 			getDb: async () => db,
 		}).getSchedule(DATE);
 
@@ -429,7 +429,7 @@ describe("transport schedule public projection", () => {
 			],
 		});
 
-		const result = await createPgTransportScheduleService({} as never, {
+		const result = await createPgTransportScheduleService({
 			getDb: async () => db,
 		}).getSchedule(DATE);
 

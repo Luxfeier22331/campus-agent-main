@@ -9,11 +9,6 @@ export default defineProject({
 		name: "app-api-node",
 		pool: "threads",
 		include: ["test/**/*.test.ts"],
-		exclude: [
-			"test/**/*.isolated.test.ts",
-			"test/worker.test.ts",
-			"test/worker-scheduled-sweepers.test.ts",
-			"test/**/*.integration.test.ts",
-		],
+		exclude: ["test/**/*.isolated.test.ts", "test/worker.test.ts", "test/**/*.integration.test.ts"],
 	},
 });

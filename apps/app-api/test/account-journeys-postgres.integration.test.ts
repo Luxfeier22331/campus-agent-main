@@ -239,7 +239,9 @@ describe("account journeys PostgreSQL integration", () => {
 			executeSql: (sql, params) => client.query(sql, params),
 		});
 
+		const database = drizzle({ client: pool });
 		auth = createAppAuth(env, {
+			database,
 			emailSender: {
 				async send(payload) {
 					if (!payload.subject) {
@@ -254,7 +256,6 @@ describe("account journeys PostgreSQL integration", () => {
 				},
 			},
 		});
-		const database = drizzle({ client: pool });
 		lifecycle = buildAccountLifecycleService({
 			executionController: {
 				beginOwnerDeletion: async () => ({ activeRunCount: 0, state: "draining" as const }),
@@ -280,9 +281,13 @@ describe("account journeys PostgreSQL integration", () => {
 				await getOpsAccountAdminApi(await auth).opsRemoveUser({ body: { userId } });
 			},
 			safetyIdentifierForUser: () => null,
-			store: createPgAccountLifecycleStore(env, { getDb: async () => database }),
+			store: createPgAccountLifecycleStore({ getDb: async () => database }),
 		});
-		app = createApp(env, { accountLifecycleService: lifecycle, getAppAuth: () => auth });
+		app = createApp(env, {
+			accountLifecycleService: lifecycle,
+			getAppAuth: () => auth,
+			runtimeScopeDependencies: { createRuntimeDatabase: async () => database },
+		});
 	});
 
 	afterAll(async () => {
@@ -349,7 +354,7 @@ describe("account journeys PostgreSQL integration", () => {
 		const database = drizzle({ client: pool });
 		const access = buildEmailAccessService({
 			environment: "test",
-			store: createPgEmailAccessGrantStore(env, { getDb: async () => database }),
+			store: createPgEmailAccessGrantStore({ getDb: async () => database }),
 		});
 		const grant = await access.createGrant({
 			actorId: "ops@campus.test",
@@ -462,7 +467,7 @@ describe("account journeys PostgreSQL integration", () => {
 		const database = drizzle({ client: pool });
 		const access = buildEmailAccessService({
 			environment: "test",
-			store: createPgEmailAccessGrantStore(env, { getDb: async () => database }),
+			store: createPgEmailAccessGrantStore({ getDb: async () => database }),
 		});
 		await access.createGrant({
 			actorId: "ops@campus.test",

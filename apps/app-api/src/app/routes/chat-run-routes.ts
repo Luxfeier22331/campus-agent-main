@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
-
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
+import type { AppAuthResolutionInput } from "../../modules/auth";
 import { type ChatCommandStreamEvent, publicExecutionFailure } from "../../modules/runtime-command";
 import type { RuntimeRunEventProjection, RuntimeRunSummary } from "../../modules/runtime-run";
 import { requireSessionPrincipal } from "../principal";
@@ -269,7 +269,7 @@ export function registerChatRunRoutes(input: {
 	getPrincipal: (
 		request: Request,
 		env: Env,
-		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: AppAuthResolutionInput,
 	) => Promise<import("../../modules/auth").ResolvedAppPrincipal | null>;
 	routeChatErrorResponse(
 		error: unknown,

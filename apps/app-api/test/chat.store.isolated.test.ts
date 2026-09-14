@@ -21,7 +21,7 @@ describe("pg chat conversation store", () => {
 		createRuntimeDbGetter.mockImplementation(() => () => createRuntimeDatabase());
 	});
 
-	it("builds a non-persistent runtime getter so sequential reads do not share a db handle by default", async () => {
+	it("uses the supplied database getter for sequential reads", async () => {
 		const limit = vi.fn().mockResolvedValue([]);
 		const orderBy = vi.fn(() => ({
 			limit,
@@ -40,7 +40,7 @@ describe("pg chat conversation store", () => {
 			select,
 		});
 
-		const store = createPgChatConversationStore({} as never);
+		const store = createPgChatConversationStore({ getDb: createRuntimeDatabase });
 
 		await store.listConversationSummariesByOwner({
 			limit: 50,
@@ -53,7 +53,6 @@ describe("pg chat conversation store", () => {
 			view: "active",
 		});
 
-		expect(createRuntimeDbGetter).toHaveBeenCalledTimes(1);
 		expect(createRuntimeDatabase).toHaveBeenCalledTimes(2);
 	});
 });

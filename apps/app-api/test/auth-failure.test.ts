@@ -4,21 +4,25 @@ import { classifyAuthenticationDependencyFailure } from "../src/app/routes/auth-
 
 describe("authentication dependency failure classification", () => {
 	it("classifies connection timeouts", () => {
-		expect(classifyAuthenticationDependencyFailure(new Error("connect ETIMEDOUT"))).toBe(
-			"connect_timeout",
-		);
+		expect(
+			classifyAuthenticationDependencyFailure(
+				Object.assign(new Error("timeout"), { code: "ETIMEDOUT" }),
+			),
+		).toBe("network_timeout");
 	});
 
 	it("classifies reset connections", () => {
-		expect(classifyAuthenticationDependencyFailure(new Error("connection terminated"))).toBe(
-			"connection_reset",
-		);
+		expect(
+			classifyAuthenticationDependencyFailure(
+				Object.assign(new Error("reset"), { code: "ECONNRESET" }),
+			),
+		).toBe("connection_reset");
 	});
 
 	it("classifies pool exhaustion", () => {
-		expect(classifyAuthenticationDependencyFailure(new Error("pool has no available client"))).toBe(
-			"pool_unavailable",
-		);
+		expect(
+			classifyAuthenticationDependencyFailure(Object.assign(new Error("pool"), { code: "53300" })),
+		).toBe("connection_limit");
 	});
 
 	it("does not expose unknown error details", () => {

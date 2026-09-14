@@ -1,4 +1,3 @@
-import type { Env } from "../../config";
 import type { RuntimeDbGetter } from "../../db/runtime";
 import { createEmailAccessGrantStoreContext } from "./store-context";
 import type { EmailAccessGrantStore } from "./store-contract";
@@ -8,11 +7,10 @@ import { createEmailAccessGrantRevocationOperations } from "./store-revocation-o
 
 export type { EmailAccessGrantStore } from "./store-contract";
 
-export function createPgEmailAccessGrantStore(
-	env: Env,
-	input: { getDb?: RuntimeDbGetter } = {},
-): EmailAccessGrantStore {
-	const context = createEmailAccessGrantStoreContext(env, input);
+export function createPgEmailAccessGrantStore(input: {
+	getDb: RuntimeDbGetter;
+}): EmailAccessGrantStore {
+	const context = createEmailAccessGrantStoreContext(input);
 	return {
 		...createEmailAccessGrantReadOperations(context),
 		...createEmailAccessGrantIssuanceOperations(context),

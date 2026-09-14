@@ -1,11 +1,8 @@
 import { and, eq } from "drizzle-orm";
 
-import type { Env } from "../../config";
-import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
+import type { RuntimeDbGetter } from "../../db/runtime";
 import { turnDispatches } from "../../db/schema";
 import type { RuntimeRunOwnershipRecord, RuntimeRunStore } from "./types";
-
-type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 function toRuntimeRunOwnershipRecord(
 	row: typeof turnDispatches.$inferSelect | undefined,
@@ -21,13 +18,8 @@ function toRuntimeRunOwnershipRecord(
 		status: row.status,
 	};
 }
-export function createPgRuntimeRunStore(
-	env: Env,
-	input: {
-		getDb?: RuntimeDbGetter;
-	} = {},
-): RuntimeRunStore {
-	const getDb = input.getDb ?? createRuntimeDbGetter(env);
+export function createPgRuntimeRunStore(input: { getDb: RuntimeDbGetter }): RuntimeRunStore {
+	const getDb = input.getDb;
 
 	return {
 		async getOwnedRun(query) {

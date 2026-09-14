@@ -177,7 +177,7 @@ describe("pg chat command store", () => {
 		createRuntimeDatabase.mockReturnValue({
 			select: () => ({ from: () => ({ where }) }),
 		});
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 		expect(await store.getDurableRequestForCloseout("req_unknown")).toBeNull();
 		const query = new PgDialect().sqlToQuery(where.mock.calls[0]?.[0] as SQL);
 		expect(query.sql).toBe('"chat"."turn_dispatches"."request_id" = $1');
@@ -212,7 +212,7 @@ describe("pg chat command store", () => {
 		);
 		createRuntimeDatabase.mockResolvedValue({ transaction });
 		const freezeDurableRun = vi.fn();
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		await expect(
 			store.acceptRequest({
@@ -265,7 +265,7 @@ describe("pg chat command store", () => {
 		);
 		createRuntimeDatabase.mockResolvedValue({ transaction });
 		const freezeDurableRun = vi.fn();
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		await expect(
 			store.acceptRequest({
@@ -315,7 +315,7 @@ describe("pg chat command store", () => {
 		);
 		createRuntimeDatabase.mockResolvedValue({ transaction });
 		const freezeDurableRun = vi.fn();
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		await expect(
 			store.acceptRequest({
@@ -362,7 +362,7 @@ describe("pg chat command store", () => {
 			select,
 		});
 
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		await store.findIdempotentRequest({
 			actorUserId: "user_01HQ",
@@ -373,7 +373,6 @@ describe("pg chat command store", () => {
 			idempotencyKey: "idem-02",
 		});
 
-		expect(createRuntimeDbGetter).toHaveBeenCalledTimes(1);
 		expect(createRuntimeDatabase).toHaveBeenCalledTimes(2);
 	});
 
@@ -431,7 +430,7 @@ describe("pg chat command store", () => {
 			select,
 		});
 
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		const state = await store.getAbuseControlState({
 			now: "2026-03-28T08:06:00.000Z",
@@ -473,7 +472,7 @@ describe("pg chat command store", () => {
 			transaction,
 		});
 
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		await expect(store.finalizeRequest(finalizedWrite())).rejects.toThrow(
 			"Cannot finalize request req_01HQ because it is not in accepted status.",
@@ -487,7 +486,7 @@ describe("pg chat command store", () => {
 		"clears activeRequestId when the finalization CAS still owns a %s request",
 		async (status) => {
 			const { updateSet } = prepareFinalizationDatabase(null);
-			const store = createPgChatCommandStore({} as never);
+			const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 			const result = await store.finalizeRequest(finalizedWriteForStatus(status));
 
@@ -529,7 +528,7 @@ describe("pg chat command store", () => {
 		});
 		const write = finalizedWrite();
 		write.finalizationFingerprint = "finalization-01";
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		await expect(store.finalizeRequest(write)).resolves.toMatchObject({
 			outcome: "replayed",
@@ -568,7 +567,7 @@ describe("pg chat command store", () => {
 		createRuntimeDatabase.mockResolvedValue({ transaction });
 		const write = finalizedWrite();
 		write.finalizationFingerprint = "finalization-01";
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		await expect(store.finalizeRequest(write)).rejects.toBeInstanceOf(ChatFinalizationConflict);
 		expect(update).not.toHaveBeenCalled();
@@ -583,7 +582,7 @@ describe("pg chat command store", () => {
 		const set = vi.fn((_values: Record<string, unknown>) => ({ where }));
 		const update = vi.fn(() => ({ set }));
 		createRuntimeDatabase.mockResolvedValue({ update });
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 
 		await expect(
 			store.recordStreamAppApiTtft({
@@ -684,7 +683,7 @@ describe("pg chat command store", () => {
 			transaction,
 		});
 
-		const store = createPgChatCommandStore({} as never);
+		const store = createPgChatCommandStore({ getDb: createRuntimeDatabase });
 		const result = await store.finalizeRequest(finalizedWrite());
 
 		expect(result).toMatchObject({

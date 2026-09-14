@@ -10,12 +10,7 @@ import {
 	DiningWindowMenuResponseSchema,
 } from "@campus-agent/dining/domain";
 import { and, asc, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
-import type { Env } from "../../config";
-import {
-	createRuntimeDbGetter,
-	type RuntimeDatabase,
-	type RuntimeDbGetter,
-} from "../../db/runtime";
+import type { RuntimeDatabase, RuntimeDbGetter } from "../../db/runtime";
 import {
 	diningMapPublication,
 	diningMapReleases,
@@ -61,11 +56,11 @@ export interface DiningContentService {
 	}): Promise<{ reportId: string }>;
 }
 
-export function createPgDiningContentService(
-	env: Env,
-	options: { getDb?: RuntimeDbGetter; now?: () => Date } = {},
-): DiningContentService {
-	const getDb = options.getDb ?? createRuntimeDbGetter(env);
+export function createPgDiningContentService(options: {
+	getDb: RuntimeDbGetter;
+	now?: () => Date;
+}): DiningContentService {
+	const getDb = options.getDb;
 	const now = options.now ?? (() => new Date());
 
 	return {

@@ -89,7 +89,6 @@ export const enforceEndUserEmailAdmission = authPolicyModule.enforceEndUserEmail
 export const enforcePasswordChangeSessionRevocation =
 	authPolicyModule.enforcePasswordChangeSessionRevocation;
 export const enforceSignupLegalConsent = authPolicyModule.enforceSignupLegalConsent;
-export const getAppAuth = authRuntimeModule.getAppAuth;
 export const hashAppPassword = authPasswordModule.hashAppPassword;
 export { isCampusEmail } from "../src/modules/email-access/campus-email";
 export const probeAppAuthRuntime = authRuntimeModule.probeAppAuthRuntime;

@@ -1,19 +1,18 @@
 import { Hono } from "hono";
 import { defaultRuntimeReadinessProbe } from "./app/readiness";
 import { createRequestScopeFactory } from "./app/request-scope";
-import { normalizeAppApiRoute } from "./app/route-normalization";
 import { registerAppRoutes } from "./app/routes";
 import type { AppDependencies } from "./app/types";
 import type { Env } from "./config";
 import { AppApiRouteError, errorEnvelope, jsonResponse, routeErrorResponse } from "./http";
 import { handleAuthRequest, resolveRequestPrincipal } from "./modules/auth";
+import { reportRuntimeFailure, withRequestDiagnostics } from "./runtime-diagnostics";
 
 export type { AppDependencies, AppRuntimeReadinessResult } from "./app/types";
 
-const APP_API_HTTP_SURFACE = "app_api";
-
 export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	const app = new Hono<{ Bindings: Env }>();
+	app.use("*", (c, next) => withRequestDiagnostics(c.req.raw, next));
 	const authHandler = dependencies.authHandler ?? handleAuthRequest;
 	const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
 	const runtimeReadinessProbe =
@@ -33,18 +32,12 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 		runtimeReadinessProbe,
 	});
 
-	app.onError((error, c) => {
+	app.onError((error, _c) => {
 		if (error instanceof AppApiRouteError) {
 			return routeErrorResponse(error);
 		}
 
-		console.error({
-			error_code: "unhandled_exception",
-			error_type: normalizeErrorType(error),
-			route: normalizeAppApiRoute(c.req.path, c.req.method),
-			source: "app-api.onError",
-			surface: APP_API_HTTP_SURFACE,
-		});
+		reportRuntimeFailure(error, { error_code: "unhandled_exception", source: "app-api.onError" });
 
 		return jsonResponse(
 			errorEnvelope({
@@ -68,9 +61,4 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	);
 
 	return app;
-}
-
-function normalizeErrorType(error: unknown): string {
-	const name = error instanceof Error ? error.name : "UnknownError";
-	return name.replace(/[^a-z0-9_.-]/giu, "_").slice(0, 64) || "UnknownError";
 }

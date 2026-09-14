@@ -4,7 +4,6 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
-import type { Env } from "../src/config";
 import { createPgAccountLifecycleStore } from "../src/modules/account-lifecycle";
 
 const postgres = inject("appApiPostgres");
@@ -79,7 +78,7 @@ describe("account lifecycle PostgreSQL integration", () => {
 		);
 
 		const database = drizzle({ client: client });
-		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });
+		const store = createPgAccountLifecycleStore({ getDb: async () => database });
 		await expect(
 			store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: now }),
 		).resolves.toEqual({ requestId, status: "deleting" });
@@ -171,7 +170,7 @@ describe("account lifecycle PostgreSQL integration", () => {
 			[userId, `${suffix}@muc.edu.cn`, now],
 		);
 		const database = drizzle({ client: pool });
-		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });
+		const store = createPgAccountLifecycleStore({ getDb: async () => database });
 		await store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: now });
 
 		const [firstAttempt, secondAttempt] = await Promise.all([
@@ -241,7 +240,7 @@ describe("account lifecycle PostgreSQL integration", () => {
 			[userId, `${suffix}@muc.edu.cn`, startedAt],
 		);
 		const database = drizzle({ client: pool });
-		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });
+		const store = createPgAccountLifecycleStore({ getDb: async () => database });
 		await store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: startedAt });
 		const [claimed] = await store.claimPending({
 			leaseExpiresAt: new Date("2026-07-19T01:05:00.000Z"),
@@ -344,7 +343,7 @@ describe("account lifecycle PostgreSQL integration", () => {
 			[`request-${suffix}`, conversationId, now],
 		);
 		const database = drizzle({ client: pool });
-		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });
+		const store = createPgAccountLifecycleStore({ getDb: async () => database });
 		await store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: now });
 		const [claimed] = await store.claimPending({
 			leaseExpiresAt: new Date("2026-07-19T02:05:00.000Z"),

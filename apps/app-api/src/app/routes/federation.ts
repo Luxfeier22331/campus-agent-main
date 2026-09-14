@@ -3,10 +3,9 @@ import {
 	oauthProviderOpenIdConfigMetadata,
 } from "@better-auth/oauth-provider";
 import type { Hono } from "hono";
-
 import type { Env } from "../../config";
-import { dependencyNotReadyResponse } from "../responses";
 import type { AppRequestScope } from "../types";
+import { authenticationDependencyFailure, normalizeAuthFailureResponse } from "./auth-failure";
 
 const FEDERATION_ROUTE_REWRITES = new Map<string, string>([
 	["/api/federation/client", "/oauth2/public-client"],
@@ -232,7 +231,7 @@ export function registerFederationRoutes(input: {
 	authHandler: (
 		request: Request,
 		env: Env,
-		authInput?: { getAppAuth: AppRequestScope["getAppAuth"] },
+		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<Response> | Response;
 	createRequestScope: () => AppRequestScope;
 	env: Env;
@@ -248,8 +247,8 @@ export function registerFederationRoutes(input: {
 					: oauthProviderOpenIdConfigMetadata(auth);
 			const response = await metadataHandler(request);
 			return await rewriteFederationMetadataResponse({ request, response });
-		} catch {
-			return dependencyNotReadyResponse();
+		} catch (error) {
+			return authenticationDependencyFailure({ error, source: "federation_metadata" });
 		}
 	};
 
@@ -266,11 +265,11 @@ export function registerFederationRoutes(input: {
 			);
 			const response = await normalizeFederationProviderResponse({
 				request,
-				response: providerResponse,
+				response: await normalizeAuthFailureResponse(providerResponse, "federation_handler"),
 			});
 			return await rewriteFederationMetadataResponse({ request, response });
-		} catch {
-			return dependencyNotReadyResponse();
+		} catch (error) {
+			return authenticationDependencyFailure({ error, source: "federation_handler" });
 		}
 	};
 

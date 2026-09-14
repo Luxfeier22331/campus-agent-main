@@ -9,7 +9,9 @@ interface CloudflareCacheStorage extends CacheStorage {
 export interface PublicCacheableAppApiProxyInput {
 	appApiBaseUrl: string;
 	appApiFetch: AppApiFetch;
-	buildDependencyNotReadyResponse: () => Response;
+	buildDependencyNotReadyResponse: (
+		reason: "transport_failure" | "invalid_upstream_response",
+	) => Response;
 	isHtmlServerErrorResponse: (response: Response) => boolean;
 	request: Request;
 	securityHeaders: SecurityHeaders;
@@ -47,10 +49,16 @@ export async function proxyCacheableAppApiRequest(
 			buildPublicAppApiRequest(input.request, input.appApiBaseUrl),
 		);
 	} catch {
-		return withCampusEdgeCacheHeader(input.buildDependencyNotReadyResponse(), "bypass");
+		return withCampusEdgeCacheHeader(
+			input.buildDependencyNotReadyResponse("transport_failure"),
+			"bypass",
+		);
 	}
 	if (input.isHtmlServerErrorResponse(response)) {
-		return withCampusEdgeCacheHeader(input.buildDependencyNotReadyResponse(), "bypass");
+		return withCampusEdgeCacheHeader(
+			input.buildDependencyNotReadyResponse("invalid_upstream_response"),
+			"bypass",
+		);
 	}
 	const securedResponse = withSecurityHeadersPreservingCache(response, input.securityHeaders);
 	if (isCacheablePublicAppApiResponse(securedResponse)) {
@@ -87,6 +95,10 @@ function buildPublicAppApiRequest(request: Request, appApiBaseUrl: string): Requ
 	const appApiUrl = new URL(inboundUrl.pathname, appApiBaseUrl);
 	appApiUrl.search = getPublicCacheSearch(inboundUrl) ?? "";
 	const headers = new Headers();
+	const ray = request.headers.get("cf-ray");
+	if (ray) {
+		headers.set("cf-ray", ray);
+	}
 	const accept = request.headers.get("accept");
 	if (accept) {
 		headers.set("accept", accept);

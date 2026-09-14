@@ -622,6 +622,9 @@ describe("campus worker boundary", () => {
 			error: {
 				code: "dependency_not_ready",
 				message: "服务暂不可用，请稍后再试。",
+				retryable: true,
+				requestId: null,
+				details: null,
 			},
 		});
 	});

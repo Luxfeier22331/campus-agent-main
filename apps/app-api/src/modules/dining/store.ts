@@ -1,8 +1,7 @@
 import { type DiningMapResponse, DiningMapResponseSchema } from "@campus-agent/dining/domain";
 import { eq } from "drizzle-orm";
 
-import type { Env } from "../../config";
-import { createRuntimeDbGetter, type RuntimeDbGetter } from "../../db/runtime";
+import type { RuntimeDbGetter } from "../../db/runtime";
 import { diningMapPublication, diningMapReleases } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
 
@@ -10,11 +9,10 @@ export interface DiningMapReadService {
 	getMap(): Promise<DiningMapResponse>;
 }
 
-export function createPgDiningMapReadService(
-	env: Env,
-	options: { getDb?: RuntimeDbGetter } = {},
-): DiningMapReadService {
-	const getDb = options.getDb ?? createRuntimeDbGetter(env);
+export function createPgDiningMapReadService(options: {
+	getDb: RuntimeDbGetter;
+}): DiningMapReadService {
+	const getDb = options.getDb;
 	return {
 		async getMap() {
 			const row = (

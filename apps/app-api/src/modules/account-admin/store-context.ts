@@ -1,5 +1,5 @@
 import { type Env, resolveEnvironment } from "../../config";
-import { createRuntimeDatabase, type RuntimeDbGetter } from "../../db/runtime";
+import type { RuntimeDbGetter } from "../../db/runtime";
 
 export interface AccountAdminStoreContext {
 	environment: ReturnType<typeof resolveEnvironment>;
@@ -9,11 +9,11 @@ export interface AccountAdminStoreContext {
 
 export function createAccountAdminStoreContext(
 	env: Env,
-	input: { getDb?: RuntimeDbGetter; now?: () => Date },
+	input: { getDb: RuntimeDbGetter; now?: () => Date },
 ): AccountAdminStoreContext {
 	return {
 		environment: resolveEnvironment(env),
-		getDb: input.getDb ?? (() => createRuntimeDatabase(env)),
+		getDb: input.getDb,
 		now: input.now ?? (() => new Date()),
 	};
 }

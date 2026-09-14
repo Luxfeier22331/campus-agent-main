@@ -1,7 +1,5 @@
 import type { Env } from "../../config";
-import { resolveEnvironment } from "../../config";
-import { buildEmailAccessService, createPgEmailAccessGrantStore } from "../email-access";
-import { type AppAuthResolutionInput, getAppAuth } from "./auth";
+import type { AppAuthResolutionInput } from "./auth";
 import { evaluateCampusAccess } from "./campus-access";
 
 export type AppPrincipalType = "campus_member" | "student" | "staff" | "faculty" | "service";
@@ -318,22 +316,17 @@ export function mapSessionToAppPrincipal(
 
 export async function resolveRequestPrincipal(
 	request: Request,
-	env: Env,
-	input: AppAuthResolutionInput = {},
+	_env: Env,
+	input: AppAuthResolutionInput,
 ): Promise<ResolvedAppPrincipal | null> {
-	const auth = input.getAppAuth ? await input.getAppAuth() : await getAppAuth(env);
+	const auth = await input.getAppAuth();
 	const session = await auth.api.getSession({
 		headers: request.headers,
 	});
 	if (!session?.user) {
 		return null;
 	}
-	const emailAccessService =
-		input.emailAccessService ??
-		buildEmailAccessService({
-			environment: resolveEnvironment(env),
-			store: createPgEmailAccessGrantStore(env),
-		});
+	const emailAccessService = input.emailAccessService;
 	const decision = await emailAccessService.evaluateAccountAccess(session.user);
 	return mapSessionToAppPrincipal(session, undefined, decision.allowed);
 }
