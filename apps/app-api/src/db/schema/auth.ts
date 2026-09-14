@@ -97,6 +97,10 @@ export const account = auth.table(
 		updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
+		providerAccountUnique: uniqueIndex("account_providerId_accountId_uidx").on(
+			table.providerId,
+			table.accountId,
+		),
 		userIdIndex: index("account_userId_idx").on(table.userId),
 	}),
 );

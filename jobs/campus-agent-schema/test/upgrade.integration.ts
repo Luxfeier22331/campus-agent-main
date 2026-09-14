@@ -213,6 +213,27 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 			assert.equal((await migrateCampusAgentSchema(config)).result, "current");
 		},
 	);
+	await t.test("auth migration rejects duplicate provider identities", async () => {
+		const { config, client } = await database();
+		const folder = await mkdtemp(join(tmpdir(), "campus-schema-duplicate-auth-"));
+		t.after(() => rm(folder, { recursive: true, force: true }));
+		await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+		await rm(join(folder, authMigrationName), { recursive: true });
+		await migrateCampusAgentSchema(config, folder);
+		await client.query(
+			`insert into app_auth."user" (id,name,email,"emailVerified","createdAt","updatedAt")
+			 values ('duplicate-a','Student A','duplicate-a@example.test',true,now(),now()),
+			        ('duplicate-b','Student B','duplicate-b@example.test',true,now(),now());
+			 insert into app_auth.account (id,"accountId","providerId","userId",issuer,password,"createdAt","updatedAt")
+			 values ('duplicate-account-a','same-account','credential','duplicate-a','local:credential-a','hash-a',now(),now()),
+			        ('duplicate-account-b','same-account','credential','duplicate-b','local:credential-b','hash-b',now(),now());`,
+		);
+		await assert.rejects(
+			migrateCampusAgentSchema(config),
+			/duplicate \(providerId, accountId\) identities exist/u,
+		);
+		await assertAuthShape(client, false);
+	});
 	for (const withMemory of [false, true]) {
 		await t.test(
 			withMemory
