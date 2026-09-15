@@ -215,6 +215,10 @@ describe("campus-web published reader sync", () => {
 		const headers = readFileSync(join(output.publicRoot, "_headers"), "utf8");
 		expect(headers).toMatch(/^\/docs\n/u);
 		expect(headers).toContain("\n/docs/*\n");
+		expect(headers.match(/script-src [^;\n]*/gu)).toEqual([
+			"script-src 'self' https://static.cloudflareinsights.com",
+			"script-src 'self' https://static.cloudflareinsights.com",
+		]);
 		expect(readFileSync(join(output.publicRoot, "_redirects"), "utf8")).toBe("");
 	});
 

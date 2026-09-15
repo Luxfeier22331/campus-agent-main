@@ -101,13 +101,13 @@ function writeStaticAssetControls(input: {
 
 function buildStaticHeaders(): string {
 	return `/docs
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; worker-src 'self' blob:
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self'; worker-src 'self' blob:
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
 
 /docs/*
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; worker-src 'self' blob:
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self'; worker-src 'self' blob:
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
