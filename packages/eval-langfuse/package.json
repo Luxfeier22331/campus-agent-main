@@ -12,13 +12,13 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@langfuse/client": "^5.10.0"
+		"@langfuse/client": "^5.11.1"
 	},
 	"devDependencies": {
-		"@types/node": "^24.13.3",
-		"tsx": "^4.23.12",
+		"@types/node": "^24.13.4",
+		"tsx": "^4.23.13",
 		"typescript": "^7.0.2",
-		"vitest": "^4.1.10"
+		"vitest": "^5.0.0"
 	},
 	"license": "Apache-2.0"
 }

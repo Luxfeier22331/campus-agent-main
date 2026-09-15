@@ -26,7 +26,7 @@ func TestNativeMemoryManagementWireShapes(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}
-			if body["text"] != "新的偏好" || body["state"] != "invalidated" {
+			if len(body) != 2 || body["text"] != "新的偏好" || body["state"] != "invalidated" {
 				t.Errorf("patch = %#v", body)
 			}
 			_, _ = w.Write([]byte(`{"success":true}`))

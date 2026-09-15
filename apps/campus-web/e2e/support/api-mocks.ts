@@ -234,7 +234,7 @@ export async function mockCampusApi(page: Page, options: CampusApiMockOptions = 
 	const diningState = createDiningApiState();
 	await installMapLibreMock(page);
 	await page.route(
-		(url) => url.pathname.startsWith("/api/"),
+		(url) => url.pathname.startsWith("/api/") || url.pathname.startsWith("/campus-map/"),
 		async (route) => {
 			const request = route.request();
 			const url = new URL(request.url());

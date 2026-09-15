@@ -19,13 +19,13 @@
 	},
 	"dependencies": {
 		"campus-contracts": "workspace:*",
-		"jsdom": "^27.4.0"
+		"jsdom": "^30.0.1"
 	},
 	"devDependencies": {
-		"@types/jsdom": "^27.0.0",
-		"@types/node": "^24.13.2",
+		"@types/jsdom": "^30.0.0",
+		"@types/node": "^24.13.4",
 		"typescript": "^7.0.2",
-		"vitest": "^4.1.10"
+		"vitest": "^5.0.0"
 	},
 	"license": "Apache-2.0"
 }

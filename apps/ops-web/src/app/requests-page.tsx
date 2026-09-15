@@ -135,7 +135,9 @@ export function RequestsPage({
 				) : null}
 			</div>
 			{hasActiveFilters ? (
-				<p className="mb-3 ui-metadata">已应用：{activeFilterLabels.join("、")}</p>
+				<p className="mb-3 ui-metadata text-muted-foreground">
+					已应用：{activeFilterLabels.join("、")}
+				</p>
 			) : null}
 			{requests.isPlaceholderData ? (
 				<p className="mb-3 text-warning text-sm" role="status">
@@ -253,7 +255,9 @@ function RequestMobileList({
 					key={request.requestId}
 				>
 					<div className="flex items-start justify-between gap-3">
-						<span className="ui-metadata">{formatTimestamp(request.startedAt)}</span>
+						<span className="ui-metadata text-muted-foreground">
+							{formatTimestamp(request.startedAt)}
+						</span>
 						<div className="grid justify-items-end gap-1">
 							<StatusBadge status={request.status} />
 							{request.attentionReason ? (
@@ -280,7 +284,10 @@ function RequestMobileList({
 						</span>
 					</div>
 					<div className="flex min-w-0 items-center gap-1">
-						<span className="truncate font-mono ui-metadata" title={request.requestId}>
+						<span
+							className="truncate font-mono ui-metadata text-muted-foreground"
+							title={request.requestId}
+						>
 							{request.requestId}
 						</span>
 						<CopyIconButton
@@ -374,7 +381,7 @@ function RequestExecutionStage({
 	const stage = request.executionStage;
 	return (
 		<div className={cn("grid gap-1 text-sm", className)}>
-			<span className="ui-metadata">执行阶段</span>
+			<span className="ui-metadata text-muted-foreground">执行阶段</span>
 			<span className="font-medium text-foreground">
 				{stage
 					? `${formatOpsDomainValue(stage.toolName ?? stage.kind)} · ${formatOpsDomainValue(stage.status)}`
@@ -392,7 +399,7 @@ function RequestExecutionStage({
 function RequestProductResult({ request }: { request: OpsRequestSummary }) {
 	return (
 		<div className="grid min-w-[150px] gap-1 text-sm">
-			<span className="ui-metadata">产品结果</span>
+			<span className="ui-metadata text-muted-foreground">产品结果</span>
 			<span className="font-medium text-foreground">{formatResultSummary(request)}</span>
 		</div>
 	);

@@ -75,18 +75,17 @@ export async function seedLocalTestUser(
 
 				const credentials = await pool.query(
 					`update app_auth."account"
-					 set "accountId" = $1, "issuer" = 'local:credential', "password" = $2, "updatedAt" = now()
+					 set "accountId" = $1, "password" = $2, "updatedAt" = now()
 					 where "userId" = $1 and "providerId" = 'credential'`,
 					[resolvedUserId, passwordHash],
 				);
 				if (credentials.rowCount === 0) {
 					await pool.query(
 						`insert into app_auth."account"
-							("id", "accountId", "issuer", "providerId", "userId", "password", "createdAt", "updatedAt")
-						 values ($1, $2, 'local:credential', 'credential', $2, $3, now(), now())
+							("id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt")
+						 values ($1, $2, 'credential', $2, $3, now(), now())
 						 on conflict ("id") do update set
 							"accountId" = excluded."accountId",
-							"issuer" = excluded."issuer",
 							"providerId" = excluded."providerId",
 							"userId" = excluded."userId",
 							"password" = excluded."password",

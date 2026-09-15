@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
-import { readHistory } from "../src/history.ts";
+import { createMigration, readHistory } from "../src/history.ts";
 import {
 	inspectCampusAgentSchema,
 	MIGRATIONS_FOLDER,
@@ -18,6 +18,7 @@ const image =
 const fixture = JSON.parse(
 	await readFile(new URL("fixtures/v0-history.json", import.meta.url), "utf8"),
 ) as Array<{ name: string; hash: string; created_at: string }>;
+const authMigrationName = "20260914073252_better_auth_provider_account_key";
 
 test("unified schema: real PostgreSQL installation, v0 upgrades and failure recovery", {
 	timeout: 240_000,
@@ -46,6 +47,8 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		await admin.query(`create role ${role}`);
 	}
 	const local = readHistory(MIGRATIONS_FOLDER);
+	const authMigration = local.find((entry) => entry.name === authMigrationName);
+	assert(authMigration);
 	const env = {
 		PGHOST: container.getHost(),
 		PGPORT: String(container.getPort()),
@@ -91,6 +94,19 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		await client.query("commit");
 	}
 	async function ready(client: Client) {
+		await assertAuthShape(client, true);
+		await client.query(
+			`insert into app_auth."user" (id,name,email,"emailVerified","createdAt","updatedAt")
+			 values ('new-user','New student','new@example.test',true,now(),now());
+			 insert into app_auth.account (id,"accountId","providerId","userId",password,"createdAt","updatedAt")
+			 values ('new-account','new-user','credential','new-user','new-password-hash',now(),now());`,
+		);
+		assert.equal(
+			(await client.query("select issuer from app_auth.account where id='new-account'")).rows[0]
+				.issuer,
+			null,
+		);
+		await client.query("delete from app_auth.\"user\" where id='new-user'");
 		const columns = await client.query<{ column_name: string }>(
 			"select column_name from information_schema.columns where table_schema='execution_control' and table_name='personal_memory_call_leases'",
 		);
@@ -128,6 +144,35 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 			events: false,
 		});
 	}
+	async function assertAuthShape(client: Client, upgraded: boolean) {
+		const result = await client.query(
+			`select is_nullable = 'YES' as nullable,
+			 to_regclass('app_auth."account_issuer_accountId_uidx"') is not null as issuer_index
+			 from information_schema.columns
+			 where table_schema='app_auth' and table_name='account' and column_name='issuer'`,
+		);
+		assert.deepEqual(result.rows, [{ nullable: upgraded, issuer_index: !upgraded }]);
+	}
+	async function seedRetainedAuth(client: Client) {
+		await client.query(
+			`insert into app_auth."user" (id,name,email,"emailVerified","createdAt","updatedAt")
+			 values ('retained','Student','retained@example.test',true,now(),now());
+			 insert into app_auth.account (id,"accountId","providerId","userId",issuer,password,"createdAt","updatedAt")
+			 values ('retained-account','retained','credential','retained','local:credential','retained-password-hash',now(),now());
+			 insert into app_auth.session (id,token,"userId","expiresAt","createdAt","updatedAt")
+			 values ('retained-session','retained-session-token','retained',now()+interval '1 day',now(),now());`,
+		);
+		return readRetainedAuth(client);
+	}
+	async function readRetainedAuth(client: Client) {
+		return {
+			user: (await client.query("select * from app_auth.\"user\" where id='retained'")).rows,
+			account: (await client.query("select * from app_auth.account where id='retained-account'"))
+				.rows,
+			session: (await client.query("select * from app_auth.session where id='retained-session'"))
+				.rows,
+		};
+	}
 	await t.test("empty database, repeated run and concurrent migrators", async () => {
 		const { config, client } = await database();
 		assert.equal((await inspectCampusAgentSchema(config)).status, "missing");
@@ -140,17 +185,65 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		assert.equal((await inspectCampusAgentSchema(config)).status, "current");
 		assert.equal((await migrateCampusAgentSchema(config)).result, "current");
 	});
+	await t.test(
+		"named ledger applies only the auth migration and retains credentials and sessions",
+		async () => {
+			const { config, client } = await database();
+			const folder = await mkdtemp(join(tmpdir(), "campus-schema-before-auth-"));
+			t.after(() => rm(folder, { recursive: true, force: true }));
+			await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+			await rm(join(folder, authMigrationName), { recursive: true });
+			await migrateCampusAgentSchema(config, folder);
+			await assertAuthShape(client, false);
+			const retained = await seedRetainedAuth(client);
+			const before = await client.query(
+				"select * from drizzle.campus_agent_migrations order by id",
+			);
+			assert.deepEqual((await inspectCampusAgentSchema(config)).pendingMigrations, [
+				authMigrationName,
+			]);
+			assert.equal((await migrateCampusAgentSchema(config)).result, "applied");
+			await ready(client);
+			assert.deepEqual(await readRetainedAuth(client), retained);
+			const after = await client.query("select * from drizzle.campus_agent_migrations order by id");
+			assert.deepEqual(after.rows.slice(0, before.rows.length), before.rows);
+			assert.equal(after.rows.length, before.rows.length + 1);
+			assert.equal(after.rows.at(-1)?.name, authMigrationName);
+			assert.equal((await inspectCampusAgentSchema(config)).status, "current");
+			assert.equal((await migrateCampusAgentSchema(config)).result, "current");
+		},
+	);
+	await t.test("auth migration rejects duplicate provider identities", async () => {
+		const { config, client } = await database();
+		const folder = await mkdtemp(join(tmpdir(), "campus-schema-duplicate-auth-"));
+		t.after(() => rm(folder, { recursive: true, force: true }));
+		await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+		await rm(join(folder, authMigrationName), { recursive: true });
+		await migrateCampusAgentSchema(config, folder);
+		await client.query(
+			`insert into app_auth."user" (id,name,email,"emailVerified","createdAt","updatedAt")
+			 values ('duplicate-a','Student A','duplicate-a@example.test',true,now(),now()),
+			        ('duplicate-b','Student B','duplicate-b@example.test',true,now(),now());
+			 insert into app_auth.account (id,"accountId","providerId","userId",issuer,password,"createdAt","updatedAt")
+			 values ('duplicate-account-a','same-account','credential','duplicate-a','local:credential-a','hash-a',now(),now()),
+			        ('duplicate-account-b','same-account','credential','duplicate-b','local:credential-b','hash-b',now(),now());`,
+		);
+		await assert.rejects(
+			migrateCampusAgentSchema(config),
+			/duplicate \(providerId, accountId\) identities exist/u,
+		);
+		await assertAuthShape(client, false);
+	});
 	for (const withMemory of [false, true]) {
 		await t.test(
 			withMemory
 				? "v0 complete: does not rerun destructive migrations"
-				: "staging v0: applies only the skipped memory migration",
+				: "staging v0: applies the skipped memory and new auth migrations",
 			async () => {
 				const { config, client } = await database();
 				await legacy(client, withMemory);
-				await client.query(
-					'insert into app_auth."user" (id,name,email,"emailVerified","createdAt","updatedAt") values (\'retained\',\'Student\',\'retained@example.test\',true,now(),now())',
-				);
+				await assertAuthShape(client, false);
+				const retainedAuth = await seedRetainedAuth(client);
 				await client.query(
 					"insert into profile.memory_settings(owner_user_id,lifecycle_state,updated_at) values('retained','active',now())",
 				);
@@ -180,6 +273,7 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 				);
 				await migrateCampusAgentSchema(config);
 				await ready(client);
+				assert.deepEqual(await readRetainedAuth(client), retainedAuth);
 				const after = await client.query(
 					"select id,hash,created_at::text from drizzle.campus_agent_migrations order by id",
 				);
@@ -256,9 +350,11 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		const folder = await mkdtemp(join(tmpdir(), "campus-schema-v0-retry-"));
 		t.after(() => rm(folder, { recursive: true, force: true }));
 		await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
-		const name = "20260914000000_retry_probe";
-		await mkdir(join(folder, name));
-		const path = join(folder, name, "migration.sql");
+		const path = createMigration(
+			folder,
+			"retry_probe",
+			new Date(authMigration.folderMillis + 1000),
+		);
 		await writeFile(path, "select missing_column from profile.memory_settings;");
 		await assert.rejects(migrateCampusAgentSchema(config, folder));
 		const converted = await client.query(
@@ -271,6 +367,7 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 				.map((entry) => entry.name),
 		);
 		await assert.rejects(client.query("select payload from profile.memory_commands limit 1"));
+		await assertAuthShape(client, false);
 		const appliedNames = new Set(
 			fixture
 				.filter((entry) => !entry.name.endsWith("personal_memory_management"))

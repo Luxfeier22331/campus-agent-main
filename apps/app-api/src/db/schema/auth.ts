@@ -79,7 +79,8 @@ export const account = auth.table(
 	"account",
 	{
 		id: text("id").primaryKey(),
-		issuer: text("issuer").notNull(),
+		// Retain pre-1.7.3 issuer data; Better Auth now uses providerId and accountId.
+		issuer: text("issuer"),
 		accountId: text("accountId").notNull(),
 		providerId: text("providerId").notNull(),
 		userId: text("userId")
@@ -96,8 +97,8 @@ export const account = auth.table(
 		updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
-		issuerAccountIdUnique: uniqueIndex("account_issuer_accountId_uidx").on(
-			table.issuer,
+		providerAccountUnique: uniqueIndex("account_providerId_accountId_uidx").on(
+			table.providerId,
 			table.accountId,
 		),
 		userIdIndex: index("account_userId_idx").on(table.userId),

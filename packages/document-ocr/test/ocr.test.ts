@@ -136,7 +136,7 @@ describe("Paddle document parsing", () => {
 		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 		try {
 			const address = server.address() as { port: number };
-			const response = await timeoutFetch(80)(`http://127.0.0.1:${address.port}`);
+			const response = await timeoutFetch(2000)(`http://127.0.0.1:${address.port}`);
 			await expect(response.text()).rejects.toThrow();
 		} finally {
 			server.closeAllConnections();

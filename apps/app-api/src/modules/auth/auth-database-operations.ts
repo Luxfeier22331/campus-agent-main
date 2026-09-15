@@ -1,4 +1,3 @@
-import { createLocalAccountIssuer } from "@better-auth/core/db";
 import { and, eq } from "drizzle-orm";
 import type { RuntimeDatabase } from "../../db/runtime";
 import {
@@ -57,7 +56,6 @@ export function createAppAuthDatabaseOperations(database: RuntimeDatabase) {
 					and(
 						eq(account.userId, temporaryPassword.userId),
 						eq(account.providerId, "credential"),
-						eq(account.issuer, createLocalAccountIssuer("credential")),
 						eq(account.accountId, temporaryPassword.userId),
 					),
 				)
@@ -76,7 +74,6 @@ export function createAppAuthDatabaseOperations(database: RuntimeDatabase) {
 					accountId: temporaryPassword.userId,
 					createdAt: temporaryPassword.issuedAt,
 					id: temporaryPassword.accountId,
-					issuer: createLocalAccountIssuer("credential"),
 					password: temporaryPassword.passwordHash,
 					providerId: "credential",
 					updatedAt: temporaryPassword.issuedAt,

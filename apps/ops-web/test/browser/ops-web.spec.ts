@@ -236,6 +236,15 @@ test("长通知页签吸顶、阅读位置恢复与附件键盘跳转", async ({
 	await queue.getByRole("button").first().click();
 	const scroll = page.locator("[data-notice-scroll]");
 	const tabs = page.getByRole("tablist", { name: "通知详情视图" });
+	const inspector = page.getByRole("complementary", { name: "通知检查器" });
+	if (await inspector.count()) {
+		await inspector.evaluate((element) => {
+			window.scrollBy(
+				0,
+				element.getBoundingClientRect().top - Number.parseFloat(getComputedStyle(element).top),
+			);
+		});
+	}
 	await expect(page.getByRole("button", { name: "附件 1", exact: true })).toBeVisible();
 	const oldUrl = page.url();
 	const attachmentRequests = () => requests.filter((url) => url.includes("/attachments/")).length;

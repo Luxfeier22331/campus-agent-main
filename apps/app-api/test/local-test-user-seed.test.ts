@@ -45,14 +45,11 @@ describe("local test user seed", () => {
 		).toThrow(/isolated local database/u);
 	});
 
-	it("seeds credential accounts with the Better Auth issuer", () => {
-		expect(seedSource).toContain('set "accountId" = $1, "issuer" = \'local:credential\'');
+	it("seeds credential accounts with the Better Auth provider key", () => {
+		expect(seedSource).toContain('set "accountId" = $1, "password" = $2');
 		expect(seedSource).toContain(
-			'("id", "accountId", "issuer", "providerId", "userId", "password", "createdAt", "updatedAt")',
+			'("id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt")',
 		);
-		expect(seedSource).toContain(
-			"values ($1, $2, 'local:credential', 'credential', $2, $3, now(), now())",
-		);
-		expect(seedSource).toContain('"issuer" = excluded."issuer"');
+		expect(seedSource).toContain("values ($1, $2, 'credential', $2, $3, now(), now())");
 	});
 });

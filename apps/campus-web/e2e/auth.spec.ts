@@ -353,6 +353,7 @@ test.describe("account browser flow", () => {
 
 		await expect(page.getByRole("alert")).toHaveText("退出失败，你仍保持登录状态。请稍后重试。");
 		expect(sessionState.authenticated).toBe(true);
+		await page.keyboard.press("Escape");
 		await expect(page.getByRole("button", { name: "测试用户 student@example.edu" })).toBeVisible();
 	});
 });

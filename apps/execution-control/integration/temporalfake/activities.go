@@ -65,6 +65,10 @@ func (Activities) AppendConversationMemoryActivity(
 	}, nil
 }
 
+func (Activities) FinalizeMemoryAppendActivity(context.Context, temporalruntime.FinalizeMemoryAppendActivityInput) error {
+	return nil
+}
+
 func (Activities) SolveTaskActivity(
 	_ context.Context,
 	input temporalruntime.SolveTaskActivityInput,

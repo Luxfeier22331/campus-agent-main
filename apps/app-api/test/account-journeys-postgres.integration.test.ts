@@ -372,11 +372,16 @@ describe("account journeys PostgreSQL integration", () => {
 		expect((await signIn(email)).status).toBe(200);
 	});
 
-	it("resets a password from a backend-captured link and revokes sessions", async () => {
+	it("signs in a retained issuer credential, resets its password and revokes sessions", async () => {
 		const email = `journey-reset-${Date.now()}@muc.edu.cn`;
-		await signUp(email);
+		const { userId } = await signUp(email);
+		await client.query(
+			`update app_auth.account set issuer='local:credential' where "userId"=$1 and "providerId"='credential'`,
+			[userId],
+		);
 		await verify(email);
 		const beforeReset = await signIn(email);
+		expect(beforeReset.status).toBe(200);
 		const oldCookie = cookieHeader(beforeReset);
 		const requestReset = await app.fetch(
 			authRequest({
@@ -552,7 +557,7 @@ describe("account journeys PostgreSQL integration", () => {
 		expect(issue.status).toBe(200);
 		expect(
 			(
-				await client.query<{ accountId: string; issuer: string; providerId: string }>(
+				await client.query<{ accountId: string; issuer: string | null; providerId: string }>(
 					`select "accountId", "issuer", "providerId"
 					 from "app_auth"."account" where "userId" = $1`,
 					[userId],
@@ -561,7 +566,7 @@ describe("account journeys PostgreSQL integration", () => {
 		).toEqual([
 			{
 				accountId: userId,
-				issuer: "local:credential",
+				issuer: null,
 				providerId: "credential",
 			},
 		]);

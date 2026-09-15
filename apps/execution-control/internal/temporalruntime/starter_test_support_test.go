@@ -38,6 +38,8 @@ func (r captureWorkflowRun) GetID() string { return r.id }
 
 func (r captureWorkflowRun) GetRunID() string { return r.runID }
 
+func (r captureWorkflowRun) GetFirstExecutionRunID() string { return r.runID }
+
 func (captureWorkflowRun) Get(context.Context, interface{}) error { return nil }
 
 func (captureWorkflowRun) GetWithOptions(
