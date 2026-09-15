@@ -1,5 +1,5 @@
 import { cn, ThemeModeMenu } from "@campus-agent/ui";
-import { lazy, type ReactNode, Suspense } from "react";
+import type { ReactNode } from "react";
 import {
 	ProductBrandLink,
 	ProductNavActions,
@@ -9,12 +9,7 @@ import type {
 	ProductNavMobileAccountAction,
 	ProductNavMobileLocalActions,
 } from "./product-navigation-menu";
-
-const ProductNavMobileMenu = lazy(() =>
-	import("./product-navigation-menu").then((module) => ({
-		default: module.ProductNavMobileMenu,
-	})),
-);
+import { ProductNavMobileMenu } from "./product-navigation-menu";
 
 export type CampusTopNavVariant = "standard" | "workspace" | "immersive" | "focused";
 export type CampusTopNavDensity = "default" | "compact";
@@ -134,17 +129,13 @@ export function CampusTopNav({
 						/>
 					)}
 					{!focused && showMobileMenu ? (
-						<Suspense
-							fallback={<span aria-hidden="true" className="campus-top-nav-mobile-menu size-11" />}
-						>
-							<ProductNavMobileMenu
-								accountAction={mobileAccount}
-								activePath={activePath}
-								linkMode={linkMode}
-								localActions={mobileLocalActions}
-								triggerClassName={cn("campus-top-nav-mobile-menu", immersive && "lg:hidden")}
-							/>
-						</Suspense>
+						<ProductNavMobileMenu
+							accountAction={mobileAccount}
+							activePath={activePath}
+							linkMode={linkMode}
+							localActions={mobileLocalActions}
+							triggerClassName={cn("campus-top-nav-mobile-menu", immersive && "lg:hidden")}
+						/>
 					) : null}
 					{!focused && accountAction ? (
 						<div

@@ -87,7 +87,9 @@ attempt 诊断。
 `requestId` 只允许字母、数字、点、下划线、冒号和连字符，最长 128 字符。无效 ID 返回
 `400 OPS_INVALID_REQUEST_ID`，不存在返回 `404 OPS_REQUEST_NOT_FOUND`。
 
-响应包含服务端生成时间、请求状态和时间、完整用户问题、产品结果及有界执行诊断。产品结果为
+响应包含服务端生成时间、请求状态和时间、完整用户问题、产品结果及有界执行诊断。
+`conversation` 包含会话 `id`、`userMessageId` 和可空的 `assistantMessageId`，供
+[会话只读查询](./chat-conversations.md) 定位消息；回答 ID 仅来自实际匹配的已写入助手消息。产品结果为
 `WRITTEN`、`PENDING` 或 `MISSING` 联合类型；`WRITTEN` 返回 app-api 已净化并写入
 会话的完整文本、`answer` 或 `error` 消息类型，以及完整 `source_items` 集合。每项来源包含与正文
 对应的 `citationIndexes`，保持正文首次引用顺序，并以 `campus_document`、`campus_notice` 或 `web_page` 区分产品展示；

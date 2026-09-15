@@ -109,6 +109,10 @@ Web URL 不合并。App API 只消费 execution-control 已校验并公开投影
 
 ## 答案反馈
 
+Ops 通过 App API 内部只读接口查询当前反馈，筛选、统计和删除后的可见性口径见
+[回答反馈查询](../ops-web/chat-feedback.md)。当前反馈与会话查询由 App API 提供；会话内部接口见
+[会话只读查询](../ops-web/chat-conversations.md)。既有运行记录读取仍沿用 Ops Status 的固定投影。
+
 - `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 

@@ -174,6 +174,7 @@ function compareSearchEntry(
 		return (
 			rightScore.exactCompactTitle - leftScore.exactCompactTitle ||
 			rightScore.allTerms - leftScore.allTerms ||
+			rightScore.exactSection - leftScore.exactSection ||
 			rightScore.coveredTerms - leftScore.coveredTerms ||
 			rightScore.fieldScore - leftScore.fieldScore ||
 			leftScore.flexRank - rightScore.flexRank ||
@@ -193,6 +194,7 @@ function scoreSearchEntry(
 	allTerms: number;
 	coveredTerms: number;
 	exactCompactTitle: number;
+	exactSection: number;
 	fieldScore: number;
 	flexRank: number;
 } {
@@ -214,6 +216,7 @@ function scoreSearchEntry(
 		allTerms: Number(coveredTerms === terms.length),
 		coveredTerms,
 		exactCompactTitle: Number(compact(title) === compact(query)),
+		exactSection: Number(compact(section) === compact(query)),
 		fieldScore,
 		flexRank:
 			ranks.reduce((total, rank) => total + rank, 0) +

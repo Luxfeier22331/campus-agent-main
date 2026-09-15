@@ -4,6 +4,7 @@
 	"license": "Apache-2.0",
 	"type": "module",
 	"exports": {
+		"./chat-feedback": "./src/chat-feedback.ts",
 		"./account-admin": "./src/account-admin.ts",
 		"./auth": "./src/auth.ts",
 		"./campus-groups": "./src/campus-groups.ts",
@@ -13,7 +14,9 @@
 		"./email-access": "./src/email-access.ts",
 		"./internal-portal-credential": "./src/internal-portal-credential.ts",
 		"./notices": "./src/notices.ts",
-		"./product-availability": "./src/product-availability.ts"
+		"./product-availability": "./src/product-availability.ts",
+		"./chat-sources": "./src/chat-sources.ts",
+		"./chat-conversations": "./src/chat-conversations.ts"
 	},
 	"scripts": {
 		"check": "pnpm exec tsx ./scripts/generate_contracts.ts --check && pnpm exec tsx ./scripts/check_contract_schemas.ts",

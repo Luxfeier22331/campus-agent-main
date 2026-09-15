@@ -159,12 +159,12 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 				</details>
 				<Sheet onOpenChange={changeMobileFiltersOpen} open={mobileFiltersOpen}>
 					<SheetContent
-						aria-label="筛选运行记录"
+						aria-label="筛选运行诊断"
 						className="flex flex-col overflow-hidden"
 						side="right"
 					>
 						<SheetHeader className="mb-5 shrink-0 pr-10">
-							<SheetTitle>筛选运行记录</SheetTitle>
+							<SheetTitle>筛选运行诊断</SheetTitle>
 							<SheetDescription>按运行范围、状态、时间范围或精确 ID 缩小结果。</SheetDescription>
 						</SheetHeader>
 						<div className="grid min-h-0 flex-1 gap-4 overflow-y-auto pb-4">

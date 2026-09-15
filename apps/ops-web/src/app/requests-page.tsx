@@ -47,25 +47,25 @@ export function RequestsPage({
 	});
 
 	if (requests.isPending) {
-		return <PageShell title="运行记录">正在读取运行记录...</PageShell>;
+		return <PageShell title="运行诊断">正在读取运行诊断...</PageShell>;
 	}
 	if (requests.isError && !requests.data) {
 		return (
 			<section>
-				<PageHeader description="还原用户请求的产品处理过程和会话结果。" title="运行记录" />
+				<PageHeader description="按 request 查看执行状态、产品结果和失败事实。" title="运行诊断" />
 				<RequestFilters search={search} />
 				<div className="mt-4">
 					<ErrorState
 						error={requests.error}
 						onRetry={() => requests.refetch()}
-						title="运行记录读取失败"
+						title="运行诊断读取失败"
 					/>
 				</div>
 			</section>
 		);
 	}
 	if (!requests.data) {
-		return <PageShell title="运行记录">正在读取运行记录...</PageShell>;
+		return <PageShell title="运行诊断">正在读取运行诊断...</PageShell>;
 	}
 
 	const activeFilterLabels = requestFilterLabels(search);
@@ -82,7 +82,7 @@ export function RequestsPage({
 				actions={
 					<Button
 						aria-busy={isRefreshing}
-						aria-label={isRefreshing ? "刷新中" : "刷新运行记录"}
+						aria-label={isRefreshing ? "刷新中" : "刷新运行诊断"}
 						className="self-start lg:self-auto"
 						disabled={isRefreshing}
 						onClick={() => void requests.refetch()}
@@ -92,15 +92,15 @@ export function RequestsPage({
 						<span>{isRefreshing ? "刷新中" : "刷新"}</span>
 					</Button>
 				}
-				description="还原用户请求的产品处理过程和会话结果。"
-				title="运行记录"
+				description="按 request 查看执行状态、产品结果和失败事实。"
+				title="运行诊断"
 			/>
 			{requests.isRefetchError ? (
 				<StaleDataWarning
 					error={requests.error}
 					lastSuccessfulAt={requests.dataUpdatedAt}
 					onRetry={() => void requests.refetch()}
-					title="运行记录刷新失败"
+					title="运行诊断刷新失败"
 				/>
 			) : null}
 			{ignoredParamNames.length > 0 ? (
@@ -153,7 +153,7 @@ export function RequestsPage({
 					/>
 					<div className="hidden xl:block">
 						<DataTable<OpsRequestSummary>
-							caption="运行记录"
+							caption="运行诊断"
 							columns={createRequestColumns(requests.data.generatedAt, search)}
 							data={requests.data.data}
 							minWidth="1000px"
@@ -179,7 +179,7 @@ function RequestPagination({
 	search: RequestSearchLike;
 }) {
 	return (
-		<nav aria-label="运行记录分页" className="flex items-center gap-3">
+		<nav aria-label="运行诊断分页" className="flex items-center gap-3">
 			{search.cursor ? (
 				<Link
 					className="font-medium text-info hover:underline"
@@ -223,10 +223,10 @@ function RequestListEmptyState({
 		<div className="border-border border-y bg-secondary p-4 text-sm">
 			<p className="font-medium text-foreground">
 				{hasActiveFilters
-					? "没有匹配的运行记录。"
+					? "没有匹配的运行诊断。"
 					: view === "attention"
 						? "当前没有需要关注的运行。"
-						: "当前时间范围内没有运行记录。"}
+						: "当前时间范围内没有运行诊断。"}
 			</p>
 			<p className="mt-1 text-muted-foreground">
 				{hasActiveFilters ? "调整或清除筛选条件后重试。" : "这不表示运行故障。"}

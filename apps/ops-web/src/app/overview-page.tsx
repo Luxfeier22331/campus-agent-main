@@ -1,6 +1,6 @@
 import { Alert, Button, Field, NativeSelect } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import {
 	CartesianGrid,
@@ -147,7 +147,18 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 
 			<div className="mt-[var(--ui-section-gap)] grid items-start gap-[var(--ui-section-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:gap-0">
 				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:border-r xl:pr-8">
-					<h2 className="mb-4 ui-section-title">请求趋势</h2>
+					<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+						<h2 className="ui-section-title">请求趋势</h2>
+						{window !== "24h" && data.trends.data.length < 2 ? (
+							<Link
+								className="text-sm font-medium text-info hover:underline"
+								search={{ window: "24h" }}
+								to="/overview"
+							>
+								切换到 24 小时
+							</Link>
+						) : null}
+					</div>
 					<RequestTrendChart trends={data.trends} />
 				</section>
 				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:pl-8">

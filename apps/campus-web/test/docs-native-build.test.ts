@@ -62,6 +62,17 @@ describe("native docs build boundary", () => {
 		expect(docsMainSource).not.toContain("getCampusRuntimeConfig");
 	});
 
+	it("keeps the top navigation synchronous for the static docs prerender", () => {
+		const topNavSource = readFileSync(
+			join(appRoot, "src/components/navigation/campus-top-nav.tsx"),
+			"utf8",
+		);
+
+		expect(topNavSource).not.toContain("lazy(");
+		expect(topNavSource).not.toContain("<Suspense");
+		expect(topNavSource).toContain('from "./product-navigation-menu"');
+	});
+
 	it("declares the current document asset and build inputs", () => {
 		const wrangler = readFileSync(join(appRoot, "wrangler.toml"), "utf8");
 		const turbo = readFileSync(join(appRoot, "turbo.json"), "utf8");

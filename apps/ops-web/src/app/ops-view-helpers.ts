@@ -126,7 +126,13 @@ export function normalizeRequestListReturnPath(value: string | undefined) {
 	}
 	try {
 		const parsed = new URL(value, "https://ops-web.local");
-		if (parsed.origin !== "https://ops-web.local" || parsed.pathname !== "/requests") {
+		if (
+			parsed.origin !== "https://ops-web.local" ||
+			!(
+				["/requests", "/chat-feedback", "/conversations"].includes(parsed.pathname) ||
+				/^\/(requests|conversations)\/[^/]+$/.test(parsed.pathname)
+			)
+		) {
 			return "/requests";
 		}
 		return `${parsed.pathname}${parsed.search}`;

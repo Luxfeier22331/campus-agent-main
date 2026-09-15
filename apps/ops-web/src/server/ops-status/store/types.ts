@@ -60,6 +60,9 @@ export interface OpsRequestRow {
 }
 
 export interface OpsRequestDetailRow extends OpsRequestRow {
+	conversationId: string;
+	userMessageId: string;
+	assistantMessageId: string | null;
 	assistantMessageText: string | null;
 	assistantStructuredPartsJson: unknown;
 	questionText: string;

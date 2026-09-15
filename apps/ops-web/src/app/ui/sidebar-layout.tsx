@@ -20,14 +20,19 @@ interface NavItem {
 	icon: LucideIcon;
 	label: string;
 }
+interface NavGroup {
+	label: string;
+	items: NavItem[];
+}
 
 export function SidebarLayout({
 	children,
-	navItems,
+	navGroups,
 }: {
 	children: ReactNode;
-	navItems: NavItem[];
+	navGroups: NavGroup[];
 }) {
+	const navItems = navGroups.flatMap((group) => group.items);
 	const [open, setOpen] = useState(false);
 	const focusMainAfterCloseRef = useRef(false);
 	const mainRef = useRef<HTMLElement>(null);
@@ -49,33 +54,38 @@ export function SidebarLayout({
 		.filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
 		.sort((left, right) => right.href.length - left.href.length)[0]?.href;
 	const nav = (
-		<nav aria-label="运维导航" className="grid gap-1">
-			{navItems.map((item) => {
-				const Icon = item.icon;
-				const active = activeHref === item.href;
-				return (
-					<Link
-						aria-current={active ? "page" : undefined}
-						className={cn(
-							"flex min-h-11 items-center gap-3 rounded-[var(--radius-lg)] px-3 text-sm transition-[color,background-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-							active
-								? "bg-selected font-semibold text-selected-foreground hover:bg-selected-hover active:bg-selected-pressed"
-								: "text-foreground hover:bg-surface-hover active:bg-surface-pressed",
-						)}
-						key={item.href}
-						to={item.href}
-						onClick={() => {
-							if (open) {
-								focusMainAfterCloseRef.current = true;
-							}
-							setOpen(false);
-						}}
-					>
-						<Icon aria-hidden="true" className="size-4" />
-						<span>{item.label}</span>
-					</Link>
-				);
-			})}
+		<nav aria-label="运维导航" className="grid gap-4">
+			{navGroups.map((group) => (
+				<section key={group.label} className="grid gap-1">
+					<h2 className="px-3 font-medium text-muted-foreground text-xs">{group.label}</h2>
+					{group.items.map((item) => {
+						const Icon = item.icon;
+						const active = activeHref === item.href;
+						return (
+							<Link
+								aria-current={active ? "page" : undefined}
+								className={cn(
+									"flex min-h-11 items-center gap-3 rounded-[var(--radius-lg)] px-3 text-sm transition-[color,background-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+									active
+										? "bg-selected font-semibold text-selected-foreground hover:bg-selected-hover active:bg-selected-pressed"
+										: "text-foreground hover:bg-surface-hover active:bg-surface-pressed",
+								)}
+								key={item.href}
+								to={item.href}
+								onClick={() => {
+									if (open) {
+										focusMainAfterCloseRef.current = true;
+									}
+									setOpen(false);
+								}}
+							>
+								<Icon aria-hidden="true" className="size-4" />
+								<span>{item.label}</span>
+							</Link>
+						);
+					})}
+				</section>
+			))}
 		</nav>
 	);
 
@@ -112,7 +122,7 @@ export function SidebarLayout({
 							<SheetHeader className="mb-5 pr-10">
 								<SheetTitle>校园助理运维工作台</SheetTitle>
 							</SheetHeader>
-							{nav}
+							<div className="min-h-0 flex-1 overflow-y-auto pr-1">{nav}</div>
 							<div className="mt-6 border-border border-t pt-4">
 								<p className="mb-2 text-sm font-medium" id="ops-mobile-theme-label">
 									外观
@@ -130,7 +140,7 @@ export function SidebarLayout({
 				</div>
 			</header>
 			<div className="flex">
-				<aside className="sticky top-14 z-[var(--layer-sticky)] hidden h-[calc(100dvh-3.5rem)] w-64 shrink-0 border-border border-r bg-background p-3 lg:block">
+				<aside className="sticky top-14 z-[var(--layer-sticky)] hidden h-[calc(100dvh-3.5rem)] w-64 shrink-0 overflow-y-auto border-border border-r bg-background p-3 lg:block">
 					{nav}
 				</aside>
 				<main

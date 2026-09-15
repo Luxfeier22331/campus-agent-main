@@ -11,6 +11,7 @@ export default defineProject({
 		testTimeout: 60_000,
 		include: [
 			"test/account-admin-postgres.integration.test.ts",
+			"test/chat-feedback-postgres.integration.test.ts",
 			"test/account-journeys-postgres.integration.test.ts",
 			"test/account-lifecycle-postgres.integration.test.ts",
 			"test/campus-groups-postgres.integration.test.ts",
