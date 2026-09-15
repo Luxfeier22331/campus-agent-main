@@ -11,7 +11,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@arizeai/openinference-instrumentation-openai-agents": "^0.2.13",
+		"@arizeai/openinference-instrumentation-openai-agents": "^0.2.14",
 		"@google/genai": "2.22.0",
 		"@langfuse/otel": "^5.11.1",
 		"@langfuse/tracing": "^5.11.1",

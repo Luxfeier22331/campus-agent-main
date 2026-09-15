@@ -37,10 +37,10 @@
 		"@assistant-ui/react-markdown": "0.14.15",
 		"@better-auth-ui/core": "^1.7.23",
 		"@better-auth-ui/react": "^1.7.23",
-		"@better-auth/api-key": "1.7.4",
-		"@better-auth/core": "1.7.4",
-		"@better-auth/oauth-provider": "1.7.4",
-		"@better-auth/passkey": "1.7.4",
+		"@better-auth/api-key": "1.7.5",
+		"@better-auth/core": "1.7.5",
+		"@better-auth/oauth-provider": "1.7.5",
+		"@better-auth/passkey": "1.7.5",
 		"@campus-agent/dining": "workspace:*",
 		"@campus-agent/notices": "workspace:*",
 		"@campus-agent/transport": "workspace:*",
@@ -67,7 +67,7 @@
 		"@tanstack/react-query": "^5.102.8",
 		"@tanstack/react-router": "^1.170.36",
 		"assistant-stream": "0.3.42",
-		"better-auth": "1.7.4",
+		"better-auth": "1.7.5",
 		"better-call": "1.4.0",
 		"bowser": "^2.14.1",
 		"campus-contracts": "workspace:*",
@@ -75,7 +75,7 @@
 		"cmdk": "^1.1.1",
 		"flexsearch": "0.8.212",
 		"lucide-react": "^1.45.0",
-		"maplibre-gl": "^6.9.0",
+		"maplibre-gl": "^6.9.1",
 		"motion": "^13.2.0",
 		"radix-ui": "^1.6.7",
 		"react": "^19.3.0",
@@ -90,11 +90,11 @@
 		"zustand": "^5.0.15"
 	},
 	"devDependencies": {
-		"@aws-sdk/client-s3": "^3.1131.0",
+		"@aws-sdk/client-s3": "^3.1132.0",
 		"@axe-core/playwright": "4.13.0",
-		"@cloudflare/vite-plugin": "1.54.8",
+		"@cloudflare/vite-plugin": "1.54.9",
 		"@cloudflare/vitest-pool-workers": "0.22.0",
-		"@cloudflare/workers-types": "5.20260914.1",
+		"@cloudflare/workers-types": "5.20260915.1",
 		"@playwright/test": "^1.63.0",
 		"@tailwindcss/vite": "^4.3.3",
 		"@testing-library/jest-dom": "^7.0.1",
@@ -111,7 +111,7 @@
 		"typescript": "^7.0.2",
 		"vite": "^8.3.0",
 		"vitest": "^4.1.11",
-		"wrangler": "4.131.1"
+		"wrangler": "4.131.2"
 	},
 	"license": "Apache-2.0"
 }

@@ -23,7 +23,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.1131.0",
+		"@aws-sdk/client-s3": "^3.1132.0",
 		"@campus-agent/document-ocr": "workspace:*",
 		"@campus-agent/internal-portal-client": "workspace:*",
 		"@campus-agent/notices": "workspace:*",
@@ -40,7 +40,7 @@
 		"@tanstack/react-query": "^5.102.8",
 		"@tanstack/react-router": "^1.170.36",
 		"@tanstack/react-table": "^9.2.4",
-		"@tanstack/react-virtual": "^3.14.12",
+		"@tanstack/react-virtual": "^3.14.13",
 		"@tldraw/assets": "5.4.2",
 		"@tldraw/editor": "5.4.2",
 		"@tldraw/tlschema": "5.4.2",
