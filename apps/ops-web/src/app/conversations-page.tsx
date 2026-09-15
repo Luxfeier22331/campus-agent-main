@@ -1,4 +1,4 @@
-import { Button, Input } from "@campus-agent/ui";
+import { Button, Input, NativeSelect } from "@campus-agent/ui";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
@@ -118,9 +118,8 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 					name="q"
 					placeholder="搜索标题、问题、回答或 request ID"
 				/>
-				<select
+				<NativeSelect
 					aria-label="会话状态"
-					className="rounded-md border border-input bg-background px-3"
 					value={draft.status}
 					onChange={(event) =>
 						setDraft((previous) => ({ ...previous, status: event.target.value }))
@@ -134,10 +133,9 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 					<option value="PENDING">待处理</option>
 					<option value="ACTION_REQUIRED">需要关注</option>
 					<option value="CANCELLED">已取消</option>
-				</select>
-				<select
+				</NativeSelect>
+				<NativeSelect
 					aria-label="反馈状态"
-					className="rounded-md border border-input bg-background px-3"
 					value={draft.feedback}
 					onChange={(event) =>
 						setDraft((previous) => ({ ...previous, feedback: event.target.value }))
@@ -147,10 +145,9 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 					<option value="">全部反馈</option>
 					<option value="WITH_FEEDBACK">有反馈</option>
 					<option value="WITHOUT_FEEDBACK">无反馈</option>
-				</select>
-				<select
+				</NativeSelect>
+				<NativeSelect
 					aria-label="失败筛选"
-					className="rounded-md border border-input bg-background px-3"
 					value={draft.hasFailures}
 					onChange={(event) =>
 						setDraft((previous) => ({ ...previous, hasFailures: event.target.value }))
@@ -160,18 +157,16 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 					<option value="">全部运行</option>
 					<option value="true">包含失败</option>
 					<option value="false">不含失败</option>
-				</select>
-				<input
+				</NativeSelect>
+				<Input
 					aria-label="开始日期"
-					className="rounded-md border border-input bg-background px-3"
 					value={draft.from}
 					onChange={(event) => setDraft((previous) => ({ ...previous, from: event.target.value }))}
 					name="from"
 					type="date"
 				/>
-				<input
+				<Input
 					aria-label="结束日期"
-					className="rounded-md border border-input bg-background px-3"
 					value={draft.to}
 					onChange={(event) => setDraft((previous) => ({ ...previous, to: event.target.value }))}
 					name="to"
