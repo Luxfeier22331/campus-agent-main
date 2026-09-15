@@ -14,5 +14,5 @@ status: active
 - 文档来源与静态交付：[document-reader-delivery.md](./document-reader-delivery.md)；
 - 内部门户文件发布采集：[internal-portal-file-release.md](./internal-portal-file-release.md)。
 
-跨语言合同优先使用 `schemas/` 和 `packages/contracts/schemas/` 中登记的 OpenAPI 或 JSON
-Schema；语言本地类型和解析器不得成为第二份跨语言事实。
+跨语言合同优先使用 `docs/contracts/schemas/` 和 `packages/contracts/schemas/` 中登记的 OpenAPI
+或 JSON Schema；语言本地类型和解析器不得成为第二份跨语言事实。
