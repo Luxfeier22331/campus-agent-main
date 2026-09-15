@@ -218,6 +218,23 @@ describe("campus-web published reader sync", () => {
 		expect(readFileSync(join(output.publicRoot, "_redirects"), "utf8")).toBe("");
 	});
 
+	it("prerenders the docs shell navigation synchronously without suspend markers", async () => {
+		const output = await buildNativeReaderFixture();
+		const directoryHtml = readFileSync(join(output.pagesRoot, "index.html"), "utf8");
+		const publicHtml = readFileSync(
+			join(output.pagesRoot, "regulations/student_rules/student-attendance/index.html"),
+			"utf8",
+		);
+
+		for (const pageHtml of [directoryHtml, publicHtml]) {
+			expect(pageHtml).toContain('data-campus-prerendered="docs"');
+			expect(pageHtml).toContain('data-slot="product-nav-mobile-trigger"');
+			expect(pageHtml).toContain('aria-label="打开全局菜单"');
+			expect(pageHtml).not.toContain("data-msg");
+			expect(pageHtml).not.toContain("<!--$?-->");
+		}
+	});
+
 	it("does not prerender curriculum corpus or collection directories", async () => {
 		const output = await buildNativeReaderFixture({
 			publicCollection: "undergraduate",
