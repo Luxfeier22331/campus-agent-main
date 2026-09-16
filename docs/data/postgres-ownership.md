@@ -176,6 +176,13 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 
 ## 访问规则
 
+- 数据库级 `CONNECT` 不依赖 `PUBLIC` 默认授权（[ADR-0096](../decisions/adr-0096-campus-agent-connect-acl.md)）：
+  `campus_agent` 库对 `PUBLIC` 仅保留 `TEMP`；显式 `CONNECT` 授权为 owner `campus_agent`
+  与运行角色 `app_api`、`execution_control`、`model_config`、`ops_web`。新增连接该库的角色
+  必须在环境实施时同步补授权，且库级权限调整前先以 `pg_stat_activity` 和本文角色表核对
+  真实消费者。
+- 协作者只读角色（如 `hindsight_ro`）的数据库级授权、凭证与生命周期由
+  [协作者只读访问](../runbooks/collaborator-access.md) 拥有，不进入本文产品角色清单。
 - 常驻运行时不使用 schema 管理或 migration 凭据；
 - 每个运行时只获得完成其职责所需的表、列和操作权限；
 - `campus-agent-schema` 为 `execution_control` 授予所属 schema `USAGE` 和表的

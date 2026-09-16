@@ -107,6 +107,20 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO hindsight_ro
 
 执行方式：`kubectl exec -n campus-agent-staging campus-agent-postgres-1 -c postgres -- psql -U postgres`。
 
+#### 库级权限变更安全配方（2026-09-16 事故教训）
+
+`campus_agent` 是共享库（消费者见 `../data/postgres-ownership.md` 角色表）。调整任何库级
+权限前：
+
+1. 先核对真实消费者：`SELECT usename, count(*) FROM pg_stat_activity WHERE datname =
+   'campus_agent' GROUP BY 1;`，并与所有权文档角色表对照；静态 ACL 上没有显式授权的角色
+   同样可能是消费者（PostgreSQL 默认给 `PUBLIC` 授 `CONNECT`）。
+2. 若按 [ADR-0096](../decisions/adr-0096-campus-agent-connect-acl.md) 收紧 `PUBLIC`，必须在
+   同一变更中为全部真实消费者逐一显式 `GRANT CONNECT`（当前：`campus_agent`、`app_api`、
+   `execution_control`、`model_config`、`ops_web`）。
+3. 验证以每个消费者**新建连接**成功为准：存量连接池不受 `CONNECT` 收回影响，故障会随池
+   回收延迟暴露，pod `Running` 不构成权限变更安全的证据。
+
 ### rustfs（humans 只读用户）
 
 无需手工操作：`object-store-secrets` 中的 `OBJECT_STORE_HUMANS_*` 四个键由
