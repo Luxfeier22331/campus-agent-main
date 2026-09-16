@@ -38,8 +38,8 @@ status: active
 - 同一用户和幂等键只能对应同一轮请求；
 - 接收事务必须同时建立用户消息、轮次记录和请求观测记录；
 - 最终事务写入助手消息并更新轮次终态；
-- 状态和事务规则见 `docs/contracts/app-api/request-lifecycle.md`，执行输入、准入与取消协调数据见
-  `runtime.md`。
+- 状态和事务规则见 [聊天请求生命周期](../../contracts/app-api/request-lifecycle.md)，执行输入、准入与取消协调数据见
+  [App API 运行时数据](./runtime.md)。
 
 ## `chat.message_feedback`
 

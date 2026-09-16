@@ -70,8 +70,10 @@ context 中由安装脚本跳过 Git hook。
 Python hooks 使用 `uv run --locked --only-dev`，按锁文件自动准备当前 worktree 的 Ruff、SQLFluff
 和 Yamllint，不要求预先手动同步依赖，也不依赖全局安装。首次缺少依赖时需要下载；下载失败或锁文件
 与依赖声明不一致时检查失败，不跳过检查或自动修改锁文件。开发流程中的 `uv sync` 可提前准备依赖。
-`pre-commit` 对暂存文件执行 check-only 静态检查和 Secret 扫描；`pre-push` 对受影响的 Node 与 Go
-模块执行类型检查和测试，Go 同时执行 format 和 lint。两者都不替代 build、integration、浏览器 E2E、PR CI 或 runtime 验证。
+`pre-commit` 先对暂存文件执行 check-only 静态检查和 Secret 扫描，再运行可缓存的根目录脚本测试及
+受影响的 Node/Go 源码检查。`pre-push` 不再运行重验证；已有 checkout 执行 `pnpm hooks:install` 会卸载
+旧的受管理 pre-push hook。任务选择与缓存边界见[测试与验证](docs/reference/verification.md)。
+提交检查不替代 build、integration、浏览器 E2E、PR CI 或 runtime 验证。
 
 ## 许可证
 

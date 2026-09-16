@@ -205,7 +205,7 @@ finalization recovery response 的上限均为 1 MiB（1,048,576 字节）。每
 失败仍通过既有 failure finalizer 收敛，不新增恢复存储。
 
 StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memory.append` 可写的例外由
-`../data/durable-runtime.md` 定义。
+[持久执行数据](../data/durable-runtime.md) 定义。
 
 `personal_memory_recall` 是 Solve 或 Execute Step operation 同一次 SDK run 内的有界工具调用，不使用独立 memory
 ref 或独立 payload。memory 正文仅保留在 evidence excerpt 中，最多 4000 个 Unicode codepoint；
@@ -231,7 +231,7 @@ Agent result 内有效，不能跨 request 或从模型输出中重新构造。
 ## Temporal 与终态处理
 
 `ToolExecutionWorkflow` 的阶段、队列和 operation Activity 边界由
-`../architecture/system/durable-runtime.md` 定义。SDK 函数调用不创建额外 Temporal
+[持久 Agent 运行时](../architecture/system/durable-runtime.md) 定义。SDK 函数调用不创建额外 Temporal
 Activity。
 
 Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，不携带冻结输入正文。Temporal history
@@ -335,7 +335,7 @@ Temporal 历史是执行事实。PostgreSQL 保存安全的 run、event、step�
 
 HTTP `ExecutionRunStatus` 与 execution-control 内部运行状态保持一致，包含等待、准入、执行、
 流式输出和终态。精确枚举、字段及响应结构只由 OpenAPI 维护；内部迁移规则见
-`../data/durable-runtime.md`。
+[持久执行数据](../data/durable-runtime.md)。
 
 面向 Campus Web 的 app-api 产品投影使用独立的事件名称和阶段合同：`execution.queued`、
 `execution.running`、`execution.phase`、`answer.delta`、`request.completed`、
@@ -363,4 +363,4 @@ execution-control 已检查到的持久序列游标；app-api 后续必须将它
 ## 验证
 
 运行 `pnpm --dir packages/contracts check`、手动 `go` validation profile，以及
-`../reference/verification.md` 列出的 app-api 类型检查和测试通道。
+[测试与验证](../reference/verification.md) 列出的 app-api 类型检查和测试通道。

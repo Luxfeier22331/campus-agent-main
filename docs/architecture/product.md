@@ -9,7 +9,7 @@ status: active
 
 本文定义 `campus-agent` 服务谁、解决什么问题、向用户承诺什么，以及哪些能力不属于产品
 范围。当前已经实现的界面和服务由最近的产品、系统、领域和合同文档及可执行实现维护；技术所有权
-和运行方式由目标架构、合同、数据文档和 ADR 维护。
+和运行方式由目标架构、合同、数据文档和决策笔记维护。
 
 ## 核心定位
 
@@ -66,7 +66,7 @@ status: active
 不得为了预留未来能力先建立空工具、空服务或未被消费的数据结构。
 
 地点查找和路线导航尚未作为模型工具开放。其长期边界由
-[ADR-0027](../decisions/adr-0027-navigation.md) 记录；当前地图地点读取见
+[ADR-0027](../../.agents/notes/implemented/architecture/2026-07-16-adr-0027-navigation.md) 记录；当前地图地点读取见
 [place.md](../domains/place.md)。Primary Agent 可以使用 Agents SDK 原生 `web_search` 补充或核验
 公开校园网页信息；它只服务校园问题，由模型根据问题和工具声明决定是否调用，不是
 `campus_search` 失败后由代码自动触发的回退。Finalization 校验 SDK 原生引用，把网页依据转换为
@@ -88,4 +88,4 @@ status: active
 - 长期约束：[target.md](./target.md)
 - 产品运行边界：[system/product-runtime.md](./system/product-runtime.md)
 - 工具开放规则：[system/tool-routing.md](./system/tool-routing.md)
-- 校级产品范围：[ADR-0030](../decisions/adr-0030-product-scope.md)
+- 校级产品范围：[ADR-0030](../../.agents/notes/implemented/feature/2026-07-16-adr-0030-product-scope.md)

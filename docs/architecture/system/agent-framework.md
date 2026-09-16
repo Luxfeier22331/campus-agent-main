@@ -103,9 +103,9 @@ trace context。请求不能改变遥测配置，OpenAI SDK 保持 `traceInclude
 
 ## 相关文档
 
-- `durable-runtime.md`
-- `tool-routing.md`
-- `retrieval-serving.md`
-- `../../contracts/tool-execution.md`
-- `../../decisions/adr-0084-agent-knowledge-tools.md`
-- `../../reference/agent-orchestration.md`
+- [持久 Agent 运行时](./durable-runtime.md)
+- [工具路由](./tool-routing.md)
+- [检索服务](./retrieval-serving.md)
+- [执行合同](../../contracts/tool-execution.md)
+- [ADR-0084 单一 Agent 与机构知识边界](../../../.agents/notes/implemented/architecture/2026-07-29-adr-0084-agent-knowledge-tools.md)
+- [Agent 编排研究参考](../../reference/agent-orchestration.md)

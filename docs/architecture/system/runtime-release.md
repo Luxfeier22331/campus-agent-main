@@ -65,7 +65,7 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 `DEPLOYMENT_RELEASE` 是单个 execution runtime 的非密发布身份。execution-control 和 agent-runtime
 分别记录自己的 release，允许独立发布且不要求值相同；release 只用于诊断和变更关联，不进入工具
 兼容性判断。已部署进程必须取得自身的非空发布标识，不能以本地默认值或环境名称补齐。工具兼容性
-只由 `tool_contract_fingerprint.v1` 判断，精确合同见 `../../contracts/tool-execution.md`。
+只由 `tool_contract_fingerprint.v1` 判断，精确合同见 [执行合同](../../contracts/tool-execution.md)。
 
 ## 配置与密钥
 
@@ -97,5 +97,5 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 - [Kubernetes 运行时](./k8s-runtime.md)
 - [环境配置](../../environment/README.md)
 - [发布操作](../../runbooks/release.md)
-- [ADR-0065](../../decisions/adr-0065-gitops.md)
-- [ADR-0083](../../decisions/adr-0083-promotion.md)
+- [ADR-0065](../../../.agents/notes/implemented/process/2026-07-16-adr-0065-gitops.md)
+- [ADR-0083](../../../.agents/notes/implemented/process/2026-07-25-adr-0083-promotion.md)

@@ -10,5 +10,5 @@ status: active
 - [provider-secrets.md](../runbooks/provider-secrets.md)：密钥新增、轮换和撤销。
 
 运行配置边界见 [providers.md](./providers.md)，部署密钥交付决策见
-[ADR-0066](../decisions/adr-0066-secret-delivery.md)。健康、就绪和环境交接的证据边界见
+[ADR-0066](../../.agents/notes/implemented/process/2026-07-04-adr-0066-secret-delivery.md)。健康、就绪和环境交接的证据边界见
 [测试与验证](../reference/verification.md)。

@@ -65,6 +65,6 @@ TGC 只在本次会话使用，不回写凭据池。本地 `internal-portal:auth
 
 ## 相关文档
 
-- `docs/contracts/internal-portal-file-release.md`
-- `docs/runbooks/portal-auth.md`
-- `jobs/internal-portal-collection/README.md`
+- [内部门户文件发布采集](../contracts/internal-portal-file-release.md)
+- [内部门户认证](../runbooks/portal-auth.md)
+- [internal-portal-collection](../../jobs/internal-portal-collection/README.md)

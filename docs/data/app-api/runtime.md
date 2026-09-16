@@ -9,7 +9,7 @@ status: active
 ## 文档边界
 
 本文定义 app-api 拥有的请求观测数据，以及 `chat.turn_dispatches` 中服务持久执行的协调数据。
-会话和消息结构见 `chat.md`；execution-control 的运行投影由 execution-control 自己管理。
+会话和消息结构见 [聊天数据](./chat.md)；execution-control 的运行投影由 execution-control 自己管理。
 
 ## 持久执行协调
 

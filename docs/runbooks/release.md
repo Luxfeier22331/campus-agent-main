@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 本文说明源码候选物如何交给环境仓并进入已配置的目标环境。分支协作见
-`CONTRIBUTING.md`，证据选择见 [测试与验证](../reference/verification.md)，环境部署和恢复命令由
+[贡献指南](../../CONTRIBUTING.md)，证据选择见 [测试与验证](../reference/verification.md)，环境部署和恢复命令由
 环境仓操作手册维护。
 
 ## 发布链
@@ -67,7 +67,7 @@ Dependabot job 不进行认证缓存读写。主线发布仍只读写 canonical 
 
 ## 相关文档
 
-- `../architecture/system/runtime-release.md`
-- `../decisions/adr-0065-gitops.md`
-- `../decisions/adr-0074-repository-boundary.md`
-- `../decisions/adr-0083-promotion.md`
+- [运行时发布架构](../architecture/system/runtime-release.md)
+- [ADR-0065 GitOps](../../.agents/notes/implemented/process/2026-07-16-adr-0065-gitops.md)
+- [ADR-0074 源码仓库与环境仓库边界](../../.agents/notes/implemented/process/2026-07-16-adr-0074-repository-boundary.md)
+- [ADR-0083 Staging 版本选择](../../.agents/notes/implemented/process/2026-07-25-adr-0083-promotion.md)

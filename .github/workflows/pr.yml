@@ -226,6 +226,11 @@ jobs:
 
       - name: Test repository scripts
         id: repository_test
+        env:
+          TURBO_CACHE: "local:rw,remote:rw"
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_TELEMETRY_DISABLED: "1"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
         if: ${{ !cancelled() && steps.repository_docs.outcome == 'success' }}
         continue-on-error: true
         run: |

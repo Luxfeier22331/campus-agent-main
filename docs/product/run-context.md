@@ -12,7 +12,7 @@ status: active
 延续问题，同时避免旧轮次、失效依据或错误记忆覆盖当前意图。
 
 本文只定义用户可感知的多轮行为。内部上下文装配、记忆和执行边界见
-`../architecture/system/agent-framework.md` 与 `../architecture/system/memory-plane.md`。
+[Agent 框架](../architecture/system/agent-framework.md) 与 [个人记忆](../architecture/system/memory-plane.md)。
 
 ## 目标
 
@@ -81,6 +81,6 @@ status: active
 
 ## 相关文档
 
-- `../contracts/app-api/request-lifecycle.md`
-- `../architecture/system/agent-framework.md`
-- `../architecture/system/memory-plane.md`
+- [聊天请求生命周期](../contracts/app-api/request-lifecycle.md)
+- [Agent 框架](../architecture/system/agent-framework.md)
+- [个人记忆](../architecture/system/memory-plane.md)

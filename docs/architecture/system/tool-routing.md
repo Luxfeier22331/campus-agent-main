@@ -45,7 +45,7 @@ Google Search。它不在
   工具或改写答案。
 
 工具准入只能缩小能力，不能改变用户权限、开放关闭工具或选择 Provider。离线 Campus Docs 制品
-发布由 `retrieval-serving.md` 维护，不属于当前在线工具路由。
+发布由 [检索服务](./retrieval-serving.md) 维护，不属于当前在线工具路由。
 
 ## 执行方式
 
@@ -91,8 +91,8 @@ provider、top-k 或向量参数。
 
 ## 相关文档
 
-- `agent-framework.md`
-- `agentic-retrieval.md`
-- `retrieval-serving.md`
-- `../../contracts/tool-execution.md`
-- `../../contracts/tool-trajectory.md`
+- [Agent 框架](./agent-framework.md)
+- [Agent 的机构知识边界](./agentic-retrieval.md)
+- [检索服务](./retrieval-serving.md)
+- [执行合同](../../contracts/tool-execution.md)
+- [工具轨迹合同](../../contracts/tool-trajectory.md)

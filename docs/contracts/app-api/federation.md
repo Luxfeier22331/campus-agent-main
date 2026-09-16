@@ -128,5 +128,5 @@ client 记录由 App API 的 `app_auth.oauthClient` 所有，注册、修改和�
 
 ## 相关文档
 
-- `../../architecture/system/identity-authz.md`
-- `./auth.md`
+- [身份与权限](../../architecture/system/identity-authz.md)
+- [App API 登录与当前用户接口](./auth.md)

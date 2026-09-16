@@ -9,7 +9,7 @@ status: active
 ## 文档边界
 
 本文只规定长期系统约束，不列举当前组件、接口字段、环境状态或实施步骤。当前实现见
-所属系统、领域、合同和数据文档，具体技术选择及理由见 ADR，可执行字段由代码、schema 和注册表
+所属系统、领域、合同和数据文档，具体技术选择及理由见决策笔记，可执行字段由代码、schema 和注册表
 维护。
 
 ## 系统形态
@@ -98,8 +98,8 @@ status: active
 
 ## 所有者文档
 
-- 当前系统：`system/README.md`、`domains/README.md`
-- 产品边界：`product.md`、`../product/README.md`
-- 领域：`domains/README.md`
-- 合同与数据：`../contracts/README.md`、`../data/README.md`
-- 决策：`../decisions/README.md`
+- 当前系统：[系统架构](./system/README.md)、[领域架构](./domains/README.md)
+- 产品边界：[产品定位](./product.md)、[产品需求](../product/README.md)
+- 领域：[领域架构](./domains/README.md)
+- 合同与数据：[合同](../contracts/README.md)、[数据文档](../data/README.md)
+- 决策：[决策笔记（Agent Notes）](../../.agents/notes/README.md)

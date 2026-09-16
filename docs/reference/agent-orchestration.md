@@ -57,10 +57,10 @@ status: active
 - [OpenAI Agents SDK 编排](https://developers.openai.com/api/docs/guides/agents/orchestration)
 - [OpenAI Agents SDK 运行循环](https://developers.openai.com/api/docs/guides/agents/running-agents)
 
-具体仓库决策应在对应 ADR 中引用真正支撑取舍的来源，不在本文维护当前实现或目标架构结论。
+具体仓库决策应在对应决策笔记中引用真正支撑取舍的来源，不在本文维护当前实现或目标架构结论。
 
 ## 相关文档
 
-- `../architecture/system/agent-framework.md`
-- `../architecture/system/agentic-retrieval.md`
-- `eval.md`
+- [Agent 框架](../architecture/system/agent-framework.md)
+- [Agent 的机构知识边界](../architecture/system/agentic-retrieval.md)
+- [评测](./eval.md)

@@ -30,6 +30,13 @@ Docs 的共享输入是对象存储中的 `campus-docs/source.json` 及其引用
 `campus_docs_serving.current_index` 的唯一写入者。对象是否存在于 bucket 不等于仍可删除；本手册中的
 清理都是人工核对的明确集合。
 
+## 前置条件
+
+所有命令从仓库根目录执行，先替换示例中的路径、ID、namespace 和 Job 名称。
+本地任务按各小节生成环境文件；涉及 Provider 的任务需要真实连接。集群操作前确认当前 context、
+目标 namespace、暂停的阶段模板、所属数据库 schema、对象存储身份及 Model Config 配置已就绪。
+统一发布还需要 Qdrant 写入权限及 serving 数据库连接。具体环境值由环境仓提供。
+
 ## 更新来源
 
 1. 从当前 `campus-docs/source.json` 制作完整候选清单，不从 bucket 列表、修改时间或文件名推断内容。
@@ -97,17 +104,13 @@ pnpm dev:init -- --target notice-index-publisher
 pnpm --dir jobs/notice-index-publisher build-chunks-local
 ```
 
-使用输出的 `run` 生成 Notice Embedding Set。命令只读取该显式 Chunk Run；线上版本从 Model Config 读取
-一次 `campus_docs_embedding` 连接，本地版本读取当前 worktree 的 embedding 连接：
+成功输出提供本地 `run` 和输出目录。后续本地 Embedding 抽样或 dense 评测使用
+[Notice builder 的本地命令](../../jobs/notice-index-publisher/README.md#embedding-抽样与-recall-评测)，
+需要 worktree 根 `.env` 中的 Embedding 连接；这些评测不会生成正式 Notice Embedding Set。
 
-```bash
-NOTICE_CHUNK_RUN=sha256:<chunk-run-id> \
-pnpm --dir jobs/notice-index-publisher build-embeddings
-```
-
-Notice Chunk Run 使用 `notice_chunk_run.v1`。Embedding Set 只保存向量和显式 Chunk Run 引用；这些阶段不访问
-Qdrant、不维护 `current_index`，也不重新生成 Docs 制品。统一 publisher 从 Chunk `retrievalText` 首行生成
-Notice title，并由 `noticeId` 生成 `/notices/<noticeId>` citation。
+`build-embeddings` 是对象存储制品入口：读取 derived bucket 中的显式 Chunk Run，从 Model Config
+取得连接并写回 derived bucket。它不能直接消费上述本地 `var/` Chunk Run。正式构建按
+[通知制品手册](./notice-indexing.md)执行；其结果再与 Docs Embedding Set 交给统一 publisher。
 
 ## Chunk 策略治理验证
 
@@ -115,8 +118,8 @@ Notice title，并由 `noticeId` 生成 `/notices/<noticeId>` citation。
 Chunk Set 运行治理 review：
 
 ```bash
-pnpm --dir jobs/campus-docs-index-publisher review-chunks-local -- \\
-  --chunk-set sha256:<chunk-set-id> \\
+pnpm --dir jobs/campus-docs-index-publisher review-chunks-local -- \
+  --chunk-set sha256:<chunk-set-id> \
   --embedding-evaluation sha256:<embedding-evaluation-id>
 ```
 
@@ -135,23 +138,26 @@ many-root 或 split-reader、100 个无信号对照项和覆盖补齐项。普�
 ```
 
 `change` 的 action 只能是 `drop`、`attach`、`merge`、`split` 或 `upstream-reader`；`keep` 不带 action。
+`drop` 表示不把独立内容作为 evidence，`attach` 保留信息并附着正文或表格上下文，`merge`／`split`
+调整 Chunk 边界，`upstream-reader` 表示先修复 reader 元素或 heading。
 标签可以分批汇总：
 
 ```bash
-pnpm --dir jobs/campus-docs-index-publisher summarize-chunk-review-labels-local -- \\
-  --review-run sha256:<review-run-id> \\
+pnpm --dir jobs/campus-docs-index-publisher summarize-chunk-review-labels-local -- \
+  --review-run sha256:<review-run-id> \
   --labels ../../var/campus-docs/chunk-governance/labels/<name>.ndjson
 ```
 
 命令会拒绝重复或不属于该 Review Run 的 Chunk ID，并按 primary stratum、candidate signal、verdict 和
-action 输出已标注数、未标注数及 change rate。候选信号只是人工审阅索引，不是自动改 Chunk 的规则。
+action 输出已标注数、未标注数及 change rate。审阅项保留正文、heading、root units 与前后边界；
+对照组用于估计候选信号之外的问题率。候选信号只是人工审阅索引，不是自动改 Chunk 的规则。
 
 有真实 embedding 连接时，再对固定问题文件执行 dense 检索评测：
 
 ```bash
-pnpm --dir jobs/campus-docs-index-publisher evaluate-chunks-local -- \\
-  --chunk-set sha256:<chunk-set-id> \\
-  --questions ../../var/campus-docs/chunk-governance/questions/<name>.ndjson
+pnpm --dir jobs/campus-docs-index-publisher evaluate-chunks-local -- \
+  --chunk-set sha256:<chunk-set-id> \
+  --questions var/campus-docs/chunk-governance/questions/<name>.ndjson
 ```
 
 评测从当前 worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 与 `EMBEDDING_API_KEY`，固定使用
@@ -162,21 +168,24 @@ retrievalText、Qwen3-Embedding-4B、2560 维 cosine dense 相似度和 Recall@1
 比较 baseline 与 candidate 时，必须成对提供对应的 Chunk Set 和 Evaluation Run：
 
 ```bash
-pnpm --dir jobs/campus-docs-index-publisher compare-chunks-local -- \\
-  --baseline-chunk-set sha256:<baseline-id> \\
-  --candidate-chunk-set sha256:<candidate-id> \\
-  --questions ../../var/campus-docs/chunk-governance/questions/<name>.ndjson \\
-  --baseline-evaluation sha256:<baseline-evaluation-id> \\
+pnpm --dir jobs/campus-docs-index-publisher compare-chunks-local -- \
+  --baseline-chunk-set sha256:<baseline-id> \
+  --candidate-chunk-set sha256:<candidate-id> \
+  --questions var/campus-docs/chunk-governance/questions/<name>.ndjson \
+  --baseline-evaluation sha256:<baseline-evaluation-id> \
   --candidate-evaluation sha256:<candidate-evaluation-id>
 ```
 
+`--questions` 由命令按仓库根解析；标签汇总的 `--labels` 则按包工作目录解析，所以示例保留 `../../var/`。
+
 比较前会校验两次评测分别引用对应 Chunk Set，并使用同一模型 target、问题文件摘要、embedding 定义、
 问题数量和顺序。报告给出结构 delta、evidence placement 状态、整体/分层 embedding delta 以及共同
-问题的排名改善和回归计数。来源投影不同的两次 Chunk Set 仍可比较结构，但不比较 evidence placement。
+问题的 first evidence、all evidence、answer evidence、first document 排名改善、回归与不变计数。
+来源投影不同的两次 Chunk Set 仍可比较结构，但不比较 evidence placement；评测合同不同则失败。
 
-治理产物仅写入当前 worktree 的 var/campus-docs/chunk-governance/；review 输出包括 census、150 份
-文档样本、候选信号、450 个 Chunk 审阅项及其摘要。真实问题文件、文档正文和 embedding
-向量不提交 Git。review 和 dense 评测用于人工/研究验证，不是 PR 阻断门，也不代表线上 hybrid + reranker
+治理产物仅写入当前 worktree 的 `var/campus-docs/chunk-governance/`。review 成功输出 `run`、
+`output_directory`、`sample_count` 和 `review_item_count`，应结合实际 Chunk Set 核对生成的审阅文件。
+真实问题文件、文档正文和 embedding 向量不提交 Git。review 和 dense 评测用于人工/研究验证，不是 PR 阻断门，也不代表线上 hybrid + reranker
 结果；不以短 Chunk 数量单独判断策略优劣。只有候选策略经过结构、广泛抽样和真实 embedding 证据综合
 判断后，才另行决定是否生成新的生产 Chunk Set；本次治理不自动切换生产分块定义。
 
@@ -243,10 +252,10 @@ pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
 
 ## RAG 制品
 
-本地 Docs Chunk 命令只读对象存储中的当前 source 和 reader，本地 Docs Embedding 命令只读本地 Docs
-Chunk Set；Notice builder 则从已发布 Notice 快照生成 Chunk Run，再生成 Notice Embedding Set。各自按
-领域定义的相对布局写入当前 worktree 的 `var/`。这些文件用于本地检查，不是线上候选，也不通过上传
-进入下一阶段。线上两个 builder 将同一制品合同写入 derived bucket，所有正式对象都按内容寻址。
+本地 Docs Chunk/Embedding 和 Notice Chunk/评测产物写入当前 worktree 的 `var/`，不自动晋升为
+线上候选。正式 Chunk/Embedding Job 把制品写入 derived bucket。Notice 本地 Embedding cache 可以按
+[显式导入步骤](./notice-indexing.md#导入本地-embedding-cache)完整校验后复用，正式 Set 仍由 Embedding Job
+生成；导入 cache 不等于发布索引。
 
 NDJSON 和 manifest 都使用规范序列化并以换行结尾。写入使用 `If-None-Match: *`；同键同内容是幂等
 重跑，不同内容是错误。系统不维护 `latest` 制品指针，下一阶段必须显式接收上一阶段输出的
@@ -316,30 +325,13 @@ Publisher 显式使用日志返回的
 
 ### 3. 构建 Notice Chunk Run
 
-在 ingestion runtime 中从已发布 Notice 的 repeatable-read 快照生成 Chunk Run：
-
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/notice-chunk-builder <job-name>
-```
-
-成功日志包含 `chunk_run`、`chunk_count` 和 `notice_count`。该 Job 读取 Notices 数据库并写入 derived bucket，
-但不访问 Qdrant 或 `current_index`；review sample 和 validation 仅供离线诊断。
+执行[通知 Chunk Run 构建](./notice-indexing.md#构建-chunk-run)。记录成功结果中的 `chunk_run`；
+失败时先处理来源或数据库问题，不进入 Embedding 阶段。
 
 ### 4. 构建 Notice Embedding Set
 
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/notice-embedding-builder <job-name> \
-  --dry-run=client -o yaml |
-kubectl set env --local -f - \
-  NOTICE_CHUNK_RUN=sha256:<chunk-run-id> -o yaml |
-kubectl -n <namespace> create -f -
-```
-
-Notice Embedding Job 只读取显式 Chunk Run，从 Model Config 一次读取 `campus_docs_embedding`，按
-`retrievalTextSha256` 复用显式可验证 cache 或调用 provider，最后写入 `notice_embedding_set.v1`。
-它不访问 Qdrant、`current_index` 或 Docs reader。
+把上一步 `chunk_run` 传给[通知 Embedding 构建](./notice-indexing.md#构建-embedding-set)。
+记录成功结果中的 `embedding_set`，作为统一 Publisher 的 `CAMPUS_NOTICE_EMBEDDING_SET`。
 
 ### 5. 发布统一 Campus RAG Index
 
@@ -418,11 +410,12 @@ collection；已发布的当前 collection 由 `campus_search` 按需消费。
 
 ## Qdrant 清理
 
-旧 collection 不在激活时自动删除，保留它作为回滚候选。当前在线 execution-control 不读取 collection，
-也不会在运行准入中冻结它。人工删除前必须：
+旧 collection 不在激活时自动删除，保留它作为回滚候选。在线 execution-control 在每次 `campus_search`
+调用时读取当前绑定，再查询所选 collection；
+运行准入不会冻结它。切换绑定不会迁移已经开始的查询。人工删除前必须：
 
 1. 从 `campus_docs_serving.current_index` 读取当前 collection，永不删除当前值；
-2. 确认没有正在运行的 Campus RAG Publisher Job 使用待删除 collection；
+2. 确认没有正在运行的 Campus RAG Publisher Job 或仍在使用旧绑定的在线查询访问待删除 collection；
 3. 使用 Qdrant 管理凭据删除明确列出的非当前 collection，并再次确认当前 collection 可读取。
 
 仓库不维护 collection 历史表、保留状态机或自动回收任务。每次清理只处理本次明确核对的集合。

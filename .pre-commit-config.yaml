@@ -1,6 +1,7 @@
 minimum_prek_version: 0.5.0
-default_install_hook_types: [pre-commit, pre-push]
+default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
+fail_fast: true
 
 repos:
   - repo: builtin
@@ -39,7 +40,7 @@ repos:
         entry: pnpm --config.verify-deps-before-run=false exec markdownlint-cli2 --no-globs --
         language: system
         files: '\.md$'
-        exclude: '^apps/campus-web/\.generated/'
+        exclude: '^(apps/campus-web/\.generated/|\.agents/notes/archived/)'
 
       - id: editorconfig
         name: EditorConfig
@@ -47,7 +48,7 @@ repos:
         # CI sources Nix's prepared environment; local hooks retain their flake entrypoint.
         entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- editorconfig-checker -no-color -disable-indentation -disable-indent-size
         language: system
-        exclude: '(^|/)(dist|node_modules|\.tmp)(/|$)'
+        exclude: '(^|/)(dist|node_modules|\.tmp)(/|$)|^\.agents/notes/archived/'
 
       - id: ruff-check
         name: Ruff lint
@@ -105,10 +106,11 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: affected-pre-push
-        name: Affected pre-push evidence
-        entry: node --experimental-strip-types scripts/ci/pre-push.mts
+      - id: affected-pre-commit
+        name: Affected pre-commit evidence
+        groups: [validation]
+        entry: node --experimental-strip-types scripts/ci/pre-commit.mts
         language: system
         pass_filenames: false
         always_run: true
-        stages: [pre-push]
+        stages: [pre-commit]

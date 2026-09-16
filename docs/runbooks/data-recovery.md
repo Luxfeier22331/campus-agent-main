@@ -62,6 +62,6 @@ status: active
 ## 相关入口
 
 - [PostgreSQL 所有权](../data/postgres-ownership.md)
-- [对象存储 ADR](../decisions/adr-0002-object-storage.md)
+- [对象存储 ADR](../../.agents/notes/implemented/architecture/2026-07-16-adr-0002-object-storage.md)
 - [Campus Docs 维护与索引发布](./campus-docs.md)
 - [Temporal runbook](./temporal.md)

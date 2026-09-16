@@ -50,8 +50,8 @@ Ops Web 维护 transport.routes、schedule_periods、schedule_items
 本地命令直接读取受管理 `.env.local` 的 TGC。线上入口先向 Ops Web 解析一条当前可用 TGC，再调用相同
 采集实现。ingestion runtime base 为通知增量、通知回填和文件发布分别提供一个默认暂停的
 CronJob 模板；维护者显式创建一次性 Job，不启用自动 schedule，也不与分类自动串联。notice-publisher
-同样只提供默认暂停的一次性 Job 模板；它默认消费数据库中的待发布通知，并复用数据库 owner 完成 schema
-安装和显式物化，不新增线上 publisher 身份。
+同样只提供默认暂停的一次性 Job 模板，消费待发布通知并显式物化。通知 schema 和授权由
+[统一 schema Job](../../../jobs/campus-agent-schema/README.md)安装，publisher 使用通知运行角色，不执行 DDL。
 
 ## 文件发布采集
 
@@ -93,9 +93,9 @@ Agent 只通过 `campus_search` 读取已发布的当前 collection。
 
 ## 相关文档
 
-- `docs/decisions/adr-0002-object-storage.md`
-- `docs/decisions/adr-0091-retire-document-chunking-stack.md`
-- `docs/decisions/adr-0089-internal-portal-credential-resolution.md`（历史决策，现行 owner 已迁移到 Ops Web）
-- `docs/data/internal-portal.md`
-- `docs/data/notices.md`
-- `docs/runbooks/ingestion.md`
+- [ADR-0002 对象存储](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0002-object-storage.md)
+- [ADR-0091 退役旧文档分块栈](../../../.agents/notes/implemented/simplification/2026-08-21-adr-0091-retire-document-chunking-stack.md)
+- [ADR-0089 简化采集控制面与内部门户凭据所有权](../../../.agents/notes/implemented/simplification/2026-08-19-adr-0089-internal-portal-credential-resolution.md)（采集控制面退役与当前凭据所有权的理由）
+- [内部门户数据](../../data/internal-portal.md)
+- [通知数据](../../data/notices.md)
+- [采集运行](../../runbooks/ingestion.md)

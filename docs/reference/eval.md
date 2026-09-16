@@ -107,10 +107,10 @@ Langfuse score 名由 `packages/eval-langfuse/src/score-publisher.ts` 的代码�
 
 ## 相关文档
 
-- `eval-cases.md`
-- `../contracts/langfuse-runtime.md`
-- `../runbooks/ragas.md`
-- `../decisions/adr-0003-golden-datasets.md`
-- `../decisions/adr-0004-evaluation-metrics.md`
-- `../decisions/adr-0076-langfuse-trace-data.md`
-- `../decisions/adr-0090-eval-boundaries.md`
+- [评测用例](./eval-cases.md)
+- [Langfuse 运行合同](../contracts/langfuse-runtime.md)
+- [Ragas 评测](../runbooks/ragas.md)
+- [ADR-0003 评测数据集](../../.agents/notes/implemented/testing/2026-07-16-adr-0003-golden-datasets.md)
+- [ADR-0004 评测指标](../../.agents/notes/implemented/testing/2026-03-22-adr-0004-evaluation-metrics.md)
+- [ADR-0076 Langfuse 调用链数据](../../.agents/notes/implemented/architecture/2026-07-15-adr-0076-langfuse-trace-data.md)
+- [ADR-0090 评测数据与平台边界](../../.agents/notes/implemented/testing/2026-08-21-adr-0090-eval-boundaries.md)

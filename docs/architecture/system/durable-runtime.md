@@ -77,7 +77,7 @@ operation output，用于 Activity 重投递时恢复结果和修复投影。
 `personal_memory_recall` 不建立独立载荷。它的完整返回值是当前 operation 有界 result 的一部分；模型
 operation invocation receipt 约束该 operation 的模型和工具调用只能开始一次。started receipt 的
 结果不确定时阻断；completed receipt 使用已保存结果恢复，不再次调用 Provider。
-精确绑定字段和 StepResult 写入边界见 `../../data/durable-runtime.md`。
+精确绑定字段和 StepResult 写入边界见 [持久执行数据](../../data/durable-runtime.md)。
 
 ## 启动与取消命令
 
@@ -331,12 +331,12 @@ polling `maxAttempts` 是连续空页预算，不是严格 elapsed-time SLA；�
 
 ## 相关文档
 
-- `agent-framework.md`
-- `k8s-runtime.md`
-- `memory-plane.md`
-- `../../contracts/app-api/request-lifecycle.md`
-- `../../contracts/tool-execution.md`
-- `../../data/durable-runtime.md`
-- `../../runbooks/execution.md`
-- `../../runbooks/temporal.md`
-- `../../reference/agent-orchestration.md`
+- [Agent 框架](./agent-framework.md)
+- [Kubernetes 运行时](./k8s-runtime.md)
+- [个人记忆](./memory-plane.md)
+- [聊天请求生命周期](../../contracts/app-api/request-lifecycle.md)
+- [执行合同](../../contracts/tool-execution.md)
+- [持久执行数据](../../data/durable-runtime.md)
+- [执行服务运维](../../runbooks/execution.md)
+- [Temporal 自托管运维](../../runbooks/temporal.md)
+- [Agent 编排研究参考](../../reference/agent-orchestration.md)

@@ -9,7 +9,7 @@ status: active
 ## 文档边界
 
 本文定义仓库自有 PostgreSQL 的逻辑 schema、角色和读写边界。字段由所属数据文档和可执行
-schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署方式和环境选择不在本文
+schema 定义，连接拓扑见 [采集数据面](../architecture/system/data-plane.md)，部署方式和环境选择不在本文
 维护。
 
 ## 角色
@@ -176,7 +176,7 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 
 ## 访问规则
 
-- 数据库级 `CONNECT` 不依赖 `PUBLIC` 默认授权（[ADR-0096](../decisions/adr-0096-campus-agent-connect-acl.md)）：
+- 数据库级 `CONNECT` 不依赖 `PUBLIC` 默认授权（[ADR-0096](../../.agents/notes/implemented/architecture/2026-09-16-adr-0096-campus-agent-connect-acl.md)）：
   `campus_agent` 库对 `PUBLIC` 仅保留 `TEMP`；显式 `CONNECT` 授权为 owner `campus_agent`
   与运行角色 `app_api`、`execution_control`、`model_config`、`ops_web`。新增连接该库的角色
   必须在环境实施时同步补授权，且库级权限调整前先以 `pg_stat_activity` 和本文角色表核对
@@ -236,11 +236,11 @@ workload 只使用运行角色。
 
 ## 相关文档
 
-- `app-api/README.md`
-- `durable-runtime.md`
-- `../product/dining.md`
-- `../architecture/system/data-plane.md`
-- `../architecture/system/k8s-runtime.md`
-- `../architecture/system/retrieval-serving.md`
-- `../runbooks/campus-docs.md`
-- `../decisions/adr-0073-postgres.md`
+- [App API 数据结构](./app-api/README.md)
+- [持久执行数据](./durable-runtime.md)
+- [食堂](../product/dining.md)
+- [采集数据面](../architecture/system/data-plane.md)
+- [Kubernetes 运行时](../architecture/system/k8s-runtime.md)
+- [检索服务](../architecture/system/retrieval-serving.md)
+- [Campus Docs 与 Notices 维护及统一 RAG 发布](../runbooks/campus-docs.md)
+- [ADR-0073 PostgreSQL](../../.agents/notes/implemented/architecture/2026-07-16-adr-0073-postgres.md)

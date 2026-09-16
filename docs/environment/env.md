@@ -211,4 +211,4 @@ source/docs bucket、网络或数据卷：
 - [测试与验证](../reference/verification.md)
 - [供应商密钥操作](../runbooks/provider-secrets.md)
 - [采集与发布手册](../runbooks/ingestion.md)
-- [Secret 投递决策](../decisions/adr-0066-secret-delivery.md)
+- [Secret 投递决策](../../.agents/notes/implemented/process/2026-07-04-adr-0066-secret-delivery.md)

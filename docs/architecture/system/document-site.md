@@ -65,8 +65,8 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 `pnpm --dir apps/campus-web docs:source:update` 更新固定来源键。`dev` 和 `build` 自动读取该键，
 不接受手工文档版本参数。
 
-固定来源键表达完整期望集合。静态构建与检索 publisher 分别读取它并独立产生不可变产物，不维护
-跨系统事务；具体更新和手动索引步骤见
+固定来源键表达完整期望集合。静态构建与 Docs Chunk builder 分别读取它；统一检索 publisher 只消费
+显式 Docs/Notice 制品，不直接读取来源清单。两条发布链不维护跨系统事务；具体更新和手动索引步骤见
 [Campus Docs 维护与索引发布](../../runbooks/campus-docs.md)。
 
 不可变 Worker version 携带同一构建生成的文档内容；环境仓只选择 Worker version。环境交接和候选
@@ -76,5 +76,5 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 
 - [文档来源与静态交付合同](../../contracts/document-reader-delivery.md)
 - [文档阅读器数据模型](../../data/document-reader.md)
-- [原生阅读器决策](../../decisions/adr-0085-native-reader.md)
+- [原生阅读器决策](../../../.agents/notes/implemented/feature/2026-08-01-adr-0085-native-reader.md)
 - [运行时发布](runtime-release.md)

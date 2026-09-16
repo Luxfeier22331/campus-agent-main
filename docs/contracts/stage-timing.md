@@ -101,7 +101,7 @@ OpenAI Agents SDK trace、Langfuse 与 Temporal UI 可以提供进一步诊断�
 
 ## 相关文档
 
-- `docs/data/app-api/runtime.md`
-- `docs/contracts/langfuse-runtime.md`
-- `docs/architecture/system/learning-loop.md`
-- `docs/reference/telemetry.md`
+- [App API 运行时数据](../data/app-api/runtime.md)
+- [Langfuse 运行合同](./langfuse-runtime.md)
+- [学习闭环](../architecture/system/learning-loop.md)
+- [运行时遥测](../reference/telemetry.md)

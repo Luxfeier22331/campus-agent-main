@@ -15,6 +15,7 @@ Thanks for sending a pull request. Before review:
 ## What changed?
 
 <!-- Include user-facing, API, contract, migration, documentation, or operational impact when relevant. -->
+<!-- 非平凡改动：链接本 PR 新增或更新的决策笔记；适用范围与豁免见 .agents/notes/README.md。 -->
 
 ## How was this verified?
 

@@ -167,9 +167,9 @@ version 时同时回滚全部文档静态内容。
 
 ## 操作入口
 
-- 来源更新、Campus Web 刷新与检索索引操作：`docs/runbooks/campus-docs.md`；
-- 环境选择与候选发布：`docs/runbooks/release.md`；
-- 数据对象定义：`docs/data/document-reader.md`。
+- 来源更新、Campus Web 刷新与检索索引操作：[Campus Docs 与 Notices 维护及统一 RAG 发布](../runbooks/campus-docs.md)；
+- 环境选择与候选发布：[发布](../runbooks/release.md)；
+- 数据对象定义：[文档阅读器数据模型](../data/document-reader.md)。
 
 ## 相关文档
 

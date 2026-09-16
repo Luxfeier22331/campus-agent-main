@@ -98,6 +98,11 @@ test("Turbo does not cache side-effecting or environment-coupled tasks", () => {
 test("every root Turbo task has a tracked workspace script owner", () => {
 	const tasks = readJson("turbo.json").tasks as JsonObject;
 	const manifests = readTrackedWorkspaceManifests();
+	manifests.push({
+		name: "//",
+		path: "package.json",
+		scripts: readJson("package.json").scripts as JsonObject,
+	});
 
 	for (const taskName of Object.keys(tasks)) {
 		const separator = taskName.indexOf("#");

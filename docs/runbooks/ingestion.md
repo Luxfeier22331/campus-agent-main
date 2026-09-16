@@ -62,7 +62,7 @@ pnpm internal-portal:auth:check
 `internal-portal-collection` target 会准备当前 worktree 的 schema、通知分类 seed、Ops Web 和采集器环境；
 采集器环境包含 source bucket 与通知数据库连接。`notice-classifier` target 同样准备 schema、通知分类 seed，
 并生成 Model Config URL 与分类器环境。两者不维护 package-level 初始化入口，也不重复执行 DDL。
-`internal-portal:auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用 Ops Web
+`internal-portal:auth:pull` 按 [内部门户认证](./portal-auth.md) 使用当前 Kubernetes context 和 namespace 调用 Ops Web
 凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
 本地通知命令随后直接使用拉取到的 TGC，不需要后台编排器。
 
@@ -95,7 +95,7 @@ sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查
 继续登记通知并允许状态推进；发布时该附件不进入 `notice_assets`。图片 404、附件的其他 HTTP 错误、超时、流中断
 和对象存储失败仍然阻止推进。附件
 请求按门户附件 ID 和通知 ID 构造，单个图片或附件上限为 100 MiB；外链通知不会触发外部正文或图片
-抓取。仓库不提供独立的资源维护或状态查看命令。通知数据结构见 `../data/notices.md`。
+抓取。仓库不提供独立的资源维护或状态查看命令。通知数据结构见 [通知数据](../data/notices.md)。
 
 ### 本地分类交接
 
@@ -116,7 +116,7 @@ NOTICE_CLASSIFICATIONS=/absolute/path/to/classifications.jsonl
 每个通知只能出现一次，并具有一个共享合同允许的分类；标题不足以判断唯一分类时才使用
 `unclassified`。单条通知对临时 provider 和非法结构化输出最多尝试三次，耗尽预算后整批失败。
 分类文件不保存理由、置信度、模型名称或原始响应，也不写入对象存储或 PostgreSQL。
-具体脚本输入和平衡模型评估见 `../../scripts/notices/README.md`。
+具体脚本输入和平衡模型评估见 [内部门户通知分类](../../scripts/notices/README.md)。
 
 需要在本地验证在线 Job 时，使用同一数据库实现：
 
@@ -283,7 +283,7 @@ Kubernetes 的 `BackoffLimitExceeded` 表示 Job 控制器观察到 Pod 失败�
 `backoffLimit: 0`，所以它不是应用根因。应用根因应从任务的 Pod 原始输出中读取，Ops Web 会把它放在
 `error`，并把 controller reason/message 单独放在 `controllerError`。调试阶段两者均不脱敏、不泛化、不截断。
 
-认证错误按 `portal-auth.md` 替换 TGC。对象摘要或 schema 不一致时保留明确失败，不能改写为部分
+认证错误按 [内部门户认证](./portal-auth.md) 替换 TGC。对象摘要或 schema 不一致时保留明确失败，不能改写为部分
 成功。
 
 ## 验证
@@ -305,4 +305,4 @@ scripts/infra/validate.sh
 ```
 
 这些检查验证源码、合同、当前统一 schema 的隔离数据库拓扑和 Kubernetes 期望配置，不证明集群已应用或
-真实门户可用。Ops Web 凭据的环境检查见 `portal-auth.md`。
+真实门户可用。Ops Web 凭据的环境检查见 [内部门户认证](./portal-auth.md)。

@@ -50,7 +50,7 @@ evidence 的具体保留周期。
 - `source-derived-publicly-redistributable`：来源及再分发权利已有记录；
 - `internal-only-not-for-public-repo`：公开前必须移除或替换。
 
-新增第三方或来源派生 artifact 时，按需更新 `NOTICE`、`THIRD_PARTY_NOTICES.md` 或所属
+新增第三方或来源派生 artifact 时，按需更新 `NOTICE`、[第三方来源声明](../../THIRD_PARTY_NOTICES.md) 或所属
 provenance 文档。
 
 ## 运行时内容

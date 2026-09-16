@@ -238,7 +238,7 @@ pnpm --filter ops-web dev:fixture
 `pnpm dev:init -- --target core` 或 `--target notice-classifier` 会按 target 从当前进程环境或根 `.env` 显式
 seed 缺失的 Model Config；它不访问 Provider、不覆盖已有配置，也不产生 validation 记录。需要在线修改或
 验证时，启动本地 `pnpm dev` 与 `pnpm --filter ops-web dev:api`、`pnpm --filter ops-web dev:web`，按
-`provider-secrets.md` 操作。应用启动不能静默 seed 在线配置。main checkout 导入的 provider 字段只是
+[在线模型密钥操作](./provider-secrets.md) 操作。应用启动不能静默 seed 在线配置。main checkout 导入的 provider 字段只是
 初始化输入，不是 runtime source；映射由 target 声明的 config name 决定，通用 LLM 连接不会隐式覆盖已有
 通知分类配置。`notice_classification` 本地 seed 使用独立的
 `NOTICE_CLASSIFICATION_BASE_URL`、`NOTICE_CLASSIFICATION_API_KEY` 和

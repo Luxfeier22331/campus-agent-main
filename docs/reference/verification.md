@@ -46,14 +46,14 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 
 | 命令 | 负责 | 不证明 |
 | --- | --- | --- |
-| `pre-commit` | 暂存文件的 check-only 跨语言静态检查和 Secret 扫描 | typecheck、test、build 或 runtime |
-| `pre-push` | 根目录 `pnpm test`，以及受影响 Node 模块的 typecheck/test/worker test 与 Go 模块的 format/lint/vet/test | build、integration、浏览器 E2E 或 runtime |
+| `pre-commit` | 暂存文件的静态检查与 Secret 扫描、根脚本测试，以及受影响 Node/Go 源码检查 | build、integration、浏览器 E2E 或 runtime |
+| `pre-push` | 不再安装仓库重验证 hook | 源码或运行时验证 |
 | `pnpm verify` | 全量源码检查、Ragas 单测、数据库集成、Infra、OTel 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
 | `pnpm verify --source` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Ragas 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
 | `pnpm check` | 本地仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
-| `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描 | 文档链接、业务行为或类型正确性 |
-| `pnpm docs:check` | frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
-| `pnpm test` | 仓库开发、验证和发布脚本测试 | package test、镜像构建或外部服务 |
+| `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描与 validation group | 文档链接、业务行为或类型正确性 |
+| `pnpm docs:check` | frontmatter、笔记树与格式、归档、入口预算、链接和语言合同 | 代码或部署状态 |
+| `pnpm test` | 可复用 Turbo 缓存的仓库开发、验证和发布脚本测试 | package test、镜像构建或外部服务 |
 | `pnpm --dir packages/contracts check` | JSON Schema/OpenAPI 同步和合同不变量 | consumer runtime 行为 |
 | `scripts/dependencies/scan.sh` | 已锁定依赖的漏洞扫描 | 应用行为或镜像漏洞 |
 | `scripts/infra/validate.sh` | Kustomize render 与基础设施 policy | 集群已应用或 workload 健康 |
@@ -63,12 +63,30 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 
 跨语言静态检查由 `.pre-commit-config.yaml` 拥有，包级任务由所属 manifest 拥有。
 公共验证执行器统一 Node、Go、构建和数据库任务集合；全量与 affected 只改变选择范围。
+Node 任务的 Turbo 并发以半核数（最少 2）为上限，native 任务串行，避免全量 affected 在共享
+runner 上把任务内进程池与任务级并行相乘造成超时饥饿。
 本地和 CI 使用仓库锁定的 Nix 工具链，Go 检查不依赖用户 PATH 中的全局 lint 版本。
 
-pre-push 先执行根目录 `pnpm test`，覆盖仓库脚本及跨应用源码边界；失败时直接阻止推送，不继续模块检查。
-根目录测试不依赖模块 affected 范围，即使没有受影响模块也执行。随后执行 Node/Go 模块检查：正常推送比较远端旧提交与待推送提交；新分支使用本地
-`origin/main` 的 merge-base；缺少基准或非快进时执行全量模块检查。删除分支不执行检查，
-不自动 fetch。仓库文档检查仍由 `pnpm check`、`pnpm verify` 和 PR 执行；这些入口也保留仓库脚本测试。
+pre-commit 先执行静态检查与 Secret 扫描，再执行根目录 `pnpm test` 和受影响模块检查；任一阶段
+失败即停止。根测试仍在没有受影响模块时调用，但相同输入可以复用成功结果。模块任务继续复用统一
+执行器中的 Node typecheck/test/worker test 与 Go format/lint/vet/test 集合，不增加构建或集成检查。
+
+提交前任务选择使用 prek 隔离未暂存修改后的工作区，以 HEAD 为 Turbo affected 基准，不能用两个
+相同提交的空差异代替暂存变更。没有暂存文件变化时跳过模块任务；首次提交没有 HEAD 时检查全量
+Node/Go 源码任务，不依赖远端引用或自动 fetch。PR 继续按真实 base/head 检查完整分支差异。
+`pnpm lint` 通过排除 validation group 保持静态检查语义，不因 hook 迁移而重复调用测试。
+
+`pnpm test` 通过根任务 `//#test:scripts` 执行原有脚本测试，不依赖模块测试或递归调用自身。
+该任务输入为仓库默认未忽略文件，覆盖脚本读取的应用源码、工作流、文档、配置和工具链文件；
+还使用当前 Git 索引树及实际 Node、Git、pnpm 版本、OS 和架构作为专属缓存输入。索引树用于区分
+测试读取的 Git 跟踪文件集合，提交 SHA、分支名和 worktree 绝对路径不进入缓存键。
+Git 上下文在测试子进程启动前清理，避免临时仓库被 hook 的 Git 路径变量指向当前仓库。
+缓存只复用成功结果；失败照常阻断。`pnpm check`、verify、提交 hook 和 PR 共用这个入口。
+
+pre-push 不再执行重验证。`pnpm hooks:install` 在当前 worktree 卸载 prek 管理的旧 pre-push shim，
+再安装 pre-commit；其他 worktree 和自定义 hook 不因此改变。迁移原因与取舍见
+[提交前验证与根测试缓存](../../.agents/notes/implemented/process/2026-09-16-pre-commit-validation.md)。
+仓库文档检查仍由 `pnpm check`、`pnpm verify` 和 PR 执行。
 
 源码 affected 使用真实提交和 Turbo 配置。发布候选由 release 所有者保留现有配置过滤及显式镜像
 选择规则，不让发布选择反向抑制源码校验。PR 复用生成的任务计划；选中但未成功执行的检查不能通过汇总。

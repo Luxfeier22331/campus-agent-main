@@ -115,7 +115,7 @@ Kubernetes 候选物、环境选择和实际发布的所有权见
 
 ## 相关文档
 
-- `docs/runbooks/temporal.md`
-- `docs/runbooks/release.md`
-- `docs/architecture/system/durable-runtime.md`
-- `docs/architecture/system/data-plane.md`
+- [Temporal 自托管运维](../../runbooks/temporal.md)
+- [发布](../../runbooks/release.md)
+- [持久 Agent 运行时](./durable-runtime.md)
+- [采集数据面](./data-plane.md)

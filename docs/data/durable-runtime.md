@@ -109,7 +109,7 @@ Activity 结果。Execution Control 在业务结果持久化后以一秒超时�
 读取权限。未来移除 Ops 格式错误诊断时应一并删除该列及其生产/消费代码。
 
 step 投影描述持久运行架构中的稳定阶段。阶段语义由
-`../architecture/system/durable-runtime.md` 维护，具体 `step_id` 与 `step_kind` 由执行代码和
+[持久 Agent 运行时](../architecture/system/durable-runtime.md) 维护，具体 `step_id` 与 `step_kind` 由执行代码和
 schema 维护。
 
 attempt 投影可以包含 Temporal queue/worker 标识、attempt number、timestamp、duration、
@@ -264,7 +264,7 @@ Ops 的回答终态失败读取 `execution_control.ops_terminal_failures`：只�
 
 ## 相关文档
 
-- `../contracts/tool-execution.md`
-- `../architecture/system/durable-runtime.md`
+- [执行合同](../contracts/tool-execution.md)
+- [持久 Agent 运行时](../architecture/system/durable-runtime.md)
 
 可执行数据结构和状态迁移由 `apps/execution-control/internal/execution` 及其测试维护。

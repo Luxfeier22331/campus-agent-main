@@ -69,27 +69,16 @@ serving 读取路径。
 
 ## Chunk 策略治理
 
-Chunk 策略治理与生产分块实现同属 `campus-docs-index-publisher`，但治理只读取显式 Chunk Set，不修改
-`campus_docs_reader_elements.v5`、Embedding Set、Qdrant collection 或当前在线绑定。review 对完整
-Chunk Set 生成全量 census、150 份文档的确定性覆盖样本、候选信号和 450 个 Chunk 级审阅项。Chunk
-审阅项包含正文、heading 路径、reader root units、前后边界和全部候选信号；关联既有 embedding
-evaluation 时还全量纳入 evidence Chunk 及其 question/rank。普通分层执行每文档上限，元数据、near-max
-和 embedding evidence 为避免漏检而全量进入。候选信号只定位人工审阅对象，不是自动改写 Chunk 的
-规则。
+Chunk 策略治理与生产分块实现同属 `campus-docs-index-publisher`。它读取显式 Chunk Set，提供结构
+审阅、人工标签、真实 Embedding 评测及同题集比较；结果不自动改写生产分块定义、制品或当前绑定。
+候选信号用于定位人工审阅对象，不是自动拆分或合并规则；评价须结合结构、抽样与 evidence placement，
+不能只看短块数量。
 
-人工标签只表达 `keep` 或带 `drop`、`attach`、`merge`、`split`、`upstream-reader` action 的
-`change`。标签汇总按 primary stratum 和 candidate signal 报告 change rate，但不会据此生成候选 Chunk
-Set；对照组用于估计候选信号之外的 Reader/Chunker 问题率。
-
-真实 embedding 评测使用固定问题文件、Chunk 的 `retrieval_text` 和当前 canonical dense embedding
-定义，分别报告 target Chunk、全部 evidence、文档和 single-chunk answer 的排名指标。比较 baseline
-与 candidate 时，评测必须分别引用对应 Chunk Set，并使用相同模型 target、问题文件摘要、embedding
-定义和问题顺序；来源投影不同时不比较 evidence placement。逐文本 embedding 缓存和所有治理制品只
-保存在 worktree 的 `var/campus-docs/chunk-governance/`，不进入 Git 或生产制品 Store。
-
-该能力属于本地人工/研究验证，不是 PR 阻断检查，也不等价于在线 dense/sparse hybrid 加 reranker 的
-最终效果。治理结果不会自动生成、发布或激活新的生产 Chunk Set；是否调整生产定义需综合结构 census、
-广泛抽样、evidence placement 和真实 embedding 对比后另行决定。
+该能力属于本地人工/研究验证，不是 PR 阻断检查，也不等于在线 hybrid 与 reranker 的最终效果。
+[操作手册](../../runbooks/campus-docs.md#chunk-策略治理验证)维护输入、命令、比较条件与结果解释，
+本地正文和向量制品留在 worktree 的 `var/`，不提交 Git。Notice 的独立操作由
+[Notice builder](../../../jobs/notice-index-publisher/README.md)维护，v8 的历史选择与验证范围见
+[通知结构分块决策](../../../.agents/notes/implemented/architecture/2026-08-31-notice-chunk-strategy.md)。
 
 ## 构建与发布
 
@@ -110,10 +99,12 @@ Unified Publisher Job: Docs Embedding Set + Notice Embedding Set
   -> 原子替换 campus_docs_serving.current_index
 ```
 
-本地 Chunk/Embedding CLI 与对应集群 Job 共用领域实现，只替换制品 Store 和 Embedding 连接组装。本地
-Docs/Notice builder 分别写入 worktree `var/`；集群 builder 写入 derived bucket。Chunk 构建在写入前校验
+本地分块和评测与正式 Job 复用领域实现，使用各自的 Store 与连接组装。
+本地 Docs Chunk/Embedding 与 Notice Chunk/评测写入 worktree `var/`；正式 builder 写入 derived bucket。
+Notice Embedding Set 从对象存储中的 Chunk Run 构建，不直接消费本地评测目录。Chunk 构建在写入前校验
 来源覆盖、section、root unit、`retrievalText`、字符上限和表格单元格覆盖。所有阶段输出都按实际内容
-寻址，本地制品不上传或晋升。
+寻址，本地制品不自动晋升；Notice Embedding cache 的显式校验导入见
+[通知制品手册](../../runbooks/notice-indexing.md#导入本地-embedding-cache)。
 
 阶段之间只传递显式 `sha256:<id>`，不自动串联，不维护 `latest` 制品指针或构建状态机。manifest 和
 NDJSON 使用规范序列化、最终换行和内容寻址对象键，不可变写入采用 create-or-verify。两个 Embedding
@@ -135,7 +126,7 @@ PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或
 `SELECT`、`INSERT`、`UPDATE`，并拒绝 `DELETE`、`TRUNCATE`、`REFERENCES` 和 `TRIGGER`。
 
 源码包含 Job、schema、制品或 collection 只能证明发布链可执行，不能证明任一环境已经运行这些 Job
-或激活当前索引。操作步骤和清理条件见 `../../runbooks/campus-docs.md`。
+或激活当前索引。操作步骤和清理条件见 [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/campus-docs.md)。
 
 ## 在线消费边界
 
@@ -169,8 +160,8 @@ Agent 正文只引用实际采用的候选；当前 Campus Docs 来源由 `campu
 
 ## 相关文档
 
-- `agentic-retrieval.md`
-- `document-site.md`
-- `../../data/document-reader.md`
-- `../../runbooks/campus-docs.md`
-- `../../decisions/adr-0052-qdrant-hosting.md`
+- [Agent 的机构知识边界](./agentic-retrieval.md)
+- [文档站架构](./document-site.md)
+- [文档阅读器数据模型](../../data/document-reader.md)
+- [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/campus-docs.md)
+- [ADR-0052 Qdrant 托管方式](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0052-qdrant-hosting.md)

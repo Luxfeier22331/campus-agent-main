@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { imageTargetsForScope } from "../release/image-targets.mts";
@@ -9,6 +10,7 @@ import {
 	type CommandResult,
 	type CommandRunner,
 	resolveAffectedScope,
+	resolveStagedTasks,
 	type ScopeTask,
 } from "./scope.mts";
 import {
@@ -24,7 +26,7 @@ import {
 	type ValidationProfile,
 } from "./validation-profiles.mts";
 
-type ExecutionProfile = ValidationProfile | "pre-push" | "verify";
+type ExecutionProfile = ValidationProfile | "pre-commit" | "verify";
 
 export type EvidenceCommandRunner = CommandRunner;
 
@@ -125,6 +127,10 @@ function runProfileCommand(
 	}
 }
 
+export function nodeTaskConcurrency(cpus: () => os.CpuInfo[] = os.cpus): number {
+	return Math.max(2, Math.floor(cpus().length / 2));
+}
+
 export function runTasks(
 	profile: ExecutionProfile,
 	tasks: readonly string[],
@@ -149,7 +155,7 @@ export function runTasks(
 		"turbo",
 		"run",
 		...selected,
-		...(input.native ? ["--concurrency=1"] : []),
+		...(input.native ? ["--concurrency=1"] : [`--concurrency=${nodeTaskConcurrency()}`]),
 		"--summarize",
 	];
 	const taskOptions = input.native
@@ -221,43 +227,35 @@ function runAffectedImageEvidence(
 	runProfileCommand("image-build", "node", args, runner, options);
 }
 
-export function runPrePushEvidence(
-	input: { base?: string; head: string; repositoryRoot: string; env?: NodeJS.ProcessEnv },
+export function runPreCommitEvidence(
+	input: { repositoryRoot: string; env?: NodeJS.ProcessEnv },
 	runner: EvidenceCommandRunner = runCommand,
 ): void {
-	const env = {
-		...(input.env ?? process.env),
-		...(input.base ? { TURBO_SCM_BASE: input.base } : {}),
-		TURBO_SCM_HEAD: input.head,
-	};
-	const options = { cwd: input.repositoryRoot, env };
+	const options = { cwd: input.repositoryRoot, env: { ...(input.env ?? process.env) } };
+	// The root test entry owns its cache context and cleans Git variables for fixture repositories.
+	runProfileCommand(
+		"pre-commit",
+		"nix",
+		["develop", ".#ci-core", "--command", "pnpm", "test"],
+		runner,
+		options,
+	);
+	const scope = resolveStagedTasks(
+		{ repositoryRoot: input.repositoryRoot, env: options.env },
+		runner,
+	);
 	const localGitVariables = runner("git", ["rev-parse", "--local-env-vars"], options);
 	if (localGitVariables.error) {
 		throw localGitVariables.error;
 	}
 	if (localGitVariables.status !== 0) {
-		throw new Error("Cannot determine Git hook environment variables for root tests");
+		throw new Error("Cannot determine Git hook environment variables");
 	}
-	// Root tests create their own repositories; hook-local Git paths must not follow them.
-	const rootTestEnv = { ...env };
 	for (const name of (localGitVariables.stdout ?? "").split(/\s+/u).filter(Boolean)) {
-		delete rootTestEnv[name];
+		delete options.env[name];
 	}
-	runProfileCommand(
-		"pre-push",
-		"nix",
-		["develop", ".#ci-core", "--command", "pnpm", "test"],
-		runner,
-		{ ...options, env: rootTestEnv },
-	);
-	const scope = input.base
-		? resolveAffectedScope(
-				{ base: input.base, head: input.head, repositoryRoot: input.repositoryRoot },
-				runner,
-			).tasks
-		: undefined;
-	runTasks("pre-push", NODE_TASKS, runner, options, { scope, shell: "ci-core" });
-	runTasks("pre-push", NATIVE_TASKS, runner, options, { scope, shell: "ci-go", native: true });
+	runTasks("pre-commit", NODE_TASKS, runner, options, { scope, shell: "ci-core" });
+	runTasks("pre-commit", NATIVE_TASKS, runner, options, { scope, shell: "ci-go", native: true });
 }
 
 export function runVerification(

@@ -12,4 +12,4 @@ status: active
 - [notices.md](./notices.md)：通知来源、派生关系和未开放边界；
 
 可由一份文档讲清楚的窄能力不在本目录建立转发文档。食堂由
-`docs/product/dining.md` 集中维护。
+[食堂](../../product/dining.md) 集中维护。

@@ -47,7 +47,7 @@ Job 的配置来源。
 ### PostgreSQL
 
 PostgreSQL 角色按数据所有权、授权范围和迁移边界决定，不按应用或 Job 名称自动拆分。连接拓扑与
-角色边界见 `../data/postgres-ownership.md`，不得为了减少 Secret 数量合并成超出职责的高权限账号。
+角色边界见 [PostgreSQL 所有权](../data/postgres-ownership.md)，不得为了减少 Secret 数量合并成超出职责的高权限账号。
 
 ### Qdrant
 
@@ -95,7 +95,7 @@ Worker source map 由 Wrangler 在 Worker 发布链路中上传给 Cloudflare，
 解释成 Campus Agent 团队或投递路由；`ticket` 不属于当前 Campus Agent 告警合同。当前通知事实只
 以环境仓可执行的 monitor 与 notifier 配置为准。
 
-字段与内容边界见 `../reference/telemetry.md` 和 `../contracts/langfuse-runtime.md`。
+字段与内容边界见 [运行时遥测](../reference/telemetry.md) 和 [Langfuse 运行合同](../contracts/langfuse-runtime.md)。
 
 ## 交付规则
 
@@ -122,5 +122,5 @@ Worker source map 由 Wrangler 在 Worker 发布链路中上传给 Cloudflare，
   复用该值，不新增 `NOTICE_*`、TGC 或采集专用 token。通知采集和 notice-classifier 复用既有数据库
   owner Secret 与 PostgreSQL CA；notice-classifier 不读取对象存储，模型设置从 Model Config 读取。
 
-环境文件和覆盖规则见 `env.md`，新增、轮换和撤销步骤见
-`../runbooks/provider-secrets.md`。
+环境文件和覆盖规则见 [环境文件](./env.md)，新增、轮换和撤销步骤见
+[在线模型密钥操作](../runbooks/provider-secrets.md)。

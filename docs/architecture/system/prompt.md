@@ -86,8 +86,8 @@ Finalization 按实际引用生成来源链接。Google 搜索建议独立展示
 并加入工具结果。runner 返回中立 operation 结果；Agent Runtime 要求非空 `final_output`，execution-control
 校验工具结果并从正文引用派生来源，但不调用第二个模型改写答案。
 
-具体上下文行为见 `../../product/run-context.md`，Agent 输入输出见 `agent-framework.md`，终态
-合同见 `../../contracts/tool-execution.md`。
+具体上下文行为见 [多轮对话](../../product/run-context.md)，Agent 输入输出见 [Agent 框架](./agent-framework.md)，终态
+合同见 [执行合同](../../contracts/tool-execution.md)。
 
 ## 可观测性
 
@@ -107,14 +107,14 @@ Prompt 或模型输入输出变化应验证：
 - 追问、资料不足和范围说明的正文质量可由数据集评估，依赖错误仍由运行状态区分；
 - 相关 Agent 与 RAG 数据集没有出现不可接受回归。
 
-具体评测方法和发布流程分别见 `../../reference/eval.md` 与所属操作手册。
+具体评测方法和发布流程分别见 [评测](../../reference/eval.md) 与所属操作手册。
 
 ## 相关文档
 
-- `agent-framework.md`
-- `tool-routing.md`
-- `agentic-retrieval.md`
-- `retrieval-serving.md`
-- `../../contracts/langfuse-runtime.md`
-- `../../decisions/adr-0060-agent-io.md`
-- `../../reference/agent-orchestration.md`
+- [Agent 框架](./agent-framework.md)
+- [工具路由](./tool-routing.md)
+- [Agent 的机构知识边界](./agentic-retrieval.md)
+- [检索服务](./retrieval-serving.md)
+- [Langfuse 运行合同](../../contracts/langfuse-runtime.md)
+- [ADR-0060 Agent 输入输出](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0060-agent-io.md)
+- [Agent 编排研究参考](../../reference/agent-orchestration.md)

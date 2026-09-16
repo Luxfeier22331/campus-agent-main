@@ -19,12 +19,9 @@ status: active
 -> 模型或维护者写入单一用户分类
 -> notice-publisher
 -> 已发布正文与 derived 资源
--> App API
--> Campus Web
--> Notice Chunk Run v1
--> Notice Embedding Set
--> Campus RAG unified publisher
--> campus_search
+   ├-> App API -> Campus Web
+   └-> Notice Chunk Run v1 -> Notice Embedding Set
+       -> Campus RAG unified publisher -> campus_search
 ```
 
 internal-portal-collection 在通知模式中写入来源对象和原始资源，并在资源齐备后登记数据库库存；
@@ -43,8 +40,8 @@ ingestion runtime base 为通知增量、通知回填和文件发布分别提供
 notice-publisher 读取数据库中已有分类且未发布的通知，显式物化正文与资源并打开学生端可见边界；对已发布站内通知也可通过独立的
 重新发布操作重新物化正文投影，但保持学生端可见边界不变。本地 CLI 与默认暂停的 Kubernetes Job 模板使用同一实现，不提供自动
 schedule。App API 和 Campus Web 只读取 `is_published=true` 的投影。完整
-数据结构和操作顺序分别由 `../../data/notices.md` 和
-`../../runbooks/ingestion.md` 维护。
+数据结构和操作顺序分别由 [通知数据](../../data/notices.md) 和
+[采集运行](../../runbooks/ingestion.md) 维护。
 
 下游领域必须通过自己的校验和发布入口消费通知。稳定制度正文可以显式提升为规章，已核对的日期
 安排可以成为校历参考；没有下游发布器的通知仍只是通知数据。
@@ -56,12 +53,9 @@ App API 提供会话保护的目录、站内详情和图片读取。目录用 `s
 通知从目录直接前往已校验来源，不抓取外部正文。站内详情提供需要用户门户登录态的原文和附件链接；
 App API 不代理附件字节。
 
-`campus_notices/internal_notice` 不进入 Docs builder。Notice 自己的两个默认暂停任务从已发布正文生成
-derived bucket 中的 Chunk Run 与 Embedding Set；它们不直接发布 Qdrant collection，也不维护在线绑定。
-`notice_chunk_run.v1` 由同一 repeatable-read 快照生成 Chunk；统一 `campus-rag-index-publisher` 只读显式
-Docs/Notice Embedding Set 和 serving 所需的 immutable Chunk 制品，把 Notice point 与 Docs point 组装到一个
-collection。Notice title 从 Chunk 的 `retrievalText` 首行生成，citation 固定为 `/notices/<noticeId>`；它
-不连接 live Notices DB，也不重新 embedding。review 和 validation 文件只属于离线诊断。
+`campus_notices/internal_notice` 不进入 Docs builder。Notice 的独立 builder 从已发布正文生成 Chunk 与
+Embedding 制品；统一 Publisher 才拥有 Qdrant 发布和当前绑定。制品与查询交接由
+[检索服务](../system/retrieval-serving.md)维护，字段与内容语义由[通知数据](../../data/notices.md)维护。
 
 Agent 不能扫描通知对象存储或 PostgreSQL，也不提供通知结构化查询或附件解析；已发布通知只通过
 `campus_search` 的统一检索入口进入模型上下文。离线问题生成和评测仍只消费与目标 Chunk Run 对齐的
@@ -70,11 +64,11 @@ Agent 不能扫描通知对象存储或 PostgreSQL，也不提供通知结构化
 
 ## 相关文档
 
-- `../../data/notices.md`
-- `../../contracts/app-api/notices.md`
-- `../../runbooks/ingestion.md`
-- `../../contracts/internal-portal-file-release.md`
-- `../../decisions/adr-0024-authenticated-notice.md`
-- `../../decisions/adr-0087-internal-portal-notice-source.md`
-- `../../decisions/adr-0088-normalized-notice-storage.md`
-- `../../decisions/adr-0094-notice-maintenance-state.md`
+- [通知数据](../../data/notices.md)
+- [通知接口](../../contracts/app-api/notices.md)
+- [采集运行](../../runbooks/ingestion.md)
+- [内部门户文件发布采集](../../contracts/internal-portal-file-release.md)
+- [ADR-0024 认证通知来源](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0024-authenticated-notice.md)
+- [ADR-0087 内部门户通知来源合同](../../../.agents/notes/implemented/architecture/2026-08-14-adr-0087-internal-portal-notice-source.md)
+- [ADR-0088 规范化通知存储](../../../.agents/notes/implemented/architecture/2026-08-14-adr-0088-normalized-notice-storage.md)
+- [ADR-0094 通知维护状态收敛](../../../.agents/notes/implemented/architecture/2026-08-25-adr-0094-notice-maintenance-state.md)

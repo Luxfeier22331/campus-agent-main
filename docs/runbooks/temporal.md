@@ -10,8 +10,8 @@ status: active
 本文说明 Temporal Server 与 execution-control poller 的稳定运维规则。具体 chart 版本、Helm
 value、namespace、endpoint 和资源尺寸由环境仓库拥有，不在本文复制。
 
-本文不定义应用工作流语义：在线回答见 `../architecture/system/durable-runtime.md`，个人记忆见
-`../architecture/system/memory-plane.md`。平台运维不得改变这些工作流的业务状态。
+本文不定义应用工作流语义：在线回答见 [持久 Agent 运行时](../architecture/system/durable-runtime.md)，个人记忆见
+[个人记忆](../architecture/system/memory-plane.md)。平台运维不得改变这些工作流的业务状态。
 
 execution-control 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
 poller。副本数与滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套
@@ -151,5 +151,5 @@ Temporal persistence 与 visibility database 是 platform data。backup、restor
 
 ## 相关文档
 
-- `../decisions/adr-0048-temporal.md`
-- `../architecture/system/k8s-runtime.md`
+- [ADR-0048 Temporal 执行面](../../.agents/notes/implemented/architecture/2026-06-06-adr-0048-temporal.md)
+- [Kubernetes 运行时](../architecture/system/k8s-runtime.md)

@@ -4,8 +4,11 @@
 
 - 仓库概览与常用命令：`README.md`
 - 文档入口与所有权：`docs/README.md`
+- 决策记录：`.agents/notes/README.md`；非平凡改动同批新增或更新一篇决策笔记，
+  更新既有笔记优先于新建。
+- 笔记写作流程：`.agents/skills/write-notes-like-deepseek/SKILL.md`。
 - 本文件只保留每次任务都需要的规则；修改结构或接口前，只读取直接相关的最近 README、架构、合同、
-  数据文档或 ADR。
+  数据文档或决策笔记。
 
 ## 判断边界
 

@@ -57,7 +57,7 @@ Ops Web 提供通知摘要、已采集正文预览、分类维护和自动采集
 - `published`：`is_published=true`。
 
 分类更新正文只接受 `{ "category": "<共享分类值>" }`，直接更新同一通知行。当前状态模型的消费者、
-理由和重新评估条件见 `../../decisions/adr-0094-notice-maintenance-state.md`。已发布通知的分类保存后立即
+理由和重新评估条件见 [ADR-0094 通知维护状态收敛](../../../.agents/notes/implemented/architecture/2026-08-25-adr-0094-notice-maintenance-state.md)。已发布通知的分类保存后立即
 影响学生端。
 
 ## 自动采集

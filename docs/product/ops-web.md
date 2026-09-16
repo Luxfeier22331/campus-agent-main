@@ -9,8 +9,8 @@ status: active
 ## 边界
 
 本文定义 Ops Web 的操作者任务、页面体验、权限表现和验收要求。HTTP 语义见
-`../contracts/ops-web/README.md`，运行信号边界见 `../reference/telemetry.md`，Dining 内容规则见
-`dining.md`。本文不固定组件库、数据库结构、供应商配置或部署参数。
+[Ops Web 接口](../contracts/ops-web/README.md)，运行信号边界见 [运行时遥测](../reference/telemetry.md)，Dining 内容规则见
+[食堂](./dining.md)。本文不固定组件库、数据库结构、供应商配置或部署参数。
 共同的信息层级、状态、响应式和无障碍底线由 [ui.md](./ui.md) 维护。
 
 Ops Web 不替代 Temporal、Langfuse 的完整平台界面，也不是数据库浏览器、通用
@@ -139,7 +139,7 @@ automation token。
 内容维护人员可以编辑全部食堂地图、保存完整草稿、发布不可变版本并恢复历史版本。页面明确
 区分画布未保存修改、数据库草稿和当前学生端版本。独立任务页用于维护即时生效的菜单、查看和
 处理评价、处理举报；不提供采集、来源同步、预览、导入导出或开发 Seed 操作。具体规则和验收由
-`dining.md` 维护。
+[食堂](./dining.md) 维护。
 
 ### 维护同好群目录
 
@@ -206,8 +206,8 @@ automation token。
 
 ## 相关文档
 
-- `../decisions/adr-0072-self-hosted-ops-web.md`
-- `../contracts/ops-web/README.md`
-- `dining.md`
-- `ui.md`
-- `../domains/groups.md`
+- [ADR-0072 自托管 Ops Web](../../.agents/notes/implemented/architecture/2026-07-12-adr-0072-self-hosted-ops-web.md)
+- [Ops Web 接口](../contracts/ops-web/README.md)
+- [食堂](./dining.md)
+- [界面体验基线](./ui.md)
+- [同好群](../domains/groups.md)

@@ -77,6 +77,6 @@ forced-colors 下继续可识别。页面只播报首次成功、状态变化、
 
 ## 相关文档
 
-- `../architecture/system/product-runtime.md`
-- `../decisions/adr-0086-product-availability-status.md`
-- `../../apps/status-web/README.md`
+- [产品运行时](../architecture/system/product-runtime.md)
+- [ADR-0086 产品可用性状态页](../../.agents/notes/implemented/feature/2026-08-11-adr-0086-product-availability-status.md)
+- [status-web](../../apps/status-web/README.md)

@@ -37,7 +37,7 @@ type ChatAvailabilityResponse = {
 - conversation 和 request 只能由当前用户访问；
 - soft-deleted conversation 不进入列表、搜索或详情；
 - 搜索不匹配 raw trace、source ref、provider internal 或内部错误；
-- 错误使用 `error.md` 的共享 envelope。
+- 错误使用 [App API 错误](./error.md) 的共享 envelope。
 
 ## 会话
 

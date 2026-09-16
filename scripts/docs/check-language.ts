@@ -7,7 +7,7 @@ const latinPattern = /[A-Za-z]/gu;
 const longEnglishLineThreshold = 48;
 
 function requiresChineseProse(file: string): boolean {
-	return !file.startsWith(".github/");
+	return !(file.startsWith(".github/") || file.startsWith(".agents/notes/archived/"));
 }
 
 interface AddedLine {

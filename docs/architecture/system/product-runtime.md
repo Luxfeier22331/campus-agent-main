@@ -56,7 +56,7 @@ flowchart LR
 
 app-api 保存用户轮次并创建持久 request；execution-control 和 Temporal 推进执行并写入
 `execution_control.agent_*`；app-api 消费有界事件并保存产品终态。事务与幂等规则只在
-`docs/contracts/app-api/request-lifecycle.md` 维护。
+[聊天请求生命周期](../../contracts/app-api/request-lifecycle.md) 维护。
 
 ## 数据边界
 
@@ -79,7 +79,8 @@ run、step、attempt、result 和 provider response ID 仅属于 execution-contr
 - `ops-web -> model-config` 通过同源 BFF 管理在线模型配置；浏览器不获得 Provider API Key。
 - execution-control 读取 `primary_agent` target 并冻结服务返回的 hash；Agent Runtime 按该 hash 读取完整
   配置。普通 Job 直接读取所属具名配置。内部 consumer 位于共同受信任边界，不使用 Model Config
-  consumer token 或注册表；Reranker 的在线调用方尚未在本仓库实现。
+  consumer token 或注册表。`campus_search` 在工具调用时读取 Embedding 与 Reranker 连接，具体查询与
+  失败语义见[检索服务](./retrieval-serving.md#在线消费边界)。
 - `ops-web -> PostgreSQL/execution-control` 提供有界运行摘要和执行诊断事实。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开菜单并以受限权限处理学生评价和举报；校园地图由 campus-web 的静态资产直接提供。
@@ -103,11 +104,11 @@ run、step、attempt、result 和 provider response ID 仅属于 execution-contr
 
 ## 相关文档
 
-- `docs/contracts/app-api/README.md`
-- `docs/contracts/app-api/request-lifecycle.md`
-- `docs/contracts/ops-web/README.md`
-- `docs/data/postgres-ownership.md`
-- `docs/product/status-web.md`
-- `docs/architecture/system/runtime-release.md`
-- `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0086-product-availability-status.md`
+- [App API HTTP 合同](../../contracts/app-api/README.md)
+- [聊天请求生命周期](../../contracts/app-api/request-lifecycle.md)
+- [Ops Web 接口](../../contracts/ops-web/README.md)
+- [PostgreSQL 所有权](../../data/postgres-ownership.md)
+- [产品可用性状态页](../../product/status-web.md)
+- [运行时发布架构](./runtime-release.md)
+- [ADR-0013 App API Worker 运行时](../../../.agents/notes/implemented/architecture/2026-03-28-adr-0013-app-api-worker-runtime.md)
+- [ADR-0086 产品可用性状态页](../../../.agents/notes/implemented/feature/2026-08-11-adr-0086-product-availability-status.md)

@@ -278,6 +278,12 @@
 		},
 		"ocr": {
 			"cache": false
+		},
+		"//#test:scripts": {
+			"inputs": ["$TURBO_DEFAULT$"],
+			"outputs": [],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_REPO_TEST_INDEX_TREE", "CAMPUS_REPO_TEST_RUNTIME"]
 		}
 	}
 }

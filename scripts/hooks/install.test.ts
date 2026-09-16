@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -70,7 +70,11 @@ test("delegates standard prek installation to independent checkout hook paths", 
 			installs.push({ args, cwd: options.cwd });
 			const hookRoot = path.join(options.cwd, ".githooks");
 			mkdirSync(hookRoot, { recursive: true });
-			for (const hook of ["pre-commit", "pre-push"]) {
+			if (args.includes("uninstall")) {
+				rmSync(path.join(hookRoot, "pre-push"), { force: true });
+				return result();
+			}
+			for (const hook of ["pre-commit"]) {
 				writeFileSync(path.join(hookRoot, hook), `${options.cwd}\n`);
 			}
 			return result();
@@ -89,7 +93,10 @@ test("delegates standard prek installation to independent checkout hook paths", 
 	};
 	const env = cleanEnvironment();
 
+	mkdirSync(path.join(main, ".githooks"), { recursive: true });
+	writeFileSync(path.join(main, ".githooks/pre-push"), "old managed hook\n");
 	assert.equal(installHooks({ cwd: main, env, runner }).status, "installed");
+	assert.equal(existsSync(path.join(main, ".githooks/pre-push")), false);
 	git(main, "worktree", "add", "--quiet", "-b", "feature", linked);
 	assert.equal(installHooks({ cwd: linked, env, runner }).status, "installed");
 
@@ -109,7 +116,9 @@ test("delegates standard prek installation to independent checkout hook paths", 
 	assert.deepEqual(
 		installs.map(({ args }) => args),
 		[
+			["exec", "prek", "uninstall", "--hook-type", "pre-push"],
 			["exec", "prek", "install", "--force"],
+			["exec", "prek", "uninstall", "--hook-type", "pre-push"],
 			["exec", "prek", "install", "--force"],
 		],
 	);
@@ -120,5 +129,5 @@ test("delegates standard prek installation to independent checkout hook paths", 
 
 	git(main, "worktree", "remove", "--force", linked);
 	assert.equal(git(main, "config", "--worktree", "--get", "core.hooksPath"), ".githooks");
-	assert.equal(readFileSync(path.join(main, ".githooks/pre-push"), "utf8"), `${main}\n`);
+	assert.equal(existsSync(path.join(main, ".githooks/pre-push")), false);
 });

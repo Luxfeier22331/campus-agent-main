@@ -14,9 +14,11 @@ Model Config 是具名在线模型配置与 Provider API Key 的唯一所有者�
 1. execution-control 读取 `primary_agent` 的 `model_target.v1`，并把 Model Config 返回的 opaque hash
    写入持久执行准入；
 2. Agent Runtime 携带该 hash 读取 `model_runtime_config.v1`，hash 不匹配时失败关闭；
-3. Campus Docs Embedding 与 Notice Classifier 等普通 Job 一次读取所属具名配置的完整
+3. execution-control 的 `campus_search` 在工具调用时读取 Embedding 与 Reranker 完整配置并直接调用
+   Provider，不把它们冻结到 Agent 的准入输入；
+4. Campus Docs Embedding 与 Notice Classifier 等普通 Job 一次读取所属具名配置的完整
    `model_runtime_config.v1` 并直接调用 Provider；
-4. Embedding Set 等需要记录目标身份的制品直接保存响应中的 target hash。
+5. Embedding Set 等需要记录目标身份的制品直接保存响应中的 target hash。
 
 Model Config 与调用方位于共同受信任的内部服务边界，不再建立 consumer token、注册表或按配置名的
 权限矩阵。能够访问 listener 的内部服务可以读取任意具名配置；新增 consumer 不需要修改 Model Config
@@ -29,5 +31,5 @@ profile 保持独立。
 `campus-agent-schema` 使用既有 `campus_agent` owner 安装并拥有 `model_config` schema，与其他产品
 schema 共用 `drizzle.campus_agent_migrations`；常驻服务使用 `model_config` runtime role，后者不执行
 DDL。Ops Web 与 execution-control 没有该表的数据库权限。详细决定见
-[ADR-0093](../../decisions/adr-0093-model-config-boundary.md)，HTTP 管理投影见
+[ADR-0093](../../../.agents/notes/implemented/architecture/2026-08-22-adr-0093-model-config-boundary.md)，HTTP 管理投影见
 [Ops Web Provider 合同](../../contracts/ops-web/providers.md)。

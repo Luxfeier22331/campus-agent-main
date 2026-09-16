@@ -44,6 +44,6 @@ ingestion task 或 workflow，不执行 PDF 解析、OCR、正文抽取、清洗
 
 ## 相关文档
 
-- `docs/data/internal-portal.md`
-- `docs/runbooks/ingestion.md`
-- `docs/runbooks/portal-auth.md`
+- [内部门户数据](../data/internal-portal.md)
+- [采集运行](../runbooks/ingestion.md)
+- [内部门户认证](../runbooks/portal-auth.md)

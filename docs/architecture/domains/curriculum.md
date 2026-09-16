@@ -38,7 +38,7 @@ status: active
 
 ## 相关文档
 
-- `../system/agentic-retrieval.md`
-- `../system/retrieval-serving.md`
-- `../system/document-site.md`
-- `../../data/document-reader.md`
+- [Agent 的机构知识边界](../system/agentic-retrieval.md)
+- [检索服务](../system/retrieval-serving.md)
+- [文档站架构](../system/document-site.md)
+- [文档阅读器数据模型](../../data/document-reader.md)

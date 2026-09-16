@@ -31,7 +31,7 @@ function repositoryPaths(root: string): Set<string> {
 	return paths;
 }
 
-function repositoryMarkdownFiles(root: string): string[] {
+export function repositoryMarkdownFiles(root: string): string[] {
 	return repositoryFiles(root)
 		.filter((path) => path.endsWith(".md"))
 		.map((path) => resolve(root, path))
@@ -39,7 +39,7 @@ function repositoryMarkdownFiles(root: string): string[] {
 		.sort();
 }
 
-function localMarkdownTargets(line: string, checkRepositoryCodePaths: boolean): string[] {
+export function localMarkdownTargets(line: string, checkRepositoryCodePaths: boolean): string[] {
 	const targets = new Set<string>();
 	for (const match of line.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/gu)) {
 		const raw = (match[1] ?? "").trim();
@@ -63,7 +63,7 @@ function localMarkdownTargets(line: string, checkRepositoryCodePaths: boolean): 
 		);
 	if (checkRepositoryCodePaths && !describesAbsentPath) {
 		for (const match of line.matchAll(
-			/`((?:apps|configs|docs|env|infra|jobs|packages|scripts)\/[A-Za-z0-9_./-]+)`/gu,
+			/`((?:\.agents|apps|configs|docs|env|infra|jobs|packages|scripts)\/[A-Za-z0-9_./-]+)`/gu,
 		)) {
 			const target = match[1] ?? "";
 			if (
@@ -80,7 +80,26 @@ function localMarkdownTargets(line: string, checkRepositoryCodePaths: boolean): 
 	return [...targets].filter(Boolean);
 }
 
-function resolveTarget(root: string, source: string, target: string): string | null {
+function findMalformedLinks(line: string): string[] {
+	const problems: string[] = [];
+	for (const match of line.matchAll(/!?\[[^\]]*\]\(/gu)) {
+		const rest = line.slice((match.index ?? 0) + match[0].length);
+		const close = rest.indexOf(")");
+		if (close === -1) {
+			problems.push("未闭合的 Markdown 链接");
+			continue;
+		}
+		const raw = rest.slice(0, close);
+		const anchorStart = raw.indexOf("#");
+		const pathPart = anchorStart === -1 ? raw : raw.slice(0, anchorStart);
+		if (pathPart && /\p{Script=Han}/u.test(pathPart)) {
+			problems.push(`链接目标混入中文：${raw.slice(0, 40)}`);
+		}
+	}
+	return problems;
+}
+
+export function resolveTarget(root: string, source: string, target: string): string | null {
 	const withoutAnchor = target.split("#", 1)[0]?.trim() ?? "";
 	if (
 		!withoutAnchor ||
@@ -92,6 +111,7 @@ function resolveTarget(root: string, source: string, target: string): string | n
 		return null;
 	}
 	const rootPrefixes = [
+		".agents/",
 		"apps/",
 		"configs/",
 		"docs/",
@@ -112,6 +132,9 @@ export function checkDocumentationLinks(root = process.cwd()): string[] {
 	const availablePaths = repositoryPaths(root);
 	const files = repositoryMarkdownFiles(root);
 	for (const path of files) {
+		if (path.startsWith(`${resolve(root, ".agents/notes/archived")}/`)) {
+			continue;
+		}
 		const lines = readFileSync(path, "utf8").split(/\r?\n/u);
 		const status = lines.find((line) => line.startsWith("status: "))?.slice("status: ".length);
 		const checkRepositoryCodePaths = status !== "superseded" && status !== "deprecated";
@@ -129,6 +152,9 @@ export function checkDocumentationLinks(root = process.cwd()): string[] {
 				if (resolved && !(existsSync(resolved) && availablePaths.has(resolved))) {
 					errors.add(`${relative(root, path)}:${index + 1}: 不存在 ${target}`);
 				}
+			}
+			for (const problem of findMalformedLinks(line)) {
+				errors.add(`${relative(root, path)}:${index + 1}: ${problem}`);
 			}
 		}
 	}

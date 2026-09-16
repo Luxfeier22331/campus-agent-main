@@ -181,7 +181,7 @@ runner 配置投影、独立 score registry、持久评测报告、评测数据�
 
 ## 相关文档
 
-- `docs/reference/eval.md`
-- `docs/reference/eval-cases.md`
-- `packages/eval-langfuse/README.md`
-- `packages/ragas-runner/README.md`
+- [评测](../reference/eval.md)
+- [评测用例](../reference/eval-cases.md)
+- [eval-langfuse](../../packages/eval-langfuse/README.md)
+- [ragas-runner](../../packages/ragas-runner/README.md)

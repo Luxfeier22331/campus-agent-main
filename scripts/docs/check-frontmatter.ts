@@ -67,9 +67,8 @@ for (const path of files) {
 	}
 	const docType = values.get("doc_type");
 	const status = values.get("status");
-	const expectedStatus = docType === "decision" ? "accepted" : "active";
-	if (status && status !== expectedStatus) {
-		errors.push(`${file}: ${docType ?? "文档"} 只允许 status: ${expectedStatus}`);
+	if (status && status !== "active") {
+		errors.push(`${file}: ${docType ?? "文档"} 只允许 status: active`);
 	}
 }
 

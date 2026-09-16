@@ -162,4 +162,4 @@ campus-docs/rag/embedding-sets/sha256/<id>/manifest.json
 - [数据链](../architecture/system/data-plane.md)
 - [文档来源与静态交付合同](../contracts/document-reader-delivery.md)
 - [来源卡片](../domains/source-card.md)
-- [文档历史 ADR](../decisions/adr-0014-document-history.md)
+- [文档历史 ADR](../../.agents/notes/implemented/feature/2026-07-16-adr-0014-document-history.md)

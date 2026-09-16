@@ -161,6 +161,45 @@ export function collectTurboTasks(
 	return parseTurboTasks(turbo.stdout ?? "");
 }
 
+// Commit hooks see prek's staged-files-only worktree, not a pair of committed revisions.
+export function resolveStagedTasks(
+	input: { repositoryRoot: string; env?: NodeJS.ProcessEnv },
+	runner: CommandRunner = run,
+): ScopeTask[] | undefined {
+	const options = { cwd: input.repositoryRoot, env: { ...(input.env ?? process.env) } };
+	const diffArgs = ["diff", "--cached", "--name-status", "-z", "--diff-filter=ACDMRT"];
+	const diff = requireSuccess("git", diffArgs, runner("git", diffArgs, options));
+	if (parseChangedFiles(diff.stdout ?? "").length === 0) {
+		return [];
+	}
+	const headArgs = ["rev-parse", "--verify", "--quiet", "HEAD"];
+	const head = runner("git", headArgs, options);
+	if (head.error) {
+		throw head.error;
+	}
+	if (head.status === 1) {
+		return undefined;
+	}
+	requireSuccess("git", headArgs, head);
+	const sha = head.stdout?.trim() ?? "";
+	if (!SHA_PATTERN.test(sha)) {
+		throw new Error("Git returned an invalid commit base");
+	}
+	options.env.TURBO_SCM_BASE = sha;
+	delete options.env.TURBO_SCM_HEAD;
+	const args = [
+		"exec",
+		"turbo",
+		"run",
+		...NODE_TASKS,
+		...NATIVE_TASKS,
+		"--affected",
+		"--dry-run=json",
+	];
+	const plan = requireSuccess("pnpm", args, runner("pnpm", args, options));
+	return parseTurboTasks(plan.stdout ?? "");
+}
+
 export function resolveGitScope(
 	options: AffectedScopeOptions,
 	runner: CommandRunner = run,

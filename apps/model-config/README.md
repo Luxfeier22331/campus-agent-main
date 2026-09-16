@@ -64,5 +64,5 @@ schema usage 和所属表的明确读写权限。Provider API Key 加密保存�
 统一 schema Job 会拒绝旧 ledger 和 `execution_config`，不提供旧 schema runner 或原位兼容路径；
 常驻服务和本地集成测试都使用统一 schema Job 提供的当前结构。
 
-详见 [ADR-0093](../../docs/decisions/adr-0093-model-config-boundary.md) 和
+详见 [ADR-0093](../../.agents/notes/implemented/architecture/2026-08-22-adr-0093-model-config-boundary.md) 和
 [密钥 runbook](../../docs/runbooks/provider-secrets.md)。

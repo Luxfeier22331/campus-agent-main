@@ -9,7 +9,7 @@ status: active
 ## 范围
 
 本文说明如何校验本地单进程 Collector 和 Agent Runtime trace 出口。当前本地 receiver、端口和
-pipeline 见 `../../infra/otel/README.md`；生产者字段见 `../reference/telemetry.md`。环境 endpoint、
+pipeline 见 [OTel Collector 配置](../../infra/otel/README.md)；生产者字段见 [运行时遥测](../reference/telemetry.md)。环境 endpoint、
 dataset、Secret、部署版本、保留期和启用状态由环境仓管理，源码检查不能证明远端状态。
 
 这里的 Collector 指 OpenTelemetry Collector，与 `jobs/internal-portal-collection` 无关。Worker 的
@@ -66,7 +66,7 @@ Collector。它只输出 Agent trace。要验证 Langfuse 转发，使用
 
 合成哨兵只验证代表性路径，不构成内容级 DLP 承诺；producer 的
 `traceIncludeSensitiveData=false` 和字段白名单才是主要边界。正文规则以
-`docs/contracts/langfuse-runtime.md` 为准。
+[Langfuse 运行合同](../contracts/langfuse-runtime.md) 为准。
 
 需要核对 runtime Langfuse trace 时使用：
 

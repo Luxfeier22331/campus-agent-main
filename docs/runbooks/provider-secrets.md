@@ -8,10 +8,10 @@ status: active
 
 ## 边界
 
-Model Config 管理四个 name 的当前 config：`primary_agent`、
-`campus_docs_embedding`、`campus_docs_reranker` 和 `notice_classification`。本文规定这些在线模型
+Model Config 管理五个 name 的当前 config：`primary_agent`、
+`campus_docs_embedding`、`campus_docs_reranker`、`notice_classification` 和 `document_ocr`。本文规定这些在线模型
 配置中供应商密钥的首次配置、验证、替换、轮换和撤销。Provider 与环境所有权见
-`../environment/providers.md`，接口边界见 `../contracts/ops-web/providers.md`。
+[Provider 与 Secret](../environment/providers.md)，接口边界见 [模型配置接口](../contracts/ops-web/providers.md)。
 
 Hindsight、评测、Langfuse、Cloudflare 和其他环境凭据不进入该服务。接口不提供 profile、
 revision、bundle、activation、history、fallback 或在线 rollback。不同部署环境是否使用独立密钥由
@@ -29,6 +29,11 @@ revision、bundle、activation、history、fallback 或在线 rollback。不同�
    冻结的 hash，新准入或新制品构建读取新目标。
 
 尚未配置某个 name 时，Ops Web 自身仍可进入修复页；读取该配置的 consumer 必须失败关闭。
+
+`document_ocr` 由文档 OCR consumer 使用，不属于当前 Ops Web 的四种 UI kind。首次配置和替换通过
+Model Config 的内部管理接口完成；候选设置会调用 PaddleOCR `paddleocr.jobs` 协议进行异步验证，
+验证结果通过带 `updated_at` 条件的回写接口更新，旧验证结果不能覆盖较新的配置。验证失败不覆盖
+当前配置，consumer 在配置缺失或验证失败时必须失败关闭。
 
 ## 数据库入口状态
 

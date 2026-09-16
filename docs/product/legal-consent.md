@@ -9,8 +9,8 @@ status: active
 ## 文档边界
 
 本文定义注册同意体验、法律页面内容和用户可见结果。注册接口、确认标记和错误码由
-`../contracts/app-api/auth.md` 维护，浏览器认证实现见
-`../architecture/system/identity-authz.md` 与 `../../apps/campus-web/README.md`。
+[App API 登录与当前用户接口](../contracts/app-api/auth.md) 维护，浏览器认证实现见
+[身份与权限](../architecture/system/identity-authz.md) 与 [campus-web](../../apps/campus-web/README.md)。
 
 ## 目标
 

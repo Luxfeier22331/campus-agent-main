@@ -50,5 +50,5 @@ OpenStreetMap，依据 ODbL 1.0 提供；页面通过 MapLibre source 展示 man
 
 ## 相关文档
 
-- `../decisions/adr-0027-navigation.md`
-- `../decisions/adr-0028-map-provider.md`
+- [ADR-0027 导航边界](../../.agents/notes/implemented/architecture/2026-07-16-adr-0027-navigation.md)
+- [ADR-0028 校园地图渲染](../../.agents/notes/implemented/architecture/2026-07-16-adr-0028-map-provider.md)

@@ -107,6 +107,12 @@ export function installHooks(
 		commandOptions,
 		runner,
 	);
+	requireSuccess(
+		"pnpm",
+		["exec", "prek", "uninstall", "--hook-type", "pre-push"],
+		commandOptions,
+		runner,
+	);
 	requireSuccess("pnpm", ["exec", "prek", "install", "--force"], commandOptions, runner);
 	return { repositoryRoot: root, status: "installed" };
 }

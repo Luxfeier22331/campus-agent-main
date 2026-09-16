@@ -187,7 +187,7 @@ status: active
 
 ## 相关文档
 
-- `../../product/ops-web.md`
-- `../../data/postgres-ownership.md`
+- [Ops Web 产品需求](../../product/ops-web.md)
+- [PostgreSQL 所有权](../../data/postgres-ownership.md)
 
 - [会话只读查询](./chat-conversations.md)：历史会话列表、会话详情，以及从运行或反馈查看消息上下文。

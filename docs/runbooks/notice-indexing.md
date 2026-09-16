@@ -10,13 +10,20 @@ status: active
 通知数据库，也不自动触发下一阶段；完成的 Notice Embedding Set 由统一 Campus RAG publisher 与 Docs
 Embedding Set 组装为当前 serving collection。
 
+## 前置条件
+
+从仓库根目录执行，先选择正确的 Kubernetes context，并替换 `<namespace>`、`<job-name>` 和制品 ID。
+目标环境须已部署两个暂停模板、通知 schema、已发布正文及 derived bucket 写入身份；Embedding 阶段
+还须能访问配置完成的 Model Config 与对应 Provider。每个阶段使用不同的 Job 名称。
+
 ## 构建 Chunk Run
 
 ```bash
 kubectl -n <namespace> create job \
   --from=cronjob/notice-chunk-builder <job-name>
 
-kubectl -n <namespace> logs job/<job-name> --follow
+kubectl -n <namespace> wait --for=condition=complete --timeout=65m job/<job-name>
+kubectl -n <namespace> logs job/<job-name> --all-containers=true
 ```
 
 成功结果包含：
@@ -42,7 +49,8 @@ kubectl -n <namespace> create job \
 kubectl set env --local -f - NOTICE_CHUNK_RUN=sha256:<id> -o yaml |
 kubectl -n <namespace> create -f -
 
-kubectl -n <namespace> logs job/<job-name> --follow
+kubectl -n <namespace> wait --for=condition=complete --timeout=65m job/<job-name>
+kubectl -n <namespace> logs job/<job-name> --all-containers=true
 ```
 
 Job 从 Model Config 的 `campus_docs_embedding` 槽位读取一次完整连接，按 `retrievalTextSha256` 去重。每个
@@ -86,3 +94,13 @@ pnpm --dir jobs/notice-index-publisher import-embedding-cache-local -- \
 命令会拒绝缺失、额外或内容不符合 `notice_embedding_cache.v1` 的文件；校验失败时不会上传任何 cache，且
 不会调用 Provider。导入后照常运行 `build-embeddings`；最终数据对象和 manifest 仍使用原有的
 `notice_embedding_set.v1` 合同。
+
+## 完成与失败处理
+
+Job 的 Complete 状态及结果 JSON 共同确认阶段完成；只跟随日志或看到 Pod 启动不代表成功。
+Chunk 失败先检查 Notices 连接、已发布正文和对象存储写入；Embedding 失败检查显式 Chunk Run、
+Model Config、Provider 及 cache 校验错误，修复后用相同输入创建新 Job。已有合法 cache 可复用，
+但不能在缺少最终 `embedding_set` 时声称构建完成。
+
+完成后按[统一发布步骤](./campus-docs.md#5-发布统一-campus-rag-index)与 Docs 制品共同发布；
+构建本身不改变当前在线索引。ID 和运行日志属于本次操作，不回填为长期文档中的固定环境事实。

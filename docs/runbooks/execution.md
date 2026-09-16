@@ -102,7 +102,7 @@ Campus Docs 与 Notices 的 Chunk/Embedding Job 由人工分别触发。两个 E
 消费显式 Docs/Notice chunk/embedding 制品，在完整校验混合 Qdrant collection 后替换
 `campus_docs_serving.current_index`。Publisher 复用 `EXECUTION_CONTROL_DATABASE_URL`，不创建第二个
 数据库身份或连接。在线运行只从该绑定取得 collection；dimensions、查询指令和向量名由当前代码
-提供，模型设置不重复保存这些索引属性。具体操作与清理条件见 `campus-docs.md`。
+提供，模型设置不重复保存这些索引属性。具体操作与清理条件见 [Campus Docs 与 Notices 维护及统一 RAG 发布](./campus-docs.md)。
 
 ## 健康与排查
 
@@ -125,5 +125,5 @@ Job 所有的精确授权；不得切回 schema owner DSN、手工在线 `GRANT`
 直接修改运行数据。部署验收还需确认 start、cancel reconciler 和记忆 Activity 不再产生新的
 `42501`，并处理既有命令，不以 readiness 单项恢复代替业务收敛证据。
 
-相关入口：`../architecture/system/durable-runtime.md`、`../architecture/system/k8s-runtime.md`、
-`../contracts/tool-execution.md`、`temporal.md`、`release.md`。
+相关入口：[持久 Agent 运行时](../architecture/system/durable-runtime.md)、[Kubernetes 运行时](../architecture/system/k8s-runtime.md)、
+[执行合同](../contracts/tool-execution.md)、[Temporal 自托管运维](./temporal.md)、[发布](./release.md)。
