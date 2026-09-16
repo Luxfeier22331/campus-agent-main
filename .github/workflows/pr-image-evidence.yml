@@ -66,9 +66,25 @@ jobs:
         if: runner.environment == 'self-hosted'
         run: bash scripts/ci/runner-capability-probe.sh
 
+      - name: Check PR cache write permission
+        id: cache-permission
+        if: inputs.cache_write
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+        run: |
+          set -euo pipefail
+          allowed=false
+          if state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state) && [[ "$state" == open ]]; then
+            allowed=true
+          else
+            echo "PR is closed or its state is unavailable; disabling remote cache."
+          fi
+          echo "allowed=$allowed" >> "$GITHUB_OUTPUT"
+
       - name: Login for image caches
         id: login
-        if: inputs.cache_write
+        if: steps.cache-permission.outputs.allowed == 'true'
         continue-on-error: true
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:

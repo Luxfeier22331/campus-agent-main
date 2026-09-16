@@ -436,6 +436,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      pull-requests: read
     uses: ./.github/workflows/pr-image-evidence.yml
     with:
       images: ${{ needs.repository-validation.outputs.images }}

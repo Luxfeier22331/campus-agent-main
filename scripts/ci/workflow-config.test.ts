@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
@@ -792,4 +793,110 @@ test("Worker publication matches the candidate registry and secret boundaries", 
 		githubExpression("secrets.CLOUDFLARE_API_TOKEN"),
 	);
 	assert.equal(statusWeb.env.STATUS_SNAPSHOT_KV_ID, githubExpression("vars.STATUS_SNAPSHOT_KV_ID"));
+});
+
+test("closed PR cleanup uses trusted code, scoped concurrency, and explicit cancellation permissions", async () => {
+	const workflow = await loadWorkflow("ghcr-retention.yml");
+	assert(isObject(workflow.on));
+	assert.deepEqual(workflow.on.pull_request_target, { types: ["closed"] });
+	assert.equal(workflow.on.pull_request, undefined);
+	const job = workflowJob(workflow, "retention");
+	assert.deepEqual(job.permissions, {
+		contents: "read",
+		actions: "write",
+		packages: "write",
+		"pull-requests": "read",
+	});
+	const checkout = namedStep(job, "Checkout Source");
+	assert(isObject(checkout.with));
+	assert.equal(
+		checkout.with.ref,
+		githubExpression(
+			"github.event_name == 'pull_request_target' && github.event.repository.default_branch || github.ref",
+		),
+	);
+	assert.equal(checkout.with["persist-credentials"], false);
+	assert(isObject(workflow.concurrency));
+	const expression = String(workflow.concurrency.group).slice(3, -2);
+	const evaluate = (event: string, number: number) =>
+		runInNewContext(expression, {
+			github: { event_name: event, event: { pull_request: { number } } },
+			format: (pattern: string, value: number) => pattern.replace("{0}", String(value)),
+		});
+	assert.equal(evaluate("pull_request_target", 442), "campus-agent-ghcr-pr-cache-442");
+	assert.equal(evaluate("pull_request_target", 443), "campus-agent-ghcr-pr-cache-443");
+	assert.equal(evaluate("schedule", 0), "campus-agent-ghcr-mutation");
+	for (const [headRepository, author, mergeable, allowed] of [
+		["MUC-WIKI/campus-agent", "developer", true, true],
+		["MUC-WIKI/campus-agent", "developer", false, true],
+		["fork/campus-agent", "developer", true, false],
+		["MUC-WIKI/campus-agent", "dependabot[bot]", true, false],
+	] as const) {
+		const github = {
+			event_name: "pull_request_target",
+			repository: "MUC-WIKI/campus-agent",
+			event: {
+				pull_request: {
+					mergeable,
+					head: { repo: { full_name: headRepository } },
+					user: { login: author },
+				},
+			},
+		};
+		assert.equal(condition(job.if, { github }), allowed);
+		for (const name of [
+			"Create GitOps read token",
+			"Checkout GitOps",
+			"Login to GHCR",
+			"Fetch open GitOps pull request refs",
+		]) {
+			assert.equal(condition(namedStep(job, name).if, { github }), false);
+		}
+	}
+	const generate = namedStep(job, "Generate and optionally apply GHCR retention plan");
+	assert(isObject(generate.env));
+	assert.match(String(generate.env.RETENTION_MODE), /pull_request_target/u);
+	assert.match(String(generate.run), /--pr-cache-pr/u);
+});
+
+test("cache permission queries current PR state and disables cache on closed or failed lookup", async (t) => {
+	const directory = await mkdtemp(path.join(os.tmpdir(), "pr-cache-permission-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	const build = workflowJob(await loadWorkflow("pr-image-evidence.yml"), "build");
+	const check = namedStep(build, "Check PR cache write permission");
+	const login = namedStep(build, "Login for image caches");
+	assert.equal(check.if, "inputs.cache_write");
+	assert.equal(login.if, "steps.cache-permission.outputs.allowed == 'true'");
+	assert(jobSteps(build).indexOf(check) < jobSteps(build).indexOf(login));
+	const trusted = workflowJob(await loadWorkflow("pr.yml"), "image-evidence-trusted");
+	assert.equal((trusted.permissions as Record<string, string>)["pull-requests"], "read");
+	for (const state of ["open", "closed", "unknown", "error"]) {
+		const output = path.join(directory, state);
+		execFileSync(
+			"bash",
+			[
+				"-e",
+				"-c",
+				`
+			gh() {
+				test "$2" = "repos/MUC-WIKI/campus-agent/pulls/442" || return 2
+				if [[ "$TEST_STATE" == error ]]; then return 1; fi
+				printf '%s\n' "$TEST_STATE"
+			}
+			${String(check.run)}
+		`,
+			],
+			{
+				env: {
+					...process.env,
+					GITHUB_OUTPUT: output,
+					GITHUB_REPOSITORY: "MUC-WIKI/campus-agent",
+					PR_NUMBER: "442",
+					TEST_STATE: state,
+				},
+				stdio: "pipe",
+			},
+		);
+		assert.equal(await readFile(output, "utf8"), `allowed=${state === "open"}\n`);
+	}
 });

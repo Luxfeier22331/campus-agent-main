@@ -23,6 +23,9 @@ on:
         type: string
   schedule:
     - cron: "20 3 * * 0"
+  # Trusted default-branch code only; PR code and artifacts are never executed.
+  pull_request_target:  # zizmor: ignore[dangerous-triggers] Closed-PR cache cleanup only.
+    types: [closed]
 
 permissions:
   contents: read
@@ -34,15 +37,24 @@ env:
     cores = 2
 
 concurrency:
-  group: campus-agent-ghcr-mutation
+  # Same concurrency group replaces pending runs on queue. PR-close scoped apply
+  # only deletes pr-cache-<N>/* packages (disjoint from publish writes), so it
+  # uses its own per-PR group and cannot replace pending publish/cleanup runs.
+  group: ${{ github.event_name == 'pull_request_target' && format('campus-agent-ghcr-pr-cache-{0}', github.event.pull_request.number) || 'campus-agent-ghcr-mutation' }}
   cancel-in-progress: false
 
 jobs:
   retention:
+    # Only same-repository, non-Dependabot PRs can write these caches.
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]')
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
     timeout-minutes: 60
     permissions:
       contents: read
+      actions: write
       packages: write
       pull-requests: read
     defaults:
@@ -52,6 +64,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.repository.default_branch || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -63,6 +76,7 @@ jobs:
           enable_kvm: false
 
       - name: Create GitOps read token
+        if: github.event_name != 'pull_request_target'
         id: gitops-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
         with:
@@ -74,6 +88,7 @@ jobs:
           permission-pull-requests: read
 
       - name: Checkout GitOps
+        if: github.event_name != 'pull_request_target'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: true
@@ -84,12 +99,13 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Docker Buildx
-        if: runner.environment != 'self-hosted'
+        if: github.event_name != 'pull_request_target' && runner.environment != 'self-hosted'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
           cache-binary: false
 
       - name: Login to GHCR
+        if: github.event_name != 'pull_request_target'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
           registry: ghcr.io
@@ -97,6 +113,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Fetch open GitOps pull request refs
+        if: github.event_name != 'pull_request_target'
         id: gitops-refs
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
@@ -119,23 +136,33 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITOPS_REFS_FILE: ${{ steps.gitops-refs.outputs.refs_file }}
-          RETENTION_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'report' }}
+          RETENTION_MODE: >-
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.mode)
+            || (github.event_name == 'pull_request_target' && 'apply')
+            || 'report' }}
+          RETENTION_PR_NUMBER: ${{ github.event.pull_request.number }}
           KEEP_RELEASES: ${{ github.event_name == 'workflow_dispatch' && inputs.keep_releases || '5' }}
           UNTAGGED_GRACE_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.untagged_grace_days || '7' }}
         run: |
           set -euo pipefail
-          gitops_ref_args=()
-          while read -r ref; do
-            gitops_ref_args+=(--gitops-ref "$ref")
-          done < "$GITOPS_REFS_FILE"
-          node --experimental-strip-types scripts/release/ghcr-retention.mts \
-            --mode "$RETENTION_MODE" \
-            --keep-releases "$KEEP_RELEASES" \
-            --untagged-grace-days "$UNTAGGED_GRACE_DAYS" \
-            --gitops-root "$GITHUB_WORKSPACE/gitops" \
-            --output ghcr-retention.json \
-            --summary "$GITHUB_STEP_SUMMARY" \
-            "${gitops_ref_args[@]}"
+          args=(
+            --mode "$RETENTION_MODE"
+            --output ghcr-retention.json
+            --summary "$GITHUB_STEP_SUMMARY"
+          )
+          if [ -n "$RETENTION_PR_NUMBER" ]; then
+            args+=(--pr-cache-pr "$RETENTION_PR_NUMBER")
+          else
+            while read -r ref; do
+              args+=(--gitops-ref "$ref")
+            done < "$GITOPS_REFS_FILE"
+            args+=(
+              --keep-releases "$KEEP_RELEASES"
+              --untagged-grace-days "$UNTAGGED_GRACE_DAYS"
+              --gitops-root "$GITHUB_WORKSPACE/gitops"
+            )
+          fi
+          node --experimental-strip-types scripts/release/ghcr-retention.mts "${args[@]}"
 
       - name: Upload GHCR retention report
         if: always()

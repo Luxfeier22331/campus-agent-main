@@ -32,32 +32,46 @@ SHA-tagged release 窗口和无 tag 宽限期是当前小规模 staging 的初�
 发布频率、回滚窗口或环境数量发生变化时，应在清理 workflow 的手动输入和对应决策中重新评估。
 未知 tag 不自动删除，而是保持并报告，等待 owner 登记语义。
 
-`campus-agent/pr-cache-<number>/<active-image>` 是 PR 缓存包，由同一清理入口管理。源码 PR 开放期间
-保护当前 `buildcache-arm64` 及其 manifest closure，无 tag 历史版本保留 7 天。PR 关闭或合并满同一
-宽限期后形成整包删除候选；未到期不删包。源码 PR 状态不可读取或无效时保持缓存并报告 policy error，
-禁止 apply。查询按 PR 号去重，需要 Source 仓 `pull-requests: read` 权限；默认 report、手动 apply
-保持不变。apply 后仅复查保留包的 manifest，不读取刚删除的缓存包。
+`campus-agent/pr-cache-<number>/<active-image>` 是 PR 缓存包。开放期间保护当前 `buildcache-arm64`
+及其 manifest closure，无 tag 历史版本保留 7 天。同仓非 Dependabot PR 关闭或合并时，
+`pull_request_target: closed` 使用默认分支代码执行 scoped apply，也覆盖合并冲突的 PR；fork 和
+Dependabot 的构建不写缓存，因此不进入关闭清理。
+
+清理先确认 PR 仍为 closed，按源仓、分支和 PR 归属查找 `pr` workflow 的未完成 runs，取消后每
+5 秒检查一次，最多等待 10 分钟。run 的 PR 关联为空时按源仓、分支查询 `state=all` 的 PR，覆盖
+未合并关闭的 PR；唯一候选也覆盖 force-push 前的 run。分支复用时按 head SHA 和 PR 提交列表
+匹配，只有唯一匹配才能确认归属。无匹配、多个匹配、查询或取消失败、等待超时、PR 重新打开时
+停止，不删除缓存。取消请求与 run 完成同时发生时，只有再次确认
+run 已 completed 才继续。随后复查 PR 状态，只读取、整包删除并复查该 PR 的缓存包，不适用宽限期。
+构建在登录缓存前查询实时 PR 状态；关闭或查询失败时禁用远程缓存，防止关闭后重跑写回缓存。
+
+关闭清理需要 `actions: write` 和 `pull-requests: read`。状态或协调错误写入现有 JSON report，禁止
+apply；report 模式不会取消 runs。遗漏或失败的关闭清理可由定时 report 在关闭满 7 天后列出整包删除
+候选，再手动选择 apply；定时 report 本身不删除。
 
 退役包不按 version 猜测删除，而是由显式 allowlist 直接形成整包删除候选。默认 scheduled/manual
 `report` 只生成计划；选择 workflow 的 `apply` 模式才执行删除，因此 `apply` 是对整包删除的人工确认。
+PR 关闭事件的 scoped apply 是唯一例外：作用域仅限该 PR 的缓存包，不涉及退役包或 active package。
 任何 GitOps 引用退役包、active package 缺失、未登记 package 或保护 digest 缺失，都会使 apply 失败。
 重新启用某个历史包时，先把它恢复到 active image target 和 GitOps consumer，再执行清理；不要只删除
 allowlist 条目。
 
 ## 执行
 
-手动或定时 workflow 使用 Source 仓的
+手动、定时或 PR 关闭事件 workflow 使用 Source 仓的
 [`ghcr-retention.yml`](../../.github/workflows/ghcr-retention.yml)：
 
 ```text
 report: 盘点 GHCR、GitOps 和 OCI manifest closure，上传结构化报告，不删除
 apply: 使用同一份实时盘点结果删除计划中的 active versions、退役 packages 或过期 PR 缓存包
+PR 关闭事件: 同仓非 fork PR 关闭时自动 apply，只整包删除该 PR 的 pr-cache-<number>/* 缓存包
 ```
 
 GitHub API 按 package version ID 删除。apply 后 workflow 重新读取 package inventory，并重新检查
 active protected root 及其 OCI manifest closure；保护 root、runtime manifest 和 attestation 不完整时
-任务失败。清理与 staging 镜像发布共用 `campus-agent-ghcr-mutation` concurrency group，避免同时
-修改同一 package。
+任务失败。PR 关闭事件的 scoped apply 使用独立的 per-PR concurrency group
+（`campus-agent-ghcr-pr-cache-<N>`），只操作该 PR 的缓存包（与 staging 发布写入的包不相交），
+不会替换 `campus-agent-ghcr-mutation` 组中排队的发布或定时清理任务。
 
 GitHub Actions 需要 package write 权限；`GITHUB_TOKEN` 只有在该 workflow 对 package 具有 admin
 权限时才能执行删除。当前 package 由同一 Source 仓发布并关联，若权限或组织策略不满足，保留 report

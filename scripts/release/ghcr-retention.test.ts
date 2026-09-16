@@ -1,17 +1,25 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
 	ACTIVE_PACKAGE_NAMES,
 	applyRetentionPlan,
+	type CommandRunner,
+	cancelAndWaitForPrRuns,
 	extractGitopsImageDigests,
 	fetchManifestClosure,
 	type PackageInventory,
 	parseManifestInspection,
+	planPrCacheCleanup,
 	planRetention,
 	protectedRootsForInventory,
 	RETIRED_PACKAGE_NAMES,
 	readCachePullRequests,
+	readPackageInventory,
+	runPrCacheCleanup,
 } from "./ghcr-retention.mts";
 
 const NOW = new Date("2026-09-04T00:00:00.000Z");
@@ -60,6 +68,82 @@ test("PR caches protect the current tag, expire history and delete only after cl
 		);
 		assert.notEqual(plan.packages.find((pkg) => pkg.name === name)?.packageAction, "delete");
 	}
+});
+
+test("scoped PR cache cleanup deletes every cache package of a closed PR without grace", () => {
+	const name = "campus-agent/pr-cache-442/ops-web";
+	const packages = [
+		...inventory(),
+		{
+			name,
+			versions: [version(100, "a", ["buildcache-arm64"], "2026-09-03T00:00:00Z")],
+		},
+		{
+			name: "campus-agent/pr-cache-441/ops-web",
+			versions: [version(101, "b", [], "2026-08-01T00:00:00Z")],
+		},
+	];
+	const closed = planPrCacheCleanup({
+		mode: "apply",
+		now: NOW,
+		packages,
+		prNumber: "442",
+		pullRequests: { "442": { state: "closed", closedAt: "2026-09-04T00:00:00.000Z" } },
+	});
+	assert.deepEqual(closed.errors, []);
+	assert.equal(closed.totals.deletePackages, 1);
+	assert(closed.packages.every((pkg) => pkg.classification === "pr-cache"));
+	const scoped = closed.packages.find((pkg) => pkg.name === name);
+	assert.equal(scoped?.packageAction, "delete");
+	assert.equal(
+		scoped?.versions.every((version) => version.action === "keep"),
+		true,
+	);
+	assert.equal(
+		closed.packages.some((pkg) => pkg.name === "campus-agent/pr-cache-441/ops-web"),
+		false,
+	);
+
+	const open = planPrCacheCleanup({
+		mode: "apply",
+		now: NOW,
+		packages,
+		prNumber: "442",
+		pullRequests: { "442": { state: "open", closedAt: null } },
+	});
+	assert(open.errors.some((error) => error.includes("Source PR is not closed")));
+	assert.equal(open.packages.find((pkg) => pkg.name === name)?.packageAction, "hold");
+
+	for (const pullRequests of [
+		undefined,
+		{ "442": { state: "closed" as const, closedAt: "invalid" } },
+	]) {
+		const unavailable = planPrCacheCleanup({
+			mode: "apply",
+			now: NOW,
+			packages,
+			prNumber: "442",
+			pullRequests,
+		});
+		assert(unavailable.errors.some((error) => error.includes("Source PR state unavailable")));
+		assert.equal(unavailable.packages.find((pkg) => pkg.name === name)?.packageAction, "hold");
+	}
+
+	const empty = planPrCacheCleanup({
+		mode: "apply",
+		now: NOW,
+		packages,
+		prNumber: "999",
+		pullRequests: {},
+	});
+	assert.deepEqual(empty.errors, []);
+	assert.deepEqual(empty.totals, {
+		deletePackages: 0,
+		deleteVersions: 0,
+		keepVersions: 0,
+		packages: 0,
+		versions: 0,
+	});
 });
 
 test("PR state lookup deduplicates image packages and holds unavailable state", async () => {
@@ -368,4 +452,339 @@ test("selects the latest releases and cache tag as protected roots", () => {
 		roots.byPackage["campus-agent/agent-runtime"],
 		[digest("a"), digest("b"), digest("c")].sort(),
 	);
+});
+
+const REPOSITORY = "MUC-WIKI/campus-agent";
+const SOURCE_PR = {
+	state: "closed",
+	closed_at: "2026-09-04T00:00:00Z",
+	head: { ref: "fix/cache", repo: { full_name: REPOSITORY } },
+};
+const RUN = {
+	id: 1,
+	run_attempt: 1,
+	status: "in_progress",
+	event: "pull_request",
+	head_branch: "fix/cache",
+	head_sha: "a".repeat(40),
+	head_repository: { full_name: REPOSITORY },
+	pull_requests: [{ number: 442 }],
+};
+const jsonResult = (value: unknown) => ({ code: 0, stderr: "", stdout: JSON.stringify(value) });
+const failedResult = { code: 1, stderr: "API unavailable", stdout: "" };
+
+function clock() {
+	let elapsed = 0;
+	return {
+		now: () => elapsed,
+		sleep: async (milliseconds: number) => {
+			elapsed += milliseconds;
+		},
+	};
+}
+
+test("cancellation waits for terminal runs, includes older heads, and never cancels another PR", async () => {
+	const cancellations: string[] = [];
+	let polls = 0;
+	const runner: CommandRunner = async (_command, args) => {
+		const endpoint = args.at(-1) ?? "";
+		if (endpoint.endsWith("/pulls/442")) {
+			return jsonResult(SOURCE_PR);
+		}
+		if (endpoint.includes("/workflows/pr.yml/runs?")) {
+			polls++;
+			return jsonResult([
+				{
+					workflow_runs: [
+						...["queued", "requested", "waiting", "pending", "in_progress"].map((status, i) => ({
+							...RUN,
+							id: i + 1,
+							status: polls >= 3 ? "completed" : status,
+							head_sha: String(i).repeat(40),
+						})),
+						{ ...RUN, id: 6, pull_requests: [{ number: 443 }] },
+						{ ...RUN, id: 7, head_repository: { full_name: "fork/campus-agent" } },
+					],
+				},
+			]);
+		}
+		if (endpoint.endsWith("/cancel")) {
+			cancellations.push(endpoint);
+			return jsonResult({});
+		}
+		throw new Error(`Unexpected API call: ${args.join(" ")}`);
+	};
+	await cancelAndWaitForPrRuns(REPOSITORY, "442", { runner, ...clock() });
+	assert.equal(polls, 3);
+	assert.deepEqual(
+		cancellations,
+		[1, 2, 3, 4, 5].map((id) => `repos/${REPOSITORY}/actions/runs/${id}/cancel`),
+	);
+});
+
+test("missing run association resolves closed unmerged PRs and pre-force-push heads by branch", async () => {
+	for (const sha of [RUN.head_sha, "b".repeat(40)]) {
+		let stopped = false;
+		const runner: CommandRunner = async (_command, args) => {
+			const endpoint = args.at(-1) ?? "";
+			if (endpoint.endsWith("/pulls/442")) {
+				return jsonResult(SOURCE_PR);
+			}
+			if (endpoint.includes("/workflows/pr.yml/runs?")) {
+				return jsonResult([{ workflow_runs: stopped ? [] : [{ ...RUN, pull_requests: [] }] }]);
+			}
+			if (endpoint.includes("/pulls?")) {
+				assert(args.includes("--paginate"));
+				const query = new URL(`https://api.github.com/${endpoint}`).searchParams;
+				assert.equal(query.get("state"), "all");
+				assert.equal(query.get("head"), "MUC-WIKI:fix/cache");
+				return jsonResult([
+					[
+						{
+							number: 443,
+							head: { ref: "fix/cache", sha, repo: { full_name: "fork/campus-agent" } },
+						},
+					],
+					[
+						{ number: 442, state: "closed", merged_at: null, head: { ...SOURCE_PR.head, sha } },
+						{ number: 444, head: { ...SOURCE_PR.head, ref: "different-branch", sha } },
+					],
+				]);
+			}
+			if (endpoint.endsWith("/cancel")) {
+				stopped = true;
+				return jsonResult({});
+			}
+			assert.fail(`Unexpected API call: ${args.join(" ")}`);
+		};
+		await cancelAndWaitForPrRuns(REPOSITORY, "442", { runner, ...clock() });
+		assert.equal(stopped, true);
+	}
+});
+
+test("reused branches require a unique commit match and leave unrelated runs alone", async () => {
+	for (const scenario of [
+		"target-head",
+		"target-commit",
+		"other",
+		"shared",
+		"missing",
+		"api-error",
+	] as const) {
+		let stopped = false;
+		const runner: CommandRunner = async (_command, args) => {
+			const endpoint = args.at(-1) ?? "";
+			if (endpoint.endsWith("/pulls/442")) {
+				return jsonResult(SOURCE_PR);
+			}
+			if (endpoint.includes("/workflows/pr.yml/runs?")) {
+				return jsonResult([{ workflow_runs: stopped ? [] : [{ ...RUN, pull_requests: [] }] }]);
+			}
+			if (endpoint.includes("/pulls?")) {
+				return jsonResult([
+					[442, 443].map((number) => ({
+						number,
+						head: {
+							...SOURCE_PR.head,
+							sha: scenario === "target-head" && number === 442 ? RUN.head_sha : "b".repeat(40),
+						},
+					})),
+				]);
+			}
+			if (endpoint.includes("/commits?")) {
+				if (scenario === "api-error") {
+					return failedResult;
+				}
+				const target = endpoint.includes("/442/");
+				const matches =
+					scenario === "shared" ||
+					(scenario === "target-commit" && target) ||
+					(scenario === "other" && !target);
+				return jsonResult([[], matches ? [{ sha: RUN.head_sha }] : []]);
+			}
+			if (endpoint.endsWith("/cancel")) {
+				stopped = true;
+				return jsonResult({});
+			}
+			assert.fail(`Unexpected API call: ${args.join(" ")}`);
+		};
+		const result = cancelAndWaitForPrRuns(REPOSITORY, "442", { runner, ...clock() });
+		if (["shared", "missing", "api-error"].includes(scenario)) {
+			await assert.rejects(result, /Cannot identify PR|API unavailable/);
+		} else {
+			await result;
+		}
+		assert.equal(stopped, scenario === "target-head" || scenario === "target-commit", scenario);
+	}
+});
+
+test("cancellation tolerates a run finishing just before the cancel request", async () => {
+	let finished = false;
+	const runner: CommandRunner = async (_command, args) => {
+		const endpoint = args.at(-1) ?? "";
+		if (endpoint.endsWith("/pulls/442")) {
+			return jsonResult(SOURCE_PR);
+		}
+		if (endpoint.includes("/workflows/pr.yml/runs?")) {
+			return jsonResult([{ workflow_runs: finished ? [] : [RUN] }]);
+		}
+		if (endpoint.endsWith("/cancel")) {
+			finished = true;
+			return failedResult;
+		}
+		if (endpoint.endsWith("/runs/1")) {
+			return jsonResult({ ...RUN, status: "completed" });
+		}
+		throw new Error(`Unexpected API call: ${args.join(" ")}`);
+	};
+	await cancelAndWaitForPrRuns(REPOSITORY, "442", { runner, ...clock() });
+});
+
+test("scoped apply stops before inventory/deletion on cancellation errors and preserves a policy report", async (t) => {
+	const directory = await mkdtemp(path.join(os.tmpdir(), "ghcr-cleanup-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	for (const scenario of [
+		"timeout",
+		"cancel-error",
+		"list-error",
+		"unidentified",
+		"reopened",
+		"fork",
+	] as const) {
+		let cancelled = false;
+		const runner: CommandRunner = async (_command, args) => {
+			const endpoint = args.at(-1) ?? "";
+			if (endpoint.endsWith("/pulls/442")) {
+				return jsonResult({
+					...SOURCE_PR,
+					...(scenario === "reopened" && cancelled ? { state: "open" } : {}),
+					...(scenario === "fork"
+						? { head: { ref: "fix/cache", repo: { full_name: "fork/campus-agent" } } }
+						: {}),
+				});
+			}
+			if (endpoint.includes("/workflows/pr.yml/runs?")) {
+				return scenario === "list-error"
+					? failedResult
+					: jsonResult([
+							{
+								workflow_runs: [
+									{ ...RUN, pull_requests: scenario === "unidentified" ? [] : RUN.pull_requests },
+								],
+							},
+						]);
+			}
+			if (endpoint.includes("/pulls?")) {
+				return jsonResult([[]]);
+			}
+			if (endpoint.endsWith("/cancel")) {
+				cancelled = true;
+				return scenario === "cancel-error" ? failedResult : jsonResult({});
+			}
+			if (endpoint.endsWith("/runs/1")) {
+				return jsonResult(RUN);
+			}
+			assert.fail(`Must not access packages after coordination error: ${args.join(" ")}`);
+		};
+		const output = path.join(directory, `${scenario}.json`);
+		await assert.rejects(
+			runPrCacheCleanup(
+				{ owner: "MUC-WIKI", repository: REPOSITORY, mode: "apply", output },
+				"442",
+				{ runner, ...clock() },
+			),
+			/policy errors/,
+		);
+		const report = JSON.parse(await readFile(output, "utf8"));
+		assert.equal(report.errors.length, 1, scenario);
+		assert.equal(report.totals.deletePackages, 0, scenario);
+		assert(!report.errors[0].includes("Must not access packages"), report.errors[0]);
+	}
+});
+
+test("scoped inventory reads only matching PR packages even when other packages disappear", async () => {
+	const name = "campus-agent/pr-cache-442/ops-web";
+	const calls: string[] = [];
+	const runner: CommandRunner = async (_command, args) => {
+		const endpoint = args.at(-1) ?? "";
+		calls.push(endpoint);
+		if (endpoint.includes("packages?")) {
+			return jsonResult([
+				[
+					{ name },
+					{ name: "campus-agent/pr-cache-441/ops-web" },
+					{ name: "campus-agent/pr-cache-4420/ops-web" },
+					{ name: "campus-agent/ops-web" },
+					{ name: "campus-agent/unregistered/other" },
+				],
+			]);
+		}
+		if (endpoint.includes(encodeURIComponent(name))) {
+			return jsonResult([[]]);
+		}
+		assert.fail(`Read outside the PR scope: ${endpoint}`);
+	};
+	assert.deepEqual(await readPackageInventory("MUC-WIKI", runner, "442"), [{ name, versions: [] }]);
+	assert.equal(calls.length, 2);
+});
+
+test("scoped cleanup cancels before inventory, rechecks PR state, and report mode never cancels", async (t) => {
+	const directory = await mkdtemp(path.join(os.tmpdir(), "ghcr-cleanup-order-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	for (const scenario of ["apply", "report", "reopened-after-wait"] as const) {
+		const calls: string[] = [];
+		let finished = false;
+		let deleted = false;
+		let inventoried = false;
+		const name = "campus-agent/pr-cache-442/ops-web";
+		const runner: CommandRunner = async (_command, args) => {
+			const endpoint = args.at(-1) ?? "";
+			calls.push(endpoint);
+			if (endpoint.endsWith("/pulls/442")) {
+				return jsonResult({
+					...SOURCE_PR,
+					state: scenario === "reopened-after-wait" && inventoried ? "open" : "closed",
+				});
+			}
+			if (endpoint.includes("/workflows/pr.yml/runs?")) {
+				return jsonResult([{ workflow_runs: finished ? [] : [RUN] }]);
+			}
+			if (endpoint.endsWith("/cancel")) {
+				finished = true;
+				return jsonResult({});
+			}
+			if (endpoint.includes("packages?")) {
+				assert(scenario === "report" || finished, "inventory must follow cancellation completion");
+				inventoried = true;
+				return jsonResult([deleted ? [] : [{ name }]]);
+			}
+			if (endpoint.includes("/versions?")) {
+				return jsonResult([[]]);
+			}
+			if (args.includes("DELETE")) {
+				deleted = true;
+				return jsonResult({});
+			}
+			throw new Error(`Unexpected API call: ${args.join(" ")}`);
+		};
+		const cleanup = runPrCacheCleanup(
+			{
+				owner: "MUC-WIKI",
+				repository: REPOSITORY,
+				mode: scenario === "report" ? "report" : "apply",
+				output: path.join(directory, `${scenario}.json`),
+			},
+			"442",
+			{ runner, ...clock() },
+		);
+		if (scenario === "reopened-after-wait") {
+			await assert.rejects(cleanup, /Source PR is not closed/);
+		} else {
+			await cleanup;
+		}
+		assert.equal(deleted, scenario === "apply");
+		if (scenario === "report") {
+			assert(!calls.some((call) => call.includes("/actions/")));
+		}
+	}
 });

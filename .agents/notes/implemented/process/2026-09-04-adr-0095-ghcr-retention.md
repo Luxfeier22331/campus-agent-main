@@ -24,8 +24,21 @@ GitOps 中的不可变 digest。active image target 由
   version 才进入 report/apply 计划。
 - 历史包使用显式 allowlist，直接形成整包删除候选；scheduled/manual `report` 不删除，workflow 的
   `apply` 模式是整包删除的人工确认，不为名称看似特殊的 package 建立隐式保留例外。
+- 源码 PR 的 `pull_request_target: closed` 使用默认分支代码触发 scoped apply，覆盖合并冲突的
+  PR；只删除该 PR 的 `pr-cache-<number>/*`，不适用无 tag 宽限期。fork 与 Dependabot 不写这些缓存，
+  因此不触发关闭清理。缓存没有 PR 构建之外的消费者，这是自动删除的作用域边界。
+- 清理 owner 显式取消该 PR 的未完成 `pr` runs，每 5 秒查询，最多等 10 分钟；run 关联缺失时查询
+  源仓同分支的全部状态 PR，避免提交关联接口遗漏未合并关闭的 PR。唯一候选覆盖旧 SHA；分支
+  复用时用 head SHA 和提交列表确认唯一匹配，歧义时停止。无法确认归属、API 错误、超时或重新
+  打开都停止删除。构建登录缓存前重新读取 PR
+  状态，仅 open 时允许导出，关闭或查询失败时执行无远程缓存构建。该协调需要 `actions: write`，
+  用于释放关闭 PR 的构建资源并避免删除后写回；现有独立关闭触发器不能保证取消完成与删除的顺序。
+- 关闭清理使用独立 per-PR concurrency group，不替换排队的发布任务；清理前后仅读取目标 PR 的
+  package versions，避免不同 PR 并行删除影响全量遍历。遗漏或失败的关闭清理由定时 report 列出
+  满 7 天的候选，再手动 apply；定时 report 不自动删除。
 - 清理前生成可审计 JSON report；apply 使用 package version ID 或 whole-package API；apply 后重新
-  读取 inventory 并验证 protected manifest closure。清理和镜像发布共用 GHCR mutation concurrency。
+  读取 inventory 并验证 protected manifest closure。定时/手动清理和镜像发布共享 mutation
+  concurrency，PR 关闭路径使用独立 per-PR 组，apply 后确认目标包消失。
 
 ### 信任边界与失败处理
 
@@ -41,17 +54,20 @@ manifest inspection 失败或删除后保护 graph 不完整时，workflow 停�
 
 - **按无 tag 或年龄直接删除**：规则简单，但会误删受保护 OCI root 的 child manifest 或 referrer。
 - **让既有发布脚本顺带清理**：可以复用发布入口，但它不拥有 inventory、删除权限或历史包分类。
+- **等待构建自然结束后清理**：无需取消权限，但会继续消耗已关闭 PR 的构建资源；选择取消并确认终态。
+- **关闭事件只触发并发取消**：改动较少，但独立清理任务无法确认构建何时停止，不能保证删除顺序。
 
 ## 后果
 
-保留窗口之外的候选仍须通过 manifest graph 校验；清理与发布共享 mutation concurrency，
-apply 后再次核对保护集合。清理不承担集群操作、数据库迁移或源码目录退役。
+保留窗口之外的候选仍须通过 manifest graph 校验；定时/手动清理与发布共享 mutation concurrency，
+PR 关闭路径使用独立 per-PR 组，apply 后确认目标包消失。清理不承担集群操作、数据库迁移或源码目录退役。
 
 ### 重新评估与删除条件
 
 以下任一条件成立时重新评估 5 个 release、7 天宽限期或退役 allowlist：发布/回滚窗口扩大，新增
 production 或其他 GitOps 环境，BuildKit cache tag 改变，历史包重新进入 workload/GitOps，或
-GitHub Packages 删除权限/接口行为改变。源码目录只有在其本地测试和合同同时移除后才可另行删除；
+GitHub Packages 删除权限/接口行为改变。PR 缓存写入 owner 或 workflow 名称变化时，也须同步调整
+取消与状态检查；停止写入 PR 缓存时移除该协调逻辑和 Actions 写权限。源码目录只有在其本地测试和合同同时移除后才可另行删除；
 GHCR package 退役不自动删除仍被本地测试或开发数据库使用的 migration 代码。
 
 ## 相关文档
