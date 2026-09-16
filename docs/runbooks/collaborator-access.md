@@ -149,7 +149,7 @@ object-store bootstrap Job 声明式铸造（`campus-agent-source-ro` / 复用
 - `kubectl -n campus-agent-staging get secrets`（列表）被拒；`get secret` 其他名字被拒。
 - `kubectl -n campus-agent-staging exec ...`、任何 `create/apply/delete/patch` 被拒。
 - 其他 namespace（含 `default`、`kube-system`、`argocd`）读被拒。
-- PG：`hindsight_ro` 执行 `INSERT/UPDATE/DELETE/DDL` 报权限错误；连接 `campus_agent` 库被拒。
+- PG：`hindsight_ro` 执行 `INSERT/UPDATE/DELETE/DDL` 报权限错误。
 - rustfs：humans 键 `mc cp`（上传）/ `mc rm` 被拒。
 - Qdrant：RO key upsert / delete 被拒。
 - 删除 tokens.csv 行并 restart 后，原 token 返回 401。
