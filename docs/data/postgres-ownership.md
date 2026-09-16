@@ -176,7 +176,7 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 
 ## 访问规则
 
-- 数据库级 `CONNECT` 不依赖 `PUBLIC` 默认授权（[ADR-0096](../../.agents/notes/implemented/architecture/2026-09-16-adr-0096-campus-agent-connect-acl.md)）：
+- 数据库级 `CONNECT` 不依赖 `PUBLIC` 默认授权（[campus_agent 共享库连接授权模型](../../.agents/notes/implemented/architecture/2026-09-16-campus-agent-connect-acl.md)）：
   `campus_agent` 库对 `PUBLIC` 仅保留 `TEMP`；显式 `CONNECT` 授权为 owner `campus_agent`
   与运行角色 `app_api`、`execution_control`、`model_config`、`ops_web`。新增连接该库的角色
   必须在环境实施时同步补授权，且库级权限调整前先以 `pg_stat_activity` 和本文角色表核对
@@ -243,4 +243,4 @@ workload 只使用运行角色。
 - [Kubernetes 运行时](../architecture/system/k8s-runtime.md)
 - [检索服务](../architecture/system/retrieval-serving.md)
 - [Campus Docs 与 Notices 维护及统一 RAG 发布](../runbooks/campus-docs.md)
-- [ADR-0073 PostgreSQL](../../.agents/notes/implemented/architecture/2026-07-16-adr-0073-postgres.md)
+- [PostgreSQL](../../.agents/notes/implemented/architecture/2026-07-16-postgres.md)

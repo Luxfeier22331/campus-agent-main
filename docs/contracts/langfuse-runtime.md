@@ -48,7 +48,7 @@ Langfuse。它不接收 execution-control、Hindsight、日志或指标。环境
 
 模型格式失败的可见输出诊断属于 Execution Control 的内部 Ops 投影，不属于本 trace 合同；其
 有界正文通过 Runtime 内部响应保存到独立诊断列，不进入 span、普通日志或外部 exporter。
-该例外见 [ADR-0076](../../.agents/notes/implemented/architecture/2026-07-15-adr-0076-langfuse-trace-data.md)
+该例外见 [Langfuse 调用链数据](../../.agents/notes/implemented/architecture/2026-07-15-langfuse-trace-data.md)
 与[持久执行数据文档](../data/durable-runtime.md)，不启用 SDK sensitive data 导出。
 
 Agent producer 必须保持 `traceIncludeSensitiveData=false`、OpenInference
@@ -110,6 +110,6 @@ score 名称由代码级 allowlist 校验，不再同步独立 score registry。
 
 ## 参考
 
-- [ADR-0059 Langfuse](../../.agents/notes/implemented/architecture/2026-07-16-adr-0059-langfuse.md)
-- [ADR-0076 Langfuse 调用链数据](../../.agents/notes/implemented/architecture/2026-07-15-adr-0076-langfuse-trace-data.md)
+- [Langfuse](../../.agents/notes/implemented/architecture/2026-07-16-langfuse.md)
+- [Langfuse 调用链数据](../../.agents/notes/implemented/architecture/2026-07-15-langfuse-trace-data.md)
 - Langfuse OpenTelemetry：<https://langfuse.com/docs/integrations/native/opentelemetry>

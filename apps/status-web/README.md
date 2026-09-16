@@ -34,5 +34,5 @@ pnpm --dir apps/status-web test:browser
 
 - `docs/product/status-web.md`
 - `docs/architecture/system/product-runtime.md`
-- `.agents/notes/implemented/feature/2026-08-11-adr-0086-product-availability-status.md`
+- `.agents/notes/implemented/feature/2026-08-11-product-availability-status.md`
 - `docs/reference/verification.md`

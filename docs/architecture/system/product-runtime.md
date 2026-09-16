@@ -110,5 +110,5 @@ run、step、attempt、result 和 provider response ID 仅属于 execution-contr
 - [PostgreSQL 所有权](../../data/postgres-ownership.md)
 - [产品可用性状态页](../../product/status-web.md)
 - [运行时发布架构](./runtime-release.md)
-- [ADR-0013 App API Worker 运行时](../../../.agents/notes/implemented/architecture/2026-03-28-adr-0013-app-api-worker-runtime.md)
-- [ADR-0086 产品可用性状态页](../../../.agents/notes/implemented/feature/2026-08-11-adr-0086-product-availability-status.md)
+- [App API Worker 运行时](../../../.agents/notes/implemented/architecture/2026-03-28-app-api-worker-runtime.md)
+- [产品可用性状态页](../../../.agents/notes/implemented/feature/2026-08-11-product-availability-status.md)

@@ -33,7 +33,8 @@ replan decision 的语义规则由 `temporalruntime` 共享纯规则入口统一
 所有 operation 的固定角色指令使用简体中文，并明确产品服务中央民族大学。未明确指定机构时，学校、
 本校和校园均按中央民族大学理解；这属于单校产品身份，不由请求或环境变量动态选择。
 
-本地函数工具集合由准入快照提供；`execute_step` 只能使用当前步骤的候选来源。每个步骤的
+本地函数工具集合由准入快照提供；`solve` 可以使用准入快照开放的全部本地函数工具，
+`execute_step` 只能使用当前步骤的候选来源，`replan` 和 `synthesize` 不使用工具。每个步骤的
 `candidateSources` 可以包含 `campus_search`、`web_search` 或 `personal_memory_recall`，但实际来源选择
 由 Executor 在该步骤内完成，Replanner 可以为后续步骤调整来源。系统没有名为 `direct` 的策略分支。
 
@@ -85,7 +86,8 @@ Solve 根据用户目标决定直接回答或生成步骤和候选来源；Execu
 
 ## 输出与终态
 
-Agent Runtime 对 `solve`（直接答案或计划结果）和 `replan` 返回结构化 operation 结果；Solve 不执行检索，
+Agent Runtime 对 `solve`（直接答案或计划结果）和 `replan` 返回结构化 operation 结果；Solve 可以使用
+准入快照开放的本地函数工具，也可以在模型配置启用托管 Web Search 时使用网页搜索；
 `execute_step` 返回步骤文本、证据和来源尝试，对 `synthesize` 返回非空 `final_output` 与已汇总的引用材料。
 Agent Runtime 只校验 operation 输出的结构合同；execution-control 再统一校验每个 operation
 的语义合同、依赖、引用位置和来源后，再写入 `execution_finalization_response_v9`。追问、资料不足、工具失败后
@@ -107,5 +109,5 @@ trace context。请求不能改变遥测配置，OpenAI SDK 保持 `traceInclude
 - [工具路由](./tool-routing.md)
 - [检索服务](./retrieval-serving.md)
 - [执行合同](../../contracts/tool-execution.md)
-- [ADR-0084 单一 Agent 与机构知识边界](../../../.agents/notes/implemented/architecture/2026-07-29-adr-0084-agent-knowledge-tools.md)
+- [单一 Agent 与机构知识边界](../../../.agents/notes/implemented/architecture/2026-07-29-agent-knowledge-tools.md)
 - [Agent 编排研究参考](../../reference/agent-orchestration.md)

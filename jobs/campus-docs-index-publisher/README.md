@@ -167,4 +167,4 @@ builder 和统一 Publisher 的完整操作顺序见 [Campus Docs 与 Notices �
 - 完整操作步骤：[Campus Docs 与 Notices 操作手册](../../docs/runbooks/campus-docs.md)
 - 索引架构与制品语义：[检索服务](../../docs/architecture/system/retrieval-serving.md)
 - 文档输入数据：[阅读器数据](../../docs/data/document-reader.md)
-- 设计理由：[机构知识决策](../../.agents/notes/implemented/architecture/2026-07-29-adr-0084-agent-knowledge-tools.md)
+- 设计理由：[机构知识决策](../../.agents/notes/implemented/architecture/2026-07-29-agent-knowledge-tools.md)

@@ -17,7 +17,7 @@
 本包不读写数据库、不拥有 Job 编排和环境变量解析。消费者为 `jobs/notice-classifier` 和
 `scripts/notices/` 评测工具链。领域语义（单一用户分类、离线过程边界）见
 `docs/architecture/domains/notices.md`，评测边界见
-`.agents/notes/implemented/testing/2026-08-21-adr-0090-eval-boundaries.md`。
+`.agents/notes/implemented/testing/2026-08-21-eval-boundaries.md`。
 
 ```bash
 pnpm --dir packages/notice-classifier-core typecheck

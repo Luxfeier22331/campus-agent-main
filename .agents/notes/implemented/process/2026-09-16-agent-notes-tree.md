@@ -12,19 +12,22 @@ Status: implemented
 ## 决策
 
 决策迁入 `.agents/notes/{proposed,implemented,rejected,archived}/{class}/`。
-42 篇存量 ADR 保留编号，移除 frontmatter，采用 `Agent Note:` 标题和 `Status:` 行；
-新笔记按话题命名，不再分配 ADR 编号。六类分类及操作规则由
+42 篇存量 ADR 迁入时移除 frontmatter，采用 `Agent Note:` 标题和 `Status:` 行；
+六类分类及操作规则由
 [笔记 README](../../README.md) 维护；根 [AGENTS.md](../../../../AGENTS.md) 路由到
 [写作 Skill](../../../skills/write-notes-like-deepseek/SKILL.md)。
+迁移初期的“保留编号、新笔记不用编号”过渡政策已由
+[ADR 编号迁移为话题命名](./2026-09-16-agent-notes-topic-migration.md)终结：全部活动笔记改用话题文件名和标题，
+编号只保留在历史叙述中。
 
 笔记保留按未来指导价值判断；实现事实更新、决定反转、部分取代及完全合并的规则由
 [笔记 README](../../README.md#何时写与清理)统一维护。已实施但后来纠正的选择仍可能具有
 指导价值，不能仅因被取代就归档。合并删除之前必须让当前 owner 保存独有的决策内容，
 避免理由仅能从 Git 历史恢复；迁移前已删除 ADR 同样适用，历史编号只作标识，独有内容由现行 owner 承接。
-ADR-0007 的检索取舍由 [ADR-0084](../architecture/2026-07-29-adr-0084-agent-knowledge-tools.md)承接；
-ADR-0051 的阅读器取舍由 [ADR-0085](../feature/2026-08-01-adr-0085-native-reader.md)承接；
-ADR-0055／0080 的控制台退役由 [ADR-0072](../architecture/2026-07-12-adr-0072-self-hosted-ops-web.md)及其后续 owner 承接；
-ADR-0077 的采集编排取舍由 [ADR-0089](../simplification/2026-08-19-adr-0089-internal-portal-credential-resolution.md)承接。
+ADR-0007 的检索取舍由 [单一 Agent 与机构知识边界](../architecture/2026-07-29-agent-knowledge-tools.md)承接；
+ADR-0051 的阅读器取舍由 [原生公开文档阅读器](../feature/2026-08-01-native-reader.md)承接；
+ADR-0055／0080 的控制台退役由 [自托管 Ops Web](../architecture/2026-07-12-self-hosted-ops-web.md)及其后续 owner 承接；
+ADR-0077 的采集编排取舍由 [简化采集控制面与内部门户凭据所有权](../simplification/2026-08-19-internal-portal-credential-resolution.md)承接。
 这些内容保留历史选择与现行边界的区别，不把旧实现细节重新声明为当前要求。
 
 真实故障的经过、机制与漏检原因属于[事故复盘](../../../../docs/postmortem/README.md)，
@@ -65,7 +68,7 @@ ADR-0077 的采集编排取舍由 [ADR-0089](../simplification/2026-08-19-adr-00
 
 ## 后果
 
-文档操作规则由[文档规范](../../../../docs/AGENTS.md)维护，分工理由见 [ADR-0038](./2026-07-16-adr-0038-documentation.md)，
+文档操作规则由[文档规范](../../../../docs/AGENTS.md)维护，分工理由见 [文档治理](./2026-07-16-documentation.md)，
 本笔记仅拥有决策记录治理。说明、Skill、脚本和测试须保持一致；验收应覆盖实际归档行为，
 不能用空目录检查代替能力验证。故障经过、漏检原因和对应修复见
 [归档完成误报复盘](../../../../docs/postmortem/0001-note-archive-false-completion.md)，本笔记不重复事故叙事。

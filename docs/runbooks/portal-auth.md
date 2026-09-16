@@ -99,4 +99,4 @@ Ops Web 会把这些领域结果映射为对应的 `OPS_INTERNAL_PORTAL_*` 页�
 - [采集运行](./ingestion.md)
 - [内部门户数据](../data/internal-portal.md)
 - [内部门户凭据接口](../contracts/ops-web/internal-portal.md)
-- [ADR-0089 简化采集控制面与内部门户凭据所有权](../../.agents/notes/implemented/simplification/2026-08-19-adr-0089-internal-portal-credential-resolution.md)
+- [简化采集控制面与内部门户凭据所有权](../../.agents/notes/implemented/simplification/2026-08-19-internal-portal-credential-resolution.md)

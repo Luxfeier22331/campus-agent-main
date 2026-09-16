@@ -31,5 +31,5 @@ profile 保持独立。
 `campus-agent-schema` 使用既有 `campus_agent` owner 安装并拥有 `model_config` schema，与其他产品
 schema 共用 `drizzle.campus_agent_migrations`；常驻服务使用 `model_config` runtime role，后者不执行
 DDL。Ops Web 与 execution-control 没有该表的数据库权限。详细决定见
-[ADR-0093](../../../.agents/notes/implemented/architecture/2026-08-22-adr-0093-model-config-boundary.md)，HTTP 管理投影见
+[Model Config 独立边界](../../../.agents/notes/implemented/architecture/2026-08-22-model-config-boundary.md)，HTTP 管理投影见
 [Ops Web Provider 合同](../../contracts/ops-web/providers.md)。

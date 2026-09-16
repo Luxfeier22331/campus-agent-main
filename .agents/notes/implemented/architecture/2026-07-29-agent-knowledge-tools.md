@@ -1,0 +1,85 @@
+# Agent Note: 单一 Agent 与机构知识边界
+
+Status: implemented
+
+## 背景
+
+ADR-0075 曾把机构知识查询包装为 Primary Agent 到 Knowledge Agent 的 handoff。后续实现保留同一模型
+角色，但又把 Campus Docs 检索固化为每个有效请求都必须执行的 Temporal Activity，并把检索结果固定注入
+模型输入。
+
+这条链路不是通用 RAG 或工具合同。它让问候、改写和个人事实请求也依赖 Qdrant 与 Embedding
+Provider，并使 Agent 输入、Temporal history、运行投影、评测和部署配置同时耦合到 Campus Docs。
+当前产品已经确定已发布 Campus Docs 以 Agent Workflow Executor 的只读 `campus_search` function tool 接入；
+尚未采集的公开校园网页信息可由 SDK 原生 `web_search` 补充。本笔记 记录收敛后的本地知识边界，
+避免恢复强制预检索或多 Agent 编排。
+
+早期 ADR-0007 选择 hybrid retrieval，是因为规章、培养方案的精确术语、条款编号和固定名称
+不能只依赖 dense 相似度；使用 Qdrant 原生 dense/sparse prefetch 与 RRF，避免维护第二套稀疏评分
+引擎。该理由仍适用于当前 `campus_search`，与是否在每次请求前强制检索是两个独立决定。
+
+## 决策
+
+- 每个在线回答使用同一模型角色完成 `solve`、`execute_step`、`replan` 和 `synthesize` operation；Solve
+  可以直接回答或返回计划；不恢复
+  Knowledge Agent 或 handoff，但保留显式的计划、重规划和最终合成阶段；
+- 当前在线 workflow 不自动执行 Campus Docs 检索，也不向 Agent Runtime 注入固定
+  `campus_docs_evidence`；
+- Executor 按当前步骤按需调用只读 `campus_search`，Finalization 只接受同一次运行中成功工具经对应
+  adapter 校验的来源引用；
+- hosted `web_search` 只有在当前 `execute_step` 的候选来源中被 Solve/Replanner 生成的计划显式允许时才由
+  Agent Runtime 附加，只用于校园问题的公开网页证据；它不进入本地函数工具预算、结果或轨迹，也不是
+  `campus_search` 失败后的代码级 fallback；
+- `campus_search` 在 execution-control 中读取当前 collection，并从 Model Config 读取 embedding 和
+  reranker 连接，不把二者放入
+  admission snapshot 或 Temporal workflow input；
+- Campus Docs/Notice 的来源、Chunk、Embedding、统一 Qdrant collection 和发布器继续作为独立离线数据面维护；
+  离线索引或当前绑定存在不表示在线 Agent 已经消费它；
+- Docs/Notice builder 分别完成 Chunk 与 Embedding 阶段，统一 Publisher 只接收两套显式内容寻址制品并
+  原子更新当前绑定；Publisher 不重新 embedding；
+- 个人记忆只支持用户自身事实或偏好，不能替代机构知识来源；
+- 本地函数工具调用次数只受当前 operation 的总 `max_function_tool_calls` 限制；`max_plan_steps` 和
+  `max_replans` 由外层 workflow 约束。来源切换由 Replanner 的结构化剩余步骤决定，不恢复代码级
+  fallback、Knowledge Agent 或 handoff。
+
+### 检索定义与运行合同
+
+索引定义固定 embedding 空间、维度、vector name 与 sparse 算法，发布器和查询 adapter 必须一致；
+供应商默认值不能静默决定维度。检索调优通过代码定义、索引重建和相应验证完成，不把 collection、
+vector name 或结果预算交给模型输入。执行侧只返回经过校验的有界 DTO，原始存储 payload 不越过
+运行时合同；主题集合也不等于多个物理检索 collection。
+
+## 未采用方案
+
+- **保留强制检索但允许空结果**：仍让全部请求依赖尚未完成的知识架构；
+- **只停止 Activity、保留 evidence 字段和 Qdrant 配置**：会形成没有消费者的兼容面；
+- **强制每次请求预检索**：会让问候、改写和个人事实请求依赖 Qdrant 与 Embedding Provider。
+
+## 后果
+
+- execution-control 不在准入阶段冻结 Qdrant、Embedding 设置或当前索引绑定；检索 handler 在工具调用
+  时读取它们；
+- Agent Runtime 输入和 Temporal workflow 只保留当前实际开放的能力；
+- 在线 Agent 评测不再把机构文档证据当作固定输入，离线 RAG 评测继续验证索引制品；
+- `campus_search` 返回 `no_match` 或失败时，在线回答不能使用模型记忆补全机构事实；系统不会由代码
+  自动触发 Web Search，Replanner 可以在仍有预算时生成显式 Web Search 步骤；
+- 删除旧类型、阶段耗时、部署变量和兼容路径，不保留隐藏 fallback。
+
+### 早期检索范围的变化
+
+旧 ADR 当时未默认启用 reranking、HyDE、multi-query expansion 或自动 query rewriting，要求先有
+具体评测或运行缺口再引入。当前在线路径已使用 hybrid RRF 加 reranker，因此“不默认重排”仅是
+历史选择，不再是当前约束；旧 ADR 本身没有记录后续引入重排的评测结论，不能据此补造验证结果。
+当前查询、失败语义及预算由[检索服务](../../../../docs/architecture/system/retrieval-serving.md#在线消费边界)
+维护，不保留本地稀疏检索回退或失败时静默切换另一条查询路径。
+
+## 相关文档
+
+- [Agent 框架](../../../../docs/architecture/system/agent-framework.md)
+- [Agent 的机构知识边界](../../../../docs/architecture/system/agentic-retrieval.md)
+- [检索服务](../../../../docs/architecture/system/retrieval-serving.md)
+- 部分取代 [规范化通知存储](./2026-08-14-normalized-notice-storage.md)当时不提供 Notice RAG 的范围；通知内容所有权继续由该篇维护。
+
+后续 Agent Workflow 将 [早期 Temporal 单次 SDK run 范围](./2026-06-06-temporal.md)与
+[仅原生文本的输入输出范围](./2026-07-16-agent-io.md)扩展为多 operation；
+持久执行、operation 内工具循环和最终来源校验的所有权继续由各自合同维护。

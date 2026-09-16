@@ -80,7 +80,7 @@ execution-control 保留 `owner_deletion_fences(state=deleted)` 这一条最小 
 
 - [App API 登录合同](../../contracts/app-api/auth.md)
 - [联邦登录合同](../../contracts/app-api/federation.md)
-- [Campus Web 交付与同源边界 ADR](../../../.agents/notes/implemented/feature/2026-06-09-adr-0050-campus-web.md)
+- [Campus Web 交付与同源边界 ADR](../../../.agents/notes/implemented/feature/2026-06-09-campus-web.md)
 - [产品运行时](./product-runtime.md)
 - [工具路由](./tool-routing.md)
 - [个人记忆](./memory-plane.md)

@@ -121,6 +121,29 @@ test("归档缺失或重复标记会失败，缺失替代目标不移动源文�
 	}
 });
 
+test("归档原文保留旧编号文件名与标题，不触发活动笔记规则", () => {
+	const root = fixture();
+	try {
+		const archivedDir = join(root, ".agents/notes/archived/architecture");
+		mkdirSync(archivedDir, { recursive: true });
+		writeFileSync(
+			join(archivedDir, "2026-09-01-adr-0005-old-boundary.md"),
+			"# Agent Note: ADR-0005 旧边界\n\nStatus: implemented\n\n## 决策\n\n保留原文。\n\nArchived: 2026-09-16\n",
+		);
+		execFileSync("git", ["init", "-q"], { cwd: root });
+		for (const script of [
+			"check-notes-tree.ts",
+			"check-notes-format.ts",
+			"check-archived-agent-notes.ts",
+		]) {
+			const result = run(root, script);
+			assert.equal(result.status, 0, result.stdout + result.stderr);
+		}
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("归档保留历史章节与失效链接，模板不参与树和格式检查", () => {
 	const root = fixture();
 	try {

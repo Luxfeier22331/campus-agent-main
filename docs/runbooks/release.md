@@ -68,6 +68,6 @@ Dependabot job 不进行认证缓存读写。主线发布仍只读写 canonical 
 ## 相关文档
 
 - [运行时发布架构](../architecture/system/runtime-release.md)
-- [ADR-0065 GitOps](../../.agents/notes/implemented/process/2026-07-16-adr-0065-gitops.md)
-- [ADR-0074 源码仓库与环境仓库边界](../../.agents/notes/implemented/process/2026-07-16-adr-0074-repository-boundary.md)
-- [ADR-0083 Staging 版本选择](../../.agents/notes/implemented/process/2026-07-25-adr-0083-promotion.md)
+- [GitOps](../../.agents/notes/implemented/process/2026-07-16-gitops.md)
+- [源码仓库与环境仓库边界](../../.agents/notes/implemented/process/2026-07-16-repository-boundary.md)
+- [Staging 版本选择](../../.agents/notes/implemented/process/2026-07-25-promotion.md)

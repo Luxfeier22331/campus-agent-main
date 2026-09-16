@@ -79,6 +79,6 @@ GitHub Actions 需要 package write 权限；`GITHUB_TOKEN` 只有在该 workflo
 
 ## 相关决策
 
-- [ADR-0095 GHCR 镜像保留与退役](../../.agents/notes/implemented/process/2026-09-04-adr-0095-ghcr-retention.md)
+- [GHCR 镜像保留与退役](../../.agents/notes/implemented/process/2026-09-04-ghcr-retention.md)
 - [运行时发布架构](../architecture/system/runtime-release.md)
 - [发布](./release.md)

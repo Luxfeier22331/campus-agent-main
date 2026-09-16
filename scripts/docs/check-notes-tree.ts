@@ -12,6 +12,8 @@ const classes = new Set([
 	"testing",
 ]);
 const filenamePattern = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/u;
+const numberedFilenamePattern = /(?:^|-)adr-?\d+(?=-|\.md$)/iu;
+const activeLifecycles = new Set(["proposed", "implemented", "rejected"]);
 const errors: string[] = [];
 
 if (existsSync(notesDir)) {
@@ -53,6 +55,9 @@ if (existsSync(notesDir)) {
 				}
 				if (!filenamePattern.test(file)) {
 					errors.push(`${filePath}: 文件名须为 yyyy-mm-dd-topic.md`);
+				}
+				if (activeLifecycles.has(entry.name) && numberedFilenamePattern.test(file)) {
+					errors.push(`${filePath}: 活动笔记文件名须使用话题名，不得包含 ADR 编号`);
 				}
 			}
 		}

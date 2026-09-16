@@ -206,7 +206,7 @@ automation token。
 
 ## 相关文档
 
-- [ADR-0072 自托管 Ops Web](../../.agents/notes/implemented/architecture/2026-07-12-adr-0072-self-hosted-ops-web.md)
+- [自托管 Ops Web](../../.agents/notes/implemented/architecture/2026-07-12-self-hosted-ops-web.md)
 - [Ops Web 接口](../contracts/ops-web/README.md)
 - [食堂](./dining.md)
 - [界面体验基线](./ui.md)

@@ -9,7 +9,7 @@ status: active
 `docs/` 保存 `campus-agent` 可长期引用的文档。当前事实由最近的所有者文档和可执行实现维护；
 其他文档只提供必要路由，不复制所属正文或全系统当前快照。
 文档放置与写作遵循[文档规范](./AGENTS.md)，分工理由见
-[ADR-0038](../.agents/notes/implemented/process/2026-07-16-adr-0038-documentation.md)。
+[文档治理](../.agents/notes/implemented/process/2026-07-16-documentation.md)。
 
 ## 首要入口
 

@@ -97,5 +97,5 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 - [Kubernetes 运行时](./k8s-runtime.md)
 - [环境配置](../../environment/README.md)
 - [发布操作](../../runbooks/release.md)
-- [ADR-0065](../../../.agents/notes/implemented/process/2026-07-16-adr-0065-gitops.md)
-- [ADR-0083](../../../.agents/notes/implemented/process/2026-07-25-adr-0083-promotion.md)
+- [GitOps](../../../.agents/notes/implemented/process/2026-07-16-gitops.md)
+- [Staging 版本选择](../../../.agents/notes/implemented/process/2026-07-25-promotion.md)

@@ -151,5 +151,5 @@ Temporal persistence 与 visibility database 是 platform data。backup、restor
 
 ## 相关文档
 
-- [ADR-0048 Temporal 执行面](../../.agents/notes/implemented/architecture/2026-06-06-adr-0048-temporal.md)
+- [Temporal 执行面](../../.agents/notes/implemented/architecture/2026-06-06-temporal.md)
 - [Kubernetes 运行时](../architecture/system/k8s-runtime.md)

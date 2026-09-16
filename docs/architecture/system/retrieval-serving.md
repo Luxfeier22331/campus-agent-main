@@ -164,4 +164,4 @@ Agent 正文只引用实际采用的候选；当前 Campus Docs 来源由 `campu
 - [文档站架构](./document-site.md)
 - [文档阅读器数据模型](../../data/document-reader.md)
 - [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/campus-docs.md)
-- [ADR-0052 Qdrant 托管方式](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0052-qdrant-hosting.md)
+- [Qdrant 托管方式](../../../.agents/notes/implemented/architecture/2026-07-16-qdrant-hosting.md)

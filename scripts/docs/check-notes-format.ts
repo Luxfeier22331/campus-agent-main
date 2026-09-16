@@ -8,6 +8,7 @@ const requiredSectionsByLifecycle: Record<string, string[]> = {
 	rejected: ["背景", "提案", "未采用方案"],
 };
 const proposalHeadings = /^##\s*(提案|验收标准|迁移计划|实施计划)\s*$/u;
+const numberedTitlePattern = /\bADR[- ]?\d+\b/iu;
 const errors: string[] = [];
 
 function noteFiles(lifecycle: string): string[] {
@@ -33,6 +34,9 @@ for (const lifecycle of ["proposed", "implemented", "rejected"]) {
 		if (!first.startsWith("# Agent Note: ") || first.trim().length <= "# Agent Note: ".length) {
 			errors.push(`${file}: 第一行须为 “# Agent Note: <标题>”`);
 			continue;
+		}
+		if (numberedTitlePattern.test(first)) {
+			errors.push(`${file}: 活动笔记标题须使用话题名，不得包含 ADR 编号`);
 		}
 		if (second !== "") {
 			errors.push(`${file}: 标题后须为空行`);

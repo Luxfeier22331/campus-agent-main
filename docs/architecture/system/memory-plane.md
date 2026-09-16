@@ -9,9 +9,9 @@ status: active
 Hindsight 是唯一个人记忆运行时；Qdrant 只负责机构知识。记忆辅助理解个人偏好、背景与指代，
 不决定身份、授权、工具开放或机构事实。聊天和记忆有独立生命周期。
 
-所有权决策见 [ADR-0058](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0058-hindsight.md)；个人记忆与会话上下文边界见
-[ADR-0015](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0015-memory-boundaries.md)。记忆不能覆盖实体识别结果，见
-[ADR-0021](../../../.agents/notes/implemented/feature/2026-07-16-adr-0021-entity-aliases.md)。
+所有权决策见 [Hindsight 自托管个人记忆](../../../.agents/notes/implemented/architecture/2026-07-16-hindsight.md)；个人记忆与会话上下文边界见
+[用户身份、记忆与个性化边界](../../../.agents/notes/implemented/architecture/2026-07-16-memory-boundaries.md)。记忆不能覆盖实体识别结果，见
+[实体别名](../../../.agents/notes/implemented/architecture/2026-07-16-entity-aliases.md)。
 
 ## 所有权
 
@@ -88,4 +88,4 @@ memory excerpt；Langfuse 不新增原始记忆导出，见 [Langfuse 合同](..
 本地与 staging 使用同一支持原生 curation 的 Hindsight 版本。
 
 接口细节见 [App API 个人记忆](../../contracts/app-api/memory.md)，决策见
-[ADR-0082](../../../.agents/notes/implemented/architecture/2026-07-17-adr-0082-hindsight-lifecycle.md)。
+[Hindsight 记忆生命周期](../../../.agents/notes/implemented/architecture/2026-07-17-hindsight-lifecycle.md)。

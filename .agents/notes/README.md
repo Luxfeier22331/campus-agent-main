@@ -1,7 +1,7 @@
 # 决策笔记（Agent Notes）
 
 本目录保存动机、取舍、被否方案和后果；代码、schema 和测试承载当前实现。
-文档所有权见 [ADR-0038](./implemented/process/2026-07-16-adr-0038-documentation.md)，
+文档所有权见 [文档治理](./implemented/process/2026-07-16-documentation.md)，
 生命周期理由见 [决策笔记树](./implemented/process/2026-09-16-agent-notes-tree.md)，
 写作流程见 [Skill](../skills/write-notes-like-deepseek/SKILL.md)。
 
@@ -16,8 +16,8 @@
   原文和 `Status: implemented` 保留，归档由目录及唯一的 `Archived:` 行表达。
 - `templates/`：写作模板与归档示例，不参与正式笔记的树和格式检查。
 
-迁移笔记保留原 ADR 编号作为历史标识；新笔记不再分配 ADR 编号。
-现存笔记之间用相对 Markdown 链接，不用裸编号；不建 `INDEX.md`，用目录和搜索定位。
+全部笔记使用话题命名，文件名和标题不包含 ADR 编号；历史编号只允许出现在正文的历史叙述中。
+现存笔记之间用相对 Markdown 链接并以话题名作为显示文字，不用裸编号；不建 `INDEX.md`，用目录和搜索定位。
 已删除 ADR 的编号只作历史标识；仍有价值的独有内容必须由现行笔记承接，不能仅指向 Git 历史。
 不恢复旧目录或建立跳转页；缺失理由从原文恢复，不把退役自动解释为原决定错误。
 

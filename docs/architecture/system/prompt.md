@@ -116,5 +116,5 @@ Prompt 或模型输入输出变化应验证：
 - [Agent 的机构知识边界](./agentic-retrieval.md)
 - [检索服务](./retrieval-serving.md)
 - [Langfuse 运行合同](../../contracts/langfuse-runtime.md)
-- [ADR-0060 Agent 输入输出](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0060-agent-io.md)
+- [Agent 输入输出](../../../.agents/notes/implemented/architecture/2026-07-16-agent-io.md)
 - [Agent 编排研究参考](../../reference/agent-orchestration.md)

@@ -125,7 +125,7 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 `is_published=true` 为已发布。已发布行必须具有分类，不增加独立工作流、审计历史或派生库存表。已发布站内通知
 可以通过 notice-publisher 的重新发布行为重新物化正文投影，但不会改变 `is_published` 或分类；当前状态
 选择及重新评估条件见
-[ADR-0094 通知维护状态](../../.agents/notes/implemented/architecture/2026-08-25-adr-0094-notice-maintenance-state.md)。
+[通知维护状态收敛](../../.agents/notes/implemented/architecture/2026-08-25-notice-maintenance-state.md)。
 
 `notices.notice_assets` 按通知和资源类型保存名称、媒体类型、字节数、SHA-256 和附件的
 `portal_annex_id`。图片使用从零开始的连续展示 ordinal；附件保留 source metadata ordinal，永久缺失附件会留下
@@ -270,7 +270,7 @@ Publisher 成功验证并激活 `campus_docs_serving.current_index` 后，Notice
 - [通知](../architecture/domains/notices.md)
 - [通知接口](../contracts/app-api/notices.md)
 - [采集运行](../runbooks/ingestion.md)
-- [ADR-0087 内部门户通知来源合同](../../.agents/notes/implemented/architecture/2026-08-14-adr-0087-internal-portal-notice-source.md)
-- [ADR-0088 规范化通知存储](../../.agents/notes/implemented/architecture/2026-08-14-adr-0088-normalized-notice-storage.md)
-- [ADR-0094 通知维护状态收敛](../../.agents/notes/implemented/architecture/2026-08-25-adr-0094-notice-maintenance-state.md)
+- [内部门户通知来源合同](../../.agents/notes/implemented/architecture/2026-08-14-internal-portal-notice-source.md)
+- [规范化通知存储](../../.agents/notes/implemented/architecture/2026-08-14-normalized-notice-storage.md)
+- [通知维护状态收敛](../../.agents/notes/implemented/architecture/2026-08-25-notice-maintenance-state.md)
 - [Notice Chunk、Embedding 与本地评测](../../jobs/notice-index-publisher/README.md)

@@ -8,7 +8,7 @@ status: active
 
 本文件维护 `docs/` 的放置和写作规则；修改模块 README 时也使用这些原则。
 分区入口见 [README](./README.md)，分工理由见
-[ADR-0038](../.agents/notes/implemented/process/2026-07-16-adr-0038-documentation.md)。
+[文档治理](../.agents/notes/implemented/process/2026-07-16-documentation.md)。
 决策记录的专用格式与生命周期由[笔记规则](../.agents/notes/README.md)维护。
 
 ## 放置与范围

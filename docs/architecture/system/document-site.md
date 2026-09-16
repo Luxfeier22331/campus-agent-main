@@ -76,5 +76,5 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 
 - [文档来源与静态交付合同](../../contracts/document-reader-delivery.md)
 - [文档阅读器数据模型](../../data/document-reader.md)
-- [原生阅读器决策](../../../.agents/notes/implemented/feature/2026-08-01-adr-0085-native-reader.md)
+- [原生阅读器决策](../../../.agents/notes/implemented/feature/2026-08-01-native-reader.md)
 - [运行时发布](runtime-release.md)

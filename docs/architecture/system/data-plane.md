@@ -93,9 +93,9 @@ Agent 只通过 `campus_search` 读取已发布的当前 collection。
 
 ## 相关文档
 
-- [ADR-0002 对象存储](../../../.agents/notes/implemented/architecture/2026-07-16-adr-0002-object-storage.md)
-- [ADR-0091 退役旧文档分块栈](../../../.agents/notes/implemented/simplification/2026-08-21-adr-0091-retire-document-chunking-stack.md)
-- [ADR-0089 简化采集控制面与内部门户凭据所有权](../../../.agents/notes/implemented/simplification/2026-08-19-adr-0089-internal-portal-credential-resolution.md)（采集控制面退役与当前凭据所有权的理由）
+- [对象存储](../../../.agents/notes/implemented/architecture/2026-07-16-object-storage.md)
+- [退役旧文档分块栈](../../../.agents/notes/implemented/simplification/2026-08-21-retire-document-chunking-stack.md)
+- [简化采集控制面与内部门户凭据所有权](../../../.agents/notes/implemented/simplification/2026-08-19-internal-portal-credential-resolution.md)（采集控制面退役与当前凭据所有权的理由）
 - [内部门户数据](../../data/internal-portal.md)
 - [通知数据](../../data/notices.md)
 - [采集运行](../../runbooks/ingestion.md)
