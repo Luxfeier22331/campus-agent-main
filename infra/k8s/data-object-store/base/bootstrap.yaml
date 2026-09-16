@@ -27,13 +27,18 @@ data:
     rc admin policy create object-store campus-agent-source-rw /bootstrap/source-policy.json
     rc admin policy create object-store campus-agent-derived-rw /bootstrap/derived-policy.json
     rc admin policy create object-store campus-agent-derived-ro /bootstrap/derived-read-policy.json
+    rc admin policy create object-store campus-agent-source-ro /bootstrap/source-read-policy.json
 
     rc admin user add object-store "$OBJECT_STORE_SOURCE_ACCESS_KEY" "$OBJECT_STORE_SOURCE_SECRET_KEY"
     rc admin user add object-store "$OBJECT_STORE_DERIVED_ACCESS_KEY" "$OBJECT_STORE_DERIVED_SECRET_KEY"
     rc admin user add object-store "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY" "$OBJECT_STORE_DERIVED_READ_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY" "$OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY" "$OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY"
     rc admin policy attach object-store campus-agent-source-rw --user "$OBJECT_STORE_SOURCE_ACCESS_KEY"
     rc admin policy attach object-store campus-agent-derived-rw --user "$OBJECT_STORE_DERIVED_ACCESS_KEY"
     rc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-source-ro --user "$OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY"
   source-policy.json: |
     {
       "Version": "2012-10-17",
@@ -79,6 +84,22 @@ data:
           "Effect": "Allow",
           "Action": ["s3:GetObject"],
           "Resource": ["arn:aws:s3:::campus-agent-derived/*"]
+        }
+      ]
+    }
+  source-read-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+          "Resource": ["arn:aws:s3:::campus-agent-source"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject"],
+          "Resource": ["arn:aws:s3:::campus-agent-source/*"]
         }
       ]
     }
@@ -215,6 +236,26 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_DERIVED_READ_SECRET_KEY
+            - name: OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY
+            - name: OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY
+            - name: OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY
+            - name: OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY
             - name: RC_CONFIG_DIR
               value: /tmp/.rc
           resources:

@@ -17,6 +17,7 @@ status: active
 - 可观测性：[otel.md](./otel.md)、[worker-otel.md](./worker-otel.md)；
 - 本地与领域：[local-verification.md](./local-verification.md)、
   [campus-map-authoring.md](./campus-map-authoring.md)；
-- 安全与协作：[safety.md](./safety.md)、[provider-secrets.md](./provider-secrets.md)。
+- 安全与协作：[safety.md](./safety.md)、[provider-secrets.md](./provider-secrets.md)、
+  [collaborator-access.md](./collaborator-access.md)。
 
 runbook 只保存可重复操作，不决定产品或架构是否完成。历史步骤通过 git history 追溯。
