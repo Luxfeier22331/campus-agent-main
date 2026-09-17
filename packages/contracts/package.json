@@ -4,6 +4,7 @@
 	"license": "Apache-2.0",
 	"type": "module",
 	"exports": {
+		"./ops-time": "./src/ops-time.ts",
 		"./chat-feedback": "./src/chat-feedback.ts",
 		"./account-admin": "./src/account-admin.ts",
 		"./auth": "./src/auth.ts",

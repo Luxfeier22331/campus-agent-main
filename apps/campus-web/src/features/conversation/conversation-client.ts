@@ -1,4 +1,9 @@
-import { createIdempotencyKey, requestJson, UnauthorizedError } from "@/platform/api/client";
+import {
+	ApiRequestError,
+	createIdempotencyKey,
+	requestJson,
+	UnauthorizedError,
+} from "@/platform/api/client";
 import type {
 	ChatAnswerPayload,
 	ConversationDetail,
@@ -217,6 +222,9 @@ async function requestNoContent(input: { method: "DELETE"; path: string }): Prom
 		throw new UnauthorizedError();
 	}
 	if (!response.ok) {
-		throw new Error(response.statusText || "请求失败。");
+		throw new ApiRequestError({
+			message: response.statusText || "请求失败。",
+			status: response.status,
+		});
 	}
 }

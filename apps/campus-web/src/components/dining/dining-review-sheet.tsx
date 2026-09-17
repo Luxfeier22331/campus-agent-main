@@ -33,10 +33,10 @@ import {
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Flag, LoaderCircle, MessageSquareText, Send, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
 import { AuthDialog } from "@/components/auth/auth-dialog";
 import { createDiningReview, deleteDiningReview, reportDiningReview } from "@/features/dining/api";
 import { diningQueryKeys, diningReviewsInfiniteQueryOptions } from "@/features/dining/queries";
+import { formatTimestamp } from "@/lib/date-time";
 import { createIdempotencyKey } from "@/platform/api/client";
 import { useCampusSession } from "@/platform/auth/session";
 
@@ -233,7 +233,7 @@ export function DiningReviewSheet(props: {
 														{review.authorName ?? "匿名校园用户"}
 													</p>
 													<p className="mt-0.5 text-[var(--sys-text-subtle)] text-xs">
-														{formatReviewDate(review.createdAt)}
+														{formatTimestamp(review.createdAt)}
 														{review.edited ? " · 已编辑" : ""}
 													</p>
 												</div>
@@ -394,10 +394,4 @@ function ReviewActions(props: {
 		);
 	}
 	return null;
-}
-
-function formatReviewDate(value: string): string {
-	return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(
-		new Date(value),
-	);
 }

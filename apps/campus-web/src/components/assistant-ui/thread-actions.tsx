@@ -44,17 +44,13 @@ export const AssistantActionBar: FC = () => (
 		<AuiIf
 			condition={(state) => {
 				const metadata = readCampusMessageMetadata(state.message.metadata.custom);
-				return (
-					isPersistedConversationMessageId(state.message.parentId) &&
-					(metadata.kind !== "error" || metadata.retryable === true)
-				);
+				if (metadata.kind === "error") {
+					return true;
+				}
+				return isPersistedConversationMessageId(state.message.parentId);
 			}}
 		>
-			<ActionBarPrimitive.Reload asChild>
-				<TooltipIconButton tooltip="重新生成">
-					<RefreshCwIcon />
-				</TooltipIconButton>
-			</ActionBarPrimitive.Reload>
+			<ReloadAction />
 		</AuiIf>
 		<MessageFeedbackActions />
 		<ActionBarMorePrimitive.Root>
@@ -81,6 +77,18 @@ export const AssistantActionBar: FC = () => (
 );
 
 type AssistantFeedbackType = "positive" | "negative";
+
+const ReloadAction: FC = () => {
+	const messageCustom = useAuiState((state) => state.message.metadata.custom);
+	const metadata = readCampusMessageMetadata(messageCustom);
+	return (
+		<ActionBarPrimitive.Reload asChild>
+			<TooltipIconButton tooltip={metadata.kind === "error" ? "重试" : "重新生成"}>
+				<RefreshCwIcon />
+			</TooltipIconButton>
+		</ActionBarPrimitive.Reload>
+	);
+};
 
 const MessageFeedbackActions: FC = () => {
 	const messageId = useAuiState((state) => state.message.id);

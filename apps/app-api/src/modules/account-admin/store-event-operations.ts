@@ -1,10 +1,10 @@
-import { and, desc, eq, gt, lt, or, type SQL } from "drizzle-orm";
-
-import { accountAdminEvent } from "../../db/schema";
+import { resolveTimeQuery } from "campus-contracts/ops-time";
+import { and, desc, eq, gte, lt, or, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import { accountAdminEvent, user } from "../../db/schema";
 import type { AccountAdminStoreContext } from "./store-context";
 import type { AccountAdminStore } from "./store-contract";
 import {
-	accountAdminEventWindowStart,
 	decodeAccountAdminCursor,
 	encodeAccountAdminCursor,
 	toAccountAdminEventRecord,
@@ -60,9 +60,18 @@ export function createAccountAdminEventOperations(
 
 		async listEvents(query) {
 			const db = await context.getDb();
+			const filtersResolved = resolveTimeQuery(
+				{ window: query.window, from: query.from, to: query.to },
+				"accountEvents",
+			);
 			const cursor = decodeAccountAdminCursor(query.cursor);
 			const filters: SQL[] = [
-				gt(accountAdminEvent.occurredAt, accountAdminEventWindowStart(query.window)),
+				...(filtersResolved.from
+					? [gte(accountAdminEvent.occurredAt, new Date(filtersResolved.from))]
+					: []),
+				...(filtersResolved.to
+					? [lt(accountAdminEvent.occurredAt, new Date(filtersResolved.to))]
+					: []),
 			];
 			if (query.action) {
 				filters.push(eq(accountAdminEvent.action, query.action));
@@ -88,15 +97,35 @@ export function createAccountAdminEventOperations(
 					filters.push(cursorFilter);
 				}
 			}
+			const actor = alias(user, "event_actor");
+			const target = alias(user, "event_target");
 			const rows = await db
-				.select()
+				.select({
+					event: accountAdminEvent,
+					actorName: actor.name,
+					actorEmail: actor.email,
+					targetName: target.name,
+					targetEmail: target.email,
+				})
 				.from(accountAdminEvent)
+				.leftJoin(actor, eq(actor.id, accountAdminEvent.actorId))
+				.leftJoin(target, eq(target.id, accountAdminEvent.targetUserId))
 				.where(and(...filters))
 				.orderBy(desc(accountAdminEvent.occurredAt), desc(accountAdminEvent.eventId))
 				.limit(query.limit + 1);
-			const items = rows.slice(0, query.limit).map(toAccountAdminEventRecord);
+			const items = rows.slice(0, query.limit).map((row) =>
+				toAccountAdminEventRecord(row.event, {
+					actor:
+						row.actorName && row.actorEmail ? { name: row.actorName, email: row.actorEmail } : null,
+					targetUser:
+						row.targetName && row.targetEmail
+							? { name: row.targetName, email: row.targetEmail }
+							: null,
+				}),
+			);
 			const last = items.at(-1);
 			return {
+				filters: filtersResolved,
 				items,
 				nextCursor:
 					rows.length > query.limit && last

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsWebApp } from "../src/app/ops-web-app";
 import type { ExecutionModelSettingsStatus } from "../src/shared/ops-contract";
@@ -77,6 +77,77 @@ function noticeClassifierStatus(
 }
 
 describe("model settings page", () => {
+	it("validates saved OCR settings with no validation record and blocks validation of unsaved edits", async () => {
+		const config = {
+			base_url: "https://ocr.example.test",
+			updated_at: "2026-09-16T00:00:00Z",
+			credential_configured: true,
+			validation: null,
+		};
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			if (String(input).endsWith("/document_ocr/validate") && init?.method === "POST") {
+				return Response.json({ launchError: null });
+			}
+			return Response.json(String(input).endsWith("/document_ocr") ? config : executionStatus);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		render(<OpsWebApp initialPath="/providers" />);
+		const button = await screen.findByRole("button", { name: "验证连接" });
+		expect(screen.getByText("尚未验证")).toBeInTheDocument();
+		expect(button).toBeEnabled();
+		fireEvent.click(button);
+		expect(await screen.findByText("验证任务已提交，可在文档识别页查看进度。")).toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.some(
+				([input, init]) =>
+					String(input).endsWith("/document_ocr/validate") && init?.method === "POST",
+			),
+		).toBe(true);
+		fireEvent.change(screen.getByLabelText("服务地址"), {
+			target: { value: "https://changed.example.test" },
+		});
+		expect(button).toBeDisabled();
+		expect(button).toHaveAttribute("title", "请先保存更改");
+	});
+
+	it.each(["llm", "embedding", "reranker"] as const)(
+		"revalidates the saved %s model and disables the form while pending",
+		async (kind) => {
+			let finish: (() => void) | undefined;
+			const pending = new Promise<void>((resolve) => {
+				finish = resolve;
+			});
+			const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				if (
+					init?.method === "POST" &&
+					String(input).endsWith(`/api/ops/model-configs/${kind}/validate`)
+				) {
+					await pending;
+				}
+				return Response.json(executionStatus);
+			});
+			vi.stubGlobal("fetch", fetchMock);
+			render(<OpsWebApp initialPath="/providers" />);
+			const buttons = await screen.findAllByRole("button", { name: "重新验证" });
+			expect(buttons).toHaveLength(4);
+			const button = buttons[["llm", "embedding", "reranker"].indexOf(kind)] as HTMLElement;
+			const form = button.closest("form") as HTMLFormElement;
+			fireEvent.click(button);
+			await waitFor(() => expect(button).toBeDisabled());
+			expect(within(form).getByLabelText("Base URL")).toBeDisabled();
+			expect(
+				fetchMock.mock.calls.some(
+					([input, init]) =>
+						init?.method === "POST" &&
+						String(input).endsWith(`/api/ops/model-configs/${kind}/validate`),
+				),
+			).toBe(true);
+			finish?.();
+			expect(await within(form).findByText("当前配置已重新验证。")).toBeInTheDocument();
+			expect(within(form).getByLabelText("Base URL")).toBeEnabled();
+		},
+	);
+
 	it("shows a read failure instead of unconfigured forms", async () => {
 		vi.stubGlobal(
 			"fetch",
@@ -320,7 +391,9 @@ describe("model settings page", () => {
 		vi.stubGlobal("fetch", fetchMock);
 		render(<OpsWebApp initialPath="/providers" />);
 
-		fireEvent.click(await screen.findByRole("button", { name: "重新验证" }));
+		const buttons = await screen.findAllByRole("button", { name: "重新验证" });
+		expect(buttons).toHaveLength(4);
+		fireEvent.click(buttons[3] as HTMLElement);
 
 		expect(await screen.findByText("当前配置已重新验证。")).toBeInTheDocument();
 		expect(screen.getAllByText(/2026-07-21 09:00:00/u)).toHaveLength(4);
@@ -372,7 +445,9 @@ describe("model settings page", () => {
 		);
 		render(<OpsWebApp initialPath="/providers" />);
 
-		fireEvent.click(await screen.findByRole("button", { name: "重新验证" }));
+		const buttons = await screen.findAllByRole("button", { name: "重新验证" });
+		expect(buttons).toHaveLength(4);
+		fireEvent.click(buttons[3] as HTMLElement);
 
 		expect(await screen.findByText("验证失败")).toBeInTheDocument();
 		expect(await screen.findByText("HTTP 422: schema unsupported")).toBeInTheDocument();

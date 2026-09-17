@@ -1,4 +1,4 @@
-import { Alert, Button, Field, NativeSelect } from "@campus-agent/ui";
+import { Alert, Button, Field } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, RefreshCw } from "lucide-react";
@@ -24,13 +24,7 @@ import {
 	StatusBadge,
 } from "./ops-display";
 import { formatDataStateLabel } from "./ops-view-helpers";
-
-const windows: Array<{ label: string; value: OpsOverviewWindow }> = [
-	{ label: "15 分钟", value: "15m" },
-	{ label: "1 小时", value: "1h" },
-	{ label: "6 小时", value: "6h" },
-	{ label: "24 小时", value: "24h" },
-];
+import { TimeWindowSelect } from "./ui/time-window-select";
 
 export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 	const navigate = useNavigate();
@@ -66,24 +60,19 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 				actions={
 					<div className="flex flex-wrap items-end gap-3">
 						<Field label="统计窗口">
-							<NativeSelect
-								aria-label="统计窗口"
+							<TimeWindowSelect
+								accessibilityLabel="统计窗口"
 								className="min-h-11"
 								name="window"
-								onChange={(event) => {
+								onChange={(next) => {
 									void navigate({
-										search: { window: event.target.value as OpsOverviewWindow },
+										search: { window: next as OpsOverviewWindow },
 										to: "/overview",
 									});
 								}}
+								scope="overview"
 								value={window}
-							>
-								{windows.map((item) => (
-									<option key={item.value} value={item.value}>
-										{item.label}
-									</option>
-								))}
-							</NativeSelect>
+							/>
 						</Field>
 						<Button
 							aria-busy={overview.isFetching}
@@ -128,15 +117,24 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 						</dd>
 					)}
 				</div>
-				<OverviewMetric label="请求总数" value={data.requests.total.toLocaleString("en-US")} />
 				<OverviewMetric
+					href="/requests"
+					label="请求总数"
+					search={{ window }}
+					value={data.requests.total.toLocaleString("en-US")}
+				/>
+				<OverviewMetric
+					href="/requests"
 					label="请求成功率"
+					search={{ status: "FAILED", window }}
 					value={
 						data.requests.successRate === null ? "无数据" : formatPercent(data.requests.successRate)
 					}
 				/>
 				<OverviewMetric
+					href="/requests"
 					label="95% 请求耗时"
+					search={{ window }}
 					value={
 						data.requests.p95DurationMs === null
 							? "无数据"
@@ -149,20 +147,22 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:border-r xl:pr-8">
 					<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
 						<h2 className="ui-section-title">请求趋势</h2>
-						{window !== "24h" && data.trends.data.length < 2 ? (
-							<Link
-								className="text-sm font-medium text-info hover:underline"
-								search={{ window: "24h" }}
-								to="/overview"
-							>
-								切换到 24 小时
-							</Link>
-						) : null}
 					</div>
 					<RequestTrendChart trends={data.trends} />
 				</section>
 				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:pl-8">
-					<h2 className="mb-4 ui-section-title">当前问题</h2>
+					<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+						<h2 className="ui-section-title">当前问题</h2>
+						{data.issues.length > 0 ? (
+							<Link
+								className="text-sm font-medium text-info hover:underline"
+								search={{ status: "FAILED", window }}
+								to="/requests"
+							>
+								查看失败请求
+							</Link>
+						) : null}
+					</div>
 					{data.issues.length === 0 ? (
 						<p className="text-muted-foreground text-sm">当前没有需要处理的问题。</p>
 					) : (
@@ -199,11 +199,29 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 	);
 }
 
-function OverviewMetric({ label, value }: { label: string; value: string }) {
+function OverviewMetric({
+	href,
+	label,
+	search,
+	value,
+}: {
+	href: string;
+	label: string;
+	search?: Record<string, unknown>;
+	value: string;
+}) {
 	return (
 		<div className="grid content-center gap-1 border-border border-b px-1 py-4 md:px-4 xl:border-b-0">
 			<dt className="font-medium ui-metadata text-muted-foreground">{label}</dt>
-			<dd className="font-semibold text-2xl text-foreground tabular-nums">{value}</dd>
+			<dd>
+				<Link
+					className="font-semibold text-2xl text-foreground tabular-nums hover:underline"
+					search={search}
+					to={href}
+				>
+					{value}
+				</Link>
+			</dd>
 		</div>
 	);
 }

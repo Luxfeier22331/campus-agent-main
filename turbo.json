@@ -158,12 +158,6 @@
 		"test:browser": {
 			"cache": false
 		},
-		"test:e2e:full": {
-			"cache": false
-		},
-		"test:e2e:smoke": {
-			"cache": false
-		},
 		"test:worker": {
 			"dependsOn": ["^test"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],

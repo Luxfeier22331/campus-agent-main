@@ -35,7 +35,7 @@ export function registerChatConversationAdminRoutes(input: {
 					data: result.rows.map((row) => ({
 						id: row.id,
 						title: row.title,
-						owner: { id: row.ownerId, displayName: row.displayName },
+						owner: { id: row.ownerId, displayName: row.displayName, email: row.ownerEmail ?? null },
 						createdAt: row.createdAt.toISOString(),
 						updatedAt: row.updatedAt.toISOString(),
 						messageCount: Number(row.messageCount),

@@ -91,7 +91,7 @@ export function useAssistantUiRunController({
 
 	const onReload = useCallback(
 		async (parentId: string | null) => {
-			if (!isPersistedConversationMessageId(parentId)) {
+			if (!parentId) {
 				return;
 			}
 			const parentMessage = messages.find((message) => message.id === parentId);
@@ -99,14 +99,25 @@ export function useAssistantUiRunController({
 			if (!prompt) {
 				return;
 			}
+			const needsInitialization = requiresConversationInitialization(remoteId);
+			const threadItem = needsInitialization ? aui.threads.item({ id: threadId }) : undefined;
 			await runPrompt({
-				conversationId: remoteId,
+				conversationId: needsInitialization ? undefined : remoteId,
+				...(threadItem
+					? {
+							initializationTarget: {
+								deleteThread: () => threadItem.delete(),
+								initialize: () => threadItem.initialize(),
+								threadId,
+							},
+						}
+					: {}),
 				messageContent: [{ text: prompt, type: "text" }],
 				prompt,
 				truncateFromMessageId: parentId,
 			});
 		},
-		[messages, remoteId, runPrompt],
+		[aui.threads, messages, remoteId, requiresConversationInitialization, runPrompt, threadId],
 	);
 
 	return {

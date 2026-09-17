@@ -36,16 +36,6 @@ export function buildChatFeedbackQuery(
 		: { error: "筛选条件无效，请检查日期范围、请求 ID 和分页参数。" };
 }
 
-export const feedbackTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
-	timeZone: "Asia/Shanghai",
-	year: "numeric",
-	month: "2-digit",
-	day: "2-digit",
-	hour: "2-digit",
-	minute: "2-digit",
-	hourCycle: "h23",
-});
-
 export function feedbackVoteLabel(vote: "helpful" | "unhelpful") {
 	return vote === "helpful" ? "有帮助" : "没有帮助";
 }

@@ -100,7 +100,7 @@ test.describe("conversation action browser flow", () => {
 
 		const sidebar = page.locator("#campus-chat-sidebar");
 		const sidebarTrigger = page.locator('[data-sidebar="trigger"]:visible');
-		const accountTrigger = sidebar.locator('[data-sidebar="footer"] button[aria-haspopup="true"]');
+		const accountTrigger = sidebar.locator('[data-sidebar="footer"] button[aria-haspopup="menu"]');
 		await expect(accountTrigger).toBeVisible({ timeout: 15_000 });
 
 		await accountTrigger.click();

@@ -380,7 +380,7 @@ export async function fulfillChatFailedStream(route: Route) {
 			sse("request.failed", {
 				error: {
 					code: "execution_failed",
-					message: "请求失败。",
+					message: "The request could not be completed.",
 					retryable: true,
 				},
 				occurredAt: now,
@@ -398,7 +398,11 @@ export async function fulfillChatFailure(route: Route) {
 	await route.fulfill({
 		contentType: "application/json",
 		json: {
-			error: { code: "execution_failed", message: "请求失败。", retryable: false },
+			error: {
+				code: "execution_failed",
+				message: "The request could not be completed.",
+				retryable: false,
+			},
 		},
 		status: 500,
 	});

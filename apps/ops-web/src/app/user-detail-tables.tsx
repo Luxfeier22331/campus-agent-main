@@ -27,7 +27,11 @@ export function UserDetailSessionsTable({
 						id: "created",
 					},
 					{
-						cell: (row) => formatTimestamp(row.expiresAt),
+						cell: (row) => (
+							<span className={row.isActive ? "text-success" : "text-muted-foreground"}>
+								{row.isActive ? "有效" : "已过期"} · {formatTimestamp(row.expiresAt)}
+							</span>
+						),
 						header: "到期时间",
 						id: "expires",
 						rowHeader: true,
@@ -48,7 +52,11 @@ export function UserDetailSessionsTable({
 					},
 					{
 						cell: (row) => (
-							<Button disabled={commandPending} onClick={() => onRevoke(row.id)} variant="outline">
+							<Button
+								disabled={commandPending || !row.isActive}
+								onClick={() => onRevoke(row.id)}
+								variant="outline"
+							>
 								撤销
 							</Button>
 						),

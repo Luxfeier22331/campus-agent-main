@@ -120,6 +120,10 @@ export function useConversationRunCancellation({
 						) {
 							return;
 						}
+						operationMachine.cancelFailure = {
+							operationId: operation.id,
+							requestId: run.requestId,
+						};
 						revealPendingAssistantDeltas();
 						if (error instanceof UnauthorizedError) {
 							onLoginRequired();
@@ -167,6 +171,16 @@ export function useConversationRunCancellation({
 			return;
 		}
 		if (currentRun?.requestId) {
+			const cancelFailure = operationMachine.cancelFailure;
+			if (cancelFailure && cancelFailure.requestId === currentRun.requestId) {
+				operationMachine.cancelFailure = null;
+				revealPendingAssistantDeltas();
+				operationMachine.invalidate();
+				applyRunStateAction({ operationId: operationMachine.operationId, type: "reset" });
+				setIsRunning(false);
+				operationMachine.replaceActiveRun(null);
+				return;
+			}
 			let operation: RuntimeOperationIdentity;
 			if (controller) {
 				operation = { controller, id: operationMachine.operationId };
@@ -205,6 +219,7 @@ export function useConversationRunCancellation({
 		operationMachine,
 		removeMessage,
 		requestRunCancellation,
+		revealPendingAssistantDeltas,
 		setIsRunning,
 		startOperation,
 	]);

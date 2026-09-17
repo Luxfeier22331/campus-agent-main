@@ -10,7 +10,6 @@
 		"prepare": "node --experimental-strip-types scripts/hooks/install.mts",
 		"lint": "pnpm exec prek run --all-files --stage pre-commit --skip staged-secrets --no-group validation",
 		"docs:check": "pnpm exec tsx scripts/docs/check-frontmatter.ts && pnpm exec tsx scripts/docs/check-notes-tree.ts && pnpm exec tsx scripts/docs/check-notes-format.ts && pnpm exec tsx scripts/docs/check-archived-agent-notes.ts && pnpm exec tsx scripts/docs/check-budgets.ts && pnpm exec tsx scripts/docs/check-links.ts && pnpm exec tsx scripts/docs/check-language.ts",
-		"docs:notes:anchors": "pnpm exec tsx scripts/docs/check-note-anchors.ts",
 		"test": "node --experimental-strip-types scripts/ci/repository-test.mts",
 		"check": "pnpm lint && pnpm docs:check && pnpm test",
 		"verify": "nix develop .#ci-full --command bash scripts/verify.sh",

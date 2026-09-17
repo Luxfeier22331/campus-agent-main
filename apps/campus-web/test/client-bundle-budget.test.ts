@@ -263,6 +263,7 @@ function createCompleteClientDirectory(
 		"assets/react.js": "export const react = true;",
 		"vendor/maplibre-gl/LICENSE.txt": "MapLibre license",
 		"vendor/maplibre-gl/maplibre-gl-worker.mjs": "export const worker = true;",
+		"vendor/maplibre-gl/maplibre-gl-shared.mjs": "export const shared = true;",
 		"vendor/maplibre-gl/maplibre-gl.css": ".maplibre {}",
 		"vendor/maplibre-gl/maplibre-gl.mjs": "export const maplibre = true;",
 		"vendor/maplibre-gl/maplibre-gl-runtime.mjs":

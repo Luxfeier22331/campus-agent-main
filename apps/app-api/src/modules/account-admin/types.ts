@@ -6,6 +6,7 @@ import type {
 	AccountAdminState,
 	AccountDeletionStatus,
 } from "campus-contracts/account-admin";
+import type { TimeFilters } from "campus-contracts/ops-time";
 
 export type {
 	AccountAdminAccessSource,
@@ -25,15 +26,18 @@ export {
 export interface AccountAdminEventRecord {
 	action: AccountAdminAction;
 	actorId: string;
+	actor: { name: string; email: string } | null;
 	errorCode: string | null;
 	eventId: string;
 	occurredAt: Date;
 	outcome: AccountAdminOutcome;
 	reason: string | null;
 	targetUserId: string | null;
+	targetUser: { name: string; email: string } | null;
 }
 
 export interface AccountAdminEventPage {
+	filters: TimeFilters;
 	items: AccountAdminEventRecord[];
 	nextCursor: string | null;
 }
@@ -63,6 +67,7 @@ export interface AccountAdminUserSummary {
 }
 
 export interface AccountAdminSession {
+	isActive: boolean;
 	createdAt: Date;
 	expiresAt: Date;
 	id: string;

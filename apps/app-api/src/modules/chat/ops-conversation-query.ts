@@ -2,7 +2,7 @@ import type { OpsConversationListQuery } from "campus-contracts/chat-conversatio
 import { OpsChatConversationSchema } from "campus-contracts/chat-conversations";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { RuntimeDbGetter } from "../../db/runtime";
-import { conversations, messageFeedback, messages, turnDispatches } from "../../db/schema";
+import { conversations, messageFeedback, messages, turnDispatches, user } from "../../db/schema";
 import { normalizeChatStructuredParts } from "./model";
 
 export function createOpsConversationQueryService({ getDb }: { getDb: RuntimeDbGetter }) {
@@ -41,6 +41,8 @@ export function createOpsConversationQueryService({ getDb }: { getDb: RuntimeDbG
 					id: conversations.id,
 					title: conversations.title,
 					ownerId: conversations.ownerUserId,
+					ownerName: user.name,
+					ownerEmail: user.email,
 					createdAt: conversations.createdAt,
 					updatedAt: conversations.updatedAt,
 					messageCount: sql<number>`(select count(*)::int from chat.messages m where m.conversation_id = ${conversations.id})`,
@@ -59,6 +61,7 @@ export function createOpsConversationQueryService({ getDb }: { getDb: RuntimeDbG
 					hasFeedback: sql<boolean>`exists (select 1 from chat.message_feedback f where f.conversation_id = ${conversations.id})`,
 				})
 				.from(conversations)
+				.leftJoin(user, eq(user.id, conversations.ownerUserId))
 				.where(
 					and(
 						isNull(conversations.deletedAt),
@@ -88,7 +91,7 @@ export function createOpsConversationQueryService({ getDb }: { getDb: RuntimeDbG
 				.limit(query.limit + 1);
 			const page = rows.slice(0, query.limit);
 			return {
-				rows: page.map((row) => ({ ...row, displayName: null })),
+				rows: page.map((row) => ({ ...row, displayName: row.ownerName ?? null })),
 				nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
 			};
 		},

@@ -75,45 +75,51 @@ function Form({ config }: { config: OcrConfigView | null }) {
 						e.preventDefault();
 						save.mutate();
 					}}
-					className="grid gap-4 md:grid-cols-2"
+					className="grid gap-4"
 				>
-					<div className="space-y-1">
-						<Label htmlFor="ocr-base-url">服务地址</Label>
-						<Input
-							id="ocr-base-url"
-							type="url"
-							required
-							value={baseUrl}
-							onChange={(e) => setBaseUrl(e.target.value)}
-						/>
-					</div>
-					<div className="space-y-1">
-						<Label htmlFor="ocr-key">API Key</Label>
-						<Input
-							id="ocr-key"
-							type="password"
-							autoComplete="new-password"
-							required={!config?.credential_configured}
-							value={apiKey}
-							onChange={(e) => setApiKey(e.target.value)}
-							placeholder={
-								config?.credential_configured ? "已配置，留空保持不变" : "填写 Paddle API Key"
-							}
-						/>
-					</div>
-					<div className="flex gap-2">
-						<Button type="submit" disabled={save.isPending}>
-							{save.isPending ? "保存中…" : "保存配置"}
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							disabled={!config || dirty || validate.isPending}
-							onClick={() => validate.mutate()}
-						>
-							验证连接
-						</Button>
-					</div>
+					<fieldset
+						disabled={save.isPending || validate.isPending}
+						className="grid min-w-0 gap-4 md:grid-cols-2"
+					>
+						<div className="space-y-1">
+							<Label htmlFor="ocr-base-url">服务地址</Label>
+							<Input
+								id="ocr-base-url"
+								type="url"
+								required
+								value={baseUrl}
+								onChange={(e) => setBaseUrl(e.target.value)}
+							/>
+						</div>
+						<div className="space-y-1">
+							<Label htmlFor="ocr-key">API Key</Label>
+							<Input
+								id="ocr-key"
+								type="password"
+								autoComplete="new-password"
+								required={!config?.credential_configured}
+								value={apiKey}
+								onChange={(e) => setApiKey(e.target.value)}
+								placeholder={
+									config?.credential_configured ? "已配置，留空保持不变" : "填写 Paddle API Key"
+								}
+							/>
+						</div>
+						<div className="flex gap-2">
+							<Button type="submit" disabled={save.isPending || validate.isPending}>
+								{save.isPending ? "保存中…" : "保存配置"}
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								disabled={!config || dirty || save.isPending || validate.isPending}
+								title={config ? (dirty ? "请先保存更改" : undefined) : "请先保存配置"}
+								onClick={() => validate.mutate()}
+							>
+								{validate.isPending ? "提交验证中…" : "验证连接"}
+							</Button>
+						</div>
+					</fieldset>
 				</form>
 				<p className="text-sm">
 					{config?.validation

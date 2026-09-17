@@ -6,6 +6,7 @@ import {
 	type RuntimeMessages,
 	upsertAssistantTextMessage,
 } from "./assistant-ui-message-projection";
+import { localizeChatErrorMessage } from "./error-messages";
 
 export function useAssistantUiMessageProjection() {
 	const [messages, setMessages] = useState<RuntimeMessages>([]);
@@ -22,7 +23,7 @@ export function useAssistantUiMessageProjection() {
 		const messageId = error.requestId
 			? `local-error-${error.requestId}`
 			: `local-error-${crypto.randomUUID()}`;
-		const text = error.message.trim() || "请求失败，请稍后重试。";
+		const text = localizeChatErrorMessage({ code: error.code, message: error.message });
 		setMessages((current) => [
 			...current,
 			{

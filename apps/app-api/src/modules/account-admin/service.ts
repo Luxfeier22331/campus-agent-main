@@ -1,9 +1,9 @@
+import type { TimeQuery } from "campus-contracts/ops-time";
 import { AppApiRouteError } from "../../http";
 import { type AppAuthGetter, getOpsAccountAdminApi } from "../auth";
 import type { AccountAdminStore } from "./store";
 import type {
 	AccountAdminAction,
-	AccountAdminEventWindow,
 	AccountAdminOutcome,
 	AccountAdminState,
 	AccountAdminUserDetail,
@@ -33,7 +33,9 @@ export interface AccountAdminService {
 		limit: number;
 		outcome?: AccountAdminOutcome;
 		targetUserId?: string;
-		window: AccountAdminEventWindow;
+		window?: TimeQuery["window"];
+		from?: TimeQuery["from"];
+		to?: TimeQuery["to"];
 	}): ReturnType<AccountAdminStore["listEvents"]>;
 	listUsers(input: {
 		access?: "allowed" | "denied";
@@ -119,6 +121,7 @@ export function buildAccountAdminService(input: {
 		const auth = await input.getAppAuth();
 		const response = await getOpsAccountAdminApi(auth).opsListUserSessions({ body: { userId } });
 		const sessions = response.sessions.map((candidate) => ({
+			isActive: new Date(candidate.expiresAt) > new Date(),
 			createdAt: new Date(candidate.createdAt),
 			expiresAt: new Date(candidate.expiresAt),
 			id: candidate.id,
@@ -129,7 +132,7 @@ export function buildAccountAdminService(input: {
 		return {
 			accessSource: record.accessSource,
 			accessState: record.accessState,
-			activeSessionCount: sessions.filter((candidate) => candidate.expiresAt > new Date()).length,
+			activeSessionCount: sessions.filter((candidate) => candidate.isActive).length,
 			banReason: record.base.banReason,
 			createdAt: record.base.createdAt,
 			credentialAccount: record.credentialAccount,

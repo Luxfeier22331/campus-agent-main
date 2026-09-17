@@ -105,7 +105,7 @@ test.describe("Q&A browser flow", () => {
 		await page.getByRole("button", { name: "发送" }).click();
 
 		await expect(page.getByTestId("assistant-chat")).toBeVisible();
-		await expect(page.getByText("请求失败。")).toBeVisible();
+		await expect(page.getByText("回答失败，请稍后重试。")).toBeVisible();
 		await expect(page).toHaveURL("/");
 		expect(diagnostics.unexpectedConsoleErrors()).toEqual([]);
 		expect(diagnostics.pageErrors).toEqual([]);
@@ -426,7 +426,7 @@ test.describe("Q&A browser flow", () => {
 								id: "msg_failed_assistant",
 								role: "assistant",
 								kind: "error",
-								text: "请求失败。",
+								text: "The request could not be completed.",
 								retryable: true,
 							},
 						].map((message) => ({
@@ -456,18 +456,144 @@ test.describe("Q&A browser flow", () => {
 		await page.getByLabel("消息输入").fill(prompt);
 		await page.getByRole("button", { name: "发送" }).click();
 
-		await expect(page.getByText("请求失败。")).toBeVisible();
-		await expect(page.getByText("请求失败。", { exact: true })).toHaveCount(1);
+		await expect(page.getByText("回答失败，请稍后重试。")).toBeVisible();
+		await expect(page.getByText("回答失败，请稍后重试。", { exact: true })).toHaveCount(1);
 		await expect(page.getByRole("button", { name: "停止生成" })).toHaveCount(0);
 
-		await page.getByLabel("消息输入").fill("国家奖学金怎么评审？");
-		await page.getByRole("button", { name: "发送" }).click();
+		await page.getByRole("button", { name: "重试" }).click();
 
 		await expect(page.getByText("国家奖学金评审材料以学校正式通知为准。")).toBeVisible();
 		expect(streamBodies).toEqual([
 			expect.objectContaining({ conversationId, prompt }),
-			expect.objectContaining({ conversationId, prompt: "国家奖学金怎么评审？" }),
+			expect.objectContaining({ conversationId, prompt }),
 		]);
+	});
+
+	test("recovers a dropped answer stream with backoff during a backend outage", async ({
+		page,
+	}) => {
+		const diagnostics = collectPageDiagnostics(page);
+		await mockCampusApi(page);
+		const conversationId = "conv_e2e";
+		const prompt = "后端故障期间还能收到回答吗？";
+		const answerText = "后端恢复后补齐送达的完整回答。";
+		const staleDelta = "断开前的不完整片段";
+		const occurredAt = "2026-06-24T01:00:00.000Z";
+		const messageRecord = (message: {
+			id: string;
+			kind: "answer" | null;
+			role: "assistant" | "user";
+			text: string;
+		}) => ({
+			...message,
+			conversationId,
+			createdAt: occurredAt,
+			requestId: "req_outage_e2e",
+			retryable: null,
+			structuredParts: [],
+		});
+		await page.route("**/api/chat/requests/stream", async (route) => {
+			await route.fulfill({
+				body: [
+					`event: request.accepted\ndata: ${JSON.stringify({
+						occurredAt,
+						requestId: "req_outage_e2e",
+						sequence: 1,
+						status: "accepted",
+					})}\n\n`,
+					`event: answer.delta\ndata: ${JSON.stringify({
+						delta: staleDelta,
+						messageId: "msg_outage_assistant",
+						occurredAt,
+						requestId: "req_outage_e2e",
+						sequence: 2,
+						status: "running",
+					})}\n\n`,
+				].join(""),
+				contentType: "text/event-stream",
+				status: 200,
+			});
+		});
+		let statusCalls = 0;
+		await page.route("**/api/chat/requests/req_outage_e2e", async (route) => {
+			if (route.request().method() !== "GET") {
+				return route.fallback();
+			}
+			statusCalls += 1;
+			if (statusCalls <= 2) {
+				await route.fulfill({
+					contentType: "application/json",
+					json: {
+						error: {
+							code: "execution_status_pending",
+							message: "The request could not be completed.",
+							retryable: true,
+						},
+					},
+					status: 504,
+				});
+				return;
+			}
+			await route.fulfill({
+				contentType: "application/json",
+				json: {
+					run: {
+						conversationId,
+						phase: "running",
+						requestId: "req_outage_e2e",
+						status: "running",
+					},
+				},
+				status: 200,
+			});
+		});
+		await page.route("**/api/chat/requests/req_outage_e2e/events/stream**", async (route) => {
+			await route.fulfill({
+				body: `event: request.completed\ndata: ${JSON.stringify({
+					answer: {
+						conversation: {
+							activeRequestId: null,
+							archivedAt: null,
+							createdAt: occurredAt,
+							id: conversationId,
+							messages: [
+								messageRecord({ id: "msg_outage_user", kind: null, role: "user", text: prompt }),
+								messageRecord({
+									id: "msg_outage_assistant",
+									kind: "answer",
+									role: "assistant",
+									text: answerText,
+								}),
+							],
+							pinnedAt: null,
+							title: prompt,
+							updatedAt: occurredAt,
+						},
+						result: { kind: "answer", requestId: "req_outage_e2e", text: answerText },
+					},
+					occurredAt,
+					requestId: "req_outage_e2e",
+					sequence: 3,
+					status: "completed",
+				})}\n\n`,
+				contentType: "text/event-stream",
+				status: 200,
+			});
+		});
+		await page.goto("/");
+
+		await page.getByLabel("消息输入").fill(prompt);
+		await page.getByRole("button", { name: "发送" }).click();
+
+		await expect(page.locator(".aui-thread-run-status")).toHaveText("正在恢复连接");
+		await expect(page.getByRole("button", { name: "恢复连接" })).toHaveCount(0);
+
+		await expect(page.getByText(answerText)).toBeVisible({ timeout: 15_000 });
+		await expect(page.getByText(staleDelta)).toHaveCount(0);
+		await expect(page.locator(".aui-thread-run-status")).toHaveCount(0);
+		expect(statusCalls).toBe(3);
+		expect(diagnostics.unexpectedConsoleErrors()).toEqual([]);
+		expect(diagnostics.pageErrors).toEqual([]);
 	});
 
 	test("opens a historical conversation from the thread list", async ({ page }) => {

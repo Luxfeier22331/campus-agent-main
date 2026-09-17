@@ -23,6 +23,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import Bowser from "bowser";
 import { type FormEvent, useRef, useState } from "react";
+import { formatTimestamp } from "@/lib/date-time";
 import { campusAuthClient, readCampusAuthErrorMessage } from "@/platform/auth/client";
 import { useCampusSession } from "@/platform/auth/session";
 import {
@@ -108,7 +109,7 @@ export function AccountSessions() {
 										) : null}
 										<p className="ui-metadata break-words">
 											{device.ipAddress ?? "IP 未提供"} ·{" "}
-											{new Date(device.createdAt).toLocaleString("zh-CN")}
+											{formatTimestamp(new Date(device.createdAt).toISOString())}
 										</p>
 									</div>
 									<Button

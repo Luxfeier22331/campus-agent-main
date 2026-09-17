@@ -8,6 +8,7 @@ import type {
 	DiningSearchResult,
 	DiningWindowProjection,
 } from "@/features/dining/model";
+import { formatTimestamp } from "@/lib/date-time";
 import {
 	DiningHallSwitcher,
 	DiningMapToolbar,
@@ -125,7 +126,7 @@ export function DiningPageView({
 								windows={activeFloor.windows}
 							/>
 							<div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-border/70 border-t px-3 text-xs text-[var(--sys-text-subtle)] sm:px-4">
-								<span>更新于 {formatDiningDate(data.updatedAt)}</span>
+								<span>更新于 {formatTimestamp(data.updatedAt)}</span>
 								<a
 									className="inline-flex min-h-11 items-center text-link hover:text-link-hover hover:underline"
 									href="/feedback?source=dining"
@@ -150,11 +151,5 @@ export function DiningPageView({
 				</div>
 			) : null}
 		</section>
-	);
-}
-
-export function formatDiningDate(value: string): string {
-	return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(
-		new Date(value),
 	);
 }

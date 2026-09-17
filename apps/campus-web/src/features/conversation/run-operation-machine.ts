@@ -21,6 +21,7 @@ export type RunCancellationState =
 export class RunOperationMachine {
 	readonly clientTiming = new BrowserAnswerTiming();
 	activeRun: ActiveRun | null = null;
+	cancelFailure: { operationId: number; requestId: string } | null = null;
 	cancellation: RunCancellationState = { phase: "idle" };
 	controller: AbortController | null = null;
 	operationId = 0;
@@ -39,6 +40,7 @@ export class RunOperationMachine {
 		this.recovering = false;
 		this.controller?.abort();
 		this.cancellation = { phase: "idle" };
+		this.cancelFailure = null;
 		const controller = new AbortController();
 		this.controller = controller;
 		this.operationId += 1;
@@ -49,6 +51,7 @@ export class RunOperationMachine {
 		this.recovering = false;
 		this.controller?.abort();
 		this.cancellation = { phase: "idle" };
+		this.cancelFailure = null;
 		this.controller = controller;
 		this.operationId += 1;
 		return { controller, id: this.operationId };
@@ -75,6 +78,7 @@ export class RunOperationMachine {
 		this.controller?.abort();
 		this.controller = null;
 		this.activeRun = null;
+		this.cancelFailure = null;
 		this.cancellation = { phase: "idle" };
 	}
 

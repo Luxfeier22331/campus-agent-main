@@ -13,21 +13,13 @@ import {
 	Newspaper,
 	School,
 } from "lucide-react";
+import { useState } from "react";
 import { NoticeCategoryBadge } from "@/features/notices/category-badge";
 import {
 	describeExternalNoticeSource,
 	type ExternalNoticeSourceKind,
 } from "@/features/notices/external-source";
-
-const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat("sv-SE", {
-	day: "2-digit",
-	hour: "2-digit",
-	hourCycle: "h23",
-	minute: "2-digit",
-	month: "2-digit",
-	timeZone: "Asia/Shanghai",
-	year: "numeric",
-});
+import { formatTimestamp } from "@/lib/date-time";
 
 export function NoticeResults({
 	data,
@@ -39,6 +31,15 @@ export function NoticeResults({
 	pending: boolean;
 }) {
 	const navigate = useNavigate({ from: "/notices" });
+	const [pageInput, setPageInput] = useState(String(data.pagination.page));
+	const totalPages = Math.max(1, data.pagination.totalPages);
+	const jump = () => {
+		const page = Number(pageInput);
+		if (!Number.isInteger(page) || page < 1 || page > totalPages) {
+			return;
+		}
+		void navigate({ search: (previous) => ({ ...previous, page }) });
+	};
 	return (
 		<div className={pending ? "opacity-60" : undefined}>
 			<ul className="space-y-1 py-1" data-testid="notice-list">
@@ -48,13 +49,40 @@ export function NoticeResults({
 					</li>
 				))}
 			</ul>
+			{data.items.length === 0 && data.pagination.totalItems > 0 ? (
+				<p className="border-t border-border px-3 py-3 text-sm text-destructive">
+					当前页已超出范围，请前往最后一页。
+				</p>
+			) : null}
 			<nav
 				aria-label={`${itemLabel}分页`}
 				className="mt-2 flex min-h-14 items-center justify-between gap-4 border-t border-border"
 			>
 				<p className="text-sm tabular-nums text-[var(--sys-text-muted)]">
-					第 {data.pagination.page} / {data.pagination.totalPages} 页
+					第 {data.pagination.page} / {totalPages} 页
 				</p>
+				<div className="flex items-center gap-2">
+					<label className="sr-only" htmlFor="notice-page-jump">
+						跳转页码
+					</label>
+					<input
+						id="notice-page-jump"
+						inputMode="numeric"
+						min={1}
+						max={totalPages}
+						value={pageInput}
+						onChange={(event) => setPageInput(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								jump();
+							}
+						}}
+						className="h-8 w-16 rounded border bg-background px-2 text-sm"
+					/>
+					<Button disabled={pending} onClick={jump} size="sm" variant="outline">
+						跳转
+					</Button>
+				</div>
 				<div className="flex gap-1">
 					<Button
 						disabled={pending || data.pagination.page <= 1}
@@ -70,7 +98,7 @@ export function NoticeResults({
 						上一页
 					</Button>
 					<Button
-						disabled={pending || data.pagination.page >= data.pagination.totalPages}
+						disabled={pending || data.pagination.page >= totalPages}
 						onClick={() =>
 							void navigate({
 								search: (previous) => ({ ...previous, page: previous.page + 1 }),
@@ -113,16 +141,18 @@ function NoticeRow({ item }: { item: NoticeListItem }) {
 			</span>
 			<div className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
 				<NoticeCategoryBadge category={item.category} className="font-medium" />
+				{item.category === "unclassified" ? (
+					<span className="text-xs text-muted-foreground">未分类</span>
+				) : null}
 				<time
 					className="whitespace-nowrap text-xs tabular-nums text-[var(--sys-text-muted)]"
 					dateTime={item.releasedAt}
 				>
-					{RELEASE_DATE_FORMATTER.format(new Date(item.releasedAt))}
+					{formatTimestamp(item.releasedAt)}
 				</time>
 				<NoticeMetadata
 					organization={item.organization?.name ?? "发布部门未标注"}
 					source={source}
-					type={item.noticeType.name}
 				/>
 			</div>
 		</div>
@@ -155,34 +185,28 @@ const NOTICE_SOURCE_ICONS = {
 function NoticeMetadata({
 	organization,
 	source,
-	type,
 }: {
 	organization: string;
 	source: { kind: ExternalNoticeSourceKind; label: string; title: string };
-	type: string;
 }) {
 	const SourceIcon = NOTICE_SOURCE_ICONS[source.kind];
 	return (
 		<p className="contents text-xs text-[var(--sys-text-muted)]">
-			<span className="inline-flex min-w-0 max-w-full items-center gap-1.5" title={source.title}>
-				<span aria-hidden="true" className="text-border">
-					·
-				</span>
-				<SourceIcon aria-hidden="true" className="size-3.5 shrink-0" />
-				<span className="truncate">{source.label}</span>
-			</span>
-			<span className="inline-flex min-w-0 max-w-full items-center gap-2 text-xs text-[var(--sys-text-muted)]">
+			<span className="inline-flex min-w-0 max-w-full items-center gap-2">
 				<span aria-hidden="true" className="text-border">
 					·
 				</span>
 				<span className="break-words">{organization}</span>
 			</span>
-			<span className="inline-flex min-w-0 max-w-full items-center gap-2 text-xs text-[var(--sys-text-muted)]">
-				<span aria-hidden="true" className="text-border">
-					·
+			{source.kind === "campus" ? null : (
+				<span className="inline-flex min-w-0 max-w-full items-center gap-1.5" title={source.title}>
+					<span aria-hidden="true" className="text-border">
+						·
+					</span>
+					<SourceIcon aria-hidden="true" className="size-3.5 shrink-0" />
+					<span className="truncate">{source.label}</span>
 				</span>
-				<span className="break-words">门户栏目：{type}</span>
-			</span>
+			)}
 		</p>
 	);
 }

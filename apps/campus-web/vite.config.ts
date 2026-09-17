@@ -411,6 +411,7 @@ function copyCampusFavicon(): Plugin {
 function copyMapLibreVendor(): Plugin {
 	const vendorFiles = new Map([
 		["maplibre-gl.mjs", "text/javascript; charset=utf-8"],
+		["maplibre-gl-shared.mjs", "text/javascript; charset=utf-8"],
 		["maplibre-gl-worker.mjs", "text/javascript; charset=utf-8"],
 		["maplibre-gl.css", "text/css; charset=utf-8"],
 		["LICENSE.txt", "text/plain; charset=utf-8"],

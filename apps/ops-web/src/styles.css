@@ -59,3 +59,44 @@ body,
 #root {
 	min-height: 100%;
 }
+
+/* Keep native form and keyboard behavior while styling the picker with Ops tokens. */
+@supports (appearance: base-select) {
+	select:not([multiple]),
+	select:not([multiple])::picker(select) {
+		appearance: base-select;
+	}
+
+	select:not([multiple])::picker-icon {
+		display: none;
+	}
+
+	select:not([multiple])::picker(select) {
+		max-height: min(24rem, 70dvh);
+		min-width: anchor-size(width);
+		margin-block: 0.25rem;
+		padding: 0.25rem;
+		border: 1px solid var(--sys-border-subtle);
+		border-radius: var(--radius-lg);
+		background: var(--sys-surface-default);
+		color: var(--sys-text-default);
+		box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+	}
+
+	select:not([multiple]) option {
+		min-height: var(--ui-control-height);
+		padding: 0.5rem 0.75rem;
+		border-radius: var(--input-radius);
+	}
+
+	select:not([multiple]) option:checked,
+	select:not([multiple]) option:focus,
+	select:not([multiple]) option:hover {
+		background: var(--sys-surface-hover);
+		color: var(--sys-text-strong);
+	}
+
+	select:not([multiple]) option:disabled {
+		color: var(--state-disabled-text);
+	}
+}

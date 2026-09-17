@@ -129,8 +129,17 @@ async function renderWorkspace(
 		path: "/transport",
 		validateSearch: (search: Record<string, unknown>) => ({
 			scheduleId: typeof search.scheduleId === "string" ? search.scheduleId : undefined,
+			kind:
+				search.kind === "commute" || search.kind === "subway" || search.kind === "special"
+					? search.kind
+					: undefined,
 		}),
-		component: () => <TransportPage initialScheduleId={transport.useSearch().scheduleId} />,
+		component: () => (
+			<TransportPage
+				initialScheduleId={transport.useSearch().scheduleId}
+				requestedKind={transport.useSearch().kind}
+			/>
+		),
 	});
 	const notices = createRoute({
 		getParentRoute: () => root,
@@ -161,6 +170,27 @@ async function renderWorkspace(
 	});
 	return { ...rendered, router, client };
 }
+
+describe("班车服务类型切换", () => {
+	const subwayRoute: TransportOpsRoute = {
+		...route,
+		routeId: "route:subway",
+		serviceKind: "subway",
+		origin: "地铁站",
+		destination: "校区",
+	};
+
+	it("tracks the selected service kind in the URL", async () => {
+		const { router } = await renderWorkspace({
+			path: "/transport?kind=subway",
+			routes: [route, subwayRoute],
+		});
+		expect(screen.getByRole("tab", { name: "地铁接驳", selected: true })).toBeInTheDocument();
+		fireEvent.mouseDown(screen.getByRole("tab", { name: "两校区通勤" }));
+		await waitFor(() => expect(router.state.location.search).toEqual({ kind: "commute" }));
+		expect(screen.getByRole("tab", { name: "两校区通勤", selected: true })).toBeInTheDocument();
+	});
+});
 
 describe("班车时间段编辑器", () => {
 	beforeEach(() => {

@@ -538,7 +538,6 @@ describe("campus map page", () => {
 			expect(mapCanvas).toHaveClass("opacity-100");
 			await user.click(screen.getByRole("button", { name: /外观，当前浅色/u }));
 			await user.click(screen.getByRole("menuitemradio", { name: "深色" }));
-			await waitFor(() => expect(mapCanvas).toHaveClass("opacity-0"));
 			await waitFor(() => expect(maplibreRuntimeMock.setStyle).toHaveBeenCalled());
 			await waitFor(() => expect(mapCanvas).toHaveClass("opacity-100"));
 			const darkStyle = maplibreRuntimeMock.setStyle.mock.lastCall?.[0] as

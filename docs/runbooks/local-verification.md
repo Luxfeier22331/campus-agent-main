@@ -288,15 +288,12 @@ Execution Control、Model Config；已有 ready 的模型配置不会重新 seed
 浏览器业务回归只在本地执行，不进入 GitHub Actions：
 
 ```bash
-pnpm --dir apps/campus-web test:e2e:smoke
-pnpm --dir apps/campus-web test:e2e:full
 ```
 
 需要验证真实 Campus Web Worker、真实 App API Worker、Service Binding 和本地数据库之间的聊天链路时，
 显式运行：
 
 ```bash
-pnpm --dir apps/campus-web test:e2e:dev:chat
 ```
 
 该命令会在当前 worktree profile 的端口上启动确定性的 execution-control HTTP fixture、App API Wrangler

@@ -50,6 +50,7 @@ import {
 	optionalRequestWindow,
 	optionalSearchString,
 	optionalStatus,
+	optionalTimeWindow,
 } from "./ops-view-helpers";
 import { OverviewPage } from "./overview-page";
 import { ProviderConfigPage } from "./provider-config-page";
@@ -125,6 +126,7 @@ const conversationsListRoute = createRoute({
 		cursor: optionalBoundedSearchString(search.cursor, 512),
 		from: optionalSearchString(search.from),
 		to: optionalSearchString(search.to),
+		window: optionalTimeWindow(search.window),
 		status: optionalStatus(search.status),
 		feedback:
 			search.feedback === "WITH_FEEDBACK" || search.feedback === "WITHOUT_FEEDBACK"
@@ -244,8 +246,17 @@ const transportRoute = createRoute({
 	path: "/transport",
 	validateSearch: (search: Record<string, unknown>) => ({
 		scheduleId: optionalBoundedSearchString(search.scheduleId, 200),
+		kind:
+			search.kind === "commute" || search.kind === "subway" || search.kind === "special"
+				? search.kind
+				: undefined,
 	}),
-	component: () => <TransportPage initialScheduleId={transportRoute.useSearch().scheduleId} />,
+	component: () => (
+		<TransportPage
+			initialScheduleId={transportRoute.useSearch().scheduleId}
+			requestedKind={transportRoute.useSearch().kind}
+		/>
+	),
 });
 
 const chatConversationRoute = createRoute({

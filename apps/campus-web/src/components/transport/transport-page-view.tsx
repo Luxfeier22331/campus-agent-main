@@ -8,15 +8,7 @@ import {
 	transportRiderLabel,
 	transportServiceKindLabel,
 } from "@campus-agent/transport/domain";
-import {
-	Button,
-	cn,
-	Disclosure,
-	DisclosureSummary,
-	Tabs,
-	TabsList,
-	TabsTrigger,
-} from "@campus-agent/ui";
+import { Button, cn, Disclosure, DisclosureSummary } from "@campus-agent/ui";
 import { ChevronLeft, ChevronRight, MapPin, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { CampusDatePicker } from "@/components/ui/date-picker";
@@ -104,15 +96,20 @@ export function TransportPageView({
 					</Button>
 				</div>
 				{kinds.length > 0 ? (
-					<Tabs value={activeKind} onValueChange={chooseKind}>
-						<TabsList aria-label="班车服务类型" presentation="segmented">
-							{kinds.map((kind) => (
-								<TabsTrigger value={kind} key={kind} className="flex-1 px-2">
-									{transportServiceKindLabel(kind)}
-								</TabsTrigger>
-							))}
-						</TabsList>
-					</Tabs>
+					<ToggleGroup
+						type="single"
+						aria-label="班车服务类型"
+						value={activeKind}
+						onValueChange={(value) => value && chooseKind(value)}
+						presentation="segmented"
+						className="grid auto-cols-fr grid-flow-col"
+					>
+						{kinds.map((kind) => (
+							<ToggleGroupItem value={kind} key={kind} className="flex-1 px-2">
+								{transportServiceKindLabel(kind)}
+							</ToggleGroupItem>
+						))}
+					</ToggleGroup>
 				) : null}
 				<div className="flex min-w-0 items-center gap-1">
 					<Button

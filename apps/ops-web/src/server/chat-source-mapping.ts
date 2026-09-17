@@ -121,6 +121,7 @@ function normalizeWebProductSourceAction(
 
 function normalizeNoticeProductSource(
 	source: z.infer<typeof ProductNoticeSourceItemSchema>,
+	campusWebPublicOrigin?: string,
 ): Extract<WrittenProductSource, { kind: "campus_notice" }> {
 	const href = source.primaryAction.href.trim();
 	if (!noticeCitationHrefMatchesNoticeId(href, source.noticeId)) {
@@ -133,9 +134,23 @@ function normalizeNoticeProductSource(
 			},
 		};
 	}
+	if (!campusWebPublicOrigin) {
+		return {
+			...source,
+			primaryAction: {
+				...source.primaryAction,
+				disabledReason: "Campus Web 地址未配置。",
+				href: null,
+			},
+		};
+	}
 	return {
 		...source,
-		primaryAction: { ...source.primaryAction, href },
+		primaryAction: {
+			...source.primaryAction,
+			external: true,
+			href: `${campusWebPublicOrigin.replace(/\/$/u, "")}${href}`,
+		},
 	};
 }
 
@@ -169,7 +184,7 @@ export function normalizeProductSources(
 				continue;
 			}
 			if (source.kind === "campus_notice") {
-				sources.push(normalizeNoticeProductSource(source));
+				sources.push(normalizeNoticeProductSource(source, campusWebPublicOrigin));
 				continue;
 			}
 			sources.push({

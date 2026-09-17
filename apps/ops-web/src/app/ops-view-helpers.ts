@@ -1,3 +1,4 @@
+import { TIME_WINDOWS, type TimeWindow } from "campus-contracts/ops-time";
 import type {
 	OpsRequestListView,
 	OpsRequestSummary,
@@ -147,6 +148,12 @@ export function optionalSearchString(value: unknown) {
 	}
 	const normalized = value.trim();
 	return normalized.length > 0 ? normalized : undefined;
+}
+
+export function optionalTimeWindow(value: unknown): TimeWindow | undefined {
+	return typeof value === "string" && (TIME_WINDOWS as readonly string[]).includes(value)
+		? (value as TimeWindow)
+		: undefined;
 }
 
 export function optionalBoundedSearchString(value: unknown, maxLength: number) {

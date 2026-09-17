@@ -429,7 +429,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		}
 	});
 
-	it("allows manual resume after the submit stream disconnects", async () => {
+	it("automatically retries resume with backoff until the run recovers", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -444,7 +444,6 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				},
 			]),
 		);
-		conversationApiMock.resumeRunEventsStream.mockImplementation(() => streamEvents([]));
 		conversationApiMock.getRunStatus.mockRejectedValue(
 			new ChatStreamRequestError({
 				code: "dependency_not_ready",
@@ -452,47 +451,28 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				retryable: true,
 			}),
 		);
-		const canonicalConversation = completedTerminalEvent("unused").data.answer?.conversation;
-		if (!canonicalConversation) {
-			throw new Error("Expected a canonical conversation fixture.");
-		}
-		conversationApiMock.getConversationDetail.mockResolvedValue({
-			...canonicalConversation,
-			messages: canonicalConversation.messages.filter((message) => message.role === "user"),
-		});
 
 		try {
 			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 			let submitPromise: Promise<void> | undefined;
 			await act(async () => {
 				submitPromise = assistantUiMock.externalStoreInput?.onNew({
-					content: [{ text: "恢复失败上限", type: "text" }],
+					content: [{ text: "退避后自动恢复", type: "text" }],
 				});
 				await Promise.resolve();
 				await Promise.resolve();
 			});
 
 			await act(async () => {
-				await vi.runAllTimersAsync();
-				await submitPromise;
+				await vi.advanceTimersByTimeAsync(2_000);
 			});
-
-			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(1);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(5_000);
+			});
+			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(3);
 			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
-			expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
 			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
-			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
-			expect(
-				assistantUiMock.externalStoreInput?.messages.some(
-					(message) =>
-						typeof message === "object" &&
-						message !== null &&
-						"id" in message &&
-						typeof message.id === "string" &&
-						message.id.startsWith("local-user-"),
-				),
-			).toBe(true);
-			expect(readAssistantText()).toBe("");
+			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("recovering");
 
 			conversationApiMock.getRunStatus.mockResolvedValue({
 				conversationId: "conv_created",
@@ -504,7 +484,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				streamEvents([
 					{
 						data: {
-							answer: canonicalAnswer("恢复后的规范回答"),
+							answer: canonicalAnswer("退避后恢复的规范回答"),
 							occurredAt: "2026-06-24T01:00:05.000Z",
 							requestId: "req_recovery_lost",
 							sequence: 2,
@@ -515,20 +495,25 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				]),
 			);
 			await act(async () => {
-				await assistantUiMock.externalStoreInput?.onResume?.();
+				await vi.advanceTimersByTimeAsync(10_000);
+				await submitPromise;
 			});
-			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenLastCalledWith({
+
+			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(4);
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(1);
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledWith({
 				afterSequence: 1,
 				requestId: "req_recovery_lost",
 				signal: expect.any(AbortSignal),
 			});
-			expect(readAssistantText()).toBe("恢复后的规范回答");
+			expect(readAssistantText()).toBe("退避后恢复的规范回答");
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("stops automatic recovery after one failed status request", async () => {
+	it("stops retrying and surfaces a retryable error when the run stalls without progress", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -544,43 +529,35 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			]),
 		);
 		conversationApiMock.resumeRunEventsStream.mockImplementation(() => streamEvents([]));
-		const retryableStatusError = new ChatStreamRequestError({
-			code: "dependency_not_ready",
-			message: "状态暂不可用。",
-			retryable: true,
-		});
-		conversationApiMock.getRunStatus
-			.mockRejectedValueOnce(retryableStatusError)
-			.mockRejectedValueOnce(retryableStatusError)
-			.mockResolvedValueOnce({
-				conversationId: "conv_created",
-				phase: "running",
-				requestId: "req_recovery_reset",
-				status: "running",
-			})
-			.mockRejectedValue(retryableStatusError);
+		conversationApiMock.getRunStatus.mockRejectedValue(
+			new ChatStreamRequestError({
+				code: "dependency_not_ready",
+				message: "状态暂不可用。",
+				retryable: true,
+			}),
+		);
 
 		try {
 			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 			let submitPromise: Promise<void> | undefined;
 			await act(async () => {
 				submitPromise = assistantUiMock.externalStoreInput?.onNew({
-					content: [{ text: "恢复计数重置", type: "text" }],
+					content: [{ text: "卡住后停止等待", type: "text" }],
 				});
 				await Promise.resolve();
 				await Promise.resolve();
 			});
 
 			await act(async () => {
-				await vi.runAllTimersAsync();
+				await vi.advanceTimersByTimeAsync(200_000);
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(1);
-			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
-			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
-			expect(readAssistantText()).toBe("");
+			expect(conversationApiMock.getRunStatus.mock.calls.length).toBeGreaterThan(1);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readMessageText("local-error-req_recovery_reset")).toBe(
+				"回答长时间没有进展，已停止等待，请重试。",
+			);
 		} finally {
 			vi.useRealTimers();
 		}

@@ -710,6 +710,113 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		vi.useRealTimers();
 	});
 
+	it("abandons the run locally when stop is requested again after a failed cancellation", async () => {
+		vi.useFakeTimers();
+		let observedSignal: AbortSignal | undefined;
+		let releaseSuppressedDelta: () => void = () => {
+			throw new Error("suppressed delta release was not initialized");
+		};
+		let markSuppressedDeltaConsumed: () => void = () => {
+			throw new Error("suppressed delta marker was not initialized");
+		};
+		const suppressedDeltaConsumed = new Promise<void>((resolve) => {
+			markSuppressedDeltaConsumed = resolve;
+		});
+		let rejectCancellation: (error: Error) => void = () => {
+			throw new Error("cancellation rejection was not initialized");
+		};
+		let releaseStream: () => void = () => {
+			throw new Error("stream release was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
+			signal?: AbortSignal;
+		}) {
+			observedSignal = input.signal;
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					sequence: 1,
+					status: "accepted",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseSuppressedDelta = resolve;
+			});
+			yield {
+				data: {
+					delta: "取消失败后的部分回答",
+					messageId: "msg_cancel_abandon",
+					occurredAt: "2026-06-24T01:00:01.000Z",
+					requestId: "req_01",
+					sequence: 2,
+					status: "streaming",
+				},
+				event: "answer.delta",
+			} satisfies ChatRequestStreamEvent;
+			markSuppressedDeltaConsumed();
+			await new Promise<void>((resolve) => {
+				releaseStream = resolve;
+			});
+			yield cancellationTerminalEvent({ sequence: 3 });
+		});
+		conversationApiMock.cancelRun.mockImplementation(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectCancellation = reject;
+				}),
+		);
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "hi 你是谁", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			let cancellationPromise: Promise<void> | undefined;
+			await act(async () => {
+				cancellationPromise = assistantUiMock.externalStoreInput?.onCancel();
+				await Promise.resolve();
+			});
+			await act(async () => {
+				releaseSuppressedDelta();
+				await suppressedDeltaConsumed;
+				await vi.advanceTimersByTimeAsync(16);
+			});
+			await act(async () => {
+				rejectCancellation(new Error("cancel transport failed"));
+				await cancellationPromise;
+			});
+			expect(conversationApiMock.cancelRun).toHaveBeenNthCalledWith(1, "req_01");
+			expect(readMessageText("local-error-req_01")).toBe("取消请求失败，当前回答仍在继续。");
+
+			await act(async () => {
+				await assistantUiMock.externalStoreInput?.onCancel();
+			});
+
+			expect(conversationApiMock.cancelRun).toHaveBeenCalledTimes(1);
+			expect(observedSignal?.aborted).toBe(true);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readAssistantText()).toBe("取消失败后的部分回答");
+
+			releaseStream();
+			await act(async () => {
+				await submitPromise;
+			});
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readAssistantText()).toBe("取消失败后的部分回答");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("keeps a terminal result when it wins the race with cancellation confirmation", async () => {
 		let observedSignal: AbortSignal | undefined;
 		let releaseTerminal: () => void = () => {

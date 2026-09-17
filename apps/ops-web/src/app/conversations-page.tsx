@@ -1,11 +1,14 @@
 import { Button, Input, NativeSelect } from "@campus-agent/ui";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import type { TimeWindow } from "campus-contracts/ops-time";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatTimestamp } from "./format";
 import { fetchChatConversations } from "./ops-api/chat-conversations";
 import { ErrorState, PageHeader, PageShell, StatusBadge } from "./ops-display";
+import { optionalTimeWindow } from "./ops-view-helpers";
+import { TimeWindowSelect } from "./ui/time-window-select";
 
 const dateFormatter = new Intl.DateTimeFormat("en", {
 	timeZone: "Asia/Shanghai",
@@ -24,27 +27,48 @@ function beijingDate(value: unknown): string {
 		.join("-");
 }
 
-function filterDraft(search: Record<string, unknown>) {
+interface ConversationsFilterDraft {
+	q: string;
+	status: string;
+	feedback: string;
+	hasFailures: string;
+	window: TimeWindow | "";
+	from: string;
+	to: string;
+}
+
+function filterDraft(search: Record<string, unknown>): ConversationsFilterDraft {
 	return {
 		q: typeof search.q === "string" ? search.q : "",
 		status: typeof search.status === "string" ? search.status : "",
 		feedback: typeof search.feedback === "string" ? search.feedback : "",
 		hasFailures: typeof search.hasFailures === "boolean" ? String(search.hasFailures) : "",
+		window: optionalTimeWindow(search.window) ?? "",
 		from: beijingDate(search.from),
 		to: beijingDate(search.to),
 	};
 }
 
+function isQuestionPreviewDuplicated(title: string, preview: string | null): boolean {
+	if (preview === null) {
+		return false;
+	}
+	if (preview === title) {
+		return true;
+	}
+	return title.endsWith("...") && preview.startsWith(title.slice(0, -3));
+}
+
 export function ConversationsPage({ search }: { search: Record<string, unknown> }) {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const { q, status, feedback, hasFailures, from, to } = search;
+	const { q, status, feedback, hasFailures, from, to, window } = search;
 	const [draft, setDraft] = useState(() => filterDraft(search));
 	useEffect(() => {
-		setDraft(filterDraft({ q, status, feedback, hasFailures, from, to }));
-	}, [q, status, feedback, hasFailures, from, to]);
+		setDraft(filterDraft({ q, status, feedback, hasFailures, from, to, window }));
+	}, [q, status, feedback, hasFailures, from, to, window]);
 	const params = new URLSearchParams();
-	for (const key of ["q", "cursor", "from", "to", "status", "feedback"]) {
+	for (const key of ["q", "cursor", "from", "to", "window", "status", "feedback"]) {
 		const value = search[key];
 		if (typeof value === "string" && value) {
 			params.set(key, value);
@@ -66,7 +90,7 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 			<ErrorState error={query.error} onRetry={() => query.refetch()} title="历史会话读取失败" />
 		);
 	}
-	const hasFilters = ["q", "status", "feedback", "hasFailures", "from", "to"].some(
+	const hasFilters = ["q", "status", "feedback", "hasFailures", "from", "to", "window"].some(
 		(k) => search[k] !== undefined && search[k] !== "",
 	);
 	return (
@@ -87,7 +111,7 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 				title="历史会话"
 			/>
 			<form
-				className="my-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem_10rem_auto]"
+				className="my-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem_10rem_10rem_auto]"
 				onSubmit={(event) => {
 					event.preventDefault();
 					const value = (name: keyof typeof draft) => draft[name] || undefined;
@@ -99,6 +123,7 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 							feedback: value("feedback"),
 							hasFailures:
 								value("hasFailures") === undefined ? undefined : value("hasFailures") === "true",
+							window: value("window") as TimeWindow | undefined,
 							from: (() => {
 								const v = value("from");
 								return v ? new Date(`${v}T00:00:00.000+08:00`).toISOString() : undefined;
@@ -158,17 +183,37 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 					<option value="true">包含失败</option>
 					<option value="false">不含失败</option>
 				</NativeSelect>
+				<TimeWindowSelect
+					accessibilityLabel="时间范围"
+					className="min-h-10"
+					emptyLabel="全部时间"
+					name="window"
+					onChange={(next) =>
+						setDraft((previous) => ({
+							...previous,
+							window: next,
+							from: next ? "" : previous.from,
+							to: next ? "" : previous.to,
+						}))
+					}
+					scope="conversations"
+					value={draft.window}
+				/>
 				<Input
 					aria-label="开始日期"
 					value={draft.from}
-					onChange={(event) => setDraft((previous) => ({ ...previous, from: event.target.value }))}
+					onChange={(event) =>
+						setDraft((previous) => ({ ...previous, from: event.target.value, window: "" }))
+					}
 					name="from"
 					type="date"
 				/>
 				<Input
 					aria-label="结束日期"
 					value={draft.to}
-					onChange={(event) => setDraft((previous) => ({ ...previous, to: event.target.value }))}
+					onChange={(event) =>
+						setDraft((previous) => ({ ...previous, to: event.target.value, window: "" }))
+					}
 					name="to"
 					type="date"
 				/>
@@ -204,20 +249,27 @@ export function ConversationsPage({ search }: { search: Record<string, unknown> 
 								<StatusBadge status={c.latestStatus} />
 							</div>
 							<div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-								<span>用户：{c.owner.displayName ?? c.owner.id}</span>
-								<span>创建于 {formatTimestamp(c.createdAt)}</span>
+								<span title={c.owner.displayName ? undefined : c.owner.id}>
+									用户：
+									{c.owner.displayName
+										? `${c.owner.displayName}${c.owner.email ? `（${c.owner.email}）` : ""}`
+										: (c.owner.email ?? c.owner.id)}
+								</span>
 								<span>更新于 {formatTimestamp(c.updatedAt)}</span>
-								<span>{c.turnCount} 轮</span>
 							</div>
-							<p className="text-sm text-foreground">{c.latestQuestionPreview ?? "暂无用户问题"}</p>
+							{isQuestionPreviewDuplicated(c.title, c.latestQuestionPreview) ? null : (
+								<p className="text-sm text-foreground">
+									{c.latestQuestionPreview ?? "暂无用户问题"}
+								</p>
+							)}
 							{c.latestAnswerPreview ? (
 								<p className="line-clamp-2 text-sm text-muted-foreground">
 									{c.latestAnswerPreview}
 								</p>
 							) : null}
 							<div className="flex gap-3 text-xs text-muted-foreground">
-								<span>{c.hasFailures ? "包含失败运行" : "运行正常"}</span>
-								<span>{c.hasFeedback ? "有用户反馈" : "暂无反馈"}</span>
+								{c.hasFailures ? <span>包含失败运行</span> : null}
+								{c.hasFeedback ? <span>有用户反馈</span> : null}
 							</div>
 						</article>
 					))}

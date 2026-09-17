@@ -11,13 +11,8 @@ import { buildInternalPortalNoticeUrl } from "@/features/notices/internal-portal
 import { noticeDetailQueryOptions } from "@/features/notices/queries";
 import { noticeQueryClient } from "@/features/notices/query-client";
 import { parseTransportSearch, transportReturnTarget } from "@/features/transport/route-search";
+import { formatTimestamp } from "@/lib/date-time";
 import { ApiRequestError } from "@/platform/api/client";
-
-const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
-	dateStyle: "long",
-	timeStyle: "short",
-	timeZone: "Asia/Shanghai",
-});
 
 export function NoticeDetailPage() {
 	return (
@@ -104,7 +99,7 @@ export function NoticeDetailPageContent() {
 							<dl className="grid min-w-0 gap-x-6 gap-y-2 text-sm text-[var(--sys-text-muted)] sm:grid-cols-2">
 								<Metadata label="发布时间">
 									<time dateTime={notice.data.releasedAt}>
-										{RELEASE_DATE_FORMATTER.format(new Date(notice.data.releasedAt))}
+										{formatTimestamp(notice.data.releasedAt)}
 									</time>
 								</Metadata>
 								<Metadata label="发布部门">{notice.data.organization?.name ?? "未标注"}</Metadata>

@@ -22,6 +22,7 @@ export async function mockAuthApi(
 	options: AuthMockOptions = {},
 ): Promise<AuthRequestRecord[]> {
 	const records: AuthRequestRecord[] = [];
+	await disableTurnstileInDocument(page);
 	await page.route(
 		(url) =>
 			url.pathname === "/api/account/delete" ||
@@ -94,6 +95,27 @@ export async function mockAuthApi(
 		},
 	);
 	return records;
+}
+
+// The e2e preview worker inherits the local .dev.vars Turnstile site key, and the widget
+// depends on the external challenges.cloudflare.com network. Sign-in tests must stay
+// hermetic, so strip the site key from the runtime config embedded in the document.
+async function disableTurnstileInDocument(page: Page): Promise<void> {
+	await page.route(
+		() => true,
+		async (route) => {
+			if (route.request().resourceType() !== "document") {
+				await route.fallback();
+				return;
+			}
+			const response = await route.fetch();
+			const body = (await response.text()).replace(/("turnstileSiteKey"\s*:\s*)"[^"]*"/u, "$1null");
+			const headers = { ...response.headers() };
+			delete headers["content-encoding"];
+			delete headers["content-length"];
+			await route.fulfill({ body, headers, status: response.status() });
+		},
+	);
 }
 
 async function fulfillSignIn(

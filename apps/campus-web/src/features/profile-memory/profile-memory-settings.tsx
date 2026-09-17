@@ -26,6 +26,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, LoaderCircle, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { formatTimestamp } from "@/lib/date-time";
 import { useCampusSession } from "@/platform/auth/session";
 import {
 	createProfileMemoryItem,
@@ -169,7 +170,7 @@ function MemorySettings({ userId }: { userId: string }) {
 	return (
 		<div className="mx-auto w-full max-w-4xl space-y-6 pb-16">
 			<header className="border-b border-border pb-6">
-				<h1 className="ui-page-title">个性化记忆</h1>
+				<h2 className="ui-section-title">个性化记忆</h2>
 				<p className="mt-2 text-sm text-muted-foreground">
 					管理助手保存的事实、经历和派生观察。删除聊天记录不会清除记忆。
 				</p>
@@ -237,7 +238,7 @@ function MemorySettings({ userId }: { userId: string }) {
 				))}
 			<section className="space-y-4" aria-label="我的记忆">
 				<div className="flex justify-between">
-					<h2 className="text-lg font-semibold">我的记忆</h2>
+					<h3 className="text-lg font-semibold">我的记忆</h3>
 					<Button disabled={blocked} onClick={() => setEditing({ text: "" })}>
 						<Plus />
 						添加
@@ -324,7 +325,7 @@ function MemorySettings({ userId }: { userId: string }) {
 				) : null}
 			</section>
 			<section className="border-t pt-5">
-				<h2 className="font-semibold">清除全部记忆</h2>
+				<h3 className="font-semibold">清除全部记忆</h3>
 				<p className="my-3 text-sm text-muted-foreground">
 					清除全部长期记忆、来源资料和停用归档，完成后保持关闭。聊天记录不受影响，也不会自动重新导入。
 				</p>
@@ -416,9 +417,7 @@ function MemorySettings({ userId }: { userId: string }) {
 							<p className="whitespace-pre-wrap">{detail.data.text}</p>
 							<p className="text-xs text-muted-foreground">
 								{originLabel(detail.data.origin)}
-								{detail.data.editedAt
-									? ` · 修改于 ${new Date(detail.data.editedAt).toLocaleString()}`
-									: ""}
+								{detail.data.editedAt ? ` · 修改于 ${formatTimestamp(detail.data.editedAt)}` : ""}
 							</p>
 							{detail.data.kind === "summary" ? (
 								<section className="space-y-3">

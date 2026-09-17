@@ -12,6 +12,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import {
 	account,
@@ -45,6 +46,7 @@ export function createAccountAdminUserReadOperations(
 		async getUser(userId) {
 			const db = await context.getDb();
 			const access = accountAccessExpressions(context.environment, context.now());
+			const eventActor = alias(user, "detail_event_actor");
 			const [users, credentials, deletions, events] = await Promise.all([
 				db
 					.select({ accessSource: access.source, base: user })
@@ -70,6 +72,7 @@ export function createAccountAdminUserReadOperations(
 				db
 					.select()
 					.from(accountAdminEvent)
+					.leftJoin(eventActor, eq(eventActor.id, accountAdminEvent.actorId))
 					.where(eq(accountAdminEvent.targetUserId, userId))
 					.orderBy(desc(accountAdminEvent.occurredAt))
 					.limit(50),
@@ -80,7 +83,14 @@ export function createAccountAdminUserReadOperations(
 				base: users[0]?.base ?? null,
 				credentialAccount: Boolean(credentials[0]),
 				deletion: deletions[0] ? toAccountDeletionRecord(deletions[0]) : null,
-				events: events.map(toAccountAdminEventRecord),
+				events: events.map((row) =>
+					toAccountAdminEventRecord(row.account_admin_event, {
+						actor:
+							row.detail_event_actor?.name && row.detail_event_actor?.email
+								? { name: row.detail_event_actor.name, email: row.detail_event_actor.email }
+								: null,
+					}),
+				),
 			};
 		},
 

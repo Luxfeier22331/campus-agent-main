@@ -104,25 +104,6 @@ export function NoticeMaintenancePage() {
 				title="通知维护"
 			/>
 
-			<NoticeAutomationPanel
-				data={model.automation.data}
-				error={model.automation.error}
-				saving={model.saveAutomation.isPending}
-				saveError={model.saveAutomation.error}
-				busy={model.isFamilyBusy("collection")}
-				latest={model.jobs.data?.jobs.find((job) =>
-					["notice-sync", "notice-rescan", "notice-backfill"].includes(job.operation),
-				)}
-				onSave={(value) => model.saveAutomation.mutateAsync(value)}
-				onRun={() => {
-					model.setTaskCenterOpen(true);
-					model.startJob({ operation: "notice-sync" });
-				}}
-				onTasks={() => model.setTaskCenterOpen(true)}
-				onRetry={() => {
-					void model.automation.refetch();
-				}}
-			/>
 			<NoticeMaintenanceToolbar
 				category={model.category}
 				counts={model.notices.data?.counts ?? null}
@@ -191,6 +172,31 @@ export function NoticeMaintenancePage() {
 					</aside>
 				) : null}
 			</div>
+
+			<details className="mt-5">
+				<summary className="min-h-11 cursor-pointer py-3 font-medium focus-visible:outline-2 focus-visible:outline-ring">
+					自动采集设置
+				</summary>
+				<NoticeAutomationPanel
+					data={model.automation.data}
+					error={model.automation.error}
+					saving={model.saveAutomation.isPending}
+					saveError={model.saveAutomation.error}
+					busy={model.isFamilyBusy("collection")}
+					latest={model.jobs.data?.jobs.find((job) =>
+						["notice-sync", "notice-rescan", "notice-backfill"].includes(job.operation),
+					)}
+					onSave={(value) => model.saveAutomation.mutateAsync(value)}
+					onRun={() => {
+						model.setTaskCenterOpen(true);
+						model.startJob({ operation: "notice-sync" });
+					}}
+					onTasks={() => model.setTaskCenterOpen(true)}
+					onRetry={() => {
+						void model.automation.refetch();
+					}}
+				/>
+			</details>
 
 			{desktop ? null : (
 				<Sheet

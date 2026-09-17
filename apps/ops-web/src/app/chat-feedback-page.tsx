@@ -8,9 +8,9 @@ import { ChatFeedbackDetailDialog } from "./chat-feedback-detail";
 import {
 	buildChatFeedbackQuery,
 	type ChatFeedbackSearch,
-	feedbackTimeFormatter,
 	feedbackVoteLabel,
 } from "./chat-feedback-query";
+import { formatTimestamp } from "./format";
 import { fetchChatFeedback } from "./ops-api/chat-feedback";
 import { ErrorState, InlineError, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
@@ -171,7 +171,7 @@ export function ChatFeedbackPage({ search }: { search: ChatFeedbackSearch }) {
 												{row.answerPreview}
 											</p>
 											<p className="font-normal text-xs text-muted-foreground sm:hidden">
-												{feedbackTimeFormatter.format(new Date(row.updatedAt))}
+												{formatTimestamp(row.updatedAt)}
 											</p>
 										</div>
 									),
@@ -180,7 +180,7 @@ export function ChatFeedbackPage({ search }: { search: ChatFeedbackSearch }) {
 									header: "最近反馈时间",
 									cellClassName: "hidden sm:table-cell whitespace-nowrap",
 									headerClassName: "hidden sm:table-cell",
-									cell: (row) => feedbackTimeFormatter.format(new Date(row.updatedAt)),
+									cell: (row) => formatTimestamp(row.updatedAt),
 								},
 								{
 									header: "操作",

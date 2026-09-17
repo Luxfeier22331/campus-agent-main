@@ -114,29 +114,6 @@
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
 		},
-		"test:e2e:full": {
-			"inputs": ["e2e/**", "e2e.config.ts", "e2e.worker.config.ts", "package.json"]
-		},
-		"test:e2e:smoke": {
-			"inputs": [
-				"e2e/**",
-				"e2e.config.ts",
-				"e2e.worker.config.ts",
-				"fixtures/**",
-				"index.html",
-				"package.json",
-				"scripts/**",
-				"src/**",
-				"test/build-browser-test-content.ts",
-				"tsconfig.json",
-				"vite.config.ts",
-				"wrangler*.toml",
-				"assets/favicon.ico",
-				"$TURBO_ROOT$/configs/sources/internal-portal.json",
-				"$TURBO_ROOT$/packages/domains/dining/**",
-				"$TURBO_ROOT$/packages/ui/**"
-			]
-		},
 		"test:worker": {
 			"inputs": [
 				"package.json",

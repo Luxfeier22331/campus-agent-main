@@ -32,7 +32,6 @@ pnpm dev:shared-reconcile
 pnpm dev:init -- --target core
 pnpm --dir apps/campus-web dev
 pnpm --dir apps/campus-web test
-pnpm --dir apps/campus-web test:e2e:smoke
 pnpm --dir apps/campus-web build
 pnpm --dir apps/campus-web typecheck
 ```

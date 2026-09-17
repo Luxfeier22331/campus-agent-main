@@ -41,7 +41,7 @@ const OpsNoticeProductSourceSchema = z.object({
 	noticeId: z.string().min(1),
 	primaryAction: z.object({
 		disabledReason: z.string().min(1).nullable(),
-		external: z.literal(false),
+		external: z.boolean(),
 		href: z.string().min(1).nullable(),
 		label: z.literal("查看通知"),
 	}),

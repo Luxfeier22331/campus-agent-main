@@ -16,7 +16,7 @@ const at = "2026-09-14T00:00:00.000Z";
 const row = {
 	id: "conv-1",
 	title: "测试会话",
-	owner: { id: "owner", displayName: null },
+	owner: { id: "owner", email: "owner@example.test", displayName: null },
 	createdAt: at,
 	updatedAt: at,
 	messageCount: 0,
@@ -146,6 +146,33 @@ describe("conversation filters", () => {
 		await waitFor(() => expect(urls.length).toBeGreaterThan(before));
 		expect(screen.getByLabelText("搜索会话")).toHaveValue("unsaved");
 		expect(urls.at(-1)?.searchParams.get("q")).toBe("second");
+	});
+
+	it("applies quick window and clears custom dates both ways", async () => {
+		const { urls } = await openPage();
+		change("开始日期", "2026-09-14");
+		change("结束日期", "2026-09-14");
+		change("时间范围", "7d");
+		expect(screen.getByLabelText("开始日期")).toHaveValue("");
+		expect(screen.getByLabelText("结束日期")).toHaveValue("");
+		submit();
+		await waitFor(() => expect(urls.at(-1)?.searchParams.get("window")).toBe("7d"));
+		expect(urls.at(-1)?.searchParams.has("from")).toBe(false);
+		expect(urls.at(-1)?.searchParams.has("to")).toBe(false);
+		change("开始日期", "2026-09-14");
+		expect(screen.getByLabelText("时间范围")).toHaveValue("");
+		change("结束日期", "2026-09-14");
+		submit();
+		await waitFor(() =>
+			expect(urls.at(-1)?.searchParams.get("from")).toBe("2026-09-13T16:00:00.000Z"),
+		);
+		expect(urls.at(-1)?.searchParams.has("window")).toBe(false);
+	});
+
+	it("restores window from URL search", async () => {
+		const { urls } = await openPage("/conversations?window=30d");
+		expect(screen.getByLabelText("时间范围")).toHaveValue("30d");
+		await waitFor(() => expect(urls.at(-1)?.searchParams.get("window")).toBe("30d"));
 	});
 
 	it.each(["2026-09-14", "2026-10-01", "2027-01-01"])(

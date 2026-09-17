@@ -443,6 +443,10 @@ describe("PostgreSQL ops status store", () => {
 			disabledReason: "Campus Web 地址未配置。",
 			href: null,
 		});
+		expect(detail.result.sources[4]?.primaryAction).toMatchObject({
+			disabledReason: "Campus Web 地址未配置。",
+			href: null,
+		});
 
 		const withOrigin = createPgOpsStatusStore({
 			campusWebPublicOrigin: "https://campus.example.test",
@@ -469,7 +473,8 @@ describe("PostgreSQL ops status store", () => {
 		});
 		expect(detailWithOrigin.result.sources[4]?.primaryAction).toMatchObject({
 			disabledReason: null,
-			href: "/notices/354516",
+			external: true,
+			href: "https://campus.example.test/notices/354516",
 		});
 		expect(detailWithOrigin.result.sources[5]?.primaryAction).toMatchObject({
 			disabledReason: "来源链接地址无效。",

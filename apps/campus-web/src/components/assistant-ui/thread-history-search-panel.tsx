@@ -14,6 +14,7 @@ import {
 import { CampusMotionProvider, contentSwap, stateSwap } from "@/components/ui/motion";
 import { searchConversations } from "@/features/conversation/api";
 import type { ConversationSearchResult } from "@/features/conversation/model";
+import { formatTimestamp } from "@/lib/date-time";
 import { UnauthorizedError } from "@/platform/api/client";
 
 export function ThreadHistorySearchPanel({
@@ -196,14 +197,5 @@ export function ThreadHistorySearchPanel({
 }
 
 function formatConversationUpdatedAt(value: string): string {
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return "";
-	}
-	return new Intl.DateTimeFormat("zh-CN", {
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		month: "2-digit",
-	}).format(date);
+	return Number.isNaN(Date.parse(value)) ? "" : formatTimestamp(value);
 }

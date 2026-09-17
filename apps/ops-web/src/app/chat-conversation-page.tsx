@@ -4,7 +4,8 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useEffect } from "react";
 import { ChatAnswerBody, ChatAnswerSources } from "./chat-answer-content";
-import { feedbackTimeFormatter, feedbackVoteLabel } from "./chat-feedback-query";
+import { feedbackVoteLabel } from "./chat-feedback-query";
+import { formatTimestamp } from "./format";
 import { fetchChatConversation } from "./ops-api/chat-conversations";
 import { OpsApiError } from "./ops-api/core";
 import { CopyableValue, ErrorState, PageHeader, StaleDataWarning } from "./ops-display";
@@ -133,7 +134,7 @@ export function ChatConversationPage({
 									<div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
 										<h2 className="font-semibold">{message.role === "user" ? "用户" : "助手"}</h2>
 										<time className="text-muted-foreground" dateTime={message.createdAt}>
-											{feedbackTimeFormatter.format(new Date(message.createdAt))}
+											{formatTimestamp(message.createdAt)}
 										</time>
 										{message.id === messageId ? (
 											<span className="font-medium text-info">当前定位</span>
@@ -187,8 +188,8 @@ export function ChatConversationPage({
 						<DisclosureSummary>会话信息</DisclosureSummary>
 						<div className="space-y-2 pt-3">
 							<CopyableValue label="会话 ID" value={data.id} />
-							<p>创建于 {feedbackTimeFormatter.format(new Date(data.createdAt))}</p>
-							<p>更新于 {feedbackTimeFormatter.format(new Date(data.updatedAt))}</p>
+							<p>创建于 {formatTimestamp(data.createdAt)}</p>
+							<p>更新于 {formatTimestamp(data.updatedAt)}</p>
 						</div>
 					</Disclosure>
 				</>

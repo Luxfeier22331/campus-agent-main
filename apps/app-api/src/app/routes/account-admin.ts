@@ -94,6 +94,7 @@ export function registerAccountAdminRoutes(input: {
 	input.app.get("/api/internal/admin/account-events", async (c) => {
 		requireOpsAdminToken(c.req.raw, input.env);
 		const query = AccountAdminEventQuerySchema.parse(c.req.query());
+		const { window, from, to } = query;
 		const page = await input
 			.createRequestScope()
 			.resolveAccountAdminService()
@@ -104,7 +105,9 @@ export function registerAccountAdminRoutes(input: {
 				...(query.outcome ? { outcome: query.outcome } : {}),
 				...(query.targetUserId ? { targetUserId: query.targetUserId } : {}),
 				limit: query.limit,
-				window: query.window,
+				...(window ? { window } : {}),
+				...(from ? { from } : {}),
+				...(to ? { to } : {}),
 			});
 		return withNoStore(jsonResponse(page));
 	});

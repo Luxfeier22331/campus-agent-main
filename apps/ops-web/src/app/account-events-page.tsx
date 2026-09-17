@@ -10,6 +10,7 @@ import { formatTimestamp } from "./format";
 import { fetchAccountAdminEvents } from "./ops-api/account-admin";
 import { ErrorState, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
+import { TimeWindowSelect } from "./ui/time-window-select";
 
 const actions: AccountAdminEvent["action"][] = [
 	"password_reset_email_sent",
@@ -94,19 +95,16 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 			>
 				<label className="grid gap-1 text-muted-foreground text-xs" htmlFor="account-event-window">
 					时间范围
-					<NativeSelect
+					<TimeWindowSelect
+						accessibilityLabel="时间范围"
 						className="min-h-10"
 						id="account-event-window"
-						onChange={(event) =>
-							setSearch({ ...filters, window: event.target.value as AccountEventsSearch["window"] })
+						onChange={(next) =>
+							setSearch({ ...filters, window: next as AccountEventsSearch["window"] })
 						}
+						scope="accountEvents"
 						value={search.window}
-					>
-						<option value="24h">24 小时</option>
-						<option value="7d">7 天</option>
-						<option value="30d">30 天</option>
-						<option value="90d">90 天</option>
-					</NativeSelect>
+					/>
 				</label>
 				<label className="grid gap-1 text-muted-foreground text-xs" htmlFor="account-event-action">
 					操作
@@ -196,7 +194,7 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 							},
 							{ cell: (row) => accountActionLabel(row.action), header: "操作", id: "action" },
 							{
-								cell: (row) => row.actorId,
+								cell: (row) => (row.actor ? `${row.actor.name} (${row.actor.email})` : row.actorId),
 								cellClassName: "hidden md:table-cell",
 								header: "操作者",
 								headerClassName: "hidden md:table-cell",
@@ -210,7 +208,9 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 											search={{ from: currentHref }}
 											to="/users/$userId"
 										>
-											{row.targetUserId}
+											{row.targetUser
+												? `${row.targetUser.name}（${row.targetUser.email}）`
+												: row.targetUserId}
 										</Link>
 									) : (
 										"-"

@@ -29,6 +29,7 @@ export function useConversationLifecycleStream({
 	applyRunStateEvent,
 	applyTerminalEvent,
 	holdAssistantDelta,
+	noteRunProgress,
 	operationMachine,
 	ownsOperation,
 	requestRunCancellation,
@@ -40,6 +41,7 @@ export function useConversationLifecycleStream({
 		operation: RuntimeOperationIdentity,
 	) => Promise<void>;
 	holdAssistantDelta: (messageId: string, delta: string, occurredAt: string) => void;
+	noteRunProgress: () => void;
 	operationMachine: RunOperationMachine;
 	ownsOperation: (operation: RuntimeOperationIdentity) => boolean;
 	requestRunCancellation: (run: ActiveRun, operation: RuntimeOperationIdentity) => Promise<void>;
@@ -90,6 +92,7 @@ export function useConversationLifecycleStream({
 				) {
 					continue;
 				}
+				noteRunProgress();
 				applyRunStateEvent(event, operation.id);
 				if (event.event === "request.accepted" && event.data.requestId) {
 					operationMachine.clientTiming.accept(event.data.requestId);
@@ -136,6 +139,7 @@ export function useConversationLifecycleStream({
 			applyAnswerDelta,
 			applyRunStateEvent,
 			applyTerminalEvent,
+			noteRunProgress,
 			operationMachine,
 			ownsOperation,
 			requestRunCancellation,

@@ -68,8 +68,10 @@ type Editor =
 
 export function TransportPage({
 	initialScheduleId,
+	requestedKind,
 }: {
 	initialScheduleId?: string | undefined;
+	requestedKind?: ServiceKind | undefined;
 } = {}) {
 	const client = useQueryClient();
 	const routes = useQuery({
@@ -92,6 +94,7 @@ export function TransportPage({
 	return (
 		<TransportWorkspace
 			initialScheduleId={initialScheduleId}
+			requestedKindProp={requestedKind}
 			routes={routes.data.routes}
 			periods={periods.data.schedulePeriods}
 			onChanged={refresh}
@@ -108,6 +111,7 @@ function TransportWorkspace({
 	refreshing,
 	error,
 	initialScheduleId,
+	requestedKindProp,
 }: {
 	routes: TransportOpsRoute[];
 	periods: TransportOpsSchedulePeriod[];
@@ -115,12 +119,13 @@ function TransportWorkspace({
 	refreshing: boolean;
 	error: unknown;
 	initialScheduleId?: string | undefined;
+	requestedKindProp?: ServiceKind | undefined;
 }) {
 	const target = periods.find((period) => period.scheduleId === initialScheduleId);
 	const targetRoute = routes.find((route) => route.routeId === target?.routeId);
 	const kinds = KINDS.filter((kind) => routes.some((route) => route.serviceKind === kind));
 	const [requestedKind, setKind] = useState<ServiceKind>(
-		targetRoute?.serviceKind ?? kinds[0] ?? "commute",
+		requestedKindProp ?? targetRoute?.serviceKind ?? kinds[0] ?? "commute",
 	);
 	const kind = kinds.includes(requestedKind) ? requestedKind : (kinds[0] ?? "commute");
 	const kindRoutes = routes.filter((route) => route.serviceKind === kind);
@@ -201,6 +206,7 @@ function TransportWorkspace({
 			close();
 			setKind(value as ServiceKind);
 			setSelectedId(undefined);
+			void navigate({ search: { kind: value as ServiceKind }, to: "/transport" });
 		});
 	const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
 	const [viewDate, setViewDate] = useState(target?.validFrom ?? today);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TimeFiltersSchema, timeQueryShape, validateTimeQuery } from "./ops-time.ts";
 
 export const ACCOUNT_ADMIN_STATES = [
 	"active",
@@ -50,6 +51,7 @@ export const AccountAdminUserSummarySchema = z
 
 export const AccountAdminSessionSchema = z
 	.object({
+		isActive: z.boolean(),
 		createdAt: z.iso.datetime({ offset: true }),
 		expiresAt: z.iso.datetime({ offset: true }),
 		id: z.string().min(1),
@@ -64,12 +66,14 @@ export const AccountAdminEventSchema = z
 	.object({
 		action: AccountAdminActionSchema,
 		actorId: z.string(),
+		actor: z.object({ name: z.string(), email: z.email() }).strict().nullable(),
 		errorCode: z.string().nullable(),
 		eventId: z.string(),
 		occurredAt: z.iso.datetime({ offset: true }),
 		outcome: AccountAdminOutcomeSchema,
 		reason: z.string().nullable(),
 		targetUserId: z.string().nullable(),
+		targetUser: z.object({ name: z.string(), email: z.email() }).strict().nullable(),
 	})
 	.strict()
 	.meta({ id: "event" });
@@ -111,6 +115,7 @@ export const AccountAdminUserPageSchema = z
 
 export const AccountAdminEventPageSchema = z
 	.object({
+		filters: TimeFiltersSchema,
 		items: z.array(AccountAdminEventSchema),
 		nextCursor: z.string().nullable(),
 	})
@@ -161,9 +166,10 @@ export const AccountAdminEventQuerySchema = z
 		limit: z.coerce.number().int().min(1).max(100).default(50),
 		outcome: AccountAdminOutcomeSchema.optional(),
 		targetUserId: z.string().trim().min(1).max(200).optional(),
-		window: AccountAdminEventWindowSchema.default("7d"),
+		...timeQueryShape,
 	})
 	.strict()
+	.superRefine(validateTimeQuery("accountEvents"))
 	.meta({ id: "eventQuery" });
 
 export const AccountAdminContractSchema = z.union([

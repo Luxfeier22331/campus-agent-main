@@ -17,6 +17,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { formatTimestamp } from "./format";
 import { fetchJson } from "./ops-api/core";
 import { ErrorState, PageHeader } from "./ops-display";
 
@@ -153,7 +154,7 @@ export function OcrPage() {
 												? `通知 ${task.input.noticeId} · ${task.input.key.includes("/images/") ? "图片" : "附件"} ${Number(task.input.key.split("/").at(-1)) + 1}`
 												: "本地上传文件"}
 										<div className="text-xs text-muted-foreground">
-											{new Date(task.createdAt).toLocaleString("zh-CN")}
+											{formatTimestamp(task.createdAt)}
 										</div>
 									</td>
 									<td className="max-w-sm p-3">

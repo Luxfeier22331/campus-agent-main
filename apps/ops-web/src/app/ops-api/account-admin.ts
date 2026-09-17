@@ -47,6 +47,8 @@ export async function fetchAccountAdminEvents(
 		outcome?: AccountAdminEvent["outcome"];
 		targetUserId?: string;
 		window?: "24h" | "7d" | "30d" | "90d";
+		from?: string;
+		to?: string;
 	} = {},
 	input: { signal?: AbortSignal } = {},
 ) {

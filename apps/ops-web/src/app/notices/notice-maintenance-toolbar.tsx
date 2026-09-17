@@ -1,4 +1,4 @@
-import { Button, cn, Field, Input, NativeSelect } from "@campus-agent/ui";
+import { Button, Field, Input, NativeSelect } from "@campus-agent/ui";
 import {
 	NOTICE_CATEGORIES,
 	NOTICE_CATEGORY_LABELS,
@@ -60,39 +60,10 @@ export function NoticeMaintenanceToolbar({
 
 	return (
 		<div className="mb-5 grid gap-5 border-border border-b pb-5">
-			<nav aria-label="通知状态" className="flex max-w-full gap-1 overflow-x-auto">
-				{STATE_OPTIONS.map((option) => {
-					const active = state === option.value;
-					const count = counts?.[option.countKey];
-					return (
-						<button
-							aria-current={active ? "page" : undefined}
-							aria-pressed={active}
-							className={cn(
-								"inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 text-sm transition-[background-color,color] duration-[var(--motion-duration-fast)]",
-								active
-									? "bg-selected font-semibold text-selected-foreground"
-									: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-							)}
-							key={option.value || "all"}
-							onClick={() => onStateChange(option.value)}
-							type="button"
-						>
-							<span>{option.label}</span>
-							<span
-								className={cn(
-									"font-mono text-xs",
-									active ? "text-selected-foreground/75" : "text-muted-foreground",
-								)}
-							>
-								{count ?? "—"}
-							</span>
-						</button>
-					);
-				})}
-			</nav>
-
-			<form className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem_auto]" onSubmit={submit}>
+			<form
+				className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem_14rem_auto]"
+				onSubmit={submit}
+			>
 				<Field label="搜索标题或通知 ID">
 					<div className="relative">
 						<Input
@@ -106,6 +77,21 @@ export function NoticeMaintenanceToolbar({
 							className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
 						/>
 					</div>
+				</Field>
+				<Field label="状态">
+					<NativeSelect
+						className="min-h-11"
+						onChange={(event) => onStateChange(event.target.value as NoticeState | "")}
+						value={state}
+					>
+						{STATE_OPTIONS.map((option) => (
+							<option key={option.value || "all"} value={option.value}>
+								{counts?.[option.countKey] === undefined
+									? option.label
+									: `${option.label}（${counts[option.countKey]}）`}
+							</option>
+						))}
+					</NativeSelect>
 				</Field>
 				<Field label="分类">
 					<NativeSelect

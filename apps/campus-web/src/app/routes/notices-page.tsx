@@ -193,7 +193,8 @@ export function NoticesPageContent() {
 						title={`没有符合条件的${itemLabel}`}
 					/>
 				) : null}
-				{notices.data && notices.data.items.length > 0 ? (
+				{notices.data &&
+				(notices.data.items.length > 0 || notices.data.pagination.totalItems > 0) ? (
 					<NoticeResults
 						data={notices.data}
 						itemLabel={itemLabel}

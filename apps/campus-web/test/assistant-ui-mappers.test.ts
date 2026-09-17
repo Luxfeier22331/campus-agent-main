@@ -130,4 +130,31 @@ describe("assistant-ui conversation mappers", () => {
 			},
 		});
 	});
+
+	it("replaces English error message text with localized Chinese text", () => {
+		const conversation: ConversationDetail = {
+			archivedAt: null,
+			activeRequestId: null,
+			createdAt: "2026-06-21T01:00:00.000Z",
+			id: "conv_01HQ",
+			messages: [
+				{
+					conversationId: "conv_01HQ",
+					createdAt: "2026-06-21T01:00:02.000Z",
+					id: "msg_error",
+					kind: "error",
+					requestId: "req_01HQ",
+					retryable: false,
+					role: "assistant",
+					text: "The request could not be completed.",
+				},
+			],
+			pinnedAt: null,
+			title: "校园问题",
+			updatedAt: "2026-06-21T01:00:02.000Z",
+		};
+
+		const [projected] = toAssistantThreadMessages(conversation);
+		expect(projected?.content).toEqual([{ text: "回答失败，请稍后重试。", type: "text" }]);
+	});
 });

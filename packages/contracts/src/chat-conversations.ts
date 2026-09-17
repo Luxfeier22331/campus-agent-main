@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ChatFeedbackReasonSchema, ChatFeedbackVoteSchema } from "./chat-feedback.ts";
 import { ChatSourceItemSchema } from "./chat-sources.ts";
+import { timeQueryShape, validateTimeQuery } from "./ops-time.ts";
 
 export const ChatConversationIdentifierSchema = z.string().trim().min(1).max(200);
 const timestamp = z.iso.datetime({ offset: true });
@@ -55,17 +56,23 @@ export const OpsConversationListQuerySchema = z
 		hasFailures: z
 			.union([z.boolean(), z.enum(["true", "false"]).transform((value) => value === "true")])
 			.optional(),
-		from: timestamp.optional(),
-		to: timestamp.optional(),
+		...timeQueryShape,
 		cursor: z.string().trim().min(1).max(512).optional(),
 		limit: z.coerce.number().int().min(1).max(100).default(30),
 	})
-	.strict();
+	.strict()
+	.superRefine(validateTimeQuery("conversations"));
 export const OpsConversationSummarySchema = z
 	.object({
 		id: ChatConversationIdentifierSchema,
 		title: z.string(),
-		owner: z.object({ id: z.string().min(1), displayName: z.string().nullable() }).strict(),
+		owner: z
+			.object({
+				id: z.string().min(1),
+				displayName: z.string().nullable(),
+				email: z.email().nullable(),
+			})
+			.strict(),
 		createdAt: timestamp,
 		updatedAt: timestamp,
 		messageCount: z.number().int().nonnegative(),

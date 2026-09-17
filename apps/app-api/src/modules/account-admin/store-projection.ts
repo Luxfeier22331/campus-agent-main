@@ -94,6 +94,10 @@ export function accountAccessExpressions(environment: string, now: Date) {
 
 export function toAccountAdminEventRecord(
 	row: typeof accountAdminEvent.$inferSelect,
+	identity: {
+		actor?: { name: string; email: string } | null;
+		targetUser?: { name: string; email: string } | null;
+	} = {},
 ): AccountAdminEventRecord {
 	return {
 		action: row.action as AccountAdminAction,
@@ -104,6 +108,8 @@ export function toAccountAdminEventRecord(
 		outcome: row.outcome as AccountAdminEventRecord["outcome"],
 		reason: row.reason,
 		targetUserId: row.targetUserId,
+		actor: identity.actor ?? null,
+		targetUser: identity.targetUser ?? null,
 	};
 }
 

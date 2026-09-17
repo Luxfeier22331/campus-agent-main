@@ -13,7 +13,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { OpsRequestSummary } from "../shared/ops-contract";
+import type { OpsRequestSummary, OpsRequestWindow } from "../shared/ops-contract";
 import {
 	cleanRequestSearch,
 	formatRequestViewLabel,
@@ -24,6 +24,7 @@ import {
 	type RequestSearchLike,
 	requestSearchDraftFromSearch,
 } from "./ops-view-helpers";
+import { TimeWindowSelect } from "./ui/time-window-select";
 
 const exactIdFields = [
 	{ label: "请求 ID", name: "requestId", placeholder: "精确 requestId" },
@@ -285,19 +286,14 @@ function RequestWindowField({
 }) {
 	return (
 		<Field label="时间范围">
-			<NativeSelect
-				aria-label="时间范围"
+			<TimeWindowSelect
+				accessibilityLabel="时间范围"
 				className="min-h-11"
 				name="window"
-				onChange={(event) => onChange(optionalRequestWindow(event.target.value) ?? "1h")}
+				onChange={(next) => onChange(next as OpsRequestWindow)}
+				scope="requests"
 				value={value}
-			>
-				<option value="15m">15 分钟</option>
-				<option value="1h">1 小时</option>
-				<option value="6h">6 小时</option>
-				<option value="24h">24 小时</option>
-				<option value="7d">7 天</option>
-			</NativeSelect>
+			/>
 		</Field>
 	);
 }

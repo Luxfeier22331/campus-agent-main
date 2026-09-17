@@ -15,6 +15,9 @@ export function parseNoticeRouteSearch(search: Record<string, unknown>): NoticeL
 		stream: asString(search.stream),
 		to: asString(search.to),
 	};
+	if (candidate.page && (!/^\d+$/.test(candidate.page) || Number(candidate.page) < 1)) {
+		candidate.page = "1";
+	}
 	const result = NoticeListRequestQuerySchema.safeParse(candidate);
 	return result.success ? result.data : { page: 1, stream: "notices" };
 }

@@ -115,10 +115,9 @@ describe("notice pages", () => {
 
 		const internal = await screen.findByRole("link", { name: /海淀校区东北门暂停开放/u });
 		expect(internal).toHaveAttribute("href", "/notices/358159");
-		const internalTime = within(internal).getByText("2026-08-11 08:00");
+		const internalTime = within(internal).getByText("2026-08-11 08:00:00");
 		expect(internalTime).toBeVisible();
-		expect(within(internal).getByText("校内门户")).toBeVisible();
-		expect(within(internal).getByText("校内门户").closest('[data-slot="badge"]')).toBeNull();
+		expect(within(internal).queryByText("校内门户")).toBeNull();
 		expect(
 			within(internal).getByText("校园服务与运行").closest('[data-slot="badge"]'),
 		).toHaveAttribute("data-notice-category-tone", "orange");
@@ -131,7 +130,7 @@ describe("notice pages", () => {
 		const sourceLabel = within(external).getByText("微信公众号");
 		expect(sourceLabel).toBeVisible();
 		expect(sourceLabel.closest('[data-slot="badge"]')).toBeNull();
-		const externalTime = within(external).getByText("2026-08-10 08:00");
+		const externalTime = within(external).getByText("2026-08-10 08:00:00");
 		expect(externalTime).toBeVisible();
 		expect(external.querySelector(".lucide-arrow-up-right")).not.toBeNull();
 		expect(external.querySelector(".lucide-chevron-right")).toBeNull();
@@ -141,8 +140,7 @@ describe("notice pages", () => {
 		).toHaveAttribute("data-notice-category-tone", "orange");
 		expect(within(procurement).getByText("中国政府采购网")).toBeVisible();
 		expect(within(procurement).getByText("招标采购中心")).toBeVisible();
-		expect(within(procurement).getByText("门户栏目：公示公告")).toBeVisible();
-		expect(within(external).queryByText("未分类")).toBeNull();
+		expect(within(external).getByText("未分类")).toBeVisible();
 	});
 
 	it("renders core filters without secondary filter controls", async () => {

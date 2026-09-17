@@ -11,7 +11,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ChatAnswerBody, ChatAnswerSources } from "./chat-answer-content";
-import { feedbackTimeFormatter, feedbackVoteLabel } from "./chat-feedback-query";
+import { feedbackVoteLabel } from "./chat-feedback-query";
+import { formatTimestamp } from "./format";
 import { fetchChatFeedbackDetail } from "./ops-api/chat-feedback";
 import { OpsApiError } from "./ops-api/core";
 import { CopyableValue, ErrorState, InlineError } from "./ops-display";
@@ -91,7 +92,7 @@ function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; return
 			<div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
 				<span className="font-medium">{feedbackVoteLabel(data.vote)}</span>
 				<span className="text-muted-foreground">
-					最近反馈时间：{feedbackTimeFormatter.format(new Date(data.updatedAt))}（北京时间）
+					最近反馈时间：{formatTimestamp(data.updatedAt)}（北京时间）
 				</span>
 			</div>
 			<p className="text-sm">

@@ -191,244 +191,254 @@ export function ExecutionModelSettingForm({
 				<ValidationBadge validation={setting?.latestValidation ?? null} />
 			</CardHeader>
 			<CardContent>
-				<form aria-busy={save.isPending} className="grid gap-4" onSubmit={submit} ref={formRef}>
-					<FormField error={errors.baseUrl} label="Base URL">
-						<Input
-							className="min-h-11"
-							onChange={(event) => updateDraft({ baseUrl: event.target.value }, ["baseUrl"])}
-							placeholder="https://provider.example/v1"
-							spellCheck={false}
-							value={draft.baseUrl}
-						/>
-					</FormField>
-					<SecretField
-						{...(errors.apiKey ? { error: errors.apiKey } : {})}
-						helper={credentialHelper}
-						label={`${settingTitle} API Key`}
-						onChange={(value) => updateDraft({ apiKey: value }, ["apiKey"])}
-						value={draft.apiKey}
-					/>
-					{embedding ? (
-						<dl className="grid gap-3 rounded-md border border-border p-3 text-sm sm:grid-cols-2">
-							<ReadOnlySetting label="模型" value={embeddingContract.model} />
-							<ReadOnlySetting label="服务商" value={providerLabel(embeddingContract.provider)} />
-							<ReadOnlySetting
-								label="接口类型"
-								value={transportLabel(embeddingContract.transport)}
+				<form
+					aria-busy={save.isPending || revalidate.isPending}
+					className="grid gap-4"
+					onSubmit={submit}
+					ref={formRef}
+				>
+					<fieldset
+						disabled={save.isPending || revalidate.isPending}
+						className="grid min-w-0 gap-4"
+					>
+						<FormField error={errors.baseUrl} label="Base URL">
+							<Input
+								className="min-h-11"
+								onChange={(event) => updateDraft({ baseUrl: event.target.value }, ["baseUrl"])}
+								placeholder="https://provider.example/v1"
+								spellCheck={false}
+								value={draft.baseUrl}
 							/>
-							<ReadOnlySetting label="向量维度" value={String(embeddingContract.dimensions)} />
-						</dl>
-					) : (
-						<>
-							<div className="grid gap-1.5 text-sm">
-								<label className="font-medium leading-none" htmlFor={modelControlId}>
-									模型
-								</label>
-								<div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-									{discovery.data && discovery.data.models.length > 0 ? (
-										<NativeSelect
-											aria-describedby={errors.model ? modelErrorId : undefined}
-											aria-invalid={Boolean(errors.model)}
-											className="min-h-11 min-w-0"
-											id={modelControlId}
-											onChange={(event) =>
-												updateDraft({ model: event.target.value }, ["model"], {
-													keepDiscovery: true,
-												})
-											}
-											value={draft.model}
-										>
-											{draft.model && !discovery.data.models.includes(draft.model) ? (
-												<option value={draft.model}>{draft.model}</option>
-											) : null}
-											{discovery.data.models.map((model) => (
-												<option key={model} value={model}>
-													{model}
-												</option>
-											))}
-										</NativeSelect>
-									) : (
-										<Input
-											aria-describedby={errors.model ? modelErrorId : undefined}
-											aria-invalid={Boolean(errors.model)}
-											className="min-h-11 min-w-0"
-											id={modelControlId}
-											onChange={(event) =>
-												updateDraft({ model: event.target.value }, ["model"], {
-													keepDiscovery: true,
-												})
-											}
-											value={draft.model}
-										/>
-									)}
-									<Button
-										aria-label={`获取${settingTitle}模型`}
-										disabled={discovery.isPending}
-										onClick={discoverModels}
-										type="button"
-										variant="outline"
-									>
-										<RefreshCw className={cn("size-4", discovery.isPending && "animate-spin")} />
-										{discovery.isPending ? "正在获取" : "获取模型"}
-									</Button>
-								</div>
-								{errors.model ? (
-									<div className="text-danger text-xs" id={modelErrorId}>
-										{errors.model}
-									</div>
-								) : null}
-							</div>
-							{discovery.data ? (
-								<p className="text-muted-foreground text-xs" role="status">
-									已获取 {discovery.data.models.length} 个模型
-								</p>
-							) : null}
-							{discovery.isError ? (
-								<InlineError error={discovery.error} title="模型列表获取失败" />
-							) : null}
-						</>
-					)}
-					{embedding ? null : (
-						<details
-							className="border-border border-t pt-3"
-							onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
-							open={advancedOpen}
-						>
-							<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-medium text-foreground text-sm">
-								高级设置
-								<ChevronDown
-									className={cn("size-4 transition-transform", advancedOpen && "rotate-180")}
+						</FormField>
+						<SecretField
+							{...(errors.apiKey ? { error: errors.apiKey } : {})}
+							helper={credentialHelper}
+							label={`${settingTitle} API Key`}
+							onChange={(value) => updateDraft({ apiKey: value }, ["apiKey"])}
+							value={draft.apiKey}
+						/>
+						{embedding ? (
+							<dl className="grid gap-3 rounded-md border border-border p-3 text-sm sm:grid-cols-2">
+								<ReadOnlySetting label="模型" value={embeddingContract.model} />
+								<ReadOnlySetting label="服务商" value={providerLabel(embeddingContract.provider)} />
+								<ReadOnlySetting
+									label="接口类型"
+									value={transportLabel(embeddingContract.transport)}
 								/>
-							</summary>
-							<div className="grid gap-4 pt-3">
-								<div className="grid gap-4 sm:grid-cols-2">
-									<FormField label="服务商">
-										<NativeSelect
-											className="min-h-11"
-											onChange={(event) =>
-												updateDraft(
-													{
-														provider: event.target.value as ExecutionDraft["provider"],
-														transport:
-															event.target.value === "google"
-																? "generate_content"
-																: draft.transport === "generate_content"
-																	? "responses"
-																	: draft.transport,
-													},
-													["provider"],
-												)
-											}
-											value={draft.provider}
+								<ReadOnlySetting label="向量维度" value={String(embeddingContract.dimensions)} />
+							</dl>
+						) : (
+							<>
+								<div className="grid gap-1.5 text-sm">
+									<label className="font-medium leading-none" htmlFor={modelControlId}>
+										模型
+									</label>
+									<div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+										{discovery.data && discovery.data.models.length > 0 ? (
+											<NativeSelect
+												aria-describedby={errors.model ? modelErrorId : undefined}
+												aria-invalid={Boolean(errors.model)}
+												className="min-h-11 min-w-0"
+												id={modelControlId}
+												onChange={(event) =>
+													updateDraft({ model: event.target.value }, ["model"], {
+														keepDiscovery: true,
+													})
+												}
+												value={draft.model}
+											>
+												{draft.model && !discovery.data.models.includes(draft.model) ? (
+													<option value={draft.model}>{draft.model}</option>
+												) : null}
+												{discovery.data.models.map((model) => (
+													<option key={model} value={model}>
+														{model}
+													</option>
+												))}
+											</NativeSelect>
+										) : (
+											<Input
+												aria-describedby={errors.model ? modelErrorId : undefined}
+												aria-invalid={Boolean(errors.model)}
+												className="min-h-11 min-w-0"
+												id={modelControlId}
+												onChange={(event) =>
+													updateDraft({ model: event.target.value }, ["model"], {
+														keepDiscovery: true,
+													})
+												}
+												value={draft.model}
+											/>
+										)}
+										<Button
+											aria-label={`获取${settingTitle}模型`}
+											disabled={discovery.isPending}
+											onClick={discoverModels}
+											type="button"
+											variant="outline"
 										>
-											{reranker ? (
-												<>
-													<option value="cohere">Cohere</option>
-													<option value="cohere-compatible">Cohere 兼容接口</option>
-												</>
-											) : (
-												<>
-													{kind === "llm" ? (
-														<option value="google">Gemini（原生 API）</option>
-													) : null}
-													<option value="openai">OpenAI</option>
-													<option value="openai-compatible">OpenAI 兼容接口</option>
-												</>
-											)}
-										</NativeSelect>
-									</FormField>
-									{reranker ? (
-										<FormField label="接口类型">
-											<Input className="min-h-11" disabled value="Cohere Rerank API" />
-										</FormField>
-									) : (
-										<FormField label="接口类型">
+											<RefreshCw className={cn("size-4", discovery.isPending && "animate-spin")} />
+											{discovery.isPending ? "正在获取" : "获取模型"}
+										</Button>
+									</div>
+									{errors.model ? (
+										<div className="text-danger text-xs" id={modelErrorId}>
+											{errors.model}
+										</div>
+									) : null}
+								</div>
+								{discovery.data ? (
+									<p className="text-muted-foreground text-xs" role="status">
+										已获取 {discovery.data.models.length} 个模型
+									</p>
+								) : null}
+								{discovery.isError ? (
+									<InlineError error={discovery.error} title="模型列表获取失败" />
+								) : null}
+							</>
+						)}
+						{embedding ? null : (
+							<details
+								className="border-border border-t pt-3"
+								onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+								open={advancedOpen}
+							>
+								<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-medium text-foreground text-sm">
+									高级设置
+									<ChevronDown
+										className={cn("size-4 transition-transform", advancedOpen && "rotate-180")}
+									/>
+								</summary>
+								<div className="grid gap-4 pt-3">
+									<div className="grid gap-4 sm:grid-cols-2">
+										<FormField label="服务商">
 											<NativeSelect
 												className="min-h-11"
 												onChange={(event) =>
 													updateDraft(
 														{
-															transport: event.target.value as ExecutionDraft["transport"],
+															provider: event.target.value as ExecutionDraft["provider"],
+															transport:
+																event.target.value === "google"
+																	? "generate_content"
+																	: draft.transport === "generate_content"
+																		? "responses"
+																		: draft.transport,
 														},
-														["transport"],
+														["provider"],
 													)
 												}
-												value={draft.transport}
+												value={draft.provider}
 											>
-												{draft.provider === "google" ? (
-													<option value="generate_content">Gemini GenerateContent</option>
-												) : null}
-												<option disabled={draft.provider === "google"} value="responses">
-													Responses API
-												</option>
-												<option disabled={draft.provider === "google"} value="chat_completions">
-													Chat Completions API
-												</option>
+												{reranker ? (
+													<>
+														<option value="cohere">Cohere</option>
+														<option value="cohere-compatible">Cohere 兼容接口</option>
+													</>
+												) : (
+													<>
+														{kind === "llm" ? (
+															<option value="google">Gemini（原生 API）</option>
+														) : null}
+														<option value="openai">OpenAI</option>
+														<option value="openai-compatible">OpenAI 兼容接口</option>
+													</>
+												)}
 											</NativeSelect>
 										</FormField>
-									)}
+										{reranker ? (
+											<FormField label="接口类型">
+												<Input className="min-h-11" disabled value="Cohere Rerank API" />
+											</FormField>
+										) : (
+											<FormField label="接口类型">
+												<NativeSelect
+													className="min-h-11"
+													onChange={(event) =>
+														updateDraft(
+															{
+																transport: event.target.value as ExecutionDraft["transport"],
+															},
+															["transport"],
+														)
+													}
+													value={draft.transport}
+												>
+													{draft.provider === "google" ? (
+														<option value="generate_content">Gemini GenerateContent</option>
+													) : null}
+													<option disabled={draft.provider === "google"} value="responses">
+														Responses API
+													</option>
+													<option disabled={draft.provider === "google"} value="chat_completions">
+														Chat Completions API
+													</option>
+												</NativeSelect>
+											</FormField>
+										)}
+									</div>
 								</div>
-							</div>
-						</details>
-					)}
-					<div className="border-border border-t pt-3 text-muted-foreground text-sm">
-						<p>{setting ? validationDetail(setting.latestValidation) : "尚未配置"}</p>
-						{setting ? (
-							<p className="mt-1 break-words">
-								{transportLabel(embedding ? embeddingContract.transport : setting.transport)} ·{" "}
-								{formatTimestamp(setting.updatedAt)} · {setting.updatedBy}
-							</p>
+							</details>
+						)}
+						<div className="border-border border-t pt-3 text-muted-foreground text-sm">
+							<p>{setting ? validationDetail(setting.latestValidation) : "尚未配置"}</p>
+							{setting ? (
+								<p className="mt-1 break-words">
+									{transportLabel(embedding ? embeddingContract.transport : setting.transport)} ·{" "}
+									{formatTimestamp(setting.updatedAt)} · {setting.updatedBy}
+								</p>
+							) : null}
+						</div>
+						{saveFeedback ? <InlineNotice>{saveFeedback}</InlineNotice> : null}
+						{save.isError ? (
+							<InlineError
+								error={save.error}
+								title={
+									save.error instanceof OpsApiError && save.error.status === 422
+										? "新配置验证未通过，当前配置未更改"
+										: "保存失败"
+								}
+							/>
 						) : null}
-					</div>
-					{saveFeedback ? <InlineNotice>{saveFeedback}</InlineNotice> : null}
-					{save.isError ? (
-						<InlineError
-							error={save.error}
-							title={
-								save.error instanceof OpsApiError && save.error.status === 422
-									? "新配置验证未通过，当前配置未更改"
-									: "保存失败"
-							}
-						/>
-					) : null}
-					{revalidate.isError ? (
-						<InlineError error={revalidate.error} title="重新验证失败" />
-					) : null}
-					<div className="grid gap-2 sm:flex sm:flex-wrap">
-						<Button disabled={!dirty || save.isPending} type="submit">
-							<Save className="size-4" />
-							{save.isPending ? "验证并保存中" : "保存并验证"}
-						</Button>
-						{noticeClassifier && setting && !dirty ? (
-							<Button
-								disabled={save.isPending || revalidate.isPending}
-								onClick={() => {
-									setSaveFeedback(null);
-									revalidate.mutate();
-								}}
-								type="button"
-								variant="outline"
-							>
-								<RefreshCw className={cn("size-4", revalidate.isPending && "animate-spin")} />
-								{revalidate.isPending ? "重新验证中" : "重新验证"}
+						{revalidate.isError ? (
+							<InlineError error={revalidate.error} title="重新验证失败" />
+						) : null}
+						<div className="grid gap-2 sm:flex sm:flex-wrap">
+							<Button disabled={!dirty || save.isPending} type="submit">
+								<Save className="size-4" />
+								{save.isPending ? "验证并保存中" : "保存并验证"}
 							</Button>
-						) : null}
-						{dirty ? (
-							<Button
-								onClick={() => {
-									setDraft(baseline);
-									setErrors({});
-									save.reset();
-									revalidate.reset();
-									setSaveFeedback(null);
-								}}
-								variant="ghost"
-							>
-								<Undo2 className="size-4" />
-								放弃更改
-							</Button>
-						) : null}
-					</div>
+							{setting && !dirty ? (
+								<Button
+									disabled={save.isPending || revalidate.isPending}
+									onClick={() => {
+										setSaveFeedback(null);
+										revalidate.mutate();
+									}}
+									type="button"
+									variant="outline"
+								>
+									<RefreshCw className={cn("size-4", revalidate.isPending && "animate-spin")} />
+									{revalidate.isPending ? "重新验证中" : "重新验证"}
+								</Button>
+							) : null}
+							{dirty ? (
+								<Button
+									onClick={() => {
+										setDraft(baseline);
+										setErrors({});
+										save.reset();
+										revalidate.reset();
+										setSaveFeedback(null);
+									}}
+									variant="ghost"
+								>
+									<Undo2 className="size-4" />
+									放弃更改
+								</Button>
+							) : null}
+						</div>
+					</fieldset>
 				</form>
 			</CardContent>
 		</Card>

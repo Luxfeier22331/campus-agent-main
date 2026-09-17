@@ -9,7 +9,7 @@ import {
 import { createAssistantStream } from "assistant-stream";
 import { type PropsWithChildren, useMemo } from "react";
 
-import { UnauthorizedError } from "@/platform/api/client";
+import { ApiRequestError, UnauthorizedError } from "@/platform/api/client";
 
 import {
 	archiveConversation,
@@ -25,6 +25,22 @@ import type { ConversationSummary } from "./model";
 
 const THREAD_LIST_LIMIT = 50;
 type AssistantRemoteThreadMetadata = Awaited<ReturnType<RemoteThreadListAdapter["fetch"]>>;
+
+// Matches @assistant-ui/core's Symbol.for("assistant-ui.silent-runtime-action"); thread list
+// action failures are surfaced through the sidebar alert UI, so the runtime's generic
+// console.error for unhandled action rejections would only duplicate the reported failure.
+const SILENT_RUNTIME_ACTION = Symbol.for("assistant-ui.silent-runtime-action");
+
+async function runSilentThreadListAction<T>(action: () => Promise<T>): Promise<T> {
+	try {
+		return await action();
+	} catch (error) {
+		if (error instanceof ApiRequestError) {
+			Object.assign(error, { [SILENT_RUNTIME_ACTION]: true });
+		}
+		throw error;
+	}
+}
 
 export function toAssistantThreadMetadata(
 	conversation: ConversationSummary,
@@ -44,10 +60,10 @@ export function createCampusAssistantThreadListAdapter(input: {
 }): RemoteThreadListAdapter {
 	return {
 		async archive(remoteId) {
-			await archiveConversation(remoteId);
+			await runSilentThreadListAction(() => archiveConversation(remoteId));
 		},
 		async delete(remoteId) {
-			await deleteConversation(remoteId);
+			await runSilentThreadListAction(() => deleteConversation(remoteId));
 		},
 		async fetch(threadId) {
 			return toAssistantThreadMetadata(await getConversationDetail(threadId));
@@ -78,10 +94,12 @@ export function createCampusAssistantThreadListAdapter(input: {
 			};
 		},
 		async rename(remoteId, newTitle) {
-			await renameConversation({ conversationId: remoteId, title: newTitle });
+			await runSilentThreadListAction(() =>
+				renameConversation({ conversationId: remoteId, title: newTitle }),
+			);
 		},
 		async unarchive(remoteId) {
-			await unarchiveConversation(remoteId);
+			await runSilentThreadListAction(() => unarchiveConversation(remoteId));
 		},
 		unstable_Provider: CampusAssistantThreadHistoryProvider,
 	};

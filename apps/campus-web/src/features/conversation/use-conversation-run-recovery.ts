@@ -1,13 +1,18 @@
 import { useCallback } from "react";
 import { UnauthorizedError } from "@/platform/api/client";
 
-import { ChatStreamRequestError, getRunEvents, getRunStatus, resumeRunEventsStream } from "./api";
+import {
+	type ChatRunStatus,
+	ChatStreamRequestError,
+	getRunEvents,
+	getRunStatus,
+	resumeRunEventsStream,
+} from "./api";
 import { toAssistantThreadMessages } from "./assistant-ui-mappers";
 import type { RuntimeMessages } from "./assistant-ui-message-projection";
 import { isAbortError, isTerminalRunStatus } from "./assistant-ui-recovery-policy";
 import type { RuntimeRunAction, RuntimeRunState } from "./conversation-run-types";
 import type { ChatRequestStreamEvent, ConversationDetail } from "./model";
-import type { ChatRunStatus } from "./run-client";
 import type {
 	ActiveRun,
 	RunOperationMachine,
@@ -17,6 +22,7 @@ import {
 	type FollowLifecycleStreamInput,
 	streamFromEvents,
 } from "./use-conversation-lifecycle-stream";
+import { abortableSleep, resumeBackoffDelayMs } from "./use-conversation-run-watchdog";
 
 export function useConversationRunRecovery({
 	applyRunStateAction,
@@ -25,12 +31,14 @@ export function useConversationRunRecovery({
 	fetchConversationMessages,
 	followLifecycleStream,
 	markRunDisconnected,
+	noteRunProgress,
 	onLoginRequired,
 	operationMachine,
 	ownsOperation,
 	replaceWithCanonicalMessages,
 	setIsRunning,
 	startOperation,
+	startWatchdog,
 	updateActiveRun,
 }: {
 	applyRunStateAction: (action: RuntimeRunAction) => RuntimeRunState;
@@ -49,14 +57,87 @@ export function useConversationRunRecovery({
 	) => Promise<RuntimeMessages>;
 	followLifecycleStream: (input: FollowLifecycleStreamInput) => Promise<void>;
 	markRunDisconnected: (operationId: number, requestId: string | null) => void;
+	noteRunProgress: () => void;
 	onLoginRequired: () => void;
 	operationMachine: RunOperationMachine;
 	ownsOperation: (operation: RuntimeOperationIdentity) => boolean;
 	replaceWithCanonicalMessages: (messages: RuntimeMessages) => void;
 	setIsRunning: (isRunning: boolean) => void;
 	startOperation: () => RuntimeOperationIdentity;
+	startWatchdog: () => void;
 	updateActiveRun: (update: (current: ActiveRun | null) => ActiveRun | null) => void;
 }) {
+	const resumeRunWithBackoff = useCallback(
+		async (run: ActiveRun, operation: RuntimeOperationIdentity) => {
+			applyRunStateAction({
+				connection: "recovering",
+				operationId: operation.id,
+				type: "connection",
+			});
+			let attempt = 0;
+			for (;;) {
+				const currentRun = operationMachine.activeRun ?? run;
+				try {
+					const status = await getRunStatus({
+						requestId: currentRun.requestId,
+						signal: operation.controller.signal,
+					});
+					noteRunProgress();
+					if (!ownsOperation(operation)) {
+						return;
+					}
+					if (isTerminalRunStatus(status)) {
+						await applyTerminalRunStatus(status, operation);
+						return;
+					}
+					await followLifecycleStream({
+						...(currentRun.conversationId ? { conversationId: currentRun.conversationId } : {}),
+						operation,
+						initialEvents: resumeRunEventsStream({
+							...(currentRun.sequence === undefined ? {} : { afterSequence: currentRun.sequence }),
+							requestId: currentRun.requestId,
+							signal: operation.controller.signal,
+						}),
+					});
+					return;
+				} catch (error) {
+					if (!ownsOperation(operation)) {
+						return;
+					}
+					if (error instanceof UnauthorizedError || isAbortError(error)) {
+						throw error;
+					}
+					if (
+						!(error instanceof ChatStreamRequestError || error instanceof TypeError) ||
+						(error instanceof ChatStreamRequestError && error.retryable === false)
+					) {
+						throw error;
+					}
+					attempt += 1;
+					markRunDisconnected(operation.id, currentRun.requestId);
+					if (!ownsOperation(operation)) {
+						return;
+					}
+					applyRunStateAction({
+						connection: "recovering",
+						operationId: operation.id,
+						type: "connection",
+					});
+					await abortableSleep(resumeBackoffDelayMs(attempt), operation.controller.signal);
+				}
+			}
+		},
+		[
+			applyRunStateAction,
+			applyTerminalRunStatus,
+			followLifecycleStream,
+			markRunDisconnected,
+			noteRunProgress,
+			operationMachine,
+			ownsOperation,
+		],
+	);
+
 	const restoreConversationRun = useCallback(
 		async (
 			conversationId: string,
@@ -76,6 +157,7 @@ export function useConversationRunRecovery({
 			const requestId = conversation.activeRequestId;
 			try {
 				const status = await getRunStatus({ requestId, signal: operation.controller.signal });
+				noteRunProgress();
 				if (!ownsOperation(operation)) {
 					return;
 				}
@@ -101,12 +183,14 @@ export function useConversationRunRecovery({
 					}
 					return;
 				}
+				startWatchdog();
 
 				const replay = await getRunEvents({
 					afterSequence: 0,
 					requestId,
 					signal: operation.controller.signal,
 				});
+				noteRunProgress();
 				if (!ownsOperation(operation)) {
 					return;
 				}
@@ -146,9 +230,9 @@ export function useConversationRunRecovery({
 				if (!ownsOperation(operation)) {
 					return;
 				}
-				setIsRunning(true);
-				markRunDisconnected(operation.id, requestId);
 				if (error instanceof UnauthorizedError) {
+					setIsRunning(false);
+					markRunDisconnected(operation.id, requestId);
 					onLoginRequired();
 					return;
 				}
@@ -156,6 +240,11 @@ export function useConversationRunRecovery({
 					return;
 				}
 				if (error instanceof ChatStreamRequestError) {
+					operationMachine.replaceActiveRun({ conversationId, requestId });
+					setIsRunning(true);
+					markRunDisconnected(operation.id, requestId);
+					startWatchdog();
+					await resumeRunWithBackoff({ conversationId, requestId }, operation);
 					return;
 				}
 				throw error;
@@ -168,11 +257,14 @@ export function useConversationRunRecovery({
 			fetchConversationMessages,
 			followLifecycleStream,
 			markRunDisconnected,
+			noteRunProgress,
 			onLoginRequired,
 			operationMachine,
 			ownsOperation,
 			replaceWithCanonicalMessages,
+			resumeRunWithBackoff,
 			setIsRunning,
+			startWatchdog,
 			updateActiveRun,
 		],
 	);
@@ -188,39 +280,15 @@ export function useConversationRunRecovery({
 		}
 		const operation = startOperation();
 		operationMachine.recovering = true;
-		const controller = operation.controller;
 		applyRunStateAction({
 			operationId: operation.id,
 			requestId: currentRun.requestId,
 			type: "rebind",
 		});
 		setIsRunning(true);
+		startWatchdog();
 		try {
-			applyRunStateAction({
-				type: "connection",
-				connection: "recovering",
-				operationId: operation.id,
-			});
-			const status = await getRunStatus({
-				requestId: currentRun.requestId,
-				signal: controller.signal,
-			});
-			if (!ownsOperation(operation)) {
-				return;
-			}
-			if (isTerminalRunStatus(status)) {
-				await applyTerminalRunStatus(status, operation);
-				return;
-			}
-			await followLifecycleStream({
-				...(currentRun.conversationId ? { conversationId: currentRun.conversationId } : {}),
-				operation,
-				initialEvents: resumeRunEventsStream({
-					...(currentRun.sequence === undefined ? {} : { afterSequence: currentRun.sequence }),
-					requestId: currentRun.requestId,
-					signal: controller.signal,
-				}),
-			});
+			await resumeRunWithBackoff(currentRun, operation);
 		} catch (error) {
 			if (!ownsOperation(operation)) {
 				return;
@@ -249,14 +317,14 @@ export function useConversationRunRecovery({
 		}
 	}, [
 		applyRunStateAction,
-		applyTerminalRunStatus,
-		followLifecycleStream,
 		markRunDisconnected,
 		onLoginRequired,
 		operationMachine,
 		ownsOperation,
+		resumeRunWithBackoff,
 		setIsRunning,
 		startOperation,
+		startWatchdog,
 	]);
 
 	return { onResume, restoreConversationRun };

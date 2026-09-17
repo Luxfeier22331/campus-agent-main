@@ -17,6 +17,7 @@ import { History, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { lazy, Suspense, useCallback, useState } from "react";
 import type { DiningReleaseSummary } from "../shared/dining-contract";
 import { DiningTaskNavigation } from "./dining-navigation";
+import { formatTimestamp } from "./format";
 import {
 	fetchDiningReleases,
 	fetchDiningState,
@@ -288,7 +289,7 @@ function ReleaseHistory(props: {
 									<div className="min-w-0">
 										<p className="font-medium text-sm">{formatReleaseKind(release)}</p>
 										<p className="mt-1 text-muted-foreground text-xs">
-											{formatDateTime(release.createdAt)}
+											{formatTimestamp(release.createdAt)}
 										</p>
 									</div>
 									{current ? <Badge tone="success">当前</Badge> : null}
@@ -370,13 +371,6 @@ function formatReleaseKind(release: DiningReleaseSummary): string {
 	return release.kind === "restore"
 		? `恢复草稿第 ${release.draftRevision} 版`
 		: `发布草稿第 ${release.draftRevision} 版`;
-}
-
-function formatDateTime(value: string): string {
-	return new Intl.DateTimeFormat("zh-CN", {
-		dateStyle: "medium",
-		timeStyle: "short",
-	}).format(new Date(value));
 }
 
 function errorMessage(error: unknown): string {

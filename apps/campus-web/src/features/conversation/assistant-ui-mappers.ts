@@ -1,4 +1,5 @@
 import type { ThreadMessageLike } from "@assistant-ui/react";
+import { localizeChatErrorMessage } from "./error-messages";
 import type { ChatMessage, ChatMessageKind, ConversationDetail } from "./model";
 
 export interface AssistantCampusMessageMetadata {
@@ -28,10 +29,14 @@ export function readCampusMessageMetadata(custom: unknown): AssistantCampusMessa
 export function toAssistantThreadMessages(conversation: ConversationDetail): ThreadMessageLike[] {
 	return conversation.messages.map((message) => {
 		const metadata = buildMessageMetadata(message);
+		const messageText =
+			message.role === "assistant" && message.kind === "error"
+				? localizeChatErrorMessage({ message: message.text })
+				: message.text;
 		return {
 			createdAt: new Date(message.createdAt),
 			content: [
-				...(message.text ? [{ text: message.text, type: "text" as const }] : []),
+				...(messageText ? [{ text: messageText, type: "text" as const }] : []),
 				...(message.role === "assistant"
 					? (message.structuredParts ?? []).map((part) => ({
 							data: part,

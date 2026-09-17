@@ -3,7 +3,6 @@ import type {
 	AccountAdminAction,
 	AccountAdminEventPage,
 	AccountAdminEventRecord,
-	AccountAdminEventWindow,
 	AccountAdminState,
 	AccountAdminUserPage,
 	AccountAdminUserSummary,
@@ -41,7 +40,9 @@ export interface AccountAdminStore {
 		limit: number;
 		outcome?: AccountAdminEventRecord["outcome"];
 		targetUserId?: string;
-		window: AccountAdminEventWindow;
+		window?: import("campus-contracts/ops-time").TimeQuery["window"];
+		from?: import("campus-contracts/ops-time").TimeQuery["from"];
+		to?: import("campus-contracts/ops-time").TimeQuery["to"];
 	}): Promise<AccountAdminEventPage>;
 	listUsers(input: {
 		access?: AccountAdminUserSummary["accessState"];

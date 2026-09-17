@@ -283,6 +283,59 @@ describe("assistant-ui runtime message actions", () => {
 		expect(conversationApiMock.submitChatRequestStream).not.toHaveBeenCalled();
 	});
 
+	it("retries a failed answer from a local user message without deleting server-side history", async () => {
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				completedConversationEvent({
+					answerId: "msg_answer_new",
+					answerText: "重试后的回答",
+					requestId: "req_02",
+					userText: "失败后重试",
+				}),
+			]),
+		);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+		await waitFor(() =>
+			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+				"conv_history",
+				expect.any(AbortSignal),
+			),
+		);
+
+		await act(async () => {
+			assistantUiMock.externalStoreInput?.setMessages?.([
+				{
+					content: [{ text: "失败后重试", type: "text" }],
+					id: "local-user-01",
+					role: "user",
+				},
+				{
+					content: [{ text: "回答失败，请稍后重试。", type: "text" }],
+					id: "local-error-req_01",
+					metadata: {
+						custom: {
+							campusMessage: { kind: "error", requestId: "req_01", retryable: false },
+						},
+					},
+					role: "assistant",
+				},
+			]);
+		});
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onReload?.("local-user-01");
+		});
+
+		expect(conversationApiMock.deleteTrailingMessages).not.toHaveBeenCalled();
+		expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledWith({
+			conversationId: "conv_history",
+			idempotencyKey: expect.any(String),
+			prompt: "失败后重试",
+			signal: expect.any(AbortSignal),
+		});
+	});
+
 	it("ignores edit requests whose parent message only exists in local state", async () => {
 		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 		await waitFor(() =>

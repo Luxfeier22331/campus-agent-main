@@ -7,7 +7,7 @@ import {
 	submitChatRequestStream,
 } from "./api";
 import { toAssistantThreadMessages } from "./assistant-ui-mappers";
-import { isAbortError } from "./assistant-ui-recovery-policy";
+import { isAbortError, isPersistedConversationMessageId } from "./assistant-ui-recovery-policy";
 import { ConversationInitializationRegistry } from "./conversation-initialization";
 import type { ConversationRunPromptInput } from "./conversation-run-types";
 import {
@@ -21,6 +21,7 @@ import { useConversationRunCancellation } from "./use-conversation-run-cancellat
 import { useConversationRunRecovery } from "./use-conversation-run-recovery";
 import { useConversationRunState } from "./use-conversation-run-state";
 import { useConversationRunTerminalHandlers } from "./use-conversation-run-terminal-handlers";
+import { useConversationRunWatchdog } from "./use-conversation-run-watchdog";
 import { usePendingAssistantDeltas } from "./use-pending-assistant-deltas";
 
 export function useConversationRunCoordinator({
@@ -86,6 +87,24 @@ export function useConversationRunCoordinator({
 			operationMachineRef.current.ownedBy(operation),
 		[],
 	);
+
+	const { noteRunProgress, startWatchdog, stopWatchdog } = useConversationRunWatchdog({
+		appendLocalErrorMessage,
+		applyRunStateAction,
+		operationMachine: operationMachineRef.current,
+		setIsRunning,
+	});
+
+	const settleIsRunning = useCallback(
+		(isRunning: boolean) => {
+			if (!isRunning) {
+				stopWatchdog();
+			}
+			setIsRunning(isRunning);
+		},
+		[stopWatchdog],
+	);
+
 	const { applyTerminalEvent, applyTerminalRunStatus } = useConversationRunTerminalHandlers({
 		appendLocalErrorMessage,
 		applyRunStateAction,
@@ -97,7 +116,7 @@ export function useConversationRunCoordinator({
 		remoteId,
 		replaceWithCanonicalMessages,
 		runStateRef,
-		setIsRunning,
+		setIsRunning: settleIsRunning,
 	});
 
 	const requiresConversationInitialization = useCallback(
@@ -118,17 +137,18 @@ export function useConversationRunCoordinator({
 		removeMessage,
 		revealPendingAssistantDeltas,
 		runStateRef,
-		setIsRunning,
+		setIsRunning: settleIsRunning,
 		startOperation,
 	});
 
 	useEffect(
 		() => () => {
 			operationMachineRef.current.invalidate();
+			stopWatchdog();
 			clearPendingAssistantDeltas();
 			initializationRegistryRef.current.clear();
 		},
-		[clearPendingAssistantDeltas],
+		[clearPendingAssistantDeltas, stopWatchdog],
 	);
 
 	const { consumeLifecycleStream, followLifecycleStream } = useConversationLifecycleStream({
@@ -136,6 +156,7 @@ export function useConversationRunCoordinator({
 		applyRunStateEvent,
 		applyTerminalEvent,
 		holdAssistantDelta,
+		noteRunProgress,
 		operationMachine: operationMachineRef.current,
 		ownsOperation,
 		requestRunCancellation,
@@ -147,12 +168,14 @@ export function useConversationRunCoordinator({
 		fetchConversationMessages,
 		followLifecycleStream,
 		markRunDisconnected,
+		noteRunProgress,
 		onLoginRequired,
 		operationMachine: operationMachineRef.current,
 		ownsOperation,
 		replaceWithCanonicalMessages,
-		setIsRunning,
+		setIsRunning: settleIsRunning,
 		startOperation,
+		startWatchdog,
 		updateActiveRun,
 	});
 
@@ -176,7 +199,7 @@ export function useConversationRunCoordinator({
 		operationMachineRef.current.cancellation = { phase: "idle" };
 		replaceActiveRun(null);
 		applyRunStateAction({ operationId, type: "reset" });
-		setIsRunning(false);
+		settleIsRunning(false);
 		if (!remoteId) {
 			operationMachineRef.current.controller = null;
 			clearMessages();
@@ -218,6 +241,7 @@ export function useConversationRunCoordinator({
 		return () => {
 			cancelled = true;
 			controller.abort();
+			stopWatchdog();
 			if (operationMachineRef.current.operationId === operationId) {
 				operationMachineRef.current.invalidate();
 			}
@@ -233,6 +257,8 @@ export function useConversationRunCoordinator({
 		remoteId,
 		replaceActiveRun,
 		restoreConversationRun,
+		settleIsRunning,
+		stopWatchdog,
 		threadId,
 	]);
 
@@ -264,7 +290,7 @@ export function useConversationRunCoordinator({
 				truncateMessagesFrom(input.truncateFromMessageId);
 			}
 			appendLocalUserMessage(input.messageContent, localMessageId);
-			setIsRunning(true);
+			settleIsRunning(true);
 
 			let initializationCleanupFailed = false;
 			try {
@@ -338,7 +364,11 @@ export function useConversationRunCoordinator({
 					}
 					initializationRegistryRef.current.delete(target.threadId, initialization);
 				}
-				if (input.truncateFromMessageId && conversationId) {
+				if (
+					input.truncateFromMessageId &&
+					conversationId &&
+					isPersistedConversationMessageId(input.truncateFromMessageId)
+				) {
 					await deleteTrailingMessages({
 						conversationId,
 						messageId: input.truncateFromMessageId,
@@ -355,6 +385,7 @@ export function useConversationRunCoordinator({
 						prompt,
 						signal: controller.signal,
 					});
+				startWatchdog();
 				await followLifecycleStream({
 					...(conversationId ? { conversationId } : {}),
 					operation,
@@ -368,7 +399,7 @@ export function useConversationRunCoordinator({
 					return;
 				}
 				const acceptedRun = operationMachineRef.current.activeRun;
-				setIsRunning(Boolean(acceptedRun));
+				settleIsRunning(Boolean(acceptedRun));
 				if (error instanceof UnauthorizedError) {
 					if (operationMachineRef.current.activeRun) {
 						markRunDisconnected(operation.id, operationMachineRef.current.activeRun.requestId);
@@ -415,7 +446,9 @@ export function useConversationRunCoordinator({
 			onResume,
 			ownsOperation,
 			replaceActiveRun,
+			settleIsRunning,
 			startOperation,
+			startWatchdog,
 			truncateMessagesFrom,
 		],
 	);

@@ -8,6 +8,8 @@ test.describe("product navigation browser flow", () => {
 	});
 
 	test("moves between primary product surfaces on desktop", async ({ page }) => {
+		// Ensure the product navigation is visible (container query breakpoint at 64rem)
+		await page.setViewportSize({ height: 900, width: 1440 });
 		await page.goto("/");
 
 		await page
@@ -77,6 +79,8 @@ test.describe("product navigation browser flow", () => {
 	test("links to the native docs directory without opening it in the Vite lane", async ({
 		page,
 	}) => {
+		// Ensure the product navigation is visible (container query breakpoint at 64rem)
+		await page.setViewportSize({ height: 900, width: 1440 });
 		await page.goto("/");
 		const docsLink = page
 			.getByRole("navigation", { name: "产品导航" })
