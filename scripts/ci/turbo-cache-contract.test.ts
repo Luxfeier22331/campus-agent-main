@@ -87,6 +87,7 @@ test("Turbo does not cache side-effecting or environment-coupled tasks", () => {
 		"test:database-integration",
 		"test:shared-db-integration",
 		"test:browser",
+		"test:e2e:full",
 	]) {
 		const taskConfig = tasks[task] as JsonObject | undefined;
 		assert.equal(taskConfig?.cache, false, `${task} must remain uncached`);
@@ -127,6 +128,7 @@ test("every root Turbo task has a tracked workspace script owner", () => {
 test("expensive package tasks declare boundary-specific affected inputs", () => {
 	const owners: [string, string[]][] = [
 		["apps/app-api/turbo.json", ["test:shared-db-integration"]],
+		["apps/campus-web/turbo.json", ["test:e2e:full"]],
 		["apps/execution-control/turbo.json", ["test:database-integration"]],
 		["apps/model-config/turbo.json", ["test:database-integration"]],
 		["apps/ops-web/turbo.json", ["test:browser", "test:database-integration"]],
@@ -230,7 +232,7 @@ test("tasks compiling the internal portal descriptor declare it as an affected i
 	assertTaskInputs("apps/app-api/turbo.json", ["test", "test:worker", "typecheck"], [descriptor]);
 	assertTaskInputs(
 		"apps/campus-web/turbo.json",
-		["test", "test:worker", "typecheck"],
+		["test", "test:e2e:full", "test:worker", "typecheck"],
 		[descriptor],
 	);
 	assertTaskInputs("apps/ops-web/turbo.json", ["test:browser"], [descriptor]);

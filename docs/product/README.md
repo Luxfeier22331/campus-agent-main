@@ -14,7 +14,7 @@ status: active
 - [ui.md](./ui.md)：仓库内界面的信息层级、状态真实性、响应式和无障碍基线；
 - [web.md](./web.md)：Campus Web 学生旅途、领域连续性和性能要求；
 - [status-web.md](./status-web.md)：公共产品可用性状态与近期历史；
-- [dining.md](./dining.md)：食堂地图、菜单、评价、举报与内容维护；
+- [dining.md](./dining.md)：食堂地图、菜单、评价、举报，以及已接受的用户投稿与受控照片需求；
 - [legal-consent.md](./legal-consent.md)：注册同意体验和法律页面内容；
 - [run-context.md](./run-context.md)：连续追问、上一轮依据、上下文裁剪和并发轮次体验；
 - [campus-ui-state.md](./campus-ui-state.md)：Campus Web 用户可见状态、恢复范围、问答过程和搜索生命周期治理；

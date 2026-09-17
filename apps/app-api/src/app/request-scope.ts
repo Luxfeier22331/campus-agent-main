@@ -15,7 +15,12 @@ import {
 	buildChatAvailabilityService,
 	createPgChatAvailabilityStore,
 } from "../modules/chat-availability";
-import { createPgDiningContentService, createPgDiningMapReadService } from "../modules/dining";
+import {
+	createPgDiningContentService,
+	createPgDiningLifecycleService,
+	createPgDiningMapReadService,
+	createPgDiningSubmissionService,
+} from "../modules/dining";
 import { buildEmailAccessService, createPgEmailAccessGrantStore } from "../modules/email-access";
 import {
 	createExecutionControlPersonalMemoryClient,
@@ -66,6 +71,8 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 			let chatCommandPersistence: ReturnType<typeof createPgChatCommandPersistence> | null = null;
 			let dining = input.dependencies.diningMapReadService ?? null;
 			let diningContent = input.dependencies.diningContentService ?? null;
+			let diningLifecycle = input.dependencies.diningLifecycleService ?? null;
+			let diningSubmissions = input.dependencies.diningSubmissionService ?? null;
 			let emailAccess = input.dependencies.emailAccessService ?? null;
 			let memory = input.dependencies.profileMemoryService ?? null;
 			let profileMemoryPersistence: ReturnType<typeof createPgProfileMemoryPersistence> | null =
@@ -73,6 +80,8 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 			let notices = input.dependencies.noticeService ?? null;
 			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
 			let transportSchedule = input.dependencies.transportScheduleService ?? null;
+			const resolveDiningLifecycleService = () =>
+				(diningLifecycle ??= createPgDiningLifecycleService(input.env, { getDb: runtime.getDb }));
 			const resolveProfileMemoryPersistence = () =>
 				(profileMemoryPersistence ??= createPgProfileMemoryPersistence({
 					getDb: runtime.getDb,
@@ -131,6 +140,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 					})),
 				resolveAccountLifecycleService: () =>
 					(accountLifecycle ??= buildAccountLifecycleService({
+						diningLifecycleService: resolveDiningLifecycleService(),
 						executionController: executionRuntime ?? createExecutionControlRuntimeClient(input.env),
 						profileMemoryService: resolveProfileMemoryService(),
 						removeAuthUser: async (userId) => {
@@ -155,6 +165,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 					})),
 				resolveChatCommandService,
 				resolveChatConversationService,
+				resolveDiningLifecycleService,
 				resolveOpsConversationQueryService: () =>
 					(opsConversationQuery ??= createOpsConversationQueryService({ getDb: runtime.getDb })),
 				resolveChatFeedbackQueryService: () =>
@@ -165,6 +176,10 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 					})),
 				resolveDiningContentService: () =>
 					(diningContent ??= createPgDiningContentService({
+						getDb: runtime.getDb,
+					})),
+				resolveDiningSubmissionService: () =>
+					(diningSubmissions ??= createPgDiningSubmissionService(input.env, {
 						getDb: runtime.getDb,
 					})),
 				resolveEmailAccessService: () =>

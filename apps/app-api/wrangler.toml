@@ -15,6 +15,10 @@ AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"
 OBJECT_STORE_LOCAL_BASE_URL = "http://127.0.0.1:9000/campus-agent-derived/"
 AUTH_EMAIL_FROM = "Campus Agent <auth@example.com>"
 
+[env.local.images]
+binding = "DINING_IMAGES"
+remote = false
+
 [env.local.secrets]
 required = [
   "BETTER_AUTH_SECRET",
@@ -23,6 +27,8 @@ required = [
   "OPS_WEB_INTERNAL_TOKEN",
   "APP_API_EXECUTION_SHARED_SECRET",
   "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
+  "OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "OBJECT_STORE_DERIVED_SECRET_KEY",
   "OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
   "OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 ]
@@ -32,6 +38,9 @@ DEPLOYMENT_ENVIRONMENT = "staging"
 AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"
 EXECUTION_CONTROL_PRIVATE_ORIGIN = "http://execution-control.campus-agent-staging.svc.cluster.local:8000"
 
+[env.staging.images]
+binding = "DINING_IMAGES"
+
 [env.staging.secrets]
 required = [
   "BETTER_AUTH_SECRET",
@@ -40,6 +49,8 @@ required = [
   "OPS_WEB_INTERNAL_TOKEN",
   "APP_API_EXECUTION_SHARED_SECRET",
   "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
+  "OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "OBJECT_STORE_DERIVED_SECRET_KEY",
   "OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
   "OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 ]

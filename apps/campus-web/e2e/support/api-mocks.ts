@@ -851,6 +851,16 @@ function routeMocks(input: {
 		},
 		{
 			method: "GET",
+			path: /^\/api\/dining\/windows\/[^/]+\/submissions$/,
+			response: (route) =>
+				route.fulfill({
+					contentType: "application/json",
+					json: { items: [], nextCursor: null },
+					status: 200,
+				}),
+		},
+		{
+			method: "GET",
 			path: /^\/api\/dining\/windows\/[^/]+\/menu$/,
 			response: (route) => {
 				if (options.diningFailures?.menuFailure) {

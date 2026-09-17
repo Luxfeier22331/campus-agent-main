@@ -56,7 +56,7 @@ export function AccountDeletionPanel({
 				注销账号
 			</h2>
 			<p className="mt-2 text-sm text-muted-foreground">
-				注销后将停止登录，并异步删除聊天记录、个人记忆和账号关联数据。此操作无法撤销。
+				注销受理后将停止登录并撤下食堂投稿，后台清理聊天记录、个人记忆、投稿与照片及账号关联数据。此操作无法撤销。
 			</p>
 			{error ? (
 				<Alert className="mt-4" tone="danger">

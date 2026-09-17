@@ -3,7 +3,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
-import { buildAppApiStagingUploadConfig } from "../scripts/staging-upload-config";
+import {
+	buildAppApiStagingUploadConfig,
+	buildAppApiStagingUploadSecrets,
+} from "../scripts/staging-upload-config";
 
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = readFileSync(resolve(appDir, "wrangler.toml"), "utf8");
@@ -43,6 +46,15 @@ describe("app-api staging upload config", () => {
 				id: resources.hyperdriveId,
 			}),
 		]);
+		expect(staging.images).toEqual({ binding: "DINING_IMAGES" });
+		expect(staging.secrets).toEqual({
+			required: expect.arrayContaining([
+				"OBJECT_STORE_DERIVED_ACCESS_KEY",
+				"OBJECT_STORE_DERIVED_SECRET_KEY",
+			]),
+		});
+		const local = (generated.env as Record<string, Record<string, unknown>>).local;
+		expect(local?.images).toEqual({ binding: "DINING_IMAGES", remote: false });
 	});
 
 	it("rejects an invalid Hyperdrive configuration id", () => {
@@ -72,5 +84,27 @@ describe("app-api staging upload config", () => {
 				objectStoreVpcServiceId: "invalid",
 			}),
 		).toThrow("OBJECT_STORE_VPC_SERVICE_ID must contain a Cloudflare resource UUID.");
+	});
+
+	it("passes through only the Worker object-store identities in the upload secret file", () => {
+		const environment = {
+			APP_API_EXECUTION_SHARED_SECRET: "execution-test",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-write-test",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "derived-write-secret-test",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "derived-read-test",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "derived-read-secret-test",
+			OPS_WEB_INTERNAL_TOKEN: "ops-test",
+		};
+		expect(
+			buildAppApiStagingUploadSecrets({
+				...environment,
+				OBJECT_STORE_SOURCE_ACCESS_KEY: "source-not-for-worker",
+			}),
+		).toEqual(environment);
+		for (const name of ["OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_DERIVED_SECRET_KEY"]) {
+			expect(() => buildAppApiStagingUploadSecrets({ ...environment, [name]: undefined })).toThrow(
+				`${name} is required for staging Worker version upload.`,
+			);
+		}
 	});
 });

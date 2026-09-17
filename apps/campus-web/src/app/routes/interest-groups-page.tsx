@@ -297,7 +297,7 @@ export function InterestGroupsPageContent({ catalog }: { catalog: InterestGroupC
 			{showBackToTop ? (
 				<a
 					aria-label="返回顶部"
-					className="fixed bottom-5 right-4 z-20 inline-flex size-11 items-center justify-center rounded-full border border-border bg-background/95 text-[var(--sys-text-muted)] shadow-[var(--shadow-sm)] backdrop-blur-sm transition-[color,background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:translate-y-px motion-reduce:transform-none"
+					className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-20 inline-flex size-11 items-center justify-center rounded-full border border-border bg-background/95 text-[var(--sys-text-muted)] shadow-[var(--shadow-sm)] backdrop-blur-sm transition-[color,background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:translate-y-px motion-reduce:transform-none"
 					href="#interest-groups-top"
 					title="返回顶部"
 				>

@@ -2,8 +2,8 @@
 
 import type {
 	DiningMenuItemRecord,
-	DiningOpsReportRecord,
-	DiningOpsReviewRecord,
+	DiningOpsContentReportRecord,
+	DiningOpsContentReviewRecord,
 } from "@campus-agent/dining/domain";
 import { describe, expect, it, vi } from "vitest";
 import type { DiningMenuStore, DiningReviewStore } from "../src/server/dining-store-contract";
@@ -24,7 +24,9 @@ const menuItem: DiningMenuItemRecord = {
 	updatedBy: "ops@example.test",
 	windowId: "hall:floor:window-01",
 };
-const review: DiningOpsReviewRecord = {
+const review: DiningOpsContentReviewRecord = {
+	contentRevision: 1,
+	targetKind: "menu_item",
 	anonymous: true,
 	authorDisplayName: "张同学",
 	authorId: "user_1",
@@ -43,7 +45,7 @@ const review: DiningOpsReviewRecord = {
 	updatedBy: "user_1",
 	windowId: menuItem.windowId,
 };
-const report: DiningOpsReportRecord = {
+const report: DiningOpsContentReportRecord = {
 	createdAt: NOW,
 	details: "包含联系方式",
 	reason: "privacy",
@@ -52,7 +54,12 @@ const report: DiningOpsReportRecord = {
 	resolution: null,
 	resolvedAt: null,
 	resolvedBy: null,
-	review,
+	target: {
+		kind: "review",
+		current: review,
+		targetRevision: 1,
+		reported: { replayable: true, body: "味道不错。" },
+	},
 };
 
 type TestDiningContentStore = DiningMenuStore & DiningReviewStore;
@@ -203,6 +210,39 @@ describe("Ops Web Dining content API", () => {
 			expect.objectContaining({ principalId: "ops@example.test" }),
 			expect.objectContaining({ idempotencyKey: "ops-review-key-1" }),
 		);
+	});
+
+	it("accepts explicit submission targets and rejects conflicting filters", async () => {
+		const store = contentStore();
+		const app = createTestApp(store);
+		const reviews = await app.request(
+			"/api/ops/dining/reviews?target_type=submission&submission_id=dsb_1",
+		);
+		const reports = await app.request(
+			"/api/ops/dining/reports?target_type=review&submission_id=dsb_1",
+		);
+		expect(reviews.status).toBe(200);
+		expect(reports.status).toBe(200);
+		expect(store.listReviews).toHaveBeenCalledWith({
+			limit: 50,
+			targetType: "submission",
+			submissionId: "dsb_1",
+		});
+		expect(store.listReports).toHaveBeenCalledWith({
+			limit: 50,
+			status: "pending",
+			targetType: "review",
+			submissionId: "dsb_1",
+		});
+		for (const path of [
+			"reviews?menu_item_id=dmi_1&submission_id=dsb_1",
+			"reviews?target_type=menu_item&submission_id=dsb_1",
+			"reviews?target_type=submission&menu_item_id=dmi_1",
+			"reports?menu_item_id=dmi_1&submission_id=dsb_1",
+			"reports?target_type=submission&menu_item_id=dmi_1",
+		]) {
+			expect((await app.request(`/api/ops/dining/${path}`)).status).toBe(400);
+		}
 	});
 
 	it("lists reports and resolves all pending reports for one review", async () => {

@@ -11,6 +11,10 @@ const DINING_TABLES = [
 	"review_edits",
 	"review_reports",
 	"reviews",
+	"submission_edits",
+	"submission_photos",
+	"submission_reports",
+	"submissions",
 ] as const;
 
 const DINING_GRANT_STATEMENTS = [
@@ -31,8 +35,43 @@ const DINING_GRANT_STATEMENTS = [
 		"dining"."map_publication",
 		"dining"."menu_items"
 	 TO "app_api"`,
-	`GRANT SELECT, INSERT, UPDATE ON TABLE "dining"."reviews" TO "app_api"`,
-	`GRANT SELECT, INSERT ON TABLE "dining"."review_reports" TO "app_api"`,
+	`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "dining"."reviews" TO "app_api"`,
+	`GRANT SELECT, INSERT, DELETE ON TABLE "dining"."review_reports" TO "app_api"`,
+	`GRANT UPDATE ("details", "reporter_user_id", "resolved_by") ON TABLE "dining"."review_reports" TO "app_api"`,
+	`GRANT DELETE ON TABLE "dining"."review_edits" TO "app_api"`,
+	`GRANT SELECT ("edit_id", "review_id", "edited_at", "expires_at", "edited_by") ON TABLE "dining"."review_edits" TO "app_api"`,
+	`GRANT UPDATE ("edited_by") ON TABLE "dining"."review_edits" TO "app_api"`,
+	`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+		"dining"."submissions",
+		"dining"."submission_photos",
+		"dining"."submission_edits",
+		"dining"."submission_reports"
+	 TO "app_api"`,
+	`GRANT SELECT (
+		"submission_id", "window_id", "author_id", "author_display_name", "name", "price_text",
+		"status", "revision", "content_revision", "created_at", "updated_at", "hidden_at", "deleted_at",
+		"expires_at", "account_deleting_at", "purged_at", "updated_by", "hidden_by", "deleted_by"
+	 ) ON TABLE "dining"."submissions" TO "ops_web"`,
+	`GRANT SELECT (
+		"edit_id", "submission_id", "previous_revision", "next_revision", "previous_name", "next_name",
+		"previous_price_text", "next_price_text", "previous_photo_id", "next_photo_id", "edited_at", "expires_at", "edited_by"
+	 ) ON TABLE "dining"."submission_edits" TO "ops_web"`,
+	`GRANT SELECT (
+		"report_id", "submission_id", "reporter_user_id", "reason", "details", "target_revision",
+		"content_expires_at", "created_at", "resolution", "resolved_at", "resolved_by"
+	 ) ON TABLE "dining"."submission_reports" TO "ops_web"`,
+	`GRANT SELECT (
+		"photo_id", "submission_id", "object_key", "object_version_id", "width", "height",
+		"current", "retired_at", "expires_at", "account_deletion_request_id", "cleanup_status",
+		"cleanup_started_at"
+	 ) ON TABLE "dining"."submission_photos" TO "ops_web"`,
+	`GRANT UPDATE (
+		"status", "hidden_at", "hidden_by", "deleted_at", "deleted_by", "expires_at",
+		"account_deleting_at", "account_deletion_request_id", "purged_at", "revision",
+		"updated_at", "updated_by"
+	 ) ON TABLE "dining"."submissions" TO "ops_web"`,
+	`GRANT UPDATE ("resolution", "resolved_at", "resolved_by")
+	 ON TABLE "dining"."submission_reports" TO "ops_web"`,
 ] as const;
 
 const TRANSPORT_GRANT_STATEMENTS = [
@@ -242,6 +281,44 @@ const REQUIRED_SELECTS = [
 		`,
 	},
 	{
+		label: "dining.submissions",
+		sql: `
+			select "submission_id", "window_id", "author_id", "author_display_name", "name", "price_text",
+				"status", "revision", "content_revision", "created_at", "updated_at", "hidden_at", "deleted_at",
+				"expires_at", "account_deleting_at", "purged_at"
+			from "dining"."submissions"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.submission_photos",
+		sql: `
+			select "photo_id", "submission_id", "object_key", "object_version_id", "width", "height",
+				"current", "retired_at", "expires_at", "cleanup_status", "cleanup_started_at"
+			from "dining"."submission_photos"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.submission_edits",
+		sql: `
+			select "edit_id", "submission_id", "previous_revision", "next_revision", "previous_name",
+				"next_name", "previous_price_text", "next_price_text", "previous_photo_id", "next_photo_id",
+				"edited_at", "expires_at"
+			from "dining"."submission_edits"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.submission_reports",
+		sql: `
+			select "report_id", "submission_id", "reporter_user_id", "reason", "details", "target_revision",
+				"content_expires_at", "created_at", "resolution", "resolved_at", "resolved_by"
+			from "dining"."submission_reports"
+			limit 0
+		`,
+	},
+	{
 		label: "transport.routes",
 		sql: `
 			select "route_id", "origin", "destination", "service_kind", "default_boarding_point",
@@ -400,6 +477,12 @@ async function verifyDiningSchemaAndAppApiGrants(config: DatabaseConnectionConfi
 
 		const privileges = await client.query<{
 			canDeleteReports: boolean;
+			canDeleteEdits: boolean;
+			canReadEditCleanup: boolean;
+			canReadEditContent: boolean;
+			canUpdateEditIdentity: boolean;
+			canUpdateReportCleanup: boolean;
+			canResolveReports: boolean;
 			canDeleteReviews: boolean;
 			canInsertReports: boolean;
 			canInsertReviews: boolean;
@@ -415,6 +498,12 @@ async function verifyDiningSchemaAndAppApiGrants(config: DatabaseConnectionConfi
 			canReadReports: boolean;
 			canReadReleases: boolean;
 			canReadReviews: boolean;
+			canReadSubmissions: boolean;
+			canMutateSubmissions: boolean;
+			canMutateSubmissionPhotos: boolean;
+			canReadSubmissionPhotos: boolean;
+			canMutateSubmissionEdits: boolean;
+			canMutateSubmissionReports: boolean;
 			canUpdateReports: boolean;
 			canUpdateReviews: boolean;
 			canUseSchema: boolean;
@@ -437,7 +526,23 @@ async function verifyDiningSchemaAndAppApiGrants(config: DatabaseConnectionConfi
 			has_table_privilege('app_api', 'dining.review_reports', 'INSERT') as "canInsertReports",
 			has_table_privilege('app_api', 'dining.review_reports', 'UPDATE') as "canUpdateReports",
 			has_table_privilege('app_api', 'dining.review_reports', 'DELETE') as "canDeleteReports",
-			has_table_privilege('app_api', 'dining.review_edits', 'INSERT,UPDATE,DELETE') as "canMutateEdits"`);
+			has_table_privilege('app_api', 'dining.review_edits', 'INSERT,UPDATE') as "canMutateEdits",
+			has_table_privilege('app_api', 'dining.review_edits', 'DELETE') as "canDeleteEdits",
+			(select bool_and(has_column_privilege('app_api', 'dining.review_edits', column_name, 'SELECT'))
+			 from unnest(array['edit_id', 'review_id', 'edited_by', 'edited_at', 'expires_at']) column_name) as "canReadEditCleanup",
+			(has_column_privilege('app_api', 'dining.review_edits', 'previous_body', 'SELECT')
+			 or has_column_privilege('app_api', 'dining.review_edits', 'next_body', 'SELECT')) as "canReadEditContent",
+			has_column_privilege('app_api', 'dining.review_edits', 'edited_by', 'UPDATE') as "canUpdateEditIdentity",
+			(select bool_and(has_column_privilege('app_api', 'dining.review_reports', column_name, 'UPDATE'))
+			 from unnest(array['details', 'reporter_user_id', 'resolved_by']) column_name) as "canUpdateReportCleanup",
+			(has_column_privilege('app_api', 'dining.review_reports', 'resolution', 'UPDATE')
+			 or has_column_privilege('app_api', 'dining.review_reports', 'resolved_at', 'UPDATE')) as "canResolveReports",
+			has_table_privilege('app_api', 'dining.submissions', 'SELECT') as "canReadSubmissions",
+			has_table_privilege('app_api', 'dining.submissions', 'INSERT,UPDATE,DELETE') as "canMutateSubmissions",
+			has_table_privilege('app_api', 'dining.submission_photos', 'INSERT,UPDATE,DELETE') as "canMutateSubmissionPhotos",
+			has_table_privilege('app_api', 'dining.submission_photos', 'SELECT') as "canReadSubmissionPhotos",
+			has_table_privilege('app_api', 'dining.submission_edits', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateSubmissionEdits",
+			has_table_privilege('app_api', 'dining.submission_reports', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateSubmissionReports"`);
 		const access = privileges.rows[0];
 		if (
 			!(
@@ -449,7 +554,19 @@ async function verifyDiningSchemaAndAppApiGrants(config: DatabaseConnectionConfi
 				access.canReadReports &&
 				access.canInsertReviews &&
 				access.canUpdateReviews &&
-				access.canInsertReports
+				access.canInsertReports &&
+				access.canDeleteReviews &&
+				access.canDeleteReports &&
+				access.canDeleteEdits &&
+				access.canReadEditCleanup &&
+				access.canUpdateEditIdentity &&
+				access.canUpdateReportCleanup &&
+				access.canReadSubmissions &&
+				access.canMutateSubmissions &&
+				access.canReadSubmissionPhotos &&
+				access.canMutateSubmissionPhotos &&
+				access.canMutateSubmissionEdits &&
+				access.canMutateSubmissionReports
 			) ||
 			access.canReadDraft ||
 			access.canReadEdits ||
@@ -458,12 +575,12 @@ async function verifyDiningSchemaAndAppApiGrants(config: DatabaseConnectionConfi
 			access.canMutateMenu ||
 			access.canMutateReleases ||
 			access.canMutatePublication ||
-			access.canDeleteReviews ||
 			access.canUpdateReports ||
-			access.canDeleteReports
+			access.canReadEditContent ||
+			access.canResolveReports
 		) {
 			throw new Error(
-				"app_api Dining privileges do not match the public menu and member review boundary.",
+				"app_api Dining privileges do not match the public content and lifecycle cleanup boundary.",
 			);
 		}
 	});
@@ -639,6 +756,12 @@ async function verifyOpsWebDiningPrivileges(client: Client): Promise<void> {
 		canMutateMenu: boolean;
 		canMutateReports: boolean;
 		canMutateReviews: boolean;
+		canReadSubmissions: boolean;
+		canReadSubmissionPhotos: boolean;
+		canReadSubmissionEdits: boolean;
+		canReadSubmissionReports: boolean;
+		canMutateSubmissionSubmissions: boolean;
+		canMutateSubmissionReports: boolean;
 		canMutateDraft: boolean;
 		canMutatePublication: boolean;
 		canMutateReleases: boolean;
@@ -651,7 +774,13 @@ async function verifyOpsWebDiningPrivileges(client: Client): Promise<void> {
 		has_table_privilege(current_user, 'dining.menu_items', 'INSERT,UPDATE,DELETE') as "canMutateMenu",
 		has_table_privilege(current_user, 'dining.reviews', 'INSERT,UPDATE,DELETE') as "canMutateReviews",
 		has_table_privilege(current_user, 'dining.review_reports', 'INSERT,UPDATE,DELETE') as "canMutateReports",
-		has_table_privilege(current_user, 'dining.review_edits', 'INSERT,UPDATE,DELETE') as "canMutateEdits"`);
+		has_table_privilege(current_user, 'dining.review_edits', 'INSERT,UPDATE,DELETE') as "canMutateEdits",
+		has_any_column_privilege(current_user, 'dining.submissions', 'SELECT') as "canReadSubmissions",
+		has_any_column_privilege(current_user, 'dining.submission_photos', 'SELECT') as "canReadSubmissionPhotos",
+		has_any_column_privilege(current_user, 'dining.submission_edits', 'SELECT') as "canReadSubmissionEdits",
+		has_any_column_privilege(current_user, 'dining.submission_reports', 'SELECT') as "canReadSubmissionReports",
+		has_any_column_privilege(current_user, 'dining.submissions', 'UPDATE') as "canMutateSubmissionSubmissions",
+		has_any_column_privilege(current_user, 'dining.submission_reports', 'UPDATE') as "canMutateSubmissionReports"`);
 	const diningAccess = diningPrivileges.rows[0];
 	if (
 		!(
@@ -662,7 +791,13 @@ async function verifyOpsWebDiningPrivileges(client: Client): Promise<void> {
 			diningAccess.canMutateMenu &&
 			diningAccess.canMutateReviews &&
 			diningAccess.canMutateReports &&
-			diningAccess.canMutateEdits
+			diningAccess.canMutateEdits &&
+			diningAccess.canReadSubmissions &&
+			diningAccess.canReadSubmissionPhotos &&
+			diningAccess.canReadSubmissionEdits &&
+			diningAccess.canReadSubmissionReports &&
+			diningAccess.canMutateSubmissionSubmissions &&
+			diningAccess.canMutateSubmissionReports
 		)
 	) {
 		throw new Error("ops_web is missing required Dining map write privileges.");

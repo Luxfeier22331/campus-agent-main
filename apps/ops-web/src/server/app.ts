@@ -40,6 +40,7 @@ import {
 	DiningStoreValidationError,
 } from "./dining-store-errors.ts";
 import { createDiningStores, createUnavailableDiningStores } from "./dining-stores.ts";
+import type { DiningSubmissionStore } from "./dining-submission-store-contract.ts";
 import {
 	createEmailAccessAdminClient,
 	type EmailAccessAdminEnv,
@@ -126,6 +127,7 @@ import { CampusGroupsRequestError, registerCampusGroupsRoutes } from "./routes/c
 import { registerChatConversationRoutes } from "./routes/chat-conversations.ts";
 import { registerChatFeedbackRoutes } from "./routes/chat-feedback.ts";
 import { registerDiningRoutes } from "./routes/dining.ts";
+import { registerDiningSubmissionRoutes } from "./routes/dining-submissions.ts";
 import { registerEmailAccessRoutes } from "./routes/email-access.ts";
 import { jsonError } from "./routes/http.ts";
 import {
@@ -178,6 +180,7 @@ interface OpsAppOptions {
 	diningMapStore?: DiningMapStore;
 	diningMenuStore?: DiningMenuStore;
 	diningReviewStore?: DiningReviewStore;
+	diningSubmissionStore?: DiningSubmissionStore;
 	emailAccessClient?: ReturnType<typeof createEmailAccessAdminClient>;
 	internalPortalCredentialService?: InternalPortalCredentialService;
 	internalPortalAutomationTokenService?: InternalPortalAutomationTokenService;
@@ -210,6 +213,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const diningMapStore = options.diningMapStore ?? diningStores().map;
 	const diningMenuStore = options.diningMenuStore ?? diningStores().menu;
 	const diningReviewStore = options.diningReviewStore ?? diningStores().reviews;
+	const diningSubmissionStore = options.diningSubmissionStore ?? diningStores().submissions;
 	const admission = options.admission ?? createOpsAdmissionFromEnv(env);
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env, databasePool);
@@ -622,6 +626,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		store: noticeStore,
 		source: options.noticePreviewStore ?? createNoticePreviewStore(env),
 	});
+	registerDiningSubmissionRoutes({ app, admission, store: diningSubmissionStore, publicOrigin });
 	registerDiningRoutes({
 		admission,
 		app,

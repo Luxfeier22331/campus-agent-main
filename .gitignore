@@ -21,8 +21,10 @@ node_modules/
 .githooks/
 .wrangler/
 .turbo/
+*.tsbuildinfo
 .wrangler-home/
 .tanstack/
+/infra/local/.generated/
 
 # Browser test outputs
 apps/ops-web/playwright-report/

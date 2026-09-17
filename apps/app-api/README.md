@@ -36,14 +36,10 @@ app-api 拥有认证、聊天、请求观测、用户资料和个人记忆产品
 `APP_API_DB` 是 app-api 唯一的 Hyperdrive 通道。部署配置关闭 Hyperdrive query cache，保留
 连接池能力，所有产品读写都通过同一数据库绑定完成。
 
-通知接口只读 `notices.*` 的业务表。站内详情返回已清洗 HTML、图片同源 URL，以及包含门户原生链接的
-附件 metadata；外链通知只在列表中返回来源 URL。App API 不代理附件字节，通知图片与 Dining 一样
-通过现有 derived bucket 读取路径交付，不向浏览器暴露对象存储身份。
-
-学生食堂接口只读取已发布的 `dining.map_releases` 和 `dining.map_publication`，并从统一
-derived bucket 读取按摘要命名的地图资源。staging 和 production 通过 `OBJECT_STORE_PRIVATE`
-Workers VPC binding 访问集群内对象存储，不持有 S3 凭据或使用公开对象存储地址。App API 不读取
-草稿，也不执行地图编辑或发布。
+通知读取、图片交付和附件边界见 [通知合同](../../docs/contracts/app-api/notices.md)，对象存储身份见
+[供应商与外部服务](../../docs/environment/providers.md)。食堂地图、菜单、评价及投稿合同集中于 [Dining PRD](../../docs/product/dining.md)，当前实现投稿创建、本人编辑与软删除、受控读取、Images 处理和私有对象
+适配器、双目标评价举报与投稿治理、事件到期清理及完整账号注销联动。Dining 清理独立接入既有
+`scheduled()`，清理失败保持可续接；真实 Images、云端对象权限与实际字节删除须单独验收。
 
 校园地图由 Campus Web 独占所有权和静态交付，入口为 Campus Web 的 `/campus-map/manifest.json`；
 App API 不再提供地图路由、地点 read model 或地图静态资产，也不保留兼容 binding。

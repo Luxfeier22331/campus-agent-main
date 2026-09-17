@@ -5,6 +5,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 const diningTasks = [
 	{ href: "/dining", label: "地图" },
 	{ href: "/dining/menu", label: "菜单" },
+	{ href: "/dining/submissions", label: "用户投稿" },
 	{ href: "/dining/reviews", label: "评价" },
 	{ href: "/dining/reports", label: "举报" },
 ] as const;
@@ -21,7 +22,9 @@ export function DiningTaskNavigation() {
 		<nav aria-label="食堂维护" className="mb-5 overflow-x-auto border-border border-b">
 			<div className="flex min-w-max gap-1">
 				{diningTasks.map((task) => {
-					const active = pathname === task.href;
+					const active =
+						pathname === task.href ||
+						(task.href === "/dining/submissions" && pathname.startsWith(`${task.href}/`));
 					return (
 						<Link
 							aria-current={active ? "page" : undefined}

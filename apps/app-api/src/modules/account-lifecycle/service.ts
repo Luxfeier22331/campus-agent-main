@@ -103,6 +103,22 @@ export function buildAccountLifecycleService(
 						if (!(await renewLease())) {
 							continue;
 						}
+						const diningErased = await dependencies.diningLifecycleService.eraseForAccountDeletion({
+							ownerUserId: request.ownerUserId,
+							requestId: request.requestId,
+						});
+						if (!(await renewLease())) {
+							continue;
+						}
+						if (!diningErased) {
+							const deferredAt = new Date();
+							await dependencies.store.defer(
+								request,
+								new Date(deferredAt.getTime() + ACCOUNT_DELETION_PENDING_DELAY_MS),
+								deferredAt,
+							);
+							continue;
+						}
 						if (
 							!(await dependencies.store.deleteOwnedData(
 								request,

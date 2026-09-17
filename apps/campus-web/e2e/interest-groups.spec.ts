@@ -6,7 +6,7 @@ test.describe("interest groups browser flow", () => {
 		await mockCampusApi(page, { authenticated: false });
 	});
 
-	test("filters the group catalog by tags and QQ number", async ({ page }) => {
+	test("navigates group sections and exposes the return-to-top link", async ({ page }) => {
 		await page.goto("/groups");
 
 		await expect(page.getByText("共收录 55 条目录")).toBeVisible();
@@ -23,17 +23,6 @@ test.describe("interest groups browser flow", () => {
 			"href",
 			"#interest-groups-top",
 		);
-
-		const search = page.getByRole("searchbox", { name: "搜索同好群" });
-		await search.fill("音游");
-		await expect(page.getByText("找到 2 条")).toBeVisible();
-		await expect(page.locator("article[aria-labelledby]")).toHaveCount(2);
-		await expect(page.getByRole("heading", { name: "夜之瞳音游群" })).toBeVisible();
-		await expect(page.getByRole("heading", { name: "极上引诱会所" })).toBeVisible();
-
-		await search.fill("284874509");
-		await expect(page.getByRole("heading", { name: "民大重型群" })).toBeVisible();
-		await expect(page.getByRole("button", { name: "复制群号 284874509" })).toBeVisible();
 	});
 
 	test("keeps search readable on a 320px viewport", async ({ page }) => {

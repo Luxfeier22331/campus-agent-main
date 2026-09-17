@@ -24,8 +24,14 @@ const noProviderConfigPrivileges = {
 	canAccessModelSettings: false,
 } as const;
 const appApiDiningPrivileges = {
-	canDeleteReports: false,
-	canDeleteReviews: false,
+	canDeleteReports: true,
+	canDeleteEdits: true,
+	canReadEditCleanup: true,
+	canReadEditContent: false,
+	canUpdateEditIdentity: true,
+	canUpdateReportCleanup: true,
+	canResolveReports: false,
+	canDeleteReviews: true,
 	canInsertReports: true,
 	canInsertReviews: true,
 	canMutateDraft: false,
@@ -40,6 +46,12 @@ const appApiDiningPrivileges = {
 	canReadReports: true,
 	canReadReleases: true,
 	canReadReviews: true,
+	canReadSubmissions: true,
+	canMutateSubmissions: true,
+	canMutateSubmissionPhotos: true,
+	canReadSubmissionPhotos: true,
+	canMutateSubmissionEdits: true,
+	canMutateSubmissionReports: true,
 	canUpdateReports: false,
 	canUpdateReviews: true,
 	canUseSchema: true,
@@ -52,6 +64,12 @@ const opsWebDiningPrivileges = {
 	canMutateReports: true,
 	canMutateReleases: true,
 	canMutateReviews: true,
+	canReadSubmissions: true,
+	canReadSubmissionPhotos: true,
+	canReadSubmissionEdits: true,
+	canReadSubmissionReports: true,
+	canMutateSubmissionSubmissions: true,
+	canMutateSubmissionReports: true,
 	canUseSchema: true,
 } as const;
 const opsWebInternalPortalPrivileges = {
@@ -223,7 +241,7 @@ function installSuccessfulQueries() {
 		}
 		if (sql.includes("from information_schema.tables") && sql.includes("table_schema = 'dining'")) {
 			return {
-				rowCount: 7,
+				rowCount: 11,
 				rows: [
 					{ table_name: "map_draft" },
 					{ table_name: "map_publication" },
@@ -232,6 +250,10 @@ function installSuccessfulQueries() {
 					{ table_name: "review_edits" },
 					{ table_name: "review_reports" },
 					{ table_name: "reviews" },
+					{ table_name: "submission_edits" },
+					{ table_name: "submission_photos" },
+					{ table_name: "submission_reports" },
+					{ table_name: "submissions" },
 				],
 			};
 		}

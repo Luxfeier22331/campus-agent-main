@@ -205,7 +205,7 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 - `model_config.model_configs` 可以为空或只配置一个 name；schema 安装不把业务配置完整性
   变成部署门禁。缺失 name 由其消费路径失败关闭。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
-  但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
+  可读取评价历史的清理标识、期限与操作者列并清理到期记录，不能读取历史正文、地图草稿或修改地图菜单；
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和分类业务表，不能读取
   `drizzle.campus_agent_migrations` 或写入该 schema；
 - App API 对 `transport.routes`、`transport.schedule_periods` 和 `transport.schedule_items` 只有读取权限；
@@ -214,7 +214,7 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 - Ops Web 使用 `ops_web` 角色读写 `internal_portal.credentials` 和
   `internal_portal.automation_tokens`；token 明文保留是为满足 Ops Web 的重复 reveal 合同，不作为通用
   Secret 管理能力；当前运行时不创建或使用旧 `ingestion_control` 角色；
-- 不同逻辑所有者共用 DDL journal，但不通过双写复制同一事实，也不共享运行时写权限；
+- 不同逻辑所有者共用统一 migration ledger，但不通过双写复制同一事实，也不共享运行时写权限；
 - 对象 bytes、无界原始来源、工作流历史和供应商 trace 不进入这些 schema。Campus Search 的有界候选
   正文是为 Ops RAG 诊断保留的快照，不作为来源系统副本。
 
@@ -222,6 +222,25 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 权限或 API 响应。所属应用交付声明式 schema 与查询变化，统一 Job 交付安装 SQL 和授权；常驻
 workload 只使用运行角色。
 数据库平台只维护数据库 owner 和明确需要的无登录授权主体。
+
+### Dining 用户投稿的权限扩展边界
+
+投稿结构与 ACL 已通过统一 schema Job 安装，继续复用 `app_api` 和 `ops_web`，不新建 Dining
+数据库、运行时角色或连接通道。领域声明式结构由 Dining 包维护；投稿和照片表、投稿编辑与举报表，
+以及评价双目标 FK 均由追加迁移交付，Ops bootstrap 同步重放和验证这些权限。
+
+App API 当前实现投稿创建、本人修改与软删除、公开及本人读取、照片关联和失败上传补偿。写入事务
+锁定既有认证用户行，与账号注销准入共用锁；最终事务重新检查身份、窗口、版本、每日配额和幂等。
+投稿编辑历史只开放写入及清理所需权限，不向学生读取路径开放历史正文。App API 仍不能读取地图
+草稿、评价历史正文，或修改地图和正式菜单。数据库授权不能代替 HTTP 本人所有权和 Ops 鉴权。
+
+投稿评价、举报和 Ops 治理路由已接入两目标关系；Ops 读取治理所需的操作者列，
+投稿与地图发布通过事务锁协调窗口引用。Dining 定时清理和账号注销共用领域清理入口；
+`app_api` 可删除已到期评价及历史，更新举报详情与身份列，但不能写举报结论或读取评价历史正文。
+`reviews.updated_by` 允许在注销去身份时置空。未绑定照片临时保存 `upload_owner_id`，
+与注销受理共用用户行锁；绑定时清空，注销时转交请求 ID，避免遗漏在途上传。
+图片字节保存在私有对象存储，PostgreSQL 只保存引用和生命周期字段。完整保留
+规则由 [Dining PRD](../product/dining.md)维护；授权由空库、历史升级及真实运行角色测试验证。
 
 ## 可执行来源
 

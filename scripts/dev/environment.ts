@@ -350,6 +350,8 @@ export function renderLocalEnvironmentFiles(input: {
 			AUTH_TURNSTILE_SECRET_KEY: "local-turnstile-disabled",
 			BETTER_AUTH_SECRET: localSecrets?.betterAuthSecret ?? "",
 			EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_LOCAL_BASE_URL: `http://127.0.0.1:9000/${profile.bucketName}/`,

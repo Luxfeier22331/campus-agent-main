@@ -9,7 +9,12 @@ import type { ChatConversationService } from "../modules/chat";
 import type { ChatFeedbackQueryService } from "../modules/chat/feedback-query";
 import type { OpsConversationQueryService } from "../modules/chat/ops-conversation-query";
 import type { ChatAvailabilityService } from "../modules/chat-availability";
-import type { DiningContentService, DiningMapReadService } from "../modules/dining";
+import type {
+	DiningContentService,
+	DiningLifecycleService,
+	DiningMapReadService,
+	DiningSubmissionService,
+} from "../modules/dining";
 import type { EmailAccessService } from "../modules/email-access";
 import type { NoticeService } from "../modules/notices";
 import type { ProfileMemoryService } from "../modules/profile-memory";
@@ -37,6 +42,8 @@ export interface AppDependencies {
 	chatCommandService?: ChatCommandService;
 	diningMapReadService?: DiningMapReadService;
 	diningContentService?: DiningContentService;
+	diningLifecycleService?: DiningLifecycleService;
+	diningSubmissionService?: DiningSubmissionService;
 	transportScheduleService?: TransportScheduleService;
 	emailAccessService?: EmailAccessService;
 	noticeService?: NoticeService;
@@ -74,6 +81,8 @@ export interface AppRequestScope {
 	resolveChatConversationService(): ChatConversationService;
 	resolveDiningMapReadService(): DiningMapReadService;
 	resolveDiningContentService(): DiningContentService;
+	resolveDiningLifecycleService(): DiningLifecycleService;
+	resolveDiningSubmissionService(): DiningSubmissionService;
 	resolveEmailAccessService(): EmailAccessService;
 	resolveNoticeService(): NoticeService;
 	resolveProfileMemoryService(): ProfileMemoryService;

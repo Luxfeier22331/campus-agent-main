@@ -59,17 +59,45 @@ execution-control 在线查询使用只读 Qdrant 凭据；备份和恢复仍使
 
 来源和派生产物使用 S3-compatible 接口及按 bucket、prefix 和操作范围限制的凭据。应用只获得
 直接消费对象所需权限；对象存储品牌不进入数据合同。Kubernetes 内的写入者使用各自 S3 凭据；
-当前 App API 的 Dining 资源接口通过 Workers VPC binding 访问明确前缀，不获得 S3 凭据。
+App API 的 Dining SVG 资源接口通过 Workers VPC binding 访问明确前缀；通知图片和投稿照片则经
+同一私有通道发送 S3 签名请求，分别使用只读身份和 derived 写身份。
 
 对象存储管理身份在 Kubernetes Secret 中使用 `OBJECT_STORE_ADMIN_ACCESS_KEY` 和
 `OBJECT_STORE_ADMIN_SECRET_KEY`。部署清单只在 RustFS 容器边界把它们映射为
 `RUSTFS_ACCESS_KEY` 和 `RUSTFS_SECRET_KEY`；应用身份继续使用 source/derived 各自的
 `OBJECT_STORE_*` 键。供应商名称不进入 Secret 的稳定键名。
 
-Source Worker 发布只消费 `OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和
-`OBJECT_STORE_DERIVED_READ_SECRET_KEY`。`OBJECT_STORE_DERIVED_ACCESS_KEY` 和
-`OBJECT_STORE_DERIVED_SECRET_KEY` 是 Kubernetes 集群写入身份，不属于 Source GitHub
-Environment，也不进入 Worker candidate。
+Dining 投稿复用现有 `campus-agent-derived` bucket、derived 写身份与只读身份，不新建存储服务、
+bucket 或投稿专用凭据。两组身份各有 access key 和 secret key；Kubernetes Secret、GitHub Environment
+和 Worker Secret 是同一身份的不同交付位置，不代表需要分别生成账号或密钥。
+
+| 身份 | 凭据名称 | 消费者与交付位置 |
+| --- | --- | --- |
+| derived 读写 | `OBJECT_STORE_DERIVED_ACCESS_KEY`、`OBJECT_STORE_DERIVED_SECRET_KEY` | 既有 Kubernetes 写入者；同值同步到 Source GitHub `staging` Environment，由 App API candidate 上传脚本交付为 Worker Secret |
+| derived 只读 | `OBJECT_STORE_DERIVED_READ_ACCESS_KEY`、`OBJECT_STORE_DERIVED_READ_SECRET_KEY` | Source 发布及 App API 通知图片读取；Ops 图片代理通过既有 `object-store-secrets` 注入同一只读身份 |
+
+GitOps `staging` Environment 是共享凭据的投递入口；`secrets.yml` 的 `all` 流程先生成 SealedSecret PR，
+合并并完成 Argo CD 同步后再投递 Source `staging`。已有凭据只补交付位置，不因增加消费者重新生成。
+精确上传要求见 [App API 发布配置](../../apps/app-api/scripts/staging-upload-config.ts)，缺少要求的
+Secret 会阻止 candidate 上传。Ops 图片代理复用现有 endpoint 与 bucket 配置；缺少只读凭据时
+仅图片读取不可用，文字治理仍可运行，不使用 derived 写身份代替。
+
+投稿继续使用既有 `campus-agent-derived-rw` 策略。原策略具有 derived bucket 的读写能力，
+但不具有照片清理需要的删除及历史版本枚举能力；[bootstrap](../../infra/k8s/data-object-store/base/bootstrap.yaml)
+在同一策略中补充限于 `dining/submissions/` 的 `DeleteObject`、`DeleteObjectVersion` 和带 prefix
+条件的 `ListBucketVersions`，保留既有权限。不新增策略或身份；环境 owner 应用更新，已具备这些权限
+的环境不必重复变更。`OBJECT_STORE_PRIVATE` 提供私有网络通道，S3 签名凭据提供对象操作授权，
+两者不能互相替代。
+
+App API 的 `local` 与 `staging` Wrangler 配置声明 `DINING_IMAGES` Images binding；本地使用模拟实现，
+staging candidate 上传检查该 binding 及对象存储 Secret 是否随版本交付。
+
+对象存储只在云端部署。本地模拟图片处理与存储测试不证明真实 Images 的完整解码、方向、透明、额度
+或对象版本删除能力；这些能力仍须由环境 owner 按 [Dining PRD](../product/dining.md) 的样例完成云端
+验收。投稿对象请求的客户端等待上限为 30 秒，上传预留 lease 为 5 分钟；客户端超时不证明
+服务端已停止 PUT。环境验收须确认存储服务及入口的 PUT 执行上限短于上传 lease，
+并覆盖连接中断后的迟到写入，才能确认未引用照片不会在清理后再次落盘。
+提交 binding 与 Secret 消费配置不代表已经投递或验收通过。
 
 ## 产品与来源服务
 

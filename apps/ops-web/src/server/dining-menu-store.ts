@@ -47,6 +47,9 @@ export function createPgDiningMenuStore(input: {
 		async createMenuItem(actor, value) {
 			return withDiningStoreErrors(() =>
 				diningTransaction(input.pool, async (client) => {
+					await client.query(
+						"select pg_advisory_xact_lock_shared(hashtextextended('dining-publication', 0))",
+					);
 					await assertDraftWindow(client, value.windowId);
 					await lockMenuWindow(client, value.windowId);
 					const createdAt = now().toISOString();
@@ -104,6 +107,9 @@ export function createPgDiningMenuStore(input: {
 		async moveMenuItem(actor, menuItemId, windowId) {
 			return withDiningStoreErrors(() =>
 				diningTransaction(input.pool, async (client) => {
+					await client.query(
+						"select pg_advisory_xact_lock_shared(hashtextextended('dining-publication', 0))",
+					);
 					await assertDraftWindow(client, windowId);
 					await lockMenuWindow(client, windowId);
 					const order = await client.query(
@@ -134,6 +140,9 @@ export function createPgDiningMenuStore(input: {
 		async restoreMenuItem(actor, menuItemId) {
 			return withDiningStoreErrors(() =>
 				diningTransaction(input.pool, async (client) => {
+					await client.query(
+						"select pg_advisory_xact_lock_shared(hashtextextended('dining-publication', 0))",
+					);
 					const existing = await loadMenuItem(client, menuItemId, true);
 					await assertDraftWindow(client, existing.windowId);
 					return updateArchiveState(client, actor, menuItemId, now(), false);
@@ -144,6 +153,9 @@ export function createPgDiningMenuStore(input: {
 		async reorderMenuItems(actor, windowId, menuItemIds) {
 			return withDiningStoreErrors(() =>
 				diningTransaction(input.pool, async (client) => {
+					await client.query(
+						"select pg_advisory_xact_lock_shared(hashtextextended('dining-publication', 0))",
+					);
 					await assertDraftWindow(client, windowId);
 					await lockMenuWindow(client, windowId);
 					const current = await client.query(

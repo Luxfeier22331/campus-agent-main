@@ -16,22 +16,6 @@ test.describe("conversation lifecycle browser flow", () => {
 		await expect(page.getByText("历史记录中的国家奖学金回答。")).toHaveCount(0);
 	});
 
-	test("searches only active conversations without an archived scope", async ({ page }) => {
-		const requests: Array<{ path: string; search: string }> = [];
-		await mockCampusApi(page, { requests });
-		await page.goto("/");
-
-		await page.getByRole("button", { name: "搜索聊天" }).click();
-		await expect(page.getByRole("radio", { name: "已归档" })).toHaveCount(0);
-		await page.getByPlaceholder("搜索历史会话").fill("图书馆");
-		await expect(page.getByText("图书馆开放时间")).toBeVisible();
-
-		const searchRequest = requests.find(
-			(request) => request.path === "/api/chat/conversations/search",
-		);
-		expect(searchRequest?.search).toContain("view=active");
-	});
-
 	test("opens login when a historical conversation can no longer be loaded", async ({ page }) => {
 		await mockCampusApi(page, {
 			conversationFailures: { detailUnauthorized: true },

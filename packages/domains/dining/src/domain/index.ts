@@ -6,3 +6,4 @@ export type {
 	DiningMapResponse,
 } from "./map.ts";
 export { DiningMapResponseSchema } from "./map.ts";
+export * from "./submissions.ts";

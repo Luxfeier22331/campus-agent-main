@@ -7,6 +7,27 @@ export interface AppApiStagingResources {
 	vpcServiceId: string;
 }
 
+export function buildAppApiStagingUploadSecrets(
+	environment: Record<string, string | undefined>,
+): Record<string, string> {
+	const secrets: Record<string, string> = {};
+	for (const name of [
+		"APP_API_EXECUTION_SHARED_SECRET",
+		"OBJECT_STORE_DERIVED_ACCESS_KEY",
+		"OBJECT_STORE_DERIVED_SECRET_KEY",
+		"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
+		"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
+		"OPS_WEB_INTERNAL_TOKEN",
+	]) {
+		const value = environment[name]?.trim();
+		if (!value) {
+			throw new Error(`${name} is required for staging Worker version upload.`);
+		}
+		secrets[name] = value;
+	}
+	return secrets;
+}
+
 function requireUuid(name: string, value: string): string {
 	if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(value)) {
 		throw new Error(`${name} must contain a Cloudflare resource UUID.`);

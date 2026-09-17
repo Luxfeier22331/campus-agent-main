@@ -33,7 +33,7 @@ export function DiningFloorplanZoom({
 			centerOnInit
 			centerZoomedOut
 			disablePadding
-			doubleClick={{ disabled: true }}
+			doubleClick={{ disabled: prefersReducedMotion, step: BUTTON_ZOOM_STEP }}
 			initialScale={1}
 			limitToBounds
 			maxScale={2}
@@ -62,7 +62,7 @@ export function DiningFloorplanZoom({
 			{({ resetTransform, zoomIn, zoomOut }) => (
 				<>
 					<div
-						className="relative min-w-0 overflow-hidden bg-[var(--dining-svg-canvas-bg)]"
+						className="relative min-w-0 overflow-hidden bg-[var(--dining-svg-canvas-bg)] touch-none"
 						data-testid="dining-inline-floorplan"
 						style={{ aspectRatio }}
 					>

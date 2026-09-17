@@ -102,16 +102,19 @@ export function createPgDiningStore(input: {
 			return withStoreErrors(async () => {
 				const candidate = await loadDraft(input.pool);
 				assertExpectedRevision(candidate, expectedRevision);
-				await assertActiveMenuWindowsExist(input.pool, candidate.bundle);
+				await assertContentWindowsExist(input.pool, candidate.bundle);
 				const current = await loadCurrentRelease(input.pool);
 				if (current?.snapshotHash === candidate.fingerprint) {
 					return toReleaseSummary(current);
 				}
 				const assets = await uploadAssets(input.assetStore, candidate.bundle);
 				return transaction(input.pool, async (client) => {
+					await client.query(
+						"select pg_advisory_xact_lock(hashtextextended('dining-publication', 0))",
+					);
 					const lockedDraft = await loadDraft(client, true);
 					assertExpectedRevision(lockedDraft, expectedRevision);
-					await assertActiveMenuWindowsExist(client, lockedDraft.bundle);
+					await assertContentWindowsExist(client, lockedDraft.bundle);
 					if (lockedDraft.fingerprint !== candidate.fingerprint) {
 						throw new DiningStoreConflictError("地图草稿已被其他操作者更新，请刷新后重试。");
 					}
@@ -143,12 +146,15 @@ export function createPgDiningStore(input: {
 				if (!target) {
 					throw new DiningStoreNotFoundError("未找到要恢复的地图版本。");
 				}
-				await assertActiveMenuWindowsExist(input.pool, target.bundle);
+				await assertContentWindowsExist(input.pool, target.bundle);
 				const assets = await uploadAssets(input.assetStore, target.bundle);
 				return transaction(input.pool, async (client) => {
+					await client.query(
+						"select pg_advisory_xact_lock(hashtextextended('dining-publication', 0))",
+					);
 					const draft = await loadDraft(client, true);
 					assertExpectedRevision(draft, expectedRevision);
-					await assertActiveMenuWindowsExist(client, target.bundle);
+					await assertContentWindowsExist(client, target.bundle);
 					const current = await loadCurrentRelease(client);
 					const restoredDraft =
 						draft.fingerprint === target.snapshotHash
@@ -192,7 +198,7 @@ export function createPgDiningStore(input: {
 	};
 }
 
-async function assertActiveMenuWindowsExist(
+async function assertContentWindowsExist(
 	db: Pick<Pool, "query"> | Pick<PoolClient, "query">,
 	bundle: DiningFloorplanBundleV1,
 ): Promise<void> {
@@ -201,16 +207,34 @@ async function assertActiveMenuWindowsExist(
 			layout.windows.map((window) => `${layout.hallId}:${layout.floorId}:${window.anchorId}`),
 		),
 	);
-	const result = await db.query(
+	const menu = await db.query(
 		"select distinct window_id from dining.menu_items where archived_at is null order by window_id",
 	);
-	const missingWindowIds = result.rows
-		.map((row) => String(row.window_id))
-		.filter((windowId) => !availableWindowIds.has(windowId));
-	if (missingWindowIds.length > 0) {
-		throw new DiningStoreConflictError("地图会移除仍有在售菜品的窗口，请先迁移或归档这些菜品。", {
-			windowIds: missingWindowIds,
-		});
+	const submissions = await db.query(
+		"select distinct window_id from dining.submissions where status = 'public' and hidden_at is null and deleted_at is null and purged_at is null and account_deleting_at is null order by window_id",
+	);
+	const missing = new Map<string, string[]>();
+	for (const [rows, kind] of [
+		[menu.rows, "menu_item"],
+		[submissions.rows, "submission"],
+	] as const) {
+		for (const row of rows) {
+			const id = String(row.window_id);
+			if (!availableWindowIds.has(id)) {
+				missing.set(id, [...(missing.get(id) ?? []), kind]);
+			}
+		}
+	}
+	if (missing.size > 0) {
+		throw new DiningStoreConflictError(
+			"地图会移除仍有在售菜品或公开投稿的窗口，请先处理这些内容。",
+			{
+				windowIds: [...missing.keys()].sort(),
+				windows: [...missing.entries()]
+					.sort(([a], [b]) => a.localeCompare(b))
+					.map(([windowId, contentTypes]) => ({ windowId, contentTypes })),
+			},
+		);
 	}
 }
 

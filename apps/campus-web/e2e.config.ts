@@ -23,7 +23,7 @@ export default defineConfig({
 		: "list",
 	retries: isCI ? 1 : 0,
 	testDir: "./e2e",
-	testIgnore: ["worker/**"],
+	testIgnore: ["worker/**", "ui-baseline.spec.ts"],
 	timeout: 30_000,
 	use: {
 		baseURL,
@@ -36,5 +36,5 @@ export default defineConfig({
 		timeout: 120_000,
 		url: baseURL,
 	},
-	workers: 1,
+	workers: 2,
 });

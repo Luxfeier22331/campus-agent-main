@@ -45,5 +45,5 @@ export default defineConfig({
 			url: baseURL,
 		},
 	],
-	workers: 1,
+	workers: 2,
 });

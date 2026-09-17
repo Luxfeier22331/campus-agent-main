@@ -148,6 +148,12 @@ function createHarness() {
 		if (normalized === "begin" || normalized === "commit" || normalized === "rollback") {
 			return { rows: [] };
 		}
+		if (
+			normalized.startsWith("select pg_advisory") ||
+			normalized.startsWith("select distinct window_id from dining.submissions")
+		) {
+			return { rows: [] };
+		}
 		if (normalized.startsWith("select bundle_json, fingerprint, revision")) {
 			return { rows: [draftRow(state.draft)] };
 		}

@@ -9,7 +9,7 @@ status: active
 本目录按接口领域维护 `app-api` HTTP 合同：
 
 - [runtime.md](./runtime.md)：存活与就绪状态；
-- [scheduled-sweeps.md](./scheduled-sweeps.md)：定时恢复 sweep、取消 claim 和 trigger 所有权；
+- [scheduled-sweeps.md](./scheduled-sweeps.md)：定时 sweep、Dining 清理接入要求和 trigger 所有权；
 - [auth.md](./auth.md)：登录与当前用户；
 - [memory.md](./memory.md)：个人记忆管理；
 - [chat.md](./chat.md)：会话、请求、流和事件；

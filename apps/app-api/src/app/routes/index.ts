@@ -9,6 +9,7 @@ import { registerChatRoutes } from "./chat";
 import { registerChatConversationAdminRoutes } from "./chat-conversation-admin";
 import { registerChatFeedbackAdminRoutes } from "./chat-feedback-admin";
 import { registerDiningContentRoutes } from "./dining";
+import { registerDiningSubmissionRoutes } from "./dining-submissions";
 import { registerEmailAccessAdminRoutes } from "./email-access-admin";
 import { registerFederationRoutes } from "./federation";
 import { registerInternalRoutes } from "./internal";
@@ -62,6 +63,12 @@ export function registerAppRoutes(input: {
 		env: input.env,
 	});
 	registerDiningContentRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerDiningSubmissionRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

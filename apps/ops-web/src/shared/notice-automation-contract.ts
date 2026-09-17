@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NoticeJobRangeSchema } from "./ops-contract";
+import { NoticeJobRangeSchema } from "./ops-contract.ts";
 
 export const NoticeAutomationInputSchema = z
 	.object({

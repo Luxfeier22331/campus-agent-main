@@ -110,7 +110,7 @@ describe("campus account pages", () => {
 		const { unmount } = render(<LegalTermsPage />);
 
 		expect(screen.getByRole("heading", { name: "用户服务协议" })).toBeInTheDocument();
-		expect(screen.getByText("生效日期：2026-07-24")).toBeInTheDocument();
+		expect(screen.getByText("生效日期：2026-09-14")).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "隐私政策" })).toHaveAttribute(
 			"href",
 			"/legal/privacy",
@@ -125,7 +125,7 @@ describe("campus account pages", () => {
 		render(<LegalPrivacyPage />);
 
 		expect(screen.getByRole("heading", { name: "隐私政策" })).toBeInTheDocument();
-		expect(screen.getByText("生效日期：2026-07-24")).toBeInTheDocument();
+		expect(screen.getByText("生效日期：2026-09-14")).toBeInTheDocument();
 		expect(screen.getByText(/Cloudflare Turnstile/)).toBeInTheDocument();
 		expect(screen.getByText(/AI 模型服务/)).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "用户服务协议" })).toHaveAttribute(
@@ -209,5 +209,43 @@ describe("campus account pages", () => {
 			expect(screen.getByText("无法确认此应用，暂不能授权。")).toBeInTheDocument(),
 		);
 		expect(screen.getByRole("button", { name: "允许并继续" })).toBeDisabled();
+	});
+	it.each([
+		["access_denied", "您已取消授权"],
+		["invalid_client", "这个应用暂时无法完成登录"],
+		["unexpected", "登录请求不可用"],
+	])("renders federation error %s with a return to login", (error, title) => {
+		window.history.pushState({}, "", `/account/federation/error?error=${error}`);
+		render(<FederationErrorPage />);
+		expect(screen.getByRole("heading", { name: "登录授权未完成" })).toBeVisible();
+		expect(screen.getByText(title)).toBeVisible();
+		expect(screen.getByRole("link", { name: "返回登录" })).toHaveAttribute(
+			"href",
+			"/account/login",
+		);
+	});
+
+	it("disables both consent actions when signed parameters are absent", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				Response.json({
+					client_id: "test-oauth-client",
+					client_name: "Test OAuth Client",
+					client_uri: "https://oauth.example.test/product",
+				}),
+			),
+		);
+		window.history.pushState(
+			{},
+			"",
+			"/account/federation/consent?client_id=test-oauth-client&scope=openid",
+		);
+		render(<FederationConsentPage />);
+		expect(
+			await screen.findByRole("heading", { name: "使用校园账号登录 Test OAuth Client" }),
+		).toBeVisible();
+		expect(screen.getByRole("button", { name: "允许并继续" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "取消" })).toBeDisabled();
 	});
 });

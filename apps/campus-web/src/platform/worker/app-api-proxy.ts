@@ -5,7 +5,12 @@ import {
 } from "../worker-proxy/public-cache";
 import type { CampusWorkerEnv } from "./env";
 import { proxyFailureResponse } from "./proxy-failure";
-import { isHtmlServerErrorResponse, SECURITY_HEADERS, withNoStore } from "./response-policy";
+import {
+	isHtmlServerErrorResponse,
+	SECURITY_HEADERS,
+	withNoStore,
+	withPhotoRevalidation,
+} from "./response-policy";
 
 const FORWARDED_HEADERS = [
 	"accept",
@@ -16,6 +21,12 @@ const FORWARDED_HEADERS = [
 	"idempotency-key",
 	"traceparent",
 ] as const;
+const DINING_SUBMISSION_FORWARDED_HEADERS = [
+	...FORWARDED_HEADERS,
+	"if-match",
+	"content-encoding",
+] as const;
+const DINING_SUBMISSION_PHOTO_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "if-none-match"] as const;
 const AUTH_FORWARDED_HEADERS = [
 	...FORWARDED_HEADERS,
 	"cf-connecting-ip",
@@ -55,21 +66,25 @@ async function proxyNoStoreAppApiRequest(
 
 	const inboundUrl = new URL(request.url);
 	const appApiUrl = new URL(inboundUrl.pathname + inboundUrl.search, appApiBaseUrl);
+	const photoPath = isDiningSubmissionPhotoPath(inboundUrl.pathname);
 	const headers = new Headers();
-	for (const headerName of getForwardedHeaders(inboundUrl.pathname)) {
+	for (const headerName of getForwardedHeaders(inboundUrl.pathname, photoPath)) {
 		const value = request.headers.get(headerName);
 		if (value) {
 			headers.set(headerName, value);
 		}
 	}
 	try {
+		const streamSubmission = isDiningSubmissionMutationPath(inboundUrl.pathname);
 		const body =
 			request.method === "GET" || request.method === "HEAD"
 				? undefined
-				: await request.arrayBuffer();
+				: streamSubmission
+					? request.body
+					: await request.arrayBuffer();
 		const response = await appApiFetch(
 			new Request(appApiUrl.toString(), {
-				...(body ? { body } : {}),
+				...(body ? { body, ...(streamSubmission ? { duplex: "half" } : {}) } : {}),
 				headers,
 				method: request.method,
 				redirect: request.redirect,
@@ -77,6 +92,11 @@ async function proxyNoStoreAppApiRequest(
 		);
 		if (isHtmlServerErrorResponse(response)) {
 			return proxyFailureResponse(request, "invalid_upstream_response");
+		}
+		// Only validator-carrying photo responses (200/304) keep revalidation
+		// semantics; photo errors stay no-store like every other proxied response.
+		if (photoPath && response.headers.get("etag")) {
+			return withPhotoRevalidation(response);
 		}
 		return withNoStore(response);
 	} catch {
@@ -130,7 +150,23 @@ function isLoopbackAppApiBaseUrl(value: string): boolean {
 	}
 }
 
-function getForwardedHeaders(pathname: string) {
+function isDiningSubmissionMutationPath(pathname: string): boolean {
+	return /^\/api\/dining\/(?:windows\/[^/]+\/submissions|me\/submissions\/[A-Za-z0-9_-]{1,200})$/.test(
+		pathname,
+	);
+}
+
+function isDiningSubmissionPhotoPath(pathname: string): boolean {
+	return /^\/api\/dining\/(?:me\/)?submissions\/[A-Za-z0-9_-]{1,200}\/photos\//.test(pathname);
+}
+
+function getForwardedHeaders(pathname: string, photoPath = false) {
+	if (isDiningSubmissionMutationPath(pathname)) {
+		return DINING_SUBMISSION_FORWARDED_HEADERS;
+	}
+	if (photoPath) {
+		return DINING_SUBMISSION_PHOTO_FORWARDED_HEADERS;
+	}
 	if (pathname.startsWith("/api/auth/")) {
 		return AUTH_FORWARDED_HEADERS;
 	}

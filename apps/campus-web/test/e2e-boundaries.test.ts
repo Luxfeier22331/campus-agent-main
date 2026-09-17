@@ -6,7 +6,7 @@ describe("campus web browser test boundaries", () => {
 		const config = readFileSync("e2e.config.ts", "utf8");
 		const uiBaselineConfig = readFileSync("e2e.ui-baseline.config.ts", "utf8");
 
-		expect(config).toContain('testIgnore: ["worker/**"]');
+		expect(config).toContain('testIgnore: ["worker/**", "ui-baseline.spec.ts"]');
 		expect(config).toContain("CAMPUS_WEB_E2E_PREBUILT");
 		expect(config).toContain("pnpm run build:test");
 		expect(config).toContain('trace: "retain-on-failure"');

@@ -158,6 +158,92 @@ describe("account lifecycle PostgreSQL integration", () => {
 		).toBe(0);
 	});
 
+	it("accepts Dining deletion atomically and blocks completion while a photo remains", async () => {
+		const suffix = `${Date.now().toString(36)}-dining`;
+		const userId = `account-delete-user-${suffix}`;
+		const requestId = `account-delete-${suffix}`;
+		const submissionId = `account-submission-${suffix}`;
+		const photoId = `account-photo-${suffix}`;
+		const now = new Date("2026-07-19T00:00:00.000Z");
+		await client.query(
+			`insert into app_auth."user"
+				(id, name, email, "emailVerified", "banned", "passwordChangeRequired", "createdAt", "updatedAt")
+			 values ($1, 'Campus User', $2, true, false, false, $3, $3)`,
+			[userId, `${suffix}@muc.edu.cn`, now],
+		);
+		await client.query(
+			`insert into profile.memory_settings
+				(owner_user_id, lifecycle_state, sync_status, updated_at)
+			 values ($1, 'erased', 'synced', $2)`,
+			[userId, now],
+		);
+		await client.query(
+			`insert into dining.submissions
+				(submission_id, author_id, author_display_name, name, status, revision,
+				 content_revision, created_submission_date, created_at, updated_at)
+			 values ($1, $2, 'Campus User', 'Original dish', 'public', 1, 1, '2026-07-19', $3, $3)`,
+			[submissionId, userId, now],
+		);
+		await client.query(
+			`insert into dining.submission_photos
+				(photo_id, submission_id, object_key, width, height, current, cleanup_status)
+			 values ($1, $2, $3, 20, 20, true, 'pending')`,
+			[photoId, submissionId, `dining/submissions/${photoId}.webp`],
+		);
+		const database = drizzle({ client: pool });
+		const store = createPgAccountLifecycleStore({ getDb: async () => database });
+		await store.requestDeletion({ ownerUserId: userId, requestId, requestedAt: now });
+		expect(
+			(
+				await client.query(
+					`select account_deleting_at, account_deletion_request_id
+			 from dining.submissions where submission_id = $1`,
+					[submissionId],
+				)
+			).rows[0],
+		).toEqual({ account_deleting_at: now, account_deletion_request_id: requestId });
+		const [claimed] = await store.claimPending({
+			leaseExpiresAt: new Date("2026-07-19T00:05:00.000Z"),
+			leaseToken: `lease-${suffix}`,
+			limit: 1,
+			now,
+		});
+		if (!claimed || claimed.requestId !== requestId) {
+			throw new Error("Expected the Dining deletion request to be claimed.");
+		}
+		const attemptAt = new Date("2026-07-19T00:01:00.000Z");
+		await expect(store.deleteOwnedData(claimed, attemptAt, null)).resolves.toBe(false);
+		await expect(store.completeDeletion(claimed, attemptAt)).resolves.toBe(false);
+
+		// A scrubbed parent does not prove that its object's version bytes have been deleted.
+		await client.query(
+			`update dining.submissions
+			 set author_id = null, author_display_name = null, name = null,
+			     status = 'purged', purged_at = $2 where submission_id = $1`,
+			[submissionId, attemptAt],
+		);
+		await expect(store.deleteOwnedData(claimed, attemptAt, null)).resolves.toBe(false);
+		await expect(store.completeDeletion(claimed, attemptAt)).resolves.toBe(false);
+		expect(
+			(
+				await client.query(
+					"select status, owner_user_id from profile.account_deletion_requests where request_id = $1",
+					[requestId],
+				)
+			).rows[0],
+		).toEqual({ status: "pending", owner_user_id: userId });
+		expect(
+			(await client.query(`select 1 from app_auth."user" where id = $1`, [userId])).rowCount,
+		).toBe(1);
+
+		// Simulate the Dining owner's post-byte-deletion metadata cleanup.
+		await client.query("delete from dining.submission_photos where photo_id = $1", [photoId]);
+		await client.query("delete from dining.submissions where submission_id = $1", [submissionId]);
+		await expect(store.deleteOwnedData(claimed, attemptAt, null)).resolves.toBe(true);
+		await client.query(`delete from app_auth."user" where id = $1`, [userId]);
+		await expect(store.completeDeletion(claimed, attemptAt)).resolves.toBe(true);
+	});
+
 	it("claims each pending deletion once and recovers an expired lease", async () => {
 		const suffix = `${Date.now().toString(36)}-lease`;
 		const userId = `account-delete-user-${suffix}`;

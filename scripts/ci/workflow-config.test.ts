@@ -774,6 +774,14 @@ test("Worker publication matches the candidate registry and secret boundaries", 
 		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
 	);
 	assert.equal(
+		appApi.env.OBJECT_STORE_DERIVED_ACCESS_KEY,
+		githubExpression("secrets.OBJECT_STORE_DERIVED_ACCESS_KEY"),
+	);
+	assert.equal(
+		appApi.env.OBJECT_STORE_DERIVED_SECRET_KEY,
+		githubExpression("secrets.OBJECT_STORE_DERIVED_SECRET_KEY"),
+	);
+	assert.equal(
 		appApi.env.OBJECT_STORE_VPC_SERVICE_ID,
 		githubExpression("vars.OBJECT_STORE_VPC_SERVICE_ID"),
 	);
@@ -785,6 +793,8 @@ test("Worker publication matches the candidate registry and secret boundaries", 
 		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
 	);
 	assert.equal(campusWeb.env.OBJECT_STORE_ENDPOINT, githubExpression("vars.OBJECT_STORE_ENDPOINT"));
+	assert.equal(campusWeb.env.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
+	assert.equal(campusWeb.env.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
 
 	const statusWeb = namedStep(workers, "Upload status-web candidate");
 	assert(isObject(statusWeb.env));

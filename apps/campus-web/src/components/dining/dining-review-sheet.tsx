@@ -1,4 +1,10 @@
-import type { DiningMenuItem, DiningReportReason } from "@campus-agent/dining/domain";
+import type {
+	DiningMenuItem,
+	DiningReportReason,
+	DiningReview,
+	DiningSubmission,
+	DiningSubmissionReview,
+} from "@campus-agent/dining/domain";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -18,13 +24,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 	Label,
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-	Sheet,
-	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
@@ -32,19 +31,45 @@ import {
 } from "@campus-agent/ui";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Flag, LoaderCircle, MessageSquareText, Send, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+
 import { AuthDialog } from "@/components/auth/auth-dialog";
 import { createDiningReview, deleteDiningReview, reportDiningReview } from "@/features/dining/api";
 import { diningQueryKeys, diningReviewsInfiniteQueryOptions } from "@/features/dining/queries";
+import { createDiningSubmissionReview } from "@/features/dining/submission-api";
+import {
+	diningSubmissionQueryKeys,
+	diningSubmissionReviewsInfiniteQueryOptions,
+} from "@/features/dining/submission-queries";
 import { formatTimestamp } from "@/lib/date-time";
 import { createIdempotencyKey } from "@/platform/api/client";
 import { useCampusSession } from "@/platform/auth/session";
+import { AdaptiveSelect } from "./dining-adaptive-select";
+import { AdaptiveSheetSurface } from "./dining-overlay-surface";
 
-export function DiningReviewSheet(props: {
-	item: DiningMenuItem | null;
+interface DiningReviewSheetProps {
+	item: DiningMenuItem | DiningSubmission | null;
 	onOpenChange(open: boolean): void;
 	open: boolean;
-}) {
+	returnFocusRef?: RefObject<HTMLElement | null>;
+}
+
+export function DiningReviewSheet(props: DiningReviewSheetProps) {
+	const session = useCampusSession();
+	const target = props.item
+		? "submissionId" in props.item
+			? `submission:${props.item.submissionId}`
+			: `menu:${props.item.menuItemId}`
+		: "none";
+	return (
+		<DiningReviewSheetContent
+			key={`${target}:${session.data?.user.id ?? "anonymous"}`}
+			{...props}
+		/>
+	);
+}
+
+function DiningReviewSheetContent(props: DiningReviewSheetProps) {
 	const queryClient = useQueryClient();
 	const session = useCampusSession();
 	const [authOpen, setAuthOpen] = useState(false);
@@ -54,221 +79,241 @@ export function DiningReviewSheet(props: {
 	const [reportReason, setReportReason] = useState<DiningReportReason>("spam");
 	const [reportDetails, setReportDetails] = useState("");
 	const reportTriggerRef = useRef<HTMLButtonElement | null>(null);
-	const reviewIdempotencyKey = useRef<{ key: string; menuItemId: string } | null>(null);
-	const menuItemId = props.item?.menuItemId ?? "";
-	const reviews = useInfiniteQuery(
-		diningReviewsInfiniteQueryOptions(
-			menuItemId,
-			session.data?.user.id ?? null,
-			props.open && Boolean(menuItemId),
-		),
+	const reviewIdempotencyKey = useRef<string | null>(null);
+	const isSubmission = Boolean(props.item && "submissionId" in props.item);
+	const targetId = props.item
+		? "submissionId" in props.item
+			? props.item.submissionId
+			: props.item.menuItemId
+		: "";
+	const menuItemId = isSubmission ? "" : targetId;
+	const viewerId = session.data?.user.id ?? null;
+	const queryKey = useMemo(
+		() =>
+			isSubmission
+				? diningSubmissionQueryKeys.reviews(targetId)
+				: diningQueryKeys.reviews(targetId),
+		[isSubmission, targetId],
+	);
+	const submissionReviews = useInfiniteQuery(
+		diningSubmissionReviewsInfiniteQueryOptions(targetId, viewerId, props.open && isSubmission),
+	);
+	const menuReviews = useInfiniteQuery(
+		diningReviewsInfiniteQueryOptions(menuItemId, viewerId, props.open && Boolean(menuItemId)),
 	);
 
+	const reviews = isSubmission ? submissionReviews : menuReviews;
 	useEffect(() => {
-		if (props.open && menuItemId) {
-			void queryClient.invalidateQueries({ queryKey: diningQueryKeys.reviews(menuItemId) });
+		if (props.open && targetId) {
+			void queryClient.invalidateQueries({ queryKey });
 		}
-	}, [menuItemId, props.open, queryClient]);
+	}, [targetId, props.open, queryClient, queryKey]);
 
 	const create = useMutation({
-		mutationFn: createDiningReview,
+		mutationFn: async (input: { anonymous: boolean; body: string; idempotencyKey: string }) => {
+			await (isSubmission
+				? createDiningSubmissionReview({ ...input, submissionId: targetId })
+				: createDiningReview({ ...input, menuItemId: targetId }));
+		},
 		onSuccess: async () => {
 			setBody("");
 			reviewIdempotencyKey.current = null;
-			await queryClient.invalidateQueries({ queryKey: diningQueryKeys.reviews(menuItemId) });
+			await queryClient.invalidateQueries({ queryKey });
 		},
 	});
 	const remove = useMutation({
 		mutationFn: deleteDiningReview,
-		onSuccess: () =>
-			queryClient.invalidateQueries({ queryKey: diningQueryKeys.reviews(menuItemId) }),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey }),
 	});
 	const report = useMutation({
 		mutationFn: reportDiningReview,
 		onSuccess: async () => {
 			setReportReviewId(null);
 			setReportDetails("");
-			await queryClient.invalidateQueries({ queryKey: diningQueryKeys.reviews(menuItemId) });
+			await queryClient.invalidateQueries({ queryKey });
 		},
 	});
-	const items = reviews.data?.pages.flatMap((page) => page.items) ?? [];
+	const items =
+		reviews.data?.pages.flatMap<DiningReview | DiningSubmissionReview>((page) => page.items) ?? [];
 	const mutationError = create.error ?? remove.error ?? report.error;
 
 	return (
 		<>
-			<Sheet onOpenChange={props.onOpenChange} open={props.open && Boolean(props.item)}>
-				<SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg" side="right">
-					<SheetHeader className="border-border border-b px-5 py-5 pr-12 text-left">
-						<SheetTitle>{props.item?.name ?? "菜品评价"}</SheetTitle>
-						<SheetDescription>{props.item?.priceText ?? "价格暂未提供"}</SheetDescription>
-					</SheetHeader>
-					<div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-						<section
-							aria-labelledby="dining-review-compose"
-							className="border-border border-b pb-5"
-						>
-							<h3 className="text-sm font-semibold" id="dining-review-compose">
-								发表评价
-							</h3>
-							{session.status === "loading" ? (
-								<div className="mt-3 h-9 animate-pulse rounded-md bg-surface-muted" />
-							) : session.status === "authenticated" ? (
-								<form
-									className="mt-3 space-y-3"
-									onSubmit={(event) => {
-										event.preventDefault();
-										if (props.item && body.trim()) {
-											if (reviewIdempotencyKey.current?.menuItemId !== props.item.menuItemId) {
-												reviewIdempotencyKey.current = {
-													key: createIdempotencyKey(),
-													menuItemId: props.item.menuItemId,
-												};
-											}
-											create.mutate({
-												anonymous,
-												body: body.trim(),
-												idempotencyKey: reviewIdempotencyKey.current.key,
-												menuItemId: props.item.menuItemId,
-											});
-										}
+			<AdaptiveSheetSurface
+				desktopClassName="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+				mobileClassName="gap-0"
+				open={props.open && Boolean(props.item)}
+				onOpenChange={props.onOpenChange}
+				onCloseAutoFocus={(event) => {
+					if (props.returnFocusRef?.current?.isConnected) {
+						event.preventDefault();
+						props.returnFocusRef.current.focus();
+					}
+				}}
+			>
+				<SheetHeader className="border-border border-b px-5 py-5 pr-12 text-left">
+					<SheetTitle>{props.item?.name ?? "菜品评价"}</SheetTitle>
+					<SheetDescription>
+						{isSubmission ? "用户投稿 · " : "正式菜单 · "}
+						{props.item?.priceText ?? "价格暂未提供"}
+					</SheetDescription>
+				</SheetHeader>
+				<div
+					className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"
+					data-vaul-no-drag=""
+				>
+					<section aria-labelledby="dining-review-compose" className="border-border border-b pb-5">
+						<h3 className="text-sm font-semibold" id="dining-review-compose">
+							发表评价
+						</h3>
+						{session.status === "loading" ? (
+							<div className="mt-3 h-9 animate-pulse rounded-md bg-surface-muted" />
+						) : session.status === "authenticated" ? (
+							<form
+								className="mt-3 space-y-3"
+								onSubmit={(event) => {
+									event.preventDefault();
+									if (props.item && body.trim()) {
+										reviewIdempotencyKey.current ??= createIdempotencyKey();
+										create.mutate({
+											anonymous,
+											body: body.trim(),
+											idempotencyKey: reviewIdempotencyKey.current,
+										});
+									}
+								}}
+							>
+								<Textarea
+									aria-label="评价内容"
+									className="min-h-24 resize-y"
+									maxLength={500}
+									onChange={(event) => {
+										setBody(event.target.value);
+										reviewIdempotencyKey.current = null;
+										create.reset();
 									}}
-								>
-									<Textarea
-										aria-label="评价内容"
-										className="min-h-24 resize-y"
-										maxLength={500}
-										onChange={(event) => {
-											setBody(event.target.value);
-											reviewIdempotencyKey.current = null;
-											create.reset();
-										}}
-										placeholder="写下你的用餐体验"
-										value={body}
-									/>
-									<div className="flex flex-wrap items-center justify-between gap-3">
-										<label
-											className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-[var(--sys-text-muted)]"
-											htmlFor="dining-review-anonymous"
-										>
-											<Checkbox
-												checked={anonymous}
-												id="dining-review-anonymous"
-												onCheckedChange={(checked) => {
-													setAnonymous(checked === true);
-													reviewIdempotencyKey.current = null;
-													create.reset();
-												}}
-											/>
-											匿名公开
-										</label>
-										<div className="flex items-center gap-3">
-											<span className="text-xs text-[var(--sys-text-subtle)]">
-												{body.length}/500
-											</span>
-											<Button disabled={!body.trim() || create.isPending} type="submit">
-												{create.isPending ? <LoaderCircle className="animate-spin" /> : <Send />}
-												提交
-											</Button>
-										</div>
+									placeholder="写下你的用餐体验"
+									value={body}
+								/>
+								<div className="flex flex-wrap items-center justify-between gap-3">
+									<label
+										className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-[var(--sys-text-muted)]"
+										htmlFor="dining-review-anonymous"
+									>
+										<Checkbox
+											checked={anonymous}
+											id="dining-review-anonymous"
+											onCheckedChange={(checked) => {
+												setAnonymous(checked === true);
+												reviewIdempotencyKey.current = null;
+												create.reset();
+											}}
+										/>
+										匿名公开
+									</label>
+									<div className="flex items-center gap-3">
+										<span className="text-xs text-[var(--sys-text-subtle)]">{body.length}/500</span>
+										<Button disabled={!body.trim() || create.isPending} type="submit">
+											{create.isPending ? <LoaderCircle className="animate-spin" /> : <Send />}
+											提交
+										</Button>
 									</div>
-								</form>
-							) : session.status === "unavailable" ? (
-								<div className="mt-3">
-									<p className="text-[var(--sys-text-muted)] text-sm">暂时无法确认登录状态。</p>
-									<Button
-										aria-busy={session.isRefreshing || undefined}
-										className="mt-2"
-										disabled={session.isRefreshing}
-										onClick={() => void session.refresh()}
-										variant="outline"
-									>
-										{session.isRefreshing ? "正在重试" : "重试"}
-									</Button>
 								</div>
-							) : (
-								<Button className="mt-3" onClick={() => setAuthOpen(true)} variant="outline">
-									登录后发表
-								</Button>
-							)}
-							{mutationError ? (
-								<p className="mt-3 text-destructive text-sm" role="alert">
-									{mutationError.message}
-								</p>
-							) : null}
-						</section>
-
-						<section aria-labelledby="dining-review-list" className="pt-5">
-							<div className="flex items-center gap-2">
-								<MessageSquareText className="size-4 text-[var(--sys-text-muted)]" />
-								<h3 className="text-sm font-semibold" id="dining-review-list">
-									评价
-								</h3>
-							</div>
-							{reviews.isPending ? (
-								<div className="grid min-h-32 place-content-center text-[var(--sys-text-muted)] text-sm">
-									<LoaderCircle className="mx-auto mb-2 animate-spin" />
-									正在读取评价
-								</div>
-							) : reviews.isError ? (
-								<div className="py-8 text-center">
-									<p className="text-destructive text-sm">评价暂时无法读取。</p>
-									<Button
-										className="mt-3"
-										onClick={() => void reviews.refetch()}
-										size="sm"
-										variant="outline"
-									>
-										重试
-									</Button>
-								</div>
-							) : items.length === 0 ? (
-								<p className="py-8 text-center text-[var(--sys-text-muted)] text-sm">暂无评价</p>
-							) : (
-								<ul className="divide-y divide-border">
-									{items.map((review) => (
-										<li className="py-4" key={review.reviewId}>
-											<div className="flex items-start justify-between gap-3">
-												<div className="min-w-0">
-													<p className="font-medium text-sm">
-														{review.authorName ?? "匿名校园用户"}
-													</p>
-													<p className="mt-0.5 text-[var(--sys-text-subtle)] text-xs">
-														{formatTimestamp(review.createdAt)}
-														{review.edited ? " · 已编辑" : ""}
-													</p>
-												</div>
-												<ReviewActions
-													authenticated={session.status === "authenticated"}
-													onDelete={() => remove.mutate(review.reviewId)}
-													onLogin={() => setAuthOpen(true)}
-													onReport={(trigger) => {
-														reportTriggerRef.current = trigger;
-														setReportReviewId(review.reviewId);
-													}}
-													review={review}
-												/>
-											</div>
-											<p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6">
-												{review.body}
-											</p>
-										</li>
-									))}
-								</ul>
-							)}
-							{reviews.hasNextPage ? (
+							</form>
+						) : session.status === "unavailable" ? (
+							<div className="mt-3">
+								<p className="text-[var(--sys-text-muted)] text-sm">暂时无法确认登录状态。</p>
 								<Button
-									className="mt-4 w-full"
-									disabled={reviews.isFetchingNextPage}
-									onClick={() => void reviews.fetchNextPage()}
+									aria-busy={session.isRefreshing || undefined}
+									className="mt-2"
+									disabled={session.isRefreshing}
+									onClick={() => void session.refresh()}
 									variant="outline"
 								>
-									{reviews.isFetchingNextPage ? "读取中" : "加载更多"}
+									{session.isRefreshing ? "正在重试" : "重试"}
 								</Button>
-							) : null}
-						</section>
-					</div>
-				</SheetContent>
-			</Sheet>
+							</div>
+						) : (
+							<Button className="mt-3" onClick={() => setAuthOpen(true)} variant="outline">
+								登录后发表
+							</Button>
+						)}
+						{mutationError ? (
+							<p className="mt-3 text-destructive text-sm" role="alert">
+								{mutationError.message}
+							</p>
+						) : null}
+					</section>
+
+					<section aria-labelledby="dining-review-list" className="pt-5">
+						<div className="flex items-center gap-2">
+							<MessageSquareText className="size-4 text-[var(--sys-text-muted)]" />
+							<h3 className="text-sm font-semibold" id="dining-review-list">
+								评价
+							</h3>
+						</div>
+						{reviews.isPending ? (
+							<div className="grid min-h-32 place-content-center text-[var(--sys-text-muted)] text-sm">
+								<LoaderCircle className="mx-auto mb-2 animate-spin" />
+								正在读取评价
+							</div>
+						) : reviews.isError ? (
+							<div className="py-8 text-center">
+								<p className="text-destructive text-sm">评价暂时无法读取。</p>
+								<Button
+									className="mt-3"
+									onClick={() => void reviews.refetch()}
+									size="sm"
+									variant="outline"
+								>
+									重试
+								</Button>
+							</div>
+						) : items.length === 0 ? (
+							<p className="py-8 text-center text-[var(--sys-text-muted)] text-sm">暂无评价</p>
+						) : (
+							<ul className="divide-y divide-border">
+								{items.map((review) => (
+									<li className="py-4" key={review.reviewId}>
+										<div className="flex items-start justify-between gap-3">
+											<div className="min-w-0">
+												<p className="font-medium text-sm">{review.authorName ?? "匿名校园用户"}</p>
+												<p className="mt-0.5 text-[var(--sys-text-subtle)] text-xs">
+													{formatTimestamp(review.createdAt)}
+													{review.edited ? " · 已编辑" : ""}
+												</p>
+											</div>
+											<ReviewActions
+												authenticated={session.status === "authenticated"}
+												onDelete={() => remove.mutate(review.reviewId)}
+												onLogin={() => setAuthOpen(true)}
+												onReport={(trigger) => {
+													reportTriggerRef.current = trigger;
+													setReportReviewId(review.reviewId);
+												}}
+												review={review}
+											/>
+										</div>
+										<p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6">
+											{review.body}
+										</p>
+									</li>
+								))}
+							</ul>
+						)}
+						{reviews.hasNextPage ? (
+							<Button
+								className="mt-4 w-full"
+								disabled={reviews.isFetchingNextPage}
+								onClick={() => void reviews.fetchNextPage()}
+								variant="outline"
+							>
+								{reviews.isFetchingNextPage ? "读取中" : "加载更多"}
+							</Button>
+						) : null}
+					</section>
+				</div>
+			</AdaptiveSheetSurface>
 
 			<Dialog
 				onOpenChange={(open) => !open && setReportReviewId(null)}
@@ -290,20 +335,17 @@ export function DiningReviewSheet(props: {
 					<div className="space-y-4">
 						<div className="space-y-2">
 							<Label htmlFor="dining-report-reason">原因</Label>
-							<Select
+							<AdaptiveSelect
+								id="dining-report-reason"
 								onValueChange={(value) => setReportReason(value as DiningReportReason)}
+								options={[
+									{ label: "垃圾信息", value: "spam" },
+									{ label: "不当内容", value: "inappropriate" },
+									{ label: "隐私泄露", value: "privacy" },
+									{ label: "其他", value: "other" },
+								]}
 								value={reportReason}
-							>
-								<SelectTrigger id="dining-report-reason">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="spam">垃圾信息</SelectItem>
-									<SelectItem value="inappropriate">不当内容</SelectItem>
-									<SelectItem value="privacy">隐私泄露</SelectItem>
-									<SelectItem value="other">其他</SelectItem>
-								</SelectContent>
-							</Select>
+							/>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="dining-report-details">补充说明</Label>

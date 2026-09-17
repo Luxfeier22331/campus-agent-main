@@ -929,5 +929,16 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			"conv_created",
 			expect.any(AbortSignal),
 		);
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([completedTerminalEvent("下一次回答。")]),
+		);
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "再试一次", type: "text" }],
+			});
+		});
+		expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(2);
+		expect(readAssistantText()).toBe("下一次回答。");
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
 	});
 });

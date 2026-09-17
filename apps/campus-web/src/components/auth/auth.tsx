@@ -47,6 +47,7 @@ export function AuthPanel({
 	onAuthenticated,
 	presentationCopy,
 	redirectTo: redirectToOverride,
+	continueInPlace = false,
 	view = "signIn",
 }: {
 	className?: string;
@@ -54,6 +55,7 @@ export function AuthPanel({
 	onAuthenticated?: () => void;
 	presentationCopy?: CampusAuthPresentationCopy | undefined;
 	redirectTo?: string;
+	continueInPlace?: boolean;
 	view?: CampusAuthView;
 }) {
 	const navigate = useNavigate();
@@ -254,6 +256,7 @@ export function AuthPanel({
 	} else {
 		content = (
 			<SignInForm
+				continueInPlace={continueInPlace}
 				onAuthenticated={completeAuthentication}
 				onSwitch={switchView}
 				onVerificationRequired={onVerificationRequired}

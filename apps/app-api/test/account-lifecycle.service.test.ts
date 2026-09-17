@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { buildAccountLifecycleService } from "../src/modules/account-lifecycle";
+import { buildAccountLifecycleService } from "../src/modules/account-lifecycle/service";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 
 function principal(): ResolvedAppPrincipal {
@@ -30,12 +30,122 @@ function executionController() {
 	};
 }
 
+function diningDeletionFixture() {
+	const request = {
+		leaseToken: "lease_dining",
+		ownerUserId: "user_1",
+		requestId: "acctdel_dining",
+	};
+	const eraseForAccountDeletion = vi.fn().mockResolvedValue(true);
+	const removeAuthUser = vi.fn();
+	const store = {
+		claimPending: vi.fn().mockResolvedValueOnce([request]).mockResolvedValue([]),
+		completeDeletion: vi.fn().mockResolvedValue(true),
+		defer: vi.fn().mockResolvedValue(true),
+		deleteOwnedData: vi.fn().mockResolvedValue(true),
+		isMemoryErased: vi.fn().mockResolvedValue(true),
+		recordFailure: vi.fn().mockResolvedValue(true),
+		renewLease: vi.fn().mockResolvedValue(true),
+		requestDeletion: vi.fn(),
+	};
+	const service = buildAccountLifecycleService({
+		diningLifecycleService: { eraseForAccountDeletion },
+		executionController: executionController(),
+		profileMemoryService: {
+			dispatchPending: vi.fn(),
+			eraseForAccountDeletion: vi.fn(),
+		},
+		removeAuthUser,
+		safetyIdentifierForUser: () => null,
+		store,
+	});
+	return { eraseForAccountDeletion, removeAuthUser, request, service, store };
+}
+
 describe("account lifecycle service", () => {
+	it("defers incomplete Dining byte deletion and resumes the same account request", async () => {
+		const { eraseForAccountDeletion, removeAuthUser, request, service, store } =
+			diningDeletionFixture();
+		eraseForAccountDeletion.mockResolvedValueOnce(false);
+		await expect(service.dispatchPending()).resolves.toEqual({
+			completed: 0,
+			failed: 0,
+			processed: 1,
+		});
+		expect(eraseForAccountDeletion).toHaveBeenCalledWith({
+			ownerUserId: request.ownerUserId,
+			requestId: request.requestId,
+		});
+		expect(store.defer).toHaveBeenCalledWith(request, expect.any(Date), expect.any(Date));
+		expect(store.deleteOwnedData).not.toHaveBeenCalled();
+		expect(removeAuthUser).not.toHaveBeenCalled();
+		expect(store.completeDeletion).not.toHaveBeenCalled();
+
+		store.claimPending.mockResolvedValueOnce([request]).mockResolvedValueOnce([]);
+		await expect(service.dispatchPending()).resolves.toEqual({
+			completed: 1,
+			failed: 0,
+			processed: 1,
+		});
+		expect(eraseForAccountDeletion).toHaveBeenCalledTimes(2);
+		expect(removeAuthUser).toHaveBeenCalledWith(request.ownerUserId);
+		expect(store.completeDeletion).toHaveBeenCalledWith(request, expect.any(Date));
+	});
+
+	it("records Dining deletion failures without removing the auth account", async () => {
+		const { eraseForAccountDeletion, removeAuthUser, request, service, store } =
+			diningDeletionFixture();
+		eraseForAccountDeletion.mockRejectedValue(new Error("Object version deletion failed"));
+		await expect(service.dispatchPending()).resolves.toEqual({
+			completed: 0,
+			failed: 1,
+			processed: 1,
+		});
+		expect(store.recordFailure).toHaveBeenCalledWith(
+			expect.objectContaining({
+				leaseToken: request.leaseToken,
+				requestId: request.requestId,
+			}),
+		);
+		expect(removeAuthUser).not.toHaveBeenCalled();
+		expect(store.completeDeletion).not.toHaveBeenCalled();
+	});
+
+	it("does not finalize when the lease expires during Dining object deletion", async () => {
+		const { eraseForAccountDeletion, removeAuthUser, service, store } = diningDeletionFixture();
+		store.renewLease
+			.mockResolvedValueOnce(true)
+			.mockResolvedValueOnce(true)
+			.mockResolvedValueOnce(false);
+		await expect(service.dispatchPending()).resolves.toEqual({
+			completed: 0,
+			failed: 0,
+			processed: 1,
+		});
+		expect(eraseForAccountDeletion).toHaveBeenCalledOnce();
+		expect(store.deleteOwnedData).not.toHaveBeenCalled();
+		expect(removeAuthUser).not.toHaveBeenCalled();
+		expect(store.completeDeletion).not.toHaveBeenCalled();
+	});
+
+	it("honors the database completion guard after Dining returns success", async () => {
+		const { removeAuthUser, service, store } = diningDeletionFixture();
+		store.deleteOwnedData.mockResolvedValue(false);
+		await expect(service.dispatchPending()).resolves.toEqual({
+			completed: 0,
+			failed: 0,
+			processed: 1,
+		});
+		expect(removeAuthUser).not.toHaveBeenCalled();
+		expect(store.completeDeletion).not.toHaveBeenCalled();
+	});
+
 	it("creates a deletion request after route-level reauthentication", async () => {
 		const requestDeletion = vi
 			.fn()
 			.mockResolvedValue({ requestId: "acctdel_1", status: "deleting" });
 		const service = buildAccountLifecycleService({
+			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: {} as never,
 			removeAuthUser: vi.fn(),
@@ -74,6 +184,7 @@ describe("account lifecycle service", () => {
 			.mockResolvedValue([]);
 		const defer = vi.fn().mockResolvedValue(true);
 		const service = buildAccountLifecycleService({
+			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: { dispatchPending, eraseForAccountDeletion },
 			removeAuthUser,
@@ -116,6 +227,7 @@ describe("account lifecycle service", () => {
 		const recordFailure = vi.fn();
 		const completeDeletion = vi.fn();
 		const service = buildAccountLifecycleService({
+			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
@@ -155,6 +267,7 @@ describe("account lifecycle service", () => {
 		const removeAuthUser = vi.fn();
 		const completeDeletion = vi.fn();
 		const service = buildAccountLifecycleService({
+			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
@@ -205,6 +318,7 @@ describe("account lifecycle service", () => {
 			];
 		});
 		const service = buildAccountLifecycleService({
+			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),

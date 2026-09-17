@@ -61,6 +61,7 @@ vi.mock("@marsidev/react-turnstile", () => ({
 	Turnstile: () => <fieldset aria-label="安全验证" />,
 }));
 
+import { AccountDeletionPage } from "../src/app/routes/account-deletion-page";
 import { AuthPanel } from "../src/components/auth/auth";
 import {
 	ForgotPasswordForm,
@@ -72,6 +73,7 @@ import {
 } from "../src/components/auth/auth-email-flows";
 import { SignInForm, SignUpForm } from "../src/components/auth/auth-forms";
 import { AccountEntry } from "../src/components/auth/user/account-entry";
+import { AuthenticatedAccountMenu } from "../src/components/auth/user/authenticated-account-menu";
 
 const sharedFormProps = {
 	onAuthenticated: vi.fn(),
@@ -234,6 +236,7 @@ describe("campus-owned authentication journeys", () => {
 			}),
 		);
 		expect(onVerificationRequired).toHaveBeenCalledWith("student@muc.edu.cn");
+		expect(screen.queryByText("这个邮箱已经注册，请直接登录。")).toBeNull();
 		expect(window.sessionStorage.getItem("campus-auth.verification-email")).toContain(
 			"student@muc.edu.cn",
 		);
@@ -447,5 +450,64 @@ describe("campus-owned authentication journeys", () => {
 			{ throw: true },
 		);
 		expect(sessionState.refresh).toHaveBeenCalledOnce();
+	});
+	it("shows invalid credentials without completing authentication", async () => {
+		const onAuthenticated = vi.fn();
+		authClient.signInEmail.mockRejectedValue(new Error("邮箱或密码不正确。"));
+		render(<SignInForm {...sharedFormProps} onAuthenticated={onAuthenticated} />);
+		fireEvent.change(screen.getByLabelText("邮箱"), { target: { value: "wrong@example.edu" } });
+		fireEvent.change(screen.getByLabelText("密码"), { target: { value: "wrongpassword123" } });
+		fireEvent.click(screen.getByRole("button", { name: "登录" }));
+		expect(await screen.findByText("邮箱或密码不正确。")).toBeVisible();
+		expect(screen.getByRole("button", { name: "登录" })).toBeEnabled();
+		expect(onAuthenticated).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["TOKEN_EXPIRED", "验证链接已过期", "这个验证链接已经过期，请发送新的验证邮件。"],
+		["INVALID_TOKEN", "无法使用此验证链接", "这个验证链接无效或已使用，请重新获取验证链接。"],
+	])("offers recovery for verification error %s", (errorCode, title, description) => {
+		const onResend = vi.fn();
+		render(
+			<VerificationResult
+				errorCode={errorCode}
+				onContinue={vi.fn()}
+				onResend={onResend}
+				onSignIn={vi.fn()}
+			/>,
+		);
+		expect(screen.getByRole("heading", { name: title })).toBeVisible();
+		expect(screen.getByText(description)).toBeVisible();
+		fireEvent.click(screen.getByRole("button", { name: /验证链接|验证邮件/u }));
+		expect(onResend).toHaveBeenCalledOnce();
+	});
+
+	it("ignores verification delivery claims in the URL without an action result", () => {
+		window.history.replaceState(
+			{},
+			"",
+			"/account/verify-email?email=student@example.edu&delivery=failed",
+		);
+		render(<AuthPanel view="verifyEmail" />);
+		expect(screen.getByRole("heading", { name: "验证邮箱" })).toBeVisible();
+		expect(screen.queryByText("验证邮件未发送")).toBeNull();
+		expect(screen.getByRole("button", { name: "发送验证邮件" })).toBeEnabled();
+	});
+
+	it("does not claim account deletion on direct result-page access", () => {
+		render(<AccountDeletionPage />);
+		expect(screen.getByText("无法确认注销请求")).toBeVisible();
+		expect(screen.queryByText("注销请求已受理")).toBeNull();
+	});
+
+	it("keeps the account signed in when sign-out fails", async () => {
+		const onSignedOut = vi.fn();
+		authClient.signOut.mockRejectedValue(new Error("temporarily unavailable"));
+		render(<AuthenticatedAccountMenu open onSignedOut={onSignedOut} />);
+		fireEvent.click(screen.getByRole("menuitem", { name: "退出登录" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent("退出失败，你仍保持登录状态");
+		expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeEnabled();
+		expect(sessionState.refresh).not.toHaveBeenCalled();
+		expect(onSignedOut).not.toHaveBeenCalled();
 	});
 });

@@ -373,6 +373,43 @@ describe("campus worker boundary", () => {
 		await expect(response.text()).resolves.not.toContain("__CAMPUS_RUNTIME_CONFIG__");
 	});
 
+	it("streams submission edits to App API and preserves concurrency and replay headers", async () => {
+		let finishBody: () => void = () => undefined;
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode('{"name":"面","priceText":null,"photoAction":"keep"}'),
+				);
+				finishBody = () => controller.close();
+			},
+		});
+		const appApiFetch = vi.fn(async (request: Request) => {
+			// Upstream admission must start before the complete client body arrives.
+			finishBody();
+			expect(request.headers.get("if-match")).toBe('"7"');
+			expect(request.headers.get("idempotency-key")).toBe("submission-replay-key");
+			expect(request.headers.get("cookie")).toBe("session=member");
+			await expect(request.json()).resolves.toMatchObject({ name: "面", photoAction: "keep" });
+			return new Response("{}", { headers: { etag: '"8"', "content-type": "application/json" } });
+		});
+		const request = new Request("https://campus.muc.wiki/api/dining/me/submissions/submission_1", {
+			method: "PATCH",
+			body,
+			...{ duplex: "half" },
+			headers: {
+				"if-match": '"7"',
+				"idempotency-key": "submission-replay-key",
+				"content-type": "application/json",
+				cookie: "session=member",
+			},
+		});
+		const response = await worker.fetch(request, createEnv({ fetch: appApiFetch }));
+		expect(appApiFetch).toHaveBeenCalledOnce();
+		expect(response.status).toBe(200);
+		expect(response.headers.get("etag")).toBe('"8"');
+		expect(response.headers.get("cache-control")).toBe("no-store");
+	}, 2000);
+
 	it("forwards browser trace context headers into canonical app-api chat streams", async () => {
 		const forwardedRequests: Request[] = [];
 		const env = createEnv({
@@ -698,5 +735,82 @@ describe("campus worker boundary", () => {
 		expect(html).toContain("https://campus.muc.wiki/account");
 		expect(html).toContain("https://campus.muc.wiki/account/login");
 		expect(html).not.toContain("loginReturnApp");
+	});
+	it("forwards admitted discovery, auth, memory, feedback and chat requests with their methods", async () => {
+		const env = createEnv({
+			fetch: async (request) =>
+				Response.json({ method: request.method, path: new URL(request.url).pathname }),
+		});
+		const requests: Array<readonly [string, string]> = [
+			["GET", "/.well-known/openid-configuration"],
+			["GET", "/.well-known/oauth-authorization-server"],
+			...[
+				"get-session",
+				"list-accounts",
+				"list-sessions",
+				"sign-in/email",
+				"sign-up/email",
+				"sign-out",
+				"request-password-reset",
+				"reset-password",
+			].map((path) => ["POST", `/api/auth/${path}`] as const),
+			["POST", "/api/me/profile-memory/items"],
+			["PATCH", "/api/me/profile-memory/items/mem_e2e"],
+			["PATCH", "/api/me/profile-memory/settings"],
+			["DELETE", "/api/me/profile-memory/items/mem_e2e"],
+			["DELETE", "/api/me/profile-memory"],
+			["POST", "/api/chat/conversations/conv_e2e/archive"],
+			["DELETE", "/api/chat/conversations/conv_e2e"],
+			["POST", "/api/chat/conversations/conv_e2e/messages/msg_e2e/feedback"],
+			["DELETE", "/api/chat/conversations/conv_e2e/messages/msg_e2e/trailing"],
+			["POST", "/api/chat/requests/stream"],
+			["POST", "/api/chat/requests/req_e2e/cancel"],
+			["POST", "/api/feedback"],
+		];
+		for (const [method, path] of requests) {
+			const response = await worker.fetch(
+				new Request(`https://campus.muc.wiki${path}`, {
+					method,
+					...(method === "GET" ? {} : { body: "{}" }),
+				}),
+				env,
+			);
+			expect(response.status, `${method} ${path}`).toBe(200);
+			await expect(response.json()).resolves.toEqual({ method, path });
+		}
+	});
+
+	it("rejects retired and unknown routes before calling App API or assets", async () => {
+		const fetch = vi.fn(() => Response.json({ unexpected: true }));
+		const env = createEnv({ fetch }, { fetch });
+		for (const path of [
+			"/api/me/overview",
+			"/api/me/identity",
+			"/api/me/access",
+			"/api/me/preferences",
+			"/api/me/admin",
+			"/api/me/security/sessions",
+			"/api/me/security/sessions/session_e2e",
+			"/api/me/authorized-apps",
+			"/api/me/authorized-apps/retired-client-e2e",
+			"/api/me/profile-memory/export",
+			"/api/auth/admin",
+			"/api/chat/admin",
+			"/api/federation/admin",
+			"/api/ops/dining",
+			"/api/docs/readyz",
+			"/api/docs/collections/regulations/student_rules/navigation",
+			...["curriculum_plan", "undergraduate", "second_degree", "general_education"].flatMap(
+				(collection) => [
+					`/_gated-docs/curriculum/${collection}/old/reader.json`,
+					`/_gated-docs-search/curriculum/${collection}/old/index.json`,
+				],
+			),
+		]) {
+			const response = await worker.fetch(new Request(`https://campus.muc.wiki${path}`), env);
+			expect(response.status, path).toBe(404);
+			expect(response.headers.get("content-type")).toContain("application/json");
+		}
+		expect(fetch).not.toHaveBeenCalled();
 	});
 });

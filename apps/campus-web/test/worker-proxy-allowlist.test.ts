@@ -27,6 +27,29 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/dining/reviews/review-1/edit")).toBe(false);
 	});
 
+	it("allows submission and current photo paths without exposing moderation or history", () => {
+		for (const path of [
+			"/api/dining/windows/hall:floor:window/submissions",
+			"/api/dining/submissions/submission_1",
+			"/api/dining/submissions/submission_1/reviews",
+			"/api/dining/submissions/submission_1/reports",
+			"/api/dining/submissions/submission_1/photos/photo_1",
+			"/api/dining/me/submissions",
+			"/api/dining/me/submissions/submission_1",
+			"/api/dining/me/submissions/submission_1/photos/photo_1",
+		]) {
+			expect(isAllowedCampusAppApiRequest(path)).toBe(true);
+		}
+		for (const path of [
+			"/api/dining/submissions/submission_1/history",
+			"/api/dining/submissions/submission_1/restore",
+			"/api/ops/dining/submissions/submission_1",
+			"/api/dining/me/submissions/submission_1/photos/photo_1/extra",
+		]) {
+			expect(isAllowedCampusAppApiRequest(path)).toBe(false);
+		}
+	});
+
 	it("allows profile memory routes used by the student account surface", () => {
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/items")).toBe(true);

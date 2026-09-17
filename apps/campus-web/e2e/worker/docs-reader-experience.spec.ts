@@ -418,8 +418,9 @@ test.describe("docs reader experience", () => {
 			"https://campus.muc.wiki/docs",
 		);
 
-		await expect(startPage.getByRole("link", { name: "学生考勤管理规定" })).toBeVisible();
-		await startPage.getByRole("link", { name: "学生考勤管理规定" }).click();
+		const directory = page.getByRole("navigation", { name: "文档目录" });
+		await directory.getByRole("button", { name: "校园生活" }).click();
+		await directory.getByRole("link", { name: "学生考勤管理规定" }).click();
 		await expect(page).toHaveURL(publicReaderPath);
 		await waitForDocsHydration(page);
 		await expect(page.getByRole("heading", { level: 1, name: "学生考勤管理规定" })).toBeVisible();
@@ -583,7 +584,11 @@ test.describe("docs reader experience", () => {
 		await page.goto(publicReaderPath, { waitUntil: "domcontentloaded" });
 		await waitForDocsHydration(page);
 
-		await expect(page.getByText("校园文档", { exact: true }).first()).toBeVisible();
+		await expect(
+			page
+				.getByRole("navigation", { name: "面包屑" })
+				.getByRole("link", { name: "校园文档", exact: true }),
+		).toBeVisible();
 		const metadata = page.locator(".document-meta-summary");
 		await expect(metadata).not.toContainText("校园生活");
 		await expect(page.getByRole("navigation", { name: "面包屑" })).toContainText("校园生活");

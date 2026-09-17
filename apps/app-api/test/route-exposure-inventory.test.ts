@@ -19,6 +19,7 @@ const routeFiles = [
 	"chat-request-routes.ts",
 	"chat-run-routes.ts",
 	"dining.ts",
+	"dining-submissions.ts",
 	"federation.ts",
 	"internal.ts",
 	"notices.ts",

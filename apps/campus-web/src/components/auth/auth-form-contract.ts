@@ -11,6 +11,7 @@ export interface SharedAuthFormProps {
 	onSwitch: (view: AuthFormView) => void;
 	onVerificationRequired: (email: string, failure?: VerificationDeliveryFailure) => void;
 	redirectTo: string;
+	continueInPlace?: boolean;
 }
 
 export interface AuthFormFrameProps {

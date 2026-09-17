@@ -16,6 +16,10 @@ import {
 	verification,
 } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
+import {
+	acceptDiningAccountDeletion,
+	isDiningAccountDeletionComplete,
+} from "../dining/lifecycle-store";
 import type { AccountLifecycleStore } from "./types";
 
 function accountError(code: string, message: string, status: number): AppApiRouteError {
@@ -53,6 +57,7 @@ export function createPgAccountLifecycleStore(input: {
 					status: "pending",
 					updatedAt: request.requestedAt,
 				});
+				await acceptDiningAccountDeletion(tx, request);
 				await tx
 					.update(user)
 					.set({
@@ -208,6 +213,9 @@ export function createPgAccountLifecycleStore(input: {
 					.where(eq(user.id, request.ownerUserId))
 					.limit(1)
 					.for("update");
+				if (!(await isDiningAccountDeletionComplete(tx, request))) {
+					return false;
+				}
 
 				const conversationRows = await tx
 					.select({ id: conversations.id })
@@ -260,6 +268,9 @@ export function createPgAccountLifecycleStore(input: {
 					.limit(1)
 					.for("update");
 				if (!leases[0]) {
+					return false;
+				}
+				if (!(await isDiningAccountDeletionComplete(tx, request))) {
 					return false;
 				}
 				await tx

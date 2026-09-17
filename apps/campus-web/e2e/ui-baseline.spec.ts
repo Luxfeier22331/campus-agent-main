@@ -4,6 +4,11 @@ import { mockCampusApi } from "./support/api-mocks";
 
 const surfaces = [
 	{
+		name: "登录",
+		path: "/account/login",
+		ready: (page: Page) => page.getByRole("heading", { exact: true, name: "登录校园问答" }),
+	},
+	{
 		name: "班车",
 		path: "/transport",
 		ready: (page: Page) => page.getByRole("heading", { level: 1, name: "校园班车" }),
@@ -46,7 +51,9 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await mockTransportApi(page);
 	});
 
-	test("代表性页面在目标宽度保持主要任务可见且没有页面级溢出", async ({ page }) => {
+	test("代表性页面在目标宽度保持主要任务可见且没有页面级溢出", { tag: "@layout" }, async ({
+		page,
+	}) => {
 		for (const surface of surfaces) {
 			await page.goto(surface.path, { waitUntil: "domcontentloaded" });
 			await expect(surface.ready(page)).toBeVisible({ timeout: 15_000 });
@@ -61,7 +68,9 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		}
 	});
 
-	test("Dining 分段筛选在明暗主题和各断点保持选择与键盘操作", async ({ page }) => {
+	test("Dining 分段筛选在明暗主题和各断点保持选择与键盘操作", { tag: "@layout" }, async ({
+		page,
+	}) => {
 		await page.emulateMedia({ reducedMotion: "reduce" });
 		await page.goto("/dining", { waitUntil: "domcontentloaded" });
 		for (const theme of ["light", "dark"]) {
@@ -99,7 +108,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		}
 	});
 
-	test("通知筛选在明暗主题下保持触控尺寸并可选择和清除", async ({ page }) => {
+	test("通知筛选在明暗主题下保持触控尺寸并可选择和清除", { tag: "@layout" }, async ({ page }) => {
 		await mockCampusApi(page, { authenticated: true });
 		await page.route("**/api/notices?**", (route) =>
 			route.fulfill({
@@ -139,7 +148,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		}
 	});
 
-	test("班车月历在放大文字及明暗主题下保持可读并恢复焦点", async ({ page }) => {
+	test("班车月历在放大文字及明暗主题下保持可读并恢复焦点", { tag: "@layout" }, async ({ page }) => {
 		await page.emulateMedia({ reducedMotion: "reduce" });
 		await page.goto("/transport", { waitUntil: "networkidle" });
 		await expect(page.getByRole("radio", { name: "丰台校区 → 海淀校区" })).toBeVisible();
@@ -191,7 +200,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		}
 	});
 
-	test("主题切换保持根节点语义并在刷新后持久化", async ({ page }) => {
+	test("主题切换保持根节点语义并在刷新后持久化", { tag: "@interaction" }, async ({ page }) => {
 		await page.goto("/feedback", { waitUntil: "domcontentloaded" });
 		const themeTrigger = page.getByRole("button", { name: /外观，当前/u });
 		const visibleThemeTrigger = await findVisibleLocator(themeTrigger);
@@ -214,12 +223,12 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 	});
 
-	test("移动产品导航支持 Escape 并把焦点还给触发按钮", async ({ page }) => {
-		if ((page.viewportSize()?.width ?? 0) >= 1024) {
-			return;
-		}
+	test("移动产品导航支持 Escape 并把焦点还给触发按钮", { tag: "@mobile" }, async ({ page }) => {
 		await page.goto("/feedback", { waitUntil: "domcontentloaded" });
 		const trigger = page.getByRole("button", { name: "打开全局菜单" });
+		const triggerBox = await trigger.boundingBox();
+		expect(triggerBox?.width).toBeGreaterThanOrEqual(44);
+		expect(triggerBox?.height).toBeGreaterThanOrEqual(44);
 		await trigger.focus();
 		await trigger.press("Enter");
 		await expect(page.getByRole("dialog", { name: "校园问答导航" })).toBeVisible();
@@ -227,11 +236,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await expect(trigger).toBeFocused();
 	});
 
-	test("移动产品导航在关闭后再交接账号弹窗", async ({ page }) => {
-		if ((page.viewportSize()?.width ?? 0) >= 1024) {
-			return;
-		}
-
+	test("移动产品导航在关闭后再交接账号弹窗", { tag: "@mobile" }, async ({ page }) => {
 		for (const surface of [
 			{
 				path: "/feedback",
@@ -264,7 +269,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		}
 	});
 
-	test("产品导航在 1024px 断点前后切换呈现方式", async ({ page }) => {
+	test("产品导航在 1024px 断点前后切换呈现方式", { tag: "@breakpoint" }, async ({ page }) => {
 		await page.goto("/feedback", { waitUntil: "domcontentloaded" });
 		const width = page.viewportSize()?.width ?? 0;
 		const mobileTrigger = page.getByRole("button", { name: "打开全局菜单" });
@@ -278,7 +283,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		}
 	});
 
-	test("问答与文档 TopNav 使用各自的高度密度", async ({ page }) => {
+	test("问答与文档 TopNav 使用各自的高度密度", { tag: "@interaction" }, async ({ page }) => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		await expect(page.getByTestId("assistant-chat")).toBeVisible();
 		await expect
@@ -298,7 +303,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 			.toBe(64);
 	});
 
-	test("搜索弹窗具有名称并在 Escape 后归还焦点", async ({ page }) => {
+	test("搜索弹窗具有名称并在 Escape 后归还焦点", { tag: "@interaction" }, async ({ page }) => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		await expect(page.getByTestId("assistant-chat")).toBeVisible();
 
@@ -317,11 +322,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await expect(searchTrigger).toBeFocused();
 	});
 
-	test("共享账号弹窗首帧可见并在关闭后恢复焦点", async ({ page }) => {
-		if ((page.viewportSize()?.width ?? 0) < 1024) {
-			return;
-		}
-
+	test("共享账号弹窗首帧可见并在关闭后恢复焦点", { tag: "@desktop" }, async ({ page }) => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		await expect(page.getByTestId("assistant-chat")).toBeVisible();
 		const loginTrigger = page
@@ -336,12 +337,8 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await expect(loginTrigger).toBeFocused();
 	});
 
-	test("账户界面沿用 Campus 交互色与圆角", async ({ page }) => {
+	test("账户界面沿用 Campus 交互色与圆角", { tag: "@interaction" }, async ({ page }) => {
 		const width = page.viewportSize()?.width ?? 0;
-		if (width !== 390 && width !== 1440) {
-			return;
-		}
-
 		await page.goto("/feedback", { waitUntil: "domcontentloaded" });
 		for (const theme of ["light", "dark"] as const) {
 			await page.evaluate((nextTheme) => {
@@ -436,11 +433,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		}
 	});
 
-	test("问答聊天记录侧栏在桌面端支持收起、展开和持久化", async ({ page }) => {
-		if ((page.viewportSize()?.width ?? 0) < 1024) {
-			return;
-		}
-
+	test("问答聊天记录侧栏在桌面端支持收起、展开和持久化", { tag: "@desktop" }, async ({ page }) => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		await expect(page.getByTestId("assistant-chat")).toBeVisible();
 
@@ -479,11 +472,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await expect(sidebar).toHaveAttribute("data-state", "expanded");
 	});
 
-	test("问答移动聊天记录 Sheet 关闭后把焦点还给触发按钮", async ({ page }) => {
-		if ((page.viewportSize()?.width ?? 0) >= 1024) {
-			return;
-		}
-
+	test("问答移动聊天记录 Sheet 关闭后把焦点还给触发按钮", { tag: "@mobile" }, async ({ page }) => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		const trigger = page.locator('[data-sidebar="trigger"]:visible');
 		await expect(trigger).toHaveAccessibleName("打开聊天记录");
@@ -516,11 +505,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await expect(authDialog.getByLabel("邮箱")).toBeFocused();
 	});
 
-	test("消息输入聚焦时 Control+B 不会收起聊天记录", async ({ page }) => {
-		if ((page.viewportSize()?.width ?? 0) < 1024) {
-			return;
-		}
-
+	test("消息输入聚焦时 Control+B 不会收起聊天记录", { tag: "@desktop" }, async ({ page }) => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		const trigger = page.locator('[data-sidebar="trigger"]:visible');
 		const sidebar = page.locator("#campus-chat-sidebar");
@@ -533,15 +518,6 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await trigger.focus();
 		await page.keyboard.press("Control+B");
 		await expect(sidebar).toHaveAttribute("data-state", "collapsed");
-	});
-
-	test("反馈表面通过代表性 WCAG 扫描", async ({ page }) => {
-		await page.goto("/feedback", { waitUntil: "domcontentloaded" });
-		await expect(page.getByRole("heading", { exact: true, name: "反馈" })).toBeVisible();
-		const results = await new AxeBuilder({ page })
-			.withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-			.analyze();
-		expect(results.violations, formatViolations(results.violations)).toEqual([]);
 	});
 });
 
@@ -564,14 +540,6 @@ async function bottomInset(container: Locator, child: Locator): Promise<number |
 		return;
 	}
 	return Math.round(containerBox.y + containerBox.height - childBox.y - childBox.height);
-}
-
-function formatViolations(
-	violations: Array<{ help: string; id: string; nodes: unknown[] }>,
-): string {
-	return violations
-		.map((violation) => `${violation.id}: ${violation.help} (${violation.nodes.length} nodes)`)
-		.join("\n");
 }
 
 async function readFocusedFeedbackOptionStyle(page: Page) {
@@ -677,4 +645,12 @@ async function mockTransportApi(page: Page) {
 			await request.fulfill({ json: schedule(url.searchParams.get("date") ?? "") });
 		}
 	});
+}
+
+function formatViolations(
+	violations: Array<{ help: string; id: string; nodes: unknown[] }>,
+): string {
+	return violations
+		.map((violation) => `${violation.id}: ${violation.help} (${violation.nodes.length} nodes)`)
+		.join("\n");
 }

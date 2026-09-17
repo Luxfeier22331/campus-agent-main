@@ -123,6 +123,98 @@ describe("campus worker public app-api cache", () => {
 		expect(appApiFetch).toHaveBeenCalledTimes(2);
 	});
 
+	it.each([
+		"/api/dining/windows/window_1/submissions",
+		"/api/dining/submissions/submission_1",
+		"/api/dining/submissions/submission_1/reviews",
+	])(
+		"always rechecks submission reads even if an upstream response claims cacheability: %s",
+		async (pathname) => {
+			installFakeEdgeCache();
+			const appApiFetch = vi.fn(
+				async () => new Response("photo", { headers: { "cache-control": "public, max-age=600" } }),
+			);
+			const env = createEnv({ fetch: appApiFetch });
+			for (let i = 0; i < 2; i++) {
+				const response = await worker.fetch(new Request(`https://campus.muc.wiki${pathname}`), env);
+				expect(response.headers.get("cache-control")).toBe("no-store");
+			}
+			expect(appApiFetch).toHaveBeenCalledTimes(2);
+		},
+	);
+
+	it.each([
+		"/api/dining/submissions/submission_1/photos/photo_1",
+		"/api/dining/me/submissions/submission_1/photos/photo_1",
+	])("forces submission photos into store-but-revalidate policy: %s", async (pathname) => {
+		installFakeEdgeCache();
+		const appApiFetch = vi.fn(
+			async () =>
+				new Response("photo", {
+					headers: { "cache-control": "public, max-age=600", etag: '"photo_1"' },
+				}),
+		);
+		const env = createEnv({ fetch: appApiFetch });
+
+		const first = await worker.fetch(new Request(`https://campus.muc.wiki${pathname}`), env);
+		const second = await worker.fetch(new Request(`https://campus.muc.wiki${pathname}`), env);
+
+		expect(first.headers.get("cache-control")).toBe("private, no-cache");
+		expect(first.headers.get("etag")).toBe('"photo_1"');
+		expect(first.headers.get("x-campus-edge-cache")).toBeNull();
+		expect(second.headers.get("cache-control")).toBe("private, no-cache");
+		expect(appApiFetch).toHaveBeenCalledTimes(2);
+	});
+
+	it.each([
+		"/api/dining/submissions/submission_1/photos/photo_1",
+		"/api/dining/me/submissions/submission_1/photos/photo_1",
+	])("forwards photo validators and passes a 304 through: %s", async (pathname) => {
+		installFakeEdgeCache();
+		const appApiFetch = vi.fn(async (request: Request) =>
+			request.headers.get("if-none-match") === '"photo_1"'
+				? new Response(null, { status: 304, headers: { etag: '"photo_1"' } })
+				: new Response("photo", { headers: { etag: '"photo_1"' } }),
+		);
+		const env = createEnv({ fetch: appApiFetch });
+
+		const first = await worker.fetch(new Request(`https://campus.muc.wiki${pathname}`), env);
+		const revalidation = await worker.fetch(
+			new Request(`https://campus.muc.wiki${pathname}`, {
+				headers: { "if-none-match": '"photo_1"' },
+			}),
+			env,
+		);
+
+		expect(first.status).toBe(200);
+		expect(revalidation.status).toBe(304);
+		expect(revalidation.headers.get("cache-control")).toBe("private, no-cache");
+		expect(revalidation.headers.get("etag")).toBe('"photo_1"');
+		expect(appApiFetch).toHaveBeenCalledTimes(2);
+		const upstreamSecondCall = appApiFetch.mock.calls[1]?.[0] as Request;
+		expect(upstreamSecondCall.headers.get("if-none-match")).toBe('"photo_1"');
+	});
+
+	it("keeps photo error responses no-store without a validator escape", async () => {
+		installFakeEdgeCache();
+		const appApiFetch = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ error: { code: "dining_submission_photo_not_found" } }), {
+					headers: { "content-type": "application/json" },
+					status: 404,
+				}),
+		);
+		const env = createEnv({ fetch: appApiFetch });
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/dining/submissions/submission_1/photos/photo_1"),
+			env,
+		);
+
+		expect(response.status).toBe(404);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+	});
+
 	it("does not cache dining requests with query parameters", async () => {
 		installFakeEdgeCache();
 		const appApiFetch = vi.fn((request: Request) =>

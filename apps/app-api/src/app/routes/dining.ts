@@ -9,6 +9,7 @@ import type { AppAuthResolutionInput, ResolvedAppPrincipal } from "../../modules
 import { requireSessionPrincipal, resolvePrincipalForScope } from "../principal";
 import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
+import { submissionPathId } from "./dining-submission-request";
 
 const DINING_MENU_CACHE_CONTROL = "public, max-age=30, s-maxage=60";
 
@@ -91,6 +92,63 @@ export function registerDiningContentRoutes(input: {
 		}
 	});
 
+	input.app.get("/api/dining/submissions/:submissionId/reviews", async (c) => {
+		const scope = input.createRequestScope();
+		try {
+			const cursor = c.req.query("cursor");
+			const principal = await resolvePrincipalForScope({
+				env: input.env,
+				getPrincipal: input.getPrincipal,
+				request: c.req.raw,
+				scope,
+			});
+			return jsonResponse(
+				await scope.resolveDiningContentService().listSubmissionReviews({
+					...(cursor ? { cursor } : {}),
+					limit: parseLimit(c.req.query("limit")),
+					submissionId: submissionPathId(c.req.param("submissionId")),
+					viewerUserId: principal?.principal.principalId ?? null,
+				}),
+			);
+		} catch (error) {
+			return handleDiningError(error);
+		}
+	});
+
+	input.app.post("/api/dining/submissions/:submissionId/reviews", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+		try {
+			const body = DiningReviewCreateSchema.parse(await readJsonRequestBody(c.req.raw));
+			return jsonResponse(
+				{
+					review: await scope.resolveDiningContentService().createSubmissionReview({
+						actor: {
+							displayName: resolved.principal.principal.displayName,
+							kind: "member",
+							principalId: resolved.principal.principal.principalId,
+						},
+						anonymous: body.anonymous,
+						body: body.body,
+						idempotencyKey: requireIdempotencyKey(c.req.raw),
+						submissionId: submissionPathId(c.req.param("submissionId")),
+					}),
+				},
+				{ status: 201 },
+			);
+		} catch (error) {
+			return handleDiningError(error);
+		}
+	});
+
 	input.app.delete("/api/dining/reviews/:reviewId", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({
@@ -131,6 +189,32 @@ export function registerDiningContentRoutes(input: {
 					details: body.details?.trim() || null,
 					reason: body.reason,
 					reviewId: requirePathId(c.req.param("reviewId")),
+					userId: resolved.principal.principal.principalId,
+				}),
+				{ status: 201 },
+			);
+		} catch (error) {
+			return handleDiningError(error);
+		}
+	});
+	input.app.post("/api/dining/submissions/:submissionId/reports", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+		try {
+			const body = DiningReviewReportCreateSchema.parse(await readJsonRequestBody(c.req.raw));
+			return jsonResponse(
+				await scope.resolveDiningContentService().reportSubmission({
+					details: body.details?.trim() || null,
+					reason: body.reason,
+					submissionId: submissionPathId(c.req.param("submissionId")),
 					userId: resolved.principal.principal.principalId,
 				}),
 				{ status: 201 },

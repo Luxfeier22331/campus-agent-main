@@ -156,4 +156,12 @@ describe("interest groups page", () => {
 		expect(screen.getByRole("searchbox", { name: "搜索同好群" })).toBeDisabled();
 		expect(screen.getByText("共收录 0 条目录")).toBeInTheDocument();
 	});
+	it.each(["外拍", "123456789"])("filters the catalog by tag or QQ number: %s", async (query) => {
+		const user = userEvent.setup();
+		render(<InterestGroupsPageContent catalog={catalog} />);
+		await user.type(screen.getByRole("searchbox", { name: "搜索同好群" }), query);
+		expect(screen.getByRole("heading", { name: "摄影同好群" })).toBeInTheDocument();
+		expect(screen.queryByRole("heading", { name: "羽毛球约球群" })).toBeNull();
+		expect(screen.getByRole("button", { name: "复制群号 123456789" })).toBeInTheDocument();
+	});
 });

@@ -64,6 +64,18 @@ serving 负责 chunk/embedding 内容寻址制品与当前索引发布，Campus 
 来源清单引用的 reader 和补充资产。当前及历史仍被清单引用的对象不得由通用 TTL 删除；未被引用的对象
 只能在人工重新计算存活集合并核对后清理。
 
+上述清单保护和人工核对约束针对来源与 reader 发布资产，不是整个 derived bucket 的统一 TTL。
+已接受的 Dining 用户投稿需求使用领域自己的可见性、引用和到期事件；规范化照片的自动清理由
+Dining 与 App API 所有，不扫描或删除相邻来源资产，规则集中于
+[Dining PRD](../../../../docs/product/dining.md)。源码已接入投稿对象适配器与清理，并在现有 derived 写策略
+中补充投稿前缀的删除与版本枚举权限；复用既有身份，交付位置见
+[对象存储配置](../../../../docs/environment/providers.md#对象存储)。源码配置不证明云端策略已经生效，
+仍须验收引用保护和实际版本字节删除。
+
+2026-09-17 已通过 GitOps 共享凭据流程将集群现有 derived writer 投递到 GitOps 与 Source staging，
+相关 Argo Application 与 Source secret 同步成功。该结果只证明凭据交付；Dining 分支的策略、迁移
+和 Worker 仍随 Source promotion 部署，真实 Images 与版本删除能力保留环境验收。
+
 bucket versioning 只提供对象版本操作能力，不等于独立备份。备份目的地、保留期、RPO/RTO 和恢复演练
 由环境 owner 提供；应用仓库不因使用 RustFS 自动声称已有备份。恢复应先写入隔离目标，再按来源摘要、
 对象 checksum、当前索引绑定和 Qdrant collection 进行核对。

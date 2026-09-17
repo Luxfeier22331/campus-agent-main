@@ -1,4 +1,7 @@
-import type { DiningMenuItemRecord, DiningOpsReviewRecord } from "@campus-agent/dining/domain";
+import type {
+	DiningMenuItemRecord,
+	DiningOpsContentReviewRecord,
+} from "@campus-agent/dining/domain";
 import {
 	Badge,
 	Button,
@@ -33,13 +36,21 @@ import { DataTable } from "./ui/data-table";
 
 type ReviewVisibility = "deleted" | "hidden" | "visible";
 
-export function DiningReviewsPage() {
+export function DiningReviewsPage({
+	initialSubmissionId,
+}: {
+	initialSubmissionId?: string | undefined;
+} = {}) {
 	const queryClient = useQueryClient();
 	const [cursor, setCursor] = useState<string | undefined>();
 	const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([]);
 	const [queryInput, setQueryInput] = useState("");
 	const [query, setQuery] = useState("");
 	const [menuItemId, setMenuItemId] = useState("");
+	const [targetType, setTargetType] = useState<"menu_item" | "submission" | "">(
+		initialSubmissionId ? "submission" : "",
+	);
+	const [submissionId, setSubmissionId] = useState(initialSubmissionId ?? "");
 	const [visibility, setVisibility] = useState<ReviewVisibility>("visible");
 	const [detailReviewId, setDetailReviewId] = useState<string | null>(null);
 	const [creating, setCreating] = useState(false);
@@ -55,12 +66,23 @@ export function DiningReviewsPage() {
 					...(cursor ? { cursor } : {}),
 					limit: 50,
 					...(menuItemId ? { menuItemId } : {}),
+					...(targetType ? { targetType } : {}),
+					...(submissionId.trim() ? { submissionId: submissionId.trim() } : {}),
 					...(query ? { q: query } : {}),
 					visibility,
 				},
 				{ signal },
 			),
-		queryKey: ["dining", "reviews", cursor, menuItemId, query, visibility],
+		queryKey: [
+			"dining",
+			"reviews",
+			cursor,
+			menuItemId,
+			query,
+			visibility,
+			targetType,
+			submissionId,
+		],
 	});
 	const visibilityMutation = useMutation({
 		mutationFn: (input: { reviewId: string; visible: boolean }) =>
@@ -116,10 +138,42 @@ export function DiningReviewsPage() {
 						</Button>
 					</div>
 				}
-				description="查看学生评价，录入普通评价，并处理内容修改和公开状态。"
+				description="查看学生评价，录入普通评价，并处理内容修改和隐藏状态。"
 				title="评价维护"
 			/>
 
+			<div className="mb-3 grid gap-3 md:grid-cols-2">
+				<label className="grid gap-1 text-sm" htmlFor="review-target">
+					<span>评价目标</span>
+					<NativeSelect
+						id="review-target"
+						value={targetType}
+						onChange={(event) => {
+							setTargetType(event.target.value as "menu_item" | "submission" | "");
+							setMenuItemId("");
+							setSubmissionId("");
+							resetPage();
+						}}
+					>
+						<option value="">全部目标</option>
+						<option value="menu_item">正式菜品</option>
+						<option value="submission">用户投稿</option>
+					</NativeSelect>
+				</label>
+				{targetType === "submission" ? (
+					<label className="grid gap-1 text-sm" htmlFor="review-submission">
+						<span>投稿标识</span>
+						<Input
+							id="review-submission"
+							value={submissionId}
+							onChange={(event) => {
+								setSubmissionId(event.target.value);
+								resetPage();
+							}}
+						/>
+					</label>
+				) : null}
+			</div>
 			<form
 				className="mb-4 grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(14rem,22rem)_12rem_auto] lg:items-end"
 				onSubmit={(event) => {
@@ -144,6 +198,7 @@ export function DiningReviewsPage() {
 					<NativeSelect
 						className="min-h-11"
 						id="dining-review-menu-item"
+						disabled={targetType === "submission"}
 						onChange={(event) => {
 							setMenuItemId(event.target.value);
 							resetPage();
@@ -170,7 +225,7 @@ export function DiningReviewsPage() {
 						}}
 						value={visibility}
 					>
-						<option value="visible">公开</option>
+						<option value="visible">未隐藏</option>
 						<option value="hidden">已隐藏</option>
 						<option value="deleted">已删除</option>
 					</NativeSelect>
@@ -198,7 +253,9 @@ export function DiningReviewsPage() {
 						{
 							cell: (review) => (
 								<div className="max-w-xl">
-									<p className="line-clamp-3 whitespace-pre-wrap text-foreground">{review.body}</p>
+									<p className="line-clamp-3 whitespace-pre-wrap text-foreground">
+										{review.body ?? "正文已到期或清理"}
+									</p>
 									<div className="mt-2 flex flex-wrap gap-2">
 										{review.editedAt ? <Badge tone="neutral">已编辑</Badge> : null}
 										{review.authorKind === "operator" ? (
@@ -213,7 +270,7 @@ export function DiningReviewsPage() {
 						{
 							cell: (review) => (
 								<div>
-									<p className="font-medium">{review.menuItemName}</p>
+									<p className="font-medium">{reviewTargetName(review)}</p>
 									<p className="mt-1 font-mono text-muted-foreground text-xs">{review.windowId}</p>
 								</div>
 							),
@@ -222,7 +279,7 @@ export function DiningReviewsPage() {
 						{
 							cell: (review) => (
 								<div>
-									<p>{review.authorDisplayName}</p>
+									<p>{review.authorDisplayName ?? "身份已清理"}</p>
 									<p className="mt-1 text-muted-foreground text-xs">
 										{review.anonymous ? "公开匿名" : "公开署名"}
 									</p>
@@ -431,7 +488,7 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 	});
 	useEffect(() => {
 		if (detail.data) {
-			setBody(detail.data.review.body);
+			setBody(detail.data.review.body ?? "");
 		}
 	}, [detail.data]);
 	const update = useMutation({
@@ -463,11 +520,11 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 						<div className="grid gap-1 border-border border-y py-3 text-sm sm:grid-cols-2">
 							<p>
 								<span className="text-muted-foreground">菜品：</span>
-								{detail.data.review.menuItemName}
+								{reviewTargetName(detail.data.review)}
 							</p>
 							<p>
 								<span className="text-muted-foreground">作者：</span>
-								{detail.data.review.authorDisplayName}
+								{detail.data.review.authorDisplayName ?? "身份已清理"}
 							</p>
 							<p>
 								<span className="text-muted-foreground">公开身份：</span>
@@ -482,7 +539,7 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 							<span className="font-medium text-foreground">评价正文</span>
 							<Textarea
 								className="min-h-36"
-								disabled={Boolean(detail.data.review.deletedAt)}
+								disabled={Boolean(detail.data.review.deletedAt) || detail.data.review.body === null}
 								id="ops-review-edit-body"
 								maxLength={500}
 								onChange={(event) => setBody(event.target.value)}
@@ -505,9 +562,11 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 												{formatTimestamp(edit.editedAt)} · {edit.editedBy}
 											</p>
 											<p className="mt-2 whitespace-pre-wrap text-muted-foreground line-through">
-												{edit.previousBody}
+												{edit.replayable ? edit.previousBody : "历史正文不可回放"}
 											</p>
-											<p className="mt-2 whitespace-pre-wrap text-foreground">{edit.nextBody}</p>
+											<p className="mt-2 whitespace-pre-wrap text-foreground">
+												{edit.replayable ? edit.nextBody : null}
+											</p>
 										</li>
 									))}
 								</ol>
@@ -521,6 +580,7 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 								disabled={
 									update.isPending ||
 									Boolean(detail.data.review.deletedAt) ||
+									detail.data.review.body === null ||
 									!body.trim() ||
 									body.trim() === detail.data.review.body
 								}
@@ -536,12 +596,18 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 	);
 }
 
-function reviewStatusBadge(review: DiningOpsReviewRecord) {
+function reviewStatusBadge(review: DiningOpsContentReviewRecord) {
 	if (review.deletedAt) {
 		return <Badge tone="neutral">已删除</Badge>;
 	}
 	if (review.hiddenAt) {
 		return <Badge tone="warning">已隐藏</Badge>;
 	}
-	return <Badge tone="success">公开</Badge>;
+	return <Badge tone="success">未隐藏</Badge>;
+}
+
+function reviewTargetName(review: DiningOpsContentReviewRecord) {
+	return review.targetKind === "menu_item"
+		? review.menuItemName
+		: `用户投稿：${review.submissionName ?? "正文已清理"}`;
 }

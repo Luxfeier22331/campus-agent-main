@@ -9,6 +9,7 @@ export default defineProject({
 		include: [
 			"test/dining-bootstrap.integration.test.ts",
 			"test/dining-content-store.integration.test.ts",
+			"test/dining-submission-store.integration.test.ts",
 			"test/ops-web-database.integration.test.ts",
 			"test/transport-store.integration.test.ts",
 		],

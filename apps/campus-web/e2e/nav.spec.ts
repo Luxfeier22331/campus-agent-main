@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { DOCS_HOME_PATH } from "../src/platform/navigation/product-nav";
 import { mockCampusApi } from "./support/api-mocks";
+import { collectPageDiagnostics } from "./support/diagnostics";
 
 test.describe("product navigation browser flow", () => {
 	test.beforeEach(async ({ page }) => {
@@ -8,7 +9,7 @@ test.describe("product navigation browser flow", () => {
 	});
 
 	test("moves between primary product surfaces on desktop", async ({ page }) => {
-		// Ensure the product navigation is visible (container query breakpoint at 64rem)
+		const diagnostics = collectPageDiagnostics(page);
 		await page.setViewportSize({ height: 900, width: 1440 });
 		await page.goto("/");
 
@@ -41,9 +42,11 @@ test.describe("product navigation browser flow", () => {
 			.click();
 		await expect(page).toHaveURL("/feedback");
 		await expect(page.getByRole("heading", { exact: true, name: "反馈" })).toBeVisible();
+		expect(diagnostics.consoleErrors).toEqual([]);
+		expect(diagnostics.pageErrors).toEqual([]);
 	});
 
-	test("keeps mobile product navigation usable", { tag: "@smoke" }, async ({ page }) => {
+	test("keeps mobile product navigation usable", async ({ page }) => {
 		await page.setViewportSize({ height: 812, width: 390 });
 		await page.goto("/");
 
@@ -55,25 +58,6 @@ test.describe("product navigation browser flow", () => {
 
 		await expect(page).toHaveURL("/dining");
 		await expect(page.getByRole("heading", { exact: true, name: "食堂地图" })).toBeVisible();
-	});
-
-	test("keeps support-page mobile navigation touchable and restores keyboard focus", async ({
-		page,
-	}) => {
-		await page.setViewportSize({ height: 812, width: 390 });
-		await page.goto("/feedback");
-
-		const trigger = page.getByRole("button", { name: "打开全局菜单" });
-		await expect(trigger).toBeVisible();
-		const triggerBox = await trigger.boundingBox();
-		expect(triggerBox?.width ?? 0).toBeGreaterThanOrEqual(44);
-		expect(triggerBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-
-		await trigger.focus();
-		await trigger.press("Enter");
-		await expect(page.getByRole("dialog", { name: "校园问答导航" })).toBeVisible();
-		await page.keyboard.press("Escape");
-		await expect(trigger).toBeFocused();
 	});
 
 	test("links to the native docs directory without opening it in the Vite lane", async ({

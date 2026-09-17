@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { createRequestScopeFactory } from "../src/app/request-scope";
 import { createRequestRuntimeScope } from "../src/request-runtime-scope";
 
 const env = {
@@ -16,6 +17,29 @@ const env = {
 };
 
 describe("request runtime scope", () => {
+	it("shares the request database with Dining submissions and cleanup without crossing scopes", async () => {
+		const failure = new Error("database unavailable");
+		const createRuntimeDatabase = vi.fn().mockRejectedValue(failure);
+		const factory = createRequestScopeFactory({
+			env,
+			dependencies: { runtimeScopeDependencies: { createRuntimeDatabase } },
+		});
+		for (const count of [1, 2]) {
+			const scope = factory.createRequestScope();
+			const lifecycle = scope.resolveDiningLifecycleService();
+			expect(scope.resolveDiningLifecycleService()).toBe(lifecycle);
+			await expect(lifecycle.sweep()).rejects.toBe(failure);
+			await expect(
+				scope.resolveDiningSubmissionService().listPublic({
+					windowId: "hall:floor:window",
+					limit: 20,
+					viewerUserId: null,
+				}),
+			).rejects.toMatchObject({ code: "internal_error", status: 500 });
+			expect(createRuntimeDatabase).toHaveBeenCalledTimes(count);
+		}
+	});
+
 	it("reuses db and auth within one request scope", async () => {
 		const createRuntimeDatabase = vi
 			.fn()

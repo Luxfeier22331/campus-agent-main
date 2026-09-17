@@ -84,6 +84,9 @@ run、step、attempt、result 和 provider response ID 仅属于 execution-contr
 - `ops-web -> PostgreSQL/execution-control` 提供有界运行摘要和执行诊断事实。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开菜单并以受限权限处理学生评价和举报；校园地图由 campus-web 的静态资产直接提供。
+- 已接受、待实现的 Dining 投稿沿用上述两个运行时：App API 负责学生入口与媒体编排，Ops Web
+  负责内容治理；不新增 App Tool、Agent 工具或媒体服务。目标链路和验收集中在
+  [Dining PRD](../../product/dining.md)，不将其混入当前运行能力。
 - `ops-web -> Kubernetes API` 只读取通知管线的暂停 CronJob 模板，创建一次性 Job，并读取由该入口创建的
   Job、Pod 状态和有限结构化日志摘要；不读取 Secret，不接受任意 Kubernetes 资源参数。
 - 在线模型配置不可用不阻断 Ops Web 的运行记录读取 readiness。

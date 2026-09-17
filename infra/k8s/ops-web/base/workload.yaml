@@ -121,6 +121,16 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_DERIVED_SECRET_KEY
+            - name: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+            - name: OBJECT_STORE_DERIVED_READ_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_READ_SECRET_KEY
             - name: MODEL_CONFIG_URL
               value: http://model-config:8000
             - name: OPS_WEB_LANGFUSE_URL

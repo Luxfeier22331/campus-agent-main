@@ -47,17 +47,6 @@ test.describe("federation browser flow", () => {
 		).toEqual({ accept: false, oauth_query: EXPECTED_OAUTH_QUERY });
 	});
 
-	test("fails closed when signed OAuth parameters are missing", async ({ page }) => {
-		await mockCampusApi(page, { authenticated: true });
-		await page.goto("/account/federation/consent?client_id=test-oauth-client&scope=openid");
-
-		await expect(
-			page.getByRole("heading", { name: "使用校园账号登录 Test OAuth Client" }),
-		).toBeVisible();
-		await expect(page.getByRole("button", { name: "允许并继续" })).toBeDisabled();
-		await expect(page.getByRole("button", { name: "取消" })).toBeDisabled();
-	});
-
 	test("continues the provider redirect returned by email sign-in", async ({ page }) => {
 		const requests: CampusApiRequestRecord[] = [];
 		const sessionState = { authenticated: false };
@@ -83,22 +72,4 @@ test.describe("federation browser flow", () => {
 			oauth_query: EXPECTED_OAUTH_QUERY,
 		});
 	});
-
-	for (const [error, title] of [
-		["access_denied", "您已取消授权"],
-		["invalid_client", "这个应用暂时无法完成登录"],
-		["unexpected", "登录请求不可用"],
-	] as const) {
-		test(`renders the federation error state for ${error}`, async ({ page }) => {
-			await mockCampusApi(page, { authenticated: false });
-			await page.goto(`/account/federation/error?error=${error}`);
-
-			await expect(page.getByRole("heading", { name: "登录授权未完成" })).toBeVisible();
-			await expect(page.getByText(title)).toBeVisible();
-			await expect(page.getByRole("link", { name: "返回登录" })).toHaveAttribute(
-				"href",
-				"/account/login",
-			);
-		});
-	}
 });

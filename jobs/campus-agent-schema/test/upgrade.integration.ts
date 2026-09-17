@@ -18,6 +18,9 @@ const image =
 const fixture = JSON.parse(
 	await readFile(new URL("fixtures/v0-history.json", import.meta.url), "utf8"),
 ) as Array<{ name: string; hash: string; created_at: string }>;
+const releasedFixture = fixture.filter(
+	(entry) => entry.name !== "20260914000000_0016_dining_submissions",
+);
 const authMigrationName = "20260914073252_better_auth_provider_account_key";
 
 test("unified schema: real PostgreSQL installation, v0 upgrades and failure recovery", {
@@ -71,12 +74,12 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		clients.push(client);
 		return { config, client };
 	}
-	async function legacy(client: Client, withMemory: boolean) {
+	async function legacy(client: Client, withMemory: boolean, withDining = false) {
 		await client.query("begin");
 		await client.query(
 			"create schema drizzle; create table drizzle.campus_agent_migrations(id serial primary key, hash text not null, created_at bigint)",
 		);
-		for (const entry of fixture) {
+		for (const entry of releasedFixture) {
 			if (!withMemory && entry.name.endsWith("personal_memory_management")) {
 				continue;
 			}
@@ -89,6 +92,17 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 			await client.query(
 				"insert into drizzle.campus_agent_migrations(hash,created_at) values($1,$2)",
 				[entry.hash, entry.created_at],
+			);
+		}
+		if (withDining) {
+			const dining = local.find((item) => item.name === "20260914000000_0016_dining_submissions");
+			assert(dining);
+			for (const sql of dining.sql) {
+				await client.query(sql);
+			}
+			await client.query(
+				"insert into drizzle.campus_agent_migrations(hash,created_at) values($1,$2)",
+				[dining.hash, String(dining.folderMillis)],
 			);
 		}
 		await client.query("commit");
@@ -263,7 +277,7 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 				const status = await inspectCampusAgentSchema(config);
 				assert.equal(status.status, "pending");
 				const appliedNames = new Set(
-					fixture
+					releasedFixture
 						.filter((entry) => withMemory || !entry.name.endsWith("personal_memory_management"))
 						.map((entry) => entry.name),
 				);
@@ -362,14 +376,14 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		);
 		assert.deepEqual(
 			converted.rows.map((row) => row.name),
-			fixture
+			releasedFixture
 				.filter((entry) => !entry.name.endsWith("personal_memory_management"))
 				.map((entry) => entry.name),
 		);
 		await assert.rejects(client.query("select payload from profile.memory_commands limit 1"));
 		await assertAuthShape(client, false);
 		const appliedNames = new Set(
-			fixture
+			releasedFixture
 				.filter((entry) => !entry.name.endsWith("personal_memory_management"))
 				.map((entry) => entry.name),
 		);

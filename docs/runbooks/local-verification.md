@@ -285,15 +285,32 @@ Execution Control、Model Config；已有 ready 的模型配置不会重新 seed
 
 ## Campus Web 浏览器回归
 
-浏览器业务回归只在本地执行，不进入 GitHub Actions：
+浏览器回归由开发者按变更涉及的边界手动选择，不进入 GitHub Actions，也不是每次修改或 agent 任务的必跑步骤。
+业务状态、错误映射和请求规则由 Vitest 覆盖；浏览器保留布局、焦点、历史导航、剪贴板、流式交互和构建产物边界。
 
 ```bash
+# 按变更选择文件，也可使用 --grep 选择用例
+pnpm --dir apps/campus-web test:e2e e2e/dining.spec.ts
+# Worker 构建产物边界或响应式布局变更时，手动选择对应套件
+pnpm --dir apps/campus-web test:e2e:worker
+pnpm --dir apps/campus-web test:e2e:ui-baseline
+# 需要全量回归时显式执行
+pnpm --dir apps/campus-web test:e2e:full
 ```
+
+独立 smoke 入口已删除。单独运行各套件会自动构建；`test:e2e:full` 只构建一次，随后顺序运行
+app、Worker 和 UI baseline，内部以 `CAMPUS_WEB_E2E_PREBUILT=1` 复用本次产物。手动设置该变量
+仅适用于已完成构建且输入未变化的情况。app 不重复运行 UI baseline。默认使用两个 Playwright worker，
+资源受限时可在单套件命令后追加 `--workers=1`。
+
+UI baseline 按适用视口选择 36 个用例：布局覆盖 320/390/1023/1024/1440 五个宽度，
+导航断点覆盖 1023/1024，通用交互覆盖 390/1440，移动端和桌面端专属行为只在对应视口执行。
 
 需要验证真实 Campus Web Worker、真实 App API Worker、Service Binding 和本地数据库之间的聊天链路时，
 显式运行：
 
 ```bash
+pnpm --dir apps/campus-web test:e2e:dev:chat
 ```
 
 该命令会在当前 worktree profile 的端口上启动确定性的 execution-control HTTP fixture、App API Wrangler

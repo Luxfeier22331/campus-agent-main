@@ -37,6 +37,7 @@ import { DiningMenuPage } from "./dining-menu-page";
 import { DiningPage } from "./dining-page";
 import { DiningReportsPage } from "./dining-reports-page";
 import { DiningReviewsPage } from "./dining-reviews-page";
+import { DiningSubmissionDetailPage, DiningSubmissionsPage } from "./dining-submissions-page";
 import { EmailAccessPage } from "./email-access-page";
 import { GroupsPage } from "./groups-page";
 import { InternalPortalPage } from "./internal-portal-page";
@@ -229,10 +230,34 @@ const diningMenuRoute = createRoute({
 	component: DiningMenuPage,
 });
 
+const diningSubmissionsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/dining/submissions",
+	component: DiningSubmissionsPage,
+});
+
+const diningSubmissionDetailRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/dining/submissions/$submissionId",
+	component: () => (
+		<DiningSubmissionDetailPage
+			submissionId={diningSubmissionDetailRoute.useParams().submissionId}
+		/>
+	),
+});
+
 const diningReviewsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining/reviews",
-	component: DiningReviewsPage,
+	validateSearch: (search: Record<string, unknown>) => ({
+		submission_id: optionalBoundedSearchString(search.submission_id, 200),
+	}),
+	component: () => (
+		<DiningReviewsPage
+			key={diningReviewsRoute.useSearch().submission_id}
+			initialSubmissionId={diningReviewsRoute.useSearch().submission_id}
+		/>
+	),
 });
 
 const diningReportsRoute = createRoute({
@@ -308,6 +333,8 @@ const routeTree = rootRoute.addChildren([
 	userDetailRoute,
 	diningRoute,
 	diningMenuRoute,
+	diningSubmissionsRoute,
+	diningSubmissionDetailRoute,
 	diningReviewsRoute,
 	diningReportsRoute,
 	transportRoute,

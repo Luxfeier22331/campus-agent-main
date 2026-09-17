@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
-import { buildAppApiStagingUploadConfig } from "./staging-upload-config.ts";
+import {
+	buildAppApiStagingUploadConfig,
+	buildAppApiStagingUploadSecrets,
+} from "./staging-upload-config.ts";
 
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -41,22 +44,19 @@ try {
 		}),
 		"utf8",
 	);
-	writeFileSync(
-		secretsPath,
-		`${JSON.stringify({
-			APP_API_EXECUTION_SHARED_SECRET: requiredEnv("APP_API_EXECUTION_SHARED_SECRET"),
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: requiredEnv("OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: requiredEnv("OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
-			OPS_WEB_INTERNAL_TOKEN: requiredEnv("OPS_WEB_INTERNAL_TOKEN"),
-		})}\n`,
-		{ encoding: "utf8", mode: 0o600 },
-	);
+	writeFileSync(secretsPath, `${JSON.stringify(buildAppApiStagingUploadSecrets(process.env))}\n`, {
+		encoding: "utf8",
+		mode: 0o600,
+	});
 	await uploadStagingWorkerVersion({
 		appName: "app-api",
 		config: configPath,
 		cwd: appDir,
 		environment: "staging",
 		expectedBindings: [
+			{ name: "DINING_IMAGES", properties: {}, type: "images" },
+			{ name: "OBJECT_STORE_DERIVED_ACCESS_KEY", properties: {}, type: "secret_text" },
+			{ name: "OBJECT_STORE_DERIVED_SECRET_KEY", properties: {}, type: "secret_text" },
 			{
 				name: "APP_API_DB",
 				properties: { id: hyperdriveId },

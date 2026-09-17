@@ -11,6 +11,18 @@ export interface WorkerFetchBindingLike {
 	fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
+// Only the Images operations consumed by Dining; keeps Node test adapters independent of Worker globals.
+export interface DiningImagesBindingLike {
+	input(stream: ReadableStream<Uint8Array>): {
+		transform(options: { width: number; height: number; fit: "scale-down" }): {
+			output(options: { format: "image/webp" }): Promise<{
+				contentType(): string;
+				image(): ReadableStream<Uint8Array>;
+			}>;
+		};
+	};
+}
+
 export interface Env {
 	DEPLOYMENT_ENVIRONMENT?: string;
 	BETTER_AUTH_SECRET?: string;
@@ -23,6 +35,9 @@ export interface Env {
 	EXECUTION_CONTROL_PRIVATE_ORIGIN?: string;
 	OBJECT_STORE_PRIVATE?: WorkerFetchBindingLike;
 	OBJECT_STORE_LOCAL_BASE_URL?: string;
+	DINING_IMAGES?: DiningImagesBindingLike;
+	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
+	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
 	OBJECT_STORE_DERIVED_READ_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_READ_SECRET_KEY?: string;
 	APP_API_EXECUTION_SHARED_SECRET?: string;

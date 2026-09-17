@@ -45,8 +45,14 @@ function principal(): ResolvedAppPrincipal {
 	};
 }
 
+const { menuItemId: _menuItemId, ...reviewFields } = review;
+const submissionReview = { ...reviewFields, submissionId: "dsu_1" };
+
 function service(): DiningContentService {
 	return {
+		createSubmissionReview: vi.fn(async () => submissionReview),
+		listSubmissionReviews: vi.fn(async () => ({ items: [submissionReview], nextCursor: null })),
+		reportSubmission: vi.fn(async () => ({ reportId: "dsr_1" })),
 		createReview: vi.fn(async () => review),
 		deleteOwnReview: vi.fn(async () => undefined),
 		getWindowMenu: vi.fn(async (windowId) => ({
@@ -177,6 +183,121 @@ describe("Dining content routes", () => {
 			reason: "privacy",
 			reviewId: "drv_2",
 			userId: "user_1",
+		});
+	});
+	it("lists submission reviews publicly and returns the submission DTO envelope for creation", async () => {
+		const diningContentService = service();
+		const app = createApp(env, {
+			diningContentService,
+			getPrincipal: vi.fn(async () => principal()),
+		});
+		const listing = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/dining/submissions/dsu_1/reviews?limit=5&cursor=position",
+			),
+		);
+		expect(listing.status).toBe(200);
+		expect(listing.headers.get("cache-control")).toBe("no-store");
+		expect(await listing.json()).toEqual({ items: [submissionReview], nextCursor: null });
+		expect(diningContentService.listSubmissionReviews).toHaveBeenCalledWith({
+			submissionId: "dsu_1",
+			limit: 5,
+			cursor: "position",
+			viewerUserId: "user_1",
+		});
+		const created = await app.fetch(
+			new Request("https://app-api.internal/api/dining/submissions/dsu_1/reviews", {
+				method: "POST",
+				headers: { "content-type": "application/json", "idempotency-key": "submission-review-1" },
+				body: JSON.stringify({ anonymous: false, body: "  味道不错。  " }),
+			}),
+		);
+		expect(created.status).toBe(201);
+		expect(await created.json()).toEqual({ review: submissionReview });
+		expect(diningContentService.createSubmissionReview).toHaveBeenCalledWith({
+			actor: { displayName: "张同学", kind: "member", principalId: "user_1" },
+			anonymous: false,
+			body: "味道不错。",
+			idempotencyKey: "submission-review-1",
+			submissionId: "dsu_1",
+		});
+	});
+
+	it("accepts anonymous reads but requires a session for submission reviews and reports", async () => {
+		const diningContentService = service();
+		const app = createApp(env, { diningContentService, getPrincipal: vi.fn(async () => null) });
+		const listing = await app.fetch(
+			new Request("https://app-api.internal/api/dining/submissions/dsu_1/reviews"),
+		);
+		expect(listing.status).toBe(200);
+		expect(diningContentService.listSubmissionReviews).toHaveBeenCalledWith({
+			submissionId: "dsu_1",
+			limit: 20,
+			viewerUserId: null,
+		});
+		for (const action of ["reviews", "reports"]) {
+			const response = await app.fetch(
+				new Request(`https://app-api.internal/api/dining/submissions/dsu_1/${action}`, {
+					method: "POST",
+				}),
+			);
+			expect(response.status).toBe(401);
+		}
+		expect(diningContentService.createSubmissionReview).not.toHaveBeenCalled();
+		expect(diningContentService.reportSubmission).not.toHaveBeenCalled();
+	});
+
+	it("validates submission review content, pagination, IDs and idempotency before persistence", async () => {
+		const diningContentService = service();
+		const app = createApp(env, {
+			diningContentService,
+			getPrincipal: vi.fn(async () => principal()),
+		});
+		for (const [id, key, body] of [
+			["dsu_1", "", { anonymous: false, body: "正文" }],
+			["dsu_1", "valid-key", { anonymous: false, body: "字".repeat(501) }],
+			["invalid.id", "valid-key", { anonymous: false, body: "正文" }],
+		] as const) {
+			const response = await app.fetch(
+				new Request(`https://app-api.internal/api/dining/submissions/${id}/reviews`, {
+					method: "POST",
+					headers: { "content-type": "application/json", "idempotency-key": key },
+					body: JSON.stringify(body),
+				}),
+			);
+			expect(response.status).toBe(400);
+		}
+		expect(
+			(
+				await app.fetch(
+					new Request("https://app-api.internal/api/dining/submissions/dsu_1/reviews?limit=51"),
+				)
+			).status,
+		).toBe(400);
+		expect(diningContentService.createSubmissionReview).not.toHaveBeenCalled();
+	});
+
+	it("reports a submission using its precise target and the existing reason vocabulary", async () => {
+		const diningContentService = service();
+		const app = createApp(env, {
+			diningContentService,
+			getPrincipal: vi.fn(async () => principal()),
+		});
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/dining/submissions/dsu_1/reports", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ reason: "privacy", details: "  联系方式  " }),
+			}),
+		);
+		expect(response.status).toBe(201);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(await response.json()).toEqual({ reportId: "dsr_1" });
+		expect(diningContentService.reportSubmission).toHaveBeenCalledWith({
+			submissionId: "dsu_1",
+			userId: "user_1",
+			reason: "privacy",
+			details: "联系方式",
 		});
 	});
 });

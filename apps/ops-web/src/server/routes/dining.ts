@@ -30,18 +30,38 @@ const DiningReviewListQuerySchema = z
 		cursor: z.string().trim().min(1).max(512).optional(),
 		limit: z.coerce.number().int().min(1).max(100).default(50),
 		menu_item_id: OpsPathIdSchema.optional(),
+		submission_id: OpsPathIdSchema.optional(),
+		target_type: z.enum(["menu_item", "submission"]).optional(),
 		q: z.string().trim().min(1).max(200).optional(),
 		visibility: z.enum(["visible", "hidden", "deleted"]).optional(),
 		window_id: OpsPathIdSchema.optional(),
 	})
-	.strict();
+	.strict()
+	.refine(
+		(value) =>
+			!(
+				(value.menu_item_id && value.submission_id) ||
+				(value.target_type === "menu_item" && value.submission_id) ||
+				(value.target_type === "submission" && value.menu_item_id)
+			),
+	);
 const DiningReportListQuerySchema = z
 	.object({
 		cursor: z.string().trim().min(1).max(512).optional(),
 		limit: z.coerce.number().int().min(1).max(100).default(50),
 		status: z.enum(["pending", "resolved"]).default("pending"),
+		menu_item_id: OpsPathIdSchema.optional(),
+		submission_id: OpsPathIdSchema.optional(),
+		target_type: z.enum(["review", "submission"]).optional(),
 	})
-	.strict();
+	.strict()
+	.refine(
+		(value) =>
+			!(
+				(value.menu_item_id && value.submission_id) ||
+				(value.target_type === "submission" && value.menu_item_id)
+			),
+	);
 
 export function registerDiningRoutes(input: {
 	admission: OpsAdmission;
@@ -249,6 +269,8 @@ export function registerDiningRoutes(input: {
 				...(query.data.cursor ? { cursor: query.data.cursor } : {}),
 				limit: query.data.limit,
 				...(query.data.menu_item_id ? { menuItemId: query.data.menu_item_id } : {}),
+				...(query.data.submission_id ? { submissionId: query.data.submission_id } : {}),
+				...(query.data.target_type ? { targetType: query.data.target_type } : {}),
 				...(query.data.q ? { q: query.data.q } : {}),
 				...(query.data.visibility ? { visibility: query.data.visibility } : {}),
 				...(query.data.window_id ? { windowId: query.data.window_id } : {}),
@@ -362,6 +384,9 @@ export function registerDiningRoutes(input: {
 				...(query.data.cursor ? { cursor: query.data.cursor } : {}),
 				limit: query.data.limit,
 				status: query.data.status,
+				...(query.data.menu_item_id ? { menuItemId: query.data.menu_item_id } : {}),
+				...(query.data.submission_id ? { submissionId: query.data.submission_id } : {}),
+				...(query.data.target_type ? { targetType: query.data.target_type } : {}),
 			}),
 		);
 	});

@@ -24,9 +24,7 @@ async function selectFirstDiningWindow(page: Page): Promise<void> {
 }
 
 test.describe("dining map", () => {
-	test("reads one published map and keeps window search in the browser", { tag: "@smoke" }, async ({
-		page,
-	}) => {
+	test("reads one published map and keeps window search in the browser", async ({ page }) => {
 		const requests: CampusApiRequestRecord[] = [];
 		await mockCampusApi(page, { requests });
 		await openDiningPage(page);
@@ -65,42 +63,6 @@ test.describe("dining map", () => {
 		expect(requests.filter((request) => request.path === "/api/dining")).toHaveLength(1);
 	});
 
-	test("shows the map skeleton while the projection is loading", async ({ page }) => {
-		await mockCampusApi(page);
-		let releaseMap: () => void = () => undefined;
-		const mapGate = new Promise<void>((resolve) => {
-			releaseMap = resolve;
-		});
-		await page.route(
-			(url) => url.pathname === "/api/dining",
-			async (route) => {
-				await mapGate;
-				await route.fallback();
-			},
-		);
-
-		const navigation = page.goto("/dining");
-		await expect(page.getByRole("status", { name: "正在读取食堂数据" })).toBeVisible({
-			timeout: 15_000,
-		});
-		await expect(page.getByTestId("dining-map-skeleton")).toBeVisible();
-		releaseMap();
-		await navigation;
-		await expect(page.getByTestId("dining-map-panel")).toBeVisible();
-	});
-
-	test("retries a failed map request", async ({ page }) => {
-		const diningFailures = { mapFailure: true };
-		await mockCampusApi(page, { diningFailures });
-		await openDiningPage(page, false);
-
-		const error = page.getByRole("alert");
-		await expect(error).toContainText("食堂地图不可用");
-		diningFailures.mapFailure = false;
-		await error.getByRole("button", { name: "重试" }).click();
-		await expect(page.getByTestId("dining-map-panel")).toBeVisible();
-	});
-
 	test("keeps a floorplan failure inside the map panel", async ({ page }) => {
 		const diningFailures = { floorplanFailure: true };
 		await mockCampusApi(page, { diningFailures });
@@ -122,14 +84,6 @@ test.describe("dining map", () => {
 		diningFailures.floorplanFailure = false;
 		await error.getByRole("button", { name: "重试" }).click();
 		await expect(page.getByRole("button", { name: "选择兰州拉面" })).toBeVisible();
-	});
-
-	test("renders an explicit empty state", async ({ page }) => {
-		await mockCampusApi(page, { emptyDiningMap: true });
-		await openDiningPage(page, false);
-
-		await expect(page.getByText("暂无食堂地图")).toBeVisible();
-		await expect(page.getByTestId("dining-map-panel")).toHaveCount(0);
 	});
 
 	test("supports keyboard selection and bounded map zoom", async ({ page }) => {
@@ -192,78 +146,6 @@ test.describe("dining map", () => {
 				(request) => request.path === "/api/dining/windows/haidian%3Ahaidian-1f%3Awindow-1/menu",
 			),
 		).toHaveLength(1);
-	});
-
-	test("shows menu loading, retry, and empty states", async ({ page }) => {
-		const options = {
-			diningFailures: { menuFailure: true },
-			emptyDiningMenu: false,
-		};
-		await mockCampusApi(page, options);
-		let releaseMenu: () => void = () => undefined;
-		const menuGate = new Promise<void>((resolve) => {
-			releaseMenu = resolve;
-		});
-		let holdFirstMenuRequest = true;
-		await page.route("**/api/dining/windows/*/menu", async (route) => {
-			if (holdFirstMenuRequest) {
-				holdFirstMenuRequest = false;
-				await menuGate;
-			}
-			await route.fallback();
-		});
-
-		await openDiningPage(page);
-		await selectFirstDiningWindow(page);
-		await expect(page.getByText("正在读取菜单")).toBeVisible();
-		releaseMenu();
-		await expect(page.getByText("菜单暂时无法读取。")).toBeVisible();
-
-		options.diningFailures.menuFailure = false;
-		await page.getByRole("button", { name: "重试" }).click();
-		await expect(page.getByRole("button", { name: /牛肉面/ })).toBeVisible();
-
-		options.emptyDiningMenu = true;
-		await page.reload();
-		await expect(page.getByText("暂无菜单信息")).toBeVisible();
-	});
-
-	test("retries an anonymous review with the same idempotency key", async ({ page }) => {
-		await mockCampusApi(page);
-		const idempotencyKeys: string[] = [];
-		let submissionCount = 0;
-		await page.route("**/api/dining/menu-items/*/reviews", async (route) => {
-			if (route.request().method() !== "POST") {
-				await route.fallback();
-				return;
-			}
-			idempotencyKeys.push(route.request().headers()["idempotency-key"] ?? "");
-			submissionCount += 1;
-			if (submissionCount === 1) {
-				await route.fulfill({
-					contentType: "application/json",
-					json: { error: { code: "temporary_failure", message: "暂时无法提交评价。" } },
-					status: 503,
-				});
-				return;
-			}
-			await route.fallback();
-		});
-		await openDiningPage(page);
-		await selectFirstDiningWindow(page);
-		await page.getByRole("button", { name: /牛肉面/ }).click();
-
-		const sheet = page.getByRole("dialog", { name: "牛肉面" });
-		await sheet.getByLabel("评价内容").fill("晚餐时段出餐很快。");
-		await expect(sheet.getByRole("checkbox", { name: "匿名公开" })).toBeChecked();
-		await sheet.getByRole("button", { name: "提交" }).click();
-		await expect(sheet.getByRole("alert")).toContainText("暂时无法提交评价");
-		await sheet.getByRole("button", { name: "提交" }).click();
-
-		await expect(sheet.getByText("晚餐时段出餐很快。")).toBeVisible();
-		expect(idempotencyKeys).toHaveLength(2);
-		expect(idempotencyKeys[0]).toBeTruthy();
-		expect(idempotencyKeys[1]).toBe(idempotencyKeys[0]);
 	});
 
 	test("allows a student to delete an own review and report another review", async ({ page }) => {

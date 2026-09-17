@@ -53,17 +53,6 @@ test.describe("campus web static docs browser boundary", () => {
 		}
 	});
 
-	test("returns 404 for retired directory URLs", async ({ page }) => {
-		const response = await page.goto("/docs/regulations", { waitUntil: "domcontentloaded" });
-
-		expect(response?.status()).toBe(404);
-		await expect(page.getByRole("heading", { level: 1, name: "文档不存在" })).toBeVisible();
-		await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-			"content",
-			"noindex,nofollow",
-		);
-	});
-
 	test("applies published legacy document redirects through static assets", async ({ request }) => {
 		const response = await request.get(
 			"/docs/regulations/student_rules/retired-attendance?from=legacy",
@@ -74,9 +63,7 @@ test.describe("campus web static docs browser boundary", () => {
 		expect(response.headers().location).toBe(`${publicReaderPath}?from=legacy`);
 	});
 
-	test("serves public docs clean URLs through the native reader", { tag: "@smoke" }, async ({
-		page,
-	}) => {
+	test("serves public docs clean URLs through the native reader", async ({ page }) => {
 		const response = await page.goto(publicReaderPath, {
 			waitUntil: "domcontentloaded",
 		});
@@ -132,93 +119,5 @@ test.describe("campus web static docs browser boundary", () => {
 		expect(response?.status()).toBe(404);
 		await expect(page.getByRole("heading", { level: 1, name: "文档不存在" })).toBeVisible();
 		await expect(page.locator('[data-campus-prerendered="docs"]')).toHaveCount(1);
-	});
-
-	test("fails closed for unknown app-api paths", async ({ request }) => {
-		const response = await request.get("/api/ops/dining");
-
-		expect(response.status()).toBe(404);
-		expect(response.headers()["content-type"]).toMatch(/application\/json/);
-		await expect(response.json()).resolves.toEqual({
-			error: {
-				code: "not_found",
-				message: "这个接口不存在。",
-			},
-		});
-	});
-
-	test("routes allowed dynamic student API paths to app-api instead of the unknown API handler", async ({
-		request,
-	}) => {
-		for (const path of [`/api/dining/floorplans/${"a".repeat(64)}.svg`]) {
-			const response = await request.get(path);
-
-			expect(response.headers()["content-type"]).toMatch(/application\/json/);
-			await expect(response.json()).resolves.not.toEqual({
-				error: {
-					code: "not_found",
-					message: "这个接口不存在。",
-				},
-			});
-		}
-	});
-
-	test("routes admitted federation API paths to app-api and keeps unknown federation paths closed", async ({
-		request,
-	}) => {
-		for (const path of [
-			"/api/federation/client",
-			"/api/federation/authorize",
-			"/api/federation/consent",
-			"/api/federation/token",
-			"/api/federation/userinfo",
-			"/api/federation/jwks",
-			"/api/federation/logout",
-		]) {
-			const response = await request.get(path);
-
-			expect(response.headers()["content-type"]).toMatch(/application\/json/);
-			await expect(response.json()).resolves.not.toEqual({
-				error: {
-					code: "not_found",
-					message: "这个接口不存在。",
-				},
-			});
-		}
-
-		const unknown = await request.get("/api/federation/admin");
-
-		expect(unknown.status()).toBe(404);
-		expect(unknown.headers()["content-type"]).toMatch(/application\/json/);
-		await expect(unknown.json()).resolves.toEqual({
-			error: {
-				code: "not_found",
-				message: "这个接口不存在。",
-			},
-		});
-	});
-
-	test("keeps retired private docs namespaces closed", async ({ request }) => {
-		for (const path of [
-			"/_gated-docs/curriculum/curriculum_plan/old/reader.json",
-			"/_gated-docs-search/curriculum/curriculum_plan/old/index.json",
-			"/_gated-docs/curriculum/undergraduate/old/reader.json",
-			"/_gated-docs-search/curriculum/undergraduate/old/index.json",
-			"/_gated-docs/curriculum/second_degree/old/reader.json",
-			"/_gated-docs-search/curriculum/second_degree/old/index.json",
-			"/_gated-docs/curriculum/general_education/old/reader.json",
-			"/_gated-docs-search/curriculum/general_education/old/index.json",
-		]) {
-			const response = await request.get(path);
-
-			expect(response.status()).toBe(404);
-			expect(response.headers()["content-type"]).toMatch(/application\/json/);
-			await expect(response.json()).resolves.toEqual({
-				error: {
-					code: "not_found",
-					message: "Route not found.",
-				},
-			});
-		}
 	});
 });

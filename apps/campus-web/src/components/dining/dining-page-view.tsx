@@ -1,5 +1,5 @@
 import { Button } from "@campus-agent/ui";
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { StateMessage } from "@/components/ui/state-message";
 import type {
 	DiningFloorResponse,
@@ -18,6 +18,8 @@ import {
 import { DiningPageSkeleton } from "./dining-page-skeleton";
 
 export interface DiningPageViewProps {
+	headerActions?: ReactNode;
+	windowExtra?: ReactNode;
 	activeFloor: DiningFloorResponse | null;
 	data: DiningMapResponse | null;
 	detailRef: RefObject<HTMLDivElement | null>;
@@ -40,6 +42,8 @@ export interface DiningPageViewProps {
 }
 
 export function DiningPageView({
+	headerActions,
+	windowExtra,
 	activeFloor,
 	data,
 	detailRef,
@@ -64,7 +68,10 @@ export function DiningPageView({
 
 	return (
 		<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-4 pb-40 sm:px-5 sm:py-6 sm:pb-24 lg:px-6">
-			<h1 className="ui-page-title">食堂地图</h1>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<h1 className="ui-page-title">食堂地图</h1>
+				{headerActions}
+			</div>
 			{isPending ? <DiningPageSkeleton includeHallSwitcher /> : null}
 			{isError ? (
 				<StateMessage
@@ -146,6 +153,7 @@ export function DiningPageView({
 								selectedMenuItemId={selectedMenuItemId}
 								window={selectedWindow}
 							/>
+							{windowExtra}
 						</div>
 					</div>
 				</div>

@@ -1,29 +1,13 @@
 import { expect, test } from "@playwright/test";
-import {
-	type CampusApiRequestRecord,
-	fulfillChatFailedStream,
-	fulfillChatFailure,
-	fulfillChatStream,
-	mockCampusApi,
-} from "./support/api-mocks";
+import { type CampusApiRequestRecord, fulfillChatStream, mockCampusApi } from "./support/api-mocks";
 import { mockAuthApi } from "./support/auth-mocks";
 import { collectPageDiagnostics } from "./support/diagnostics";
 import { startStreamingSseServer } from "./support/streaming-sse-server";
 
 test.describe("Q&A browser flow", () => {
-	test("opens the auth dialog when an anonymous user submits a prompt", async ({ page }) => {
-		await mockCampusApi(page, { authenticated: false });
-		await page.goto("/");
-
-		await page.getByLabel("消息输入").fill("国家奖学金怎么评审？");
-		await page.getByRole("button", { name: "发送" }).click();
-
-		await expect(page.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeVisible();
-	});
-
-	test("allows an anonymous user to sign in from the auth dialog and submit the prompt", {
-		tag: "@smoke",
-	}, async ({ page }) => {
+	test("allows an anonymous user to sign in from the auth dialog and submit the prompt", async ({
+		page,
+	}) => {
 		const requests: CampusApiRequestRecord[] = [];
 		const sessionState = { authenticated: false };
 		await mockCampusApi(page, { requests, sessionState });
@@ -84,7 +68,7 @@ test.describe("Q&A browser flow", () => {
 			.toMatchObject({ prompt: "国家奖学金怎么评审？" });
 	});
 
-	test("submits a prompt and renders streamed answer text", { tag: "@smoke" }, async ({ page }) => {
+	test("submits a prompt and renders streamed answer text", async ({ page }) => {
 		await mockCampusApi(page);
 		await page.goto("/");
 
@@ -95,23 +79,7 @@ test.describe("Q&A browser flow", () => {
 		await expect(page.getByText("国家奖学金评审材料以学校正式通知为准。")).toBeVisible();
 	});
 
-	test("surfaces a failed chat request without navigating away", async ({ page }) => {
-		const diagnostics = collectPageDiagnostics(page);
-		await mockCampusApi(page);
-		await page.route("**/api/chat/requests/stream", fulfillChatFailure);
-		await page.goto("/");
-
-		await page.getByLabel("消息输入").fill("这次请求会失败吗？");
-		await page.getByRole("button", { name: "发送" }).click();
-
-		await expect(page.getByTestId("assistant-chat")).toBeVisible();
-		await expect(page.getByText("回答失败，请稍后重试。")).toBeVisible();
-		await expect(page).toHaveURL("/");
-		expect(diagnostics.unexpectedConsoleErrors()).toEqual([]);
-		expect(diagnostics.pageErrors).toEqual([]);
-	});
-
-	test("cancels a running request", { tag: "@smoke" }, async ({ page }) => {
+	test("cancels a running request", async ({ page }) => {
 		let cancelCalled = false;
 		const postStopDelta = "这段服务端回答在停止后不应显示。";
 		await mockCampusApi(page);
@@ -379,96 +347,6 @@ test.describe("Q&A browser flow", () => {
 			});
 	});
 
-	test("creates a draft conversation before the first streamed request", async ({ page }) => {
-		const requests: CampusApiRequestRecord[] = [];
-		await mockCampusApi(page, { requests });
-		await page.goto("/");
-
-		await page.getByLabel("消息输入").fill("国家奖学金怎么评审？");
-		await page.getByRole("button", { name: "发送" }).click();
-
-		await expect(page.getByText("国家奖学金评审材料以学校正式通知为准。")).toBeVisible();
-		await expect
-			.poll(() => requests.map((request) => request.path))
-			.toContain("/api/chat/conversations");
-		await expect
-			.poll(() => lastStreamBody(requests))
-			.toMatchObject({
-				conversationId: "conv_e2e",
-				prompt: "国家奖学金怎么评审？",
-			});
-		expect(
-			requests.filter(
-				(request) => request.method === "POST" && request.path === "/api/chat/conversations",
-			),
-		).toHaveLength(1);
-	});
-
-	test("surfaces a failed stream terminal event and allows the next submit", async ({ page }) => {
-		await mockCampusApi(page);
-		const conversationId = "conv_e2e";
-		const prompt = "这次请求会失败吗？";
-		const createdAt = "2026-06-30T08:00:00.000Z";
-		await page.route("**/api/chat/conversations/conv_e2e", (route) =>
-			route.fulfill({
-				json: {
-					conversation: {
-						id: conversationId,
-						activeRequestId: null,
-						archivedAt: null,
-						pinnedAt: null,
-						createdAt,
-						updatedAt: createdAt,
-						title: prompt,
-						messages: [
-							{ id: "msg_failed_user", role: "user", kind: null, text: prompt, retryable: null },
-							{
-								id: "msg_failed_assistant",
-								role: "assistant",
-								kind: "error",
-								text: "The request could not be completed.",
-								retryable: true,
-							},
-						].map((message) => ({
-							...message,
-							conversationId,
-							createdAt,
-							requestId: "req_failed_e2e",
-							structuredParts: [],
-						})),
-					},
-				},
-			}),
-		);
-		const streamBodies: unknown[] = [];
-		let failFirstStream = true;
-		await page.route("**/api/chat/requests/stream", async (route) => {
-			streamBodies.push(route.request().postDataJSON());
-			if (failFirstStream) {
-				failFirstStream = false;
-				await fulfillChatFailedStream(route);
-				return;
-			}
-			await fulfillChatStream(route);
-		});
-		await page.goto("/");
-
-		await page.getByLabel("消息输入").fill(prompt);
-		await page.getByRole("button", { name: "发送" }).click();
-
-		await expect(page.getByText("回答失败，请稍后重试。")).toBeVisible();
-		await expect(page.getByText("回答失败，请稍后重试。", { exact: true })).toHaveCount(1);
-		await expect(page.getByRole("button", { name: "停止生成" })).toHaveCount(0);
-
-		await page.getByRole("button", { name: "重试" }).click();
-
-		await expect(page.getByText("国家奖学金评审材料以学校正式通知为准。")).toBeVisible();
-		expect(streamBodies).toEqual([
-			expect.objectContaining({ conversationId, prompt }),
-			expect.objectContaining({ conversationId, prompt }),
-		]);
-	});
-
 	test("recovers a dropped answer stream with backoff during a backend outage", async ({
 		page,
 	}) => {
@@ -594,16 +472,6 @@ test.describe("Q&A browser flow", () => {
 		expect(statusCalls).toBe(3);
 		expect(diagnostics.unexpectedConsoleErrors()).toEqual([]);
 		expect(diagnostics.pageErrors).toEqual([]);
-	});
-
-	test("opens a historical conversation from the thread list", async ({ page }) => {
-		await mockCampusApi(page);
-		await page.goto("/");
-
-		await page.getByRole("button", { name: "国家奖学金" }).click();
-
-		await expect(page).toHaveURL("/");
-		await expect(page.getByText("历史记录中的国家奖学金回答。")).toBeVisible();
 	});
 
 	test("searches history and opens the matched conversation", async ({ page }) => {

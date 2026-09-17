@@ -212,47 +212,49 @@ export function TransportPageView({
 					}
 				/>
 			) : null}
-			{loading ? (
-				<div
-					role="status"
-					aria-busy="true"
-					aria-label="正在加载班车信息"
-					className="mt-4 grid gap-2"
-				>
-					{[0, 1, 2].map((i) => (
-						<div key={i} className="h-14 rounded-md bg-surface-muted" />
-					))}
-				</div>
-			) : data ? (
-				choice ? (
-					activeKind === "subway" ? (
-						<SubwayStationRoutes
-							returnTo={returnTo}
-							choices={routeChoices.filter((item) => stationOf(item) === stationOf(choice))}
-							routes={data?.routes ?? []}
-							date={date}
-							today={today}
-							rider={showRider ? rider : "all"}
-							now={now}
-							onDateChange={onDateChange}
-						/>
+			<div id="campus-transport-results">
+				{loading ? (
+					<div
+						role="status"
+						aria-busy="true"
+						aria-label="正在加载班车信息"
+						className="mt-4 grid gap-2"
+					>
+						{[0, 1, 2].map((i) => (
+							<div key={i} className="h-14 rounded-md bg-surface-muted" />
+						))}
+					</div>
+				) : data ? (
+					choice ? (
+						activeKind === "subway" ? (
+							<SubwayStationRoutes
+								returnTo={returnTo}
+								choices={routeChoices.filter((item) => stationOf(item) === stationOf(choice))}
+								routes={data?.routes ?? []}
+								date={date}
+								today={today}
+								rider={showRider ? rider : "all"}
+								now={now}
+								onDateChange={onDateChange}
+							/>
+						) : (
+							<TransportRoute
+								returnTo={returnTo}
+								key={`${date}:${routeId}`}
+								route={route}
+								choice={choice}
+								date={date}
+								today={today}
+								rider={showRider ? rider : "all"}
+								now={now}
+								onDateChange={onDateChange}
+							/>
+						)
 					) : (
-						<TransportRoute
-							returnTo={returnTo}
-							key={`${date}:${routeId}`}
-							route={route}
-							choice={choice}
-							date={date}
-							today={today}
-							rider={showRider ? rider : "all"}
-							now={now}
-							onDateChange={onDateChange}
-						/>
+						<StateMessage title="当天暂无班次信息" description="请选择其他日期或线路方向。" />
 					)
-				) : (
-					<StateMessage title="当天暂无班次信息" description="请选择其他日期或线路方向。" />
-				)
-			) : null}
+				) : null}
+			</div>
 		</section>
 	);
 }

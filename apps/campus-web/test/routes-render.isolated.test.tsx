@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,7 @@ import diningControlsSource from "../src/components/dining/dining-controls.tsx?r
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import diningFloorplanSource from "../src/components/dining/dining-floorplan.tsx?raw";
 import diningFloorplanZoomSource from "../src/components/dining/dining-floorplan-zoom.tsx?raw";
+import { DiningSubmissionExitProvider } from "../src/components/dining/dining-submission-exit";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
 import mapPlacePopoverSource from "../src/components/map/map-place-popover.tsx?raw";
 import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
@@ -110,6 +111,7 @@ vi.mock("@tanstack/react-router", async () => {
 		}),
 		useNavigate: () => navigateMock,
 		useSearch: () => diningRouteSearch.value,
+		useBlocker: () => ({ reset: vi.fn(), proceed: vi.fn(), status: "idle" }),
 	};
 });
 
@@ -141,7 +143,9 @@ function DiningPage({ queryClient: providedQueryClient }: { queryClient?: QueryC
 	}, []);
 	return (
 		<QueryClientProvider client={queryClient}>
-			<DiningPageContent />
+			<DiningSubmissionExitProvider>
+				<DiningPageContent />
+			</DiningSubmissionExitProvider>
 		</QueryClientProvider>
 	);
 }
@@ -674,5 +678,68 @@ describe("campus routes", () => {
 		render(<NotFoundPage />);
 
 		expect(screen.getByText("页面不存在")).toBeInTheDocument();
+	});
+	it("validates feedback before calling the API and exposes the field error", async () => {
+		render(<FeedbackPage />);
+		fireEvent.click(screen.getByRole("button", { name: "提交反馈" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent("请填写问题描述。");
+		expect(screen.getByLabelText("问题描述")).toHaveAttribute("aria-invalid", "true");
+		expect(screen.getByLabelText("问题描述")).toHaveAttribute(
+			"aria-describedby",
+			"feedback-body-error",
+		);
+		expect(feedbackApiMock.submitFeedback).not.toHaveBeenCalled();
+	});
+
+	it("submits the selected feedback category and trimmed contact, then clears only the body", async () => {
+		const user = userEvent.setup();
+		render(<FeedbackPage />);
+		screen.getByRole("combobox", { name: "问题类型" }).focus();
+		await user.keyboard("{Enter}");
+		screen.getByRole("option", { name: "地图问题" }).focus();
+		await user.keyboard("{Enter}");
+		fireEvent.change(screen.getByLabelText("问题描述"), {
+			target: { value: "地图点位需要更新。" },
+		});
+		fireEvent.change(screen.getByLabelText("联系方式（可选）"), {
+			target: { value: "  student@example.edu  " },
+		});
+		await user.click(screen.getByRole("button", { name: "提交反馈" }));
+		await waitFor(() => expect(screen.getByText("反馈已提交。")).toBeVisible());
+		expect(feedbackApiMock.submitFeedback).toHaveBeenCalledWith(
+			expect.objectContaining({
+				category: "map_issue",
+				contact: "student@example.edu",
+				body: "地图点位需要更新。",
+			}),
+		);
+		expect(screen.getByLabelText("问题描述")).toHaveValue("");
+		expect(screen.getByRole("combobox", { name: "问题类型" })).toHaveTextContent("地图问题");
+	});
+
+	it("keeps feedback available after a failed submission", async () => {
+		feedbackApiMock.submitFeedback.mockRejectedValueOnce(new Error("unavailable"));
+		render(<FeedbackPage />);
+		fireEvent.change(screen.getByLabelText("问题描述"), { target: { value: "再次提交失败。" } });
+		fireEvent.click(screen.getByRole("button", { name: "提交反馈" }));
+		await waitFor(() => expect(screen.getByText("反馈暂时没有提交成功。")).toBeVisible());
+		expect(screen.getByLabelText("问题描述")).toHaveValue("再次提交失败。");
+		expect(screen.getByRole("button", { name: "提交反馈" })).toBeEnabled();
+		expect(screen.queryByText("反馈已提交。")).toBeNull();
+	});
+
+	it("shows the Dining map skeleton until the projection arrives", async () => {
+		let release: (value: typeof DINING_FIXTURE_MAP) => void = () => undefined;
+		diningApiMock.getDiningMap.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					release = resolve;
+				}),
+		);
+		render(<DiningPage />);
+		expect(screen.getByRole("status", { name: "正在读取食堂数据" })).toBeVisible();
+		expect(screen.getByTestId("dining-map-skeleton")).toBeInTheDocument();
+		await act(async () => release(DINING_FIXTURE_MAP));
+		expect(await screen.findByTestId("dining-map-panel")).toBeInTheDocument();
 	});
 });

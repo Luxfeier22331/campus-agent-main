@@ -156,10 +156,21 @@ const diningRoute = createRoute({
 	},
 	pendingComponent: DiningRoutePending,
 	path: "/dining",
-	validateSearch: (search: Record<string, unknown>) => ({
+	validateSearch: (
+		search: Record<string, unknown>,
+	): Partial<{
+		floor: string | undefined;
+		hall: string | undefined;
+		item: string | undefined;
+		window: string | undefined;
+		mine: "1" | undefined;
+		submission: string | undefined;
+	}> => ({
 		floor: optionalDiningSearchParam(search.floor),
 		hall: optionalDiningSearchParam(search.hall),
 		item: optionalDiningSearchParam(search.item),
+		mine: search.mine === "1" || search.mine === 1 ? ("1" as const) : undefined,
+		submission: optionalDiningSearchParam(search.submission),
 		window: optionalDiningSearchParam(search.window),
 	}),
 });

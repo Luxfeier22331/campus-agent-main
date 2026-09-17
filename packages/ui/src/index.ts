@@ -7,6 +7,7 @@ export * from "./cn";
 export * from "./collapsible";
 export * from "./dialog";
 export * from "./disclosure";
+export * from "./drawer";
 export * from "./form";
 export * from "./select";
 export * from "./separator";

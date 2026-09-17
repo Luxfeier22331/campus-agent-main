@@ -65,6 +65,9 @@
 		letter-spacing: 0;
 		line-height: var(--line-height-normal);
 		text-rendering: optimizeLegibility;
+		-webkit-tap-highlight-color: transparent;
+		-webkit-text-size-adjust: 100%;
+		text-size-adjust: 100%;
 	}
 
 	body {
@@ -83,6 +86,19 @@
 	select,
 	textarea {
 		font: inherit;
+	}
+
+	button,
+	a,
+	[role="button"],
+	[role="tab"],
+	[role="menuitem"],
+	[role="option"],
+	[role="switch"],
+	[role="checkbox"],
+	summary {
+		touch-action: manipulation;
+		user-select: none;
 	}
 
 	:focus-visible {
@@ -172,6 +188,16 @@
 		transition-duration: 0.01ms;
 		animation-duration: 0.01ms;
 		animation-iteration-count: 1;
+	}
+}
+
+/* 透明度降低偏好：半透明表面改为实底，保证可读性（Apple HIG Reduce Transparency） */
+@media (prefers-reduced-transparency: reduce) {
+	.backdrop-blur,
+	.backdrop-blur-sm,
+	.backdrop-blur-md,
+	.backdrop-blur-lg {
+		backdrop-filter: none;
 	}
 }
 

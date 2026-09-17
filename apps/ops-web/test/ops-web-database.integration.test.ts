@@ -1,6 +1,9 @@
 // @vitest-environment node
 
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
@@ -19,6 +22,8 @@ import {
 } from "../src/server/ops-status/store/postgres.ts";
 
 const postgres = inject("opsWebPostgres");
+const execFileAsync = promisify(execFile);
+const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const databaseEnv = {
 	DEPLOYMENT_ENVIRONMENT: "local",
 	OPS_WEB_DATABASE_SSLMODE: "disable",
@@ -181,7 +186,7 @@ describe("ops-web PostgreSQL grants", () => {
 		}
 	});
 
-	it("owns only the seven current Dining tables", async () => {
+	it("owns the current Dining tables", async () => {
 		const tables = await management.query<{ table_name: string }>(`
 			select table_name
 			from information_schema.tables
@@ -196,7 +201,98 @@ describe("ops-web PostgreSQL grants", () => {
 			"review_edits",
 			"review_reports",
 			"reviews",
+			"submission_edits",
+			"submission_photos",
+			"submission_reports",
+			"submissions",
 		]);
+	});
+
+	it("upgrades old Dining data through the named migration without loss", async () => {
+		const reviewId = randomUUID();
+		const reportId = randomUUID();
+		const editId = randomUUID();
+		await management.query("begin");
+		try {
+			await management.query(
+				"delete from drizzle.campus_agent_migrations where name in ('20260914000000_0016_dining_submissions', '20260914074417_dining_lifecycle')",
+			);
+			await management.query(
+				"drop table dining.submission_reports, dining.submission_edits, dining.submission_photos cascade",
+			);
+			await management.query("drop table dining.submissions cascade");
+			await management.query("drop index if exists dining_reviews_submission_created_idx");
+			await management.query(
+				"alter table dining.reviews drop constraint if exists dining_reviews_target_check, drop column if exists submission_id, drop column if exists content_revision",
+			);
+			await management.query(
+				"alter table dining.reviews alter column author_display_name set not null, alter column author_id set not null, alter column body set not null, alter column menu_item_id set not null, alter column updated_by set not null",
+			);
+			await management.query(
+				"alter table dining.review_reports drop constraint if exists dining_review_reports_resolution_state_check, drop column if exists content_expires_at, drop column if exists target_revision, alter column reporter_user_id set not null",
+			);
+			await management.query(
+				"alter table dining.review_reports add constraint dining_review_reports_resolution_state_check check ((resolution is null and resolved_at is null and resolved_by is null) or (resolution is not null and resolved_at is not null and resolved_by is not null))",
+			);
+			await management.query(
+				"alter table dining.review_edits drop column if exists next_revision, drop column if exists previous_revision, drop column if exists expires_at, alter column edited_by set not null, alter column next_body set not null, alter column previous_body set not null",
+			);
+			await management.query(
+				"insert into dining.menu_items (menu_item_id, window_id, name, price_text, sort_order, created_at, created_by, updated_at, updated_by) values ('upgrade-menu-item', 'upgrade-window', '旧菜单菜品', null, 0, now(), 'upgrade-fixture', now(), 'upgrade-fixture')",
+			);
+			await management.query(
+				"insert into dining.reviews (review_id, menu_item_id, author_kind, author_id, author_display_name, anonymous, body, idempotency_key, submission_date, created_at, updated_at, updated_by) values ($1, 'upgrade-menu-item', 'member', 'upgrade-user', '升级用户', false, '旧评价正文', 'upgrade-review-key', current_date, now(), now(), 'upgrade-user')",
+				[reviewId],
+			);
+			await management.query(
+				"insert into dining.review_reports (report_id, review_id, reporter_user_id, reason, details, created_at, resolution, resolved_at, resolved_by) values ($1, $2, 'upgrade-reporter', 'other', '旧举报说明', now(), 'keep', now(), 'upgrade-operator')",
+				[reportId, reviewId],
+			);
+			await management.query(
+				"insert into dining.review_edits (edit_id, review_id, previous_body, next_body, edited_at, edited_by) values ($1, $2, '旧评价正文', '更新后的旧评价正文', now(), 'upgrade-user')",
+				[editId, reviewId],
+			);
+			await management.query("commit");
+		} catch (error) {
+			await management.query("rollback");
+			throw error;
+		}
+
+		const migrationEnv = {
+			...process.env,
+			PGDATABASE: new URL(postgres.managementConnectionString).pathname.slice(1),
+			PGHOST: new URL(postgres.managementConnectionString).hostname,
+			PGPASSWORD: decodeURIComponent(new URL(postgres.managementConnectionString).password),
+			PGPORT: new URL(postgres.managementConnectionString).port,
+			PGSSLMODE: "disable",
+			PGUSER: decodeURIComponent(new URL(postgres.managementConnectionString).username),
+		};
+		const first = await execFileAsync("pnpm", ["--dir", "jobs/campus-agent-schema", "migrate"], {
+			cwd: repositoryRoot,
+			env: migrationEnv,
+		});
+		expect(first.stdout).toContain("applied");
+		const preserved = await management.query(
+			"select r.menu_item_id, r.body, rr.details, re.previous_body from dining.reviews r join dining.review_reports rr on rr.review_id = r.review_id join dining.review_edits re on re.review_id = r.review_id where r.review_id = $1",
+			[reviewId],
+		);
+		expect(preserved.rows[0]).toEqual({
+			menu_item_id: "upgrade-menu-item",
+			body: "旧评价正文",
+			details: "旧举报说明",
+			previous_body: "旧评价正文",
+		});
+		const second = await execFileAsync("pnpm", ["--dir", "jobs/campus-agent-schema", "migrate"], {
+			cwd: repositoryRoot,
+			env: migrationEnv,
+		});
+		expect(second.stdout).toContain("current");
+		await management.query("delete from dining.review_reports where report_id = $1", [reportId]);
+		await management.query("delete from dining.review_edits where edit_id = $1", [editId]);
+		await management.query("delete from dining.reviews where review_id = $1", [reviewId]);
+		await management.query(
+			"delete from dining.menu_items where menu_item_id = 'upgrade-menu-item'",
+		);
 	});
 
 	it("allows Ops Web writes and limits App API to public content operations", async () => {
@@ -226,10 +322,10 @@ describe("ops-web PostgreSQL grants", () => {
 			has_table_privilege('app_api', 'dining.reviews', 'SELECT,INSERT,UPDATE') as "canUseReviews",
 			has_table_privilege('app_api', 'dining.reviews', 'DELETE') as "canDeleteReviews",
 			has_table_privilege('app_api', 'dining.review_reports', 'SELECT,INSERT') as "canUseReports",
-			has_table_privilege('app_api', 'dining.review_reports', 'UPDATE,DELETE') as "canResolveReports",
-			has_table_privilege('app_api', 'dining.review_edits', 'SELECT,INSERT,UPDATE,DELETE') as "canUseEdits"`);
+			has_table_privilege('app_api', 'dining.review_reports', 'UPDATE') as "canResolveReports",
+			has_table_privilege('app_api', 'dining.review_edits', 'SELECT,INSERT,UPDATE') as "canUseEdits"`);
 		expect(privileges.rows[0]).toEqual({
-			canDeleteReviews: false,
+			canDeleteReviews: true,
 			canMutateMenu: false,
 			canMutateReleases: false,
 			canReadDraft: false,
@@ -241,6 +337,42 @@ describe("ops-web PostgreSQL grants", () => {
 			canUseReports: true,
 			canUseReviews: true,
 		});
+	});
+
+	it("permits lifecycle identity cleanup without granting report resolution or historical bodies", async () => {
+		const runtime = await connect(postgres.appApiConnectionString);
+		try {
+			await runtime.query("begin");
+			await runtime.query(
+				"select edit_id, review_id, edited_by, edited_at, expires_at from dining.review_edits limit 0",
+			);
+			await runtime.query("update dining.reviews set updated_by = null where false");
+			await runtime.query(
+				"update dining.review_reports set details = null, reporter_user_id = null, resolved_by = null where false",
+			);
+			await runtime.query("update dining.review_edits set edited_by = null where false");
+			await runtime.query("delete from dining.review_edits where false");
+			await runtime.query("delete from dining.review_reports where false");
+			await runtime.query("delete from dining.reviews where false");
+			await runtime.query("rollback");
+			for (const statement of [
+				"select previous_body from dining.review_edits limit 0",
+				"select next_body from dining.review_edits limit 0",
+				"update dining.review_reports set resolution = null where false",
+				"update dining.review_reports set resolved_at = null where false",
+				"update dining.review_edits set previous_body = null where false",
+				"insert into dining.review_edits (edit_id, review_id, edited_at) select 'denied', 'denied', now() where false",
+			]) {
+				expect(await postgresErrorCode(runtime.query(statement))).toBe("42501");
+			}
+			const nullable = await management.query(
+				"select is_nullable from information_schema.columns where table_schema = 'dining' and table_name = 'reviews' and column_name = 'updated_by'",
+			);
+			expect(nullable.rows[0]).toEqual({ is_nullable: "YES" });
+		} finally {
+			await runtime.query("rollback");
+			await runtime.end();
+		}
 	});
 
 	it("preserves Dining content when schema and grants are applied again", async () => {

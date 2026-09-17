@@ -10,13 +10,16 @@ const AuthDialogContent = lazy(() =>
 export function AuthDialog({
 	initialView = "signIn",
 	onOpenChange,
+	onAuthenticated,
 	open,
 }: {
 	initialView?: AuthDialogView;
+	onAuthenticated?: () => void;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 }) {
 	const returnFocus = useRef<HTMLElement | null>(null);
+	const continuing = useRef(false);
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<DialogContent
@@ -24,11 +27,16 @@ export function AuthDialog({
 				aria-label="登录或创建校园问答账号"
 				className="max-w-md pt-14"
 				closeLabel="关闭登录窗口"
+				data-campus-account-surface="auth-modal"
 				onOpenAutoFocus={() => {
 					returnFocus.current =
 						document.activeElement instanceof HTMLElement ? document.activeElement : null;
 				}}
 				onCloseAutoFocus={(event) => {
+					if (continuing.current) {
+						event.preventDefault();
+						return;
+					}
 					if (returnFocus.current?.isConnected) {
 						event.preventDefault();
 						returnFocus.current.focus();
@@ -42,8 +50,13 @@ export function AuthDialog({
 				<div className="mx-auto w-full max-w-sm">
 					<Suspense fallback={<AuthDialogPending />}>
 						<AuthDialogContent
-							onAuthenticated={() => onOpenChange(false)}
+							onAuthenticated={() => {
+								continuing.current = Boolean(onAuthenticated);
+								onOpenChange(false);
+								onAuthenticated?.();
+							}}
 							redirectTo={readCurrentRouteTarget()}
+							continueInPlace={Boolean(onAuthenticated)}
 							view={initialView}
 						/>
 					</Suspense>

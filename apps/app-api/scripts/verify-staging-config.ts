@@ -23,6 +23,22 @@ async function main(): Promise<void> {
 	const source = await readFile(configPath, "utf8");
 	const config = parse(source) as Record<string, unknown>;
 	const environments = config.env as Record<string, Record<string, unknown>> | undefined;
+	for (const name of ["local", "staging"]) {
+		const environment = environments?.[name];
+		const images = environment?.images as { binding?: unknown; remote?: unknown } | undefined;
+		if (images?.binding !== "DINING_IMAGES") {
+			fail(`Missing ${name} DINING_IMAGES binding.`);
+		}
+		if (name === "local" && images.remote !== false) {
+			fail("Local DINING_IMAGES must use local emulation.");
+		}
+		const secrets = environment?.secrets as { required?: unknown } | undefined;
+		for (const secret of ["OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_DERIVED_SECRET_KEY"]) {
+			if (!(Array.isArray(secrets?.required) && secrets.required.includes(secret))) {
+				fail(`Missing ${name} ${secret} required secret declaration.`);
+			}
+		}
+	}
 
 	if (
 		Object.hasOwn(config, "observability") ||

@@ -910,4 +910,13 @@ describe("campus map page", () => {
 		expect(screen.getByRole("button", { name: "打开全局菜单" })).toBeInTheDocument();
 		expect(screen.queryByText("正在读取地图")).not.toBeInTheDocument();
 	});
+	it("renders an empty map when no places are published", async () => {
+		const { getCampusMapPlaces } = await import("../src/features/map/api");
+		vi.mocked(getCampusMapPlaces).mockResolvedValueOnce({
+			campus: { defaultCenter: [116.3216, 39.9519], id: "haidian", name: "海淀校区" },
+			places: [],
+		});
+		render(<MapPage />);
+		expect(await screen.findByText("暂无校园地点")).toBeInTheDocument();
+	});
 });

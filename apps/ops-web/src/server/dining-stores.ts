@@ -7,6 +7,11 @@ import {
 } from "./dining-review-store.ts";
 import { createPgDiningStore, createUnavailableDiningStore } from "./dining-store.ts";
 import type { DiningStoreEnv, DiningStores } from "./dining-store-contract.ts";
+import { createDiningSubmissionAssetStoreFromEnv } from "./dining-submission-assets.ts";
+import {
+	createPgDiningSubmissionStore,
+	createUnavailableDiningSubmissionStore,
+} from "./dining-submission-store.ts";
 
 export function createDiningStores(input: {
 	env: DiningStoreEnv;
@@ -25,6 +30,10 @@ export function createDiningStores(input: {
 		map,
 		menu: createPgDiningMenuStore({ pool: input.pool }),
 		reviews: createPgDiningReviewStore({ pool: input.pool }),
+		submissions: createPgDiningSubmissionStore({
+			pool: input.pool,
+			assets: createDiningSubmissionAssetStoreFromEnv(input.env),
+		}),
 	};
 }
 
@@ -33,5 +42,6 @@ export function createUnavailableDiningStores(error: unknown): DiningStores {
 		map: createUnavailableDiningStore(error),
 		menu: createUnavailableDiningMenuStore(error),
 		reviews: createUnavailableDiningReviewStore(error),
+		submissions: createUnavailableDiningSubmissionStore(error),
 	};
 }

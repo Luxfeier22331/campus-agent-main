@@ -7,10 +7,12 @@ export function AuthDialogContent({
 	redirectTo,
 	onAuthenticated,
 	view,
+	continueInPlace = false,
 }: {
 	onAuthenticated: () => void;
 	redirectTo: string;
 	view: AuthDialogView;
+	continueInPlace?: boolean;
 }) {
 	const contentRef = useRef<HTMLDivElement>(null);
 
@@ -32,6 +34,7 @@ export function AuthDialogContent({
 				localNavigation
 				onAuthenticated={onAuthenticated}
 				redirectTo={redirectTo}
+				continueInPlace={continueInPlace}
 				view={view}
 			/>
 		</div>

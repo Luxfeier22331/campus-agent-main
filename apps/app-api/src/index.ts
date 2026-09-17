@@ -58,6 +58,7 @@ export function createWorkerRuntime(
 			if (isDeployedEnvironment(resolveEnvironment(env)) || dependencies.emailAccessService) {
 				jobs.push({ name: "email-access", run: () => scope.resolveEmailAccessService().expire() });
 			}
+			jobs.push({ name: "dining", run: () => scope.resolveDiningLifecycleService().sweep() });
 			if (isExecutionControlRuntimeConfigured(env)) {
 				jobs.push({
 					name: "memory",

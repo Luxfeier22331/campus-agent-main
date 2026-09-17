@@ -67,11 +67,11 @@ test("the Ops Web step timing migration grants only the required read columns", 
 	assert.doesNotMatch(migration, /GRANT SELECT ON TABLE|INSERT|UPDATE|DELETE|REVOKE/u);
 });
 
-test("released v0 history maps uniquely without changing SQL", async () => {
+test("released v0 history maps uniquely and leaves unpublished Dining pending", async () => {
 	const history = readHistory(resolve(jobRoot, "migrations"));
 	const fixture = JSON.parse(
 		await readFile(new URL("fixtures/v0-history.json", import.meta.url), "utf8"),
-	);
+	).filter((row: { name: string }) => row.name !== "20260914000000_0016_dining_submissions");
 	assert.deepEqual(
 		compareHistory(
 			history,

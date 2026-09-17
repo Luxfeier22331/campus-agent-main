@@ -1,5 +1,10 @@
 // @vitest-environment node
 
+import {
+	DiningOpsContentReportPageSchema,
+	DiningOpsContentReviewDetailSchema,
+	DiningOpsContentReviewPageSchema,
+} from "@campus-agent/dining/domain";
 import { DINING_BOOTSTRAP_FLOORPLANS } from "@campus-agent/dining/floorplans";
 import {
 	buildDiningMapResponse,
@@ -61,11 +66,17 @@ describe("Dining content PostgreSQL stores", () => {
 	beforeEach(async () => {
 		tick = 0;
 		await managementPool.query(`
-			truncate dining.review_edits, dining.review_reports, dining.reviews, dining.menu_items;
+			truncate dining.review_edits, dining.review_reports, dining.reviews, dining.menu_items, dining.submission_reports, dining.submission_edits, dining.submission_photos, dining.submissions;
 			delete from dining.map_publication;
 			delete from dining.map_releases;
 			delete from dining.map_draft;
 		`);
+		for (const id of ["user_1", "user_2", "user_concurrent", "author", "reader"]) {
+			await managementPool.query(
+				`insert into app_auth."user" (id, name, email, "createdAt", "updatedAt") values ($1, $1, $2, $3, $3) on conflict (id) do nothing`,
+				[id, `${id}@muc.edu.cn`, now()],
+			);
+		}
 		await managementPool.query(
 			`insert into dining.map_draft
 			 (scope, bundle_json, fingerprint, revision, updated_at, updated_by)
@@ -261,7 +272,8 @@ describe("Dining content PostgreSQL stores", () => {
 
 		await stores.reviews.updateReview(operator, review.reviewId, "修改后的正文");
 		const detail = await stores.reviews.getReview(review.reviewId);
-		expect(detail.review).toMatchObject({ body: "修改后的正文", editCount: 1 });
+		expect(detail.review).toMatchObject({ body: "修改后的正文", editCount: 1, contentRevision: 2 });
+		expect(DiningOpsContentReviewDetailSchema.safeParse(detail).success).toBe(true);
 		expect(detail.edits).toEqual([
 			expect.objectContaining({ nextBody: "修改后的正文", previousBody: "原始正文" }),
 		]);
@@ -292,5 +304,284 @@ describe("Dining content PostgreSQL stores", () => {
 			(await stores.reviews.listReports({ limit: 10, status: "resolved" })).items,
 		).toHaveLength(2);
 		expect((await stores.reviews.getReview(review.reviewId)).review.hiddenAt).not.toBeNull();
+	});
+
+	async function seedSubmission(id = "dsb_1") {
+		await managementPool.query(
+			`insert into dining.submissions
+			(submission_id, author_id, author_display_name, window_id, name, price_text, status, revision, content_revision, created_at, updated_at, created_submission_date)
+			values ($1, 'author', '投稿同学', $2, '投稿牛肉面', '12 元', 'public', 1, 1, $3, $3, '2026-07-24')`,
+			[id, primaryWindowId, now()],
+		);
+		return id;
+	}
+
+	async function seedReview(submissionId: string, id = "drv_submission") {
+		await managementPool.query(
+			`insert into dining.reviews
+			(review_id, submission_id, author_kind, author_id, author_display_name, anonymous, body, idempotency_key, submission_date, created_at, updated_at, updated_by)
+			values ($1, $2, 'member', 'reader', '评价同学', false, '原始投稿评价', $1, '2026-07-24', $3, $3, 'reader')`,
+			[id, submissionId, now()],
+		);
+		return id;
+	}
+
+	it("lists both review targets, supports exclusive filters and preserves student deletion restrictions", async () => {
+		const stores = createPgDiningStores({ now, pool: opsPool });
+		const submissionId = await seedSubmission();
+		const reviewId = await seedReview(submissionId);
+		const item = await stores.menu.createMenuItem(operator, {
+			name: "正式菜单",
+			priceText: null,
+			windowId: primaryWindowId,
+		});
+		await stores.reviews.createReview(operator, {
+			anonymous: false,
+			body: "菜单评价",
+			idempotencyKey: "menu-review",
+			menuItemId: item.menuItemId,
+		});
+		const all = await stores.reviews.listReviews({ limit: 50 });
+		expect(DiningOpsContentReviewPageSchema.safeParse(all).success).toBe(true);
+		expect(all.items.map((review) => review.targetKind).sort()).toEqual([
+			"menu_item",
+			"submission",
+		]);
+		expect(
+			(await stores.reviews.listReviews({ limit: 50, submissionId, targetType: "submission" }))
+				.items,
+		).toMatchObject([{ reviewId, targetKind: "submission", submissionName: "投稿牛肉面" }]);
+		expect(
+			(await stores.reviews.listReviews({ limit: 50, windowId: primaryWindowId })).items,
+		).toHaveLength(2);
+		await expect(
+			stores.reviews.listReviews({ limit: 50, submissionId, menuItemId: item.menuItemId }),
+		).rejects.toMatchObject({ name: "DiningStoreValidationError" });
+		await expect(stores.reviews.deleteOperatorReview(operator, reviewId)).rejects.toMatchObject({
+			name: "DiningStoreNotFoundError",
+		});
+		await managementPool.query(
+			"update dining.submissions set status = 'hidden', hidden_at = $1, hidden_by = 'ops:1' where submission_id = $2",
+			[now(), submissionId],
+		);
+		expect((await stores.reviews.getReview(reviewId)).review.hiddenAt).toBeNull();
+		await managementPool.query(
+			"update dining.submissions set status = 'purged', purged_at = $1, name = null, window_id = null, author_id = null, author_display_name = null where submission_id = $2",
+			[now(), submissionId],
+		);
+		expect((await stores.reviews.getReview(reviewId)).review).toMatchObject({
+			targetKind: "submission",
+			submissionName: null,
+			windowId: null,
+			body: "原始投稿评价",
+		});
+		const expiredStore = createPgDiningReviewStore({
+			pool: opsPool,
+			now: () => new Date("2026-08-25T08:00:00Z"),
+		});
+		expect((await expiredStore.getReview(reviewId)).review.body).toBeNull();
+		await expect(
+			expiredStore.updateReview(operator, reviewId, "不能复活已到期正文"),
+		).rejects.toMatchObject({ name: "DiningStoreConflictError" });
+	});
+
+	it("replays the reported revision, bounds history retention and never invents a legacy snapshot", async () => {
+		const stores = createPgDiningStores({ now, pool: opsPool });
+		const submissionId = await seedSubmission();
+		const reviewId = await seedReview(submissionId);
+		await managementPool.query(
+			`insert into dining.review_reports
+			(report_id, review_id, reporter_user_id, reason, details, created_at, target_revision, content_expires_at)
+			values ('reported-v1', $1, 'author', 'privacy', '举报时说明', $2, 1, $3), ('legacy', $1, null, 'other', null, $2, null, null)`,
+			[reviewId, now(), new Date("2026-08-23T08:00:00Z")],
+		);
+		await stores.reviews.updateReview(operator, reviewId, "修改后的评价");
+		let reports = await stores.reviews.listReports({
+			limit: 50,
+			status: "pending",
+			submissionId,
+			targetType: "review",
+		});
+		expect(DiningOpsContentReportPageSchema.safeParse(reports).success).toBe(true);
+		expect(reports.items.find((report) => report.reportId === "reported-v1")?.target).toMatchObject(
+			{
+				kind: "review",
+				targetRevision: 1,
+				current: { body: "修改后的评价", contentRevision: 2 },
+				reported: { replayable: true, body: "原始投稿评价" },
+			},
+		);
+		expect(reports.items.find((report) => report.reportId === "legacy")?.target).toMatchObject({
+			targetRevision: null,
+			reported: { replayable: false },
+		});
+		await managementPool.query(
+			"update dining.review_edits set expires_at = $1 where review_id = $2",
+			[new Date("2026-07-23T08:00:00Z"), reviewId],
+		);
+		reports = await stores.reviews.listReports({
+			limit: 50,
+			status: "pending",
+			targetType: "review",
+		});
+		expect(
+			reports.items.find((report) => report.reportId === "reported-v1")?.target.reported,
+		).toEqual({ replayable: false });
+		const detail = await stores.reviews.getReview(reviewId);
+		expect(detail.edits[0]).toMatchObject({
+			replayable: false,
+			previousRevision: 1,
+			nextRevision: 2,
+		});
+		expect(detail.edits[0]).not.toHaveProperty("previousBody");
+		await managementPool.query(
+			"update dining.review_reports set content_expires_at = $1 where review_id = $2",
+			[new Date("2026-07-23T08:00:00Z"), reviewId],
+		);
+		expect(
+			(await stores.reviews.listReports({ limit: 50, status: "pending" })).items.every(
+				(report) => report.details === null && !report.target.reported.replayable,
+			),
+		).toBe(true);
+		expect((await stores.reviews.listReports({ limit: 50, status: "pending" })).items).toHaveLength(
+			2,
+		);
+	});
+
+	it("keeps formal menu review history and report details replayable past their old retention", async () => {
+		const stores = createPgDiningStores({ now, pool: opsPool });
+		const item = await stores.menu.createMenuItem(operator, {
+			name: "正式菜品",
+			priceText: null,
+			windowId: primaryWindowId,
+		});
+		const review = await stores.reviews.createReview(operator, {
+			anonymous: false,
+			body: "原始菜单评价",
+			idempotencyKey: "menu-review-key",
+			menuItemId: item.menuItemId,
+		});
+		const report = await createAppApiService().reportReview({
+			details: "举报说明",
+			reason: "other",
+			reviewId: review.reviewId,
+			userId: "user_1",
+		});
+		await stores.reviews.updateReview(operator, review.reviewId, "修改后的菜单评价");
+		const expiredStore = createPgDiningReviewStore({
+			pool: opsPool,
+			now: () => new Date("2026-09-22T08:00:00Z"),
+		});
+		const detail = await expiredStore.getReview(review.reviewId);
+		expect(DiningOpsContentReviewDetailSchema.safeParse(detail).success).toBe(true);
+		expect(detail.edits[0]).toMatchObject({
+			expiresAt: null,
+			nextBody: "修改后的菜单评价",
+			previousBody: "原始菜单评价",
+			replayable: true,
+		});
+		const reports = await expiredStore.listReports({
+			limit: 50,
+			status: "pending",
+			targetType: "review",
+		});
+		expect(DiningOpsContentReportPageSchema.safeParse(reports).success).toBe(true);
+		expect(reports.items.find((entry) => entry.reportId === report.reportId)).toMatchObject({
+			details: "举报说明",
+			target: {
+				kind: "review",
+				targetRevision: 1,
+				reported: { replayable: true, body: "原始菜单评价" },
+			},
+		});
+	});
+
+	it("merges parent and review reports without same-ID cursor collisions or cross-target resolutions", async () => {
+		const stores = createPgDiningStores({ now, pool: opsPool });
+		const submissionId = await seedSubmission("shared-target");
+		const reviewId = await seedReview(submissionId, "shared-target");
+		const acceptedAt = now();
+		const expiresAt = new Date(acceptedAt.valueOf() + 30 * 86400000);
+		await managementPool.query(
+			`insert into dining.review_reports
+			(report_id, review_id, reporter_user_id, reason, created_at, target_revision, content_expires_at)
+			values ('shared-report', $1, 'author', 'other', $2, 1, $3)`,
+			[reviewId, acceptedAt, expiresAt],
+		);
+		await managementPool.query(
+			`insert into dining.submission_reports
+			(report_id, submission_id, reporter_user_id, reason, created_at, target_revision, content_expires_at)
+			values ('shared-report', $1, 'reader', 'other', $2, 1, $3)`,
+			[submissionId, acceptedAt, expiresAt],
+		);
+		const first = await stores.reviews.listReports({ limit: 1, status: "pending", submissionId });
+		const second = await stores.reviews.listReports({
+			limit: 1,
+			status: "pending",
+			submissionId,
+			cursor: first.nextCursor ?? "",
+		});
+		expect(DiningOpsContentReportPageSchema.safeParse(first).success).toBe(true);
+		expect(first.items[0]?.target.kind).not.toBe(second.items[0]?.target.kind);
+		expect(second.nextCursor).toBeNull();
+		expect(
+			(await stores.reviews.listReports({ limit: 50, status: "pending", targetType: "submission" }))
+				.items,
+		).toHaveLength(1);
+		await stores.reviews.resolveReports(operator, reviewId, "hide");
+		expect(
+			(await stores.reviews.listReports({ limit: 50, status: "pending" })).items,
+		).toMatchObject([{ target: { kind: "submission" } }]);
+		expect(
+			(
+				await managementPool.query(
+					"select status from dining.submissions where submission_id = $1",
+					[submissionId],
+				)
+			).rows[0].status,
+		).toBe("public");
+		await managementPool.query(
+			"update dining.review_reports set resolved_at = null, resolved_by = null, resolution = null where review_id = $1",
+			[reviewId],
+		);
+		await stores.reviews.resolveReports(operator, reviewId, "keep");
+		expect((await stores.reviews.getReview(reviewId)).review.hiddenAt).not.toBeNull();
+	});
+
+	it("serializes editing and hiding without losing moderation or resolving parent reports", async () => {
+		const reviews = createPgDiningReviewStore({ now, pool: opsPool });
+		const submissionId = await seedSubmission();
+		const reviewId = await seedReview(submissionId);
+		const acceptedAt = now();
+		await managementPool.query(
+			`insert into dining.review_reports
+			(report_id, review_id, reporter_user_id, reason, created_at, target_revision, content_expires_at)
+			values ('review-report', $1, 'author', 'other', $2, 1, $3)`,
+			[reviewId, acceptedAt, new Date(acceptedAt.valueOf() + 30 * 86400000)],
+		);
+		await managementPool.query(
+			`insert into dining.submission_reports
+			(report_id, submission_id, reporter_user_id, reason, created_at, target_revision, content_expires_at)
+			values ('parent-report', $1, 'reader', 'other', $2, 1, $3)`,
+			[submissionId, acceptedAt, new Date(acceptedAt.valueOf() + 30 * 86400000)],
+		);
+		await Promise.all([
+			reviews.updateReview(operator, reviewId, "并发修改正文"),
+			reviews.setReviewVisibility(operator, reviewId, false),
+		]);
+		const detail = await reviews.getReview(reviewId);
+		expect(detail.review).toMatchObject({ body: "并发修改正文", contentRevision: 2, editCount: 1 });
+		expect(detail.review.hiddenAt).not.toBeNull();
+		expect(
+			(await reviews.listReports({ limit: 50, status: "pending" })).items.map(
+				(report) => report.reportId,
+			),
+		).toEqual(["parent-report"]);
+		expect(
+			(await reviews.listReports({ limit: 50, status: "resolved" })).items[0]?.target,
+		).toMatchObject({
+			reported: { replayable: true, body: "原始投稿评价" },
+			current: { body: "并发修改正文" },
+		});
 	});
 });

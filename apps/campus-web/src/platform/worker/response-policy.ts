@@ -45,6 +45,24 @@ export async function withNoStore(response: Response): Promise<Response> {
 	});
 }
 
+// Dining submission photo successes carry an upstream ETag: keep revalidation
+// semantics (store, but always recheck origin) regardless of upstream cache
+// claims, and preserve the validator so unchanged photos can return 304.
+export async function withPhotoRevalidation(response: Response): Promise<Response> {
+	const headers = new Headers(response.headers);
+	headers.set("cache-control", "private, no-cache");
+	headers.delete("content-encoding");
+	headers.delete("content-length");
+	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+		headers.set(key, value);
+	}
+	return new Response(response.body, {
+		headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
+}
+
 export function dependencyNotReadyResponse(): Response {
 	return jsonResponse(503, {
 		error: {

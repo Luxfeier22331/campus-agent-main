@@ -1,10 +1,13 @@
 import {
 	DiningMenuItemListResponseSchema,
 	DiningMenuItemResponseSchema,
-	DiningOpsReportPageSchema,
-	DiningOpsReviewDetailSchema,
-	DiningOpsReviewPageSchema,
-	DiningOpsReviewResponseSchema,
+	DiningOpsContentReportPageSchema,
+	DiningOpsContentReviewDetailSchema,
+	DiningOpsContentReviewPageSchema,
+	DiningOpsContentReviewResponseSchema,
+	DiningOpsSubmissionDetailSchema,
+	DiningOpsSubmissionPageSchema,
+	DiningOpsSubmissionResponseSchema,
 } from "@campus-agent/dining/domain";
 import type { DiningFloorplanBundleV1 } from "@campus-agent/dining/floorplans";
 import {
@@ -127,6 +130,8 @@ export interface DiningReviewListParams {
 	cursor?: string;
 	limit?: number;
 	menuItemId?: string;
+	submissionId?: string;
+	targetType?: "menu_item" | "submission";
 	q?: string;
 	visibility?: "deleted" | "hidden" | "visible";
 	windowId?: string;
@@ -140,17 +145,19 @@ export async function fetchDiningReviews(
 		cursor: params.cursor,
 		limit: params.limit,
 		menu_item_id: params.menuItemId,
+		submission_id: params.submissionId,
+		target_type: params.targetType,
 		q: params.q,
 		visibility: params.visibility,
 		window_id: params.windowId,
 	});
-	return DiningOpsReviewPageSchema.parse(
+	return DiningOpsContentReviewPageSchema.parse(
 		await fetchJson(`/api/ops/dining/reviews${query}`, { signal: input.signal }),
 	);
 }
 
 export async function fetchDiningReview(reviewId: string, input: { signal?: AbortSignal } = {}) {
-	return DiningOpsReviewDetailSchema.parse(
+	return DiningOpsContentReviewDetailSchema.parse(
 		await fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}`, {
 			signal: input.signal,
 		}),
@@ -163,7 +170,7 @@ export async function createDiningReview(input: {
 	idempotencyKey: string;
 	menuItemId: string;
 }) {
-	return DiningOpsReviewResponseSchema.parse(
+	return DiningOpsContentReviewResponseSchema.parse(
 		await fetchJson(
 			`/api/ops/dining/reviews?menu_item_id=${encodeURIComponent(input.menuItemId)}`,
 			{
@@ -179,7 +186,7 @@ export async function createDiningReview(input: {
 }
 
 export async function updateDiningReview(reviewId: string, body: string) {
-	return DiningOpsReviewResponseSchema.parse(
+	return DiningOpsContentReviewResponseSchema.parse(
 		await fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}`, {
 			body: JSON.stringify({ body }),
 			headers: { "content-type": "application/json" },
@@ -189,7 +196,7 @@ export async function updateDiningReview(reviewId: string, body: string) {
 }
 
 export async function setDiningReviewVisible(reviewId: string, visible: boolean) {
-	return DiningOpsReviewResponseSchema.parse(
+	return DiningOpsContentReviewResponseSchema.parse(
 		await fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}/visibility`, {
 			body: JSON.stringify({ visible }),
 			headers: { "content-type": "application/json" },
@@ -205,11 +212,25 @@ export async function deleteDiningOperatorReview(reviewId: string) {
 }
 
 export async function fetchDiningReports(
-	params: { cursor?: string; limit?: number; status: "pending" | "resolved" },
+	params: {
+		cursor?: string;
+		limit?: number;
+		status: "pending" | "resolved";
+		submissionId?: string;
+		menuItemId?: string;
+		targetType?: "review" | "submission";
+	},
 	input: { signal?: AbortSignal } = {},
 ) {
-	const query = queryString(params);
-	return DiningOpsReportPageSchema.parse(
+	const query = queryString({
+		cursor: params.cursor,
+		limit: params.limit,
+		status: params.status,
+		menu_item_id: params.menuItemId,
+		submission_id: params.submissionId,
+		target_type: params.targetType,
+	});
+	return DiningOpsContentReportPageSchema.parse(
 		await fetchJson(`/api/ops/dining/reports${query}`, { signal: input.signal }),
 	);
 }
@@ -220,4 +241,75 @@ export async function resolveDiningReports(reviewId: string, resolution: "hide" 
 		headers: { "content-type": "application/json" },
 		method: "POST",
 	});
+}
+
+export async function resolveDiningSubmissionReports(
+	submissionId: string,
+	expectedRevision: number,
+	resolution: "hide" | "keep",
+) {
+	await fetchJson(
+		`/api/ops/dining/submissions/${encodeURIComponent(submissionId)}/reports/resolve`,
+		{
+			body: JSON.stringify({ expectedRevision, resolution }),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		},
+	);
+}
+
+export interface DiningSubmissionListParams {
+	cursor?: string;
+	limit?: number;
+	windowId?: string;
+	status?: "public" | "hidden" | "deleted" | "expired" | "purged";
+	reportStatus?: "pending" | "resolved";
+}
+
+export async function fetchDiningSubmissions(
+	params: DiningSubmissionListParams = {},
+	input: { signal?: AbortSignal } = {},
+) {
+	const query = queryString({
+		cursor: params.cursor,
+		limit: params.limit,
+		window_id: params.windowId,
+		status: params.status,
+		report_status: params.reportStatus,
+	});
+	return DiningOpsSubmissionPageSchema.parse(
+		await fetchJson(`/api/ops/dining/submissions${query}`, { signal: input.signal }),
+	);
+}
+
+export async function fetchDiningSubmission(
+	submissionId: string,
+	input: { signal?: AbortSignal } = {},
+) {
+	return DiningOpsSubmissionDetailSchema.parse(
+		await fetchJson(`/api/ops/dining/submissions/${encodeURIComponent(submissionId)}`, {
+			signal: input.signal,
+		}),
+	);
+}
+
+export async function changeDiningSubmission(
+	submissionId: string,
+	expectedRevision: number,
+	action: "hide" | "unhide" | "delete" | "restore",
+) {
+	const visibility = action === "hide" || action === "unhide";
+	return DiningOpsSubmissionResponseSchema.parse(
+		await fetchJson(
+			`/api/ops/dining/submissions/${encodeURIComponent(submissionId)}/${visibility ? "visibility" : action}`,
+			{
+				method: visibility ? "PUT" : "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					expectedRevision,
+					...(visibility ? { visible: action === "unhide" } : {}),
+				}),
+			},
+		),
+	);
 }

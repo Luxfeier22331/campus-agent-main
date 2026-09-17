@@ -1,5 +1,6 @@
 import { parse } from "smol-toml";
 import { describe, expect, it, vi } from "vitest";
+import { readSubmissionCreate } from "../src/app/routes/dining-submission-request";
 import { createWorkerRuntime } from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
@@ -62,11 +63,13 @@ describe("app-api worker foundation", () => {
 		const dispatchMemory = vi.fn(async () => {
 			throw new Error("memory unavailable");
 		});
+		const sweepDining = vi.fn(async () => undefined);
 		const dispatchAccount = vi.fn(async () => ({ processed: 0 }));
 		const expire = vi.fn(async () => 0);
 		const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
 		try {
 			const runtime = createWorkerRuntime(env, {
+				diningLifecycleService: { sweep: sweepDining, eraseForAccountDeletion: vi.fn() },
 				profileMemoryService: {
 					dispatchPending: dispatchMemory,
 				} as unknown as import("../src/modules/profile-memory").ProfileMemoryService,
@@ -78,6 +81,7 @@ describe("app-api worker foundation", () => {
 				} as unknown as import("../src/modules/email-access").EmailAccessService,
 			});
 			await expect(runtime.scheduled()).rejects.toThrow("Scheduled jobs failed");
+			expect(sweepDining).toHaveBeenCalledOnce();
 			expect(dispatchMemory).toHaveBeenCalledOnce();
 			expect(dispatchAccount).toHaveBeenCalledOnce();
 			expect(expire).toHaveBeenCalledOnce();
@@ -87,6 +91,94 @@ describe("app-api worker foundation", () => {
 		} finally {
 			log.mockRestore();
 		}
+	});
+
+	it("runs Dining without execution-control configuration", async () => {
+		const sweep = vi.fn(async () => undefined);
+		await createWorkerRuntime(
+			{ DEPLOYMENT_ENVIRONMENT: "test" },
+			{
+				diningLifecycleService: { sweep, eraseForAccountDeletion: vi.fn() },
+			},
+		).scheduled();
+		expect(sweep).toHaveBeenCalledOnce();
+	});
+
+	it.each(["call", "initialization"])(
+		"continues the remaining jobs after Dining %s fails",
+		async (failure) => {
+			const dispatchPending = vi.fn(async () => ({ processed: 0 }));
+			const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+			try {
+				const runtime = createWorkerRuntime(
+					{ ...env, APP_API_DB: { connectionString: "" } },
+					{
+						...(failure === "call"
+							? {
+									diningLifecycleService: {
+										sweep: async () => {
+											throw new Error("storage unavailable");
+										},
+										eraseForAccountDeletion: vi.fn(),
+									},
+								}
+							: {}),
+						profileMemoryService: {
+							dispatchPending,
+						} as unknown as import("../src/modules/profile-memory").ProfileMemoryService,
+						accountLifecycleService: {
+							dispatchPending,
+						} as unknown as import("../src/modules/account-lifecycle").AccountLifecycleService,
+					},
+				);
+				await expect(runtime.scheduled()).rejects.toThrow("Scheduled jobs failed");
+				expect(dispatchPending).toHaveBeenCalledTimes(2);
+				expect(log).toHaveBeenCalledWith(
+					expect.objectContaining({ job: "dining", error_code: "scheduled_job_failed" }),
+				);
+			} finally {
+				log.mockRestore();
+			}
+		},
+	);
+
+	it("reads submission multipart metadata and original file bytes in the Worker runtime", async () => {
+		const form = new FormData();
+		form.append(
+			"metadata",
+			JSON.stringify({ name: " 面 ", priceText: null, photoAction: "replace" }),
+		);
+		form.append("photo", new Blob([new Uint8Array([0, 255, 1])]), "photo.png");
+		const request = new Request(
+			"https://app-api.internal/api/dining/windows/window_1/submissions",
+			{ method: "POST", body: form },
+		);
+		await expect(readSubmissionCreate(request)).resolves.toEqual({
+			metadata: { name: "面", priceText: null, photoAction: "replace" },
+			photo: new Uint8Array([0, 255, 1]),
+		});
+	});
+
+	it("serves submission reviews through the Worker without caching viewer actions", async () => {
+		const listSubmissionReviews = vi.fn(async () => ({ items: [], nextCursor: null }));
+		const runtime = createWorkerRuntime(env, {
+			diningContentService: {
+				listSubmissionReviews,
+			} as unknown as import("../src/modules/dining").DiningContentService,
+			getPrincipal: vi.fn(async () => null),
+		});
+		const response = await runtime.fetch(
+			new Request("https://app-api.internal/api/dining/submissions/dsu_1/reviews?limit=5"),
+			createExecutionContext(),
+		);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(await response.json()).toEqual({ items: [], nextCursor: null });
+		expect(listSubmissionReviews).toHaveBeenCalledWith({
+			submissionId: "dsu_1",
+			limit: 5,
+			viewerUserId: null,
+		});
 	});
 
 	it("supports standard regular expression escaping", () => {
@@ -135,6 +227,8 @@ describe("app-api worker foundation", () => {
 			"OPS_WEB_INTERNAL_TOKEN",
 			"APP_API_EXECUTION_SHARED_SECRET",
 			"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
+			"OBJECT_STORE_DERIVED_ACCESS_KEY",
+			"OBJECT_STORE_DERIVED_SECRET_KEY",
 			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 		];

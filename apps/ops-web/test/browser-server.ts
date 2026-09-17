@@ -1,9 +1,9 @@
 import type {
 	DiningMapDraft,
 	DiningMenuItemRecord,
-	DiningOpsReportRecord,
-	DiningOpsReviewRecord,
-	DiningReviewEditRecord,
+	DiningOpsContentReportRecord,
+	DiningOpsContentReviewEditRecord,
+	DiningOpsContentReviewRecord,
 } from "@campus-agent/dining/domain";
 import {
 	canonicalizeDiningFloorplanBundle,
@@ -260,9 +260,9 @@ function createBrowserDiningContentStore(): DiningMenuStore &
 	const firstWindowId = `${firstLayout.hallId}:${firstLayout.floorId}:${firstWindow.anchorId}`;
 	let sequence = 2;
 	let menuItems: DiningMenuItemRecord[] = [];
-	let reviews: DiningOpsReviewRecord[] = [];
-	let reports: DiningOpsReportRecord[] = [];
-	let edits = new Map<string, DiningReviewEditRecord[]>();
+	let reviews: Extract<DiningOpsContentReviewRecord, { targetKind: "menu_item" }>[] = [];
+	let reports: DiningOpsContentReportRecord[] = [];
+	let edits = new Map<string, DiningOpsContentReviewEditRecord[]>();
 
 	function reset() {
 		sequence = 2;
@@ -281,7 +281,12 @@ function createBrowserDiningContentStore(): DiningMenuStore &
 				resolution: null,
 				resolvedAt: null,
 				resolvedBy: null,
-				review: structuredClone(firstReview),
+				target: {
+					kind: "review",
+					current: structuredClone(firstReview),
+					targetRevision: 1,
+					reported: { replayable: true, body: "味道不错，出餐也很快。" },
+				},
 			},
 		];
 		edits = new Map();
@@ -354,7 +359,7 @@ function createBrowserDiningContentStore(): DiningMenuStore &
 				if (
 					query &&
 					![candidate.body, candidate.authorDisplayName, candidate.menuItemName].some((value) =>
-						value.includes(query),
+						value?.includes(query),
 					)
 				) {
 					return false;
@@ -384,7 +389,11 @@ function createBrowserDiningContentStore(): DiningMenuStore &
 		async resolveReports(actor, reviewId, resolution) {
 			const resolvedAt = nextTime();
 			for (const report of reports) {
-				if (report.review.reviewId === reviewId && !report.resolvedAt) {
+				if (
+					report.target.kind === "review" &&
+					report.target.current.reviewId === reviewId &&
+					!report.resolvedAt
+				) {
 					report.resolution = resolution;
 					report.resolvedAt = resolvedAt;
 					report.resolvedBy = actor.principalId;
@@ -419,10 +428,15 @@ function createBrowserDiningContentStore(): DiningMenuStore &
 				editedAt,
 				editedBy: actor.principalId,
 				nextBody: body,
-				previousBody: current.body,
+				previousBody: current.body ?? "",
+				expiresAt: new Date(Date.parse(editedAt) + 30 * 86400000).toISOString(),
+				previousRevision: current.contentRevision,
+				nextRevision: current.contentRevision + 1,
+				replayable: true,
 			});
 			edits.set(reviewId, history);
 			current.body = body;
+			current.contentRevision += 1;
 			current.editCount = history.length;
 			current.editedAt = editedAt;
 			current.updatedAt = editedAt;
@@ -461,13 +475,15 @@ function createBrowserDiningContentStore(): DiningMenuStore &
 		body: string,
 		authorKind: "member" | "operator",
 		anonymous: boolean,
-	): DiningOpsReviewRecord {
+	): Extract<DiningOpsContentReviewRecord, { targetKind: "menu_item" }> {
 		return {
 			anonymous,
 			authorDisplayName: authorKind === "member" ? "张同学" : "值班员",
 			authorId: authorKind === "member" ? "user_1" : "ops@example.test",
 			authorKind,
 			body,
+			contentRevision: 1,
+			targetKind: "menu_item",
 			createdAt: "2026-07-24T08:05:00.000Z",
 			deletedAt: null,
 			editCount: 0,

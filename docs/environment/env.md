@@ -104,8 +104,10 @@ Ops Web 的托管 `.env.local` 保存本 worktree 的数据库连接和本地 de
 各自所有者的托管环境文件，而不是把任务凭据复制进 Ops Web。notice-publisher 的
 托管 `.env.local` 保存本地 `notice_publisher` 数据库连接、明确禁用 TLS
 的本地标记，以及分离的 source/derived 对象存储身份；门户 hostname 直接读取仓库 source descriptor，
-不再维护重复环境变量。App API 的托管变量提供本地 derived bucket 地址和只读凭据，用于通知图片与
-其他获准的派生资源；部署环境改用现有私有对象存储 binding。应用之间不读取彼此环境文件。
+不再维护重复环境变量。App API 的托管变量提供本地 derived bucket 地址、通知图片读取所需的只读凭据
+及投稿照片读写清理所需的 derived 写凭据；地址配置不代表已启动本地对象存储。部署环境通过现有
+私有对象存储 binding 发送签名请求，仍需相应 S3 凭据；交付边界见
+[对象存储配置](./providers.md#对象存储)。应用之间不读取彼此环境文件。
 一个应用不得读取其他应用或适配器的环境文件，也不得从根 `.env` 隐式扩散数据库或供应商凭据。
 
 ### 命令环境

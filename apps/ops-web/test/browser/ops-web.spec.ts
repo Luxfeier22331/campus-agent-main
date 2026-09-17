@@ -1064,7 +1064,7 @@ test("食堂举报处理后进入已处理列表", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/dining/reports");
 	await expect(page.getByRole("heading", { name: "举报处理" })).toBeVisible();
-	await expect(page.getByText("正文包含联系方式")).toBeVisible();
+	await expect(page.getByText("正文包含联系方式").filter({ visible: true })).toBeVisible();
 
 	await page.getByRole("button", { name: "保留", exact: true }).click();
 	const dialog = page.getByRole("alertdialog", { name: "保留这条评价？" });
@@ -1072,8 +1072,8 @@ test("食堂举报处理后进入已处理列表", async ({ page }) => {
 	await expect(page.getByText("当前没有待处理举报。")).toBeVisible();
 
 	await page.getByRole("tab", { name: "已处理" }).click();
-	await expect(page.getByText("正文包含联系方式")).toBeVisible();
-	await expect(page.getByText("已保留", { exact: true })).toBeVisible();
+	await expect(page.getByText("正文包含联系方式").filter({ visible: true })).toBeVisible();
+	await expect(page.getByText("已保留", { exact: true }).filter({ visible: true })).toBeVisible();
 	await expectStableViewport(page, errors);
 });
 

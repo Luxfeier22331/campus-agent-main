@@ -48,7 +48,7 @@ export function SignInForm(props: SharedAuthFormProps) {
 			const headers = await resolveCaptchaHeaders(captchaRef.current);
 			const email = normalizeAuthEmail(values.email);
 			const result = await campusAuthClient.signIn.email({
-				callbackURL: props.redirectTo,
+				...(props.continueInPlace ? {} : { callbackURL: props.redirectTo }),
 				email,
 				fetchOptions: { ...(headers ? { headers } : {}), throw: true },
 				password: values.password,

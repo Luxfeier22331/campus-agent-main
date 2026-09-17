@@ -7,10 +7,14 @@ import { ConversationPage } from "../src/app/routes/conversation-page";
 import { HomePage } from "../src/app/routes/home-page";
 import { QAShell } from "../src/components/conversation/qa-shell";
 
+import { ApiRequestError } from "../src/platform/api/client";
+
 const designTokensSource = readFileSync("src/design/tokens.css", "utf8");
 
 const conversationApiMock = vi.hoisted(() => ({
 	archiveConversation: vi.fn(),
+	pinConversation: vi.fn(),
+	unpinConversation: vi.fn(),
 	cancelRun: vi.fn(),
 	createConversationDraft: vi.fn(),
 	deleteConversation: vi.fn(),
@@ -99,6 +103,14 @@ vi.mock("@/platform/auth/session", () => ({
 describe("Q&A product interactions", () => {
 	beforeEach(() => {
 		navigateMock.mockReset();
+		for (const mock of [
+			conversationApiMock.archiveConversation,
+			conversationApiMock.deleteConversation,
+			conversationApiMock.pinConversation,
+			conversationApiMock.unpinConversation,
+		]) {
+			mock.mockReset().mockResolvedValue(undefined);
+		}
 		sessionState.data = { user: { id: "user_01", name: "测试用户" } };
 		sessionState.isPending = false;
 		sessionState.refresh.mockClear();
@@ -209,6 +221,8 @@ describe("Q&A product interactions", () => {
 			);
 		});
 		expect(screen.getByText("图书馆开放时间以馆方公告为准。")).toBeInTheDocument();
+		expect(screen.queryByRole("radio", { name: "已归档" })).toBeNull();
+		expect(conversationApiMock.searchConversations.mock.calls[0]?.[0]).not.toHaveProperty("scope");
 		fireEvent.change(screen.getByPlaceholderText("搜索历史会话"), {
 			target: { value: " 图书馆 " },
 		});
@@ -438,5 +452,76 @@ describe("Q&A product interactions", () => {
 		await user.click(await within(footer as HTMLElement).findByRole("button", { name: "登录" }));
 
 		expect(screen.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeInTheDocument();
+	});
+	it.each([
+		["归档", "archiveConversation"],
+		["删除", "deleteConversation"],
+	] as const)("submits the %s action for the selected conversation", async (label, method) => {
+		const user = userEvent.setup();
+		render(<HomePage />);
+		await screen.findByRole("button", { name: "国家奖学金" });
+		await user.click(screen.getByRole("button", { name: "更多操作" }));
+		await user.click(await screen.findByRole("menuitem", { name: label }));
+		await waitFor(() => expect(conversationApiMock[method]).toHaveBeenCalledWith("conv_active"));
+	});
+
+	it.each([
+		["归档", "archiveConversation"],
+		["删除", "deleteConversation"],
+	] as const)("keeps the conversation available when %s fails", async (label, method) => {
+		conversationApiMock[method].mockRejectedValueOnce(
+			new ApiRequestError({ message: "unavailable", status: 503 }),
+		);
+		const user = userEvent.setup();
+		render(<HomePage />);
+		await screen.findByRole("button", { name: "国家奖学金" });
+		await user.click(screen.getByRole("button", { name: "更多操作" }));
+		await user.click(await screen.findByRole("menuitem", { name: label }));
+		await user.keyboard("{Escape}");
+		expect(await screen.findByRole("alert")).toHaveTextContent(`${label}失败，请稍后重试。`);
+		expect(screen.getByRole("button", { name: "国家奖学金" })).toBeVisible();
+	});
+
+	it("pins and unpins from the direct conversation action", async () => {
+		const list = conversationApiMock.listConversations.getMockImplementation();
+		if (!list) {
+			throw new Error("Expected conversation list fixture");
+		}
+		let pinnedAt: string | null = null;
+		conversationApiMock.listConversations.mockImplementation(async () =>
+			(await list()).map((item: { pinnedAt: string | null }) => ({ ...item, pinnedAt })),
+		);
+		conversationApiMock.pinConversation.mockImplementation(async () => {
+			pinnedAt = "2026-06-21T03:00:00.000Z";
+		});
+		conversationApiMock.unpinConversation.mockImplementation(async () => {
+			pinnedAt = null;
+		});
+		const user = userEvent.setup();
+		render(<HomePage />);
+		await user.click(await screen.findByRole("button", { name: "置顶" }));
+		await waitFor(() =>
+			expect(conversationApiMock.pinConversation).toHaveBeenCalledWith("conv_active"),
+		);
+		const unpin = await screen.findByRole("button", { name: "取消置顶" });
+		expect(unpin).toHaveAttribute("aria-pressed", "true");
+		await user.click(unpin);
+		await waitFor(() =>
+			expect(conversationApiMock.unpinConversation).toHaveBeenCalledWith("conv_active"),
+		);
+		expect(await screen.findByRole("button", { name: "置顶" })).toHaveAttribute(
+			"aria-pressed",
+			"false",
+		);
+	});
+
+	it("keeps the unpinned conversation when pinning fails", async () => {
+		conversationApiMock.pinConversation.mockRejectedValueOnce(new Error("unavailable"));
+		const user = userEvent.setup();
+		render(<HomePage />);
+		await user.click(await screen.findByRole("button", { name: "置顶" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent("置顶失败，请稍后重试。");
+		expect(screen.getByRole("button", { name: "置顶" })).toHaveAttribute("aria-pressed", "false");
+		expect(screen.getByRole("button", { name: "国家奖学金" })).toBeVisible();
 	});
 });

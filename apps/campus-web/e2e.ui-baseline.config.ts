@@ -15,6 +15,7 @@ export default defineConfig({
 	projects: [
 		{
 			name: "mobile-320",
+			grep: /@(layout)\b/u,
 			use: {
 				...devices["Desktop Chrome"],
 				viewport: { height: 740, width: 320 },
@@ -22,6 +23,7 @@ export default defineConfig({
 		},
 		{
 			name: "mobile-390",
+			grep: /@(layout|interaction|mobile)\b/u,
 			use: {
 				...devices["Desktop Chrome"],
 				viewport: { height: 844, width: 390 },
@@ -29,6 +31,7 @@ export default defineConfig({
 		},
 		{
 			name: "boundary-1023",
+			grep: /@(layout|breakpoint)\b/u,
 			use: {
 				...devices["Desktop Chrome"],
 				viewport: { height: 800, width: 1023 },
@@ -36,6 +39,7 @@ export default defineConfig({
 		},
 		{
 			name: "desktop-1024",
+			grep: /@(layout|breakpoint)\b/u,
 			use: {
 				...devices["Desktop Chrome"],
 				viewport: { height: 800, width: 1024 },
@@ -43,6 +47,7 @@ export default defineConfig({
 		},
 		{
 			name: "desktop-1440",
+			grep: /@(layout|interaction|desktop)\b/u,
 			use: {
 				...devices["Desktop Chrome"],
 				viewport: { height: 900, width: 1440 },
@@ -67,5 +72,5 @@ export default defineConfig({
 		timeout: 120_000,
 		url: baseURL,
 	},
-	workers: 1,
+	workers: 2,
 });
