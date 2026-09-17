@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
 import { DOCS_SOURCE_KEY, selectCurrentVersion } from "campus-contracts/campus-docs/node";
 import { afterEach, describe, expect, it } from "vitest";
+import { resolveCampusWebDocsShard, selectDocsShard } from "../config/docs-shard.ts";
 import { parseCampusWebBuildArgs } from "../scripts/build-campus-web.ts";
 import {
 	parsePrepareDocsContentArgs,
@@ -210,6 +211,58 @@ describe("Campus Web 文档内容准备合同", () => {
 		expect(() => parseCampusWebBuildArgs(["--source-digest", "sha256:abc"])).toThrow(
 			"unknown campus web build argument",
 		);
+	});
+});
+
+describe("Campus Web 文档分片构建", () => {
+	it("缺省不分片，并拒绝越界或非法的分片配置", () => {
+		expect(resolveCampusWebDocsShard({})).toEqual({ index: 0, total: 1 });
+		expect(
+			resolveCampusWebDocsShard({
+				CAMPUS_WEB_DOCS_SHARD_INDEX: "2",
+				CAMPUS_WEB_DOCS_SHARD_TOTAL: "6",
+			}),
+		).toEqual({ index: 2, total: 6 });
+		expect(() =>
+			resolveCampusWebDocsShard({
+				CAMPUS_WEB_DOCS_SHARD_INDEX: "6",
+				CAMPUS_WEB_DOCS_SHARD_TOTAL: "6",
+			}),
+		).toThrow("CAMPUS_WEB_DOCS_SHARD_INDEX");
+		expect(() =>
+			resolveCampusWebDocsShard({
+				CAMPUS_WEB_DOCS_SHARD_INDEX: "0",
+				CAMPUS_WEB_DOCS_SHARD_TOTAL: "0",
+			}),
+		).toThrow("CAMPUS_WEB_DOCS_SHARD_TOTAL");
+	});
+
+	it("分片覆盖全部页面且互不重复，入口页出现在每个分片", () => {
+		const inputs = Object.fromEntries(
+			["docs/index", "docs/404", ...Array.from({ length: 20 }, (_, i) => `docs/page-${i}`)].map(
+				(route) => [route, `/src/${route}.html`],
+			),
+		);
+		const total = 6;
+		const shards = Array.from({ length: total }, (_, index) =>
+			selectDocsShard(inputs, { index, total }),
+		);
+
+		for (const shard of shards) {
+			expect(Object.keys(shard)).toContain("docs/index");
+			expect(Object.keys(shard)).toContain("docs/404");
+		}
+		const pageRoutes = Object.keys(inputs).filter((route) => route.startsWith("docs/page-"));
+		const covered = shards.flatMap((shard) =>
+			Object.keys(shard).filter((route) => route.startsWith("docs/page-")),
+		);
+		expect(covered.slice().sort()).toEqual(pageRoutes.slice().sort());
+		expect(new Set(covered).size).toBe(covered.length);
+	});
+
+	it("单分片时返回完整输入", () => {
+		const inputs = { "docs/404": "b", "docs/index": "a", "docs/page-0": "c" };
+		expect(selectDocsShard(inputs, { index: 0, total: 1 })).toEqual(inputs);
 	});
 });
 

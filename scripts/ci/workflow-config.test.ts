@@ -821,11 +821,19 @@ test("closed PR cleanup uses trusted code, scoped concurrency, and explicit canc
 	const evaluate = (event: string, number: number) =>
 		runInNewContext(expression, {
 			github: { event_name: event, event: { pull_request: { number } } },
+			inputs: { pr_number: "442" },
 			format: (pattern: string, value: number) => pattern.replace("{0}", String(value)),
 		});
 	assert.equal(evaluate("pull_request_target", 442), "campus-agent-ghcr-pr-cache-442");
 	assert.equal(evaluate("pull_request_target", 443), "campus-agent-ghcr-pr-cache-443");
-	assert.equal(evaluate("schedule", 0), "campus-agent-ghcr-mutation");
+	assert.equal(evaluate("workflow_dispatch", 0), "campus-agent-ghcr-pr-cache-442");
+	assert.equal(workflow.on.schedule, undefined);
+	const dispatch = workflow.on.workflow_dispatch as {
+		inputs: Record<string, { required: boolean; type: string }>;
+	};
+	assert.deepEqual(Object.keys(dispatch.inputs).sort(), ["mode", "pr_number"]);
+	assert.equal(dispatch.inputs.pr_number.required, true);
+	assert.equal(dispatch.inputs.pr_number.type, "string");
 	for (const [headRepository, author, mergeable, allowed] of [
 		["MUC-WIKI/campus-agent", "developer", true, true],
 		["MUC-WIKI/campus-agent", "developer", false, true],
@@ -850,13 +858,15 @@ test("closed PR cleanup uses trusted code, scoped concurrency, and explicit canc
 			"Login to GHCR",
 			"Fetch open GitOps pull request refs",
 		]) {
-			assert.equal(condition(namedStep(job, name).if, { github }), false);
+			assert(!jobSteps(job).some((step) => step.name === name));
 		}
 	}
 	const generate = namedStep(job, "Generate and optionally apply GHCR retention plan");
 	assert(isObject(generate.env));
 	assert.match(String(generate.env.RETENTION_MODE), /pull_request_target/u);
 	assert.match(String(generate.run), /--pr-cache-pr/u);
+	assert.match(String(generate.env.RETENTION_PR_NUMBER), /inputs.pr_number/u);
+	assert.match(String(namedStep(job, "Upload GHCR retention report").if), /hashFiles/u);
 });
 
 test("cache permission queries current PR state and disables cache on closed or failed lookup", async (t) => {

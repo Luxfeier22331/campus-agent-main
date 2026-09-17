@@ -8,6 +8,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import { campusBundleGraphPlugin } from "./config/bundle-graph.ts";
+import { resolveCampusWebDocsShard, selectDocsShard } from "./config/docs-shard.ts";
 import { loadCampusWebBuildEnvironment } from "./scripts/build-process-env.ts";
 import { resolveDocsContentPaths } from "./src/docs-reader-build/docs-content.ts";
 import {
@@ -40,7 +41,10 @@ export default defineConfig(({ command, isPreview }) => {
 		if (!docsContent) {
 			throw new Error("The Campus Web docs build requires static docs content.");
 		}
-		htmlInputs = findHtmlInputs(docsContent.paths.pagesRoot);
+		htmlInputs = selectDocsShard(
+			findHtmlInputs(docsContent.paths.pagesRoot),
+			resolveCampusWebDocsShard(),
+		);
 		docsBuildPlugin = relocateDocsHtmlPages({
 			clientOutputRoot,
 			pagesRoot: docsContent.paths.pagesRoot,

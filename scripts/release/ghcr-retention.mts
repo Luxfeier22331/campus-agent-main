@@ -234,28 +234,19 @@ function versionFromApi(value: unknown, context: string): PackageVersion {
 	};
 }
 
-function packageNameFromApi(value: unknown, context: string): string | undefined {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) {
-		throw new Error(`${context} must be an object`);
+export class GitHubApiError extends Error {
+	readonly status: number | undefined;
+	constructor(args: string[], result: CommandResult) {
+		super(commandError("gh", args, result).message);
+		const match = /\(HTTP (\d{3})\)/u.exec(result.stderr);
+		this.status = match ? Number(match[1]) : undefined;
 	}
-	const name = (value as Record<string, unknown>).name;
-	if (typeof name !== "string") {
-		throw new Error(`${context} has an invalid package name`);
-	}
-	if (!name.startsWith(PACKAGE_PREFIX)) {
-		return undefined;
-	}
-	const image = name.slice(PACKAGE_PREFIX.length);
-	if (!PACKAGE_NAME_PATTERN.test(image) && cachePullRequest(name) === undefined) {
-		throw new Error(`${context} has an invalid image package name`);
-	}
-	return name;
 }
 
 async function ghJson(args: string[], runner: CommandRunner): Promise<unknown> {
 	const result = await runner("gh", ["api", "--paginate", "--slurp", ...args]);
 	if (result.code !== 0) {
-		throw commandError("gh", ["api", "--paginate", "--slurp", ...args], result);
+		throw new GitHubApiError(["api", "--paginate", "--slurp", ...args], result);
 	}
 	return JSON.parse(result.stdout) as unknown;
 }
@@ -265,25 +256,35 @@ export async function readPackageInventory(
 	runner: CommandRunner = runCommand,
 	prNumber?: string,
 ): Promise<PackageInventory[]> {
-	const packageResponse = await ghJson(
-		[`orgs/${owner}/packages?package_type=container&per_page=100`],
-		runner,
-	);
-	const packageValues = parsePagedJson(JSON.stringify(packageResponse), "GitHub package list");
-	const packageNames = packageValues
-		.filter((value) => {
-			if (prNumber === undefined) {
-				return true;
-			}
-			const name = (value as { name?: unknown } | null)?.name;
-			return typeof name === "string" && cachePullRequest(name) === prNumber;
-		})
-		.map((value, index) => packageNameFromApi(value, `GitHub package list[${index}]`))
-		.filter((name): name is string => name !== undefined)
-		.sort();
+	if (!(prNumber && /^[1-9][0-9]*$/u.test(prNumber))) {
+		throw new Error(
+			"PR cache cleanup requires a positive PR number; full retention is paused pending #512.",
+		);
+	}
+	const packageNames = ACTIVE_IMAGE_TARGETS.map(
+		(image) => `${PACKAGE_PREFIX}pr-cache-${prNumber}/${image}`,
+	).sort();
 	const inventories: PackageInventory[] = [];
 	for (const packageName of packageNames) {
 		const encoded = encodeURIComponent(packageName);
+		let metadata: unknown;
+		try {
+			const pages = await ghJson([`orgs/${owner}/packages/container/${encoded}`], runner);
+			metadata = Array.isArray(pages) ? pages[0] : pages;
+		} catch (error) {
+			if (error instanceof GitHubApiError && error.status === 404) {
+				continue;
+			}
+			throw error;
+		}
+		if (
+			!metadata ||
+			typeof metadata !== "object" ||
+			!("name" in metadata) ||
+			metadata.name !== packageName
+		) {
+			throw new Error(`Invalid package metadata for ${packageName}`);
+		}
 		const versionResponse = await ghJson(
 			[`orgs/${owner}/packages/container/${encoded}/versions?per_page=100`],
 			runner,
@@ -956,9 +957,9 @@ function markdownSummary(plan: RetentionPlan): string {
 		`- Packages: ${plan.totals.packages}; versions: ${plan.totals.versions}`,
 		`- Planned package deletes: ${plan.totals.deletePackages}`,
 		`- Planned version deletes: ${plan.totals.deleteVersions}`,
-		`- Protected release window: latest ${plan.policy.keepLatestReleases} per active package plus GitOps digests and OCI children`,
-		`- Untagged grace period: ${plan.policy.untaggedGraceDays} days`,
-		"- Retired packages: explicit allowlist; apply deletes each package as a whole",
+		"- Scope: selected closed PR cache packages only",
+		`- Result: ${plan.errors.length > 0 ? "failed; planned actions may be incomplete" : "completed"}`,
+		"- Main image and cache retention is paused pending #512",
 		"",
 		"| Package | Class | Versions | Action | Delete versions | Protected roots |",
 		"| --- | --- | ---: | --- | ---: | ---: |",
@@ -982,56 +983,26 @@ function valueAfter(args: string[], index: number, flag: string): string {
 	return value;
 }
 
-function positiveInteger(value: string, flag: string, allowZero = true): number {
-	if (!/^[0-9]+$/u.test(value)) {
-		throw new Error(`${flag} must be an integer`);
-	}
-	const parsed = Number(value);
-	if (!Number.isSafeInteger(parsed) || (!allowZero && parsed < 1)) {
-		throw new Error(`${flag} is out of range`);
-	}
-	return parsed;
-}
-
 interface CliOptions {
-	gitopsRefs: string[];
-	gitopsRoot: string;
-	keepLatestReleases: number;
 	mode: "apply" | "report";
 	output: string;
 	owner: string;
-	prCachePr?: string;
+	prCachePr: string;
 	repository: string;
 	summary?: string;
-	untaggedGraceDays: number;
 }
 
-function parseArgs(args: string[]): CliOptions {
+export function parseArgs(args: string[]): CliOptions {
 	const options: CliOptions = {
-		gitopsRefs: [],
-		gitopsRoot: "gitops",
-		keepLatestReleases: DEFAULT_KEEP_RELEASES,
 		mode: "report",
+		prCachePr: "",
 		output: "ghcr-retention.json",
 		owner: DEFAULT_OWNER,
 		repository: DEFAULT_REPOSITORY,
-		untaggedGraceDays: DEFAULT_UNTAGGED_GRACE_DAYS,
 	};
 	for (let index = 0; index < args.length; index += 1) {
 		const argument = args[index];
 		switch (argument) {
-			case "--gitops-ref":
-				options.gitopsRefs.push(valueAfter(args, index, argument));
-				index += 1;
-				break;
-			case "--gitops-root":
-				options.gitopsRoot = valueAfter(args, index, argument);
-				index += 1;
-				break;
-			case "--keep-releases":
-				options.keepLatestReleases = positiveInteger(valueAfter(args, index, argument), argument);
-				index += 1;
-				break;
 			case "--mode": {
 				const value = valueAfter(args, index, argument);
 				if (value !== "report" && value !== "apply") {
@@ -1066,10 +1037,6 @@ function parseArgs(args: string[]): CliOptions {
 				options.summary = valueAfter(args, index, argument);
 				index += 1;
 				break;
-			case "--untagged-grace-days":
-				options.untaggedGraceDays = positiveInteger(valueAfter(args, index, argument), argument);
-				index += 1;
-				break;
 			default:
 				throw new Error(`Unsupported argument: ${argument}`);
 		}
@@ -1080,95 +1047,15 @@ function parseArgs(args: string[]): CliOptions {
 	if (!options.owner || options.owner.includes("/")) {
 		throw new Error(`Invalid owner: ${options.owner}`);
 	}
-	for (const ref of options.gitopsRefs) {
-		validateGitRef(ref);
-	}
-	if (options.gitopsRefs.length === 0) {
-		options.gitopsRefs.push("main");
+	if (!options.prCachePr) {
+		throw new Error("--pr-cache-pr is required; full retention is paused pending #512.");
 	}
 	return options;
 }
 
 async function main(args: string[]): Promise<void> {
 	const options = parseArgs(args);
-	if (options.prCachePr) {
-		await runPrCacheCleanup(options, options.prCachePr);
-		return;
-	}
-	const gitopsDigests = await readGitopsImageDigests(options.gitopsRoot, options.gitopsRefs);
-	const inventory = await readPackageInventory(options.owner);
-	const pullRequests = await readCachePullRequests(inventory, options.repository);
-	const roots = protectedRootsForInventory({
-		gitopsDigests,
-		keepLatestReleases: options.keepLatestReleases,
-		packages: inventory,
-	});
-	const manifestClosure = await fetchManifestClosure(roots.byPackage, options.repository);
-	const plan = planRetention({
-		pullRequests,
-		manifestClosure,
-		mode: options.mode,
-		now: new Date(),
-		packages: inventory,
-		gitopsDigests,
-		keepLatestReleases: options.keepLatestReleases,
-		untaggedGraceDays: options.untaggedGraceDays,
-	});
-	await writeFile(path.resolve(options.output), `${JSON.stringify(plan, null, 2)}\n`);
-	if (options.summary) {
-		await appendFile(path.resolve(options.summary), markdownSummary(plan));
-	}
-	if (plan.errors.length > 0) {
-		throw new Error(`GHCR retention plan has policy errors:\n${plan.errors.join("\n")}`);
-	}
-	if (options.mode === "apply") {
-		await applyRetentionPlan(plan, options.owner, runCommand);
-		const after = await readPackageInventory(options.owner);
-		const afterByName = new Map(after.map((candidate) => [candidate.name, candidate]));
-		const deletions = planDeletions(plan);
-		for (const packageName of deletions.packages) {
-			if (afterByName.has(packageName)) {
-				throw new Error(`Package deletion did not complete: ${packageName}`);
-			}
-		}
-		for (const deletion of deletions.versions) {
-			const version = afterByName
-				.get(deletion.packageName)
-				?.versions.find((candidate) => candidate.id === deletion.id);
-			if (version) {
-				throw new Error(
-					`Package version deletion did not complete: ${deletion.packageName}/${deletion.id}`,
-				);
-			}
-		}
-		for (const candidate of plan.packages) {
-			if (candidate.packageAction !== "retain") {
-				continue;
-			}
-			const versions = afterByName.get(candidate.name)?.versions ?? [];
-			const digests = new Set(versions.map((version) => version.name));
-			for (const digest of candidate.protectedManifestDigests) {
-				if (!digests.has(digest)) {
-					throw new Error(`Protected digest disappeared after apply: ${candidate.name}@${digest}`);
-				}
-			}
-		}
-		const retainedRoots = Object.fromEntries(
-			Object.entries(roots.byPackage).filter(([name]) => !deletions.packages.includes(name)),
-		);
-		const afterManifestClosure = await fetchManifestClosure(retainedRoots, options.repository);
-		for (const [packageName, protectedDigests] of Object.entries(manifestClosure)) {
-			if (deletions.packages.includes(packageName)) {
-				continue;
-			}
-			const observed = new Set(afterManifestClosure[packageName] ?? []);
-			for (const digest of protectedDigests) {
-				if (!observed.has(digest)) {
-					throw new Error(`Protected manifest disappeared after apply: ${packageName}@${digest}`);
-				}
-			}
-		}
-	}
+	await runPrCacheCleanup(options, options.prCachePr);
 }
 
 interface CleanupRuntime {
@@ -1313,52 +1200,81 @@ export async function cancelAndWaitForPrRuns(
 	}
 }
 
+async function readEligiblePr(
+	repository: string,
+	prNumber: string,
+	runner: CommandRunner,
+): Promise<SourcePullRequest> {
+	const pages = await ghJson([`repos/${repository}/pulls/${prNumber}`], runner);
+	const pr = (Array.isArray(pages) ? pages[0] : pages) as {
+		state?: string;
+		closed_at?: string;
+		head?: { repo?: { full_name?: string } };
+		user?: { login?: string };
+	};
+	if (pr?.state !== "closed") {
+		throw new Error(`Source PR is not closed for cache cleanup: ${prNumber}`);
+	}
+	if (pr.head?.repo?.full_name !== repository || pr.user?.login === "dependabot[bot]") {
+		throw new Error(`Source PR is not eligible for cache cleanup: ${prNumber}`);
+	}
+	if (!(pr.closed_at && Number.isFinite(Date.parse(pr.closed_at)))) {
+		throw new Error(`Invalid closed_at for PR ${prNumber}`);
+	}
+	return { state: "closed", closedAt: pr.closed_at };
+}
+
 export async function runPrCacheCleanup(
 	options: Pick<CliOptions, "owner" | "repository" | "mode" | "output" | "summary">,
 	prNumber: string,
 	runtime: CleanupRuntime = {},
 ): Promise<void> {
 	const runner = runtime.runner ?? runCommand;
-	let coordinationError: string | undefined;
-	if (options.mode === "apply") {
-		try {
-			await cancelAndWaitForPrRuns(options.repository, prNumber, runtime);
-		} catch (error) {
-			coordinationError = error instanceof Error ? error.message : String(error);
+	let plan = planPrCacheCleanup({ mode: options.mode, packages: [], prNumber });
+	let phase = "validate PR";
+	try {
+		if (!/^[1-9][0-9]*$/u.test(prNumber)) {
+			throw new Error("Invalid PR number");
 		}
-	}
-	const scoped = coordinationError
-		? []
-		: await readPackageInventory(options.owner, runner, prNumber);
-	const pullRequests = await readCachePullRequests(scoped, options.repository, runner);
-	const plan = planPrCacheCleanup({
-		mode: options.mode,
-		packages: scoped,
-		prNumber,
-		pullRequests,
-	});
-	if (coordinationError) {
-		plan.errors.push(coordinationError);
+		await readEligiblePr(options.repository, prNumber, runner);
+		if (options.mode === "apply") {
+			phase = "stop PR builds";
+			await cancelAndWaitForPrRuns(options.repository, prNumber, runtime);
+		}
+		phase = "read PR cache packages";
+		const packages = await readPackageInventory(options.owner, runner, prNumber);
+		phase = "recheck PR";
+		const pr = await readEligiblePr(options.repository, prNumber, runner);
+		plan = planPrCacheCleanup({
+			mode: options.mode,
+			packages,
+			prNumber,
+			pullRequests: { [prNumber]: pr },
+		});
+		phase = "write cleanup plan";
+		await writeFile(path.resolve(options.output), `${JSON.stringify(plan, null, 2)}\n`);
+		if (options.mode === "apply") {
+			phase = "delete PR cache packages";
+			await applyRetentionPlan(plan, options.owner, runner);
+			phase = "verify deletion";
+			const after = new Set(
+				(await readPackageInventory(options.owner, runner, prNumber)).map((pkg) => pkg.name),
+			);
+			for (const candidate of plan.packages) {
+				if (after.has(candidate.name)) {
+					throw new Error(`Package deletion did not complete: ${candidate.name}`);
+				}
+			}
+		}
+	} catch (error) {
+		plan.errors.push(`${phase}: ${error instanceof Error ? error.message : String(error)}`);
 	}
 	await writeFile(path.resolve(options.output), `${JSON.stringify(plan, null, 2)}\n`);
 	if (options.summary) {
 		await appendFile(path.resolve(options.summary), markdownSummary(plan));
 	}
 	if (plan.errors.length > 0) {
-		throw new Error(`GHCR retention plan has policy errors:\n${plan.errors.join("\n")}`);
-	}
-	if (options.mode === "apply") {
-		await applyRetentionPlan(plan, options.owner, runner);
-		const after = new Set(
-			(await readPackageInventory(options.owner, runner, prNumber)).map(
-				(candidate) => candidate.name,
-			),
-		);
-		for (const candidate of plan.packages) {
-			if (candidate.packageAction === "delete" && after.has(candidate.name)) {
-				throw new Error(`Package deletion did not complete: ${candidate.name}`);
-			}
-		}
+		throw new Error(`GHCR cleanup policy errors:\n${plan.errors.join("\n")}`);
 	}
 }
 

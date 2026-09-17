@@ -16,6 +16,9 @@ GitOps 中的不可变 digest。active image target 由
 
 ## 决策
 
+当前执行范围已由 [PR 缓存直查与暂停全量清理](./2026-09-17-ghcr-pr-cache-direct-cleanup.md)
+部分取代：以下全量入口、定时补漏及 5 个 release / 七天策略已暂停；PR 构建协调与作用域边界仍有效。
+
 - Source 仓的 `ghcr-retention` workflow 是 `campus-agent/*` GHCR 清理 owner；外部 registry、GitOps
   变更、集群操作和业务数据库不属于它的职责。
 - active package 保护 GitOps `main` 和同仓 open promotion PR 的所有不可变 digest，最近 5 个 SHA

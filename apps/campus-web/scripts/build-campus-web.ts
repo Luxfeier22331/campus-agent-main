@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_DOCS_SHARD_TOTAL, parseDocsShardTotal } from "../config/docs-shard.ts";
 import { assertSha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import { readDocsContentMetadata } from "../src/docs-reader-build/docs-content.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
@@ -86,17 +87,87 @@ export async function buildCampusWeb(input: CampusWebBuildInput): Promise<void> 
 	} else {
 		run("pnpm", ["exec", "vite", "build"], appEnv);
 	}
-	run("pnpm", ["exec", "vite", "build"], {
-		...env,
-		CAMPUS_WEB_BUILD_TARGET: "docs",
-	});
-	mergeDocsClientBuild();
+	buildDocsClient(env);
 	checkBundleBudgets();
 	const metadata = readDocsContentMetadata(content.metadataPath);
 	if (!metadata) {
 		throw new Error("Campus Web docs preparation did not write source metadata.");
 	}
 	writeCampusWebBuildSource(metadata.sourceDigest);
+}
+
+/**
+ * Build the docs client in shards and merge each shard into the app client
+ * output. Each shard runs in its own process so its bundler memory is released
+ * before the next one starts; peak memory then tracks the shard size rather
+ * than the total documentation page count.
+ */
+function buildDocsClient(env: NodeJS.ProcessEnv): void {
+	const shardTotal = resolveDocsShardTotal(env);
+	const graphs: string[] = [];
+	for (let shard = 0; shard < shardTotal; shard += 1) {
+		run("pnpm", ["exec", "vite", "build"], {
+			...env,
+			CAMPUS_WEB_BUILD_TARGET: "docs",
+			CAMPUS_WEB_DOCS_SHARD_INDEX: String(shard),
+			CAMPUS_WEB_DOCS_SHARD_TOTAL: String(shardTotal),
+		});
+		mergeDocsClientBuild();
+		graphs.push(readDocsBundleGraph(shard));
+	}
+	writeMergedDocsBundleGraph(graphs);
+}
+
+function resolveDocsShardTotal(env: NodeJS.ProcessEnv): number {
+	const raw = env.CAMPUS_WEB_DOCS_SHARD_TOTAL?.trim();
+	return raw ? parseDocsShardTotal(raw) : DEFAULT_DOCS_SHARD_TOTAL;
+}
+
+function readDocsBundleGraph(shard: number): string {
+	if (!existsSync(DOCS_BUNDLE_GRAPH_PATH)) {
+		throw new Error(`docs build shard ${shard} did not write a bundle graph.`);
+	}
+	return readFileSync(DOCS_BUNDLE_GRAPH_PATH, "utf8");
+}
+
+/**
+ * Merge per-shard bundle graphs so the budget check sees every docs chunk.
+ * Shards share the docs entry and common chunks; identical chunk names must
+ * describe identical chunks, otherwise the merged output is not coherent.
+ */
+function writeMergedDocsBundleGraph(sources: readonly string[]): void {
+	const chunks: Record<string, unknown> = {};
+	let docsEntry: string | undefined;
+	let entry: string | undefined;
+	for (const source of sources) {
+		const graph = JSON.parse(source) as {
+			chunks: Record<string, unknown>;
+			docsEntry?: string;
+			entry: string;
+		};
+		for (const [name, chunk] of Object.entries(graph.chunks)) {
+			const existing = chunks[name];
+			if (existing !== undefined && JSON.stringify(existing) !== JSON.stringify(chunk)) {
+				throw new Error(`docs bundle graph shards disagree about chunk ${name}`);
+			}
+			chunks[name] = chunk;
+		}
+		if (graph.docsEntry !== undefined) {
+			if (docsEntry !== undefined && docsEntry !== graph.docsEntry) {
+				throw new Error("docs bundle graph shards disagree about the docs entry");
+			}
+			docsEntry = graph.docsEntry;
+		}
+		entry ??= graph.entry;
+	}
+	if (!entry) {
+		throw new Error("docs bundle graph shards did not report an entry.");
+	}
+	writeFileSync(
+		DOCS_BUNDLE_GRAPH_PATH,
+		`${JSON.stringify({ chunks, ...(docsEntry ? { docsEntry } : {}), entry }, null, 2)}\n`,
+		"utf8",
+	);
 }
 
 function mergeDocsClientBuild(): void {

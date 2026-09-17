@@ -21,3 +21,5 @@ Status: implemented
 - rolldown 上游修复内存回归后删除该条目，以 #9330 后续版本为准。
 - vite 后续若把 rolldown 依赖范围抬出 ~1.2.x，override 会强制旧版，升级前需重新评估。
 - bump vite/rolldown 的改动以 CI docs 构建在 2G 自托管 runner 通过为验收标准。
+
+Archived: 2026-09-17 — superseded by [替代笔记](../../implemented/architecture/2026-09-17-campus-web-docs-shard-build.md)

@@ -4,81 +4,61 @@ owner_boundary: runtime-release
 status: active
 ---
 
-# GHCR 镜像保留与清理
+# GHCR 缓存清理
 
-## 边界
+## 当前边界
 
-本手册只处理 `ghcr.io/muc-wiki/campus-agent/*` 的 GHCR package version 和 package 生命周期。
-源码仓负责构建并发布镜像，GitOps 仓负责选择不可变 digest，Argo CD 和 Kubernetes 消费 GitOps
-期望状态；清理 workflow 只根据这些 owner 的事实做盘点和删除，不修改 GitOps、集群或数据库。
+`ghcr-retention` 当前只清理已关闭 PR 的 `campus-agent/pr-cache-<number>/<image>` 缓存包。
+包名由 PR 编号和 `scripts/release/image-targets.mts` 的当前目标推导，直接查询 package 和分页
+versions，不依赖组织级包枚举。不会扫描历史 PR，也不操作正式镜像或主线缓存。
 
-active image target 由
-[`scripts/release/image-targets.mts`](../../scripts/release/image-targets.mts) 拥有，退役 package allowlist
-由 [`scripts/release/ghcr-retention.mts`](../../scripts/release/ghcr-retention.mts) 拥有。GHCR 中出现未登记的
-`campus-agent/*` package 时，清理会报告错误并拒绝 apply。把 package 加入退役 allowlist 前，必须在
-对应 Issue 或 PR 中保存 GitOps、集群资源和节点缓存的核验结果；这些一次性审计证据不进入长期文档。
+正式镜像定期清理已暂停，旧的最近 5 个 release 和七天宽限期不再通过 workflow 或 CLI 执行。
+正式版本、部署引用和发布恢复目标的保留依据由 #512 完善，再由 #511 接入自动清理。
+暂停期间不能把无版本号或无标签当作删除依据。
 
-## 策略
+## 自动清理
 
-清理 workflow 默认只生成 report。active package 的 version 只有在以下条件均不成立时才可删除：
+同仓非 Dependabot PR 关闭或合并时，`pull_request_target: closed` 使用默认分支代码自动 apply。
+清理先确认 PR 已关闭且属于本仓，再取消其未完成的 `pr` workflow runs，每 5 秒检查一次，最多
+等待 10 分钟。run 关联缺失时沿用分支和提交归属检查；无法确认、超时或 API 失败就停止。
 
-- GitOps `main` 和所有同仓、未合并的 GitOps promotion PR 中没有引用该 digest；
-- 该版本不在最近 5 个 SHA-tagged release 中；
-- 该版本不是当前 `buildcache-arm64` tag；
-- 该版本不是受保护 OCI root 的 child manifest 或 attestation manifest；
-- 对无 tag 版本而言，更新时间已经超过 7 天宽限期。
+随后直接读取目标缓存包，复查 PR 状态，整包删除并直查确认消失。不同 PR 使用不同并发组；同一
+PR 的自动和手动清理共享并发组。构建登录缓存前检查实时 PR 状态，关闭或查询失败时禁止远程
+缓存读写，避免清理后重写。
 
-SHA-tagged release 窗口和无 tag 宽限期是当前小规模 staging 的初始运维策略，不是外部平台合同。
-发布频率、回滚窗口或环境数量发生变化时，应在清理 workflow 的手动输入和对应决策中重新评估。
-未知 tag 不自动删除，而是保持并报告，等待 owner 登记语义。
+包 metadata 直查的 HTTP 404 视为缺失，前提是 workflow 对目标 package 的可见权限正确。
+versions、PR 查询、删除和复查的其他错误不会被当作空库存。全部目标已经不存在时，PR 资格检查
+通过后可以成功重复执行。
 
-`campus-agent/pr-cache-<number>/<active-image>` 是 PR 缓存包。开放期间保护当前 `buildcache-arm64`
-及其 manifest closure，无 tag 历史版本保留 7 天。同仓非 Dependabot PR 关闭或合并时，
-`pull_request_target: closed` 使用默认分支代码执行 scoped apply，也覆盖合并冲突的 PR；fork 和
-Dependabot 的构建不写缓存，因此不进入关闭清理。
+## 手动补做
 
-清理先确认 PR 仍为 closed，按源仓、分支和 PR 归属查找 `pr` workflow 的未完成 runs，取消后每
-5 秒检查一次，最多等待 10 分钟。run 的 PR 关联为空时按源仓、分支查询 `state=all` 的 PR，覆盖
-未合并关闭的 PR；唯一候选也覆盖 force-push 前的 run。分支复用时按 head SHA 和 PR 提交列表
-匹配，只有唯一匹配才能确认归属。无匹配、多个匹配、查询或取消失败、等待超时、PR 重新打开时
-停止，不删除缓存。取消请求与 run 完成同时发生时，只有再次确认
-run 已 completed 才继续。随后复查 PR 状态，只读取、整包删除并复查该 PR 的缓存包，不适用宽限期。
-构建在登录缓存前查询实时 PR 状态；关闭或查询失败时禁用远程缓存，防止关闭后重跑写回缓存。
+在 `ghcr-retention` 的 Run workflow 中填写：
 
-关闭清理需要 `actions: write` 和 `pull-requests: read`。状态或协调错误写入现有 JSON report，禁止
-apply；report 模式不会取消 runs。遗漏或失败的关闭清理可由定时 report 在关闭满 7 天后列出整包删除
-候选，再手动选择 apply；定时 report 本身不删除。
+- `pr_number`：必填，已关闭的同仓非 Dependabot PR 编号。
+- `mode`：默认 `report`，只读计划；`apply` 执行构建协调、删除和复查。
 
-退役包不按 version 猜测删除，而是由显式 allowlist 直接形成整包删除候选。默认 scheduled/manual
-`report` 只生成计划；选择 workflow 的 `apply` 模式才执行删除，因此 `apply` 是对整包删除的人工确认。
-PR 关闭事件的 scoped apply 是唯一例外：作用域仅限该 PR 的缓存包，不涉及退役包或 active package。
-任何 GitOps 引用退役包、active package 缺失、未登记 package 或保护 digest 缺失，都会使 apply 失败。
-重新启用某个历史包时，先把它恢复到 active image target 和 GitOps consumer，再执行清理；不要只删除
-allowlist 条目。
+手动运行使用所选 ref 的代码；日常操作选择默认分支。report 不取消构建，也不删除缓存。
+CLI 等价入口如下，省略 `--pr-cache-pr` 或使用旧全量清理参数会失败，不发起网络请求：
 
-## 执行
-
-手动、定时或 PR 关闭事件 workflow 使用 Source 仓的
-[`ghcr-retention.yml`](../../.github/workflows/ghcr-retention.yml)：
-
-```text
-report: 盘点 GHCR、GitOps 和 OCI manifest closure，上传结构化报告，不删除
-apply: 使用同一份实时盘点结果删除计划中的 active versions、退役 packages 或过期 PR 缓存包
-PR 关闭事件: 同仓非 fork PR 关闭时自动 apply，只整包删除该 PR 的 pr-cache-<number>/* 缓存包
+```bash
+node --experimental-strip-types scripts/release/ghcr-retention.mts \
+  --pr-cache-pr 508 --mode report --output ghcr-retention.json
 ```
 
-GitHub API 按 package version ID 删除。apply 后 workflow 重新读取 package inventory，并重新检查
-active protected root 及其 OCI manifest closure；保护 root、runtime manifest 和 attestation 不完整时
-任务失败。PR 关闭事件的 scoped apply 使用独立的 per-PR concurrency group
-（`campus-agent-ghcr-pr-cache-<N>`），只操作该 PR 的缓存包（与 staging 发布写入的包不相交），
-不会替换 `campus-agent-ghcr-mutation` 组中排队的发布或定时清理任务。
+确认目标后将 mode 改为 `apply`。失败时先检查报告中的操作和错误，修复原因后使用同一 PR 编号
+重新执行；不需要组织全量扫描。未出现在当前镜像目标中的历史遗留包需按具体对象另行处理。
 
-GitHub Actions 需要 package write 权限；`GITHUB_TOKEN` 只有在该 workflow 对 package 具有 admin
-权限时才能执行删除。当前 package 由同一 Source 仓发布并关联，若权限或组织策略不满足，保留 report
-并由 package owner 处理，不改用个人 token 或直接删除 registry 内容。
+## 结果与权限
+
+沿用 JSON report 和 Actions summary。apply 前保存计划，读取、删除或复查失败后更新报告，
+标明失败操作并返回非零退出码；删除失败可能已完成部分操作，报告中的计划不代表全部执行成功。
+脚本运行前的环境初始化失败由原步骤日志说明，不追加报告文件缺失的上传错误。
+
+workflow 使用 `contents: read`、`pull-requests: read`、`actions: write`、`packages: write`。
+API 删除还要求 token 对目标 package 具备相应权限；失败时报告原因，不切换个人 PAT 或扩大组织权限。
+本地凭据的成功不能替代真实 workflow token 的验收。
 
 ## 相关决策
 
-- [GHCR 镜像保留与退役](../../.agents/notes/implemented/process/2026-09-04-ghcr-retention.md)
-- [运行时发布架构](../architecture/system/runtime-release.md)
-- [发布](./release.md)
+- [PR 缓存直查与暂停全量清理](../../.agents/notes/implemented/process/2026-09-17-ghcr-pr-cache-direct-cleanup.md)
+- [原镜像保留与退役决策](../../.agents/notes/implemented/process/2026-09-04-ghcr-retention.md)

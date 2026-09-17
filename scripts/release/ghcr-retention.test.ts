@@ -12,6 +12,7 @@ import {
 	extractGitopsImageDigests,
 	fetchManifestClosure,
 	type PackageInventory,
+	parseArgs,
 	parseManifestInspection,
 	planPrCacheCleanup,
 	planRetention,
@@ -702,30 +703,23 @@ test("scoped apply stops before inventory/deletion on cancellation errors and pr
 	}
 });
 
-test("scoped inventory reads only matching PR packages even when other packages disappear", async () => {
+const absentResult = { code: 1, stderr: "gh: Package not found. (HTTP 404)", stdout: "" };
+
+test("scoped inventory directly probes candidates and never reads outside the PR", async () => {
 	const name = "campus-agent/pr-cache-442/ops-web";
 	const calls: string[] = [];
 	const runner: CommandRunner = async (_command, args) => {
 		const endpoint = args.at(-1) ?? "";
 		calls.push(endpoint);
-		if (endpoint.includes("packages?")) {
-			return jsonResult([
-				[
-					{ name },
-					{ name: "campus-agent/pr-cache-441/ops-web" },
-					{ name: "campus-agent/pr-cache-4420/ops-web" },
-					{ name: "campus-agent/ops-web" },
-					{ name: "campus-agent/unregistered/other" },
-				],
-			]);
-		}
+		assert(endpoint.startsWith("orgs/MUC-WIKI/packages/container/campus-agent%2Fpr-cache-442%2F"));
 		if (endpoint.includes(encodeURIComponent(name))) {
-			return jsonResult([[]]);
+			return endpoint.includes("/versions?") ? jsonResult([[], []]) : jsonResult([{ name }]);
 		}
-		assert.fail(`Read outside the PR scope: ${endpoint}`);
+		return absentResult;
 	};
 	assert.deepEqual(await readPackageInventory("MUC-WIKI", runner, "442"), [{ name, versions: [] }]);
-	assert.equal(calls.length, 2);
+	assert.equal(calls.filter((call) => call.includes("/versions?")).length, 1);
+	assert.equal(calls.length, ACTIVE_PACKAGE_NAMES.length + 1);
 });
 
 test("scoped cleanup cancels before inventory, rechecks PR state, and report mode never cancels", async (t) => {
@@ -753,17 +747,19 @@ test("scoped cleanup cancels before inventory, rechecks PR state, and report mod
 				finished = true;
 				return jsonResult({});
 			}
-			if (endpoint.includes("packages?")) {
-				assert(scenario === "report" || finished, "inventory must follow cancellation completion");
-				inventoried = true;
-				return jsonResult([deleted ? [] : [{ name }]]);
-			}
 			if (endpoint.includes("/versions?")) {
 				return jsonResult([[]]);
 			}
 			if (args.includes("DELETE")) {
 				deleted = true;
 				return jsonResult({});
+			}
+			if (endpoint.includes("/packages/container/")) {
+				assert(scenario === "report" || finished, "inventory must follow cancellation completion");
+				inventoried = true;
+				return !deleted && endpoint.endsWith(encodeURIComponent(name))
+					? jsonResult([{ name }])
+					: absentResult;
 			}
 			throw new Error(`Unexpected API call: ${args.join(" ")}`);
 		};
@@ -786,5 +782,160 @@ test("scoped cleanup cancels before inventory, rechecks PR state, and report mod
 		if (scenario === "report") {
 			assert(!calls.some((call) => call.includes("/actions/")));
 		}
+	}
+});
+
+test("CLI requires a positive PR number and rejects legacy retention arguments", () => {
+	for (const args of [
+		[],
+		["--mode", "apply"],
+		["--pr-cache-pr", "0"],
+		["--pr-cache-pr", "-1"],
+		["--pr-cache-pr", "1", "--keep-releases", "5"],
+	]) {
+		assert.throws(() => parseArgs(args));
+	}
+	assert.equal(parseArgs(["--pr-cache-pr", "442"]).mode, "report");
+});
+
+test("inventory fails closed on API, transport, metadata and versions errors", async () => {
+	for (const result of [
+		...[400, 401, 403, 422, 500].map((status) => ({
+			code: 1,
+			stderr: `gh: unavailable (HTTP ${status})`,
+			stdout: "",
+		})),
+		{ code: 1, stderr: 'Get "https://api.github.com": EOF', stdout: "" },
+		{ code: 0, stderr: "", stdout: "not JSON" },
+		jsonResult([{ name: "wrong-package" }]),
+	]) {
+		await assert.rejects(readPackageInventory("MUC-WIKI", async () => result, "442"));
+	}
+	await assert.rejects(
+		readPackageInventory(
+			"MUC-WIKI",
+			async (_cmd, args) => {
+				const endpoint = args.at(-1) ?? "";
+				if (endpoint.includes("/versions?")) {
+					return absentResult;
+				}
+				return jsonResult([{ name: decodeURIComponent(endpoint.split("/container/")[1]) }]);
+			},
+			"442",
+		),
+		/HTTP 404/,
+	);
+});
+
+test("versions pagination includes every version", async () => {
+	const name = "campus-agent/pr-cache-442/agent-runtime";
+	const raw = (id: number) => ({
+		id,
+		name: digest(String(id)),
+		created_at: NOW.toISOString(),
+		updated_at: NOW.toISOString(),
+		metadata: { container: { tags: [] } },
+	});
+	const result = await readPackageInventory(
+		"MUC-WIKI",
+		async (_cmd, args) => {
+			const endpoint = args.at(-1) ?? "";
+			if (!endpoint.includes(encodeURIComponent(name))) {
+				return absentResult;
+			}
+			if (endpoint.includes("/versions?")) {
+				assert(args.includes("--paginate"));
+				return jsonResult([[raw(1)], [raw(2)]]);
+			}
+			return jsonResult([{ name }]);
+		},
+		"442",
+	);
+	assert.deepEqual(
+		result[0].versions.map((v) => v.id),
+		[1, 2],
+	);
+});
+
+test("cleanup reports failures across inventory, deletion and verification; repeated cleanup succeeds", async (t) => {
+	const directory = await mkdtemp(path.join(os.tmpdir(), "ghcr-errors-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	for (const scenario of [
+		"inventory",
+		"versions",
+		"delete",
+		"verify",
+		"partial",
+		"absent",
+		"success",
+		"open",
+		"dependabot",
+		"fork",
+	]) {
+		const names = ["agent-runtime", "ops-web"].map((image) => `campus-agent/pr-cache-442/${image}`);
+		const deleted = new Set<string>();
+		let writes = 0;
+		const output = path.join(directory, `${scenario}.json`);
+		const summary = path.join(directory, `${scenario}.md`);
+		const runner: CommandRunner = async (_cmd, args) => {
+			const endpoint = args.at(-1) ?? "";
+			if (endpoint.endsWith("/pulls/442")) {
+				return jsonResult({
+					...SOURCE_PR,
+					...(scenario === "open" ? { state: "open" } : {}),
+					...(scenario === "dependabot" ? { user: { login: "dependabot[bot]" } } : {}),
+					...(scenario === "fork" ? { head: { repo: { full_name: "fork/repo" } } } : {}),
+				});
+			}
+			if (endpoint.includes("/workflows/pr.yml/runs?")) {
+				return jsonResult([{ workflow_runs: [] }]);
+			}
+			assert(endpoint.includes("/packages/container/"));
+			const name = decodeURIComponent(endpoint.split("/container/")[1].split("/versions?")[0]);
+			if (args.includes("DELETE")) {
+				writes++;
+				if (scenario === "delete" || (scenario === "partial" && writes === 2)) {
+					return failedResult;
+				}
+				deleted.add(name);
+				return jsonResult({});
+			}
+			if (scenario === "inventory") {
+				return failedResult;
+			}
+			if (endpoint.includes("/versions?")) {
+				return scenario === "versions" ? absentResult : jsonResult([[]]);
+			}
+			if (
+				scenario === "absent" ||
+				!names.includes(name) ||
+				(deleted.has(name) && scenario !== "verify")
+			) {
+				return absentResult;
+			}
+			return jsonResult([{ name }]);
+		};
+		const options = {
+			owner: "MUC-WIKI",
+			repository: REPOSITORY,
+			mode: "apply" as const,
+			output,
+			summary,
+		};
+		if (["absent", "success"].includes(scenario)) {
+			await runPrCacheCleanup(options, "442", { runner });
+			await runPrCacheCleanup(options, "442", { runner });
+		} else {
+			await assert.rejects(runPrCacheCleanup(options, "442", { runner }));
+		}
+		const report = JSON.parse(await readFile(output, "utf8"));
+		assert.equal(report.errors.length > 0, !["absent", "success"].includes(scenario), scenario);
+		if (["inventory", "versions", "open", "dependabot", "fork", "absent"].includes(scenario)) {
+			assert.equal(writes, 0);
+		}
+		if (scenario === "partial") {
+			assert.equal(deleted.size, 1);
+		}
+		assert.match(await readFile(summary, "utf8"), /Result:/);
 	}
 });

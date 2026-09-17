@@ -7,9 +7,6 @@ packages:
 overrides:
   # 本节是 override 的唯一当前清单。上游依赖图不再请求对应范围后才能删除条目，
   # 并使用 pnpm why、frozen install 和依赖漏洞扫描确认解析结果。
-  # rolldown 1.2.4 起多 HTML 入口构建内存回归（docs 构建 374 入口峰值 1.11GB→3.47GB），
-  # 自托管 runner 2G 上限下 OOM；上游修复后（rolldown#9330 后续版本）删除。
-  rolldown: 1.2.3
   "@xmldom/xmldom@<0.9.12": "0.9.12"
   # minimatch 通过 Testcontainers 和 React Email 仍请求 brace-expansion；
   # 这些链路不再落入受影响范围后删除。
