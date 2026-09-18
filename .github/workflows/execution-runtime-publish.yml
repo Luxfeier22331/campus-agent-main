@@ -282,6 +282,30 @@ jobs:
         with:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
+      - name: Create credential status read token
+        id: credential-status-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        with:
+          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
+          owner: MUC-WIKI
+          repositories: campus-agent-gitops
+          permission-contents: read
+          permission-statuses: read
+
+      - name: Verify credential delivery before Worker build
+        env:
+          GH_TOKEN: ${{ steps.credential-status-token.outputs.token }}
+          WORKERS: ${{ needs.release-plan.outputs.workers }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          APP_API_EXECUTION_SHARED_SECRET: ${{ secrets.APP_API_EXECUTION_SHARED_SECRET }}
+          OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
+          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_ACCESS_KEY }}
+          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_SECRET_KEY }}
+          OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
+          OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
+        run: node scripts/release/credential-preflight.mts
+
       - name: Install selected Worker workspaces
         id: install_workers
         env:

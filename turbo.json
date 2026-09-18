@@ -3,6 +3,7 @@
 	"futureFlags": {
 		"affectedUsingTaskInputs": true
 	},
+	"globalPassThroughEnv": ["WORKERS"],
 	"tasks": {
 		"build": {
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
