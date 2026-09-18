@@ -11,6 +11,7 @@ const DiningReviewSheet = lazy(() =>
 );
 
 export function DiningWindowDetail(props: {
+	noMatches?: boolean;
 	floorLabel: string | null;
 	onSelectMenuItem(menuItemId: string | null): void;
 	selectedMenuItemId: string | null;
@@ -31,8 +32,12 @@ export function DiningWindowDetail(props: {
 				className="grid min-h-32 place-content-center gap-1 px-2 py-6 text-center"
 				data-testid="dining-window-detail"
 			>
-				<h2 className="text-sm font-semibold text-[var(--sys-text-strong)]">选择窗口</h2>
-				<p className="text-sm text-[var(--sys-text-muted)]">选择一个窗口查看菜单。</p>
+				<h2 className="text-sm font-semibold text-[var(--sys-text-strong)]">
+					{props.noMatches ? "本层没有匹配的窗口" : "选择窗口"}
+				</h2>
+				<p className="text-sm text-[var(--sys-text-muted)]">
+					{props.noMatches ? "请切换楼层或清除搜索。" : "选择一个窗口查看菜单。"}
+				</p>
 			</section>
 		);
 	}

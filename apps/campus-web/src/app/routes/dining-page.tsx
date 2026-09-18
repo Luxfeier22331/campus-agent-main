@@ -1,7 +1,8 @@
 import { Button } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { DiningMapViewport } from "@/components/dining/dining-map-interaction";
 import { DiningMySubmissions } from "@/components/dining/dining-my-submissions";
 import { DiningPageView } from "@/components/dining/dining-page-view";
 import { DiningSubmissionExitProvider } from "@/components/dining/dining-submission-exit";
@@ -29,6 +30,80 @@ export function DiningPageContent() {
 	const navigate = useNavigate({ from: "/dining" });
 	const routeSearch = useSearch({ from: "/dining" });
 	const detailRef = useRef<HTMLDivElement>(null);
+	const router = useRouter();
+	const mapViewport = useRef<DiningMapViewport | undefined>(undefined);
+	const mapScroll = useRef(0);
+	const restoreMap = useRef(false);
+	const wasMine = useRef(Boolean(routeSearch.mine));
+	const selectionSequence = useRef(0);
+	const [selectionIntent, setSelectionIntent] = useState<{
+		windowId: string;
+		sequence: number;
+	} | null>(null);
+	const detailSource = useRef<{ index: number; submissionId: string } | null>(null);
+	const onViewportChange = useCallback((viewport: DiningMapViewport) => {
+		mapViewport.current = viewport;
+	}, []);
+	const onMapReady = useCallback(() => {
+		if (restoreMap.current) {
+			restoreMap.current = false;
+			window.scrollTo({ top: mapScroll.current, behavior: "instant" });
+		}
+	}, []);
+	useEffect(
+		() =>
+			router.subscribe("onBeforeNavigate", ({ fromLocation, toLocation }) => {
+				if (
+					fromLocation?.pathname === "/dining" &&
+					!("mine" in fromLocation.search && fromLocation.search.mine) &&
+					"mine" in toLocation.search &&
+					toLocation.search.mine
+				) {
+					mapScroll.current = window.scrollY;
+				}
+			}),
+		[router],
+	);
+	useLayoutEffect(() => {
+		const mine = Boolean(routeSearch.mine);
+		if (mine !== wasMine.current) {
+			if (mine) {
+				window.scrollTo({ top: 0, behavior: "instant" });
+			} else {
+				restoreMap.current = true;
+			}
+			wasMine.current = mine;
+		}
+	}, [routeSearch.mine]);
+	useEffect(() => {
+		if (!selectionIntent || selectionIntent.windowId !== routeSearch.window || routeSearch.mine) {
+			return;
+		}
+
+		const frame = window.requestAnimationFrame(() => {
+			setSelectionIntent(null);
+			if (!window.matchMedia("(max-width: 1023px)").matches) {
+				return;
+			}
+			const panel = detailRef.current;
+			const heading = panel?.querySelector("h2");
+			if (!(panel && heading)) {
+				return;
+			}
+			const rect = heading.getBoundingClientRect();
+			const top = Number.parseFloat(getComputedStyle(panel).scrollMarginTop) || 112;
+			if (rect.top >= top && rect.bottom + 40 <= window.innerHeight - 80) {
+				return;
+			}
+			panel.scrollIntoView({
+				block: "start",
+				behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+					? "instant"
+					: "smooth",
+			});
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [routeSearch.window, routeSearch.mine, selectionIntent]);
 	const [query, setQuery] = useState("");
 	const dining = useQuery(diningMapQueryOptions());
 	const halls = dining.data?.halls ?? [];
@@ -71,6 +146,7 @@ export function DiningPageContent() {
 			(routeSearch.window && !selectedWindow)
 		) {
 			void navigate({
+				resetScroll: false,
 				replace: true,
 				search: {
 					floor: selectedFloor.floorId,
@@ -96,6 +172,7 @@ export function DiningPageContent() {
 	function selectHall(hall: DiningHallSummary): void {
 		const floor = hall.floors[0];
 		void navigate({
+			resetScroll: false,
 			search: { floor: floor?.floorId, hall: hall.hallId, item: undefined, window: undefined },
 		});
 	}
@@ -105,6 +182,7 @@ export function DiningPageContent() {
 			return;
 		}
 		void navigate({
+			resetScroll: false,
 			search: { floor: floorId, hall: selectedHall.hallId, item: undefined, window: undefined },
 		});
 	}
@@ -113,32 +191,41 @@ export function DiningPageContent() {
 		if (!(selectedHall && selectedFloor)) {
 			return;
 		}
-		void navigate({
-			search: {
-				floor: selectedFloor.floorId,
-				hall: selectedHall.hallId,
-				item: undefined,
-				window: windowId,
-			},
+		selectSearchResult({
+			hallId: selectedHall.hallId,
+			floorId: selectedFloor.floorId,
+			windowId,
 		});
-		if (window.matchMedia("(max-width: 1023px)").matches) {
-			window.requestAnimationFrame(() => detailRef.current?.scrollIntoView({ block: "start" }));
-		}
 	}
 
-	function selectSearchResult(result: DiningSearchResult): void {
+	function selectSearchResult(
+		result: Pick<DiningSearchResult, "hallId" | "floorId" | "windowId">,
+	): void {
+		const sequence = ++selectionSequence.current;
 		void navigate({
+			resetScroll: false,
 			search: {
 				floor: result.floorId,
 				hall: result.hallId,
-				item: undefined,
 				window: result.windowId,
 			},
+		}).then(() => {
+			if (
+				sequence === selectionSequence.current &&
+				router.state.location.search.window === result.windowId
+			) {
+				setSelectionIntent({ windowId: result.windowId, sequence });
+			}
 		});
 	}
 
 	function openSubmission(submissionId: string, own = false) {
+		detailSource.current =
+			Boolean(routeSearch.mine) === own
+				? { index: router.state.location.state.__TSR_index, submissionId }
+				: null;
 		void navigate({
+			resetScroll: false,
 			search: {
 				...routeSearch,
 				item: undefined,
@@ -146,6 +233,22 @@ export function DiningPageContent() {
 				mine: own ? "1" : undefined,
 			},
 		});
+	}
+	function closeSubmission() {
+		const source = detailSource.current;
+		if (
+			source &&
+			source.submissionId === routeSearch.submission &&
+			router.state.location.state.__TSR_index === source.index + 1
+		) {
+			router.history.back();
+		} else {
+			void navigate({
+				resetScroll: false,
+				replace: true,
+				search: { ...routeSearch, submission: undefined },
+			});
+		}
 	}
 	function windowName(windowId: string) {
 		for (const hall of halls) {
@@ -165,9 +268,14 @@ export function DiningPageContent() {
 					<div className="mb-5 flex flex-wrap items-center justify-between gap-3">
 						<h1 className="ui-page-title">我的投稿</h1>
 						<Button asChild variant="outline">
-							<a data-dining-home href="/dining">
+							<Link
+								data-dining-home
+								to="/dining"
+								resetScroll={false}
+								search={{ ...routeSearch, mine: undefined, submission: undefined }}
+							>
 								返回食堂地图
-							</a>
+							</Link>
 						</Button>
 					</div>
 					<DiningMySubmissions
@@ -176,20 +284,19 @@ export function DiningPageContent() {
 				</section>
 			) : (
 				<DiningPageView
+					initialViewport={mapViewport.current}
+					onViewportChange={onViewportChange}
+					onMapReady={onMapReady}
 					headerActions={
 						<Button asChild variant="outline">
-							<a
+							<Link
 								data-dining-home
-								href="/dining?mine=1"
-								onClick={(event) => {
-									if (!(event.ctrlKey || event.metaKey || event.shiftKey) && event.button === 0) {
-										event.preventDefault();
-										void navigate({ search: { mine: "1" } });
-									}
-								}}
+								to="/dining"
+								resetScroll={false}
+								search={{ ...routeSearch, mine: "1", submission: undefined }}
 							>
 								我的投稿
-							</a>
+							</Link>
 						</Button>
 					}
 					windowExtra={
@@ -215,6 +322,7 @@ export function DiningPageContent() {
 					onSelectHall={selectHall}
 					onSelectMenuItem={(item) =>
 						void navigate({
+							resetScroll: false,
 							search: {
 								floor: selectedFloor?.floorId,
 								hall: selectedHall?.hallId,
@@ -239,7 +347,7 @@ export function DiningPageContent() {
 					submissionId={routeSearch.submission}
 					own={Boolean(routeSearch.mine)}
 					windowName={windowName}
-					onClose={() => void navigate({ search: { ...routeSearch, submission: undefined } })}
+					onClose={closeSubmission}
 				/>
 			) : null}
 		</>

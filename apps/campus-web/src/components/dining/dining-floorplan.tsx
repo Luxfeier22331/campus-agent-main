@@ -1,11 +1,16 @@
 import { Button, cn } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
-import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef } from "react";
+import { lazy, memo, Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { DiningFloorResponse, DiningWindowProjection } from "@/features/dining/model";
 import { diningFloorplanAssetQueryOptions } from "@/features/dining/queries";
 
+import type { DiningMapViewport } from "./dining-map-interaction";
+
 interface InteractiveFloorplanProps {
+	initialViewport?: DiningMapViewport | undefined;
+	onViewportChange?: ((viewport: DiningMapViewport) => void) | undefined;
+	onReady?: (() => void) | undefined;
 	floor: DiningFloorResponse;
 	matchedWindowIds: ReadonlySet<string> | null;
 	onSelectWindow(windowId: string): void;
@@ -33,6 +38,7 @@ export function InteractiveFloorplan(props: InteractiveFloorplanProps) {
 	if (query.isError) {
 		return (
 			<DiningFloorplanUnavailable
+				onReady={props.onReady}
 				aspectRatio={aspectRatio}
 				matchedWindowIds={props.matchedWindowIds}
 				onRetry={() => void query.refetch()}
@@ -64,6 +70,7 @@ function DiningFloorplanLoading({ aspectRatio }: { aspectRatio: string }) {
 }
 
 function DiningFloorplanUnavailable(props: {
+	onReady?: (() => void) | undefined;
 	aspectRatio: string;
 	matchedWindowIds: ReadonlySet<string> | null;
 	onRetry?: () => void;
@@ -71,6 +78,7 @@ function DiningFloorplanUnavailable(props: {
 	selectedWindowId: string | null;
 	windows: DiningWindowProjection[];
 }) {
+	useEffect(() => props.onReady?.(), [props.onReady]);
 	const visibleWindows =
 		props.matchedWindowIds === null
 			? props.windows
@@ -128,6 +136,9 @@ function DiningFloorplanUnavailable(props: {
 }
 
 function ResolvedInteractiveFloorplan({
+	initialViewport,
+	onViewportChange,
+	onReady,
 	floor,
 	matchedWindowIds,
 	onSelectWindow,
@@ -142,6 +153,7 @@ function ResolvedInteractiveFloorplan({
 	if (!prepared) {
 		return (
 			<DiningFloorplanUnavailable
+				onReady={onReady}
 				aspectRatio={`${floor.floor.floorplan.canvas.width} / ${floor.floor.floorplan.canvas.height}`}
 				matchedWindowIds={matchedWindowIds}
 				onSelectWindow={onSelectWindow}
@@ -174,7 +186,17 @@ function ResolvedInteractiveFloorplan({
 				</div>
 			}
 		>
-			<DiningFloorplanZoom aspectRatio={prepared.aspectRatio}>
+			<DiningFloorplanZoom
+				key={floor.floor.floorId}
+				aspectRatio={prepared.aspectRatio}
+				canvas={floor.floor.floorplan.canvas}
+				floorId={floor.floor.floorId}
+				initialViewport={
+					initialViewport?.floorId === floor.floor.floorId ? initialViewport : undefined
+				}
+				onViewportChange={onViewportChange}
+				onReady={onReady}
+			>
 				{interactionSurface}
 			</DiningFloorplanZoom>
 		</Suspense>
@@ -248,7 +270,7 @@ const DiningFloorplanInteractionSurface = memo(function DiningFloorplanInteracti
 const DiningFloorplanSvg = memo(function DiningFloorplanSvg({ markup }: { markup: string }) {
 	return (
 		<div
-			className="flex h-full w-full items-center justify-center p-2 md:p-3 [&_.dining-svg-anchor.is-dimmed]:cursor-default [&_.dining-svg-anchor.is-dimmed]:opacity-35 [&_.dining-svg-anchor[role=button]]:cursor-pointer [&_svg]:block [&_svg]:h-auto [&_svg]:max-h-full [&_svg]:w-full"
+			className="flex h-full w-full items-center justify-center [&_.dining-svg-anchor.is-dimmed]:cursor-default [&_.dining-svg-anchor.is-dimmed]:opacity-35 [&_.dining-svg-anchor[role=button]]:cursor-pointer [&_svg]:block [&_svg]:h-auto [&_svg]:max-h-full [&_svg]:w-full"
 			// biome-ignore lint/security/noDangerouslySetInnerHtml: same-origin SVG is checksum-verified and structurally validated before mounting.
 			dangerouslySetInnerHTML={{ __html: markup }}
 		/>
@@ -421,7 +443,7 @@ function appendDiningFloorplanInteractionStyles(document: Document): void {
 .dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--campus-selected-bg); stroke: var(--campus-selected-border); stroke-width: 3px; }
 .dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--campus-selected-border); stroke-width: 3px; }
 .dining-svg-anchor[role="button"]:not(.is-dimmed):focus-visible .dining-svg-anchor-hit { stroke-width: 5px; }
-@media (max-width: 639px) { [data-dining-anchor-label] { font-size: 14px; } }
+
 @media (prefers-reduced-motion: reduce) { .dining-svg-anchor, .dining-svg-anchor-hit { transition: none; } }
 `;
 	document.documentElement.appendChild(style);

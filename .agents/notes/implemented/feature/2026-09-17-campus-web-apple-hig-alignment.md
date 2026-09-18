@@ -22,7 +22,8 @@ sheet 无拖拽关闭。食堂是首个对齐目标，但基线改动落在 pack
   spring 动效），campus-web 的 `AdaptiveSheetSurface` 按 1024px 断点在
   Drawer（移动）/右侧 Sheet（桌面）间切换，滚动主体标记 `data-vaul-no-drag` 防误关。
   两者都基于 Radix Dialog，aria 合同、Escape、焦点归还不变。
-- 楼层图启用双击缩放（reduced-motion 时禁用），容器 `touch-none`。
+- 楼层图启用双击缩放（reduced-motion 时禁用），容器 `touch-none`。此条已被
+  [食堂地图阅读、手势与往返导航](../bug-fix/2026-09-18-dining-map-navigation.md)部分取代；其余决定仍有效。
 - 表单内选择控件（举报原因）经 `AdaptiveSelect` 在移动端渲染原生 select，桌面端保持 Radix Select。
 
 ## 未采用方案

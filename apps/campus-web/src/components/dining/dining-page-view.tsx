@@ -15,9 +15,13 @@ import {
 	DiningWindowDetail,
 	InteractiveFloorplan,
 } from "./dining-experience";
+import type { DiningMapViewport } from "./dining-map-interaction";
 import { DiningPageSkeleton } from "./dining-page-skeleton";
 
 export interface DiningPageViewProps {
+	initialViewport?: DiningMapViewport | undefined;
+	onViewportChange?: ((viewport: DiningMapViewport) => void) | undefined;
+	onMapReady?: (() => void) | undefined;
 	headerActions?: ReactNode;
 	windowExtra?: ReactNode;
 	activeFloor: DiningFloorResponse | null;
@@ -42,6 +46,9 @@ export interface DiningPageViewProps {
 }
 
 export function DiningPageView({
+	initialViewport,
+	onViewportChange,
+	onMapReady,
 	headerActions,
 	windowExtra,
 	activeFloor,
@@ -126,6 +133,9 @@ export function DiningPageView({
 								selectedFloorId={selectedFloor.floorId}
 							/>
 							<InteractiveFloorplan
+								initialViewport={initialViewport}
+								onViewportChange={onViewportChange}
+								onReady={onMapReady}
 								floor={activeFloor}
 								matchedWindowIds={matchedWindowIds}
 								onSelectWindow={onSelectWindow}
@@ -148,6 +158,7 @@ export function DiningPageView({
 							ref={detailRef}
 						>
 							<DiningWindowDetail
+								noMatches={matchedWindowIds?.size === 0}
 								floorLabel={selectedFloor.label}
 								onSelectMenuItem={onSelectMenuItem}
 								selectedMenuItemId={selectedMenuItemId}

@@ -110,6 +110,12 @@ vi.mock("@tanstack/react-router", async () => {
 			search: Object.fromEntries(new URLSearchParams(window.location.search)),
 		}),
 		useNavigate: () => navigateMock,
+		useRouter: () => ({
+			subscribe: () => () => undefined,
+			get state() {
+				return { location: { search: diningRouteSearch.value } };
+			},
+		}),
 		useSearch: () => diningRouteSearch.value,
 		useBlocker: () => ({ reset: vi.fn(), proceed: vi.fn(), status: "idle" }),
 	};

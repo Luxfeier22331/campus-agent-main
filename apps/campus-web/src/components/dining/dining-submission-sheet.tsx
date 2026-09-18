@@ -19,6 +19,7 @@ import {
 	Textarea,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearch } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { AuthDialog } from "@/components/auth/auth-dialog";
 import { deleteDiningSubmission, reportDiningSubmission } from "@/features/dining/submission-api";
@@ -108,7 +109,9 @@ function DiningSubmissionSheetContent(props: {
 					const trigger = Array.from(
 						document.querySelectorAll<HTMLElement>("[data-submission-id]"),
 					).find((element) => element.dataset.submissionId === props.submissionId);
-					(trigger ?? document.querySelector<HTMLElement>("[data-dining-home]"))?.focus();
+					(trigger ?? document.querySelector<HTMLElement>("[data-dining-home]"))?.focus({
+						preventScroll: true,
+					});
 				}}
 			>
 				<SheetHeader className="border-b border-border p-5 pr-12 text-left">
@@ -341,6 +344,7 @@ function OwnSubmissionContent({
 	windowName: string;
 	onRefresh(): Promise<unknown>;
 }) {
+	const routeSearch = useSearch({ from: "/dining" });
 	const client = useQueryClient();
 	const [editing, setEditing] = useState<DiningMySubmission | null>(null);
 	const [deleting, setDeleting] = useState(false);
@@ -481,9 +485,14 @@ function OwnSubmissionContent({
 				) : null}
 				{current?.status === "public" && current.windowAvailable ? (
 					<Button asChild variant="outline">
-						<a href={`/dining?submission=${encodeURIComponent(current.submissionId)}`}>
+						<Link
+							to="/dining"
+							replace
+							resetScroll={false}
+							search={{ ...routeSearch, mine: undefined, submission: current.submissionId }}
+						>
 							查看公开投稿
-						</a>
+						</Link>
 					</Button>
 				) : null}
 			</div>

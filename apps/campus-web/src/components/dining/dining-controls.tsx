@@ -163,6 +163,9 @@ export function DiningMapToolbar(props: {
 										className="min-h-11 sm:min-h-9"
 										key={result.windowId}
 										onSelect={() => {
+											if (document.activeElement instanceof HTMLElement) {
+												document.activeElement.blur();
+											}
 											props.onSelectResult(result);
 											setSearchOpen(false);
 										}}
@@ -179,6 +182,15 @@ export function DiningMapToolbar(props: {
 					</Popover>
 				</Command>
 			</div>
+			{props.query.trim() &&
+			!props.searchResults.some((result) => result.floorId === props.selectedFloorId) ? (
+				<p className="mt-2 text-sm text-[var(--sys-text-muted)]" role="status">
+					本层没有匹配的窗口。
+					{props.searchResults.length > 0
+						? `其他楼层有 ${props.searchResults.length} 个结果，请从搜索结果选择。`
+						: "可清除搜索查看全部窗口。"}
+				</p>
+			) : null}
 		</div>
 	);
 }
