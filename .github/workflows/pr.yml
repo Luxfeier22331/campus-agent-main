@@ -411,7 +411,6 @@ jobs:
             jq -r 'to_entries[] | "| \(.key) | \(.value) |"' <<< "$RESULTS"
             echo
             echo 'Skipped repository stages follow pnpm check short-circuit order; other skips follow the validation selection or a failed prerequisite.'
-            echo 'Final timings, cancellation status and recent-run comparison are published by the CI timing report workflow.'
           } >> "$GITHUB_STEP_SUMMARY"
           node --experimental-strip-types scripts/ci/validation.mts \
             --check-outcomes "$RUNNER_TEMP/ci-evidence/outcomes.json" \

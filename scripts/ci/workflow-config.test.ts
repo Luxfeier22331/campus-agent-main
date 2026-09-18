@@ -327,26 +327,6 @@ test("Go caches follow native selection and save fresh successful analysis only"
 	}
 });
 
-test("timing reporter uses trusted code and read-only permissions after PR completion", async () => {
-	const workflow = await loadWorkflow("ci-timing-report.yml");
-	assert.deepEqual(workflow.permissions, { contents: "read", actions: "read" });
-	const report = workflowJob(workflow, "report");
-	const checkout = namedStep(report, "Checkout trusted reporting code");
-	assert(isObject(checkout.with));
-	assert.equal(checkout.with.ref, githubExpression("github.event.repository.default_branch"));
-	assert.equal(checkout.with["persist-credentials"], false);
-	assert.deepEqual(
-		jobSteps(report)
-			.filter((step) => step.run)
-			.map((step) => step.run),
-		["node --experimental-strip-types scripts/ci/timing-report.mts"],
-	);
-	const setup = namedStep(report, "Setup reporting Node");
-	assert(isObject(setup.with));
-	assert.equal(setup.with["node-version-file"], ".node-version");
-	assert.equal(setup.with["package-manager-cache"], false);
-});
-
 test("workflow jq selects Node and image evidence from the plan profile array", async () => {
 	const workflow = await loadWorkflow("pr.yml");
 	const plan = namedStep(

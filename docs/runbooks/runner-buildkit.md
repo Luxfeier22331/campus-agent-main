@@ -8,13 +8,16 @@ status: active
 
 ## 执行器选择
 
-源码仓库默认使用 GitHub-hosted Runner：普通任务使用 `ubuntu-24.04`，ARM64 镜像发布使用
-`ubuntu-24.04-arm`。过去因 GitHub-hosted 账单限制临时切换过 self-hosted；为保留同类故障下的人工
-恢复能力，四个源码工作流读取仓库变量 `CI_RUNNER_MODE`：
+源码仓库的六个执行工作流读取仓库变量 `CI_RUNNER_MODE`：`pr.yml`、`pr-image-evidence.yml`、
+`execution-runtime-publish.yml`、`manual-evidence.yml`、`dependencies.yml` 和 `ghcr-retention.yml`。
+当前两个仓库都将该变量设置为 `self-hosted`，因此作业默认运行在已注册并通过能力探针的 self-hosted
+Runner（当前为 `nc-arm-6c`）。为保留平台故障下的人工恢复能力，变量仍支持切换到 GitHub-hosted Runner：
 
 - 变量未设置时使用 GitHub-hosted Runner；
 - 变量值为 `self-hosted` 时使用 `self-hosted`、`Linux`、`campus-ci` 三个标签；
 - 不自动 fallback、不双跑，也不为两类 Runner 维护两套工作流。
+
+GitHub-hosted 仅是删除 `CI_RUNNER_MODE` 后的人工 fallback，不是当前默认执行路径。
 
 切换到备用 Runner：
 
