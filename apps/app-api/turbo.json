@@ -23,6 +23,11 @@
 			"outputs": ["dist/worker/**"]
 		},
 		"test": {
+			"dependsOn": [
+				"@campus-agent/dining#test",
+				"@campus-agent/transport#test",
+				"campus-contracts#test"
+			],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -45,7 +50,8 @@
 				"test/shared-db-integration-helpers.ts",
 				"test/shared-product-db.integration.test.ts",
 				"vitest.shared-db.config.mts",
-				"$TURBO_ROOT$/apps/campus-web/src/**"
+				"$TURBO_ROOT$/apps/campus-web/src/**",
+				"$TURBO_ROOT$/apps/campus-web/test-support/**"
 			]
 		},
 		"test:worker": {

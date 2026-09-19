@@ -74,7 +74,6 @@ func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
 			Status:                  "completed",
 			Evidence:                evidence,
 			SourceAttempts:          []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}},
-			SearchSuggestions:       []temporalruntime.SearchSuggestion{{Provider: "google", RenderedContent: "<div>Google search suggestions</div>"}},
 			TerminalReason:          "answer_completed",
 			ToolContractFingerprint: execution.ToolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint),
 			Usage: temporalruntime.AgentUsageSummary{
@@ -107,8 +106,8 @@ func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
 	}
 	finalizedResponse := expectInternalFinalizationResponseForTest(t, events)
 	serialized, _ := json.Marshal(finalizedResponse["result"])
-	if !strings.Contains(string(serialized), "Google search suggestions") {
-		t.Fatalf("search suggestions did not reach final product response: %s", serialized)
+	if strings.Contains(string(serialized), "search_suggestions") {
+		t.Fatalf("retired search suggestions reached final product response: %s", serialized)
 	}
 	if finalizedResponse["answer_text"] != "你好，我是校园问答助手。" {
 		t.Fatalf("answer_text = %#v", finalizedResponse["answer_text"])
@@ -602,5 +601,88 @@ func workflowFinalizationFixture(
 				ModelRequestCount: 1,
 			},
 		},
+	}
+}
+
+func TestFinalizationCompletesWithUnavailableSources(t *testing.T) {
+	for _, operation := range []temporalruntime.WorkflowOperation{temporalruntime.WorkflowOperationSolve, temporalruntime.WorkflowOperationSynthesize} {
+		for _, allUnavailable := range []bool{false, true} {
+			name := string(operation) + "-mixed"
+			if allUnavailable {
+				name = string(operation) + "-unavailable"
+			}
+			t.Run(name, func(t *testing.T) {
+				store, adapter, input := workflowFinalizationFixture(t, "run-"+name)
+				direct := "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm"
+				first := &temporalruntime.SourceLink{Href: &direct}
+				if allUnavailable {
+					first = &temporalruntime.SourceLink{}
+				}
+				links := []*temporalruntime.SourceLink{first, {}}
+				input.WorkflowResult.Operation = operation
+				input.WorkflowResult.Evidence = nil
+				input.WorkflowResult.SourceAttempts = []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceWebSearch, Status: "completed"}}
+				input.WorkflowResult.FinalOutput = "地址。"
+				step := "solve.initial"
+				if operation == temporalruntime.WorkflowOperationSynthesize {
+					step = "answer.synthesize"
+					input.WorkflowResult.FinalOutput += "[1,2]"
+				}
+				input.WorkflowResult.WorkflowResultRef = activityprojection.WorkflowOperationResultRef(input.RequestID, step)
+				for i, link := range links {
+					original := "https://vertexaisearch.cloud.google.com/grounding-api-redirect/" + string(rune('a'+i))
+					if operation == temporalruntime.WorkflowOperationSolve {
+						input.WorkflowResult.WebEvidence = append(input.WorkflowResult.WebEvidence, temporalruntime.WebEvidence{Title: "来源", URL: original, SourceLink: link, Excerpt: "地址。", StartIndex: 0, EndIndex: 3})
+					} else {
+						input.WorkflowResult.Evidence = append(input.WorkflowResult.Evidence, temporalruntime.WorkflowEvidence{SchemaVersion: "workflow_evidence.v1", ID: "web:" + original, Source: temporalruntime.WorkflowSourceWebSearch, Title: "来源", Excerpt: "地址。", CitationIndex: i + 1, URL: original, SourceLink: link})
+					}
+				}
+				calls := 0
+				adapter.ProductFinalizationWriter = func(_ context.Context, _ execution.DurableRun, _ time.Time, response map[string]any) error {
+					calls++
+					expected := "地址。[1](" + direct + ")[2]"
+					if allUnavailable {
+						expected = "地址。[1][2]"
+					}
+					if response["answer_text"] != expected {
+						t.Fatalf("answer = %#v", response["answer_text"])
+					}
+					encoded, err := json.Marshal(response["result"])
+					if err != nil {
+						t.Fatal(err)
+					}
+					var result struct {
+						Sources []map[string]any `json:"sources"`
+					}
+					if err := json.Unmarshal(encoded, &result); err != nil {
+						t.Fatal(err)
+					}
+					if len(result.Sources) != 2 {
+						t.Fatal(result.Sources)
+					}
+					for i, source := range result.Sources {
+						if source["citation_index"] != float64(i+1) {
+							t.Fatal(source)
+						}
+						if allUnavailable || i == 1 {
+							if source["unavailable_reason"] != "source_unavailable" || source["url"] != nil || source["citation_href"] != nil || source["hostname"] != nil {
+								t.Fatal(source)
+							}
+						} else if source["citation_href"] != direct {
+							t.Fatal(source)
+						}
+					}
+					return nil
+				}
+				output, err := adapter.WriteWorkflowFinalization(t.Context(), input)
+				if err != nil {
+					t.Fatal(err)
+				}
+				run, err := store.GetRun(t.Context(), input.RequestID)
+				if err != nil || calls != 1 || run.Status != execution.DurableRunStatusCompleted || output.Status != "completed" {
+					t.Fatalf("run=%+v calls=%d output=%+v error=%v", run, calls, output, err)
+				}
+			})
+		}
 	}
 }

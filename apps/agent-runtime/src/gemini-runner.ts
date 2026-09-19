@@ -13,13 +13,13 @@ import type {
 	AgentRunner,
 	AgentRunnerInput,
 	AgentRunnerResult,
-	SearchSuggestion,
 	StreamingAgentRunner,
 	WebEvidence,
 	WebSearchDiagnostic,
 } from "./agent-run-contract.ts";
 import { retrievalDeadlineAt } from "./execution-budget.ts";
 import { createFunctionToolContext, invokeFunctionTool } from "./function-tools.ts";
+import type { GeminiSourceResolver } from "./gemini-source-resolver.ts";
 import { parseModelOutputJSON } from "./model-output.ts";
 import { failedRunnerResult } from "./runner-failure.ts";
 import { normalizedModelOutput, partialJSONStringField } from "./runner-output.ts";
@@ -27,6 +27,7 @@ import { AgentRuntimeError } from "./runtime-errors.ts";
 
 type GeminiModels = Pick<GoogleGenAI["models"], "generateContent" | "generateContentStream">;
 export interface GeminiRunnerOptions {
+	resolveSources?: GeminiSourceResolver;
 	createModels?: (input: AgentRunnerInput) => GeminiModels;
 }
 
@@ -70,6 +71,7 @@ function requestFor(input: AgentRunnerInput, contents: Content[]): GenerateConte
 		contents,
 		config: {
 			systemInstruction: input.instructions,
+			...(input.allowWebSearch ? { toolConfig: { includeServerSideToolInvocations: true } } : {}),
 			...(input.limits.maxOutputTokens ? { maxOutputTokens: input.limits.maxOutputTokens } : {}),
 			...(input.signal ? { abortSignal: input.signal } : {}),
 			...(input.outputSchema
@@ -343,7 +345,6 @@ export function geminiGrounding(
 ): {
 	used: boolean;
 	evidence: WebEvidence[];
-	suggestions: SearchSuggestion[];
 	diagnostic: WebSearchDiagnostic;
 } {
 	const candidate = response.candidates?.[0];
@@ -363,7 +364,7 @@ export function geminiGrounding(
 	const queries = new Set<string>();
 	const chunks = new Set<string>();
 	const supports = new Set<string>();
-	const suggestions = new Set<string>();
+	let hasSearchEntryPoint = false;
 	const converted = new Set<string>();
 	let sourceChunks = metadataList.find(
 		(item) => (item.groundingChunks?.length ?? 0) > 0,
@@ -380,7 +381,7 @@ export function geminiGrounding(
 			chunks.add(JSON.stringify(chunk));
 		}
 		if (metadata.searchEntryPoint?.renderedContent) {
-			suggestions.add(metadata.searchEntryPoint.renderedContent);
+			hasSearchEntryPoint = true;
 		}
 		if (metadata.groundingChunks && metadata.groundingChunks.length > 0) {
 			sourceChunks = metadata.groundingChunks;
@@ -472,7 +473,7 @@ export function geminiGrounding(
 			}
 		}
 	}
-	const used = queries.size > 0 || chunks.size > 0 || supports.size > 0 || suggestions.size > 0;
+	const used = queries.size > 0 || chunks.size > 0 || supports.size > 0 || hasSearchEntryPoint;
 	diagnostic.query_count = queries.size;
 	diagnostic.chunk_count = chunks.size;
 	diagnostic.support_count = supports.size;
@@ -489,23 +490,17 @@ export function geminiGrounding(
 		used,
 		evidence,
 		diagnostic,
-		suggestions: [...suggestions].map((renderedContent) => ({
-			provider: "google",
-			renderedContent,
-		})),
 	};
 }
 
 function emptyResult(): AgentRunnerResult & {
 	webEvidence: WebEvidence[];
-	searchSuggestions: SearchSuggestion[];
 } {
 	return {
 		finalOutput: "",
 		providerResponseId: "",
 		toolResults: [],
 		webEvidence: [],
-		searchSuggestions: [],
 		webSearchUsed: false,
 		usage: {
 			modelRequestCount: 0,
@@ -547,7 +542,6 @@ function recordGrounding(result: AgentRunnerResult, grounding: ReturnType<typeof
 	result.webSearchDiagnostic = diagnostic;
 	result.webSearchUsed ||= grounding.used;
 	result.webEvidence = [...(result.webEvidence ?? []), ...grounding.evidence];
-	result.searchSuggestions = [...(result.searchSuggestions ?? []), ...grounding.suggestions];
 }
 
 async function observed(
@@ -620,6 +614,8 @@ export function createGeminiRunner(options: GeminiRunnerOptions = {}): AgentRunn
 						),
 					);
 					result.toolResults = [...context.functionToolResults.values()];
+					await options.resolveSources?.(input, result);
+					input.signal?.throwIfAborted();
 					return result;
 				}
 				contents.push(content);
@@ -631,10 +627,12 @@ export function createGeminiRunner(options: GeminiRunnerOptions = {}): AgentRunn
 			try {
 				modelFailure(error, input);
 			} catch (classified) {
-				return failedRunnerResult(classified, input, {
+				const failed = failedRunnerResult(classified, input, {
 					...result,
 					toolResults: [...context.functionToolResults.values()],
 				});
+				await options.resolveSources?.(input, failed);
+				return failed;
 			}
 		}
 	};
@@ -735,6 +733,8 @@ export function createStreamingGeminiRunner(
 					),
 				);
 				result.toolResults = [...context.functionToolResults.values()];
+				await options.resolveSources?.(input, result);
+				input.signal?.throwIfAborted();
 				finishSpan();
 				yield result;
 				return;
@@ -749,6 +749,7 @@ export function createStreamingGeminiRunner(
 					...result,
 					toolResults: [...context.functionToolResults.values()],
 				});
+				await options.resolveSources?.(input, failed);
 				yield failed;
 			} finally {
 				finishSpan();

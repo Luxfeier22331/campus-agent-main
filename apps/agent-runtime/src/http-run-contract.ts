@@ -100,6 +100,7 @@ const sourceAttemptSchema = z
 const evidenceSchema = z
 	.object({
 		schema_version: z.literal("workflow_evidence.v1"),
+		source_link: z.object({ href: z.string().url().nullable() }).strict().optional(),
 		id: z.string().min(1),
 		source: sourceSchema,
 		title: z.string().min(1),
@@ -124,9 +125,6 @@ const stepFailureSchema = z
 
 const completedStepSchema = z
 	.object({
-		search_suggestions: z
-			.array(z.object({ provider: z.literal("google"), rendered_content: z.string() }).strict())
-			.optional(),
 		step: taskPlanStepSchema,
 		execution_index: z.number().int().positive(),
 		summary: z.string().min(1),
@@ -208,9 +206,6 @@ const synthesizeRequestSchema = z
 				evidence: z.array(evidenceSchema),
 				source_attempts: z.array(sourceAttemptSchema),
 				recovery_reason: z.string().trim().min(1).max(500).optional(),
-				search_suggestions: z
-					.array(z.object({ provider: z.literal("google"), rendered_content: z.string() }).strict())
-					.default([]),
 			})
 			.strict(),
 	})
@@ -353,10 +348,6 @@ export function runtimeInputFromAgentRunRequest(
 			...(parsed.operation_input.recovery_reason
 				? { recoveryReason: parsed.operation_input.recovery_reason }
 				: {}),
-			searchSuggestions: parsed.operation_input.search_suggestions.map((item) => ({
-				provider: item.provider,
-				renderedContent: item.rendered_content,
-			})),
 		},
 	} satisfies SynthesizeWorkflowOperationInput;
 }
@@ -405,6 +396,7 @@ function mapTaskPlanStep(value: z.infer<typeof taskPlanStepSchema>): TaskPlanSte
 function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
 	const result: WorkflowEvidence = {
 		excerpt: value.excerpt,
+		...(value.source_link ? { sourceLink: value.source_link } : {}),
 		id: value.id,
 		schemaVersion: value.schema_version,
 		source: value.source,
@@ -436,10 +428,6 @@ function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
 function mapCompletedStep(value: z.infer<typeof completedStepSchema>): CompletedTaskStep {
 	return {
 		remainingFacts: value.remaining_facts,
-		searchSuggestions: (value.search_suggestions ?? []).map((s) => ({
-			provider: s.provider,
-			renderedContent: s.rendered_content,
-		})),
 		...(value.failure ? { failure: value.failure } : {}),
 		evidence: value.evidence.map(mapEvidence),
 		executionIndex: value.execution_index,

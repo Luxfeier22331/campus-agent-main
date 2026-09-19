@@ -50,6 +50,8 @@ function pickStringPayloadFields(
 function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record<string, unknown> {
 	const payload = event.payload;
 	switch (event.eventType) {
+		case "run.retrieval_status":
+			return pickStringPayloadFields(payload, ["source", "status"]);
 		case "execution.queued":
 		case "execution.running":
 		case "run.queued":
@@ -108,6 +110,14 @@ export function toBrowserRunEvent(
 		return null;
 	}
 	const payload = sanitizeBrowserRunEventPayload(event);
+	if (
+		productEventType === "retrieval.status" &&
+		(payload.source !== "campus" ||
+			typeof payload.status !== "string" ||
+			!["started", "completed", "no_match", "failed", "canceled"].includes(payload.status))
+	) {
+		return null;
+	}
 	if (productEventType === "execution.phase") {
 		const phase = event.eventType === "run.progress" ? payload.phase : "generating";
 		if (!isRuntimeRunProductPhase(phase)) {
@@ -132,6 +142,8 @@ export function toBrowserRunEvent(
 
 function toRuntimeRunProductEventType(eventType: string): RuntimeRunProductEventName | null {
 	switch (eventType) {
+		case "run.retrieval_status":
+			return "retrieval.status";
 		case "execution.queued":
 		case "run.queued":
 			return "execution.queued";

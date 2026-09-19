@@ -79,6 +79,7 @@ export interface RuntimeRunEventProjection {
 
 export type RuntimeRunProductEventName =
 	| "answer.delta"
+	| "retrieval.status"
 	| "execution.phase"
 	| "execution.queued"
 	| "execution.running"

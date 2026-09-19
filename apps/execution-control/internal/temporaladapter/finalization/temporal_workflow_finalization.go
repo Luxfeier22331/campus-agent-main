@@ -863,9 +863,8 @@ func (s *Adapter) WorkflowFinalizedResponse(
 		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	result := map[string]any{
-		"sources":            citationClosure.Sources,
-		"search_suggestions": workflowResult["search_suggestions"],
-		"terminal_reason":    string(execution.DurableTerminalReasonAnswerCompleted),
+		"sources":         citationClosure.Sources,
+		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	modelUsage, err := WorkflowModelUsage(workflowResult)
 	if err != nil {

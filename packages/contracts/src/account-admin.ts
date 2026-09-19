@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TimeFiltersSchema, timeQueryShape, validateTimeQuery } from "./ops-time.ts";
+import { TIME_WINDOWS, TimeFiltersSchema, timeQueryShape, validateTimeQuery } from "./ops-time.ts";
 
 export const ACCOUNT_ADMIN_STATES = [
 	"active",
@@ -26,7 +26,7 @@ export const AccountAdminActionSchema = z.enum(ACCOUNT_ADMIN_ACTIONS).meta({ id:
 export const ACCOUNT_ADMIN_OUTCOMES = ["started", "succeeded", "failed", "indeterminate"] as const;
 export const AccountAdminOutcomeSchema = z.enum(ACCOUNT_ADMIN_OUTCOMES).meta({ id: "outcome" });
 
-export const ACCOUNT_ADMIN_EVENT_WINDOWS = ["24h", "7d", "30d", "90d"] as const;
+export const ACCOUNT_ADMIN_EVENT_WINDOWS = TIME_WINDOWS;
 export const AccountAdminEventWindowSchema = z
 	.enum(ACCOUNT_ADMIN_EVENT_WINDOWS)
 	.meta({ id: "eventWindow" });

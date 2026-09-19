@@ -74,8 +74,7 @@ execution-control 不预先构造另一份模型上下文摘要。
 分别映射为 OpenAI 原生 Web Search 或 Gemini 原生 `googleSearch`。runner 从原生 annotation /
 grounding support 提取 URL、标题和被支持的文本片段，统一交给 Workflow 编号、Synthesizer 引用，
 Finalization 按正文实际引用派生 `web_page` 来源卡。Web Search 不进入本地 `tool_results` 或工具轨迹。
-Google `searchEntryPoint.renderedContent` 通过 `search_suggestions` 保存到产品结构化消息并展示；
-它不参与证据编号，也不进入后续模型上下文。
+Google 搜索建议 HTML 不进入运行结果、产品消息或 UI；原生搜索与 grounding 引用继续保留。
 
 Solve 根据用户目标决定直接回答或生成步骤和候选来源；Executor 只能执行当前步骤允许的来源；Replanner 根据实际
 结果重新决定剩余路径。`campus_search` 的 `no_match` 只说明当前 Campus Docs 没有找到证据，不会由

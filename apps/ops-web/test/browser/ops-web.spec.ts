@@ -463,7 +463,7 @@ async function routeCampusGroupsCatalog(
 
 test("总览在各宽度下保持可读", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
-	await page.goto("/overview?window=1h");
+	await page.goto("/overview?window=today");
 
 	await expect(page.getByRole("heading", { name: "运行概览" })).toBeVisible();
 	await expect(page.getByText("请求成功率")).toBeVisible();

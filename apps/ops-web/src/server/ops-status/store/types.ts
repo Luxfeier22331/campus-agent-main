@@ -1,14 +1,18 @@
+import type { ResolvedTimeRange } from "campus-contracts/ops-time";
 import type { OpsRequestListQuery } from "../contract.ts";
 
 export const OPS_REQUEST_PAGE_SIZE = 50;
 
 export interface PgOpsStatusStoreDatabase {
-	getRequestOverview(since: Date): Promise<OpsRequestOverviewRow>;
+	getRequestOverview(range: ResolvedTimeRange): Promise<OpsRequestOverviewRow>;
 	getRequest(requestId: string): Promise<OpsRequestDetailRow | null>;
 	getRequestDiagnostics(requestId: string): Promise<OpsRequestDiagnosticsRows>;
-	getRequestTrends(since: Date, bucketMinutes: number): Promise<OpsRequestTrendRow[]>;
-	listRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestRow[]>;
-	summarizeRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestSummaryTotals>;
+	getRequestTrends(range: ResolvedTimeRange, bucketMinutes: number): Promise<OpsRequestTrendRow[]>;
+	listRequests(query: OpsRequestListQuery, range: ResolvedTimeRange): Promise<OpsRequestRow[]>;
+	summarizeRequests(
+		query: OpsRequestListQuery,
+		range: ResolvedTimeRange,
+	): Promise<OpsRequestSummaryTotals>;
 	verifyReadiness(): Promise<void>;
 	verifySchema(): Promise<void>;
 }
@@ -37,6 +41,7 @@ export interface OpsRequestTrendRow {
 }
 
 export interface OpsRequestRow {
+	matchedFailure?: unknown;
 	assistantKind: string | null;
 	assistantMessagePresent: boolean;
 	attentionReason: string | null;
@@ -69,6 +74,7 @@ export interface OpsRequestDetailRow extends OpsRequestRow {
 }
 
 export interface OpsRequestStageRow {
+	activityAttempt?: number;
 	modelOutputDiagnosticJson?: unknown;
 	completedAt: Date | null;
 	durationMs: number | string | null;
@@ -81,6 +87,8 @@ export interface OpsRequestStageRow {
 }
 
 export interface OpsRequestModelAttemptRow {
+	activityAttempt?: number;
+	stepId?: string;
 	cachedInputTokens: number | string | null;
 	completedAt: Date | null;
 	durationMs: number | string;

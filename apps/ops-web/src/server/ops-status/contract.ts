@@ -1,26 +1,25 @@
+import type { ResolvedTimeRange, TimeQuery } from "campus-contracts/ops-time";
+import type { FailureFilters } from "../../shared/failure-filters.ts";
 import type {
 	OpsOverviewResponse,
-	OpsOverviewWindow,
 	OpsRequestDetailResponse,
 	OpsRequestListResponse,
 	OpsRequestListView,
 	OpsRequestSummary,
-	OpsRequestWindow,
 } from "../../shared/ops-contract.ts";
 
-export interface OpsRequestListQuery {
+export interface OpsRequestListQuery extends TimeQuery, FailureFilters {
 	cursor?: string;
 	q?: string;
 	requestId?: string;
 	status?: OpsRequestSummary["status"];
 	view?: OpsRequestListView;
-	window: OpsRequestWindow;
 }
 
 export type OpsStatusOverview = Pick<OpsOverviewResponse, "requests" | "trends">;
 
 export interface OpsStatusStore {
-	getOverview(window: OpsOverviewWindow): Promise<OpsStatusOverview>;
+	getOverview(range: ResolvedTimeRange): Promise<OpsStatusOverview>;
 	getRequestDetail(requestId: string): Promise<OpsRequestDetailResponse | null>;
 	listRequests(query: OpsRequestListQuery): Promise<OpsRequestListResponse>;
 	verifyReadiness(): Promise<void>;

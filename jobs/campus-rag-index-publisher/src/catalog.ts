@@ -33,24 +33,9 @@ export function createPostgresIndexCatalog(
 			await connect();
 			await client.query("BEGIN");
 			try {
-				const current = await client.query<{ collection: string }>(
-					`select collection
-					   from campus_docs_serving.current_index
-					  where singleton = true
-					  for update`,
-				);
-				if (current.rows[0]?.collection === index.collection) {
-					await client.query("COMMIT");
-					return { noOp: true };
-				}
-				await client.query(
-					`insert into campus_docs_serving.current_index (singleton, collection)
-					 values (true, $1)
-					 on conflict (singleton) do update set collection = excluded.collection`,
-					[index.collection],
-				);
+				const result = await createTransactionalIndexCatalog(client).activate(index);
 				await client.query("COMMIT");
-				return { noOp: false };
+				return result;
 			} catch (error) {
 				await client.query("ROLLBACK").catch(() => undefined);
 				throw error;
@@ -58,6 +43,26 @@ export function createPostgresIndexCatalog(
 		},
 		async close() {
 			if (connected) await client.end();
+		},
+	};
+}
+
+/** The caller owns BEGIN/COMMIT so foundation rows and the binding change together. */
+export function createTransactionalIndexCatalog(client: Pick<Client, "query">): IndexCatalog {
+	return {
+		async activate(index) {
+			validateBinding(index.collection);
+			const current = await client.query<{ collection: string }>(
+				"select collection from campus_docs_serving.current_index where singleton = true for update",
+			);
+			if (current.rows[0]?.collection === index.collection) return { noOp: true };
+			await client.query(
+				`insert into campus_docs_serving.current_index (singleton, collection)
+				 values (true, $1)
+				 on conflict (singleton) do update set collection = excluded.collection`,
+				[index.collection],
+			);
+			return { noOp: false };
 		},
 	};
 }

@@ -11,7 +11,7 @@ describe("Kubernetes object-store connection", () => {
 			dependencies: {
 				runKubectl: async (args) => {
 					calls.push(args);
-					return args.at(-1) === "jsonpath={.data.OBJECT_STORE_DERIVED_READ_ACCESS_KEY}"
+					return args.at(-1) === "jsonpath={.data.OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY}"
 						? Buffer.from("read-access").toString("base64")
 						: Buffer.from("read-secret").toString("base64");
 				},
@@ -36,9 +36,9 @@ describe("Kubernetes object-store connection", () => {
 				"campus-agent-staging",
 				"get",
 				"secret",
-				"object-store-secrets",
+				"objectstore-ro",
 				"--output",
-				"jsonpath={.data.OBJECT_STORE_DERIVED_READ_ACCESS_KEY}",
+				"jsonpath={.data.OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY}",
 			],
 			[
 				"--context",
@@ -47,9 +47,9 @@ describe("Kubernetes object-store connection", () => {
 				"campus-agent-staging",
 				"get",
 				"secret",
-				"object-store-secrets",
+				"objectstore-ro",
 				"--output",
-				"jsonpath={.data.OBJECT_STORE_DERIVED_READ_SECRET_KEY}",
+				"jsonpath={.data.OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY}",
 			],
 		]);
 		await connection.close();
@@ -62,6 +62,6 @@ describe("Kubernetes object-store connection", () => {
 				dependencies: { runKubectl: async () => "not-base64" },
 				namespace: "campus-agent-staging",
 			}),
-		).rejects.toThrow("OBJECT_STORE_DERIVED_READ_ACCESS_KEY");
+		).rejects.toThrow("OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY");
 	});
 });

@@ -189,6 +189,14 @@ describe("班车服务类型切换", () => {
 		fireEvent.mouseDown(screen.getByRole("tab", { name: "两校区通勤" }));
 		await waitFor(() => expect(router.state.location.search).toEqual({ kind: "commute" }));
 		expect(screen.getByRole("tab", { name: "两校区通勤", selected: true })).toBeInTheDocument();
+		await act(async () => router.history.back());
+		await waitFor(() =>
+			expect(screen.getByRole("tab", { name: "地铁接驳", selected: true })).toBeInTheDocument(),
+		);
+		await act(async () => router.history.forward());
+		await waitFor(() =>
+			expect(screen.getByRole("tab", { name: "两校区通勤", selected: true })).toBeInTheDocument(),
+		);
 	});
 });
 
@@ -591,7 +599,7 @@ describe("班车时间段编辑器", () => {
 		expect(screen.getByLabelText("发车时间")).toHaveValue("08:05");
 		fireEvent.click(screen.getByRole("button", { name: "取消" }));
 		fireEvent.click(screen.getByRole("button", { name: "放弃修改" }));
-		await waitFor(() => expect(router.state.location.search).toEqual({}));
+		await waitFor(() => expect(router.state.location.search).toEqual({ kind: "commute" }));
 		expect(screen.getByRole("region", { name: "当天有效班次" })).toHaveTextContent("2026-04-28");
 		expect(screen.getByRole("heading", { name: "2026年4月" })).toBeVisible();
 	});
@@ -626,7 +634,7 @@ describe("班车时间段编辑器", () => {
 		expect(screen.getByRole("alert")).toHaveTextContent("不存在或已删除");
 		expect(screen.queryByRole("region", { name: "当天有效班次" })).not.toBeInTheDocument();
 		fireEvent.change(screen.getByLabelText("线路方向"), { target: { value: "other" } });
-		await waitFor(() => expect(router.state.location.search).toEqual({}));
+		await waitFor(() => expect(router.state.location.search).toEqual({ kind: "commute" }));
 		expect(screen.getByLabelText("线路方向")).toHaveValue("other");
 		expect(screen.getByRole("region", { name: "当天有效班次" })).toBeVisible();
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -636,7 +644,7 @@ describe("班车时间段编辑器", () => {
 		const { router } = await renderWorkspace({ path: "/transport?scheduleId=missing" });
 		const length = router.history.length;
 		fireEvent.click(screen.getByRole("button", { name: "返回班车维护" }));
-		await waitFor(() => expect(router.state.location.search).toEqual({}));
+		await waitFor(() => expect(router.state.location.search).toEqual({ kind: "commute" }));
 		expect(router.history.length).toBe(length);
 		expect(screen.getByRole("region", { name: "当天有效班次" })).toBeVisible();
 	});

@@ -5,6 +5,9 @@ import path from "node:path";
 import test from "node:test";
 
 import { type CommandResult, type CommandRunner, planCandidates } from "./candidates.mts";
+import { readImageWorkspaces } from "./image-targets.mts";
+
+const workspaces = readImageWorkspaces();
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -26,6 +29,16 @@ function syntheticScopeRunner(
 ): CommandRunner {
 	let commitCount = 0;
 	return (command, args) => {
+		if (command === "git" && args[0] === "ls-tree" && args.includes("--name-only")) {
+			return result({ stdout: workspaces.map((w) => `${w.directory}/package.json`).join("\n") });
+		}
+		if (command === "git" && args[0] === "show" && args[1]?.endsWith("/package.json")) {
+			return result({
+				stdout: JSON.stringify(
+					workspaces.find((w) => args[1]?.endsWith(`:${w.directory}/package.json`)),
+				),
+			});
+		}
 		if (command === "git" && args[0] === "diff") {
 			return result({ stdout: diff });
 		}
@@ -74,9 +87,9 @@ function options(root: string) {
 test("maps Turbo affected package tasks to release candidates", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args, commandOptions) => {
-		assert.equal(commandOptions.env.TURBO_SCM_BASE, BASE);
-		assert.equal(commandOptions.env.TURBO_SCM_HEAD, HEAD);
 		if (command === "pnpm") {
+			assert.equal(commandOptions.env.TURBO_SCM_BASE, BASE);
+			assert.equal(commandOptions.env.TURBO_SCM_HEAD, HEAD);
 			return result({
 				stdout: JSON.stringify({
 					tasks: [
@@ -102,7 +115,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,
-		images: ["agent-runtime", "internal-portal-collection"],
+		images: [],
 		sourceBases: ["infra/k8s/execution-runtime/base/runtime"],
 		topologyMigrations: [],
 		workers: ["app-api-staging", "campus-web-staging"],
@@ -115,7 +128,7 @@ test("publishes collection image when a bundled workspace dependency changes", a
 		{ command: "tsc", package: "internal-portal-collection", task: "build" },
 	]);
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["internal-portal-collection"]);
+	assert.deepEqual(plan.images, ["internal-portal-collection", "ops-web"]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -215,18 +228,7 @@ test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit"
 		],
 	);
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, [
-		"agent-runtime",
-		"campus-agent-schema",
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
-		"document-ocr",
-		"internal-portal-collection",
-		"notice-classifier",
-		"notice-index-publisher",
-		"notice-publisher",
-		"ops-web",
-	]);
+	assert.deepEqual(plan.images, ["agent-runtime", "ops-web"]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -316,7 +318,6 @@ test("publishes all notice and transport consumers when the shared notice databa
 		"notice-classifier",
 		"notice-index-publisher",
 		"notice-publisher",
-		"ops-web",
 	]);
 	assert.deepEqual(plan.workers, []);
 });
@@ -394,21 +395,14 @@ test("Campus Web docs refresh works when the GitOps cursor already equals head",
 
 test("selects Docker-only schema, publisher, and Go images", async (t) => {
 	const root = await fixture(t);
-	const runner: CommandRunner = (command, args) => {
-		if (command === "pnpm") {
-			return result({ stdout: JSON.stringify({ tasks: [] }) });
-		}
-		if (args[0] === "diff") {
-			return result({
-				stdout: changed(
-					"apps/app-api/ops/db/schema.ts",
-					"packages/contracts/src/campus-docs/node/index.ts",
-					"apps/execution-control/internal/executionpersistence/run_projection_postgres_store.go",
-				),
-			});
-		}
-		return result();
-	};
+	const runner = syntheticScopeRunner(
+		changed(
+			"jobs/campus-docs-index-publisher/src/cli.ts",
+			"jobs/campus-rag-index-publisher/src/cli.ts",
+			"apps/execution-control/internal/executionpersistence/run_projection_postgres_store.go",
+		),
+		[],
+	);
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,

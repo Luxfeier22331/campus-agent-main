@@ -1,6 +1,8 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
-	"extends": ["//"],
+	"extends": [
+		"//"
+	],
 	"tasks": {
 		"build": {
 			"inputs": [
@@ -15,18 +17,23 @@
 				"$TURBO_ROOT$/packages/embedding-runtime/package.json",
 				"$TURBO_ROOT$/packages/embedding-runtime/src/**"
 			],
-			"outputs": ["dist/**"]
-		},
-		"test": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] },
-		"test:database-integration": {
-			"inputs": [
-				"package.json",
-				"src/catalog.ts",
-				"src/types.ts",
-				"test/catalog.database.integration.test.ts",
-				"vitest.database-integration.config.mts"
+			"outputs": [
+				"dist/**"
 			]
 		},
-		"typecheck": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] }
+		"test": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md"
+			]
+		},
+		"typecheck": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md"
+			]
+		}
 	}
 }

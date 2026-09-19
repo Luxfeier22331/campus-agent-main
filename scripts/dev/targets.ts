@@ -10,6 +10,7 @@ export type LocalDevTarget =
 	| "notice-index-publisher";
 
 export type LocalDevCapability =
+	| "qdrant"
 	| "postgres"
 	| "derived-bucket"
 	| "source-bucket"
@@ -39,15 +40,11 @@ export type LocalModelConfigName =
 	| "notice_classification";
 
 export type LocalBootstrapStep =
-	| "campus-web-docs"
 	| "campus-agent-schema"
-	| "ops-web-transport-bootstrap"
 	| "model-config-seed"
 	| "model-config-check"
-	| "app-api-seed-local-campus-groups"
 	| "app-api-seed-local-test-user"
 	| "notice-publisher-seed-local"
-	| "ops-web-dining-bootstrap"
 	| "temporal-namespace";
 
 export interface LocalDevTargetPlan {
@@ -79,15 +76,12 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 	core: {
 		bootstrapSteps: [
 			"campus-agent-schema",
-			"ops-web-transport-bootstrap",
 			"model-config-seed",
-			"campus-web-docs",
-			"app-api-seed-local-campus-groups",
 			"app-api-seed-local-test-user",
 			"model-config-check",
 			"temporal-namespace",
 		],
-		capabilities: ["postgres", "derived-bucket", "docs-bucket", "docs-source", "temporal"],
+		capabilities: ["postgres", "derived-bucket", "temporal", "qdrant"],
 		directEnvironmentProjections: ["core"],
 		environmentDependencies: [],
 		modelConfigNames: ["primary_agent", "campus_docs_embedding", "campus_docs_reranker"],
@@ -97,13 +91,12 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 	"ops-web": {
 		bootstrapSteps: [
 			"campus-agent-schema",
-			"ops-web-transport-bootstrap",
 			"model-config-seed",
-			"notice-publisher-seed-local",
+			"app-api-seed-local-test-user",
 			"model-config-check",
-			"ops-web-dining-bootstrap",
+			"temporal-namespace",
 		],
-		capabilities: ["postgres", "derived-bucket", "source-bucket"],
+		capabilities: ["postgres", "derived-bucket", "source-bucket", "qdrant", "temporal"],
 		directEnvironmentProjections: [
 			"ops-web",
 			"internal-portal-collection",
@@ -112,7 +105,12 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 			"document-ocr",
 		],
 		environmentDependencies: ["core"],
-		modelConfigNames: ["notice_classification"],
+		modelConfigNames: [
+			"primary_agent",
+			"campus_docs_embedding",
+			"campus_docs_reranker",
+			"notice_classification",
+		],
 		runtimeDependencies: ["core"],
 		target: "ops-web",
 	},
@@ -159,7 +157,7 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 	},
 	"campus-rag-index-publisher": {
 		bootstrapSteps: [],
-		capabilities: ["postgres", "derived-bucket"],
+		capabilities: ["postgres", "derived-bucket", "qdrant"],
 		directEnvironmentProjections: ["campus-rag-index-publisher"],
 		environmentDependencies: [],
 		modelConfigNames: [],

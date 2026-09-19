@@ -99,6 +99,7 @@ export interface ReaderAssetCopy {
 export type ObjectStoreCredentialMode = "derived";
 
 export interface PublishedReaderObjectStoreEnv {
+	OBJECT_STORE_BUCKET_DERIVED?: string;
 	OBJECT_STORE_DERIVED_READ_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_READ_SECRET_KEY?: string;
 	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;

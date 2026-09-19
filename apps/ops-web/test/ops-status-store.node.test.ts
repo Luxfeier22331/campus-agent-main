@@ -145,7 +145,7 @@ describe("PostgreSQL ops status store", () => {
 			invocationId: "call-1",
 			toolName: "campus_search",
 		});
-		const list = await store.listRequests({ window: "1h" });
+		const list = await store.listRequests({ window: "today" });
 		expect(list.data[0]?.executionStage).toEqual({
 			kind: "tool",
 			status: "completed",
@@ -212,7 +212,10 @@ describe("PostgreSQL ops status store", () => {
 			db: createFakeOpsDb(),
 			now: () => now,
 		});
-		const overview = await store.getOverview("1h");
+		const overview = await store.getOverview({
+			from: "2026-07-08T16:00:00.000Z",
+			to: now.toISOString(),
+		});
 
 		expect(overview.requests).toMatchObject({
 			completed: 1,
@@ -235,7 +238,10 @@ describe("PostgreSQL ops status store", () => {
 		});
 		const store = createPgOpsStatusStore({ db, now: () => now });
 
-		expect((await store.getOverview("1h")).requests).toMatchObject({
+		expect(
+			(await store.getOverview({ from: "2026-07-08T16:00:00.000Z", to: now.toISOString() }))
+				.requests,
+		).toMatchObject({
 			dataState: "NO_DATA",
 			status: "UNKNOWN",
 			total: 0,
@@ -254,7 +260,10 @@ describe("PostgreSQL ops status store", () => {
 			now: () => now,
 		});
 
-		const overview = await store.getOverview("1h");
+		const overview = await store.getOverview({
+			from: "2026-07-08T16:00:00.000Z",
+			to: now.toISOString(),
+		});
 
 		expect(overview.requests).toMatchObject({ dataState: "FRESH", status: "HEALTHY" });
 		expect(overview.trends).toEqual({
@@ -574,6 +583,9 @@ describe("PostgreSQL ops status store", () => {
 		);
 
 		expect(detail?.execution.failure).toEqual({
+			reason: null,
+			citation: null,
+			citationState: "not_recorded",
 			code: "runtime_invariant_failed",
 			detail: null,
 			httpStatus: 409,
@@ -626,6 +638,9 @@ describe("PostgreSQL ops status store", () => {
 		);
 
 		expect(detail?.execution.failure).toEqual({
+			reason: null,
+			citation: null,
+			citationState: "not_recorded",
 			code: null,
 			detail: null,
 			httpStatus: null,
@@ -691,7 +706,7 @@ describe("PostgreSQL ops status store", () => {
 		const store = createPgOpsStatusStore({ db, now: () => now });
 
 		const detail = OpsRequestDetailResponseSchema.parse(await store.getRequestDetail("req_pg_001"));
-		const attention = await store.listRequests({ view: "attention", window: "1h" });
+		const attention = await store.listRequests({ view: "attention", window: "today" });
 
 		expect(detail.request).toMatchObject({ status: "COMPLETED", lifecyclePhase: "FINISHED" });
 		expect(detail.result).toMatchObject({ state: "WRITTEN", kind: "answer" });
@@ -722,7 +737,7 @@ describe("PostgreSQL ops status store", () => {
 			now: () => now,
 		});
 
-		const result = await store.listRequests({ window: "1h" });
+		const result = await store.listRequests({ window: "today" });
 
 		expect(result.data).toHaveLength(2);
 		expect(result.data.find((request) => request.requestId === "req_pg_001")).toMatchObject({
@@ -734,9 +749,9 @@ describe("PostgreSQL ops status store", () => {
 
 	it("returns the selected request window with list results", async () => {
 		const store = createPgOpsStatusStore({ db: createFakeOpsDb(), now: () => now });
-		const result = await store.listRequests({ window: "1h" });
+		const result = await store.listRequests({ window: "today" });
 
-		expect(result.window).toBe("1h");
+		expect(result.window).toBe("today");
 		expect(result.data).toHaveLength(1);
 	});
 
@@ -744,7 +759,7 @@ describe("PostgreSQL ops status store", () => {
 		const requestRows = Array.from({ length: 51 }, (_, index) =>
 			requestRow({
 				requestId: `req_pg_${String(index).padStart(3, "0")}`,
-				startedAt: new Date(now.valueOf() - index * 1_000),
+				startedAt: new Date(now.valueOf() - (index + 1) * 1_000),
 			}),
 		);
 		const store = createPgOpsStatusStore({
@@ -752,7 +767,7 @@ describe("PostgreSQL ops status store", () => {
 			now: () => now,
 		});
 
-		const result = await store.listRequests({ window: "1h" });
+		const result = await store.listRequests({ window: "today" });
 
 		expect(result.data).toHaveLength(50);
 		expect(result.data.at(-1)?.requestId).toBe("req_pg_049");
@@ -778,7 +793,7 @@ describe("PostgreSQL ops status store", () => {
 			now: () => now,
 		});
 
-		const result = await store.listRequests({ q: "same query", status: "FAILED", window: "1h" });
+		const result = await store.listRequests({ q: "same query", status: "FAILED", window: "today" });
 
 		expect(result.data.map((request) => request.requestId)).toEqual(["req_failed"]);
 		expect(result.statusCounts).toEqual({
@@ -802,7 +817,7 @@ describe("PostgreSQL ops status store", () => {
 			now: () => now,
 		});
 
-		const result = await store.listRequests({ requestId: "req_target", window: "1h" });
+		const result = await store.listRequests({ requestId: "req_target", window: "today" });
 
 		expect(result.data).toHaveLength(1);
 		expect(result.data[0]).toMatchObject({ requestId: "req_target" });
@@ -821,7 +836,7 @@ describe("PostgreSQL ops status store", () => {
 			now: () => now,
 		});
 
-		const result = await store.listRequests({ q: "hindsight_append_failed", window: "1h" });
+		const result = await store.listRequests({ q: "hindsight_append_failed", window: "today" });
 
 		expect(result.data.map((row) => row.requestId)).toEqual(["req_memory_failure"]);
 	});
@@ -866,8 +881,8 @@ describe("PostgreSQL ops status store", () => {
 			now: () => now,
 		});
 
-		const recent = await store.listRequests({ view: "recent", window: "1h" });
-		const attention = await store.listRequests({ view: "attention", window: "1h" });
+		const recent = await store.listRequests({ view: "recent", window: "today" });
+		const attention = await store.listRequests({ view: "attention", window: "today" });
 
 		expect(recent.data.map((request) => request.requestId)).toEqual([
 			"req_running",
@@ -914,7 +929,7 @@ describe("PostgreSQL ops status store", () => {
 			now: () => now,
 		});
 
-		const result = await store.listRequests({ window: "1h" });
+		const result = await store.listRequests({ window: "today" });
 
 		expect(
 			result.data.map(({ lifecyclePhase, requestId }) => ({ lifecyclePhase, requestId })),

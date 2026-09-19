@@ -99,6 +99,11 @@ pnpm --dir apps/ops-web test:database-integration
 `campus-agent-schema` 安装统一 schema 和授权，再写入班车 baseline、通知分类与 Dining 本地 seed；
 新的本地 profile 不需要单独初始化 notice-publisher。`test:database-integration` 验证当前统一 schema 拓扑。
 
+普通 `test` 按 Node（`.test.ts`）和 DOM（`.test.tsx`）分组串行执行，保留文件隔离；只有 DOM 测试
+加载 jsdom 和组件清理逻辑，需要内存后端的测试显式创建 fixture。普通测试的缓存不依赖 app-api
+普通测试结果，跨应用数据库 adapter 由集成任务的输入覆盖。取舍见
+[Ops 测试初始化与缓存](../../.agents/notes/implemented/testing/2026-09-19-ops-test-initialization-and-cache.md)。
+
 `dev:api` 和 `dev:web` 分别启动 Node API 与 Vite 页面；`dev:fixture` 只监听 loopback，使用内存凭据服务
 和固定 fixture token，启动时打印 endpoint、token 与测试凭据 ID。它不读取本地真实凭据，也不会改变
 生产代码或配置。
@@ -114,14 +119,10 @@ bucket，生成 Ops Web 及通知采集、分类、发布任务实际读取的�
 Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
 `packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，对应的
 DDL 与其他产品 schema 一起由 `jobs/campus-agent-schema/` 管理，并记录在
-`drizzle.campus_agent_migrations`。`db:bootstrap-dining` 只写入
-Dining 基线草稿，并通过正式 publisher 上传 SVG、原子写入 release 和当前 publication；已有有效
-发布时不修改数据。授权和 bootstrap 不建表，也不维护 migration ledger。
-
-```bash
-pnpm --dir apps/ops-web db:bootstrap-transport
-pnpm --dir apps/ops-web db:bootstrap-dining
-```
+`drizzle.campus_agent_migrations`。产品基础数据统一通过 `pnpm dev:init -- --target ops-web`
+初始化；默认 seed 与 core 相同，支持 `--data cluster --context <context> --namespace <namespace>`。
+已有数据要求显式 `--replace` 才会替换；应用离线，共享基础设施继续运行。seed 不创建表，
+食堂 SVG 由现有领域 renderer 生成。详细边界见[本地运行检查](../../docs/runbooks/local-verification.md)。
 
 ## 相关文档
 

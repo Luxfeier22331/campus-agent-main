@@ -88,6 +88,7 @@ function DiningSubmissionSheetContent(props: {
 			props.own && session.status === "authenticated",
 		),
 	);
+	const titleRef = useRef<HTMLHeadingElement>(null);
 	const query = props.own ? ownQuery : publicQuery;
 	const [authOpen, setAuthOpen] = useState(false);
 	const error = query.error;
@@ -104,6 +105,10 @@ function DiningSubmissionSheetContent(props: {
 						props.onClose();
 					}
 				}}
+				onOpenAutoFocus={(event) => {
+					event.preventDefault();
+					titleRef.current?.focus({ preventScroll: true });
+				}}
 				onCloseAutoFocus={(event) => {
 					event.preventDefault();
 					const trigger = Array.from(
@@ -115,7 +120,9 @@ function DiningSubmissionSheetContent(props: {
 				}}
 			>
 				<SheetHeader className="border-b border-border p-5 pr-12 text-left">
-					<SheetTitle>{props.own ? "我的投稿" : "用户投稿"}</SheetTitle>
+					<SheetTitle ref={titleRef} tabIndex={-1}>
+						{props.own ? "我的投稿" : "用户投稿"}
+					</SheetTitle>
 					<SheetDescription>
 						{props.own ? "查看当前状态，管理自己的投稿。" : "由同学提供，供你参考。"}
 					</SheetDescription>

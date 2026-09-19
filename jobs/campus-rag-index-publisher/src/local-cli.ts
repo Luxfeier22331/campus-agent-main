@@ -1,4 +1,7 @@
-import { resolve } from "node:path";
+import { withLifecycleLock } from "../../../scripts/dev/locks.ts";
+import { resolveLocalDevRegistryPath } from "../../../scripts/dev/profile.ts";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { assertSha256Ref } from "./artifacts.ts";
@@ -13,12 +16,14 @@ export interface LocalPublishCommand {
 
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
 	const command = parseLocalPublishCommand(argv);
-	const result = await runCampusRagPublish({
+	const root = fileURLToPath(new URL("../../..", import.meta.url));
+	const lock = resolve(dirname(resolveLocalDevRegistryPath(root)), "qdrant-materialize.lock");
+	const result = await withLifecycleLock(lock, "publish-index-local", () => runCampusRagPublish({
 		artifactStore: createS3ReaderStore(),
 		docsEmbeddingSet: command.docsEmbeddingSet,
 		noticeEmbeddingSet: command.noticeEmbeddingSet,
 		onEvent: writeProgress,
-	});
+	}));
 	console.log(
 		JSON.stringify(
 			{

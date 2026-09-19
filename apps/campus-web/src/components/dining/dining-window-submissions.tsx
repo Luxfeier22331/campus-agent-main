@@ -21,6 +21,7 @@ export function DiningWindowSubmissions(props: {
 	const session = useCampusSession();
 	const { requestExit } = useDiningSubmissionExit();
 	const [createOpen, setCreateOpen] = useState(false);
+	const titleRef = useRef<HTMLHeadingElement>(null);
 	const createTrigger = useRef<HTMLButtonElement>(null);
 	const [authOpen, setAuthOpen] = useState(false);
 	const submissions = useInfiniteQuery(
@@ -94,6 +95,10 @@ export function DiningWindowSubmissions(props: {
 				onOpenChange={(open) =>
 					open ? setCreateOpen(true) : requestExit(() => setCreateOpen(false))
 				}
+				onOpenAutoFocus={(event) => {
+					event.preventDefault();
+					titleRef.current?.focus({ preventScroll: true });
+				}}
 				onCloseAutoFocus={(event) => {
 					if (createTrigger.current?.isConnected) {
 						event.preventDefault();
@@ -102,7 +107,9 @@ export function DiningWindowSubmissions(props: {
 				}}
 			>
 				<SheetHeader className="border-b border-border p-5 pr-12 text-left">
-					<SheetTitle>发布用户投稿</SheetTitle>
+					<SheetTitle ref={titleRef} tabIndex={-1}>
+						发布用户投稿
+					</SheetTitle>
 					<SheetDescription>{props.windowName}</SheetDescription>
 				</SheetHeader>
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5" data-vaul-no-drag="">

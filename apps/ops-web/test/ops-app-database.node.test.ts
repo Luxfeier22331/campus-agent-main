@@ -22,6 +22,7 @@ vi.mock("../src/server/ops-status/composition/factory.ts", async () => ({
 	createOpsStatusStore: createStatus,
 }));
 
+import { createOpsApp } from "../src/server/app.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 
 describe("Ops Web database assembly", () => {
@@ -32,9 +33,7 @@ describe("Ops Web database assembly", () => {
 		createStatus.mockReturnValue({});
 	});
 
-	it("injects the same application pool into every default PostgreSQL adapter", async () => {
-		vi.resetModules();
-		const { createOpsApp } = await import("../src/server/app.ts");
+	it("injects the same application pool into every default PostgreSQL adapter", () => {
 		const databasePool = { connect: vi.fn(), query: vi.fn() } as unknown as Pool;
 
 		createOpsApp({

@@ -94,6 +94,7 @@ func (h *postgresHarness) installClusterRoles(t *testing.T) {
 		fmt.Sprintf("create role %s nologin", pgx.Identifier{appAPIRole}.Sanitize()),
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{opsWebRole}.Sanitize(), opsWebPassword),
 		fmt.Sprintf("create role %s nologin", pgx.Identifier{modelConfigRole}.Sanitize()),
+		"create role product_data_ro nologin",
 	}
 	for _, statement := range statements {
 		if _, err := conn.Exec(t.Context(), statement); err != nil {

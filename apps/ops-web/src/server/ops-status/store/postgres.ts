@@ -1,9 +1,11 @@
+import {
+	DAY_MS,
+	type ResolvedTimeRange,
+	resolveTimeQuery,
+	timeQueryWindow,
+} from "campus-contracts/ops-time";
 import type { Pool } from "pg";
-import type {
-	OpsOverviewResponse,
-	OpsOverviewWindow,
-	OpsRequestWindow,
-} from "../../../shared/ops-contract.ts";
+import type { OpsOverviewResponse } from "../../../shared/ops-contract.ts";
 import { type OpsStatusStore, OpsStatusStoreUnavailableError } from "../contract.ts";
 import {
 	decodeRequestCursor,
@@ -42,12 +44,10 @@ export function createPgOpsStatusStore(input: {
 	const now = input.now ?? (() => new Date());
 
 	return {
-		async getOverview(window) {
-			const current = now();
-			const since = subtractWindow(current, window);
+		async getOverview(range) {
 			const [requestsResult, trendsResult] = await Promise.allSettled([
-				input.db.getRequestOverview(since),
-				input.db.getRequestTrends(since, trendBucketMinutes(window)),
+				input.db.getRequestOverview(range),
+				input.db.getRequestTrends(range, trendBucketMinutes(range)),
 			]);
 			const requestOverview =
 				requestsResult.status === "fulfilled"
@@ -70,8 +70,8 @@ export function createPgOpsStatusStore(input: {
 		async listRequests(query) {
 			const view = requestListView(query);
 			const generatedAt = now();
-			const since = subtractWindow(generatedAt, query.window);
-			const rows = await input.db.listRequests(query, since);
+			const range = resolveTimeQuery(query, "requests", generatedAt);
+			const rows = await input.db.listRequests(query, range);
 			const visibleRows = rows.slice(0, OPS_REQUEST_PAGE_SIZE);
 			const data = visibleRows.map(toRequestSummary);
 			const lastVisibleRequest = data.at(-1);
@@ -86,10 +86,11 @@ export function createPgOpsStatusStore(input: {
 				},
 				statusCounts: await input.db.summarizeRequests(
 					(({ cursor: _cursor, status: _status, ...summaryQuery }) => summaryQuery)(query),
-					since,
+					range,
 				),
 				view,
-				window: query.window,
+				window: timeQueryWindow(query),
+				filters: query.requestId ? { from: null, to: null } : range,
 			};
 		},
 		async verifyReadiness() {
@@ -105,7 +106,7 @@ export function createPgOpsStatusStoreDatabase(
 	pool: Pick<Pool, "query">,
 ): PgOpsStatusStoreDatabase {
 	return {
-		async getRequestOverview(since) {
+		async getRequestOverview(range) {
 			return classifyDbError(async () => {
 				const result = await pool.query(
 					`${requestRowsCte()}
@@ -120,9 +121,9 @@ export function createPgOpsStatusStoreDatabase(
 							max("projected_at") as "latestProjectedAt",
 							round(percentile_cont(0.95) within group (order by "duration_ms"))::int as "p95DurationMs"
 						from request_rows
-						where "started_at" >= $1
+						where "started_at" >= $1 and "started_at" < $2
 					`,
-					[since],
+					[range.from, range.to],
 				);
 				return normalizeOverviewRow(result.rows[0]);
 			});
@@ -142,7 +143,7 @@ export function createPgOpsStatusStoreDatabase(
 					pool.query(requestModelAttemptsSql(), [requestId]),
 					pool.query(requestCampusSearchSql(), [requestId]).catch(() => null),
 					pool.query(
-						`select code, operation, detail, invocation_id, http_status
+						`select code, operation, detail, invocation_id, http_status, reason, citation, source_code
 						from execution_control.ops_terminal_failures where request_id = $1
 						order by occurred_at desc, event_id desc limit 1`,
 						[requestId],
@@ -156,30 +157,30 @@ export function createPgOpsStatusStoreDatabase(
 				};
 			});
 		},
-		async getRequestTrends(since, bucketMinutes) {
+		async getRequestTrends(range, bucketMinutes) {
 			return classifyDbError(async () => {
 				const result = await pool.query(
 					`${requestRowsCte()}
 						select
-							date_bin($2::interval, "started_at", timestamptz '1970-01-01') as "bucketStart",
+							date_bin($3::interval, "started_at", timestamptz '1970-01-01 00:00:00+08') as "bucketStart",
 							count(*) filter (where "status" = 'completed')::int as "completed",
 							count(*) filter (where "status" in ('error', 'rejected'))::int as "failed",
 							count(*)::int as "total",
 							round(percentile_cont(0.95) within group (order by "duration_ms"))::int as "p95DurationMs"
 						from request_rows
-						where "started_at" >= $1
+						where "started_at" >= $1 and "started_at" < $2
 						group by 1
 						order by 1 asc
 					`,
-					[since, `${bucketMinutes} minutes`],
+					[range.from, range.to, `${bucketMinutes} minutes`],
 				);
 				return result.rows.map(normalizeTrendRow);
 			});
 		},
-		async listRequests(query, since) {
+		async listRequests(query, range) {
 			return classifyDbError(async () => {
 				const view = requestListView(query);
-				const filter = buildRequestFilter(query, since);
+				const filter = buildRequestFilter(query, range);
 				const conditions = filter.whereClause ? [filter.whereClause.slice(6)] : [];
 				const values = [...filter.values];
 				const cursor = decodeRequestCursor(query.cursor, view);
@@ -204,18 +205,19 @@ export function createPgOpsStatusStoreDatabase(
 				const result = await pool.query(
 					requestSql(
 						`where ${conditions.join(" and ")} order by ${orderBy} limit $${values.length}`,
+						filter.failureMatch,
 					),
 					values,
 				);
 				return result.rows as OpsRequestRow[];
 			});
 		},
-		async summarizeRequests(query, since) {
+		async summarizeRequests(query, range) {
 			return classifyDbError(async () => {
 				const { cursor: _cursor, status: _status, ...summaryQuery } = query;
-				const filter = buildRequestFilter(summaryQuery, since);
+				const filter = buildRequestFilter(summaryQuery, range);
 				const result = await pool.query(
-					`${requestRowsCte()}
+					`${requestRowsCte(filter.failureMatch)}
 					 select "status", count(*)::int as "count" from request_rows
 					 ${filter.whereClause} group by "status"`,
 					filter.values,
@@ -237,7 +239,7 @@ export function createPgOpsStatusStoreDatabase(
 					pool.query(requestModelAttemptsSql(), ["__schema_check__"]),
 					pool.query(requestCampusSearchSql(), ["__schema_check__"]),
 					pool.query(
-						"select code, operation, detail, invocation_id, http_status from execution_control.ops_terminal_failures limit 0",
+						"select code, operation, detail, invocation_id, http_status, reason, citation, source_code from execution_control.ops_terminal_failures limit 0",
 					),
 				]);
 			});
@@ -357,19 +359,9 @@ function toCount(value: unknown) {
 	return Number.isFinite(parsed) && parsed >= 0 ? Math.trunc(parsed) : 0;
 }
 
-function subtractWindow(now: Date, window: OpsOverviewWindow | OpsRequestWindow) {
-	const durationMs = {
-		"15m": 15 * 60_000,
-		"1h": 60 * 60_000,
-		"24h": 24 * 60 * 60_000,
-		"6h": 6 * 60 * 60_000,
-		"7d": 7 * 24 * 60 * 60_000,
-	}[window];
-	return new Date(now.valueOf() - durationMs);
-}
-
-function trendBucketMinutes(window: OpsOverviewWindow) {
-	return { "15m": 5, "1h": 10, "24h": 120, "6h": 30 }[window];
+export function trendBucketMinutes(range: ResolvedTimeRange) {
+	const span = Date.parse(range.to) - Date.parse(range.from);
+	return span <= DAY_MS ? 60 : span <= 7 * DAY_MS ? 360 : 1440;
 }
 
 async function classifyDbError<T>(operation: () => Promise<T>): Promise<T> {

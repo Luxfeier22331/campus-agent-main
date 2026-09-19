@@ -31,6 +31,8 @@ export function failedRunnerResult(
 		finalOutput: "",
 		failure: {
 			code: failure.code,
+			...(failure.reason ? { reason: failure.reason } : {}),
+			...(failure.citation ? { citation: failure.citation } : {}),
 			operation: failure.operation,
 			...(failure.detail ? { detail: failure.detail } : {}),
 			...(failure.http_status === undefined ? {} : { httpStatus: failure.http_status }),

@@ -197,6 +197,35 @@ describe("shared UI primitives", () => {
 		await user.keyboard("{ArrowDown}{Enter}");
 		expect(trigger).toHaveTextContent("运行中");
 	});
+	it("uses a single focus ring contract for bordered form controls", () => {
+		render(
+			<>
+				<Input aria-label="关键词" />
+				<Select>
+					<SelectTrigger aria-label="状态">
+						<SelectValue placeholder="选择状态" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="running">运行中</SelectItem>
+					</SelectContent>
+				</Select>
+			</>,
+		);
+		const input = screen.getByRole("textbox", { name: "关键词" });
+		const trigger = screen.getByRole("combobox", { name: "状态" });
+		for (const control of [input, trigger]) {
+			expect(control).toHaveClass("border", "focus-visible:outline-none", "focus-visible:ring-2");
+			expect(control).toHaveClass("focus-visible:ring-offset-0");
+			expect(control).not.toHaveClass("focus-visible:ring-offset-2");
+		}
+	});
+	it("keeps buttons on the same focus ring contract", () => {
+		render(<Button>保存</Button>);
+		const button = screen.getByRole("button", { name: "保存" });
+		expect(button).toHaveClass("focus-visible:outline-none", "focus-visible:ring-2");
+		expect(button).toHaveClass("focus-visible:ring-offset-0");
+		expect(button).not.toHaveClass("focus-visible:ring-offset-2");
+	});
 
 	it("uses semantic tones without accepting domain status values", () => {
 		render(

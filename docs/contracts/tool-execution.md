@@ -129,20 +129,34 @@ Workflow 为计划内的有效材料分配 citationIndex，Synthesizer 只使用
 Finalization 按正文实际引用产生统一编号链接与 `kind=web_page` 来源卡；模型手写 URL 不作为来源。
 未引用材料和失败工具结果不贡献来源。
 
-Google 搜索建议是独立的 `search_suggestions` 数组，项包含 `provider=google` 与 `rendered_content`。
-它随 Solve 或已完成步骤传递并在合成（包括 recovery）时汇总，最终由 App API 保存为结构化消息，Campus Web 在隔离 iframe 中
-原样展示。它不参与引用编号、不进入后续模型输入，也不伪装成本地 function tool 轨迹。
+Solve 与 Synthesize 共用裸编号扫描，支持 `[1]`、`[1,5]`、`[1, 5]`；分组逐项校验、按书写顺序去重，
+代码、转义方括号和已有 Markdown 链接不参与扫描。Solve 按首次出现合并编号，Synthesize 保留材料编号。
+先校验 Web 支持段的原文、位置和来源；仅紧随有效支持段（中间只有空白且不跨段落）或位于支持段尾部的
+未知编号可作为冗余装饰移除，不把原始编号猜配给 Web 来源。混合分组中的有效校内编号仍保留。
+正文替换和支持段引用插入使用原始位置一次重写，支持段结束位置落在被替换编号内部时将插入移至编号末尾。
+
+Runtime evidence 的 `url` 保留 grounding 原始地址作为证据身份；`source_link.href` 单独承载展示用直链。
+Finalization 的产品来源 `url`、`citation_href` 与 `hostname` 使用解析后的地址，链接不可用时为 `null`，
+并带 `unavailable_reason: source_unavailable`；最终化严格合同接受该字段。agent-runtime 只解析精确的 Google grounding redirect，
+后续支持 HTTP 跳转和独立脚本页中的静态 `window.location.href` 字符串跳转，不执行 JavaScript；
+对目标地址和 DNS 结果执行公开地址校验，两种跳转共用次数、响应大小、并发和超时限制。解析成功的新消息使用原站标题
+和直链；解析失败仍保留正文与编号，来源卡不可点击并标记 `source_unavailable`。标题读取失败仍保留直链，
+使用有意义的上游标题或“网页标题暂不可用”加主机名。旧消息不回填；统一模型网关不承担该项目专用解析。
+
+执行合同不传递 Google 搜索建议 HTML。App API 读取历史消息时按未知结构化类型丢弃旧建议，
+保留正文与来源卡。原生搜索能力和 grounding 引用不受影响。
+
 同一次 SDK run 可以多次调用 `campus_search`。每次最多返回 5 条结果，本轮累计最多 10 条；每条结果
 携带本轮全局 `citation_index` `1..10`。单次调用内 `result_ref` 唯一；不同调用允许重复召回相同
 `result_ref`，各编号到来源的映射保留至 Finalization，不能因 evidence 去重丢弃后续编号。
 成功但没有结果的调用和失败调用不占用编号。只有正文实际
 引用的结果才是 cited results；Finalization 从同一次 request 的成功工具结果中解析 `[n]` 并派生公开
-来源卡片。失败工具结果和未被正文引用的候选不贡献来源；未知、零或超出 `1..10` 的引用使
-Finalization 失败。
+来源卡片。失败工具结果和未被正文引用的候选不贡献来源；除上述已验证 Web 支持段尾部的冗余编号外，
+未知、零或超出 `1..10` 的引用使 Finalization 失败。
 
 引用预算耗尽立即停止当前模型循环，并以 `retrieval_budget_exhausted` 返回失败 operation；
 失败不丢弃已完成工具结果、evidence、source attempts、用量或 provider response ID。
-所有 synthesis 输入只携带目标、汇总 evidence、source attempts、remaining facts 和搜索建议，不携带
+所有 synthesis 输入只携带目标、汇总 evidence、source attempts 和 remaining facts，不携带
 plan 或 completed steps，也不再检索。普通计划合成为 `mode=planned`；Solve 已有材料但失败时使用
 `mode=recovery`，另传 recovery reason。Runtime 不回传输入材料，由 Execution Control 重新附加
 已接纳的 evidence 和 source attempts，再保存 receipt 与传给 Workflow，失败结果也遵循这一规则。
@@ -364,3 +378,16 @@ execution-control 已检查到的持久序列游标；app-api 后续必须将它
 
 运行 `pnpm --dir packages/contracts check`、手动 `go` validation profile，以及
 [测试与验证](../reference/verification.md) 列出的 app-api 类型检查和测试通道。
+
+## Runtime 检索状态流
+
+Solve、Execute Step 和 Synthesize 支持内部 operation SSE；Execute Step 的摘要只在终态结果返回，
+不能成为 `answer_delta`。`retrieval_status` 仅允许 Solve 和 Execute Step 产生，且只记录我们实际调度的
+`campus_search`，携带 `schema_version=workflow_runtime_retrieval_status.v1`、`source=campus`、
+`status=started|completed|no_match|failed|canceled` 和 RFC 3339 `occurred_at`。
+同类并行调用由 Runtime 归并，工具 ID 和查询参数不跨入产品事件。
+
+execution-control 校验并持久化为 browser-visible `run.retrieval_status`，payload 只含 source 和
+status，沿用现有事件 sequence 与读取权限。正常结束须有本次 operation 的开始；流中断关闭仍活动的
+检索，请求终态不能被迟到状态重新激活。App API 的公开字段与回放语义见
+[Chat HTTP 合同](./app-api/chat.md)。已有 Campus Search 诊断不作为产品检索状态的存储或事实来源。

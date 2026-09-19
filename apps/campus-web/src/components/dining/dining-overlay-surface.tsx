@@ -7,6 +7,7 @@ interface AdaptiveSheetSurfaceProps {
 	desktopClassName?: string;
 	/** 移动端 Drawer 内容类。 */
 	mobileClassName?: string;
+	onOpenAutoFocus?: ComponentProps<typeof SheetContent>["onOpenAutoFocus"];
 	onCloseAutoFocus?: ComponentProps<typeof SheetContent>["onCloseAutoFocus"];
 	onOpenChange(open: boolean): void;
 	open: boolean;
@@ -21,8 +22,12 @@ export function AdaptiveSheetSurface(props: AdaptiveSheetSurfaceProps) {
 	const isMobile = useIsMobile();
 	if (isMobile) {
 		return (
-			<Drawer onOpenChange={props.onOpenChange} open={props.open}>
-				<DrawerContent className={props.mobileClassName} onCloseAutoFocus={props.onCloseAutoFocus}>
+			<Drawer autoFocus onOpenChange={props.onOpenChange} open={props.open}>
+				<DrawerContent
+					className={props.mobileClassName}
+					onCloseAutoFocus={props.onCloseAutoFocus}
+					onOpenAutoFocus={props.onOpenAutoFocus}
+				>
 					{props.children}
 				</DrawerContent>
 			</Drawer>
@@ -30,7 +35,11 @@ export function AdaptiveSheetSurface(props: AdaptiveSheetSurfaceProps) {
 	}
 	return (
 		<Sheet onOpenChange={props.onOpenChange} open={props.open}>
-			<SheetContent className={props.desktopClassName} onCloseAutoFocus={props.onCloseAutoFocus}>
+			<SheetContent
+				className={props.desktopClassName}
+				onCloseAutoFocus={props.onCloseAutoFocus}
+				onOpenAutoFocus={props.onOpenAutoFocus}
+			>
 				{props.children}
 			</SheetContent>
 		</Sheet>

@@ -1,6 +1,7 @@
 package temporalruntime
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -58,7 +59,12 @@ type WorkflowTaskReplan struct {
 	RemainingSteps []WorkflowTaskPlanStep `json:"remaining_steps"`
 }
 
+type SourceLink struct {
+	Href *string `json:"href"`
+}
+
 type WorkflowEvidence struct {
+	SourceLink    *SourceLink    `json:"source_link,omitempty"`
 	SchemaVersion string         `json:"schema_version"`
 	ID            string         `json:"id"`
 	Source        WorkflowSource `json:"source"`
@@ -84,14 +90,13 @@ type WorkflowSourceAttempt struct {
 }
 
 type WorkflowCompletedStep struct {
-	SearchSuggestions []SearchSuggestion      `json:"search_suggestions,omitempty"`
-	RemainingFacts    []string                `json:"remaining_facts"`
-	Failure           *ExecutionFailure       `json:"failure,omitempty"`
-	Step              WorkflowTaskPlanStep    `json:"step"`
-	ExecutionIndex    int                     `json:"execution_index"`
-	Summary           string                  `json:"summary"`
-	Evidence          []WorkflowEvidence      `json:"evidence"`
-	SourceAttempts    []WorkflowSourceAttempt `json:"source_attempts"`
+	RemainingFacts []string                `json:"remaining_facts"`
+	Failure        *ExecutionFailure       `json:"failure,omitempty"`
+	Step           WorkflowTaskPlanStep    `json:"step"`
+	ExecutionIndex int                     `json:"execution_index"`
+	Summary        string                  `json:"summary"`
+	Evidence       []WorkflowEvidence      `json:"evidence"`
+	SourceAttempts []WorkflowSourceAttempt `json:"source_attempts"`
 }
 
 type WorkflowOperationActivityInputBase struct {
@@ -129,13 +134,12 @@ type ReplanTaskActivityInput struct {
 
 type SynthesizeAnswerActivityInput struct {
 	WorkflowOperationActivityInputBase
-	Mode              string                   `json:"mode,omitempty"`
-	Evidence          []WorkflowEvidence       `json:"evidence"`
-	SourceAttempts    []WorkflowSourceAttempt  `json:"source_attempts"`
-	RemainingFacts    []WorkflowRemainingFacts `json:"remaining_facts"`
-	RecoveryReason    string                   `json:"recovery_reason,omitempty"`
-	BufferAnswer      bool                     `json:"buffer_answer,omitempty"`
-	SearchSuggestions []SearchSuggestion       `json:"search_suggestions,omitempty"`
+	Mode           string                   `json:"mode,omitempty"`
+	Evidence       []WorkflowEvidence       `json:"evidence"`
+	SourceAttempts []WorkflowSourceAttempt  `json:"source_attempts"`
+	RemainingFacts []WorkflowRemainingFacts `json:"remaining_facts"`
+	RecoveryReason string                   `json:"recovery_reason,omitempty"`
+	BufferAnswer   bool                     `json:"buffer_answer,omitempty"`
 }
 
 type WorkflowRemainingFacts struct {
@@ -165,12 +169,14 @@ type AppendConversationMemoryActivityOutput struct {
 }
 
 type ExecutionFailure struct {
-	Stage        string `json:"stage,omitempty"`
-	Code         string `json:"code"`
-	Operation    string `json:"operation"`
-	Detail       string `json:"detail,omitempty"`
-	HTTPStatus   int    `json:"http_status,omitempty"`
-	InvocationID string `json:"invocation_id,omitempty"`
+	Reason       string          `json:"reason,omitempty"`
+	Citation     json.RawMessage `json:"citation,omitempty"`
+	Stage        string          `json:"stage,omitempty"`
+	Code         string          `json:"code"`
+	Operation    string          `json:"operation"`
+	Detail       string          `json:"detail,omitempty"`
+	HTTPStatus   int             `json:"http_status,omitempty"`
+	InvocationID string          `json:"invocation_id,omitempty"`
 }
 
 type AgentToolResult struct {
@@ -182,11 +188,6 @@ type AgentToolResult struct {
 	Result       map[string]any    `json:"result"`
 	Status       string            `json:"status"`
 	ToolName     string            `json:"tool_name"`
-}
-
-type SearchSuggestion struct {
-	Provider        string `json:"provider"`
-	RenderedContent string `json:"rendered_content"`
 }
 
 type WorkflowOperationActivityOutput struct {
@@ -214,15 +215,15 @@ type WorkflowOperationActivityOutput struct {
 	ToolContractFingerprint map[string]any          `json:"tool_contract_fingerprint"`
 	RuntimeRelease          string                  `json:"runtime_release"`
 	Usage                   AgentUsageSummary       `json:"usage"`
-	SearchSuggestions       []SearchSuggestion      `json:"search_suggestions,omitempty"`
 }
 
 type WebEvidence struct {
-	Title      string `json:"title"`
-	URL        string `json:"url"`
-	Excerpt    string `json:"excerpt"`
-	StartIndex int    `json:"start_index"`
-	EndIndex   int    `json:"end_index"`
+	SourceLink *SourceLink `json:"source_link,omitempty"`
+	Title      string      `json:"title"`
+	URL        string      `json:"url"`
+	Excerpt    string      `json:"excerpt"`
+	StartIndex int         `json:"start_index"`
+	EndIndex   int         `json:"end_index"`
 }
 
 type WebSearchDiagnostic struct {

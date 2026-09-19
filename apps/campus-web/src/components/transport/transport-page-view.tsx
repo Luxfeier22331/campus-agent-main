@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import { CampusDatePicker } from "@/components/ui/date-picker";
 import { StateMessage } from "@/components/ui/state-message";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { formatDate } from "@/lib/date-time";
 
 export type TransportDepartureStatus = "active" | "past" | "upcoming";
 export type RiderFilter = "all" | "student" | "teacher";
@@ -29,6 +30,7 @@ export interface TransportPageViewProps {
 	serviceKind?: TransportServiceKind;
 	serviceKinds?: readonly TransportServiceKind[];
 	onDateChange: (date: string) => void;
+	onDateIntent?: (date: string) => void;
 	onRouteChange: (id: string) => void;
 	onRiderChange: (rider: RiderFilter) => void;
 	onServiceKindChange?: (kind: TransportServiceKind) => void;
@@ -47,6 +49,7 @@ export function TransportPageView({
 	rider,
 	now,
 	onDateChange,
+	onDateIntent,
 	onRouteChange,
 	onRiderChange,
 	onRefresh,
@@ -117,6 +120,9 @@ export function TransportPageView({
 						size="icon"
 						variant="ghost"
 						onClick={() => onDateChange(addDays(date, -1))}
+						onPointerEnter={() => onDateIntent?.(addDays(date, -1))}
+						onFocus={() => onDateIntent?.(addDays(date, -1))}
+						onTouchStart={() => onDateIntent?.(addDays(date, -1))}
 					>
 						<ChevronLeft />
 					</Button>
@@ -131,6 +137,9 @@ export function TransportPageView({
 						size="icon"
 						variant="ghost"
 						onClick={() => onDateChange(addDays(date, 1))}
+						onPointerEnter={() => onDateIntent?.(addDays(date, 1))}
+						onFocus={() => onDateIntent?.(addDays(date, 1))}
+						onTouchStart={() => onDateIntent?.(addDays(date, 1))}
 					>
 						<ChevronRight />
 					</Button>
@@ -481,7 +490,6 @@ function TransportRoute({
 				</>
 			) : departures.length > 0 ? (
 				<>
-					<RouteGuidance choice={choice} />
 					{commonPoint ? (
 						<BoardingPoint value={commonPoint} />
 					) : pointByRider.size > 0 ? (
@@ -495,7 +503,6 @@ function TransportRoute({
 							))}
 						</section>
 					) : null}
-					<Arrangement route={route} returnTo={returnTo} />
 					{next.length > 0 ? (
 						<section
 							aria-label="下一班及当前运行班次"
@@ -551,6 +558,8 @@ function TransportRoute({
 							<div className="pt-3">{renderList(past)}</div>
 						</Disclosure>
 					) : null}
+					<Arrangement route={route} returnTo={returnTo} />
+					<RouteGuidance choice={choice} />
 				</>
 			) : (
 				<>
@@ -577,7 +586,7 @@ function Arrangement({
 }) {
 	const context = route?.noticeContext;
 	const hasNotices = context !== undefined && context.notices.length > 0;
-	if (!(route && (route.note || hasNotices))) {
+	if (!(route && (route.note || context))) {
 		return null;
 	}
 	const links = context?.notices.map((notice) => (
@@ -593,12 +602,7 @@ function Arrangement({
 			>
 				<span className="min-w-0 break-words">{notice.title}</span>
 				<time className="shrink-0 text-xs text-muted-foreground" dateTime={notice.releasedAt}>
-					{new Intl.DateTimeFormat("zh-CN", {
-						timeZone: "Asia/Shanghai",
-						year: "numeric",
-						month: "numeric",
-						day: "numeric",
-					}).format(new Date(notice.releasedAt))}
+					发布于 {formatDate(notice.releasedAt)}
 				</time>
 			</a>
 		</li>
@@ -609,24 +613,26 @@ function Arrangement({
 			className="my-3 grid gap-1 border-l-2 border-info-border pl-3 text-sm"
 		>
 			{route.note ? <p className="whitespace-pre-line">{route.note}</p> : null}
+			{context ? (
+				<p className="text-xs text-muted-foreground">
+					适用期：{context.validFrom}
+					{context.validTo === context.validFrom
+						? ""
+						: context.validTo
+							? ` — ${context.validTo}`
+							: " 起"}{" "}
+					·{" "}
+					{context.weekdays.length === 7
+						? "每天"
+						: context.weekdays.join(",") === "1,2,3,4,5"
+							? "周一至周五"
+							: context.weekdays.join(",") === "6,7"
+								? "周六、周日"
+								: formatWeekdays(context.weekdays)}
+				</p>
+			) : null}
 			{hasNotices ? (
 				<>
-					<p className="text-xs text-muted-foreground">
-						{context.validFrom}
-						{context.validTo === context.validFrom
-							? ""
-							: context.validTo
-								? ` — ${context.validTo}`
-								: " 起"}{" "}
-						·{" "}
-						{context.weekdays.length === 7
-							? "每天"
-							: context.weekdays.join(",") === "1,2,3,4,5"
-								? "周一至周五"
-								: context.weekdays.join(",") === "6,7"
-									? "周六、周日"
-									: formatWeekdays(context.weekdays)}
-					</p>
 					{context.notices.length === 1 ? (
 						<ul>{links}</ul>
 					) : (

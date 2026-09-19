@@ -3,12 +3,12 @@ package finalization
 import (
 	"context"
 	"errors"
+	"go.temporal.io/sdk/temporal"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	"go.temporal.io/sdk/temporal"
 )
 
 func (s *Adapter) FinalizeExecutionFailure(
@@ -50,6 +50,29 @@ func (s *Adapter) FinalizeExecutionFailure(
 			"execution_failure_terminal_conflict",
 			nil,
 		)
+	}
+	steps, err := s.RunProjectionStore.ListRunSteps(ctx, run.RequestID)
+	if err != nil {
+		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, err
+	}
+	for _, step := range steps {
+		if step.StepID != input.Stage || step.UpdatedAt.After(input.FailedAt) {
+			continue
+		}
+		failure := execution.CloneAnyMapFromValue(step.SanitizedPayload["failure"])
+		sourceCode := execution.StringValue(failure["code"])
+		if sourceCode != input.FailureKind {
+			// Recovery synthesis deliberately wraps the underlying failure. Only
+			// that failed synthesis step owns the cause of this terminal category.
+			if input.Stage != "answer.synthesize" || input.FailureKind != "answer_synthesis_failed" ||
+				step.Status != "failed" || sourceCode == "" {
+				continue
+			}
+			failure["source_code"] = sourceCode
+			failure["code"] = input.FailureKind
+		}
+		projection.Payload = map[string]any{"failure": failure}
+		break
 	}
 	cause := FixedTemporalFailureError(input.FailureKind)
 	projection.FailedAt = input.FailedAt

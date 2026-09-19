@@ -18,7 +18,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
 
 COPY . .
 
-RUN ./node_modules/.bin/turbo prune campus-docs-index-publisher --docker --out-dir=/repo/out
+RUN ./node_modules/.bin/turbo prune campus-docs-index-publisher --docker --out-dir=/repo/out \
+  && node --experimental-strip-types scripts/release/prune-image.mts campus-docs-index-publisher /repo/out
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 

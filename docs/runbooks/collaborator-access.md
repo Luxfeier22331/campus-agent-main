@@ -15,7 +15,7 @@ port-forward、PostgreSQL `hindsight` 库、rustfs 对象存储 `campus-agent-so
 内的能力组 RoleBinding（manifest 见 `../../infra/k8s/collaborator-access/base/rbac.yaml`）。
 交付物只有 kubeconfig；协作者不获得主机账号。
 
-写入权限、`campus_agent` 业务库、其他 namespace 和集群管理操作不在本文范围内。
+写入权限、`campus_agent` 业务库中产品同步授权表以外的数据、其他 namespace 和集群管理操作不在本文范围内。
 
 ## 能力组
 
@@ -25,6 +25,7 @@ port-forward、PostgreSQL `hindsight` 库、rustfs 对象存储 `campus-agent-so
 | `hindsight-readers` | 读取 Secret `pg-hindsight-ro`（PG 连接信息 + `hindsight_ro` 密码） |
 | `objectstore-readers` | 读取 Secret `objectstore-ro`（humans 只读 S3 键） |
 | `vector-readers` | 读取 Secret `qdrant-ro`（Qdrant 只读 API key + TLS CA） |
+| `product-data-readers` | 读取产品同步所需的 `pg-product-data-ro`、`objectstore-ro`、`qdrant-ro` 三个只读 Secret |
 
 数据面凭证按能力共享：同一组的所有成员使用同一组凭证。吊销靠删除 token 行；凭证轮换影响全组。
 
@@ -51,6 +52,7 @@ port-forward、PostgreSQL `hindsight` 库、rustfs 对象存储 `campus-agent-so
    ```
 
    组合按需裁剪；`campus-viewers` 几乎总是需要（port-forward 依赖它）。
+   产品同步协作者使用 `"campus-viewers,product-data-readers"`。
 3. `sudo systemctl restart k3s`。重启期间 apiserver 中断约 30 秒，Argo CD 会自动恢复。
 4. 生成 kubeconfig 交给协作者：
 
@@ -154,6 +156,8 @@ object-store bootstrap Job 声明式铸造（`campus-agent-source-ro` / 复用
 - `kubectl -n campus-agent-staging port-forward svc/campus-agent-postgres-rw 5432` 可建立。
 - `kubectl -n campus-agent-staging get secret pg-hindsight-ro`（hindsight-readers）/ `objectstore-ro`
   （objectstore-readers）/ `qdrant-ro`（vector-readers）按组返回内容。
+- 产品同步协作者仅加入 `campus-viewers,product-data-readers` 时，可分别 get
+  `pg-product-data-ro`、`objectstore-ro`、`qdrant-ro`；其他 Secret 和 Secret 列表仍被拒绝。
 - PG：port-forward 后用 `hindsight_ro` 连 `hindsight` 库 `SELECT` 成功。
 - rustfs：port-forward `svc/object-store 9000` 后 humans 键 `mc ls` / `mc cp`（下载）成功。
 - Qdrant：port-forward 后 RO key 检索成功（TLS 用 `ca.crt`）。
@@ -177,3 +181,18 @@ object-store bootstrap Job 声明式铸造（`campus-agent-source-ro` / 复用
 - PG：`DROP ROLE hindsight_ro;`（先 `REVOKE` 其权限）。
 - rustfs：bootstrap 去掉 humans 行后 policy 挂载随同步移除；用户残留时
   `rc admin user remove object-store <access-key>`。
+
+## 产品开发数据拉取
+
+`product-data-readers` 只允许 get Secret `pg-product-data-ro`、`objectstore-ro`、`qdrant-ro`，不允许列举其他
+Secret。该组同时提供产品同步所需的 PostgreSQL、对象存储和 Qdrant 只读凭据；不需要额外加入
+`objectstore-readers` 或 `vector-readers`。仍需要 `campus-viewers` 以建立 port-forward。
+
+`pg-product-data-ro` 字段为 `username`（product_data_ro）、`password`、`host`（TLS server name）、`port`、
+`database`、`ca.crt`。连接通过当前 context/namespace 的 loopback port-forward，验证 CA 与 server name。
+
+Source 的 data-postgres DatabaseRole 创建 product_data_ro，schema migration 只授予通知、群组、交通、
+食堂基础表和 current_index 的 SELECT；不设置覆盖整个 schema 的默认 SELECT 权限。
+凭据由 GitOps data-postgres overlay 投递；交付顺序为凭据/角色、schema grants、协作者访问验收。
+新增 Source revision 和 schema image 必须交付后再执行 `dev:init --data cluster`，不能用管理员身份
+读取应用 Secret 来替代。具体数据与替换规则见[本地运行检查](./local-verification.md)。

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpsWebApp } from "../src/app/ops-web-app";
 
@@ -6,6 +6,85 @@ describe("notice maintenance page", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
+	});
+
+	it("restores URL filters on direct entry, history navigation and remount", async () => {
+		useDesktopViewport();
+		const requests: URL[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: string) => {
+				const url = new URL(input, "https://ops.example.test");
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({ jobs: [] });
+				}
+				if (url.pathname === "/api/ops/notices/354516") {
+					return Response.json({ notice: notice() });
+				}
+				if (url.pathname === "/api/ops/notices") {
+					requests.push(url);
+					return Response.json({
+						counts: { all: 1, needsClassification: 0, needsPublication: 0, published: 1 },
+						items: [notice()],
+						page: Number(url.searchParams.get("page")),
+						totalItems: 3,
+						totalPages: 3,
+					});
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+		window.history.replaceState(
+			null,
+			"",
+			"/notices?state=published&category=campus_operations&q=first&page=2",
+		);
+		const view = render(<OpsWebApp />);
+		await waitFor(() => expect(requests.at(-1)?.searchParams.get("page")).toBe("2"));
+		expect(screen.getByRole("combobox", { name: "状态" })).toHaveValue("published");
+		expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("campus_operations");
+		expect(screen.getByPlaceholderText("输入标题或 ID")).toHaveValue("first");
+		fireEvent.change(screen.getByRole("combobox", { name: "分类" }), {
+			target: { value: "research_affairs" },
+		});
+		await waitFor(() =>
+			expect(new URLSearchParams(window.location.search).get("category")).toBe("research_affairs"),
+		);
+		expect(new URLSearchParams(window.location.search).get("page")).toBe("1");
+		await act(async () => window.history.back());
+		await waitFor(() =>
+			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("campus_operations"),
+		);
+		await act(async () => window.history.forward());
+		await waitFor(() =>
+			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("research_affairs"),
+		);
+		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
+			button: 0,
+			ctrlKey: false,
+		});
+		const draft = await screen.findByRole("combobox", { name: "通知分类" });
+		await waitFor(() => expect(screen.queryByText("正在刷新详情…")).not.toBeInTheDocument());
+		fireEvent.change(draft, { target: { value: "campus_operations" } });
+		await screen.findByText("有未保存的分类更改。");
+		await act(async () => window.history.back());
+		await screen.findByRole("dialog", { name: "有未保存的分类更改" });
+		fireEvent.click(screen.getByRole("button", { name: "放弃更改" }));
+		await waitFor(() =>
+			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("campus_operations"),
+		);
+		await waitFor(() => expect(screen.queryByText("有未保存的分类更改。")).not.toBeInTheDocument());
+		await act(async () => window.history.forward());
+		await waitFor(() =>
+			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("research_affairs"),
+		);
+		view.unmount();
+		const reopened = render(<OpsWebApp />);
+		expect(await screen.findByRole("combobox", { name: "分类" })).toHaveValue("research_affairs");
+		expect(screen.getByPlaceholderText("输入标题或 ID")).toHaveValue("first");
+		reopened.unmount();
+		window.history.replaceState(null, "", "/");
 	});
 
 	it("lists notices and starts a fixed single-notice classification job", async () => {

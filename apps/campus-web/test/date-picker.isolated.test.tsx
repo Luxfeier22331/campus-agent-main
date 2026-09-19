@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CampusDateRangePicker } from "../src/components/ui/date-picker";
+import { CampusDatePicker, CampusDateRangePicker } from "../src/components/ui/date-picker";
 
 describe.each(["2026-09-03", "2026-09-10", "2026-09-11"])("date range editing on %s", (date) => {
 	beforeEach(() => {
@@ -45,4 +45,13 @@ describe.each(["2026-09-03", "2026-09-10", "2026-09-11"])("date range editing on
 		fireEvent.click(screen.getByRole("button", { name: "应用" }));
 		expect(onApply).toHaveBeenLastCalledWith({ from: "2026-09-07", to: "2026-09-10" });
 	});
+});
+
+it("uses padded ISO dates in the date and range triggers", () => {
+	render(<CampusDatePicker value="2026-09-03" onChange={vi.fn()} ariaLabel="乘车日期" />);
+	expect(screen.getByRole("button", { name: "乘车日期" })).toHaveTextContent("2026-09-03 周四");
+	render(<CampusDateRangePicker from="2026-09-03" to="2026-09-10" onApply={vi.fn()} />);
+	expect(screen.getByRole("button", { name: /发布日期：/ })).toHaveTextContent(
+		"2026-09-03 - 2026-09-10",
+	);
 });

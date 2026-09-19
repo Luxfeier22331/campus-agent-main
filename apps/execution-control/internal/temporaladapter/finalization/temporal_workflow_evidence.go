@@ -1,6 +1,7 @@
 package finalization
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -12,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/citationdiagnostic"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -34,7 +36,9 @@ type WorkflowRunResult struct {
 }
 
 type WorkflowCitationValidationError struct {
-	Cause error
+	Reason   string
+	Citation json.RawMessage
+	Cause    error
 }
 
 func (err *WorkflowCitationValidationError) Error() string {
@@ -46,13 +50,14 @@ func (err *WorkflowCitationValidationError) Unwrap() error {
 }
 
 type WorkflowCitation struct {
-	Discard       bool
-	EndByte       int
-	IdentityKey   string
-	CitationIndex int
-	Replacement   string
-	Source        map[string]any
-	StartByte     int
+	SupportStartByte int
+	Discard          bool
+	EndByte          int
+	IdentityKey      string
+	CitationIndex    int
+	Replacement      string
+	Source           map[string]any
+	StartByte        int
 }
 
 type WorkflowWebCitation struct {
@@ -83,20 +88,19 @@ func (s *Adapter) WorkflowCitationClosureForFinalization(
 	if err != nil {
 		return WorkflowCitationClosure{}, err
 	}
-	citations, err := WorkflowCitationsForFinalization(answerText, results, webCitations)
+	grounded, err := WorkflowGroundedCitations(agentResult, answerText)
 	if err != nil {
 		return WorkflowCitationClosure{}, err
 	}
-	// Grounding spans describe supported prose, not replaceable citation markers.
-	// Insert references at their end so multiple/overlapping supports preserve text.
-	grounded, err := WorkflowGroundedCitations(agentResult, answerText)
+	citations, err := WorkflowCitationsForFinalization(answerText, results, webCitations, grounded...)
 	if err != nil {
 		return WorkflowCitationClosure{}, err
 	}
 	for _, citation := range grounded {
 		for _, existing := range citations {
 			if existing.StartByte < citation.StartByte && citation.StartByte < existing.EndByte {
-				return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("grounding insertion intersects a citation marker")
+				citation.StartByte = existing.EndByte
+				citation.EndByte = existing.EndByte
 			}
 		}
 		citations = append(citations, citation)
@@ -118,26 +122,43 @@ func WorkflowGroundedCitations(agentResult map[string]any, answer string) ([]Wor
 	var evidence []temporalruntime.WebEvidence
 	if raw := agentResult["web_evidence"]; raw != nil {
 		if err := activityprojection.DecodeWorkflowValue(raw, &evidence); err != nil {
-			return nil, WorkflowCitationValidationErrorf("web evidence is invalid")
+			return nil, citationError("invalid_type", "web_evidence", map[string]any{"validation_stage": "evidence_mapping"})
 		}
 	}
 	citations := []WorkflowCitation{}
 	seen := map[string]bool{}
-	for _, item := range evidence {
+	for itemIndex, item := range evidence {
 		start, startOK := WorkflowByteOffsetAtCodePoint(answer, item.StartIndex)
 		end, endOK := WorkflowByteOffsetAtCodePoint(answer, item.EndIndex)
-		uri, hostname, urlOK := NormalizeWorkflowWebCitationURL(item.URL)
-		if !startOK || !endOK || end <= start || !urlOK || strings.TrimSpace(item.Title) == "" || answer[start:end] != item.Excerpt {
-			return nil, WorkflowCitationValidationErrorf("web evidence must identify an exact supported answer span")
+		uri, _, urlOK := NormalizeWorkflowWebCitationURL(item.URL)
+		facts := map[string]any{"validation_stage": "evidence_mapping", "item_index": itemIndex, "start": item.StartIndex, "end": item.EndIndex, "text_length": utf8.RuneCountInString(answer), "offset_unit": "unicode_code_point"}
+		if !startOK || !endOK {
+			return nil, citationError("span_out_of_bounds", "web_evidence", facts)
+		}
+		if end <= start {
+			return nil, citationError("invalid_offset", "web_evidence", facts)
+		}
+		if !urlOK {
+			return nil, citationError("invalid_url", "web_evidence.url", facts)
+		}
+		if strings.TrimSpace(item.Title) == "" {
+			return nil, citationError("missing_field", "web_evidence.title", facts)
+		}
+		if answer[start:end] != item.Excerpt {
+			return nil, citationError("span_text_mismatch", "web_evidence.excerpt", facts)
 		}
 		key := fmt.Sprintf("%d:%s", end, uri)
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
+		source, err := workflowWebSource(item.URL, item.Title, item.SourceLink)
+		if err != nil {
+			return nil, err
+		}
 		citations = append(citations, WorkflowCitation{
-			StartByte: end, EndByte: end, IdentityKey: "web:" + uri,
-			Source: map[string]any{"kind": "web_page", "title": item.Title, "url": uri, "citation_href": uri, "hostname": hostname},
+			SupportStartByte: start, StartByte: end, EndByte: end, IdentityKey: "web:" + uri,
+			Source: source,
 		})
 	}
 	return citations, nil
@@ -164,12 +185,12 @@ func WorkflowEvidenceCitationClosureForFinalization(
 	byIndex := make(map[int]WorkflowRunResult)
 	seenIDs := map[string]struct{}{}
 	seenIdentity := map[string]int{}
-	for _, item := range evidence {
+	for itemIndex, item := range evidence {
 		if strings.TrimSpace(item.ID) == "" || strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Excerpt) == "" {
-			return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("workflow evidence fields are required")
+			return WorkflowCitationClosure{}, citationError("missing_field", missingEvidenceField(item), map[string]any{"item_index": itemIndex})
 		}
 		if _, duplicate := seenIDs[item.ID]; duplicate {
-			return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("workflow evidence id %q is duplicated", item.ID)
+			return WorkflowCitationClosure{}, citationError("duplicate_evidence_id", "evidence.id", map[string]any{"item_index": itemIndex})
 		}
 		seenIDs[item.ID] = struct{}{}
 		if item.CitationIndex <= 0 {
@@ -180,11 +201,11 @@ func WorkflowEvidenceCitationClosureForFinalization(
 			return WorkflowCitationClosure{}, err
 		}
 		if previous, duplicate := seenIdentity[identityKey]; duplicate && previous != item.CitationIndex {
-			return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("workflow evidence source %q has multiple citation indexes", identityKey)
+			return WorkflowCitationClosure{}, citationError("source_index_conflict", "evidence.citation_index", map[string]any{"item_index": itemIndex, "citation_index": item.CitationIndex})
 		}
 		seenIdentity[identityKey] = item.CitationIndex
 		if _, duplicate := byIndex[item.CitationIndex]; duplicate {
-			return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("workflow citation index %d is duplicated", item.CitationIndex)
+			return WorkflowCitationClosure{}, citationError("duplicate_citation_index", "evidence.citation_index", map[string]any{"item_index": itemIndex, "citation_index": item.CitationIndex})
 		}
 		byIndex[item.CitationIndex] = WorkflowRunResult{
 			CitationIndex: item.CitationIndex,
@@ -195,25 +216,23 @@ func WorkflowEvidenceCitationClosureForFinalization(
 	}
 
 	citations := make([]WorkflowCitation, 0)
-	for _, match := range WorkflowCitationPattern.FindAllStringSubmatchIndex(answerText, -1) {
-		if len(match) != 4 {
-			return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("workflow citation marker is malformed")
+	for _, marker := range scanWorkflowCitationMarkers(answerText) {
+		for _, citationIndex := range marker.Indexes {
+			if citationIndex <= 0 {
+				return WorkflowCitationClosure{}, citationError("invalid_marker", "answer", map[string]any{"citation_index": citationIndex})
+			}
+			result, found := byIndex[citationIndex]
+			if !found {
+				return WorkflowCitationClosure{}, citationError("missing_evidence", "answer", map[string]any{"citation_index": citationIndex})
+			}
+			citations = append(citations, WorkflowCitation{
+				EndByte:       marker.End,
+				IdentityKey:   "evidence:" + result.ResultRef,
+				CitationIndex: citationIndex,
+				Source:        execution.CloneAnyMapFromValue(result.Source),
+				StartByte:     marker.Start,
+			})
 		}
-		citationIndex, err := strconv.Atoi(answerText[match[2]:match[3]])
-		if err != nil || citationIndex <= 0 {
-			return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("workflow citation marker is invalid")
-		}
-		result, found := byIndex[citationIndex]
-		if !found {
-			return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("workflow citation marker [%d] has no evidence", citationIndex)
-		}
-		citations = append(citations, WorkflowCitation{
-			EndByte:       match[1],
-			IdentityKey:   "evidence:" + result.ResultRef,
-			CitationIndex: citationIndex,
-			Source:        execution.CloneAnyMapFromValue(result.Source),
-			StartByte:     match[0],
-		})
 	}
 	answerWithCitations, sources := RewriteWorkflowCitations(answerText, citations)
 	return WorkflowCitationClosure{AnswerText: answerWithCitations, Sources: sources}, nil
@@ -229,7 +248,7 @@ func WorkflowEvidenceSource(
 		if noticeID != "" || citationHref != "" {
 			if noticeID == "" || !campusdocs.ValidNoticeCitationHrefForNoticeID(citationHref, noticeID) ||
 				strings.TrimSpace(item.SectionTitle) == "" {
-				return nil, "", WorkflowCitationValidationErrorf("campus notice evidence %q has invalid source identity", item.ID)
+				return nil, "", citationError("invalid_source_identity", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
 			}
 			return map[string]any{
 				"citation_href": citationHref,
@@ -246,7 +265,7 @@ func WorkflowEvidenceSource(
 			href = strings.TrimSpace(item.URL)
 		}
 		if href == "" {
-			return nil, "", WorkflowCitationValidationErrorf("campus evidence %q has no source reference", item.ID)
+			return nil, "", citationError("missing_source_reference", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
 		}
 		source := map[string]any{
 			"citation_href": href,
@@ -275,24 +294,46 @@ func WorkflowEvidenceSource(
 		}
 		return source, "campus:" + item.ID, nil
 	case temporalruntime.WorkflowSourceWebSearch:
-		urlValue, hostname, ok := NormalizeWorkflowWebCitationURL(item.URL)
+		urlValue, _, ok := NormalizeWorkflowWebCitationURL(item.URL)
 		if !ok {
-			return nil, "", WorkflowCitationValidationErrorf("web evidence %q has an invalid URL", item.ID)
+			return nil, "", citationError("invalid_url", "evidence.source.url", map[string]any{"citation_index": item.CitationIndex})
 		}
-		return map[string]any{
-			"citation_href": urlValue,
-			"evidence_ref":  item.ID,
-			"hostname":      hostname,
-			"kind":          "web_page",
-			"snippet":       campusdocs.BoundedSourceSnippet(item.Excerpt),
-			"title":         item.Title,
-			"url":           urlValue,
-		}, "web:" + urlValue, nil
+		source, err := workflowWebSource(item.URL, item.Title, item.SourceLink)
+		if err != nil {
+			return nil, "", err
+		}
+		source["evidence_ref"] = item.ID
+		source["snippet"] = campusdocs.BoundedSourceSnippet(item.Excerpt)
+		return source, "web:" + urlValue, nil
 	case temporalruntime.WorkflowSourcePersonalMemoryRecall:
-		return nil, "", WorkflowCitationValidationErrorf("personal memory evidence %q cannot be cited as a linked source", item.ID)
+		return nil, "", citationError("unsupported_source", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
 	default:
-		return nil, "", WorkflowCitationValidationErrorf("workflow evidence %q has an unsupported source", item.ID)
+		return nil, "", citationError("unsupported_source", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
 	}
+}
+
+// Keep evidence identity separate from its resolved, user-facing link.
+func workflowWebSource(originalURL, title string, link *temporalruntime.SourceLink) (map[string]any, error) {
+	source := map[string]any{"kind": "web_page", "title": title}
+	if link != nil && link.Href == nil {
+		source["url"] = nil
+		source["citation_href"] = nil
+		source["hostname"] = nil
+		source["unavailable_reason"] = "source_unavailable"
+		return source, nil
+	}
+	href := originalURL
+	if link != nil {
+		href = *link.Href
+	}
+	uri, hostname, ok := NormalizeWorkflowWebCitationURL(href)
+	if !ok {
+		return nil, citationError("invalid_url", "source_link.href", nil)
+	}
+	source["url"] = uri
+	source["citation_href"] = uri
+	source["hostname"] = hostname
+	return source, nil
 }
 
 func WorkflowResultsFromAgentResult(agentResult map[string]any) ([]WorkflowRunResult, error) {
@@ -363,52 +404,36 @@ func WorkflowCitationsForFinalization(
 	answerText string,
 	results []WorkflowRunResult,
 	webCitations []WorkflowWebCitation,
+	grounded ...WorkflowCitation,
 ) ([]WorkflowCitation, error) {
 	byIndex := make(map[int]WorkflowRunResult, len(results))
 	for _, result := range results {
 		if _, duplicate := byIndex[result.CitationIndex]; duplicate {
-			return nil, WorkflowCitationValidationErrorf("campus citation index is duplicated")
+			return nil, citationError("duplicate_citation_index", "results.citation_index", map[string]any{"citation_index": result.CitationIndex})
 		}
 		byIndex[result.CitationIndex] = result
 	}
 
 	citations := make([]WorkflowCitation, 0, len(webCitations))
-	for _, match := range WorkflowCitationPattern.FindAllStringSubmatchIndex(answerText, -1) {
-		if len(match) != 4 {
-			return nil, WorkflowCitationValidationErrorf("campus citation marker is malformed")
-		}
-		citationIndex, err := strconv.Atoi(answerText[match[2]:match[3]])
-		if err != nil || citationIndex <= 0 {
-			return nil, WorkflowCitationValidationErrorf(
-				"campus citation marker %q is invalid",
-				answerText[match[0]:match[1]],
-			)
-		}
-		result, found := byIndex[citationIndex]
-		if !found {
-			if len(results) == 0 && len(webCitations) > 0 {
-				startByte := match[0]
-				if startByte > 0 && answerText[startByte-1] == ' ' {
-					startByte--
-				}
-				citations = append(citations, WorkflowCitation{
-					Discard:   true,
-					EndByte:   match[1],
-					StartByte: startByte,
-				})
-				continue
+	for _, marker := range scanWorkflowCitationMarkers(answerText) {
+		for _, citationIndex := range marker.Indexes {
+			if citationIndex <= 0 {
+				return nil, citationError("invalid_marker", "answer", map[string]any{"citation_index": citationIndex})
 			}
-			return nil, WorkflowCitationValidationErrorf(
-				"campus citation marker %q is outside successful results",
-				answerText[match[0]:match[1]],
-			)
+			result, found := byIndex[citationIndex]
+			if !found {
+				if markerAtGroundedTail(answerText, marker, grounded) {
+					citations = append(citations, WorkflowCitation{Discard: true, StartByte: marker.Start, EndByte: marker.End})
+					continue
+				}
+				return nil, citationError("missing_evidence", "answer", map[string]any{"citation_index": citationIndex})
+			}
+			citations = append(citations, WorkflowCitation{
+				StartByte: marker.Start, EndByte: marker.End,
+				IdentityKey: "campus:" + result.ResultRef,
+				Source:      execution.CloneAnyMapFromValue(result.Source),
+			})
 		}
-		citations = append(citations, WorkflowCitation{
-			EndByte:     match[1],
-			IdentityKey: "campus:" + result.ResultRef,
-			Source:      execution.CloneAnyMapFromValue(result.Source),
-			StartByte:   match[0],
-		})
 	}
 
 	for _, citation := range webCitations {
@@ -435,8 +460,8 @@ func WorkflowCitationsForFinalization(
 	for index := 1; index < len(citations); index++ {
 		previous := citations[index-1]
 		current := citations[index]
-		if previous.EndByte > current.StartByte {
-			return nil, WorkflowCitationValidationErrorf("citation spans overlap")
+		if previous.EndByte > current.StartByte && (previous.StartByte != current.StartByte || previous.EndByte != current.EndByte) {
+			return nil, citationError("span_overlap", "answer", map[string]any{"start": current.StartByte, "end": current.EndByte, "text_length": len(answerText), "offset_unit": "utf8_byte"})
 		}
 	}
 	return citations, nil
@@ -450,7 +475,7 @@ func WorkflowWebCitationsFromAgentResult(
 	if raw, exists := agentResult["web_search_used"]; exists {
 		value, ok := raw.(bool)
 		if !ok {
-			return nil, WorkflowCitationValidationErrorf("web_search_used must be a boolean")
+			return nil, citationError("invalid_type", "web_search_used", nil)
 		}
 		webSearchUsed = value
 	}
@@ -460,37 +485,40 @@ func WorkflowWebCitationsFromAgentResult(
 	}
 	values, ok := WorkflowWebCitationMaps(rawCitations)
 	if !ok {
-		return nil, WorkflowCitationValidationErrorf("web_citations must be an array")
+		return nil, citationError("invalid_type", "web_citations", nil)
 	}
 	if webSearchUsed && len(values) == 0 {
-		return nil, WorkflowCitationValidationErrorf("web search was used without citations")
+		return nil, citationError("web_search_without_citations", "web_citations", nil)
 	}
 	if !webSearchUsed && len(values) > 0 {
-		return nil, WorkflowCitationValidationErrorf("web citations require web search")
+		return nil, citationError("citations_without_web_search", "web_search_used", nil)
 	}
 
 	citations := make([]WorkflowWebCitation, 0, len(values))
 	for index, value := range values {
 		startIndex, ok := WorkflowCitationOffset(value["start_index"])
 		if !ok {
-			return nil, WorkflowCitationValidationErrorf("web citation %d start_index is invalid", index)
+			return nil, citationError("invalid_offset", "web_citations.start_index", offsetFailureFacts(value, "start_index", index, answerText))
 		}
 		endIndex, ok := WorkflowCitationOffset(value["end_index"])
 		if !ok || endIndex <= startIndex {
-			return nil, WorkflowCitationValidationErrorf("web citation %d end_index is invalid", index)
+			return nil, citationError("invalid_offset", "web_citations.end_index", offsetFailureFacts(value, "end_index", index, answerText))
 		}
 		title := strings.TrimSpace(execution.StringValue(value["title"]))
 		citationURL, hostname, ok := NormalizeWorkflowWebCitationURL(value["url"])
-		if title == "" || !ok {
-			return nil, WorkflowCitationValidationErrorf("web citation %d fields are invalid", index)
+		if title == "" {
+			return nil, citationError("missing_field", "web_citations.title", map[string]any{"item_index": index})
+		}
+		if !ok {
+			return nil, citationError("invalid_url", "web_citations.url", map[string]any{"item_index": index})
 		}
 		startByte, ok := WorkflowByteOffsetAtCodePoint(answerText, startIndex)
 		if !ok {
-			return nil, WorkflowCitationValidationErrorf("web citation %d start_index is outside answer", index)
+			return nil, citationError("span_out_of_bounds", "web_citations.start_index", map[string]any{"item_index": index, "start": startIndex, "end": endIndex, "offset_unit": "unicode_code_point", "text_length": utf8.RuneCountInString(answerText)})
 		}
 		endByte, ok := WorkflowByteOffsetAtCodePoint(answerText, endIndex)
 		if !ok || endByte <= startByte {
-			return nil, WorkflowCitationValidationErrorf("web citation %d end_index is outside answer", index)
+			return nil, citationError("span_out_of_bounds", "web_citations.end_index", map[string]any{"item_index": index, "start": startIndex, "end": endIndex, "offset_unit": "unicode_code_point", "text_length": utf8.RuneCountInString(answerText)})
 		}
 		citations = append(citations, WorkflowWebCitation{
 			EndByte:     endByte,
@@ -606,19 +634,47 @@ func RewriteWorkflowCitations(
 			sources = append(sources, source)
 			sourcesAdded[citation.IdentityKey] = struct{}{}
 		}
-		citation.Replacement = fmt.Sprintf("[%d](%s)", citationIndex, citation.Source["citation_href"])
+		if citation.Source["unavailable_reason"] == "source_unavailable" {
+			citation.Replacement = fmt.Sprintf("[%d]", citationIndex)
+		} else {
+			citation.Replacement = fmt.Sprintf("[%d](%s)", citationIndex, citation.Source["citation_href"])
+		}
 	}
-	answerWithCitations := answerText
-	for index := len(citations) - 1; index >= 0; index-- {
-		citation := citations[index]
-		answerWithCitations = answerWithCitations[:citation.StartByte] +
-			citation.Replacement + answerWithCitations[citation.EndByte:]
+	var rewritten strings.Builder
+	cursor := 0
+	for i := 0; i < len(citations); {
+		citation := citations[i]
+		rewritten.WriteString(answerText[cursor:citation.StartByte])
+		seen := map[string]bool{}
+		j := i
+		for j < len(citations) && citations[j].StartByte == citation.StartByte && citations[j].EndByte == citation.EndByte {
+			replacement := citations[j].Replacement
+			if !seen[replacement] {
+				rewritten.WriteString(replacement)
+				seen[replacement] = true
+			}
+			j++
+		}
+		cursor = citation.EndByte
+		i = j
 	}
+	rewritten.WriteString(answerText[cursor:])
+	answerWithCitations := rewritten.String()
 	return answerWithCitations, sources
 }
 
-func WorkflowCitationValidationErrorf(format string, args ...any) error {
-	return &WorkflowCitationValidationError{Cause: fmt.Errorf(format, args...)}
+func citationError(reason, field string, facts map[string]any) error {
+	return &WorkflowCitationValidationError{Reason: reason, Citation: citationdiagnostic.Build("finalization", field, facts), Cause: errors.New(citationdiagnostic.Reasons[reason])}
+}
+
+func missingEvidenceField(item temporalruntime.WorkflowEvidence) string {
+	if strings.TrimSpace(item.ID) == "" {
+		return "evidence.id"
+	}
+	if strings.TrimSpace(item.Title) == "" {
+		return "evidence.title"
+	}
+	return "evidence.excerpt"
 }
 
 func IsMapValue(value any) bool {
@@ -658,4 +714,40 @@ func CitedWorkflowResults(
 		cited = append(cited, result)
 	}
 	return cited, nil
+}
+
+func offsetFailureFacts(value map[string]any, field string, index int, answer string) map[string]any {
+	facts := map[string]any{"item_index": index, "offset_unit": "unicode_code_point", "text_length": utf8.RuneCountInString(answer)}
+	raw, exists := value[field]
+	actualType := "object"
+	if !exists {
+		actualType = "missing"
+	} else if raw == nil {
+		actualType = "null"
+	} else {
+		switch raw.(type) {
+		case string:
+			actualType = "string"
+		case bool:
+			actualType = "boolean"
+		case float64, int, int64:
+			actualType = "number"
+		case []any:
+			actualType = "array"
+		}
+	}
+	facts["actual_type"] = actualType
+	for _, name := range []string{"start", "end"} {
+		switch number := value[name+"_index"].(type) {
+		case int:
+			if float64(number) >= -9007199254740991 && float64(number) <= 9007199254740991 {
+				facts[name] = number
+			}
+		case float64:
+			if !math.IsNaN(number) && !math.IsInf(number, 0) && math.Abs(number) <= 9007199254740991 {
+				facts[name] = number
+			}
+		}
+	}
+	return facts
 }

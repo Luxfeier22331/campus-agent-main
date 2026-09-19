@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpsApiError } from "../src/app/ops-api-client";
 import { CopyableValue, ErrorState, StatusBadge } from "../src/app/ops-display";
 import { OpsWebApp } from "../src/app/ops-web-app";
@@ -8,8 +8,12 @@ import {
 	opsRequestDetailFixture,
 	opsRequestListFixture,
 } from "../src/shared/ops-fixtures";
+import { createOpsAppFixtureFetch } from "./helpers/ops-app";
 
 describe("OpsWebApp", () => {
+	beforeEach(() => {
+		vi.stubGlobal("fetch", createOpsAppFixtureFetch());
+	});
 	afterEach(() => {
 		vi.useRealTimers();
 	});
@@ -38,7 +42,7 @@ describe("OpsWebApp", () => {
 		);
 
 		try {
-			render(<OpsWebApp initialPath="/overview?window=1h" />);
+			render(<OpsWebApp initialPath="/overview?window=today" />);
 
 			expect(await screen.findByText("请求趋势暂不可用")).toBeInTheDocument();
 			expect(screen.getByText("请求趋势查询不可用。")).toBeInTheDocument();
@@ -128,7 +132,7 @@ describe("OpsWebApp", () => {
 		expect(within(requestTable).queryByText("runId")).not.toBeInTheDocument();
 		expect(within(requestTable).queryByText("workflowId")).not.toBeInTheDocument();
 		expect(await screen.findByText("共 6 条，当前显示 6 条")).toBeInTheDocument();
-		expect(await screen.findByRole("combobox", { name: "时间范围" })).toHaveValue("1h");
+		expect(await screen.findByRole("combobox", { name: "时间范围" })).toHaveValue("today");
 		expect(await screen.findByPlaceholderText("搜索问题、请求 ID 或错误码")).toBeInTheDocument();
 		expect(await screen.findAllByPlaceholderText("精确 requestId")).toHaveLength(1);
 		expect(await screen.findByTestId("request-exact-filters")).not.toHaveAttribute("open");
@@ -239,7 +243,7 @@ describe("OpsWebApp", () => {
 					...opsRequestListFixture,
 					page: { nextCursor: null },
 					view,
-					window: (url.searchParams.get("window") as "24h" | null) ?? "1h",
+					window: (url.searchParams.get("window") as "24h" | null) ?? "today",
 				});
 			}
 			return originalFetch(input, init);
@@ -524,7 +528,9 @@ describe("OpsWebApp", () => {
 			render(<OpsWebApp initialPath="/requests" />);
 			expect((await screen.findAllByText("req_ops_001")).length).toBeGreaterThan(0);
 
-			fireEvent.click(screen.getByRole("button", { name: "刷新运行诊断" }));
+			const refresh = screen.getByLabelText("刷新运行诊断");
+			expect(refresh).toHaveRole("button");
+			fireEvent.click(refresh);
 
 			expect(await screen.findByText("运行诊断刷新失败")).toBeInTheDocument();
 			expect(await screen.findByText(/仍显示最后一次成功数据/)).toBeInTheDocument();
@@ -547,29 +553,30 @@ describe("OpsWebApp", () => {
 			"/requests?status=RUNNING&q=req_ops_003",
 		);
 		expect(screen.queryByRole("link", { name: "系统记录" })).not.toBeInTheDocument();
-		expect(
-			within(screen.getByTestId("request-context")).queryByText("已结束"),
-		).not.toBeInTheDocument();
-		expect(screen.getByText(/缓考申请需要在规定期限内/u)).toBeInTheDocument();
-		expect(await screen.findByText("学生管理规定")).toBeInTheDocument();
-		expect(screen.getByText("学生规定 · 2026 年版")).toBeInTheDocument();
-		expect(screen.getByText("jwc.muc.edu.cn")).toBeInTheDocument();
-		const webSourceLink = screen.getByRole("link", { name: "打开网页" });
+		const context = within(screen.getByTestId("request-context"));
+		const result = within(screen.getByTestId("request-result"));
+		const sources = within(screen.getByTestId("request-sources"));
+		expect(context.queryByText("已结束")).not.toBeInTheDocument();
+		expect(result.getByText(/缓考申请需要在规定期限内/u)).toBeInTheDocument();
+		expect(sources.getByText("学生管理规定")).toBeInTheDocument();
+		expect(sources.getByText("学生规定 · 2026 年版")).toBeInTheDocument();
+		expect(sources.getByText("jwc.muc.edu.cn")).toBeInTheDocument();
+		const webSourceLink = sources.getByRole("link", { name: "打开网页" });
 		expect(webSourceLink).toHaveAttribute(
 			"href",
 			"https://jwc.muc.edu.cn/info/1045/12345.htm?source=chat#materials",
 		);
 		expect(webSourceLink).toHaveAttribute("target", "_blank");
 		expect(webSourceLink).toHaveAttribute("rel", "noopener noreferrer");
-		const execution = screen.getByTestId("request-execution");
-		expect(within(execution).getByText("Agent")).toBeInTheDocument();
-		expect(within(execution).getByText("deepseek-v4-flash-0731")).toBeInTheDocument();
-		expect(within(execution).getByText("2,000")).toBeInTheDocument();
-		expect(within(execution).getByText("320")).toBeInTheDocument();
-		expect(within(execution).getByText("400")).toBeInTheDocument();
-		expect(screen.getByText("agent-runtime@899f251")).toBeInTheDocument();
-		expect(screen.getByText("execution-control@a77a046")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "复制 请求 ID" }));
+		const execution = within(screen.getByTestId("request-execution"));
+		expect(execution.getByText("Agent")).toBeInTheDocument();
+		expect(execution.getByText("deepseek-v4-flash-0731")).toBeInTheDocument();
+		expect(execution.getByText("2,000")).toBeInTheDocument();
+		expect(execution.getByText("320")).toBeInTheDocument();
+		expect(execution.getByText("400")).toBeInTheDocument();
+		expect(execution.getByText("agent-runtime@899f251")).toBeInTheDocument();
+		expect(execution.getByText("execution-control@a77a046")).toBeInTheDocument();
+		fireEvent.click(context.getByRole("button", { name: "复制 请求 ID" }));
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("req_ops_001");
 		expect(screen.queryByRole("button", { name: /应用日志/u })).not.toBeInTheDocument();
 		expect(screen.queryByRole("list", { name: "应用日志" })).not.toBeInTheDocument();

@@ -78,6 +78,7 @@ function DiningReviewSheetContent(props: DiningReviewSheetProps) {
 	const [reportReviewId, setReportReviewId] = useState<string | null>(null);
 	const [reportReason, setReportReason] = useState<DiningReportReason>("spam");
 	const [reportDetails, setReportDetails] = useState("");
+	const titleRef = useRef<HTMLHeadingElement>(null);
 	const reportTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const reviewIdempotencyKey = useRef<string | null>(null);
 	const isSubmission = Boolean(props.item && "submissionId" in props.item);
@@ -144,6 +145,10 @@ function DiningReviewSheetContent(props: DiningReviewSheetProps) {
 				mobileClassName="gap-0"
 				open={props.open && Boolean(props.item)}
 				onOpenChange={props.onOpenChange}
+				onOpenAutoFocus={(event) => {
+					event.preventDefault();
+					titleRef.current?.focus({ preventScroll: true });
+				}}
 				onCloseAutoFocus={(event) => {
 					if (props.returnFocusRef?.current?.isConnected) {
 						event.preventDefault();
@@ -152,7 +157,9 @@ function DiningReviewSheetContent(props: DiningReviewSheetProps) {
 				}}
 			>
 				<SheetHeader className="border-border border-b px-5 py-5 pr-12 text-left">
-					<SheetTitle>{props.item?.name ?? "菜品评价"}</SheetTitle>
+					<SheetTitle ref={titleRef} tabIndex={-1}>
+						{props.item?.name ?? "菜品评价"}
+					</SheetTitle>
 					<SheetDescription>
 						{isSubmission ? "用户投稿 · " : "正式菜单 · "}
 						{props.item?.priceText ?? "价格暂未提供"}

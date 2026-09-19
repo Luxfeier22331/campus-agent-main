@@ -35,7 +35,7 @@ Kubernetes CronJob 模板不保存这两个输入；操作者从暂停模板创�
 pnpm dev:init -- --target campus-rag-index-publisher
 pnpm dev:init -- --target notice-index-publisher
 pnpm --dir jobs/campus-rag-index-publisher import-artifacts-local -- \
-  --namespace campus-agent-staging \
+  --context <协作者-context> --namespace campus-agent-staging \
   --docs-embedding-set sha256:<docs-id> \
   --notice-embedding-set sha256:<notice-id>
 pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
@@ -48,7 +48,7 @@ pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
 当前 worktree 的托管 `.env.local`。重跑初始化会刷新该连接；容器不可用或认证失败时初始化报错。
 本地发布读取已导入的对象，不调用 provider。
 
-`import-artifacts-local` 通过临时 `kubectl port-forward` 读取集群的 `campus-agent-derived` bucket，按两个
+`import-artifacts-local` 使用协作者 `objectstore-ro` Secret，通过临时 `kubectl port-forward` 读取集群的 `campus-agent-derived` bucket，按两个
 显式 Embedding Set 的 serving 引用闭包复制所需 immutable 对象到当前 worktree 的隔离 bucket。它不会复制整个
 bucket，也不会写入共享 bucket。导入完成后，`publish-index-local` 通过本地 S3 读取这些对象；manifest、digest、
 对象 key 和相对文件名保持原值。
@@ -150,3 +150,10 @@ Publisher 只需要 derived object-store read credentials、Qdrant 连接和 cur
 需要 Model Config、Notice 数据库或 embedding provider 凭据。
 
 完整的 Docs/Notice 构建顺序、回滚和清理步骤见 `docs/runbooks/campus-docs.md`。
+
+## 产品开发数据
+
+完整产品初始化使用根 `pnpm dev:init -- --target core`。cluster 模式从当前数据库绑定读取真实
+Qdrant points，不要求人工找到两个 Embedding Set；复用本包 collection 校验和事务内 catalog 激活。
+本地发布与初始化共用 registry 目录中的 Qdrant materialization lock，避免多个 worktree 并发创建同名集合。
+数据范围与替换规则见[本地运行检查](../../docs/runbooks/local-verification.md)。

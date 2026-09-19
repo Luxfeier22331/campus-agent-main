@@ -1,3 +1,4 @@
+import { encodeRequestCursor } from "../src/server/ops-status/mapping/request.ts";
 // @vitest-environment node
 
 import { execFile } from "node:child_process";
@@ -20,6 +21,7 @@ import {
 	createPgOpsStatusStore,
 	createPgOpsStatusStoreDatabase,
 } from "../src/server/ops-status/store/postgres.ts";
+import { buildRequestFilter, requestSql } from "../src/server/ops-status/store/request-query.ts";
 
 const postgres = inject("opsWebPostgres");
 const execFileAsync = promisify(execFile);
@@ -214,6 +216,9 @@ describe("ops-web PostgreSQL grants", () => {
 		const editId = randomUUID();
 		await management.query("begin");
 		try {
+			// Other files share this database and may leave reviews targeting newer submissions.
+			// Build the legacy fixture from clean review tables before restoring its old constraints.
+			await management.query("truncate dining.review_edits, dining.review_reports, dining.reviews");
 			await management.query(
 				"delete from drizzle.campus_agent_migrations where name in ('20260914000000_0016_dining_submissions', '20260914074417_dining_lifecycle')",
 			);
@@ -674,7 +679,7 @@ describe("ops-web PostgreSQL grants", () => {
 				"finalization",
 			]);
 
-			const attention = await store.listRequests({ view: "attention", window: "1h" });
+			const attention = await store.listRequests({ view: "attention", window: "today" });
 			expect(attention.data.map((request) => request.requestId)).toEqual([
 				requestIds[2],
 				requestIds[0],
@@ -695,11 +700,226 @@ describe("ops-web PostgreSQL grants", () => {
 				total: 5,
 			});
 
-			const searched = await store.listRequests({ q: "hindsight_append_failed", window: "1h" });
+			const searched = await store.listRequests({ q: "hindsight_append_failed", window: "today" });
 			expect(searched.data.map((request) => request.requestId)).toEqual([requestIds[0]]);
 
-			const overview = await store.getOverview("1h");
+			const overview = await store.getOverview({
+				from: "2026-08-29T16:00:00.000Z",
+				to: generatedAt.toISOString(),
+			});
 			expect(overview.requests.updatedAt).toBe("2026-08-30T00:59:10.000Z");
+			const range = { from: toolStartedAt.toISOString(), to: answerStartedAt.toISOString() };
+			const boundedList = await store.listRequests(range);
+			expect(boundedList.data.map((row) => row.requestId)).toEqual([toolRequestId]);
+			expect(boundedList.statusCounts.total).toBe(1);
+			expect(boundedList.filters).toEqual(range);
+			const boundedOverview = await store.getOverview(range);
+			expect(boundedOverview.requests.total).toBe(1);
+			expect(boundedOverview.trends.data.reduce((total, row) => total + row.total, 0)).toBe(1);
+			const exact = await store.listRequests({ ...range, requestId: answerRequestId });
+			expect(exact.data.map((row) => row.requestId)).toEqual([answerRequestId]);
+			expect(exact.filters).toEqual({ from: null, to: null });
+			const citation = {
+				schema_version: 1,
+				validation_stage: "provider_annotation",
+				field: "end_index",
+				start: 0,
+				end: 9,
+				text_length: 4,
+				offset_unit: "utf16_code_unit",
+			};
+			const failure = {
+				code: "citation_validation_failed",
+				reason: "span_out_of_bounds",
+				operation: "workflow.solve",
+				detail: "引用区间超出正文",
+				citation,
+			};
+			for (const [stepId, reason, stage] of [
+				["solve.initial", "span_out_of_bounds", "provider_annotation"],
+				["answer.synthesize", "missing_evidence", "finalization"],
+			]) {
+				await management.query(
+					`insert into execution_control.agent_run_steps (request_id,step_id,conversation_id,step_kind,status,updated_at,payload_schema_version,sanitized_payload_json) values ($1,$2,$3,'solver','failed','2026-08-30T00:59:02Z','run-step-projection-v1',$4::jsonb)`,
+					[
+						answerRequestId,
+						stepId,
+						conversationId,
+						JSON.stringify({
+							failure: { ...failure, reason, citation: { ...citation, validation_stage: stage } },
+						}),
+					],
+				);
+			}
+			const matching = {
+				failureCode: "citation_validation_failed",
+				failureReason: "span_out_of_bounds",
+				citationStage: "provider_annotation" as const,
+				window: "today" as const,
+			};
+			const found = await store.listRequests(matching);
+			expect(found.data).toHaveLength(1);
+			expect(found.data[0]).toMatchObject({
+				requestId: answerRequestId,
+				status: "COMPLETED",
+				failureKind: "hindsight_append_failed",
+				matchedFailure: { scope: "stage", reason: "span_out_of_bounds", stepId: "solve.initial" },
+			});
+			expect(found.statusCounts).toMatchObject({ total: 1, completed: 1, failed: 0 });
+			expect(
+				(await store.listRequests({ ...matching, citationStage: "finalization" })).data,
+			).toEqual([]);
+			expect((await store.listRequests({ ...matching, failureScope: "terminal" })).data).toEqual(
+				[],
+			);
+			const enriched = await store.getRequestDetail(answerRequestId);
+			expect(
+				enriched?.execution.stages.find((stage) => stage.stepId === "solve.initial")?.failure,
+			).toMatchObject({ reason: "span_out_of_bounds", citation, citationState: "recorded" });
+			await management.query(
+				`insert into execution_control.agent_runs
+ (request_id, conversation_id, owner_user_id, surface, task_queue, status, created_at, completed_at, updated_at)
+ values ($1,$2,'ops-status-test','campus_web','ops-status-test','failed',$3,$4,$4)`,
+				[requestIds[3], conversationId, failedStartedAt, new Date("2026-08-30T00:56:05Z")],
+			);
+			for (const [sequence, eventType, payload] of [
+				[1, "activity.failed", { step_id: "solve.initial", failure }],
+				[2, "run.failed", { failure_kind: "citation_validation_failed" }],
+			] as const) {
+				await management.query(
+					`insert into execution_control.agent_run_events (event_id,request_id,conversation_id,sequence,event_type,visibility,payload_schema_version,payload_json,occurred_at) values ($1,$2,$3,$4,$5,'internal','run-event-v1',$6::jsonb,'2026-08-30T00:56:05Z')`,
+					[
+						`${answerRequestId}:diagnostic:${sequence}`,
+						requestIds[3],
+						conversationId,
+						sequence,
+						eventType,
+						JSON.stringify(payload),
+					],
+				);
+			}
+			const terminal = await store.listRequests({ ...matching, failureScope: "terminal" });
+			expect(terminal.data).toHaveLength(1);
+			expect(terminal.data[0]).toMatchObject({
+				requestId: requestIds[3],
+				matchedFailure: { scope: "terminal", reason: "span_out_of_bounds" },
+			});
+			const terminalDetail = await store.getRequestDetail(requestIds[3] as string);
+			expect(terminalDetail?.execution.terminalFailure).toMatchObject({
+				reason: "span_out_of_bounds",
+				citation,
+			});
+			await management.query(
+				`insert into execution_control.agent_run_steps
+ (request_id,step_id,conversation_id,step_kind,status,updated_at,payload_schema_version,sanitized_payload_json)
+ values ($1,'solve.initial',$2,'solver','failed','2026-08-30T00:56:04Z','run-step-projection-v1',$3::jsonb)`,
+				[requestIds[3], conversationId, JSON.stringify({ failure })],
+			);
+			const both = await store.listRequests({ ...matching, failureScope: "any" });
+			expect(new Set(both.data.map((row) => row.requestId)).size).toBe(2);
+			expect(both.statusCounts).toMatchObject({ total: 2, completed: 1, failed: 1 });
+			expect(both.data).toHaveLength(2);
+			const first = both.data[0];
+			if (!first) {
+				throw new Error("matching request missing");
+			}
+			const next = await store.listRequests({ ...matching, cursor: encodeRequestCursor(first) });
+			expect(next.data.map((row) => row.requestId)).toEqual([requestIds[3]]);
+			expect(next.statusCounts.total).toBe(2);
+
+			const filteredFailed = await store.listRequests({ ...matching, status: "FAILED" });
+			expect(filteredFailed.data).toHaveLength(1);
+			expect(filteredFailed.statusCounts).toMatchObject({ total: 2, completed: 1, failed: 1 });
+			const filter = buildRequestFilter(
+				{ ...matching, requestId: answerRequestId },
+				{ from: "2026-08-29T16:00:00.000Z", to: generatedAt.toISOString() },
+			);
+			const explained = await runtime.query(
+				`explain (analyze, buffers, format json) ${requestSql(filter.whereClause, filter.failureMatch)}`,
+				filter.values,
+			);
+			expect(explained.rows[0]["QUERY PLAN"][0].Plan["Actual Rows"]).toBe(1);
+
+			// Recovery preserves the terminal category and the original citation cause.
+			await management.query(
+				`update execution_control.agent_run_events set payload_json=$2::jsonb
+				 where request_id=$1 and event_type='activity.failed'`,
+				[
+					requestIds[3],
+					JSON.stringify({
+						step_id: "answer.synthesize",
+						failure: { ...failure, code: "answer_synthesis_failed", source_code: failure.code },
+					}),
+				],
+			);
+			await management.query(
+				`update execution_control.agent_run_events set payload_json=$2::jsonb
+				 where request_id=$1 and event_type='run.failed'`,
+				[requestIds[3], JSON.stringify({ failure_kind: "answer_synthesis_failed" })],
+			);
+			const recovered = await store.listRequests({
+				...matching,
+				failureCode: "answer_synthesis_failed",
+				failureScope: "terminal",
+			});
+			expect(recovered.data).toHaveLength(1);
+			expect(recovered.data[0]?.matchedFailure).toMatchObject({
+				code: "answer_synthesis_failed",
+				sourceCode: failure.code,
+				reason: failure.reason,
+				citationStage: "provider_annotation",
+				stepId: "answer.synthesize",
+			});
+			expect(recovered.statusCounts).toMatchObject({ total: 1, failed: 1 });
+			const recoveredDetail = await store.getRequestDetail(requestIds[3] as string);
+			expect(recoveredDetail?.execution.terminalFailure).toMatchObject({
+				code: "answer_synthesis_failed",
+				sourceCode: failure.code,
+				reason: failure.reason,
+				citation,
+				citationState: "recorded",
+			});
+
+			// Malformed optional metadata cannot erase a valid match or alter paging/counts.
+			for (const requestId of [answerRequestId, requestIds[3]]) {
+				await management.query(
+					`update execution_control.agent_run_steps set sanitized_payload_json=$2::jsonb
+					 where request_id=$1 and step_id='solve.initial'`,
+					[
+						requestId,
+						JSON.stringify({
+							failure: { ...failure, citation: { ...citation, validation_stage: "future_stage" } },
+						}),
+					],
+				);
+			}
+			const invalidQuery = {
+				failureCode: failure.code,
+				failureScope: "stage" as const,
+				window: "today" as const,
+			};
+			const invalid = await store.listRequests(invalidQuery);
+			expect(invalid.data).toHaveLength(2);
+			for (const row of invalid.data) {
+				expect(row.matchedFailure).toMatchObject({
+					code: failure.code,
+					reason: failure.reason,
+					citationStage: null,
+					diagnosticState: "invalid",
+					stepId: "solve.initial",
+				});
+			}
+			expect(invalid.statusCounts).toMatchObject({ total: 2, completed: 1, failed: 1 });
+			const invalidFirst = invalid.data[0];
+			if (!invalidFirst) {
+				throw new Error("matching request missing");
+			}
+			const invalidNext = await store.listRequests({
+				...invalidQuery,
+				cursor: encodeRequestCursor(invalidFirst),
+			});
+			expect(invalidNext.data.map((row) => row.requestId)).toEqual([requestIds[3]]);
+			expect(invalidNext.statusCounts.total).toBe(2);
 		} finally {
 			await management.query(
 				"delete from chat.turn_dispatches where request_id = any($1::text[])",

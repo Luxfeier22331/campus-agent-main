@@ -95,6 +95,12 @@ Web URL 不合并。App API 只消费 execution-control 已校验并公开投影
 推导编号。历史 structured part 缺少当前必需字段时不生成来源卡片，正文仍保留；Campus Web 默认显示
 前五项。
 
+Campus Web 使用当前助手消息的全部 `citationIndexes` 映射正文引用，包括折叠来源。数字引用链接和
+裸编号统一显示为独立角标；可用来源支持点击或键盘聚焦预览标题、类型、摘要及打开入口。
+正文存储仍为 Finalization 校验后的 Markdown，不回填历史消息；代码、转义文本与普通链接保持原意。
+缺失或不可用引用显示不可交互角标，不能从正文 URL 猜配来源。预览和来源卡共用 `primaryAction`，
+打开校内固定版本入口或外部完整来源 URL；不额外抓取页面。流式草稿没有来源映射时不生成悬空链接。
+
 ### 重命名、删除和状态
 
 - `PATCH /api/chat/conversations/:conversationId`：`title` trim 后长度 1 到 80；
@@ -162,6 +168,7 @@ type ChatRequest = {
 - `execution.queued`
 - `execution.running`
 - `execution.phase`
+- `retrieval.status`
 - `answer.delta`
 - `request.completed`
 - `request.failed`
@@ -180,6 +187,12 @@ type ChatRequest = {
   不暴露 Temporal Activity、SDK tool call 或内部重试。阶段只来自持久阶段事件；
   `run.answer_started` 可以证明 `generating`，`run.answer_completed`、`request.completed` 和 run 摘要
   都不能自行证明 `finalizing`；
+- `retrieval.status` 来自持久 `run.retrieval_status`，顶层字段为 `requestId`、`occurredAt`、`sequence`、
+  `source` 和 `status`。`source` 固定为 `campus`，`status` 为
+  `started|completed|no_match|failed|canceled`。只有实际调用事实可产生状态；候选来源、开放的工具和最终
+  grounding 不能倒推出开始事件。同类并行调用在 Runtime 内归并，所有调用结束后才结束该类检索；
+  新一轮实际调用可以重新进入 started。模型内部网页搜索不进入此产品事件流；没有 grounding supports 不等于 no_match。终态结束所有活动检索，断线按原 sequence 续传；
+  不传 query、provider 名称、内部调用 ID 或调用次数；
 - 每个产品事件只在事件数据顶层携带一次 `requestId`；不返回 execution-control `eventId`、
   `visibility`，也不在 payload 中重复 `request_id`；
 - 产品 callback 成功后先保存内部 `finalization.completed` 证据，再由 `FinalizeRunProjection` 原子提交

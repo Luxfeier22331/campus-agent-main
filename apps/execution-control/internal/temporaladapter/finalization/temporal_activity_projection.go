@@ -58,6 +58,13 @@ func (s *Adapter) FailFinalizationActivity(
 	if operation == "" {
 		operation = "finalization.write"
 	}
+	failure := map[string]any{"code": summary.Kind, "operation": operation}
+	var citationErr *WorkflowCitationValidationError
+	if errors.As(cause, &citationErr) {
+		failure["reason"] = citationErr.Reason
+		failure["citation"] = citationErr.Citation
+		failure["detail"] = citationErr.Error()
+	}
 	err := s.ProjectTemporalFailureStep(ctx, run, activityprojection.TemporalStepFailureProjection{
 		Tool:            tool,
 		FailureKind:     summary.Kind,
@@ -68,10 +75,7 @@ func (s *Adapter) FailFinalizationActivity(
 		TaskQueue:       temporalruntime.ActivityTaskQueueCore,
 		FailCloseReason: failCloseReason,
 		Payload: map[string]any{
-			"failure": map[string]any{
-				"code":      summary.Kind,
-				"operation": operation,
-			},
+			"failure": failure,
 		},
 	}, cause)
 	if err != nil {
@@ -116,6 +120,7 @@ func (s *Adapter) FailTemporalRun(
 			PayloadSchemaVersion: "run-event-v1",
 			Payload: map[string]any{
 				"failure": activityprojection.TemporalFailurePayload(projection)["failure"],
+				"step_id": projection.StepID,
 				"message": summary.Message,
 			},
 		}); err != nil {

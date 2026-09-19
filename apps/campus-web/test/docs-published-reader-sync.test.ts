@@ -24,7 +24,24 @@ afterEach(cleanupPublishedReaderFixture);
 
 describe("campus-web published reader sync", () => {
 	it("uses the canonical derived object store bucket", () => {
-		expect(resolvePublishedReaderObjectStoreBucket()).toBe("campus-agent-derived");
+		expect(resolvePublishedReaderObjectStoreBucket({})).toBe("campus-agent-derived");
+	});
+
+	it("uses the same isolated bucket for reader and writer configurations", () => {
+		const env = {
+			OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived-wt-1",
+			OBJECT_STORE_ENDPOINT: "http://localhost:9000",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "reader",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "reader-secret",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "writer",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "writer-secret",
+		};
+		expect(resolvePublishedReaderObjectStoreConfig(env).bucket).toBe(
+			env.OBJECT_STORE_BUCKET_DERIVED,
+		);
+		expect(resolvePublishedReaderObjectStoreWriterConfig(env).bucket).toBe(
+			env.OBJECT_STORE_BUCKET_DERIVED,
+		);
 	});
 
 	it("resolves object store config from the derived identity", () => {

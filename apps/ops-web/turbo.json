@@ -23,17 +23,27 @@
 				"src/server/database.ts",
 				"src/server/dining*.ts",
 				"src/server/internal-portal-automation-token-store.ts",
+				"src/server/internal-portal-automation-token-service.ts",
+				"src/server/internal-portal-credential-store.ts",
 				"src/server/ops-status/**",
 				"src/server/postgres-tls.ts",
+				"src/server/transport*.ts",
 				"src/shared/dining-contract.ts",
 				"test/dining-bootstrap.integration.test.ts",
 				"test/dining-content-store.integration.test.ts",
+				"test/dining-submission-store.integration.test.ts",
+				"test/transport-store.integration.test.ts",
 				"test/ops-web-database.integration.test.ts",
+				"test/ops-status-store-test-helpers.ts",
 				"test/ops-web-postgres-topology.test.ts",
 				"test/ops-web-postgres.global-setup.ts",
 				"vitest.database-integration.config.mts",
 				"$TURBO_ROOT$/jobs/campus-agent-schema/**",
-				"$TURBO_ROOT$/packages/domains/dining/**"
+				"$TURBO_ROOT$/packages/domains/dining/**",
+				"$TURBO_ROOT$/packages/domains/transport/**",
+				"$TURBO_ROOT$/apps/app-api/package.json",
+				"$TURBO_ROOT$/apps/app-api/src/**",
+				"$TURBO_ROOT$/apps/app-api/test-support/**"
 			]
 		}
 	}

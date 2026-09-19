@@ -38,6 +38,7 @@ const runStatusResponseSchema = z.object({
 const productRunEventSchema = z.object({
 	eventType: z.enum([
 		"answer.delta",
+		"retrieval.status",
 		"execution.phase",
 		"execution.queued",
 		"execution.running",
@@ -189,6 +190,18 @@ function productEventToStreamEvent(
 			return { data: { ...base, status: "queued" }, event: "execution.queued" };
 		case "execution.running":
 			return { data: { ...base, status: "running" }, event: "execution.running" };
+		case "retrieval.status":
+			if (
+				payload.source !== "campus" ||
+				typeof payload.status !== "string" ||
+				!["started", "completed", "no_match", "failed", "canceled"].includes(payload.status)
+			) {
+				return null;
+			}
+			return {
+				event: "retrieval.status",
+				data: { ...base, source: payload.source, status: payload.status },
+			};
 		case "execution.phase":
 			if (
 				payload.phase !== "preparing" &&

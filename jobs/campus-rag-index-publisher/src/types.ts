@@ -10,7 +10,7 @@ export interface ReaderObjectStore {
 
 export interface WritableObjectStore extends ReaderObjectStore {
 	readIfExists(key: string): Promise<Uint8Array | undefined>;
-	writeImmutable(key: string, body: Uint8Array): Promise<"created" | "existing">;
+	writeImmutable(key: string, body: Uint8Array, contentType?: string): Promise<"created" | "existing">;
 }
 
 export interface ObjectReference {
@@ -137,7 +137,7 @@ export interface QdrantIndexClient {
 		denseVectorName: string;
 		dimensions: number;
 		expectedPointCount: number;
-		expectedPoints: UnifiedPoint[];
+		expectedPoints: Iterable<UnifiedPoint> | AsyncIterable<UnifiedPoint>;
 		sparseModifier: string;
 		sparseVectorName: string;
 	}): Promise<void>;

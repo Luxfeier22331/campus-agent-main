@@ -10,7 +10,6 @@ import { CAMPUS_EMAIL_DOMAIN } from "../email-access/campus-email";
 import type {
 	AccountAdminAction,
 	AccountAdminEventRecord,
-	AccountAdminEventWindow,
 	AccountAdminState,
 	AccountDeletionStatusRecord,
 } from "./types";
@@ -111,19 +110,6 @@ export function toAccountAdminEventRecord(
 		actor: identity.actor ?? null,
 		targetUser: identity.targetUser ?? null,
 	};
-}
-
-export function accountAdminEventWindowStart(
-	window: AccountAdminEventWindow,
-	now = Date.now(),
-): Date {
-	const duration = {
-		"24h": 24 * 60 * 60 * 1_000,
-		"7d": 7 * 24 * 60 * 60 * 1_000,
-		"30d": 30 * 24 * 60 * 60 * 1_000,
-		"90d": 90 * 24 * 60 * 60 * 1_000,
-	}[window];
-	return new Date(now - duration);
 }
 
 export function escapedAccountAdminPrefix(value: string): string {

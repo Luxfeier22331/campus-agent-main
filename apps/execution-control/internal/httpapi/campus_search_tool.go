@@ -52,6 +52,10 @@ func (s *Server) handleCampusSearchTool(response http.ResponseWriter, request *h
 			writeError(response, http.StatusConflict, "run_context_conflict", err.Error(), false)
 			return
 		}
+		if errors.Is(err, executionapplication.ErrCampusSearchUnavailable) {
+			writeError(response, http.StatusServiceUnavailable, "campus_search_unavailable", "Campus search index is not available.", true)
+			return
+		}
 		writeError(response, http.StatusServiceUnavailable, "campus_search_failed", "Campus document search failed.", true)
 		return
 	}

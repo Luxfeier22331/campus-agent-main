@@ -6,6 +6,7 @@ import type {
 import { retrievalDeadlineAt, sourceUnavailable } from "./execution-budget.ts";
 import { AgentRuntimeError } from "./runtime-errors.ts";
 export interface FunctionToolContext {
+	reportRetrieval?: AgentRunnerInput["reportRetrieval"];
 	unavailableSources: Set<string>;
 	campusSearch: {
 		nextCitationIndex: number;
@@ -20,6 +21,7 @@ export interface FunctionToolContext {
 
 export function createFunctionToolContext(input: AgentRunnerInput): FunctionToolContext {
 	return {
+		reportRetrieval: input.reportRetrieval,
 		unavailableSources: new Set(
 			(input.priorSourceAttempts ?? [])
 				.filter((attempt) => sourceUnavailable(attempt.failureCode))
@@ -147,18 +149,34 @@ async function executeSdkTool(
 			};
 		}
 		const resultLimit = Math.min(5, 11 - citationStart);
+		context.reportRetrieval?.("campus", invocationId, "started");
 		const result = await runtimeTool.execute(argumentsJson, {
 			deadlineAt,
 			citationStart,
 			invocationId,
 			resultLimit,
 		});
-		context.campusSearch.nextCitationIndex += campusSearchResultCount(
-			result,
-			citationStart,
-			resultLimit,
+		const count = campusSearchResultCount(result, citationStart, resultLimit);
+		context.campusSearch.nextCitationIndex += count;
+		context.reportRetrieval?.(
+			"campus",
+			invocationId,
+			result.status === "completed"
+				? count
+					? "completed"
+					: "no_match"
+				: runtimeTool.signal?.aborted
+					? "canceled"
+					: "failed",
 		);
 		return result;
+	} catch (error) {
+		context.reportRetrieval?.(
+			"campus",
+			invocationId,
+			runtimeTool.signal?.aborted ? "canceled" : "failed",
+		);
+		throw error;
 	} finally {
 		release();
 	}

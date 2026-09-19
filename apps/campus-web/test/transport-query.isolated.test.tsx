@@ -365,3 +365,31 @@ describe("transport query transitions", () => {
 		}
 	});
 });
+
+describe("transport date intent", () => {
+	it("only prefetches an intended day, deduplicates intent and renders its cache immediately", async () => {
+		const fetch = vi.fn((input: string) =>
+			Promise.resolve(
+				response(new URL(input, "https://campus.test").searchParams.get("date") ?? "2026-09-07"),
+			),
+		);
+		vi.stubGlobal("fetch", fetch);
+		await mountLoaded();
+		expect(fetch).toHaveBeenCalledTimes(1);
+		const next = screen.getByRole("button", { name: "后一天" });
+		fireEvent.pointerEnter(next);
+		fireEvent.focus(next);
+		fireEvent.touchStart(next);
+		await waitFor(() =>
+			expect(client.getQueryData(transportQueryKeys.schedule("2026-09-08"))).toEqual(
+				schedule("2026-09-08"),
+			),
+		);
+		expect(fetch).toHaveBeenCalledTimes(2);
+		expect(screen.getByText("班次-2026-09-07")).toBeVisible();
+		fireEvent.click(next);
+		expect(screen.getByText("班次-2026-09-08")).toBeVisible();
+		expect(screen.queryByRole("status", { name: "正在加载班车信息" })).not.toBeInTheDocument();
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+});

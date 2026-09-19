@@ -22,3 +22,7 @@ export function formatTimestamp(value: string | null | undefined): string {
 	);
 	return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
+
+export function formatDate(value: string): string {
+	return formatTimestamp(value).slice(0, 10);
+}

@@ -21,7 +21,8 @@
 			"!!apps/campus-web/assets/campus-map",
 			"!!apps/campus-web/data/campus-map",
 			"!!.tmp",
-			"!!var"
+			"!!var",
+			"!!scripts/dev/fixtures/product-data"
 		]
 	},
 	"formatter": {

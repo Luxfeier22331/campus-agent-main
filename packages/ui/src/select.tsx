@@ -13,7 +13,7 @@ export const SelectTrigger = React.forwardRef<
 >(({ children, className, ...props }, ref) => (
 	<SelectPrimitive.Trigger
 		className={cn(
-			"flex min-h-[var(--ui-control-height)] w-full min-w-0 items-center justify-between rounded-[var(--input-radius)] border border-input bg-background gap-2 px-3 py-2 text-base md:text-sm transition-colors motion-reduce:transition-none data-[placeholder]:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger [&>span:first-child]:min-w-0 [&>span:first-child]:truncate [&>span:last-child]:shrink-0",
+			"flex min-h-[var(--ui-control-height)] w-full min-w-0 items-center justify-between rounded-[var(--input-radius)] border border-input bg-background gap-2 px-3 py-2 text-base md:text-sm transition-colors motion-reduce:transition-none data-[placeholder]:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger [&>span:first-child]:min-w-0 [&>span:first-child]:truncate [&>span:last-child]:shrink-0",
 			className,
 		)}
 		ref={ref}

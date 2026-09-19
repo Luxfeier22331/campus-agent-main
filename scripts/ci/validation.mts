@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { containerBuildInputsChanged, imageTargetsForScope } from "../release/image-targets.mts";
+import { imageScopeBetween, successfulImageBaseline } from "./image-scope.mts";
 import { type AffectedScope, type CommandRunner, resolveAffectedScope } from "./scope.mts";
 import {
 	BUILD_TASKS,
@@ -27,6 +28,8 @@ const LIGHT_SURFACES: LightSurface[] = ["contracts", "config"];
 export interface ValidationPlan {
 	affectedPackages: string[];
 	images: string[];
+	imageBase?: string;
+	imageBaselineRunId?: number;
 	base: string;
 	head: string;
 	lightSurfaces: LightSurface[];
@@ -40,6 +43,7 @@ export interface ValidationPlanOptions {
 	base: string;
 	head: string;
 	repositoryRoot: string;
+	imageBaseline?: { sha: string; runId: number };
 }
 
 function changesPath(files: readonly string[], prefix: string): boolean {
@@ -76,7 +80,10 @@ function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 	return LIGHT_SURFACES.filter((surface) => selected.has(surface));
 }
 
-function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
+function selectValidationProfiles(
+	scope: AffectedScope,
+	images = imageTargetsForScope(scope),
+): ValidationProfile[] {
 	const files = scope.changedFiles;
 	const selected = new Set<ValidationProfile>();
 	if (
@@ -97,7 +104,6 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	if (scope.tasks.some(({ task }) => (NATIVE_TASKS as readonly string[]).includes(task))) {
 		selected.add("affected-native");
 	}
-	const images = imageTargetsForScope(scope);
 	if (containerBuildInputsChanged(files) || images.length > 0) {
 		selected.add("container-build");
 	}
@@ -107,8 +113,11 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	return VALIDATION_PROFILES.filter((profile) => selected.has(profile));
 }
 
-export function validationPlanFromScope(scope: AffectedScope): ValidationPlan {
-	const validationProfiles = selectValidationProfiles(scope);
+export function validationPlanFromScope(
+	scope: AffectedScope,
+	images = imageTargetsForScope(scope),
+): ValidationPlan {
+	const validationProfiles = selectValidationProfiles(scope, images);
 	const reasons: Partial<Record<ValidationProfile, [string, string]>> = {
 		"schema-migration": [
 			"Unified migration or dependency inputs changed",
@@ -124,7 +133,7 @@ export function validationPlanFromScope(scope: AffectedScope): ValidationPlan {
 	};
 	return {
 		affectedPackages: selectAffectedPackages(scope),
-		images: imageTargetsForScope(scope),
+		images,
 		base: scope.base,
 		head: scope.head,
 		lightSurfaces: selectLightSurfaces(scope.changedFiles),
@@ -157,7 +166,13 @@ export function planValidation(
 		},
 		runner,
 	);
-	return validationPlanFromScope(scope);
+	const imageBase = options.imageBaseline?.sha ?? options.base;
+	const imageScope = imageScopeBetween(imageBase, options.head, options.repositoryRoot, runner);
+	return {
+		...validationPlanFromScope(scope, imageScope.images),
+		imageBase,
+		...(options.imageBaseline ? { imageBaselineRunId: options.imageBaseline.runId } : {}),
+	};
 }
 
 export function checkValidationOutcomes(
@@ -229,10 +244,21 @@ function main(args: string[]): void {
 		process.stdout.write(`${JSON.stringify(validationProfileMetadata(describedProfile))}\n`);
 		return;
 	}
+	const root = values.get("root") ?? process.cwd();
+	const imageBaseline = values.has("pull-request")
+		? successfulImageBaseline({
+				repository: required(values, "repository"),
+				pullRequest: Number(required(values, "pull-request")),
+				runId: Number(required(values, "run-id")),
+				branch: required(values, "branch"),
+				root,
+			})
+		: undefined;
 	const plan = planValidation({
 		base: required(values, "base"),
 		head: required(values, "head"),
-		repositoryRoot: values.get("root") ?? process.cwd(),
+		repositoryRoot: root,
+		...(imageBaseline ? { imageBaseline } : {}),
 	});
 	process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
 }

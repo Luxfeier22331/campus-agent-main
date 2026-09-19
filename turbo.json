@@ -218,11 +218,21 @@
 			"outputLogs": "new-only"
 		},
 		"ops-web#test": {
-			"dependsOn": ["^test"],
+			"dependsOn": [
+				"@campus-agent/dining#test",
+				"@campus-agent/document-ocr#test",
+				"@campus-agent/internal-portal-client#test",
+				"@campus-agent/notices#test",
+				"@campus-agent/transport#test",
+				"@campus-agent/ui#test",
+				"campus-contracts#test",
+				"notice-publisher#test"
+			],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
+				"$TURBO_ROOT$/.dockerignore",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
 			],

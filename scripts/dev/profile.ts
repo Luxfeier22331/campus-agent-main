@@ -368,10 +368,11 @@ function deriveResourceKey(value: Record<string, unknown>): string {
 		stringField(value, "bucketName").match(/^[a-z0-9][a-z0-9.-]*-[0-9]+-([a-f0-9]{8})$/u)?.[1],
 		stringField(value, "instanceId").match(/-([a-f0-9]{8})$/u)?.[1],
 	].filter((candidate): candidate is string => candidate !== undefined);
-	if (candidates.length === 0 || candidates.some((candidate) => candidate !== candidates[0])) {
+	const resourceKey = candidates[0];
+	if (!resourceKey || candidates.some((candidate) => candidate !== resourceKey)) {
 		throw new Error("Legacy local development profile has inconsistent resource identities.");
 	}
-	return candidates[0];
+	return resourceKey;
 }
 
 function assertProfile(

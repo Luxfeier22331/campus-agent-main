@@ -1,0 +1,19 @@
+{
+  "chunkCount": 8,
+  "chunkDefinition": {
+    "algorithm": "campus_docs_reader_elements.v5",
+    "maxChars": 1600,
+    "overlapChars": 0,
+    "targetChars": 800
+  },
+  "chunks": {
+    "byteSize": 7119,
+    "key": "campus-docs/rag/chunk-data/sha256/3c2bcad1b430ca2a97b3277a590f77a9e634359ef745c3eb10eb4c229cc010db/chunks.ndjson",
+    "sha256": "sha256:3c2bcad1b430ca2a97b3277a590f77a9e634359ef745c3eb10eb4c229cc010db"
+  },
+  "documentCount": 2,
+  "readerSchemaVersion": "campus_docs_reader.v3",
+  "schemaVersion": "campus_docs_chunk_set.v2",
+  "sourceProjectionSha256": "sha256:d3a1890e0a67da72ac85db53826289b0dfd367729d49f12bfe2c3e81cdf05a33",
+  "sourceSchemaVersion": "campus_docs_source.v4"
+}

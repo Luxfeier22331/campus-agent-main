@@ -1,9 +1,12 @@
+import { CitationStageSchema, FailureReasonSchema } from "campus-contracts/citation-diagnostic";
+import { hasFailureFilters } from "../../../shared/failure-filters.ts";
 import type {
 	OpsRequestDetailResponse,
 	OpsRequestListResponse,
 	OpsRequestListView,
 	OpsRequestSummary,
 } from "../../../shared/ops-contract.ts";
+import { OpsMatchedFailureSchema } from "../../../shared/ops-contract.ts";
 import type { OpsRequestListQuery } from "../contract.ts";
 import type {
 	OpsRequestDetailRow,
@@ -55,6 +58,7 @@ export function toRequestDetail(
 export function toRequestSummary(row: OpsRequestRow): OpsRequestSummary {
 	const status = normalizeRequestStatus(row.status);
 	return {
+		matchedFailure: readMatchedFailure(row.matchedFailure),
 		attentionReason: normalizeAttentionReason(row.attentionReason),
 		completedAt: row.completedAt?.toISOString() ?? null,
 		durationMs: row.durationMs ?? null,
@@ -79,10 +83,35 @@ export function toRequestSummary(row: OpsRequestRow): OpsRequestSummary {
 	};
 }
 
+function readMatchedFailure(value: unknown): OpsRequestSummary["matchedFailure"] {
+	if (!isRecord(value)) {
+		return null;
+	}
+	const reason = FailureReasonSchema.nullable().safeParse(value.reason ?? null);
+	const stage = CitationStageSchema.nullable().safeParse(value.citationStage ?? null);
+	return (
+		OpsMatchedFailureSchema.safeParse({
+			...value,
+			sourceCode: normalizeNullableString(value.sourceCode),
+			reason: reason.success ? reason.data : null,
+			citationStage: stage.success ? stage.data : null,
+			diagnosticState:
+				reason.success && stage.success
+					? reason.data || stage.data
+						? "recorded"
+						: "not_recorded"
+					: "invalid",
+		}).data ?? null
+	);
+}
+
 export function matchesRequestQuery(
 	request: OpsRequestSummary,
 	query: OpsRequestListQuery,
 ): boolean {
+	if (hasFailureFilters(query) && !request.matchedFailure) {
+		return false;
+	}
 	if (requestListView(query) === "attention" && request.attentionReason === null) {
 		return false;
 	}
@@ -205,4 +234,56 @@ export function summarizeRequests(
 		running: requests.filter((request) => request.status === "RUNNING").length,
 		total: requests.length,
 	};
+}
+
+export function withMatchedFailure(
+	request: OpsRequestSummary,
+	detail: OpsRequestDetailResponse | undefined,
+	query: OpsRequestListQuery,
+): OpsRequestSummary {
+	if (!hasFailureFilters(query)) {
+		return { ...request, matchedFailure: null };
+	}
+	const matches: NonNullable<OpsRequestSummary["matchedFailure"]>[] = [];
+	for (const stage of detail?.execution.stages ?? []) {
+		const failure = stage.failure;
+		const code = failure?.code ?? stage.failureKind;
+		if (code && query.failureScope !== "terminal") {
+			matches.push({
+				code,
+				reason: failure?.reason ?? null,
+				citationStage: failure?.citation?.validation_stage ?? null,
+				scope: "stage",
+				stepId: stage.stepId ?? null,
+				occurredAt: stage.completedAt ?? stage.startedAt ?? request.startedAt,
+			});
+		}
+	}
+	const terminal = detail?.execution.terminalFailure;
+	if (terminal?.code && query.failureScope !== "stage") {
+		matches.push({
+			code: terminal.code,
+			sourceCode: terminal.sourceCode ?? null,
+			reason: terminal.reason ?? null,
+			citationStage: terminal.citation?.validation_stage ?? null,
+			scope: "terminal",
+			stepId: null,
+			occurredAt: request.completedAt ?? request.startedAt,
+		});
+	}
+	const matchedFailure =
+		matches
+			.filter(
+				(item) =>
+					(!query.failureCode || query.failureCode === item.code) &&
+					(!query.failureReason || query.failureReason === item.reason) &&
+					(!query.citationStage || query.citationStage === item.citationStage),
+			)
+			.sort(
+				(a, b) =>
+					b.occurredAt.localeCompare(a.occurredAt) ||
+					a.scope.localeCompare(b.scope) ||
+					(b.stepId ?? "").localeCompare(a.stepId ?? ""),
+			)[0] ?? null;
+	return { ...request, matchedFailure };
 }

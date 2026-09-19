@@ -85,7 +85,13 @@ operation 消费准入时持久化的绝对 `deadline_at`，切换步骤、重�
 `google` + `google.generate_content` 选择 Gemini，`openai` / `openai-compatible` 配合
 `openai.responses` / `openai.chat_completions` 选择 OpenAI。配置中的 Gemini Base URL 应包含 API 版本路径，
 如 `https://generativelanguage.googleapis.com/v1beta`；网关同样填写其原生 Gemini API 根路径。
-Solve/Executor 可使用已准入工具，Synthesizer 不使用工具；Solve/Synthesizer 使用流式生成。
+Solve/Executor 可使用已准入工具，Synthesizer 不使用工具；三者均可使用内部 SSE。
+Executor 只输出检索状态和终态结果，不输出 answer_delta；Replanner 使用非流式接口。
+内部 `retrieval_status` 的 schema 为 `workflow_runtime_retrieval_status.v1`，字段为 `source`、`status`、
+`occurred_at`。Runtime 从实际 campus_search 函数调用产生产品检索状态，execution-control 持久化后
+由 App API 发布。Campus Search 排队不等于检索开始，已校验返回数量区分命中与无匹配。
+模型内部网页搜索不产生产品检索事件；grounding 仅作为来源证据。
+工具 ID 只用于 operation 内并发归并，原始参数和供应商响应不进入产品事件。
 若失败的 Solve 已发出回答片段，recovery synthesis 使用非流式生成，并通过最终回答替换草稿，
 不把两次生成的片段拼接。恢复没有新的计划或检索，只有已有 evidence、source attempts 和失败原因；
 `recovery` 是输入来源，不是答案充分性分类。无材料时保留具体技术失败，确无可用材料则返回
@@ -99,8 +105,11 @@ Gemini 函数结果回传时保留完整模型 Content
 插入引用，不替换正文；计划合成仍消费既有 evidence 编号。
 `web_search_diagnostic` 只保存计数、状态和固定丢弃原因，随既有阶段净化投影进入 Ops；不保存查询、
 prompt 或完整 SDK 响应。缺少 supports 不等于搜索无匹配，也不代表答案具有可核验引用。
-Google 搜索建议 HTML 通过 `search_suggestions` 持久化并由前端隔离 iframe 展示，
-不进入下一轮模型上下文。
+Google 搜索建议 HTML 不进入运行结果或产品消息；网页搜索由模型内部处理；产品检索状态只来自实际 campus_search 工具调用，grounding 引用仍保留。
+Gemini grounding 的 Google redirect 由本服务在返回结果前解析为独立的 `sourceLink`：原始 `url` 保留
+evidence 身份，成功时 `sourceLink.href` 和页面标题指向原站；解析失败不丢弃答案或编号，只禁用来源卡。
+解析器支持 HTTP 重定向与独立脚本页的静态 `window.location.href` 字符串跳转，不执行 JavaScript。
+两种跳转共用公开地址、DNS、跳转次数、响应大小、并发和截止时间限制，不修改共享模型网关，也不回填历史消息。
 
 ## 入口
 

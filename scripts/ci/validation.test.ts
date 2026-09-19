@@ -212,12 +212,10 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 test("keeps unrelated service, infrastructure and browser checks manual", () => {
 	for (const file of [
 		"packages/ragas-runner/tests/test_runner.py",
-		"apps/ops-web/src/server/internal-portal-credential-store.ts",
 		"infra/k8s/data-postgres/base/service.yaml",
 		"infra/otel/collector-local-debug.yaml",
 		"apps/campus-web/src/routes/index.tsx",
 		"apps/campus-web/e2e/conversation-lifecycle.spec.ts",
-		"apps/ops-web/src/app/overview-page.tsx",
 	]) {
 		assert.deepEqual(profiles([file]), [], file);
 	}
@@ -245,7 +243,7 @@ test("selects container and image evidence for Node dependency inputs", () => {
 test("selects container contract evidence for release adapter changes", () => {
 	const plan = validationPlanFromScope(scope(["scripts/release/images.mts"]));
 	assert.deepEqual(plan.lightSurfaces, []);
-	assert.deepEqual(plan.validationProfiles, ["container-build"]);
+	assert.deepEqual(plan.validationProfiles, ["container-build", "image-build"]);
 });
 
 test("Dockerfiles select contract and real image evidence", () => {
@@ -256,7 +254,7 @@ test("Dockerfiles select contract and real image evidence", () => {
 test("CI control files stay in hosted checks while image inputs select image evidence", () => {
 	for (const [file, lightSurfaces, validationProfiles] of [
 		["package.json", [], ["container-build", "image-build"]],
-		["turbo.json", [], ["container-build", "image-build"]],
+		["turbo.json", [], []],
 		["apps/campus-web/turbo.json", [], []],
 		["flake.nix", ["config"], []],
 		["nix/tools.nix", ["config"], []],

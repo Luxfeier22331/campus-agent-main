@@ -45,6 +45,7 @@ export interface ChatCommandResponse {
 export type ChatCommandStreamEventName =
 	| "request.accepted"
 	| "answer.delta"
+	| "retrieval.status"
 	| "execution.phase"
 	| "execution.queued"
 	| "execution.running"
@@ -62,6 +63,7 @@ export interface ChatCommandStreamEvent {
 		};
 		delta?: string;
 		messageId?: string;
+		source?: "campus";
 		occurredAt: string;
 		requestId: string;
 		phase?: RuntimeRunProductPhase;

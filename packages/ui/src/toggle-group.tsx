@@ -67,7 +67,7 @@ export const ToggleGroupItem = React.forwardRef<
 			className={cn(
 				toggleVariants({ variant: context.variant ?? variant, size: context.size ?? size }),
 				context.presentation !== "plain" &&
-					"h-auto min-h-11 min-w-0 select-none rounded-full px-3 py-2 shadow-none motion-reduce:transition-none focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-100 disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)]",
+					"h-auto min-h-11 min-w-0 select-none rounded-full px-3 py-2 shadow-none motion-reduce:transition-none focus-visible:ring-offset-0 disabled:opacity-100 disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)]",
 				context.presentation === "segmented" && "data-[state=on]:shadow-[var(--shadow-xs)]",
 				chips &&
 					"group/chip gap-1 whitespace-nowrap border border-input px-2 data-[state=on]:border-border-selected",

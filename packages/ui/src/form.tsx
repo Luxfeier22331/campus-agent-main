@@ -14,7 +14,7 @@ import {
 import { cn } from "./cn";
 
 const controlClass =
-	"w-full min-w-0 rounded-[var(--input-radius)] border border-input bg-background px-3 text-foreground transition-colors motion-reduce:transition-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
+	"w-full min-w-0 rounded-[var(--input-radius)] border border-input bg-background px-3 text-foreground transition-colors motion-reduce:transition-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
 
 // 只读控件（如点按全选的分享链接）按 Apple HIG 用边框高亮代替焦点环：
 // 文本输入按平台约定始终匹配 :focus-visible，触屏点按会出环，属交互噪音。

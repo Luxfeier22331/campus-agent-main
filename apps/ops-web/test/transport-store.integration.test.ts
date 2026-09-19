@@ -225,22 +225,23 @@ describe("transport PostgreSQL store integration", () => {
 		expect(JSON.stringify(days)).not.toContain("后台备注");
 		const withoutNotices = await service.getSchedule("2025-12-15");
 		expect(withoutNotices.routes[0]?.boardingPoint).toBe(days.days[1]?.routes[0]?.boardingPoint);
-		// A newer published notice on the other overlapping period changes every consumer together.
+		// A newer notice on the older period must not override the later effective period.
 		await store.replaceSchedulePeriodNotices(changed.scheduleId, [
 			{ noticeId: 353903, summary: null },
 		]);
-		const olderPeriodWins = await service.getSchedule("2025-12-15");
-		const olderWithNotices = await service.getSchedule("2025-12-15", { includeNotices: true });
-		expect(olderWithNotices.routes[0]?.noticeContext?.notices.map((n) => n.noticeId)).toEqual([
-			"353905",
+		const afterRelinking = await service.getSchedule("2025-12-15");
+		const withNotices = await service.getSchedule("2025-12-15", { includeNotices: true });
+		expect(withNotices.routes[0]?.noticeContext?.notices.map((n) => n.noticeId)).toEqual([
+			"353903",
 		]);
-		expect(olderPeriodWins.routeCatalog[0]?.dropOffPoint).toBe("受控起始下车点");
-		expect(olderPeriodWins.routeCatalog).toEqual(olderWithNotices.routeCatalog);
-		await management.query("update notices.notices set is_published=false where notice_id=353905");
-		expect(
-			(
-				await service.getSchedule("2025-12-15", { includeNotices: true })
-			).routes[0]?.noticeContext?.notices.map((n) => n.noticeId),
-		).toEqual(["353903"]);
+		expect(afterRelinking).toEqual(withoutNotices);
+		expect(withNotices.routeCatalog).toEqual(withoutNotices.routeCatalog);
+		expect(withNotices.routeCatalog[0]?.dropOffPoint).toBe("聚雅餐厅东侧停车场路口");
+		// Withdrawing the winning period's notice must not fall back to the older period either.
+		await management.query("update notices.notices set is_published=false where notice_id=353903");
+		const afterWithdrawal = await service.getSchedule("2025-12-15", { includeNotices: true });
+		expect(afterWithdrawal.routes[0]?.noticeContext?.notices).toEqual([]);
+		expect(afterWithdrawal.routeCatalog).toEqual(withoutNotices.routeCatalog);
+		expect(await service.getSchedule("2025-12-15")).toEqual(withoutNotices);
 	});
 });

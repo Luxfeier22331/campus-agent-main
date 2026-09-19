@@ -1,6 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { ensureSharedDatabaseRoles } from "./database-roles";
 import { probeLocalBucket, probeLocalObject } from "./local-object-store";
+import { reconcileLocalQdrant, resolveLocalQdrantConnection } from "./local-qdrant";
 import { withLifecycleLock } from "./locks";
 import { type LocalPortProbe, probeLocalPort } from "./ports";
 import { captureCommandResult, commandSucceeds, runCommand } from "./process";
@@ -51,6 +52,7 @@ export interface SharedCapabilityDiagnosis {
 	docsSource?: LocalResourceProbe;
 	objectStore?: LocalResourceProbe;
 	postgres?: LocalResourceProbe;
+	qdrant?: LocalResourceProbe;
 	required: LocalDevCapability[];
 	sourceBucket?: LocalResourceProbe;
 	temporal?: LocalResourceProbe;
@@ -192,6 +194,11 @@ export async function inspectSharedCapabilities(input: {
 	const needsObjectStore = required.some((capability) =>
 		["derived-bucket", "source-bucket", "docs-bucket", "docs-source"].includes(capability),
 	);
+	if (required.includes("qdrant")) {
+		diagnosis.qdrant = await resolveLocalQdrantConnection()
+			.then(() => "present" as const)
+			.catch(() => "missing" as const);
+	}
 	if (required.includes("postgres")) {
 		diagnosis.postgres = await probePostgres();
 	}
@@ -265,6 +272,7 @@ export async function reconcileSharedInfrastructure(repoRoot: string): Promise<v
 		runObjectStore(SOURCE_BUCKET, "create");
 		runObjectStore(DOCS_BUCKET, "create");
 		ensureSharedDatabaseRoles();
+		await reconcileLocalQdrant(repoRoot);
 		const after = await inspectSharedInfrastructure(repoRoot);
 		if (after.status !== "ready") {
 			throw new Error(`Shared local infrastructure did not become ready (status=${after.status}).`);
@@ -310,6 +318,9 @@ export async function inspectSharedInfrastructure(
 		volumes,
 	});
 	const capabilities: SharedCapabilityDiagnosis = {
+		qdrant: await resolveLocalQdrantConnection()
+			.then(() => "present" as const)
+			.catch(() => "missing" as const),
 		derivedBucket: "unknown",
 		docsBucket: buckets.docs,
 		docsSource:
@@ -328,7 +339,15 @@ export async function inspectSharedInfrastructure(
 				? "present"
 				: "unknown",
 	};
-	return { buckets, capabilities, containers, expectedHashes, network, status, volumes };
+	return {
+		buckets,
+		capabilities,
+		containers,
+		expectedHashes,
+		network,
+		status: status === "ready" && capabilities.qdrant !== "present" ? "missing" : status,
+		volumes,
+	};
 }
 
 export async function assertSharedDataInfrastructureReady(repoRoot: string): Promise<void> {

@@ -46,7 +46,13 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 	clients.push(admin);
 	const password = randomUUID();
 	await admin.query(`create role campus_agent login password '${password}'`);
-	for (const role of ["app_api", "execution_control", "ops_web", "model_config"]) {
+	for (const role of [
+		"app_api",
+		"execution_control",
+		"ops_web",
+		"model_config",
+		"product_data_ro",
+	]) {
 		await admin.query(`create role ${role}`);
 	}
 	const local = readHistory(MIGRATIONS_FOLDER);

@@ -1,12 +1,12 @@
+import { timeQuerySchema, timeQueryShape, validateTimeQuery } from "campus-contracts/ops-time";
 import type { Hono } from "hono";
 import { z } from "zod";
+import { failureFilterShape, readFailureFilters } from "../../shared/failure-filters.ts";
 import {
 	OpsOverviewResponseSchema,
-	OpsOverviewWindowSchema,
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
 	OpsRequestListViewSchema,
-	OpsRequestWindowSchema,
 } from "../../shared/ops-contract.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
 import type { OpsOverviewService } from "../ops-status/composition/overview-service.ts";
@@ -16,6 +16,7 @@ import { admitOpsApiRequest, jsonError, OpsPathIdSchema } from "./http.ts";
 
 const RequestListQuerySchema = z
 	.object({
+		...failureFilterShape,
 		cursor: z.string().trim().min(1).max(512).optional(),
 		q: z.string().trim().min(1).max(256).optional(),
 		requestId: z.string().trim().min(1).max(128).optional(),
@@ -23,10 +24,11 @@ const RequestListQuerySchema = z
 			.enum(["COMPLETED", "FAILED", "CANCELLED", "RUNNING", "PENDING", "ACTION_REQUIRED"])
 			.optional(),
 		view: OpsRequestListViewSchema.default("recent"),
-		window: OpsRequestWindowSchema.default("1h"),
+		...timeQueryShape,
 	})
-	.strict();
-const OverviewQuerySchema = z.object({ window: OpsOverviewWindowSchema.default("1h") }).strict();
+	.strict()
+	.superRefine(validateTimeQuery("requests"));
+const OverviewQuerySchema = timeQuerySchema("overview");
 export function registerOverviewRoute(input: {
 	admission: OpsAdmission;
 	app: Hono;
@@ -43,7 +45,7 @@ export function registerOverviewRoute(input: {
 			return jsonError("OPS_INVALID_QUERY", "运行概览查询参数无效。", 400);
 		}
 		const response = OpsOverviewResponseSchema.parse(
-			await overviewService.getOverview(parsed.data.window, { signal: context.req.raw.signal }),
+			await overviewService.getOverview(parsed.data, { signal: context.req.raw.signal }),
 		);
 		context.header("cache-control", "private, max-age=15, stale-if-error=300");
 		return context.json(response);
@@ -72,12 +74,15 @@ export function registerObservabilityRoutes(input: {
 		return context.json(
 			OpsRequestListResponseSchema.parse(
 				await store.listRequests({
+					...readFailureFilters(query),
 					...(query.cursor ? { cursor: query.cursor } : {}),
 					...(query.q ? { q: query.q } : {}),
 					...(query.requestId ? { requestId: query.requestId } : {}),
 					...(query.status ? { status: query.status } : {}),
 					view: query.view,
-					window: query.window,
+					...(query.window ? { window: query.window } : {}),
+					...(query.from ? { from: query.from } : {}),
+					...(query.to ? { to: query.to } : {}),
 				}),
 			),
 		);

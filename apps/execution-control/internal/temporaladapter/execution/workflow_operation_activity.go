@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/citationdiagnostic"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
@@ -69,6 +70,7 @@ func (s *Adapter) ExecuteTaskStep(
 		Step:          &input.Step,
 		StepID:        stepID,
 		StepKind:      "executor",
+		Stream:        true,
 		TraceParent:   input.TraceParent,
 	})
 }
@@ -120,11 +122,10 @@ func (s *Adapter) SynthesizeAnswer(
 		mode = "planned"
 	}
 	payload := map[string]any{
-		"remaining_facts":    append([]temporalruntime.WorkflowRemainingFacts{}, input.RemainingFacts...),
-		"evidence":           append([]temporalruntime.WorkflowEvidence{}, input.Evidence...),
-		"mode":               mode,
-		"source_attempts":    append([]temporalruntime.WorkflowSourceAttempt{}, input.SourceAttempts...),
-		"search_suggestions": append([]temporalruntime.SearchSuggestion{}, input.SearchSuggestions...),
+		"remaining_facts": append([]temporalruntime.WorkflowRemainingFacts{}, input.RemainingFacts...),
+		"evidence":        append([]temporalruntime.WorkflowEvidence{}, input.Evidence...),
+		"mode":            mode,
+		"source_attempts": append([]temporalruntime.WorkflowSourceAttempt{}, input.SourceAttempts...),
 	}
 	if strings.TrimSpace(input.RecoveryReason) != "" {
 		payload["recovery_reason"] = input.RecoveryReason
@@ -177,6 +178,17 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	ctx context.Context,
 	request WorkflowOperationActivityRequest,
 ) (result temporalruntime.WorkflowOperationActivityOutput, resultErr error) {
+	// Detailed diagnostics stay in the operation receipt and execution projections.
+	// Both first delivery and receipt replay return only workflow decision fields.
+	defer func() {
+		if result.Failure != nil {
+			copied := *result.Failure
+			copied.Reason = ""
+			copied.Citation = nil
+			result.Failure = &copied
+		}
+	}()
+
 	if strings.TrimSpace(request.RequestID) == "" || strings.TrimSpace(request.ConversationID) == "" ||
 		strings.TrimSpace(request.StepID) == "" || request.Operation == "" {
 		return temporalruntime.WorkflowOperationActivityOutput{}, WorkflowOperationInputError(
@@ -847,7 +859,7 @@ func WorkflowOperationOutputFromRuntimeResponse(
 		return temporalruntime.WorkflowOperationActivityOutput{}, err
 	}
 	output := temporalruntime.WorkflowOperationActivityOutput{
-		Failure:                 response.Failure,
+		Failure:                 normalizedRuntimeFailure(response.Failure),
 		AnswerStarted:           response.AnswerStarted,
 		Operation:               operation,
 		SolveOutcome:            strings.TrimSpace(response.SolveOutcome),
@@ -869,7 +881,6 @@ func WorkflowOperationOutputFromRuntimeResponse(
 			OutputTokens:      response.Usage.OutputTokens,
 			UsageObserved:     response.Usage.UsageObserved,
 		},
-		SearchSuggestions:   response.SearchSuggestions,
 		WebEvidence:         response.WebEvidence,
 		WebSearchDiagnostic: response.WebSearchDiagnostic,
 		TerminalReason:      response.TerminalReason,
@@ -906,8 +917,10 @@ func WorkflowToolResultsFromRuntimeResponse(response AgentRuntimeResponse, opera
 		}
 		var failure *temporalruntime.ExecutionFailure
 		if result.Failure != nil {
-			copied := *result.Failure
+			copied := *normalizedRuntimeFailure(result.Failure)
 			copied.Detail = ""
+			copied.Reason = ""
+			copied.Citation = nil
 			failure = &copied
 		}
 		results = append(results, temporalruntime.AgentToolResult{StartedAt: CloneOptionalTime(result.StartedAt), CompletedAt: CloneOptionalTime(result.CompletedAt), DurationMS: result.DurationMS, Failure: failure, InvocationID: strings.TrimSpace(result.InvocationID), Result: bounded, Status: strings.TrimSpace(result.Status), ToolName: strings.TrimSpace(result.ToolName)})
@@ -944,7 +957,6 @@ func WorkflowOperationResultPayload(
 			"cached_input_tokens": output.Usage.CachedInputTokens,
 			"usage_observed":      output.Usage.UsageObserved,
 		},
-		"search_suggestions":    output.SearchSuggestions,
 		"web_search_diagnostic": output.WebSearchDiagnostic,
 	}
 	if output.Failure != nil {
@@ -1016,7 +1028,7 @@ func (s *Adapter) ProjectWorkflowToolResults(
 			"tool_status":           status,
 		}
 		if result.Failure != nil {
-			payload["failure"] = result.Failure
+			payload["failure"] = normalizedRuntimeFailure(result.Failure)
 		}
 		if toolName == activityprojection.WorkflowCampusSearchToolName && status == "completed" {
 			payload["result"] = execution.CloneAnyMapFromValue(resultPayload)
@@ -1152,6 +1164,12 @@ func AddWorkflowFailureEvidence(payload map[string]any, cause error) {
 		if runtimeError.Operation != "" {
 			failure["operation"] = runtimeError.Operation
 		}
+		if reason := citationdiagnostic.Reason(runtimeError.Reason); reason != "" {
+			failure["reason"] = reason
+		}
+		if diagnostic := citationdiagnostic.Normalize(runtimeError.Citation); len(diagnostic) > 0 {
+			failure["citation"] = diagnostic
+		}
 		if runtimeError.Detail != "" {
 			failure["detail"] = runtimeError.Detail
 		}
@@ -1169,6 +1187,12 @@ func AddWorkflowFailureEvidence(payload map[string]any, cause error) {
 	if errors.As(cause, &runtimeApplicationError) {
 		if runtimeApplicationError.Operation != "" {
 			failure["operation"] = runtimeApplicationError.Operation
+		}
+		if reason := citationdiagnostic.Reason(runtimeApplicationError.Reason); reason != "" {
+			failure["reason"] = reason
+		}
+		if diagnostic := citationdiagnostic.Normalize(runtimeApplicationError.Citation); len(diagnostic) > 0 {
+			failure["citation"] = diagnostic
 		}
 		if runtimeApplicationError.Detail != "" {
 			failure["detail"] = runtimeApplicationError.Detail
@@ -1268,12 +1292,16 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 	terminalEvent := ""
 	solveOutcome := ""
 	answerInvalidated := false
+	retrievalProjection := newRetrievalStreamProjection(s, run)
+	defer retrievalProjection.close(ctx)
 
 	err := ReadAgentRuntimeSSEEvents(body, func(event AgentRuntimeSSEEvent) error {
 		if terminalEvent != "" {
 			return fmt.Errorf("workflow runtime stream event %q appears after terminal event %q", event.Event, terminalEvent)
 		}
 		switch event.Event {
+		case "retrieval_status":
+			return retrievalProjection.consume(ctx, operation, event.Data)
 		case "solve_decision":
 			if operation != temporalruntime.WorkflowOperationSolve || solveOutcome != "" || chunkIndex > 0 {
 				return errors.New("workflow runtime solve decision is out of order")
@@ -1291,6 +1319,9 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 			}
 			solveOutcome = decision.Outcome
 		case "answer_delta":
+			if operation == temporalruntime.WorkflowOperationExecuteStep {
+				return errors.New("executor must not emit answer deltas")
+			}
 			if answerInvalidated {
 				return errors.New("workflow runtime answer delta appears after invalidation")
 			}
@@ -1352,7 +1383,8 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 				return fmt.Errorf("decode workflow runtime error event: %w", err)
 			}
 			streamError = AgentRuntimeApplicationError{
-				Code:           strings.TrimSpace(runtimeErr.Code),
+				Code:   strings.TrimSpace(runtimeErr.Code),
+				Reason: runtimeErr.Reason, Citation: runtimeErr.Citation,
 				Detail:         strings.TrimSpace(runtimeErr.Detail),
 				HTTPStatus:     runtimeErr.HTTPStatus,
 				InvocationID:   strings.TrimSpace(runtimeErr.InvocationID),
@@ -1408,4 +1440,14 @@ func ValidateWorkflowRuntimeCompletedResponse(
 		}
 	}
 	return nil
+}
+
+func normalizedRuntimeFailure(failure *temporalruntime.ExecutionFailure) *temporalruntime.ExecutionFailure {
+	if failure == nil {
+		return nil
+	}
+	copied := *failure
+	copied.Reason = citationdiagnostic.Reason(copied.Reason)
+	copied.Citation = citationdiagnostic.Normalize(copied.Citation)
+	return &copied
 }

@@ -1,13 +1,11 @@
 # Campus Docs Chunk 与 Embedding 任务
 
-该包只实现 Campus Docs 的 Chunk Set 和 Embedding Set 构建，以及保留给本地兼容验证的 Docs-only
-`publish-index-local`。生产 serving 发布由 `jobs/campus-rag-index-publisher` 的统一 publisher 负责；
+该包实现 Campus Docs 的 Chunk Set、Embedding Set 构建和离线评测。serving 发布由 `jobs/campus-rag-index-publisher` 的统一 publisher 负责；
 该包不采集或清洗来源文档，也不负责环境选择。
 
 ## 入口
 
 - `src/local-chunk-cli.ts`、`src/local-embedding-cli.ts`：本地 Docs 验证入口；
-- `src/local-publish-cli.ts`：仅保留的 Docs-only 本地兼容验证入口；
 - `src/cli.ts`：Kubernetes Docs builder 阶段入口；
 - `src/definitions.ts`：Docs 分块和向量空间定义。生产统一 collection 定义属于 unified publisher。
 
@@ -20,8 +18,7 @@ pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
 当前不自动串联两个 builder 阶段。每个命令只执行一个阶段，并把下一阶段需要的内容寻址 ID 输出为 JSON。本地
 `build-chunks` 从对象存储只读当前 source 和 reader；`build-embeddings` 只读本地 Chunk Set，直接调用
 根 `.env` 中的 OpenAI-compatible endpoint。两者都把制品写入仓库根目录的 `var/`，不向共享 bucket 写入
-正式候选。`publish-index-local` 从 `var/` 读取 Embedding Set，使用本地 PostgreSQL/Qdrant，并从
-本地对象存储重新读取当前 source projection；它不调用 embedding provider，也不写入对象存储。Chunk
+正式候选。Chunk
 命令从调用进程读取 `OBJECT_STORE_ENDPOINT`、
 `OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_READ_SECRET_KEY`，不读取其他应用的
 环境文件；Embedding 命令通过当前 worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 和
@@ -112,25 +109,12 @@ worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 与 `EMBEDDING_API_KEY`，直接
 (`source_kind=notice`) points 组装到同一个 `campus_docs_<sha256>` collection。
 
 Notice citation 由 Notice Chunk Run v1 的 `noticeId` 固定生成，形如 `/notices/<noticeId>`；统一 publisher
-不连接 live Notices DB。它是 `campus_docs_serving.current_index` 的唯一写入者。旧
-`publish-index-local` 只用于检查本包保留的 Docs-only local 实现，不代表生产 owner，也不能验证混合
-Docs/Notice collection。
+不连接 live Notices DB。它拥有 `campus_docs_serving.current_index` 的激活逻辑。
+产品初始化使用根 `dev:init` 并复用该逻辑；显式制品发布使用统一 RAG publisher。
 
 统一 publisher 在完成 point 数、payload 和双向量校验后原子替换 PostgreSQL `campus_docs_serving.current_index`。
 目标 collection 已存在时先做完整校验；内容不匹配时停止且不删除。仅当本次新建 collection 的写入或校验失败时删除该 collection；
 数据库激活报错后保留已验证 collection，重跑同一 Docs/Notice Embedding Set 完成状态确认或激活。
-
-本地生成 Embedding Set 后，可在隔离的本地 Qdrant 验证保留的 Docs-only 发布实现：
-
-```bash
-EXECUTION_CONTROL_DATABASE_URL=postgresql://<local-user>:<local-password>@127.0.0.1:5432/<local-database>?sslmode=disable \
-QDRANT_URL=http://127.0.0.1:6333 QDRANT_API_KEY=<local-qdrant-key> \
-pnpm --dir jobs/campus-docs-index-publisher publish-index-local -- \
-  --embedding-set sha256:<embedding-set-id>
-```
-
-本地运行可以检查 collection 配置、完整 point 校验和 `current_index` 激活；对同一 Embedding Set
-重复运行可以检查 `no_op: true`。本地验证不形成线上 Publisher Job 的前置状态。
 
 ## 不可变写入
 

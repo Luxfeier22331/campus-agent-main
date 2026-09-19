@@ -1,9 +1,6 @@
-import type {
-	OpsOverviewWindow,
-	OpsRequestListView,
-	OpsRequestSummary,
-	OpsRequestWindow,
-} from "../../shared/ops-contract";
+import type { TimeQuery } from "campus-contracts/ops-time";
+import { type FailureFilters, readFailureFilters } from "../../shared/failure-filters.ts";
+import type { OpsRequestListView, OpsRequestSummary } from "../../shared/ops-contract";
 import {
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
@@ -11,13 +8,12 @@ import {
 } from "../../shared/ops-contract";
 import { fetchJson } from "./core";
 
-export interface OpsRequestListParams {
+export interface OpsRequestListParams extends TimeQuery, FailureFilters {
 	cursor?: string | undefined;
 	q?: string | undefined;
 	requestId?: string | undefined;
 	status?: OpsRequestSummary["status"] | undefined;
 	view?: OpsRequestListView | undefined;
-	window?: OpsRequestWindow | undefined;
 }
 
 export async function fetchOpsRequests(
@@ -26,12 +22,15 @@ export async function fetchOpsRequests(
 ) {
 	const query = new URLSearchParams();
 	const apiParams = {
+		...readFailureFilters({ ...params }),
 		cursor: params.cursor,
 		q: params.q,
 		requestId: params.requestId,
 		status: params.status,
 		view: params.view === "attention" ? params.view : undefined,
 		window: params.window,
+		from: params.from,
+		to: params.to,
 	};
 	for (const [key, value] of Object.entries(apiParams)) {
 		if (value !== undefined && value !== "") {
@@ -56,10 +55,15 @@ export async function fetchOpsRequestDetail(
 }
 
 export async function fetchOpsOverview(
-	window: OpsOverviewWindow = "1h",
+	params: TimeQuery = {},
 	input: { signal?: AbortSignal } = {},
 ) {
-	const query = new URLSearchParams({ window });
+	const query = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) {
+		if (value) {
+			query.set(key, value);
+		}
+	}
 	return OpsOverviewResponseSchema.parse(
 		await fetchJson(`/api/ops/overview?${query.toString()}`, { signal: input.signal }),
 	);

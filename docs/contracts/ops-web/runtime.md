@@ -8,17 +8,33 @@ status: active
 
 ## `GET /api/ops/overview`
 
-### 时间窗口
+### 时间范围
 
-| 参数 | 必填 | 允许值 | 默认值 |
-| --- | --- | --- | --- |
-| `window` | 否 | `15m`、`1h`、`6h`、`24h` | `1h` |
+运行概览、运行诊断、会话列表和账号操作记录共用 `packages/contracts/src/ops-time.ts`。
+无时间参数时默认今日；预设选择立即生效，自选日期填写完整后点击应用。范围变化清除分页游标，
+其他已应用筛选与未提交文字输入保留；刷新、前进后退和详情返回恢复 URL 中的已应用条件。
 
-未知参数或无效值返回 `400 OPS_INVALID_QUERY`。
+| `window` | 展示 | 北京时间范围 |
+| --- | --- | --- |
+| `today` | 今日（默认） | 当日零点至查询时刻 |
+| `24h` | 最近24h | 查询时刻之前连续24小时 |
+| `this-week` | 本周 | 本周一零点至查询时刻 |
+| `this-month` | 本月 | 本月1日零点至查询时刻 |
+| `last-month` | 上月 | 上月1日零点至本月1日零点 |
+| `30d` | 最近30d | 查询时刻之前连续720小时 |
+
+“选择日期”使用成对 ISO `from`、`to`，与 `window` 互斥。查询统一采用 `[from, to)`；
+日期输入包含开始日及结束日，结束日转换为次日零点，允许同一天，最多90个自然日。
+下钻链接中的精确时间保持原值，只有用户重新应用日期时才转换为完整自然日。
+旧 `15m`、`1h`、`6h`、`7d`、`90d` 不再支持；无效参数、缺少端点、倒置及超长区间返回
+`400 OPS_INVALID_QUERY`，页面提示重新选择，不扩大成无时间限制的查询。
+
+概览和请求按请求开始时间过滤；会话按最近活动时间过滤；账号操作按发生时间过滤。
 
 ### 响应
 
-- `window`：实际时间窗口。
+- `window`：预设值，自选区间为 `null`。
+- `filters`：实际查询使用的 ISO `from`、`to`；概览下钻沿用这组精确边界。
 - `generatedAt`：结果生成时间。
 - `cache`：`status` 为 `FRESH` 或 `STALE`，`ageMs` 为缓存年龄。
 - `health`：由产品请求投影汇总的 `status` 和 `dataState`。
@@ -29,6 +45,8 @@ status: active
 服务端缓存概览 15 秒。PostgreSQL 读取失败且最近一次成功结果不超过五分钟时返回 `STALE`；否则
 请求与趋势标为 `UNAVAILABLE`。接口不查询服务 readiness、Temporal queue、供应商 logs/traces/metrics
 或 Collector uptime，这些信号也不参与产品整体 `health`。
+缓存回退保留原查询边界和结果生成时间。趋势不超过24小时按小时、不超过7天按6小时、
+更长区间按天分桶，桶边界按北京时间对齐。
 
 ## `GET /api/ops/requests`
 
@@ -36,11 +54,16 @@ status: active
 
 | 参数 | 必填 | 约束 | 默认值 |
 | --- | --- | --- | --- |
-| `window` | 否 | `15m`、`1h`、`6h`、`24h`、`7d` | `1h` |
+| `window` | 否 | 上述六种预设，与 `from/to` 互斥 | `today` |
+| `from`、`to` | 否 | 成对 ISO 时间，跨度大于零且不超过90天 | 无 |
 | `view` | 否 | `recent`、`attention` | `recent` |
 | `status` | 否 | 请求状态值 | 无 |
 | `requestId` | 否 | 1 至 128 字符 | 无 |
 | `q` | 否 | 1 至 256 字符 | 无 |
+| `failureCode` | 否 | 小写字母开头的字母、数字、下划线，最多64字符 | 无 |
+| `failureReason` | 否 | 与 `failureCode` 相同的字符约束 | 无 |
+| `citationStage` | 否 | `provider_annotation`、`evidence_mapping`、`finalization` | 无 |
+| `failureScope` | 否 | `any`、`stage`、`terminal` | 有失败筛选时为 `any` |
 | `cursor` | 否 | 服务端游标，最多 512 字符 | 无 |
 
 未知参数、无效状态或无效游标返回 `400 OPS_INVALID_QUERY`。`attention` 可以继续按任一产品状态
@@ -48,8 +71,9 @@ status: active
 SQL 片段。
 
 响应固定每页最多 50 条，包含服务端生成时间 `generatedAt`、实际 `window`、状态计数 `statusCounts`、
-请求摘要 `data[]` 和可为空的 `page.nextCursor`。`statusCounts` 保留除当前 `status` 与 `cursor` 外的
+实际边界 `filters`、请求摘要 `data[]` 和可为空的 `page.nextCursor`。`statusCounts` 保留除当前 `status` 与 `cursor` 外的
 筛选，并受当前 `view` 约束，用于展示同一查询范围内可切换的状态计数。
+精确 `requestId` 查询继续不受时间范围限制，此时 `filters.from/to` 均为 `null`，页面明确提示。
 
 - `recent` 按 `startedAt desc, requestId desc` 排序，展示全部符合筛选条件的运行；
 - `attention` 展示终态缺少会话结果、`FAILED`、执行阶段失败的请求和 `ACTION_REQUIRED`，依次按数据完整性异常、
@@ -60,6 +84,15 @@ SQL 片段。
 截断事实、产品状态和生命周期、开始完成时间、一次总耗时、产品结果状态、当前执行阶段、可用的工具名、
 失败类型和关注原因。接口不返回原始用户 ID、其他关联 ID、模型活动、token、完整步骤、执行尝试或技术
 错误明细。
+
+失败筛选匹配任一持久阶段或终态失败，不只匹配最近一次错误。代码、原因和校验阶段必须命中同一条
+失败记录；同一请求多次命中只返回一次，状态计数使用同样的条件。`stage` 只读阶段投影，`terminal`
+只读终态视图；单独指定 `any` 表示查询有失败记录的请求。筛选不改变产品状态。
+启用失败筛选时，`matchedFailure` 返回最近命中的 `code`、`reason`、`citationStage`、`scope`、
+`stepId` 和 `occurredAt`，与最近阶段失败 `failureKind` 分开展示；无筛选时为 `null`。
+可选原因或校验阶段无法解析时，只清除对应字段，并将 `diagnosticState` 标为 `invalid`，保留命中身份；
+有效诊断为 `recorded`，两项均缺失为 `not_recorded`。包装失败另返回可空 `sourceCode`。
+详情的“查看同类请求”保留时间范围，清除请求 ID、状态及游标，按该失败的可用字段查询。
 
 `result` 的状态为：
 
@@ -76,6 +109,34 @@ attempt 诊断。
 接口不伪造心跳或阶段开始时间。
 
 ## `GET /api/ops/requests/:requestId`
+
+### 失败原因与引用诊断
+
+`execution.failure`、`execution.stages[].failure` 和 `execution.terminalFailure` 保留通用失败字段，
+并提供可空的 `reason`、`citation` 与 `citationState`。阶段另返回 `stepId`。
+摘要只合并同一步骤、同一 activity attempt 的失败，不能因错误码相同而借用其他阶段的诊断。
+
+引用校验的 `citation` v1 是最多2 KiB的严格字段集合：`schema_version`、`validation_stage`，以及
+可选 `field`、`item_index`、`citation_index`、`start`、`end`、`text_length`、`offset_unit`、`actual_type`。
+输入项位置从0开始；引用编号沿用原编号。偏移必须结合 `offset_unit` 解读，分别支持 UTF-16 code unit、
+Unicode code point 和 UTF-8 byte；零值与未记录不同。原因目录、阶段和字段约束由
+[共享合同](../../../packages/contracts/src/citation-diagnostic.ts)维护，Go 读取方由共享样例校验一致性。
+历史缺失值显示 `not_recorded`；非法结构或不支持的版本显示 `invalid`；有效值为 `recorded`。
+可选诊断损坏不替换原失败，不从错误文案猜测历史原因。
+
+Runtime 在 HTTP、SSE 和失败结果中传递 `reason/citation`，execution-control 存入现有步骤、尝试和
+操作收据；返回 Temporal workflow 的决策结果不包含这两个诊断字段。终态收口仅恢复对应失败步骤的
+诊断，内部失败事件包含 `step_id`，Ops 通过 `ops_terminal_failures` 的固定投影读取。
+恢复合成将原错误包装为 `answer_synthesis_failed` 时，终态 `code` 保留这一分类，`sourceCode`
+保存原步骤错误码，原因和引用事实仍来自对应的失败 `answer.synthesize` 步骤。其他步骤、成功步骤或
+其他终态分类不能通过该包装规则借用原因。`failureCode` 始终筛选所在范围的 `code`；按包装终态查询
+引用原因时，使用 `failureCode=answer_synthesis_failed` 配合原因或校验阶段。
+本诊断不复制模型正文、搜索词、来源 URL 或认证信息，随原运行投影保留和删除。
+
+发布时先应用视图迁移并发布 execution-control、Ops 读取方，再发布 Runtime 生产方；旧 Go 严格解码器
+不接受新增字段。新增诊断只能解释新记录，不回填历史根因，也不证明原引用失败已修复。
+
+### 其他运行诊断
 
 `execution.stages[].modelOutputDiagnostic` 为可空的模型格式错误诊断。v1 包含 `schema_version`、
 `text`、`original_utf8_bytes`、`truncated`、`validation_stage`（`json_parse`/`schema_validation`）、

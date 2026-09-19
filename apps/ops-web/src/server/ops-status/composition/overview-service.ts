@@ -1,9 +1,14 @@
 import {
+	resolveTimeQuery,
+	type TimeQuery,
+	timeQueryCacheKey,
+	timeQueryWindow,
+} from "campus-contracts/ops-time";
+import {
 	type OpsDataState,
 	type OpsHealthStatus,
 	type OpsOverviewResponse,
 	OpsOverviewResponseSchema,
-	type OpsOverviewWindow,
 } from "../../../shared/ops-contract.ts";
 import { raceWithSignal } from "../../race-with-signal.ts";
 import type { OpsStatusOverview, OpsStatusStore } from "../contract.ts";
@@ -11,23 +16,10 @@ import type { OpsStatusOverview, OpsStatusStore } from "../contract.ts";
 const DEFAULT_TIMEOUT_MS = 3_000;
 const FRESH_CACHE_MS = 15_000;
 const STALE_CACHE_MS = 5 * 60_000;
+const MAX_CACHE_ENTRIES = 64;
 
 export interface OpsOverviewService {
-	getOverview(
-		window: OpsOverviewWindow,
-		input?: { signal?: AbortSignal },
-	): Promise<OpsOverviewResponse>;
-}
-
-interface SourceCache<T> {
-	storedAt: number;
-	value: T;
-}
-
-interface ResolvedSource<T> {
-	ageMs: number;
-	stale: boolean;
-	value: T;
+	getOverview(query: TimeQuery, input?: { signal?: AbortSignal }): Promise<OpsOverviewResponse>;
 }
 
 export function createOpsOverviewService(input: {
@@ -41,78 +33,71 @@ export function createOpsOverviewService(input: {
 	const cacheTtlMs = input.cacheTtlMs ?? FRESH_CACHE_MS;
 	const staleTtlMs = input.staleTtlMs ?? STALE_CACHE_MS;
 	const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-	const responseCache = new Map<OpsOverviewWindow, OpsOverviewResponse>();
-	const statusCache = new Map<OpsOverviewWindow, SourceCache<OpsStatusOverview>>();
-	const statusFlights = new Map<OpsOverviewWindow, Promise<OpsStatusOverview>>();
-
+	const responses = new Map<string, OpsOverviewResponse>();
+	const flights = new Map<string, Promise<OpsOverviewResponse>>();
 	return {
-		async getOverview(window, queryInput = {}) {
+		async getOverview(query, queryInput = {}) {
 			const requestedAt = now();
-			const requestedAtMs = requestedAt.valueOf();
-			const cached = responseCache.get(window);
-			const responseAgeMs = cached
-				? Math.max(0, requestedAtMs - Date.parse(cached.generatedAt))
-				: Number.POSITIVE_INFINITY;
-			if (cached && responseAgeMs <= cacheTtlMs) {
-				return { ...cached, cache: { ageMs: responseAgeMs, status: "FRESH" } };
+			const range = resolveTimeQuery(query, "overview", requestedAt);
+			const key = timeQueryCacheKey(query, range);
+			for (const [cacheKey, value] of responses) {
+				if (requestedAt.valueOf() - Date.parse(value.generatedAt) > staleTtlMs) {
+					responses.delete(cacheKey);
+				}
 			}
-
-			const statusPromise = singleFlight(statusFlights, window, () =>
-				withTimeout(() => input.store.getOverview(window), timeoutMs),
-			);
-			const [statusResult] = await raceWithSignal(
-				Promise.allSettled([statusPromise]),
-				queryInput.signal,
-			);
-			const status = resolveSource({
-				cache: statusCache.get(window),
-				fallback: unavailableStatusOverview,
-				markStale: markStatusStale,
-				nowMs: requestedAtMs,
-				result: statusResult,
-				staleTtlMs,
-			});
-
-			if (statusResult.status === "fulfilled") {
-				statusCache.set(window, { storedAt: requestedAtMs, value: statusResult.value });
+			const cached = responses.get(key);
+			const ageMs = cached
+				? Math.max(0, requestedAt.valueOf() - Date.parse(cached.generatedAt))
+				: 0;
+			if (cached && ageMs <= cacheTtlMs) {
+				return { ...cached, cache: { ageMs, status: "FRESH" } };
 			}
-
-			const response = OpsOverviewResponseSchema.parse({
-				cache: {
-					ageMs: status.ageMs,
-					status: status.stale ? "STALE" : "FRESH",
-				},
-				generatedAt: requestedAt.toISOString(),
-				health: summarizeHealth(status.value),
-				issues: collectIssues(status.value),
-				requests: status.value.requests,
-				trends: status.value.trends,
-				window,
-			});
-			if (statusResult.status === "fulfilled") {
-				responseCache.set(window, response);
+			const response = (status: OpsStatusOverview) =>
+				OpsOverviewResponseSchema.parse({
+					cache: { ageMs: 0, status: "FRESH" },
+					generatedAt: requestedAt.toISOString(),
+					filters: range,
+					window: timeQueryWindow(query),
+					health: summarizeHealth(status),
+					issues: collectIssues(status),
+					...status,
+				});
+			try {
+				return await raceWithSignal(
+					singleFlight(flights, key, async () => {
+						const value = response(
+							await withTimeout(() => input.store.getOverview(range), timeoutMs),
+						);
+						responses.delete(key);
+						responses.set(key, value);
+						while (responses.size > MAX_CACHE_ENTRIES) {
+							const oldest = responses.keys().next().value;
+							if (oldest !== undefined) {
+								responses.delete(oldest);
+							}
+						}
+						return value;
+					}),
+					queryInput.signal,
+				);
+			} catch (error) {
+				if (queryInput.signal?.aborted) {
+					throw error;
+				}
+				if (cached && ageMs <= staleTtlMs) {
+					const status = markStatusStale({ requests: cached.requests, trends: cached.trends });
+					return {
+						...cached,
+						...status,
+						cache: { ageMs, status: "STALE" },
+						health: summarizeHealth(status),
+						issues: collectIssues(status),
+					};
+				}
+				return response(unavailableStatusOverview());
 			}
-			return response;
 		},
 	};
-}
-
-function resolveSource<T>(input: {
-	cache: SourceCache<T> | null | undefined;
-	fallback: () => T;
-	markStale: (value: T) => T;
-	nowMs: number;
-	result: PromiseSettledResult<T>;
-	staleTtlMs: number;
-}): ResolvedSource<T> {
-	if (input.result.status === "fulfilled") {
-		return { ageMs: 0, stale: false, value: input.result.value };
-	}
-	const ageMs = input.cache ? Math.max(0, input.nowMs - input.cache.storedAt) : 0;
-	if (input.cache && ageMs <= input.staleTtlMs) {
-		return { ageMs, stale: true, value: input.markStale(input.cache.value) };
-	}
-	return { ageMs: 0, stale: false, value: input.fallback() };
 }
 
 function collectIssues(status: OpsStatusOverview): OpsOverviewResponse["issues"] {

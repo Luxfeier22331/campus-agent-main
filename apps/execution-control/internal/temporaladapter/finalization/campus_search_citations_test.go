@@ -68,9 +68,9 @@ func TestCampusSearchCitationValidationRemainsStrict(t *testing.T) {
 	}{
 		{"within call", "[1]", "result_ref is duplicated within one call", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item, item}, 1)}},
 		{"across call index", "[1]", "citation_index 1 is duplicated", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1), citationToolResult([]campusdocs.SearchResultItem{other}, 1)}},
-		{"unknown", "[2]", "outside successful results", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
-		{"zero", "[0]", "is invalid", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
-		{"out of range", "[11]", "outside successful results", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
+		{"unknown", "[2]", "引用编号没有对应证据", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
+		{"zero", "[0]", "引用标记非法", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
+		{"out of range", "[11]", "引用编号没有对应证据", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
 		{"invalid result index", "[11]", "result fields are invalid", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 11)}},
 		{"source identity", "[1]", "notice result fields are invalid", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{invalid}, 1)}},
 	} {

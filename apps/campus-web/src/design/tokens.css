@@ -76,6 +76,10 @@
 	--map-style-selection-outline: var(--campus-selected-border);
 	--map-style-sport-fill: #e1e8f5;
 	--dining-svg-canvas-bg: var(--sys-bg-subtle);
+	--dining-svg-surface-bg: var(--sys-surface-default);
+	--dining-svg-window-bg: var(--sys-surface-raised);
+	--dining-svg-window-text: var(--sys-text-default);
+	--dining-svg-window-border: var(--sys-text-subtle);
 	--dining-window-selected-stroke: var(--campus-selected-border);
 	--notice-category-blue-bg: #eef3ff;
 	--notice-category-blue-border: #b9caff;

@@ -138,20 +138,45 @@ test("root cache context records the index before cleaning Git variables and pre
 	assert.equal(env.GIT_INDEX_FILE, "/repo/alternate-index");
 });
 
-test("Node turbo tasks are capped at half the logical cores while native tasks stay serial", () => {
+test("Node turbo tasks respect CPU and cgroup memory limits while native tasks stay serial", () => {
 	const calls: string[] = [];
 	runPreCommitEvidence({ repositoryRoot: "/repo", env: {} }, stagedRunner(calls));
 	const nodeCommand = calls.find((call) => call.includes("web#test"));
 	const nativeCommand = calls.find((call) => call.includes("model-config#native:test"));
 	assert(nodeCommand?.includes(`--concurrency=${nodeTaskConcurrency()}`));
 	assert.equal(
-		nodeTaskConcurrency(() => [{}, {}, {}, {}, {}]),
+		nodeTaskConcurrency(
+			() => [{}, {}, {}, {}, {}],
+			() => 0,
+		),
 		2,
 	);
 	assert.equal(
-		nodeTaskConcurrency(() => [{}, {}, {}, {}, {}, {}, {}, {}]),
+		nodeTaskConcurrency(
+			() => [{}, {}, {}, {}, {}, {}, {}, {}],
+			() => 0,
+		),
 		4,
 	);
 	assert(nativeCommand?.includes("--concurrency=1"));
-	assert(!nativeCommand?.includes(`--concurrency=${nodeTaskConcurrency()}`));
+});
+
+test("six-core runner serializes Node tasks at 2 GiB and scales within its CPU cap", () => {
+	const cpus = () => [{}, {}, {}, {}, {}, {}];
+	assert.equal(
+		nodeTaskConcurrency(cpus, () => 2 ** 31),
+		1,
+	);
+	assert.equal(
+		nodeTaskConcurrency(cpus, () => 2 ** 32),
+		2,
+	);
+	assert.equal(
+		nodeTaskConcurrency(cpus, () => 2 ** 33),
+		3,
+	);
+	assert.equal(
+		nodeTaskConcurrency(cpus, () => 2 ** 30),
+		1,
+	);
 });

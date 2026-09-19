@@ -7,6 +7,7 @@ export const POSTGRES_ADMIN_URL =
 export function ensureSharedDatabaseRoles(): void {
 	const roles = [
 		["campus_agent", LOCAL_DEV_DATABASE_PASSWORDS.owner],
+		["product_data_ro", "local-product-data-ro"],
 		["app_api", LOCAL_DEV_DATABASE_PASSWORDS.appApi],
 		["execution_control", LOCAL_DEV_DATABASE_PASSWORDS.executionControl],
 		["model_config", LOCAL_DEV_DATABASE_PASSWORDS.modelConfig],
@@ -22,7 +23,14 @@ export function ensureSharedDatabaseRoles(): void {
 
 export function grantDatabaseConnect(databaseName: string): void {
 	runPsql(
-		["app_api", "execution_control", "model_config", "ops_web", "notice_publisher"]
+		[
+			"app_api",
+			"execution_control",
+			"model_config",
+			"ops_web",
+			"notice_publisher",
+			"product_data_ro",
+		]
 			.map(
 				(role) =>
 					`GRANT CONNECT ON DATABASE ${quoteIdentifier(databaseName)} TO ${quoteIdentifier(role)}`,
@@ -38,7 +46,14 @@ export function createLocalDatabase(databaseName: string): void {
 	runPsql(
 		[
 			`REVOKE ALL ON DATABASE ${quoteIdentifier(databaseName)} FROM PUBLIC`,
-			...["app_api", "execution_control", "model_config", "ops_web", "notice_publisher"].map(
+			...[
+				"app_api",
+				"execution_control",
+				"model_config",
+				"ops_web",
+				"notice_publisher",
+				"product_data_ro",
+			].map(
 				(role) =>
 					`GRANT CONNECT ON DATABASE ${quoteIdentifier(databaseName)} TO ${quoteIdentifier(role)}`,
 			),

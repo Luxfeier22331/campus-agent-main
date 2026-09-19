@@ -68,6 +68,35 @@ const catalog: ToolCatalog = {
 };
 
 describe("workflow operation runtime", () => {
+	it("streams executor retrieval while withholding its summary from answer deltas", async () => {
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async () => {
+				throw new Error("unexpected blocking runner");
+			},
+			streamingRunner: async function* (input) {
+				input.reportRetrieval?.("campus", "c", "started");
+				yield { delta: "内部步骤摘要" };
+				input.reportRetrieval?.("campus", "c", "no_match");
+				yield runnerResult({
+					finalOutput: JSON.stringify({ summary: "未找到资料", remainingFacts: [] }),
+				});
+			},
+		});
+		const events: WorkflowOperationStreamEvent[] = [];
+		for await (const event of runtime.stream(executeInput(taskStep("search", "检索资料")))) {
+			events.push(event);
+		}
+		expect(events.map((event) => event.event)).toEqual([
+			"retrieval_status",
+			"retrieval_status",
+			"completed",
+		]);
+		expect(events.at(-1)).toMatchObject({
+			data: { operation: "execute_step", status: "completed" },
+		});
+	});
+
 	it("recovers without a synthetic plan and retains admitted materials and failures", async () => {
 		const evidence: WorkflowEvidence = {
 			schemaVersion: "workflow_evidence.v1",
@@ -324,6 +353,7 @@ describe("workflow operation runtime", () => {
 							excerpt: JSON.stringify({ answer }),
 							title: "学校官网",
 							url: "https://www.muc.edu.cn/",
+							sourceLink: { href: null },
 						},
 					],
 				}),
@@ -332,7 +362,8 @@ describe("workflow operation runtime", () => {
 		expect(result).toMatchObject({
 			status: "completed",
 			finalOutput: answer,
-			webEvidence: [{ excerpt: answer, startIndex: 0, endIndex: 8 }],
+			webEvidence: [{ excerpt: answer, startIndex: 0, endIndex: 8, sourceLink: { href: null } }],
+			evidence: [{ id: "web:https://www.muc.edu.cn/", sourceLink: { href: null } }],
 		});
 	});
 
@@ -673,6 +704,7 @@ describe("workflow operation runtime", () => {
 						{
 							url: "https://www.muc.edu.cn/",
 							title: "官网",
+							sourceLink: { href: "https://www.muc.edu.cn/campus" },
 							excerpt: '{ "summary": "海淀校区地址。',
 						},
 					],
@@ -680,6 +712,10 @@ describe("workflow operation runtime", () => {
 		});
 		const result = await runtime.run(executeInput(step));
 		expect(result.evidence?.[0]?.excerpt).toBe("海淀校区地址。");
+		expect(result.evidence?.[0]).toMatchObject({
+			id: "web:https://www.muc.edu.cn/",
+			sourceLink: { href: "https://www.muc.edu.cn/campus" },
+		});
 	});
 	it("synthesizes only from supplied evidence and exposes no retrieval tools", async () => {
 		let observed: AgentRunnerInput | undefined;
@@ -832,7 +868,7 @@ describe("workflow operation runtime", () => {
 		);
 	});
 
-	it("streams only the synthesize operation and stops after its terminal result", async () => {
+	it("streams synthesis and stops after its terminal result", async () => {
 		let pulledAfterTerminal = false;
 		let closed = false;
 		const runtime = createWorkflowOperationRuntime({
@@ -888,7 +924,36 @@ describe("workflow operation runtime", () => {
 				)
 				[Symbol.asyncIterator]()
 				.next(),
-		).rejects.toThrow("Only solve and synthesize operations can be streamed.");
+		).rejects.toThrow("Only solve, execute_step and synthesize operations can be streamed.");
+	});
+
+	it("removes only historical assistant citations from model input", async () => {
+		let observed: AgentRunnerInput | undefined;
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async (input) => {
+				observed = input;
+				return runnerResult({
+					finalOutput: JSON.stringify({ outcome: "answer", answer: "暂未确认夜宵时间。" }),
+				});
+			},
+		});
+		const input = solveInput("其中哪个有夜宵？", 1);
+		input.conversationContext = {
+			schemaVersion: "agent_conversation_context.v1",
+			recentTurns: [
+				{ role: "user", content: "食堂 [1, 2]" },
+				{ role: "assistant", content: "聚雅[1](/notices/351886)，荟贤[2]。其他[3, 4]" },
+			],
+		};
+		await runtime.run(input);
+		expect(observed?.input).toEqual(
+			expect.arrayContaining([
+				{ role: "user", content: "食堂 [1, 2]" },
+				{ role: "assistant", content: "聚雅，荟贤。其他" },
+			]),
+		);
+		expect(input.conversationContext.recentTurns[1]?.content).toContain("[1](/notices/351886)");
 	});
 
 	it("truncates old conversation turns while retaining the current workflow operation", async () => {

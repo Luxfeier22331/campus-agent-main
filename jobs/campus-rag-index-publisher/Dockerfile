@@ -12,7 +12,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
   corepack enable pnpm \
   && pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-web-workspace
 COPY . .
-RUN ./node_modules/.bin/turbo prune campus-rag-index-publisher --docker --out-dir=/repo/out
+RUN ./node_modules/.bin/turbo prune campus-rag-index-publisher --docker --out-dir=/repo/out \
+  && node --experimental-strip-types scripts/release/prune-image.mts campus-rag-index-publisher /repo/out
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 ENV PNPM_HOME=/pnpm

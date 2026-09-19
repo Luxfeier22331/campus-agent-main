@@ -123,3 +123,31 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: qdrant-ro-secret-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: product-data-ro-secret-reader
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["pg-product-data-ro", "objectstore-ro", "qdrant-ro"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: product-data-readers-secret
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+subjects:
+  - kind: Group
+    name: product-data-readers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: product-data-ro-secret-reader

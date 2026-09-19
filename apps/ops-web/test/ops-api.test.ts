@@ -97,7 +97,7 @@ describe("ops API", () => {
 		const { app } = createTestApp();
 		const responses = await Promise.all([
 			app.request("/healthz"),
-			app.request("/api/ops/overview?window=1h"),
+			app.request("/api/ops/overview?window=today"),
 			app.request("/missing-page"),
 		]);
 
@@ -118,21 +118,21 @@ describe("ops API", () => {
 
 	it("serves a cached overview and validates its window", async () => {
 		const { app } = createTestApp();
-		const response = await app.request("/api/ops/overview?window=1h");
-		const invalid = await app.request("/api/ops/overview?window=30d");
+		const response = await app.request("/api/ops/overview?window=today");
+		const invalid = await app.request("/api/ops/overview?window=1h");
 
 		expect(response.status).toBe(200);
-		expect(await response.json()).toMatchObject({ window: "1h" });
+		expect(await response.json()).toMatchObject({ window: "today" });
 		expect(response.headers.get("cache-control")).toContain("max-age=15");
 		expect(invalid.status).toBe(400);
 	});
 
-	it("uses a one-hour request window by default", async () => {
+	it("uses today for request queries by default", async () => {
 		const { app } = createTestApp();
 		const response = await app.request("/api/ops/requests");
 
 		expect(response.status).toBe(200);
-		expect(await response.json()).toMatchObject({ window: "1h" });
+		expect(await response.json()).toMatchObject({ window: "today" });
 	});
 
 	it("rejects legacy and cross-view cursors while allowing status filters in attention view", async () => {

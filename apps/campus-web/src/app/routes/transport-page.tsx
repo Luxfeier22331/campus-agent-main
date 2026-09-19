@@ -2,7 +2,7 @@ import type {
 	TransportPublicScheduleResponse,
 	TransportServiceKind,
 } from "@campus-agent/transport/domain";
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { TransportMonthCalendar } from "@/components/transport/transport-calendar";
@@ -55,6 +55,7 @@ export function TransportPageContent({
 			: {},
 	);
 	const query = useQuery(transportScheduleQueryOptions(date));
+	const queryClient = useQueryClient();
 	const [lastSuccess, setLastSuccess] = useState<TransportPublicScheduleResponse>();
 	useEffect(() => {
 		if (query.isSuccess && !query.isPlaceholderData) {
@@ -128,6 +129,9 @@ export function TransportPageContent({
 			rider={rider}
 			now={now}
 			onDateChange={setDate}
+			onDateIntent={(target) => {
+				void queryClient.prefetchQuery(transportScheduleQueryOptions(target));
+			}}
 			onRouteChange={(id) =>
 				setSelectedRoutes((current) => ({ ...current, [activeServiceKind]: id }))
 			}

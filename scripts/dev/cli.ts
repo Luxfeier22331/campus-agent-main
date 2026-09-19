@@ -1,7 +1,6 @@
 import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-
 import {
 	diagnoseLocalDevInstances,
 	formatProfileSummary,
@@ -14,6 +13,7 @@ import {
 	initializeLocalDevelopmentTarget,
 	pruneLocalDevelopment,
 } from "./lifecycle";
+import { parseProductDataOptions } from "./product-data-options";
 import { reconcileSharedInfrastructure } from "./shared-infrastructure";
 import { LOCAL_DEV_TARGETS, type LocalDevTarget } from "./targets";
 
@@ -27,6 +27,7 @@ async function main(): Promise<void> {
 			case "init":
 				await initializeLocalDevelopmentTarget(repoRoot, readTarget(args), {
 					repair: args.includes("--repair"),
+					...parseProductDataOptions(args),
 				});
 				return;
 			case "doctor": {
@@ -102,8 +103,8 @@ function readTarget(values: string[]): LocalDevTarget {
 
 function readScope(values: string[]): LocalDoctorScope {
 	const value = readFlag(values, "--scope") ?? "config";
-	if (value !== "config" && value !== "runtime" && value !== "shared") {
-		throw new Error("Invalid doctor scope. Expected config, runtime, or shared.");
+	if (value !== "config" && value !== "runtime" && value !== "shared" && value !== "data") {
+		throw new Error("Invalid doctor scope. Expected config, runtime, shared, or data.");
 	}
 	return value;
 }
@@ -123,5 +124,5 @@ function formatInstanceDiagnosis(
 
 main().catch((error) => {
 	console.error(error instanceof Error ? error.message : String(error));
-	process.exitCode = 1;
+	process.exitCode ||= 1;
 });

@@ -87,11 +87,16 @@ export function createAgentRuntimeHandler(
 				return parsed;
 			}
 			const stream = url.pathname.endsWith("/stream");
-			if (stream && parsed.operation !== "solve" && parsed.operation !== "synthesize") {
+			if (
+				stream &&
+				parsed.operation !== "solve" &&
+				parsed.operation !== "synthesize" &&
+				parsed.operation !== "execute_step"
+			) {
 				return jsonResponse(400, {
 					error: {
 						code: "invalid_request",
-						message: "Only solve and synthesize operations support streaming.",
+						message: "Only solve, execute_step and synthesize operations support streaming.",
 						retryable: false,
 					},
 				});
@@ -115,7 +120,9 @@ export function createAgentRuntimeHandler(
 				);
 				if (
 					stream &&
-					(runtimeInput.operation === "solve" || runtimeInput.operation === "synthesize")
+					(runtimeInput.operation === "solve" ||
+						runtimeInput.operation === "synthesize" ||
+						runtimeInput.operation === "execute_step")
 				) {
 					const response = withAgentTraceAttributes(parsed, () =>
 						agentRunStreamResponse(

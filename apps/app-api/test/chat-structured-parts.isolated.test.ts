@@ -6,7 +6,70 @@ import { normalizeChatStructuredParts } from "../src/modules/chat";
 import { normalizeSourceItemsPart } from "../src/modules/runtime-command/service/normalize";
 
 describe("chat structured parts", () => {
-	it("preserves Google search suggestions without requiring source cards", () => {
+	it("persists resolved and unavailable sources without inventing an empty link", () => {
+		const parts = normalizeSourceItemsPart({
+			status: "completed",
+			result: {
+				sources: [
+					{
+						kind: "web_page",
+						title: "民大概况",
+						citation_index: 1,
+						url: "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm",
+						citation_href: "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm",
+						hostname: "www.muc.edu.cn",
+					},
+					{
+						kind: "web_page",
+						title: "网页标题暂不可用",
+						citation_index: 2,
+						url: null,
+						citation_href: null,
+						hostname: null,
+						unavailable_reason: "source_unavailable",
+					},
+					{
+						kind: "web_page",
+						title: "网页标题暂不可用",
+						citation_index: 3,
+						url: null,
+						citation_href: null,
+						hostname: null,
+						unavailable_reason: "source_unavailable",
+					},
+				],
+			},
+		});
+		expect(parts[0]?.sourceItems).toHaveLength(3);
+		expect(parts[0]?.sourceItems[0]).toMatchObject({
+			title: "民大概况",
+			primaryAction: { href: "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm", disabledReason: null },
+		});
+		expect(parts[0]?.sourceItems[1]).toMatchObject({
+			citationIndexes: [2],
+			hostname: null,
+			primaryAction: { href: null, disabledReason: "source_unavailable" },
+		});
+		expect(normalizeChatStructuredParts(JSON.parse(JSON.stringify(parts)))).toEqual(parts);
+		expect(() =>
+			normalizeSourceItemsPart({
+				status: "completed",
+				result: {
+					sources: [
+						{
+							kind: "web_page",
+							title: "invalid",
+							citation_index: 1,
+							url: null,
+							citation_href: null,
+							hostname: null,
+						},
+					],
+				},
+			}),
+		).toThrow("invalid");
+	});
+	it("discards retired Google search suggestions from execution results", () => {
 		const html = '<div><a href="https://www.google.com/search?q=muc">MUC</a></div>';
 		const parts = normalizeSourceItemsPart({
 			status: "completed",
@@ -17,9 +80,7 @@ describe("chat structured parts", () => {
 				],
 			},
 		});
-		expect(parts).toEqual([
-			{ type: "search_suggestions", provider: "google", renderedContent: html },
-		]);
+		expect(parts).toEqual([]);
 		expect(
 			normalizeSourceItemsPart({
 				status: "error",
@@ -49,6 +110,12 @@ describe("chat structured parts", () => {
 			status: "completed",
 		});
 
+		expect(
+			normalizeChatStructuredParts([
+				...parts,
+				{ type: "search_suggestions", provider: "google", renderedContent: "<div>legacy</div>" },
+			]),
+		).toEqual(parts);
 		expect(parts).toEqual([
 			{
 				sourceItems: [
@@ -276,6 +343,12 @@ describe("chat structured parts", () => {
 			status: "completed",
 		});
 
+		expect(
+			normalizeChatStructuredParts([
+				...parts,
+				{ type: "search_suggestions", provider: "google", renderedContent: "<div>legacy</div>" },
+			]),
+		).toEqual(parts);
 		expect(parts).toEqual([
 			{
 				sourceItems: [

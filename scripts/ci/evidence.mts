@@ -3,8 +3,8 @@ import { appendFileSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { imageTargetsForScope } from "../release/image-targets.mts";
 import { readNodeVersion } from "../toolchain/node-version.mts";
+import { imageScopeBetween } from "./image-scope.mts";
 import {
 	type AffectedScope,
 	type CommandResult,
@@ -127,8 +127,15 @@ function runProfileCommand(
 	}
 }
 
-export function nodeTaskConcurrency(cpus: () => os.CpuInfo[] = os.cpus): number {
-	return Math.max(2, Math.floor(cpus().length / 2));
+export function nodeTaskConcurrency(
+	cpus: () => os.CpuInfo[] = os.cpus,
+	constrainedMemory: () => number = process.constrainedMemory,
+): number {
+	const cpuLimit = Math.max(2, Math.floor(cpus().length / 2));
+	const memory = constrainedMemory();
+	// The 2 GiB runner cgroup OOM-killed tsc when three tasks ran together.
+	const memoryLimit = memory > 0 ? Math.max(1, Math.floor(memory / 2 ** 31)) : cpuLimit;
+	return Math.min(cpuLimit, memoryLimit);
 }
 
 export function runTasks(
@@ -199,7 +206,7 @@ function runAffectedImageEvidence(
 	runner: EvidenceCommandRunner,
 	options: { cwd: string; env: NodeJS.ProcessEnv },
 ): void {
-	const images = imageTargetsForScope(input.scope);
+	const images = imageScopeBetween(input.scope.base, input.scope.head, options.cwd, runner).images;
 	if (images.length === 0) {
 		return;
 	}

@@ -345,7 +345,7 @@ describe("campus worker boundary", () => {
 		expect(csp).toContain("frame-src 'self' https://challenges.cloudflare.com");
 		expect(csp).not.toContain("https://cloudflareinsights.com");
 		expect(csp).toContain("connect-src 'self'");
-		expect(csp).toContain("img-src 'self' https://p.qlogo.cn data: blob:");
+		expect(csp).toContain("img-src 'self' https: https://p.qlogo.cn data: blob:");
 		expect(csp).not.toContain("https://cdn.platform.openai.com");
 	});
 

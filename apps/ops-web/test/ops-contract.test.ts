@@ -15,7 +15,7 @@ import {
 describe("ops-web contract fixtures", () => {
 	it("validates a windowed request list", () => {
 		const parsed = OpsRequestListResponseSchema.parse(opsRequestListFixture);
-		expect(parsed.window).toBe("1h");
+		expect(parsed.window).toBe("today");
 		expect(parsed.data[0]).toMatchObject({
 			executionStage: { kind: "agent", status: "completed" },
 			requestId: "req_ops_001",
@@ -47,7 +47,7 @@ describe("ops-web contract fixtures", () => {
 
 	it("validates the product request overview contract", () => {
 		const parsed = OpsOverviewResponseSchema.parse(opsOverviewFixture);
-		expect(parsed.window).toBe("1h");
+		expect(parsed.window).toBe("today");
 		expect(parsed.health.status).toBe("DEGRADED");
 		expect(parsed.requests.dataState).toBe("FRESH");
 		expect(parsed.requests.status).toBe("DEGRADED");

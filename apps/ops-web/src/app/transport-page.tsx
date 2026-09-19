@@ -124,9 +124,7 @@ function TransportWorkspace({
 	const target = periods.find((period) => period.scheduleId === initialScheduleId);
 	const targetRoute = routes.find((route) => route.routeId === target?.routeId);
 	const kinds = KINDS.filter((kind) => routes.some((route) => route.serviceKind === kind));
-	const [requestedKind, setKind] = useState<ServiceKind>(
-		requestedKindProp ?? targetRoute?.serviceKind ?? kinds[0] ?? "commute",
-	);
+	const requestedKind = requestedKindProp ?? targetRoute?.serviceKind ?? kinds[0] ?? "commute";
 	const kind = kinds.includes(requestedKind) ? requestedKind : (kinds[0] ?? "commute");
 	const kindRoutes = routes.filter((route) => route.serviceKind === kind);
 	const [selectedId, setSelectedId] = useState<string | undefined>(targetRoute?.routeId);
@@ -161,7 +159,7 @@ function TransportWorkspace({
 		resolvedEntry.current = undefined;
 		void navigate({
 			to: "/transport",
-			search: {},
+			search: { kind },
 			replace: true,
 			resetScroll: false,
 			ignoreBlocker: true,
@@ -204,9 +202,12 @@ function TransportWorkspace({
 	const selectKind = (value: string) =>
 		guard(() => {
 			close();
-			setKind(value as ServiceKind);
 			setSelectedId(undefined);
-			void navigate({ search: { kind: value as ServiceKind }, to: "/transport" });
+			void navigate({
+				search: { kind: value as ServiceKind },
+				to: "/transport",
+				ignoreBlocker: true,
+			});
 		});
 	const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
 	const [viewDate, setViewDate] = useState(target?.validFrom ?? today);
@@ -222,7 +223,6 @@ function TransportWorkspace({
 		setBusy(false);
 		setEditor(target ? { type: "period", source: target, copy: false } : null);
 		if (target && targetRoute) {
-			setKind(targetRoute.serviceKind);
 			setSelectedId(targetRoute.routeId);
 			setViewDate(target.validFrom);
 			setCalendarMonth(`${target.validFrom.slice(0, 7)}-01`);
@@ -384,7 +384,11 @@ function TransportWorkspace({
 									onCancel={() => guard(close)}
 									onSaved={(route) => {
 										close();
-										setKind(route.serviceKind);
+										void navigate({
+											to: "/transport",
+											search: { kind: route.serviceKind },
+											ignoreBlocker: true,
+										});
 										setSelectedId(route.routeId);
 										onChanged();
 									}}

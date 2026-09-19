@@ -7,11 +7,6 @@ import { createNoticeDatabasePool, readNoticeDatabaseConfig } from "@campus-agen
 
 const LOCAL_DATABASE_NAME = /^campus_agent_wt_[0-9]+_[a-f0-9]{8}$/u;
 
-try {
-	process.loadEnvFile(new URL("../.env.local", import.meta.url));
-} catch (error) {
-	if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-}
 
 export async function seedLocalNoticeCategories(
 	envOverrides: Record<string, string | undefined> = process.env,

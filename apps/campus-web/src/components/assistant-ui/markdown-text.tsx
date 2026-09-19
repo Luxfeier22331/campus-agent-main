@@ -10,18 +10,27 @@ import {
 } from "@assistant-ui/react-markdown";
 import { cn } from "@campus-agent/ui";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { type FC, memo, useState } from "react";
+import { type FC, memo, useContext, useMemo, useState } from "react";
 import remarkGfm from "remark-gfm";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import {
+	CitationPreview,
+	CitationSourcesContext,
+} from "@/components/conversation/citation-preview";
+import { remarkCitations } from "@/components/conversation/remark-citations";
 
-const MarkdownTextImpl = () => (
-	<MarkdownTextPrimitive
-		remarkPlugins={[remarkGfm]}
-		className="aui-md"
-		components={defaultComponents}
-		defer
-	/>
-);
+const MarkdownTextImpl = () => {
+	const sources = useContext(CitationSourcesContext);
+	const citationsPlugin = useMemo(() => () => remarkCitations(sources), [sources]);
+	return (
+		<MarkdownTextPrimitive
+			remarkPlugins={[remarkGfm, citationsPlugin]}
+			className="aui-md"
+			components={defaultComponents}
+			defer
+		/>
+	);
+};
 
 export const MarkdownText = memo(MarkdownTextImpl);
 
@@ -119,15 +128,20 @@ const defaultComponents = memoizeMarkdownComponents({
 	p: ({ className, ...props }) => (
 		<p className={cn("aui-md-p my-3 leading-relaxed first:mt-0 last:mb-0", className)} {...props} />
 	),
-	a: ({ className, ...props }) => (
-		<a
-			className={cn(
-				"aui-md-a text-link hover:text-link-hover underline underline-offset-2",
-				className,
-			)}
-			{...props}
-		/>
-	),
+	a: ({ className, ...props }) =>
+		(props as { "data-citation-index"?: string })["data-citation-index"] === undefined ? (
+			<a
+				className={cn(
+					"aui-md-a text-link hover:text-link-hover underline underline-offset-2",
+					className,
+				)}
+				{...props}
+			/>
+		) : (
+			<CitationPreview
+				index={Number((props as { "data-citation-index"?: string })["data-citation-index"])}
+			/>
+		),
 	blockquote: ({ className, ...props }) => (
 		<blockquote
 			className={cn(

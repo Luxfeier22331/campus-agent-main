@@ -1,62 +1,35 @@
 import { z } from "zod";
 
-export const TIME_WINDOWS = ["15m", "1h", "6h", "24h", "7d", "30d", "90d"] as const;
+export const TIME_WINDOWS = [
+	"today",
+	"24h",
+	"this-week",
+	"this-month",
+	"last-month",
+	"30d",
+] as const;
 export type TimeWindow = (typeof TIME_WINDOWS)[number];
 export type TimeScope = "overview" | "requests" | "conversations" | "accountEvents";
-export const TIME_WINDOW_MS: Record<TimeWindow, number> = {
-	"15m": 900_000,
-	"1h": 3_600_000,
-	"6h": 21_600_000,
-	"24h": 86_400_000,
-	"7d": 604_800_000,
-	"30d": 2_592_000_000,
-	"90d": 7_776_000_000,
-};
+export const DAY_MS = 86_400_000;
+export const MAX_TIME_SPAN_MS = 90 * DAY_MS;
+const BEIJING_OFFSET_MS = 8 * 3_600_000;
 export const TIME_WINDOW_LABELS: Record<TimeWindow, string> = {
-	"15m": "15 分钟",
-	"1h": "1 小时",
-	"6h": "6 小时",
-	"24h": "24 小时",
-	"7d": "7 天",
-	"30d": "30 天",
-	"90d": "90 天",
+	today: "今日",
+	"24h": "最近24h",
+	"this-week": "本周",
+	"this-month": "本月",
+	"last-month": "上月",
+	"30d": "最近30d",
 };
-export const TIME_SCOPE: Record<
-	TimeScope,
-	{
-		windows: readonly TimeWindow[];
-		defaultWindow: TimeWindow | null;
-		maxSpan: number | null;
-		label: string;
-	}
-> = {
-	overview: {
-		windows: ["15m", "1h", "6h", "24h"],
-		defaultWindow: "1h",
-		maxSpan: TIME_WINDOW_MS["24h"],
-		label: "请求开始时间",
-	},
-	requests: {
-		windows: ["15m", "1h", "6h", "24h", "7d"],
-		defaultWindow: "1h",
-		maxSpan: TIME_WINDOW_MS["7d"],
-		label: "请求开始时间",
-	},
-	conversations: {
-		windows: ["24h", "7d", "30d", "90d"],
-		defaultWindow: null,
-		maxSpan: null,
-		label: "最近活动时间",
-	},
-	accountEvents: {
-		windows: ["24h", "7d", "30d", "90d"],
-		defaultWindow: "7d",
-		maxSpan: TIME_WINDOW_MS["90d"],
-		label: "操作发生时间",
-	},
+export const TIME_SCOPE: Record<TimeScope, { label: string }> = {
+	overview: { label: "请求开始时间" },
+	requests: { label: "请求开始时间" },
+	conversations: { label: "最近活动时间" },
+	accountEvents: { label: "操作发生时间" },
 };
+export const TimeWindowSchema = z.enum(TIME_WINDOWS);
 export const timeQueryShape = {
-	window: z.enum(TIME_WINDOWS).optional(),
+	window: TimeWindowSchema.optional(),
 	from: z.iso.datetime({ offset: true }).optional(),
 	to: z.iso.datetime({ offset: true }).optional(),
 };
@@ -72,26 +45,27 @@ export const TimeFiltersSchema = z
 	})
 	.strict();
 export type TimeFilters = z.infer<typeof TimeFiltersSchema>;
-export function validateTimeQuery(scope: TimeScope) {
+export interface ResolvedTimeRange {
+	from: string;
+	to: string;
+}
+
+export function validateTimeQuery(_scope: TimeScope) {
 	return (value: TimeQuery, ctx: z.RefinementCtx) => {
-		const policy = TIME_SCOPE[scope];
 		const error = (message: string) => ctx.addIssue({ code: "custom", message, path: ["window"] });
-		if (value.window && !policy.windows.includes(value.window)) {
-			error("该页面不支持此时间窗口。");
-		}
 		if (value.window && (value.from || value.to)) {
-			error("快捷窗口和自定义时间不能同时使用。");
+			error("快捷区间和自选日期不能同时使用。");
 		}
-		if (scope !== "conversations" && Boolean(value.from) !== Boolean(value.to)) {
-			error("请同时填写开始和结束时间。");
+		if (Boolean(value.from) !== Boolean(value.to)) {
+			error("请同时填写开始和结束日期。");
 		}
 		if (value.from && value.to) {
 			const span = Date.parse(value.to) - Date.parse(value.from);
 			if (span <= 0) {
 				error("结束时间必须晚于开始时间。");
 			}
-			if (policy.maxSpan !== null && span > policy.maxSpan) {
-				error("时间跨度超出当前页面支持的范围。");
+			if (span > MAX_TIME_SPAN_MS) {
+				error("时间跨度不能超过90天。");
 			}
 		}
 	};
@@ -103,16 +77,59 @@ export function resolveTimeQuery(
 	query: TimeQuery,
 	scope: TimeScope,
 	now = new Date(),
-): TimeFilters {
-	const parsed = timeQuerySchema(scope).parse(query);
-	if (parsed.from || parsed.to) {
-		return { from: parsed.from ?? null, to: parsed.to ?? null };
+): ResolvedTimeRange {
+	const parsed = timeQuerySchema(scope).parse({
+		window: query.window,
+		from: query.from,
+		to: query.to,
+	});
+	if (parsed.from && parsed.to) {
+		return { from: new Date(parsed.from).toISOString(), to: new Date(parsed.to).toISOString() };
 	}
-	const window = parsed.window ?? TIME_SCOPE[scope].defaultWindow;
-	return window
-		? {
-				from: new Date(now.valueOf() - TIME_WINDOW_MS[window]).toISOString(),
-				to: now.toISOString(),
-			}
-		: { from: null, to: null };
+	const window = parsed.window ?? "today";
+	const local = new Date(now.valueOf() + BEIJING_OFFSET_MS);
+	const midnight =
+		Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - BEIJING_OFFSET_MS;
+	const monthStart = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1) - BEIJING_OFFSET_MS;
+	const from =
+		window === "24h"
+			? now.valueOf() - DAY_MS
+			: window === "30d"
+				? now.valueOf() - 30 * DAY_MS
+				: window === "this-week"
+					? midnight - ((local.getUTCDay() + 6) % 7) * DAY_MS
+					: window === "this-month"
+						? monthStart
+						: window === "last-month"
+							? Date.UTC(local.getUTCFullYear(), local.getUTCMonth() - 1, 1) - BEIJING_OFFSET_MS
+							: midnight;
+	return {
+		from: new Date(from).toISOString(),
+		to: new Date(window === "last-month" ? monthStart : now.valueOf()).toISOString(),
+	};
+}
+
+export function beijingDate(value: string): string {
+	return new Date(Date.parse(value) + BEIJING_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Date inputs include both calendar days; query endpoints are always [from, to). */
+export function dateRangeQuery(startDate: string, endDate: string): ResolvedTimeRange {
+	const date = z.iso.date();
+	const from = new Date(`${date.parse(startDate)}T00:00:00+08:00`).toISOString();
+	const to = new Date(Date.parse(`${date.parse(endDate)}T00:00:00+08:00`) + DAY_MS).toISOString();
+	return resolveTimeQuery({ from, to }, "overview");
+}
+
+export function timeQueryWindow(query: TimeQuery): TimeWindow | null {
+	return query.from || query.to ? null : (query.window ?? "today");
+}
+
+/** Rolling presets share their short-lived cache; calendar presets cannot cross their period. */
+export function timeQueryCacheKey(query: TimeQuery, range: ResolvedTimeRange): string {
+	const window = timeQueryWindow(query);
+	if (window === "24h" || window === "30d") {
+		return window;
+	}
+	return window ? `${window}:${range.from}` : `${range.from}/${range.to}`;
 }

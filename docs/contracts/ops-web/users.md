@@ -61,3 +61,6 @@ status: active
 跨应用可执行合同由 `campus-contracts/account-admin` 维护，并生成
 `packages/contracts/schemas/account-admin.v1.schema.json`。通用身份、错误和安全规则见
 [Ops Web 接口](./README.md)。
+
+账号操作记录使用[统一时间范围](./runtime.md#时间范围)，默认今日，按操作发生时间采用
+`[from, to)` 过滤；自选日期最多90天，响应 `filters` 返回实际查询边界。

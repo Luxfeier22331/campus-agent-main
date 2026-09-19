@@ -24,12 +24,10 @@ export interface ChatNoticeSourceAction {
 	disabledReason: null;
 }
 
-export interface ChatWebSourceAction {
+export type ChatWebSourceAction = {
 	label: "打开网页";
-	href: string;
 	external: true;
-	disabledReason: null;
-}
+} & ({ href: string; disabledReason: null } | { href: null; disabledReason: "source_unavailable" });
 
 export type ChatSourceAction =
 	| ChatCampusSourceAction
@@ -60,7 +58,7 @@ export interface ChatNoticeSourceItem {
 export interface ChatWebSourceItem {
 	citationIndexes: number[];
 	kind: "web_page";
-	hostname: string;
+	hostname: string | null;
 	title: string;
 	snippet: string | null;
 	primaryAction: ChatWebSourceAction;
@@ -73,12 +71,7 @@ export interface ChatSourceItemsStructuredPart {
 	sourceItems: ChatSourceItem[];
 }
 
-export interface ChatSearchSuggestionsPart {
-	type: "search_suggestions";
-	provider: "google";
-	renderedContent: string;
-}
-export type ChatMessageStructuredPart = ChatSourceItemsStructuredPart | ChatSearchSuggestionsPart;
+export type ChatMessageStructuredPart = ChatSourceItemsStructuredPart;
 
 export interface ChatSessionSlot {
 	confirmed: boolean;
@@ -284,6 +277,14 @@ function normalizeSourceAction(value: unknown): ChatSourceAction | null {
 		};
 	}
 	if (value.external === true && value.label === "打开网页") {
+		if (value.href === null && value.disabledReason === "source_unavailable") {
+			return {
+				label: "打开网页",
+				external: true,
+				href: null,
+				disabledReason: "source_unavailable",
+			};
+		}
 		const href = normalizeExternalWebHref(value.href);
 		if (!href) {
 			return null;
@@ -365,7 +366,10 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 
 	if (value.kind === "web_page" && primaryAction.external === true) {
 		const hostname = normalizeOptionalString(value.hostname);
-		if (!hostname) {
+		if (
+			primaryAction.href !== null &&
+			(!hostname || new URL(primaryAction.href).hostname !== hostname)
+		) {
 			return null;
 		}
 		return {
@@ -411,18 +415,6 @@ function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | nu
 		return null;
 	}
 
-	if (
-		value.type === "search_suggestions" &&
-		value.provider === "google" &&
-		typeof value.renderedContent === "string" &&
-		value.renderedContent.trim()
-	) {
-		return {
-			type: "search_suggestions",
-			provider: "google",
-			renderedContent: value.renderedContent,
-		};
-	}
 	if (value.type === "source_items") {
 		const sourceItems = normalizeSourceItems(value.sourceItems);
 		if (sourceItems.length === 0) {

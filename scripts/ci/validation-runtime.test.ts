@@ -188,3 +188,181 @@ test("resolved native tasks include workspace/toolchain files and pass cache dir
 		assert(task.environmentVariables.specified.passThroughEnv.includes("GOCACHE"), task.taskId);
 	}
 });
+
+test("real Turbo keeps integration-only app dependencies out of ordinary test caches", () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), "campus-app-test-cache-"));
+	const write = (file: string, contents: string) => {
+		mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+		writeFileSync(path.join(root, file), contents);
+	};
+	const json = (file: string, value: unknown) => write(file, JSON.stringify(value));
+	const git = (...args: string[]) =>
+		execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: "pipe" }).trim();
+	const env = { ...process.env, TURBO_TELEMETRY_DISABLED: "1", TURBO_CACHE: "local:rw" };
+	const ordinary = ["campus-web#test", "app-api#test", "ops-web#test"] as const;
+	const integration = [
+		"app-api#test:shared-db-integration",
+		"ops-web#test:database-integration",
+	] as const;
+	const turbo = (...args: string[]) =>
+		execFileSync("pnpm", ["exec", "turbo", "run", ...args], {
+			cwd: root,
+			env,
+			encoding: "utf8",
+			stdio: "pipe",
+		});
+	interface Task {
+		taskId: string;
+		hash: string;
+		cache: { local: boolean };
+		resolvedTaskDefinition: { cache: boolean };
+	}
+	const plan = (): Map<string, Task> => {
+		const result = JSON.parse(turbo(...ordinary, ...integration, "--dry-run=json"));
+		return new Map(result.tasks.map((task: Task) => [task.taskId, task]));
+	};
+
+	try {
+		symlinkSync(path.join(ROOT, "node_modules"), path.join(root, "node_modules"), "dir");
+		write(".gitignore", "node_modules\n.turbo\n");
+		write(
+			"pnpm-workspace.yaml",
+			'packages:\n  - "apps/*"\n  - "jobs/*"\n  - "packages/*"\n  - "packages/domains/*"\n',
+		);
+		json("package.json", {
+			name: "app-test-cache-fixture",
+			private: true,
+			packageManager: rootManifest.packageManager,
+		});
+		const manifests = execFileSync("git", ["ls-files", ":(glob)**/package.json"], {
+			cwd: ROOT,
+			encoding: "utf8",
+		})
+			.trim()
+			.split("\n")
+			.filter((file) => file !== "package.json");
+		let lock = "lockfileVersion: '9.0'\nimporters:\n  .: {}\n";
+		for (const file of manifests) {
+			const manifest = JSON.parse(readFileSync(path.join(ROOT, file), "utf8"));
+			const workspaceDependencies = Object.fromEntries(
+				Object.entries({ ...manifest.dependencies, ...manifest.devDependencies }).filter(
+					([, value]) => typeof value === "string" && value.startsWith("workspace:"),
+				),
+			);
+			const scripts = Object.fromEntries(
+				["test", "test:database-integration", "test:shared-db-integration"]
+					.filter((task) => manifest.scripts?.[task])
+					.map((task) => [task, "node -e \"process.stdout.write('checked\\n')\""]),
+			);
+			json(file, { name: manifest.name, dependencies: workspaceDependencies, scripts });
+			lock += `  ${path.dirname(file)}: {}\n`;
+		}
+		write("pnpm-lock.yaml", lock);
+		json("turbo.json", {
+			futureFlags: rootTurbo.futureFlags,
+			tasks: Object.fromEntries(
+				["test", "ops-web#test", "test:database-integration", "test:shared-db-integration"].map(
+					(task) => [task, rootTurbo.tasks[task]],
+				),
+			),
+		});
+		for (const app of ["app-api", "ops-web", "campus-web"]) {
+			const config = JSON.parse(readFileSync(path.join(ROOT, `apps/${app}/turbo.json`), "utf8"));
+			json(`apps/${app}/turbo.json`, {
+				extends: ["//"],
+				tasks: Object.fromEntries(
+					Object.entries(config.tasks).filter(([task]) =>
+						["test", "test:database-integration", "test:shared-db-integration"].includes(task),
+					),
+				),
+			});
+		}
+		const cases = [
+			{
+				file: "apps/campus-web/src/app/routes/dining-page.tsx",
+				changed: [ordinary[0], integration[0]],
+				unchanged: [ordinary[1], ordinary[2]],
+			},
+			{
+				file: "apps/campus-web/test-support/worker.ts",
+				changed: [integration[0]],
+				unchanged: [ordinary[1], ordinary[2]],
+			},
+			{
+				file: "apps/app-api/src/modules/dining/store.ts",
+				changed: [ordinary[1], integration[1]],
+				unchanged: [ordinary[0], ordinary[2]],
+			},
+			{
+				file: "apps/app-api/test-support/dining.ts",
+				changed: [integration[1]],
+				unchanged: [ordinary[0], ordinary[2]],
+			},
+			{
+				file: "apps/ops-web/test/setup.ts",
+				changed: [ordinary[2]],
+				unchanged: [ordinary[0], ordinary[1]],
+			},
+			{
+				file: "apps/ops-web/src/server/transport-store.ts",
+				changed: [ordinary[2], integration[1]],
+				unchanged: [ordinary[0], ordinary[1]],
+			},
+			{
+				file: "packages/contracts/src/contract.ts",
+				changed: ordinary,
+				unchanged: [],
+			},
+			{ file: ".dockerignore", changed: [ordinary[2]], unchanged: [ordinary[0], ordinary[1]] },
+		] as const;
+		for (const { file } of cases) {
+			write(file, "// initial fixture\n");
+		}
+		git("init", "-q");
+		git("config", "user.name", "Fixture");
+		git("config", "user.email", "fixture@example.invalid");
+		git("config", "commit.gpgSign", "false");
+		git("add", ".");
+		git("commit", "-qm", "fixture");
+		turbo(...ordinary, "--concurrency=1");
+		const before = plan();
+		for (const task of ordinary) {
+			assert.equal(before.get(task)?.cache.local, true, task);
+		}
+		for (const task of integration) {
+			assert.equal(before.get(task)?.resolvedTaskDefinition.cache, false, task);
+		}
+		for (const { file, changed, unchanged } of cases) {
+			write(file, "// changed fixture\n");
+			const after = plan();
+			for (const task of changed) {
+				assert.notEqual(
+					after.get(task)?.hash,
+					before.get(task)?.hash,
+					`${file} must invalidate ${task}`,
+				);
+				assert.equal(after.get(task)?.cache.local, false, task);
+			}
+			for (const task of unchanged) {
+				assert.equal(
+					after.get(task)?.hash,
+					before.get(task)?.hash,
+					`${file} must not invalidate ${task}`,
+				);
+				assert.equal(after.get(task)?.cache.local, true, task);
+			}
+			write(file, "// initial fixture\n");
+		}
+		const base = git("rev-parse", "HEAD");
+		write("apps/app-api/test-support/dining.ts", "// changed adapter\n");
+		git("add", ".");
+		git("commit", "-qm", "change shared database adapter");
+		const affected = JSON.parse(turbo(...integration, `--filter=...[${base}]`, "--dry-run=json"));
+		assert(
+			affected.tasks.some((task: Task) => task.taskId === integration[1]),
+			"app-api adapter changes must select Ops database integration",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});

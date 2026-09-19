@@ -1,3 +1,7 @@
+import {
+	CitationDiagnosticSchema,
+	FailureReasonSchema,
+} from "campus-contracts/citation-diagnostic";
 import { ModelOutputDiagnosticSchema } from "../../../shared/model-output-diagnostic.ts";
 import type { OpsRequestDetailResponse } from "../../../shared/ops-contract.ts";
 import { WebSearchDiagnosticSchema } from "../../../shared/web-search-diagnostic.ts";
@@ -17,6 +21,8 @@ export function toExecutionDiagnostics(
 		const payload = isRecord(stage.sanitizedPayloadJson) ? stage.sanitizedPayloadJson : {};
 		const failure = readExecutionFailure(payload.failure);
 		return {
+			stepId: stage.stepId,
+			failure,
 			webSearchDiagnostic:
 				WebSearchDiagnosticSchema.safeParse(payload.web_search_diagnostic).data ?? null,
 			modelOutputDiagnostic:
@@ -42,6 +48,14 @@ export function toExecutionDiagnostics(
 		: {};
 	const stageFailure = readExecutionFailure(failedStagePayload.failure);
 	const failedAttempt = [...diagnostics.modelAttempts].reverse().find((attempt) => {
+		if (
+			failedStage &&
+			(failedStage.activityAttempt === undefined ||
+				attempt.stepId !== failedStage.stepId ||
+				attempt.activityAttempt !== failedStage.activityAttempt)
+		) {
+			return false;
+		}
 		const payload = isRecord(attempt.sanitizedPayloadJson) ? attempt.sanitizedPayloadJson : {};
 		return attempt.status === "failed" || readExecutionFailure(payload.failure) !== null;
 	});
@@ -67,6 +81,10 @@ export function toExecutionDiagnostics(
 		campusSearch: toCampusSearchDiagnostics(diagnostics.campusSearch, row.completedAt !== null),
 		failCloseReason: normalizeNullableString(row.failCloseReason),
 		failure: {
+			...(failure?.sourceCode ? { sourceCode: failure.sourceCode } : {}),
+			reason: failure?.reason ?? null,
+			citation: failure?.citation ?? null,
+			citationState: failure?.citationState ?? "not_recorded",
 			code: failure?.code ?? null,
 			detail: failure?.detail ?? null,
 			httpStatus: failure?.httpStatus ?? null,
@@ -96,7 +114,7 @@ export function toExecutionDiagnostics(
 	};
 }
 
-function readExecutionFailure(
+export function readExecutionFailure(
 	value: unknown,
 ): OpsRequestDetailResponse["execution"]["failure"] | null {
 	if (!isRecord(value)) {
@@ -110,7 +128,21 @@ function readExecutionFailure(
 	if (!(code || detail) && httpStatus === null && !invocationId && !operation) {
 		return null;
 	}
-	return { code, detail, httpStatus, invocationId, operation };
+	const citation = CitationDiagnosticSchema.safeParse(value.citation);
+	return {
+		code,
+		...(normalizeNullableString(value.source_code)
+			? { sourceCode: normalizeNullableString(value.source_code) }
+			: {}),
+		detail,
+		httpStatus,
+		invocationId,
+		operation,
+		reason: FailureReasonSchema.safeParse(value.reason).data ?? null,
+		citation: citation.success ? citation.data : null,
+		citationState:
+			value.citation == null ? "not_recorded" : citation.success ? "recorded" : "invalid",
+	};
 }
 
 function mergeExecutionFailures(
@@ -125,6 +157,16 @@ function mergeExecutionFailures(
 	}
 	return {
 		code: stageFailure.code,
+		...(stageFailure.sourceCode ? { sourceCode: stageFailure.sourceCode } : {}),
+		reason: stageFailure.reason ?? attemptFailure.reason,
+		citation:
+			stageFailure.citationState === "not_recorded"
+				? attemptFailure.citation
+				: stageFailure.citation,
+		citationState:
+			stageFailure.citationState === "not_recorded"
+				? attemptFailure.citationState
+				: stageFailure.citationState,
 		detail: stageFailure.detail ?? attemptFailure.detail,
 		httpStatus: stageFailure.httpStatus ?? attemptFailure.httpStatus,
 		invocationId: stageFailure.invocationId ?? attemptFailure.invocationId,

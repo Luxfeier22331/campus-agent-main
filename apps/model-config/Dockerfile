@@ -9,9 +9,10 @@ ARG GOSUMDB=sum.golang.org
 ENV GOPROXY=${GOPROXY} GOSUMDB=${GOSUMDB}
 WORKDIR /src/apps/model-config
 
-COPY apps/model-config/go.mod ./
+COPY apps/model-config/go.mod apps/model-config/go.sum ./
 RUN --mount=type=cache,id=go-model-config-modules,target=/go/pkg/mod go mod download
-COPY apps/model-config ./
+COPY apps/model-config/cmd ./cmd
+COPY apps/model-config/internal ./internal
 
 RUN --mount=type=cache,id=go-model-config-modules,target=/go/pkg/mod \
     --mount=type=cache,id=go-model-config-build,target=/root/.cache/go-build \

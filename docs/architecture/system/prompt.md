@@ -53,7 +53,9 @@ execution-control 的 Agent Workflow 合同显式传递；提示词只约束每�
 角色指令由 `apps/agent-runtime` 维护，并使用简体中文表达当前单校产品边界：Agent Workflow 服务
 中央民族大学校园问答场景，未明确指定机构时，学校、本校和校园均默认指中央民族大学。Solve 生成
 步骤，Executor 依据当前步骤候选来源执行，Replanner 依据真实结果通过 `continue` 保留或替换后续路径，或选择 `synthesize` 提前结束；工具结果是候选，正文
-只引用本轮实际采用的结果。
+只引用本轮实际采用的结果。历史助手正文在组装模型输入时移除裸编号、分组编号与数字标签的
+Markdown 引用链接，保留正文、普通链接和代码；用户消息、持久化历史及历史 UI 不变。历史回答只帮助
+识别追问对象，不能把旧编号当作当前证据；需要引用的机构事实使用本轮检索资料。
 execution-control 传入类型化数据，不在 Go 侧维护另一套 Agent prompt 或答案合成 prompt。
 
 Executor 用 `summary` 与 `remainingFacts` 表达已确认内容和具体缺项；相关候选不自动视为答案充分。
@@ -65,7 +67,7 @@ Synthesizer 先回答有支持的内容，再简短说明具体缺项；不因�
 采集的公开校园网页获取时，后续步骤可以使用 `web_search`，不能仅凭校内无匹配就判定事实不存在。`web_search` 只服务
 于校园问题，不是通用开放域能力。runner 将 Web Search 原生 annotation / grounding 转为有效材料；
 Synthesizer 对 Campus 和 Web 材料统一使用实际 citationIndex 输出 `[n]`，不手写 URL 或虚构来源编号。
-Finalization 按实际引用生成来源链接。Google 搜索建议独立展示，不是模型输入。
+Finalization 按实际引用生成来源链接。Google 搜索建议不进入产品消息或模型输入。
 
 ## 可信边界
 

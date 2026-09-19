@@ -14,7 +14,12 @@ const RYUK_IMAGE =
 const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "campus_agent";
 const RUNTIME_ROLE = "app_api";
-const SUPPORTING_ROLES = ["execution_control", "ops_web", "model_config"] as const;
+const SUPPORTING_ROLES = [
+	"execution_control",
+	"ops_web",
+	"model_config",
+	"product_data_ro",
+] as const;
 
 export interface AppApiPostgresContext {
 	managementConnectionString: string;

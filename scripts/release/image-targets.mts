@@ -1,3 +1,7 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { type CommandRunner, requireSuccess, run } from "../ci/scope.mts";
+
 export const ACTIVE_IMAGE_TARGETS = [
 	"agent-runtime",
 	"campus-agent-schema",
@@ -12,218 +16,204 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"notice-publisher",
 	"ops-web",
 ] as const;
-
 export type ImageTarget = (typeof ACTIVE_IMAGE_TARGETS)[number];
-
-export const NODE_IMAGE_TARGETS = [
-	"agent-runtime",
-	"campus-agent-schema",
-	"campus-docs-index-publisher",
-	"campus-rag-index-publisher",
-	"document-ocr",
-	"internal-portal-collection",
-	"notice-classifier",
-	"notice-index-publisher",
-	"notice-publisher",
-	"ops-web",
-] as const satisfies readonly ImageTarget[];
-
+export const NODE_IMAGE_TARGETS = ACTIVE_IMAGE_TARGETS.filter(
+	(image) => image !== "execution-control" && image !== "model-config",
+);
 export interface ImageScopeTask {
 	package: string;
 	task: string;
 }
-
-export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map([
-	["document-ocr", ["document-ocr"]],
-	["agent-runtime", ["agent-runtime"]],
-	["campus-agent-schema", ["campus-agent-schema"]],
-	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
-	["campus-rag-index-publisher", ["campus-rag-index-publisher"]],
-	["execution-control", ["execution-control"]],
-	["model-config", ["model-config"]],
-	["notice-classifier", ["notice-classifier"]],
-	["notice-index-publisher", ["notice-index-publisher"]],
-	["notice-publisher", ["notice-publisher"]],
-	["ops-web", ["ops-web"]],
-	["internal-portal-collection", ["internal-portal-collection"]],
-]);
-
-export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map([
-	["jobs/document-ocr/Dockerfile", ["document-ocr"]],
-	["apps/agent-runtime/Dockerfile", ["agent-runtime"]],
-	["apps/execution-control/Dockerfile", ["execution-control"]],
-	["apps/model-config/Dockerfile", ["model-config"]],
-	["apps/ops-web/Dockerfile", ["ops-web"]],
-	["jobs/campus-agent-schema/Dockerfile", ["campus-agent-schema"]],
-	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
-	["jobs/campus-rag-index-publisher/Dockerfile", ["campus-rag-index-publisher"]],
-	["jobs/internal-portal-collection/Dockerfile", ["internal-portal-collection"]],
-	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
-	["jobs/notice-index-publisher/Dockerfile", ["notice-index-publisher"]],
-	["jobs/notice-publisher/Dockerfile", ["notice-publisher"]],
-]);
-
+export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map(
+	ACTIVE_IMAGE_TARGETS.map((image) => [image, [image]]),
+);
+export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map(
+	ACTIVE_IMAGE_TARGETS.map((image) => [
+		`${["agent-runtime", "execution-control", "model-config", "ops-web"].includes(image) ? "apps" : "jobs"}/${image}/Dockerfile`,
+		[image],
+	]),
+);
+const ROOT = path.resolve(import.meta.dirname, "../..");
 const NODE_BUILD_INPUTS = new Set([
 	".node-version",
+	"scripts/toolchain/node-version.mts",
 	"package.json",
 	"pnpm-lock.yaml",
 	"pnpm-workspace.yaml",
-	"turbo.json",
 ]);
-
-const CONTAINER_BUILD_INPUTS = new Set([
+const COMMON_BUILD_INPUTS = new Set([
 	".dockerignore",
+	".github/workflows/pr-image-evidence.yml",
 	"docker-bake.hcl",
-	".node-version",
-	"package.json",
-	"pnpm-lock.yaml",
-	"pnpm-workspace.yaml",
-	"turbo.json",
+	"scripts/release/images.mts",
+	"scripts/release/buildkit-progress.mts",
+	"scripts/release/image-targets.mts",
+	"scripts/release/prune-image.mts",
 ]);
 
-function changesPath(files: readonly string[], prefix: string): boolean {
-	return files.some((file) => file === prefix || file.startsWith(`${prefix}/`));
+export interface ImageWorkspace {
+	directory: string;
+	name: string;
+	dependencies?: Record<string, string>;
+	devDependencies?: Record<string, string>;
 }
 
-function addTargets(targets: Set<ImageTarget>, values: readonly ImageTarget[]): void {
-	for (const target of values) {
-		targets.add(target);
-	}
-}
+// These devDependencies are compiled into Ops. Other dev workspace edges are test-only.
+const BUILD_WORKSPACES: Partial<Record<ImageTarget, string[]>> = {
+	"ops-web": ["@campus-agent/dining", "@campus-agent/ui"],
+};
+const EXTRA_INPUTS: Partial<Record<ImageTarget, string[]>> = {
+	"agent-runtime": [
+		"configs/runtime/tools.v7.json",
+		"configs/runtime/tool-function-schemas.v4.json",
+	],
+	"execution-control": [
+		"configs/runtime/tools.v7.json",
+		"configs/runtime/tool-function-schemas.v4.json",
+		"packages/contracts/fixtures/tool_execution_contract/",
+	],
+	"ops-web": [
+		"configs/sources/internal-portal.json",
+		"configs/runtime/latency-budgets.v1.json",
+		"scripts/release/check-ops-web-artifact.mjs",
+	],
+	"document-ocr": ["configs/sources/internal-portal.json"],
+	"internal-portal-collection": ["configs/sources/internal-portal.json"],
+	"notice-publisher": ["configs/sources/internal-portal.json"],
+	"campus-docs-index-publisher": ["packages/contracts/schemas/"],
+	"campus-rag-index-publisher": ["packages/contracts/schemas/"],
+};
 
-function addPackageTargets(targets: Set<ImageTarget>, packageName: string): void {
-	addTargets(targets, IMAGE_PACKAGE_TARGETS.get(packageName) ?? []);
-}
-
-export function imageTargetsForScope(scope: {
-	changedFiles: readonly string[];
-	tasks: readonly ImageScopeTask[];
-}): ImageTarget[] {
-	const targets = new Set<ImageTarget>();
-	const files = scope.changedFiles;
-	if (
-		changesPath(files, "packages/document-ocr") ||
-		changesPath(files, "jobs/document-ocr") ||
-		changesPath(files, "packages/notice-database") ||
-		changesPath(files, "packages/domains/notices") ||
-		files.includes("configs/sources/internal-portal.json") ||
-		files.includes("packages/contracts/package.json") ||
-		files.includes("packages/contracts/src/notices.ts")
-	) {
-		addTargets(targets, ["document-ocr", "ops-web"]);
-	}
-
-	for (const task of scope.tasks) {
-		if (task.task === "build") {
-			addPackageTargets(targets, task.package);
-		}
-	}
-
-	for (const file of files) {
-		addTargets(targets, DOCKERFILE_IMAGE_TARGETS.get(file) ?? []);
-	}
-
-	if (files.some((file) => NODE_BUILD_INPUTS.has(file))) {
-		addTargets(targets, NODE_IMAGE_TARGETS);
-	}
-
-	if (files.some((file) => file === ".dockerignore" || file === "docker-bake.hcl")) {
-		addTargets(targets, ACTIVE_IMAGE_TARGETS);
-	}
-
-	if (changesPath(files, "jobs/campus-agent-schema")) {
-		addPackageTargets(targets, "campus-agent-schema");
-	}
-	if (
-		changesPath(files, "jobs/campus-docs-index-publisher") ||
-		files.some((file) => file.startsWith("packages/contracts/src/campus-docs")) ||
-		files.includes("packages/contracts/package.json") ||
-		[
-			"packages/contracts/schemas/campus-docs-course-maps.v1.schema.json",
-			"packages/contracts/schemas/campus-docs-reader.v3.schema.json",
-			"packages/contracts/schemas/campus-docs-source.v4.schema.json",
-		].some((file) => files.includes(file))
-	) {
-		addPackageTargets(targets, "campus-docs-index-publisher");
-	}
-	if (
-		changesPath(files, "jobs/campus-rag-index-publisher") ||
-		changesPath(files, "jobs/campus-docs-index-publisher") ||
-		changesPath(files, "jobs/notice-index-publisher") ||
-		changesPath(files, "packages/embedding-runtime") ||
-		files.some((file) => file.startsWith("packages/contracts/src/campus-docs")) ||
-		files.includes("packages/contracts/package.json")
-	) {
-		addPackageTargets(targets, "campus-rag-index-publisher");
-	}
-	if (
-		changesPath(files, "jobs/notice-classifier") ||
-		changesPath(files, "packages/notice-classifier-core") ||
-		changesPath(files, "packages/domains/notices") ||
-		changesPath(files, "packages/notice-database")
-	) {
-		addPackageTargets(targets, "notice-classifier");
-	}
-	if (
-		changesPath(files, "jobs/notice-index-publisher") ||
-		changesPath(files, "packages/embedding-runtime") ||
-		changesPath(files, "packages/notice-database")
-	) {
-		addPackageTargets(targets, "notice-index-publisher");
-	}
-	if (
-		changesPath(files, "jobs/internal-portal-collection") ||
-		changesPath(files, "packages/domains/notices") ||
-		changesPath(files, "packages/notice-database")
-	) {
-		addPackageTargets(targets, "internal-portal-collection");
-	}
-	if (
-		changesPath(files, "jobs/notice-publisher") ||
-		changesPath(files, "configs/sources/internal-portal.json") ||
-		changesPath(files, "packages/domains/notices") ||
-		changesPath(files, "packages/ingestion-contracts") ||
-		changesPath(files, "packages/notice-database") ||
-		files.includes("packages/contracts/src/notices.ts")
-	) {
-		addPackageTargets(targets, "notice-publisher");
-	}
-	if (
-		files.some(
-			(file) =>
-				file.startsWith("apps/model-config/") &&
-				file !== "apps/model-config/turbo.json" &&
-				!file.endsWith("/README.md"),
-		)
-	) {
-		addPackageTargets(targets, "model-config");
-	}
-	if (
-		files.some(
-			(file) =>
-				file.startsWith("apps/execution-control/") &&
-				file !== "apps/execution-control/turbo.json" &&
-				!file.endsWith("/README.md"),
+export function isImageSource(file: string): boolean {
+	return !(
+		/(^|\/)(test|tests|test-support|__tests__|node_modules|\.turbo|\.wrangler|\.wrangler-home|\.tanstack|coverage)(\/|$)/u.test(
+			file,
 		) ||
-		files.some((file) =>
-			[
-				"configs/runtime/tool-function-schemas.v4.json",
-				"configs/runtime/tools.v7.json",
-				"packages/contracts/fixtures/tool_execution_contract/",
-			].some((input) => file === input || file.startsWith(input)),
-		)
-	) {
-		addPackageTargets(targets, "execution-control");
-	}
+		/(^|\/)(README\.md|turbo\.json|vitest[^/]*|browser\.config\.[^/]*|playwright[^/]*|[^/]*\.tsbuildinfo)$/u.test(
+			file,
+		) ||
+		/\.(test|spec)\.[cm]?[jt]sx?$|_test\.go$/u.test(file) ||
+		/^(apps\/[^/]+|jobs\/[^/]+|packages\/(?:domains\/)?[^/]+)\/(dist(?:-ops|-server)?|build|target|playwright-report|test-results)\//u.test(
+			file,
+		) ||
+		/(^|\/)\.env(?:\.|$)|(^|\/)\.dev\.vars(?:\.|$)/u.test(file)
+	);
+}
 
-	return [...targets].sort();
+export function readImageWorkspaces(
+	root = ROOT,
+	revision?: string,
+	runner: CommandRunner = run,
+): ImageWorkspace[] {
+	const git = (args: string[]) =>
+		requireSuccess("git", args, runner("git", args, { cwd: root, env: process.env })).stdout ?? "";
+	let files: string[];
+	if (revision) {
+		files = git(["ls-tree", "-r", "--name-only", revision]).split("\n");
+	} else {
+		files = ["apps", "jobs", "packages", "packages/domains"]
+			.flatMap((folder) =>
+				existsSync(path.join(root, folder))
+					? readdirSync(path.join(root, folder)).map((name) => `${folder}/${name}/package.json`)
+					: [],
+			)
+			.filter((file) => existsSync(path.join(root, file)));
+	}
+	return files
+		.filter((file) => /^(apps|jobs|packages(?:\/domains)?)\/[^/]+\/package\.json$/u.test(file))
+		.map((file) => ({
+			...JSON.parse(
+				revision
+					? git(["show", `${revision}:${file}`])
+					: readFileSync(path.join(root, file), "utf8"),
+			),
+			directory: path.posix.dirname(file),
+		}));
+}
+
+export function imageWorkspaceClosure(
+	image: ImageTarget,
+	workspaces: readonly ImageWorkspace[],
+	includeDev = false,
+): ImageWorkspace[] {
+	const names = new Set<string>();
+	const visit = (name: string) => {
+		if (names.has(name)) {
+			return;
+		}
+		names.add(name);
+		for (const workspace of workspaces.filter((item) => item.name === name)) {
+			for (const [dependency, version] of Object.entries({
+				...workspace.dependencies,
+				...(includeDev ? workspace.devDependencies : {}),
+			})) {
+				if (version.startsWith("workspace:")) {
+					visit(dependency);
+				}
+			}
+		}
+	};
+	visit(image);
+	for (const dependency of BUILD_WORKSPACES[image] ?? []) {
+		visit(dependency);
+	}
+	return workspaces.filter((workspace) => names.has(workspace.name));
+}
+
+export function imageTargetsForScope(
+	scope: { changedFiles: readonly string[]; tasks?: readonly ImageScopeTask[] },
+	workspaces: readonly ImageWorkspace[] = readImageWorkspaces(),
+): ImageTarget[] {
+	const files = scope.changedFiles.filter(isImageSource);
+	return ACTIVE_IMAGE_TARGETS.filter((image) => {
+		const production = imageWorkspaceClosure(image, workspaces);
+		const manifests = imageWorkspaceClosure(image, workspaces, true);
+		return files.some((file) => {
+			if (COMMON_BUILD_INPUTS.has(file)) {
+				return true;
+			}
+			if (NODE_BUILD_INPUTS.has(file)) {
+				return (NODE_IMAGE_TARGETS as readonly string[]).includes(image);
+			}
+			if (DOCKERFILE_IMAGE_TARGETS.get(file)?.includes(image)) {
+				return true;
+			}
+			if (
+				EXTRA_INPUTS[image]?.some((input) =>
+					input.endsWith("/") ? file.startsWith(input) : file === input,
+				)
+			) {
+				return true;
+			}
+			if (manifests.some((workspace) => file === `${workspace.directory}/package.json`)) {
+				return true;
+			}
+			return production.some((workspace) => {
+				if (!file.startsWith(`${workspace.directory}/`)) {
+					return false;
+				}
+				const relative = file.slice(workspace.directory.length + 1);
+				if (image === "model-config" || image === "execution-control") {
+					return (
+						relative === "go.mod" ||
+						relative === "go.sum" ||
+						relative.startsWith("cmd/") ||
+						relative.startsWith("internal/")
+					);
+				}
+				return relative !== "Dockerfile";
+			});
+		});
+	});
 }
 
 export function containerBuildInputsChanged(files: readonly string[]): boolean {
-	return files.some(
-		(file) =>
-			CONTAINER_BUILD_INPUTS.has(file) ||
-			file.endsWith("/Dockerfile") ||
-			file.startsWith("scripts/release/"),
-	);
+	return files
+		.filter(isImageSource)
+		.some(
+			(file) =>
+				COMMON_BUILD_INPUTS.has(file) ||
+				NODE_BUILD_INPUTS.has(file) ||
+				file.endsWith("/Dockerfile"),
+		);
 }

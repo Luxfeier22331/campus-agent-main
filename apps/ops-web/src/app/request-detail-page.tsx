@@ -102,7 +102,7 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 						<ChatAnswerSources sources={detail.data.result.sources} />
 					</div>
 				) : null}
-				<RequestDiagnostics detail={detail.data} />
+				<RequestDiagnostics detail={detail.data} from={returnPath} />
 			</div>
 			{detail.data.request.lifecyclePhase === "FINISHED" ? null : (
 				<p className="border-border border-t pt-4 text-muted-foreground text-xs">

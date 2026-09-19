@@ -949,10 +949,7 @@ describe("local development lifecycle guards", () => {
 		]);
 		assert.deepEqual(resolveLocalDevTargetPlan("core").bootstrapSteps, [
 			"campus-agent-schema",
-			"ops-web-transport-bootstrap",
 			"model-config-seed",
-			"campus-web-docs",
-			"app-api-seed-local-campus-groups",
 			"app-api-seed-local-test-user",
 			"model-config-check",
 			"temporal-namespace",
@@ -967,15 +964,17 @@ describe("local development lifecycle guards", () => {
 			"model-config-check",
 		]);
 		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").modelConfigNames, [
+			"primary_agent",
+			"campus_docs_embedding",
+			"campus_docs_reranker",
 			"notice_classification",
 		]);
 		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").bootstrapSteps, [
 			"campus-agent-schema",
-			"ops-web-transport-bootstrap",
 			"model-config-seed",
-			"notice-publisher-seed-local",
+			"app-api-seed-local-test-user",
 			"model-config-check",
-			"ops-web-dining-bootstrap",
+			"temporal-namespace",
 		]);
 		assert.deepEqual(resolveLocalDevTargetPlan("campus-docs-index-publisher").capabilities, [
 			"postgres",
@@ -986,6 +985,7 @@ describe("local development lifecycle guards", () => {
 		assert.deepEqual(resolveLocalDevTargetPlan("campus-rag-index-publisher").capabilities, [
 			"postgres",
 			"derived-bucket",
+			"qdrant",
 		]);
 		assert.deepEqual(resolveLocalDevTargetPlan("campus-rag-index-publisher").bootstrapSteps, []);
 		assert.deepEqual(resolveLocalDevTargetPlan("notice-index-publisher").bootstrapSteps, [
@@ -1263,33 +1263,17 @@ describe("local development lifecycle guards", () => {
 		const commands = localApplicationBootstrapCommands("/repo", createProfile("/repo"));
 		assert.deepEqual(
 			commands.map(({ step }) => step),
-			[
-				"campus-web-docs",
-				"campus-agent-schema",
-				"ops-web-transport-bootstrap",
-				"app-api-seed-local-campus-groups",
-				"app-api-seed-local-test-user",
-				"notice-publisher-seed-local",
-				"ops-web-dining-bootstrap",
-			],
+			["campus-agent-schema", "app-api-seed-local-test-user", "notice-publisher-seed-local"],
 		);
-		assert.doesNotMatch(commands[0]?.args.join(" ") ?? "", /\.dev\.vars/u);
-		assert.deepEqual(commands[2]?.args, ["--dir", "apps/ops-web", "db:bootstrap-transport"]);
-		assert.equal(commands[2]?.options.env?.DEPLOYMENT_ENVIRONMENT, "local");
-		assert.equal(commands[2]?.options.env?.OPS_WEB_DATABASE_SSLMODE, "disable");
-		assert.match(commands[3]?.args.join(" ") ?? "", /seed-local-campus-groups\.ts/u);
-		assert.match(commands[4]?.args.join(" ") ?? "", /seed-local-test-user\.ts/u);
-		assert.deepEqual(commands[5]?.args, ["--dir", "jobs/notice-publisher", "seed-local"]);
-		assert.equal(commands[5]?.options.env?.DEPLOYMENT_ENVIRONMENT, "local");
-		assert.equal(commands[5]?.options.env?.NOTICES_DATABASE_SSLMODE, "disable");
-		assert.equal(
-			commands.some(({ step }) => step === "model-config-seed"),
-			false,
-		);
-		assert.equal(
-			commands.some(({ step }) => step === "model-config-check"),
-			false,
-		);
+		assert.match(commands[1]?.args.join(" ") ?? "", /seed-local-test-user\.ts/u);
+		assert.deepEqual(commands[2]?.args, [
+			"--dir",
+			"jobs/notice-publisher",
+			"exec",
+			"tsx",
+			"src/seed-local.ts",
+		]);
+		assert.equal(commands[2]?.options.env?.NOTICES_DATABASE_SSLMODE, "disable");
 
 		const corePlan = resolveLocalDevTargetPlan("core");
 		const coreCommands = localApplicationBootstrapCommands(
@@ -1304,15 +1288,12 @@ describe("local development lifecycle guards", () => {
 			coreCommands.map(({ step }) => step),
 			[
 				"campus-agent-schema",
-				"ops-web-transport-bootstrap",
 				"model-config-seed",
-				"campus-web-docs",
-				"app-api-seed-local-campus-groups",
 				"app-api-seed-local-test-user",
 				"model-config-check",
 			],
 		);
-		assert.deepEqual(coreCommands[2]?.args, [
+		assert.deepEqual(coreCommands[1]?.args, [
 			"--silent",
 			"--dir",
 			"apps/model-config",
@@ -1325,11 +1306,11 @@ describe("local development lifecycle guards", () => {
 			"campus_docs_reranker",
 		]);
 		assert.equal(
-			coreCommands[2]?.options.env?.MODEL_CONFIG_DATABASE_URL,
+			coreCommands[1]?.options.env?.MODEL_CONFIG_DATABASE_URL,
 			"postgresql://model_config:campus-agent-local-model-config@127.0.0.1:5432/campus_agent_wt_1_deadbeef",
 		);
 		assert.match(
-			coreCommands[2]?.options.env?.MODEL_CONFIG_ENCRYPTION_KEY_FILE ?? "",
+			coreCommands[1]?.options.env?.MODEL_CONFIG_ENCRYPTION_KEY_FILE ?? "",
 			/model-config-encryption\.key$/u,
 		);
 
@@ -1366,11 +1347,9 @@ describe("local development lifecycle guards", () => {
 			).map(({ step }) => step),
 			[
 				"campus-agent-schema",
-				"ops-web-transport-bootstrap",
 				"model-config-seed",
-				"notice-publisher-seed-local",
+				"app-api-seed-local-test-user",
 				"model-config-check",
-				"ops-web-dining-bootstrap",
 			],
 		);
 	});

@@ -10,6 +10,33 @@ import {
 } from "../src/runtime-errors.ts";
 
 describe("agent runtime errors", () => {
+	it("preserves citation facts in the error payload and existing log", () => {
+		const citation = {
+			schema_version: 1,
+			validation_stage: "provider_annotation",
+			start: 0,
+			end: 9,
+			text_length: 4,
+			offset_unit: "utf16_code_unit",
+		} as const;
+		const error = new AgentRuntimeError("citation_validation_failed", "引用越界", {
+			reason: "span_out_of_bounds",
+			citation,
+		});
+		const payload = agentRuntimeErrorPayload(error, { operation: "workflow.solve" });
+		expect(payload).toMatchObject({
+			code: "citation_validation_failed",
+			operation: "workflow.solve",
+			reason: "span_out_of_bounds",
+			citation,
+		});
+		expect(agentRuntimeErrorLogFields(error, payload)).toMatchObject({
+			error_reason: "span_out_of_bounds",
+			citation_start: 0,
+			citation_end: 9,
+			citation_offset_unit: "utf16_code_unit",
+		});
+	});
 	it("preserves a provider rejection reason without copying the response object", () => {
 		const error = new BadRequestError(
 			400,

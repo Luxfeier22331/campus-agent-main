@@ -60,6 +60,17 @@ export function agentRunStreamResponse(
 						throw new Error("Agent runtime stream ended without a terminal event.");
 					}
 					const event = item.value;
+					if (event.event === "retrieval_status") {
+						controller.enqueue(
+							encodeSseEvent("retrieval_status", {
+								schema_version: "workflow_runtime_retrieval_status.v1",
+								source: event.data.source,
+								status: event.data.status,
+								occurred_at: event.data.occurredAt,
+							}),
+						);
+						continue;
+					}
 					if (event.event === "solve_decision") {
 						controller.enqueue(
 							encodeSseEvent("solve_decision", {
@@ -157,6 +168,7 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 			? {
 					web_evidence: result.webEvidence.map((item) => ({
 						title: item.title,
+						...(item.sourceLink ? { source_link: item.sourceLink } : {}),
 						url: item.url,
 						excerpt: item.excerpt,
 						start_index: item.startIndex,
@@ -172,6 +184,8 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 			? {
 					failure: {
 						code: result.failure.code,
+						...(result.failure.reason ? { reason: result.failure.reason } : {}),
+						...(result.failure.citation ? { citation: result.failure.citation } : {}),
 						operation: result.failure.operation,
 						...(result.failure.detail ? { detail: result.failure.detail } : {}),
 						...(result.failure.httpStatus === undefined
@@ -235,6 +249,8 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 				? {
 						failure: {
 							code: toolResult.failure.code,
+							...(toolResult.failure.reason ? { reason: toolResult.failure.reason } : {}),
+							...(toolResult.failure.citation ? { citation: toolResult.failure.citation } : {}),
 							operation: toolResult.failure.operation,
 							...(toolResult.failure.detail ? { detail: toolResult.failure.detail } : {}),
 							...(toolResult.failure.httpStatus === undefined
@@ -252,10 +268,6 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 			tools_sha256: result.toolContractFingerprint.toolsSha256,
 			function_schema_sha256: result.toolContractFingerprint.functionSchemaSha256,
 		},
-		search_suggestions: (result.searchSuggestions ?? []).map((s) => ({
-			provider: s.provider,
-			rendered_content: s.renderedContent,
-		})),
 		terminal_reason: result.terminalReason,
 		usage: {
 			model_request_count: result.usage.modelRequestCount,
@@ -300,6 +312,7 @@ function evidenceWire(evidence: WorkflowEvidence) {
 		schema_version: evidence.schemaVersion,
 		source: evidence.source,
 		title: evidence.title,
+		...(evidence.sourceLink ? { source_link: evidence.sourceLink } : {}),
 		...(evidence.citationIndex === undefined ? {} : { citation_index: evidence.citationIndex }),
 		...(evidence.url === undefined ? {} : { url: evidence.url }),
 		...(evidence.resultRef === undefined ? {} : { result_ref: evidence.resultRef }),

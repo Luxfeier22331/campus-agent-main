@@ -38,18 +38,18 @@ export async function connectToKubernetesObjectStore(input: {
 	const kubectlPath = input.dependencies?.kubectlPath ?? "kubectl";
 	const runKubectl =
 		input.dependencies?.runKubectl ?? ((args: string[]) => runKubectlCommand(kubectlPath, args));
-	const secretName = input.secretName ?? "object-store-secrets";
+	const secretName = input.secretName ?? "objectstore-ro";
 	const accessKeyId = decodeSecretValue(
 		await runKubectl(
-			secretArgs(input.context, namespace, secretName, "OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
+			secretArgs(input.context, namespace, secretName, "OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY"),
 		),
-		"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
+		"OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY",
 	);
 	const secretAccessKey = decodeSecretValue(
 		await runKubectl(
-			secretArgs(input.context, namespace, secretName, "OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
+			secretArgs(input.context, namespace, secretName, "OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY"),
 		),
-		"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
+		"OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY",
 	);
 	const portForward = await (input.dependencies?.startPortForward ?? startKubectlPortForward)({
 		...(input.context ? { context: input.context } : {}),
@@ -65,10 +65,14 @@ export async function connectToKubernetesObjectStore(input: {
 }
 
 export async function startKubectlPortForward(input: {
+	signal?: AbortSignal;
+	service?: string;
+	remotePort?: number;
 	context?: string;
 	kubectlPath: string;
 	namespace: string;
 }): Promise<KubectlPortForward> {
+	input.signal?.throwIfAborted();
 	const child = spawn(
 		input.kubectlPath,
 		[
@@ -77,18 +81,21 @@ export async function startKubectlPortForward(input: {
 			input.namespace,
 			"port-forward",
 			"--address=127.0.0.1",
-			"service/object-store",
-			`:${OBJECT_STORE_PORT}`,
+			`service/${input.service ?? "object-store"}`,
+			`:${input.remotePort ?? OBJECT_STORE_PORT}`,
 		],
 		{ stdio: ["ignore", "pipe", "pipe"] },
 	);
+	const abort = () => { void stopChild(child); };
+	input.signal?.addEventListener("abort", abort, { once: true });
 	try {
-		const port = await waitForPortForward(child);
+		const port = await waitForPortForward(child, input.remotePort ?? OBJECT_STORE_PORT);
 		return {
-			close: () => stopChild(child),
+			close: async () => { input.signal?.removeEventListener("abort", abort); await stopChild(child); },
 			port,
 		};
 	} catch (error) {
+		input.signal?.removeEventListener("abort", abort);
 		await stopChild(child);
 		throw error;
 	}
@@ -134,7 +141,7 @@ function decodeSecretValue(encoded: string, key: string): string {
 	return value;
 }
 
-async function waitForPortForward(child: ChildProcess): Promise<number> {
+async function waitForPortForward(child: ChildProcess, remotePort: number): Promise<number> {
 	return await new Promise<number>((resolveReady, rejectReady) => {
 		let output = "";
 		let settled = false;
@@ -157,7 +164,7 @@ async function waitForPortForward(child: ChildProcess): Promise<number> {
 		const onData = (chunk: Buffer | string) => {
 			output = `${output}${String(chunk)}`.slice(-16 * 1024);
 			const match = new RegExp(
-				`Forwarding from 127\\.0\\.0\\.1:([1-9][0-9]*) -> ${OBJECT_STORE_PORT}`,
+				`Forwarding from 127\\.0\\.0\\.1:([1-9][0-9]*) -> ${remotePort}`,
 			).exec(output);
 			if (match?.[1]) finish(undefined, Number(match[1]));
 		};

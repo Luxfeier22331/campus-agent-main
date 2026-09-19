@@ -39,6 +39,14 @@ function getFloorplan(input: { floorId: string; hallId: string }) {
 }
 
 describe("dining rendered floorplan contract", () => {
+	it("preserves theme variables and standalone fallbacks through SVG sanitization", () => {
+		const svg = FLOORPLANS[0]?.svgMarkup;
+		expect(svg).toContain("var(--dining-svg-canvas-bg,#f7f9f8)");
+		expect(svg).toContain("var(--dining-svg-surface-bg,#ffffff)");
+		expect(svg).toContain("var(--dining-svg-window-bg,#ffffff)");
+		expect(svg).toContain("var(--dining-svg-window-text,#263442)");
+		expect(svg).toContain("var(--dining-svg-window-border,#64748b)");
+	});
 	it("rejects placeholder window labels before a map can be saved", () => {
 		const layout = structuredClone(DINING_FLOORPLANS[0]);
 		const window = layout?.windows[0];

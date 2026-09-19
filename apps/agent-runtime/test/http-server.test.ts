@@ -15,6 +15,7 @@ import type {
 } from "../src/agent-run-contract.ts";
 import { createAgentRuntimeHandler as createAgentRuntimeHandlerBase } from "../src/http-server.ts";
 import type { ModelConfigClientOptions } from "../src/model-config-client.ts";
+import { AgentRuntimeError } from "../src/runtime-errors.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
 import { createWorkflowOperationRuntime } from "../src/workflow-runtime.ts";
 import { deferred } from "./helpers/deferred.ts";
@@ -56,6 +57,96 @@ const evidence: WorkflowEvidence = {
 afterEach(() => vi.useRealTimers());
 
 describe("agent runtime HTTP handler", () => {
+	it.each(["planned", "recovery"])(
+		"preserves nullable source links across the %s HTTP contract",
+		async (mode) => {
+			const runtime = {
+				...runtimeFor(),
+				run: vi.fn(async (input: WorkflowOperationInput) => {
+					if (input.operation !== "synthesize") {
+						throw new Error("unexpected operation");
+					}
+					expect(input.operationInput.evidence[0]?.sourceLink).toEqual({ href: null });
+					return resultFor(input, {
+						evidence: input.operationInput.evidence,
+						webEvidence: [
+							{
+								title: "来源",
+								url: "https://example.com/original",
+								excerpt: "答案",
+								sourceLink: { href: null },
+								startIndex: 0,
+								endIndex: 2,
+							},
+						],
+					});
+				}),
+			};
+			const body = validBody("synthesize");
+			body.operation_input = {
+				goal: "地址",
+				mode,
+				...(mode === "recovery" ? { recovery_reason: "provider_internal" } : {}),
+				source_attempts: [],
+				remaining_facts: [],
+				evidence: [
+					{
+						schema_version: "workflow_evidence.v1",
+						id: "web:original",
+						source: "web_search",
+						title: "来源",
+						excerpt: "地址",
+						citation_index: 1,
+						url: "https://example.com/original",
+						source_link: { href: null },
+					},
+				],
+			};
+			const response = await post(
+				createAgentRuntimeHandler({ runtime, sharedSecret: "secret" }),
+				body,
+			);
+			expect(response.status).toBe(200);
+			const wire = await response.json();
+			expect(wire.evidence[0].source_link).toEqual({ href: null });
+			expect(wire.web_evidence[0].source_link).toEqual({ href: null });
+		},
+	);
+	it.each(["/internal/agent-requests", "/internal/agent-requests/stream"])(
+		"preserves citation diagnostics through %s",
+		async (path) => {
+			const citation = {
+				schema_version: 1,
+				validation_stage: "provider_annotation",
+				start: 0,
+				end: 9,
+				text_length: 4,
+				offset_unit: "utf16_code_unit",
+			} as const;
+			const failure = new AgentRuntimeError("citation_validation_failed", "引用区间超出正文", {
+				reason: "span_out_of_bounds",
+				citation,
+			});
+			const handler = createAgentRuntimeHandler({
+				sharedSecret: "secret",
+				runtime: {
+					...runtimeFor(),
+					async run() {
+						throw failure;
+					},
+					async *stream() {
+						yield* [];
+						throw failure;
+					},
+				},
+			});
+			const response = await post(handler, validBody("solve"), path);
+			const text = await response.text();
+			expect(text).toContain('"reason":"span_out_of_bounds"');
+			expect(text).toContain('"text_length":4');
+			expect(text).toContain('"code":"citation_validation_failed"');
+		},
+	);
 	it("invalidates provisional output before preserving a failed terminal result", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -587,18 +678,14 @@ describe("agent runtime HTTP handler", () => {
 		expect(events[1]?.data).toMatchObject({ code: "run_failed", operation: "workflow.solve" });
 	});
 
-	it("rejects streaming a non-synthesize operation at the HTTP boundary", async () => {
+	it("rejects streaming a replan operation at the HTTP boundary", async () => {
 		const runtime = {
 			run: vi.fn(async (input: WorkflowOperationInput) => resultFor(input)),
 			stream: streamFor(),
 		} satisfies WorkflowOperationRuntime;
 		const handler = createAgentRuntimeHandler({ runtime, sharedSecret: "secret" });
 
-		const response = await post(
-			handler,
-			validBody("execute_step"),
-			"/internal/agent-requests/stream",
-		);
+		const response = await post(handler, validBody("replan"), "/internal/agent-requests/stream");
 
 		expect(response.status).toBe(400);
 		expect(runtime.run).not.toHaveBeenCalled();

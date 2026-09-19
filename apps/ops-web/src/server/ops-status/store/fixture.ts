@@ -1,3 +1,4 @@
+import { resolveTimeQuery, timeQueryWindow } from "campus-contracts/ops-time";
 import {
 	opsOverviewFixture,
 	opsRequestDetailFixtures,
@@ -12,6 +13,7 @@ import {
 	requestAttentionPriority,
 	requestListView,
 	summarizeRequests,
+	withMatchedFailure,
 } from "../mapping/request.ts";
 import { OPS_REQUEST_PAGE_SIZE } from "./types.ts";
 
@@ -30,7 +32,14 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 		},
 		async listRequests(query) {
 			const view = requestListView(query);
-			const filtered = requests
+			const matched = requests.map((request) =>
+				withMatchedFailure(
+					request,
+					requestDetails.find((detail) => detail.request.requestId === request.requestId),
+					query,
+				),
+			);
+			const filtered = matched
 				.filter((request) => matchesRequestQuery(request, query))
 				.sort((left, right) => compareRequestsForView(left, right, view));
 			const cursor = decodeRequestCursor(query.cursor, view);
@@ -55,7 +64,7 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 							: null,
 				},
 				statusCounts: summarizeRequests(
-					requests.filter((request) =>
+					matched.filter((request) =>
 						matchesRequestQuery(
 							request,
 							(({ cursor: _cursor, status: _status, ...summaryQuery }) => summaryQuery)(query),
@@ -63,7 +72,10 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 					),
 				),
 				view,
-				window: query.window,
+				window: timeQueryWindow(query),
+				filters: query.requestId
+					? { from: null, to: null }
+					: resolveTimeQuery(query, "requests", new Date(opsRequestListFixture.generatedAt)),
 			};
 		},
 		async verifyReadiness() {

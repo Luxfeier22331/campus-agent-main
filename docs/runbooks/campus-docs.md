@@ -189,30 +189,13 @@ pnpm --dir jobs/campus-docs-index-publisher compare-chunks-local -- \
 结果；不以短 Chunk 数量单独判断策略优劣。只有候选策略经过结构、广泛抽样和真实 embedding 证据综合
 判断后，才另行决定是否生成新的生产 Chunk Set；本次治理不自动切换生产分块定义。
 
-## 本地 Docs Publish 验证
-
-旧 Docs package 的 `publish-index-local` 仅用于本地 Docs-only 实现验证；它不是线上 serving owner，也
-不能验证包含 Notice 的统一 collection。命令只读取 `var/` 中的 Docs Embedding/Chunk 制品，不调用
-provider，也不向对象存储写入 RAG 制品：
-
-```bash
-EXECUTION_CONTROL_DATABASE_URL=postgresql://<local-user>:<local-password>@127.0.0.1:5432/<local-database>?sslmode=disable \
-QDRANT_URL=http://127.0.0.1:6333 QDRANT_API_KEY=<local-qdrant-key> \
-pnpm --dir jobs/campus-docs-index-publisher publish-index-local -- \
-  --embedding-set sha256:<embedding-set-id>
-```
-
-首次运行可检查 Docs-only Qdrant collection、全量 point 读回和 `campus_docs_serving.current_index`；同一
-制品再次运行可检查 `no_op: true`。该命令服务本地兼容实现验证，不是触发线上统一 Publisher Job 的
-前置状态。统一 Publisher 的生产验证使用两个线上 Embedding Set，按下节的 Job 顺序执行。
-
 ## 本地统一 RAG 发布验证
 
 统一 Publisher 的本地验证使用与生产相同的组装、Qdrant 校验和 `current_index` 激活逻辑。验证前从集群
 derived object store 导入两个 Embedding Set 的 serving 引用闭包到当前 worktree 的隔离本地 bucket。它只验证
 发布阶段，不运行 Chunk、Embedding、provider 或在线查询。
 
-先确保本地 Qdrant Compose 服务已启动，再初始化当前 worktree 的 publisher 环境和本地 schema。
+先在主 checkout 执行 `pnpm dev:shared-reconcile`，再初始化当前 worktree 的 publisher 环境和本地 schema。
 publisher 初始化从运行中的容器取得 writer key 和 HTTP 映射端口，完成认证检查后生成环境文件：
 
 ```bash

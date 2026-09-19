@@ -22,6 +22,8 @@ const (
 	campusDocsIndexBindingKey    = "campus_docs_index_collection"
 )
 
+var ErrCampusSearchUnavailable = errors.New("campus search index is not available")
+
 type AgentToolServiceOptions struct {
 	CampusDocsIndexStore      campusdocs.IndexStore
 	CampusDocsIndexStoreError error
@@ -170,7 +172,7 @@ func (s *AgentToolService) CampusSearch(
 		return nil, finishFailure(err)
 	}
 	if !found {
-		return nil, finishFailure(errors.New("campus docs current index is not available"))
+		return nil, finishFailure(ErrCampusSearchUnavailable)
 	}
 	boundCollection := execution.StringValue(run.Metadata[campusDocsIndexBindingKey])
 	if boundCollection != "" && boundCollection != index.Collection {

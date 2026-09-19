@@ -21,7 +21,9 @@ import {
 	ToolGroupRoot,
 	ToolGroupTrigger,
 } from "@/components/assistant-ui/tool-group";
+import { CitationSourcesContext } from "@/components/conversation/citation-preview";
 import { readCampusMessageMetadata } from "@/features/conversation/assistant-ui-mappers";
+import type { SourceItemPayload } from "@/features/conversation/model";
 import { AssistantActionBar, BranchPicker, UserActionBar } from "./thread-actions";
 import { EditComposer } from "./thread-composer";
 import { ThreadComponentsContext, ThreadSettingsContext } from "./thread-context";
@@ -58,6 +60,22 @@ const AssistantMessage: FC = () => {
 	useContext(ThreadSettingsContext);
 	const messageCustom = useAuiState((s) => s.message.metadata.custom);
 	const messageId = useAuiState((s) => s.message.id);
+	const content = useAuiState((s) => s.message.content);
+	const citationSources = useMemo(() => {
+		const sources = new Map<number, SourceItemPayload>();
+		for (const part of content) {
+			if (part.type !== "data" || part.name !== "source_items") {
+				continue;
+			}
+			const data = part.data as { sourceItems?: SourceItemPayload[] };
+			for (const source of data.sourceItems ?? []) {
+				for (const index of source.citationIndexes) {
+					sources.set(index, source);
+				}
+			}
+		}
+		return sources;
+	}, [content]);
 	const messageMetadata = useMemo(() => readCampusMessageMetadata(messageCustom), [messageCustom]);
 
 	return (
@@ -114,7 +132,9 @@ const AssistantMessage: FC = () => {
 							case "text":
 								return (
 									<div data-answer-message-id={messageId}>
-										<LazyMarkdownText />
+										<CitationSourcesContext.Provider value={citationSources}>
+											<LazyMarkdownText />
+										</CitationSourcesContext.Provider>
 									</div>
 								);
 							case "reasoning":
@@ -142,7 +162,7 @@ const AssistantMessage: FC = () => {
 
 			<div
 				data-slot="aui_assistant-message-footer"
-				className="ms-1 flex min-h-6 items-center gap-5 sm:ms-2"
+				className="ms-1 mt-3 flex min-h-6 items-center gap-5 sm:ms-2"
 			>
 				<BranchPicker />
 				<AssistantActionBar />

@@ -1,5 +1,5 @@
 import { Alert, Button, cn } from "@campus-agent/ui";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import type {
@@ -7,13 +7,13 @@ import type {
 	OpsRequestListView,
 	OpsRequestSummary,
 } from "../shared/ops-contract";
+import { failureReasonLabel } from "./citation-failure-panel";
 import { formatTimestamp } from "./format";
 import { fetchOpsRequests } from "./ops-api/observability";
 import {
 	CopyIconButton,
 	ErrorState,
 	PageHeader,
-	PageShell,
 	StaleDataWarning,
 	StatusBadge,
 } from "./ops-display";
@@ -28,6 +28,7 @@ import {
 } from "./ops-view-helpers";
 import { RequestFilters } from "./request-filters";
 import { DataTable } from "./ui/data-table";
+import { TimeRangeSummary } from "./ui/time-window-select";
 
 export function RequestsPage({
 	ignoredParams,
@@ -37,44 +38,24 @@ export function RequestsPage({
 	search: RequestSearchLike;
 }) {
 	const view = search.view ?? "recent";
-	const querySearch = cleanRequestSearch(search);
-	const requests = useQuery({
-		...(search.cursor ? { placeholderData: keepPreviousData } : {}),
+	const filterKey = JSON.stringify(cleanRequestSearch({ ...search, cursor: undefined }));
+	const requests = useQuery<OpsRequestListResponse>({
+		enabled: !search.timeError,
+		placeholderData: (previous, previousQuery) =>
+			previousQuery?.queryKey[2] === filterKey ? previous : undefined,
 		queryFn: ({ signal }) => fetchOpsRequests(search, { signal }),
-		queryKey: ["ops", "requests", querySearch],
+		queryKey: ["ops", "requests", filterKey, search.cursor],
 		refetchInterval: 30_000,
 		refetchIntervalInBackground: false,
 	});
-
-	if (requests.isPending) {
-		return <PageShell title="运行诊断">正在读取运行诊断...</PageShell>;
-	}
-	if (requests.isError && !requests.data) {
-		return (
-			<section>
-				<PageHeader description="按 request 查看执行状态、产品结果和失败事实。" title="运行诊断" />
-				<RequestFilters search={search} />
-				<div className="mt-4">
-					<ErrorState
-						error={requests.error}
-						onRetry={() => requests.refetch()}
-						title="运行诊断读取失败"
-					/>
-				</div>
-			</section>
-		);
-	}
-	if (!requests.data) {
-		return <PageShell title="运行诊断">正在读取运行诊断...</PageShell>;
-	}
 
 	const activeFilterLabels = requestFilterLabels(search);
 	const hasActiveFilters = activeFilterLabels.length > 0;
 	const ignoredParamNames = ignoredParams ?? [];
 	const isRefreshing = requests.isFetching;
 	const selectedCount = search.status
-		? requests.data.statusCounts[statusCountKey(search.status)]
-		: requests.data.statusCounts.total;
+		? requests.data?.statusCounts[statusCountKey(search.status)]
+		: requests.data?.statusCounts.total;
 
 	return (
 		<section>
@@ -109,65 +90,85 @@ export function RequestsPage({
 				</Alert>
 			) : null}
 			<RequestFilters search={search} />
-			<div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-				<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-					<span className="font-medium text-foreground">
-						运行范围：{formatRequestViewLabel(view)}
-					</span>
-					<span className="font-medium text-foreground">
-						共 {selectedCount} 条，当前显示 {requests.data.data.length} 条
-					</span>
-					<span
-						className="text-muted-foreground"
-						title={formatTimestamp(requests.data.generatedAt)}
-					>
-						更新于 {formatTimestamp(requests.data.generatedAt)}
-					</span>
-				</div>
-				{hasActiveFilters ? (
-					<Link
-						className="font-medium text-info hover:underline"
-						search={cleanRequestSearch({ view: search.view })}
-						to="/requests"
-					>
-						清除筛选
-					</Link>
-				) : null}
-			</div>
-			{hasActiveFilters ? (
-				<p className="mb-3 ui-metadata text-muted-foreground">
-					已应用：{activeFilterLabels.join("、")}
-				</p>
+			{requests.isPending && !search.timeError ? <p role="status">正在读取运行诊断...</p> : null}
+			{requests.isError && !requests.data ? (
+				<ErrorState
+					error={requests.error}
+					onRetry={() => requests.refetch()}
+					title="运行诊断读取失败"
+				/>
 			) : null}
-			{requests.isPlaceholderData ? (
-				<p className="mb-3 text-warning text-sm" role="status">
-					正在读取新筛选结果，当前列表仍是上一组数据。
-				</p>
-			) : null}
-			{requests.data.data.length === 0 ? (
-				<RequestListEmptyState hasActiveFilters={hasActiveFilters} view={view} />
-			) : (
+			{requests.data && !search.timeError ? (
 				<>
-					<RequestMobileList
-						generatedAt={requests.data.generatedAt}
-						requests={requests.data.data}
-						search={search}
-					/>
-					<div className="hidden xl:block">
-						<DataTable<OpsRequestSummary>
-							caption="运行诊断"
-							columns={createRequestColumns(requests.data.generatedAt, search)}
-							data={requests.data.data}
-							minWidth="1000px"
-							rowKey={(row) => row.requestId}
-						/>
+					{search.requestId ? (
+						<p className="my-2 text-xs text-muted-foreground">
+							精确 requestId 查询不受时间范围限制。
+						</p>
+					) : (
+						<TimeRangeSummary filters={requests.data.filters} />
+					)}
+
+					<div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+						<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+							<span className="font-medium text-foreground">
+								运行范围：{formatRequestViewLabel(view)}
+							</span>
+							<span className="font-medium text-foreground">
+								共 {selectedCount} 条，当前显示 {requests.data.data.length} 条
+							</span>
+							<span
+								className="text-muted-foreground"
+								title={formatTimestamp(requests.data.generatedAt)}
+							>
+								更新于 {formatTimestamp(requests.data.generatedAt)}
+							</span>
+						</div>
+						{hasActiveFilters ? (
+							<Link
+								className="font-medium text-info hover:underline"
+								search={cleanRequestSearch({ view: search.view })}
+								to="/requests"
+							>
+								清除筛选
+							</Link>
+						) : null}
 					</div>
+					{hasActiveFilters ? (
+						<p className="mb-3 ui-metadata text-muted-foreground">
+							已应用：{activeFilterLabels.join("、")}
+						</p>
+					) : null}
+					{requests.isPlaceholderData ? (
+						<p className="mb-3 text-warning text-sm" role="status">
+							正在读取新筛选结果，当前列表仍是上一组数据。
+						</p>
+					) : null}
+					{requests.data.data.length === 0 ? (
+						<RequestListEmptyState hasActiveFilters={hasActiveFilters} view={view} />
+					) : (
+						<>
+							<RequestMobileList
+								generatedAt={requests.data.generatedAt}
+								requests={requests.data.data}
+								search={search}
+							/>
+							<div className="hidden xl:block">
+								<DataTable<OpsRequestSummary>
+									caption="运行诊断"
+									columns={createRequestColumns(requests.data.generatedAt, search)}
+									data={requests.data.data}
+									minWidth="1000px"
+									rowKey={(row) => row.requestId}
+								/>
+							</div>
+						</>
+					)}
+					{search.cursor || requests.data.page.nextCursor ? (
+						<div className="mt-4">
+							<RequestPagination nextCursor={requests.data.page.nextCursor} search={search} />
+						</div>
+					) : null}
 				</>
-			)}
-			{search.cursor || requests.data.page.nextCursor ? (
-				<div className="mt-4">
-					<RequestPagination nextCursor={requests.data.page.nextCursor} search={search} />
-				</div>
 			) : null}
 		</section>
 	);
@@ -387,6 +388,20 @@ function RequestExecutionStage({
 					? `${formatOpsDomainValue(stage.toolName ?? stage.kind)} · ${formatOpsDomainValue(stage.status)}`
 					: formatLifecyclePhase(request.lifecyclePhase)}
 			</span>
+			{request.matchedFailure ? (
+				<span className="text-danger text-xs">
+					命中{request.matchedFailure.scope === "terminal" ? "终态" : "阶段"}失败：
+					{request.matchedFailure.code}
+					{request.matchedFailure.sourceCode
+						? ` · 原始失败 ${request.matchedFailure.sourceCode}`
+						: ""}
+					{request.matchedFailure.reason
+						? ` · ${failureReasonLabel(request.matchedFailure.reason)}`
+						: ""}
+					{request.matchedFailure.stepId ? ` · ${request.matchedFailure.stepId}` : ""}
+					{request.matchedFailure.diagnosticState === "invalid" ? " · 部分诊断无法解析" : ""}
+				</span>
+			) : null}
 			{request.failureKind ? (
 				<span className="text-danger text-xs">
 					失败类型：{formatOpsDomainValue(request.failureKind)}

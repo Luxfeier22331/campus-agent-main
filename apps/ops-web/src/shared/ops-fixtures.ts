@@ -277,7 +277,8 @@ export const opsRequestListFixture = {
 		total: 6,
 	},
 	view: "recent",
-	window: "1h",
+	window: "today",
+	filters: { from: "2026-07-08T16:00:00.000Z", to: "2026-07-09T07:30:00.000Z" },
 } satisfies OpsRequestListResponse;
 
 export const opsRequestDetailFixture = knowledgeDetail;
@@ -347,5 +348,6 @@ export const opsOverviewFixture = {
 		dataState: "FRESH",
 		reason: null,
 	},
-	window: "1h",
+	window: "today",
+	filters: { from: "2026-07-08T16:00:00.000Z", to: "2026-07-09T07:30:00.000Z" },
 } satisfies OpsOverviewResponse;

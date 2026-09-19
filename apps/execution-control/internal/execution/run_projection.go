@@ -36,6 +36,7 @@ const (
 type DurableRunEventType string
 
 const (
+	DurableRunEventTypeRunRetrievalStatus         DurableRunEventType = "run.retrieval_status"
 	DurableRunEventTypeRunCreated                 DurableRunEventType = "run.created"
 	DurableRunEventTypeRunQueued                  DurableRunEventType = "run.queued"
 	DurableRunEventTypeRunAdmitted                DurableRunEventType = "run.admitted"

@@ -11,6 +11,11 @@ import {
 	type Usage,
 	webSearchTool,
 } from "@openai/agents";
+import {
+	CITATION_REASONS,
+	type CitationDiagnostic,
+	type CitationReason,
+} from "campus-contracts/citation-diagnostic";
 import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
@@ -128,7 +133,15 @@ export function createStreamingOpenAIAgentsRunner(
 				}
 				return;
 			}
-			for await (const delta of result.toTextStream()) {
+			for await (const event of result) {
+				if (
+					event.type !== "raw_model_stream_event" ||
+					event.data.type !== "output_text_delta" ||
+					input.operation === "execute_step"
+				) {
+					continue;
+				}
+				const delta = event.data.delta;
 				if (delta !== "") {
 					answerStarted = true;
 					yield { delta } satisfies AgentRunnerAnswerDelta;
@@ -415,7 +428,7 @@ function extractWebEvidence(
 			if (!Array.isArray(annotations)) {
 				continue;
 			}
-			for (const annotation of annotations) {
+			for (const [annotationIndex, annotation] of annotations.entries()) {
 				if (!isRecord(annotation) || annotation.type !== "url_citation") {
 					continue;
 				}
@@ -423,15 +436,48 @@ function extractWebEvidence(
 				const title = stringValue(annotation.title);
 				const start = integerValue(annotation.start_index);
 				const end = integerValue(annotation.end_index);
-				if (
-					!(url && title) ||
-					start === null ||
-					end === null ||
-					start < 0 ||
-					end <= start ||
-					end > part.text.length
-				) {
-					throw citationValidationError("invalid web citation");
+				const diagnostic: CitationDiagnostic = {
+					schema_version: 1,
+					validation_stage: "provider_annotation",
+					item_index: annotationIndex,
+					text_length: part.text.length,
+					offset_unit: "utf16_code_unit",
+					...(start === null ? {} : { start }),
+					...(end === null ? {} : { end }),
+				};
+				if (!url) {
+					throw citationValidationError(annotation.url ? "invalid_url" : "missing_field", {
+						...diagnostic,
+						field: "url",
+					});
+				}
+				if (!title) {
+					throw citationValidationError("missing_field", { ...diagnostic, field: "title" });
+				}
+				if (start === null || end === null) {
+					const field = start === null ? "start_index" : "end_index";
+					const value = annotation[field];
+					const actual_type =
+						value === undefined
+							? "missing"
+							: value === null
+								? "null"
+								: Array.isArray(value)
+									? "array"
+									: typeof value === "object"
+										? "object"
+										: typeof value === "number"
+											? "number"
+											: typeof value === "boolean"
+												? "boolean"
+												: "string";
+					throw citationValidationError("invalid_offset", { ...diagnostic, field, actual_type });
+				}
+				if (start < 0 || end <= start) {
+					throw citationValidationError("invalid_offset", diagnostic);
+				}
+				if (end > part.text.length) {
+					throw citationValidationError("span_out_of_bounds", diagnostic);
 				}
 				evidence.push({ url, title, excerpt: part.text.slice(start, end) });
 			}
@@ -440,8 +486,15 @@ function extractWebEvidence(
 	return evidence;
 }
 
-function citationValidationError(message: string): AgentRuntimeError {
-	return new AgentRuntimeError("citation_validation_failed", message);
+function citationValidationError(
+	reason: CitationReason,
+	citation: CitationDiagnostic,
+): AgentRuntimeError {
+	return new AgentRuntimeError("citation_validation_failed", CITATION_REASONS[reason], {
+		reason,
+		citation,
+		detail: CITATION_REASONS[reason],
+	});
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

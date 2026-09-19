@@ -26,7 +26,10 @@ Status: implemented
 首次提交运行全量模块任务；空暂存差异只运行可缓存的根测试。不创建临时提交、额外快照、验证
 凭证或第二套包依赖映射。`pnpm lint` 排除 validation group，保持原有静态检查职责。
 
-执行器内 Node 任务的 Turbo 并发以半核数（最少 2）为上限，native 任务维持既有串行；约束在
+执行器内 Node 任务的 Turbo 并发以半核数（最少 2）为 CPU 上限，再受进程内存额度约束：
+每 2 GiB 允许一个任务，最少一个；运行时未报告内存限制时保留 CPU 上限。6 核、2 GiB 的 runner
+曾在三个任务同时执行时由 cgroup OOM 杀掉 tsc，故不能只按核数调度；该额度用于降低并发，
+不承诺单个任务永不耗尽内存。native 任务维持既有串行；约束在
 统一命令构造处生效，同时覆盖提交 hook、PR affected 与 verify。全量任务分波执行会拉长 CI 墙钟，
 以消除共享 runner 上 vitest 默认超时的进程饥饿为准。
 

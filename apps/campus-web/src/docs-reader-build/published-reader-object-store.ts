@@ -11,11 +11,11 @@ import type {
 export function createS3ReaderObjectStore(
 	env: PublishedReaderObjectStoreEnv = process.env,
 ): ReaderObjectStoreClient {
-	const { accessKeyId, endpoint, region, secretAccessKey } =
+	const { accessKeyId, bucket, endpoint, region, secretAccessKey } =
 		resolvePublishedReaderObjectStoreConfig(env);
 	const client = createS3Client({ accessKeyId, endpoint, region, secretAccessKey });
 	return {
-		readOptionalBytesObject: (input) => readOptionalBytesObject(client, input.key),
+		readOptionalBytesObject: (input) => readOptionalBytesObject(client, bucket, input.key),
 	};
 }
 
@@ -26,7 +26,7 @@ export function createS3ObjectStore(
 		resolvePublishedReaderObjectStoreWriterConfig(env);
 	const client = createS3Client({ accessKeyId, endpoint, region, secretAccessKey });
 	return {
-		readOptionalBytesObject: (input) => readOptionalBytesObject(client, input.key),
+		readOptionalBytesObject: (input) => readOptionalBytesObject(client, bucket, input.key),
 		async writeBytesObject(input) {
 			await client.send(
 				new PutObjectCommand({
@@ -44,7 +44,7 @@ export function resolvePublishedReaderObjectStoreConfig(
 	env: PublishedReaderObjectStoreEnv,
 ): PublishedReaderObjectStoreConfig {
 	const endpoint = readRequiredEnv(env, "OBJECT_STORE_ENDPOINT");
-	const bucket = resolvePublishedReaderObjectStoreBucket();
+	const bucket = resolvePublishedReaderObjectStoreBucket(env);
 	const region = "us-east-1";
 	const { accessKeyId, credentialMode, secretAccessKey } =
 		resolvePublishedReaderObjectStoreCredentials(env);
@@ -58,8 +58,10 @@ export function resolvePublishedReaderObjectStoreConfig(
 	};
 }
 
-export function resolvePublishedReaderObjectStoreBucket(): string {
-	return "campus-agent-derived";
+export function resolvePublishedReaderObjectStoreBucket(
+	env: PublishedReaderObjectStoreEnv = process.env,
+): string {
+	return env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-agent-derived";
 }
 
 export function resolvePublishedReaderObjectStoreCredentials(
@@ -78,7 +80,7 @@ export function resolvePublishedReaderObjectStoreWriterConfig(
 	const endpoint = readRequiredEnv(env, "OBJECT_STORE_ENDPOINT");
 	return {
 		...resolvePublishedReaderObjectStoreWriterCredentials(env),
-		bucket: resolvePublishedReaderObjectStoreBucket(),
+		bucket: resolvePublishedReaderObjectStoreBucket(env),
 		endpoint,
 		region: "us-east-1",
 	};
@@ -110,12 +112,11 @@ function createS3Client(input: {
 
 async function readOptionalBytesObject(
 	client: S3Client,
+	bucket: string,
 	key: string,
 ): Promise<Uint8Array | undefined> {
 	try {
-		const response = await client.send(
-			new GetObjectCommand({ Bucket: resolvePublishedReaderObjectStoreBucket(), Key: key }),
-		);
+		const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
 		if (!response.Body) {
 			throw new Error(`empty object body: ${key}`);
 		}

@@ -14,7 +14,7 @@ export const DisclosureSummary = forwardRef<HTMLElement, ComponentPropsWithoutRe
 		<summary
 			ref={ref}
 			className={cn(
-				"flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--radius-lg)] text-sm hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [&::-webkit-details-marker]:hidden",
+				"flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--radius-lg)] text-sm hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 [&::-webkit-details-marker]:hidden",
 				className,
 			)}
 			{...props}

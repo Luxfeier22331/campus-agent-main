@@ -101,6 +101,7 @@ describe("transport page", () => {
 		};
 		render(<TransportPageView {...props} data={schedule} rider="student" />);
 		expect(screen.getAllByText("五一期间按本表运行")).toHaveLength(1);
+		expect(screen.getByRole("link", { name: /五一班车安排/ })).toHaveTextContent("2026-04-25");
 		expect(screen.getByLabelText("班次安排")).toHaveTextContent("2026-04-28 — 2026-05-05");
 		const url = new URL(
 			screen.getByRole("link", { name: /五一班车安排/ }).getAttribute("href")!,
@@ -546,5 +547,32 @@ describe("transport page", () => {
 		expect(nextDepartures(departures, props.date, new Date("2026-09-07T16:20:00+08:00"))).toEqual(
 			[],
 		);
+	});
+});
+
+describe("transport information hierarchy", () => {
+	it("shows applicability without source notices and prioritizes departures over guidance", () => {
+		const schedule = structuredClone(data);
+		const route = schedule.routes[0];
+		if (!route) {
+			throw new Error("missing route fixture");
+		}
+		route.noticeContext = {
+			validFrom: "2026-09-01",
+			validTo: "2026-12-31",
+			weekdays: [1, 2, 3, 4, 5],
+			notices: [],
+		};
+		render(<TransportPageView {...props} data={schedule} />);
+		expect(screen.getByText(/适用期：2026-09-01/)).toHaveTextContent("2026-12-31 · 周一至周五");
+		expect(screen.queryByText(/相关通知/)).not.toBeInTheDocument();
+		const next = screen.getByRole("region", { name: "下一班及当前运行班次" });
+		const arrangement = screen.getByRole("region", { name: "班次安排" });
+		expect(
+			next.compareDocumentPosition(arrangement) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			next.compareDocumentPosition(screen.getByText("乘车指引")) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 	});
 });

@@ -10,6 +10,8 @@ import type {
 	AgentRunnerSolveDecision,
 	SdkToolRuntime,
 } from "../src/agent-run-contract.ts";
+import { failedRunnerResult } from "../src/runner-failure.ts";
+import { AgentRuntimeError } from "../src/runtime-errors.ts";
 import {
 	createOpenAIAgentsRunner,
 	createStreamingOpenAIAgentsRunner,
@@ -384,7 +386,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		for await (const event of createStreamingOpenAIAgentsRunner({
 			model: "gpt-test",
 			modelProvider: providerFor(model),
-		})(input([lookupTool()]))) {
+		})(input([lookupTool()], { operation: "synthesize" }))) {
 			events.push(event);
 		}
 
@@ -406,7 +408,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		for await (const event of createStreamingOpenAIAgentsRunner({
 			model: "gpt-test",
 			modelProvider: providerFor(model),
-		})(input([lookupTool()], { limits: { ...limits, maxTurns: 1 } }))) {
+		})(input([lookupTool()], { operation: "synthesize", limits: { ...limits, maxTurns: 1 } }))) {
 			events.push(event);
 		}
 		expect(events[0]).toEqual({ delta: "未完成草稿" });
@@ -519,6 +521,45 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(chatModel.firstCall?.request.tools).toEqual([]);
 	});
 
+	it.each([
+		[{ title: "" }, "missing_field", "title"],
+		[{ url: "bad-url" }, "invalid_url", "url"],
+		[{ start_index: -1 }, "invalid_offset", undefined],
+		[{ end_index: 99 }, "span_out_of_bounds", undefined],
+		[{ start_index: "1" }, "invalid_offset", "start_index"],
+	] as const)("reports the rejected citation rule %s", async (patch, reason, field) => {
+		const model = new ScriptedModel([
+			[
+				assistantMessageWithAnnotations("😀学校", [
+					{
+						type: "url_citation",
+						url: "https://www.muc.edu.cn/",
+						title: "学校",
+						start_index: 0,
+						end_index: 2,
+						...patch,
+					},
+				]),
+			],
+		]);
+		await expect(
+			createOpenAIAgentsRunner({ model: "gpt-test", modelProvider: providerFor(model) })(input()),
+		).rejects.toMatchObject({
+			code: "citation_validation_failed",
+			failure: {
+				reason,
+				citation: {
+					schema_version: 1,
+					validation_stage: "provider_annotation",
+					item_index: 0,
+					text_length: 4,
+					offset_unit: "utf16_code_unit",
+					...(field ? { field } : {}),
+				},
+			},
+		});
+	});
+
 	it("returns native Web Search citations without local function results", async () => {
 		const model = new ScriptedModel([
 			[
@@ -577,3 +618,44 @@ function assistantMessageWithAnnotations(
 		],
 	};
 }
+
+it("retains citation diagnosis when a started answer becomes a failed result", () => {
+	const citation = {
+		schema_version: 1,
+		validation_stage: "provider_annotation",
+		start: 0,
+		end: 9,
+		text_length: 4,
+		offset_unit: "utf16_code_unit",
+	} as const;
+	const result = failedRunnerResult(
+		new AgentRuntimeError("citation_validation_failed", "invalid citation", {
+			reason: "span_out_of_bounds",
+			citation,
+		}),
+		{
+			operation: "solve",
+			input: [],
+			instructions: "",
+			limits,
+			tools: [],
+			requestId: "citation-failed-result",
+			providerConfig,
+			allowWebSearch: true,
+			citationStart: 1,
+		},
+		{
+			answerStarted: true,
+			finalOutput: "partial",
+			providerResponseId: "",
+			toolResults: [],
+			usage: { modelRequestCount: 1, inputTokens: 0, outputTokens: 0, usageObserved: true },
+		},
+	);
+	expect(result.finalOutput).toBe("");
+	expect(result.failure).toMatchObject({
+		code: "citation_validation_failed",
+		reason: "span_out_of_bounds",
+		citation,
+	});
+});

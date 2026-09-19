@@ -47,6 +47,7 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 		"create role app_api nologin",
 		"create role execution_control nologin",
 		"create role ops_web nologin",
+		"create role product_data_ro nologin",
 	} {
 		if _, err := admin.Exec(ctx, statement); err != nil {
 			t.Fatal(err)

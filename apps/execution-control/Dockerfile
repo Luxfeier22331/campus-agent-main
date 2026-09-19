@@ -15,7 +15,8 @@ WORKDIR /src/apps/execution-control
 COPY apps/execution-control/go.mod apps/execution-control/go.sum ./
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod go mod download
 
-COPY apps/execution-control ./
+COPY apps/execution-control/cmd ./cmd
+COPY apps/execution-control/internal ./internal
 COPY configs/runtime/tool-function-schemas.v4.json /src/configs/runtime/tool-function-schemas.v4.json
 COPY configs/runtime/tools.v7.json /src/configs/runtime/tools.v7.json
 COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts/fixtures/tool_execution_contract

@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { OpsConversationListQuerySchema } from "campus-contracts/chat-conversations";
 import type { ChatFeedbackQuery } from "campus-contracts/chat-feedback";
+import { resolveTimeQuery } from "campus-contracts/ops-time";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -226,7 +227,10 @@ describe("conversation summaries PostgreSQL queries", () => {
 		runtime = new Pool({ connectionString: postgres.runtimeConnectionString, max: 2 });
 		management = new Pool({ connectionString: postgres.managementConnectionString, max: 1 });
 		const db = drizzle({ client: runtime });
-		service = createOpsConversationQueryService({ getDb: async () => db });
+		service = createOpsConversationQueryService({
+			getDb: async () => db,
+			now: () => new Date(at.valueOf() + 3_600_000),
+		});
 	});
 	beforeEach(() => {
 		owner = `summary-${randomUUID()}`;
@@ -350,12 +354,43 @@ describe("conversation summaries PostgreSQL queries", () => {
 		]);
 	});
 
-	it("keeps empty conversations and includes both date boundaries", async () => {
+	it("uses a half-open interval for empty conversations", async () => {
 		const id = await conversation("empty");
-		expect((await list({ from: at.toISOString(), to: at.toISOString() })).rows).toMatchObject([
-			{ id, latestStatus: "COMPLETED" },
-		]);
-		expect((await list({ from: new Date(at.valueOf() + 1).toISOString() })).rows).toHaveLength(0);
-		expect((await list({ to: new Date(at.valueOf() - 1).toISOString() })).rows).toHaveLength(0);
+		expect(
+			(await list({ from: at.toISOString(), to: new Date(at.valueOf() + 1).toISOString() })).rows,
+		).toMatchObject([{ id, latestStatus: "COMPLETED" }]);
+		expect(
+			(await list({ from: new Date(at.valueOf() - 1).toISOString(), to: at.toISOString() })).rows,
+		).toHaveLength(0);
 	});
+
+	it.each(["today", "24h", "this-week", "this-month", "last-month", "30d"] as const)(
+		"actually filters the %s preset before pagination",
+		async (window) => {
+			const fixedNow = new Date(at.valueOf() + 3_600_000);
+			const range = resolveTimeQuery({ window }, "conversations", fixedNow);
+			const times = [
+				Date.parse(range.from) - 1,
+				Date.parse(range.from),
+				Date.parse(range.to) - 1,
+				Date.parse(range.to),
+				Date.parse(range.to) + 1,
+			];
+			const ids: string[] = [];
+			for (const [index, time] of times.entries()) {
+				const id = await conversation(`boundary-${index}`);
+				ids.push(id);
+				await runtime.query("update chat.conversations set updated_at = $1 where id = $2", [
+					new Date(time),
+					id,
+				]);
+			}
+			const result = await list({ window, limit: 1 });
+			expect(result.filters).toEqual(range);
+			expect(result.rows.map((row) => row.id)).toEqual([ids[2]]);
+			const next = await list({ window, limit: 1, cursor: result.nextCursor });
+			expect(next.rows.map((row) => row.id)).toEqual([ids[1]]);
+			expect(next.nextCursor).toBeNull();
+		},
+	);
 });

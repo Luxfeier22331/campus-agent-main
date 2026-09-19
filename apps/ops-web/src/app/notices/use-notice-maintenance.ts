@@ -5,7 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { useBlocker } from "@tanstack/react-router";
+import { useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import type { NoticeCategory } from "campus-contracts/notices";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NoticeJob, NoticeJobCreate, NoticeState } from "../../shared/ops-contract";
@@ -63,12 +63,11 @@ export type NoticeNavigationIntent =
 
 export function useNoticeMaintenance() {
 	const queryClient = useQueryClient();
-	const [category, setCategory] = useState<NoticeCategory | "">("");
-	const [page, setPage] = useState(1);
-	const [q, setQ] = useState("");
-	const [search, setSearch] = useState("");
+	const navigate = useNavigate({ from: "/notices" });
+	const { category, page, q, state } = useSearch({ from: "/notices" });
+	const [search, setSearch] = useState(q);
+	useEffect(() => setSearch(q), [q]);
 	const [selectedNoticeId, setSelectedNoticeId] = useState<number | null>(null);
-	const [state, setState] = useState<NoticeState | "">("");
 	const [categoryDraft, setCategoryDraft] = useState<NoticeCategoryDraft | null>(null);
 	const [pendingIntent, setPendingIntent] = useState<NoticeNavigationIntent | null>(null);
 	const [taskCenterOpen, setTaskCenterOpen] = useState(false);
@@ -248,13 +247,15 @@ export function useNoticeMaintenance() {
 				setSelectedNoticeId(intent.noticeId);
 				return;
 			}
-			setCategory(intent.category);
-			setPage(intent.page);
-			setQ(intent.q);
 			setSearch(intent.q);
-			setState(intent.state);
+			void navigate({
+				to: "/notices",
+				search: { category: intent.category, page: intent.page, q: intent.q, state: intent.state },
+				resetScroll: false,
+				ignoreBlocker: true,
+			});
 		},
-		[resetSaveCategory],
+		[navigate, resetSaveCategory],
 	);
 
 	const requestIntent = useCallback(
@@ -402,6 +403,9 @@ export function useNoticeMaintenance() {
 	}, [blocker]);
 	const discardRouteChanges = useCallback(() => {
 		if (blocker.status === "blocked") {
+			setCategoryDraft((current) =>
+				current ? { ...current, category: current.baseCategory } : current,
+			);
 			blocker.proceed();
 		}
 	}, [blocker]);

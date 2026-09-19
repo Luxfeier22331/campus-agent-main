@@ -18,7 +18,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
 
 COPY . .
 
-RUN ./node_modules/.bin/turbo prune internal-portal-collection --docker --out-dir=/repo/out
+RUN ./node_modules/.bin/turbo prune internal-portal-collection --docker --out-dir=/repo/out \
+  && node --experimental-strip-types scripts/release/prune-image.mts internal-portal-collection /repo/out
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS check
 

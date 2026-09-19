@@ -26,6 +26,7 @@ jobs:
   repository-validation:
     if: github.event.pull_request.draft == false
     permissions:
+      actions: read
       contents: read
       pull-requests: read
       packages: read
@@ -100,6 +101,9 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           MERGE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_BRANCH: ${{ github.head_ref }}
           PNPM_CACHE_BASE: ${{ steps.pnpm_cache.outputs.prefix }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
         run: |
           echo CI_BODY_STARTED
@@ -107,7 +111,9 @@ jobs:
           set -euo pipefail
           plan="$(node --experimental-strip-types scripts/ci/validation.mts \
             --base "$BASE_SHA" \
-            --head "$MERGE_SHA")"
+            --head "$MERGE_SHA" \
+            --repository "$GITHUB_REPOSITORY" --pull-request "$PR_NUMBER" \
+            --run-id "$GITHUB_RUN_ID" --branch "$HEAD_BRANCH")"
           jq -e . <<< "$plan" >/dev/null
           base="$(jq -r '.base' <<< "$plan")"
           head="$(jq -r '.head' <<< "$plan")"
@@ -143,6 +149,8 @@ jobs:
           printf 'CI_PLAN %s\n' "$(jq -c . <<< "$plan")"
           {
             echo '### Validation selection'
+            echo
+            jq -r '"Image comparison base: `\(.imageBase)`; previous successful run: \(.imageBaselineRunId // "none; full PR diff")."' <<< "$plan"
             echo
             echo '| Profile | Selected | Reason |'
             echo '| --- | --- | --- |'

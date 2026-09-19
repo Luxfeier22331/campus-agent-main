@@ -124,6 +124,7 @@ export function useAssistantUiRunController({
 		convertMessage,
 		extras: {
 			connection: runState.connection,
+			retrieval: runState.retrieval,
 		},
 		isLoading,
 		isRunning,

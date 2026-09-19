@@ -10,6 +10,7 @@ import type {
 	AgentRuntimeLimits,
 	CompletedTaskStep,
 	CreateWorkflowOperationRuntimeOptions,
+	ExecuteStepWorkflowOperationInput,
 	ModelContextUsage,
 	ModelMessage,
 	SdkToolRuntime,
@@ -30,7 +31,9 @@ import type {
 	WorkflowSource,
 } from "./agent-run-contract.ts";
 import { sourceUnavailable } from "./execution-budget.ts";
+import { stripHistoricalCitations } from "./history-citations.ts";
 import { ModelOutputError, parseModelOutputJSON } from "./model-output.ts";
+import { streamWithRetrieval } from "./retrieval-status.ts";
 import { failedRunnerResult } from "./runner-failure.ts";
 import { partialJSONStringField } from "./runner-output.ts";
 import { AgentRuntimeError, summarizeRuntimeError } from "./runtime-errors.ts";
@@ -102,6 +105,7 @@ export const solveSdkOutputSchema = z
 
 const productIdentityInstructions = [
 	"你服务中央民族大学的校园信息与校园服务场景。",
+	"历史回答只帮助识别追问对象，旧引用编号不是本轮证据；需要引用的机构事实必须使用本轮检索资料。",
 	"用户未明确指定其他机构时，学校、本校和校园均指中央民族大学。",
 	"不要向用户暴露 workflow operation、步骤 ID、来源枚举、工具名称或其他内部实现标签。",
 ];
@@ -180,12 +184,19 @@ export function createWorkflowOperationRuntime(
 			});
 		},
 		async *stream(
-			input: SolveWorkflowOperationInput | SynthesizeWorkflowOperationInput,
+			input:
+				| SolveWorkflowOperationInput
+				| SynthesizeWorkflowOperationInput
+				| ExecuteStepWorkflowOperationInput,
 		): AsyncIterable<WorkflowOperationStreamEvent> {
-			if (input.operation !== "solve" && input.operation !== "synthesize") {
+			if (
+				input.operation !== "solve" &&
+				input.operation !== "synthesize" &&
+				input.operation !== "execute_step"
+			) {
 				throw new AgentRuntimeError(
 					"invalid_request",
-					"Only solve and synthesize operations can be streamed.",
+					"Only solve, execute_step and synthesize operations can be streamed.",
 					{ operation: "workflow.stream" },
 				);
 			}
@@ -201,7 +212,11 @@ export function createWorkflowOperationRuntime(
 			const startedAt = new Date();
 			let firstDeltaAt: Date | undefined;
 			let solveDecision: "answer" | "plan" | undefined;
-			for await (const item of streamingRunner(prepared.runnerInput)) {
+			for await (const item of streamWithRetrieval(prepared.runnerInput, streamingRunner)) {
+				if ("retrieval" in item) {
+					yield { event: "retrieval_status", data: item.retrieval };
+					continue;
+				}
 				if (isAgentRunnerResult(item)) {
 					const completed = operationResultFromRunner({
 						input,
@@ -244,6 +259,9 @@ export function createWorkflowOperationRuntime(
 					}
 					solveDecision = item.solveOutcome;
 					yield { event: "solve_decision", data: { outcome: solveDecision } };
+					continue;
+				}
+				if (input.operation === "execute_step") {
 					continue;
 				}
 				if (input.operation === "solve" && solveDecision !== "answer") {
@@ -476,9 +494,7 @@ function operationPayload(
 		case "execute_step":
 			return {
 				availableSources,
-				completedSteps: input.operationInput.completedSteps.map(
-					({ searchSuggestions: _suggestions, ...step }) => step,
-				),
+				completedSteps: input.operationInput.completedSteps,
 				goal: input.operationInput.goal,
 				plan: input.operationInput.plan,
 				step: input.operationInput.step,
@@ -486,9 +502,7 @@ function operationPayload(
 		case "replan":
 			return {
 				availableSources,
-				completedSteps: input.operationInput.completedSteps.map(
-					({ searchSuggestions: _suggestions, ...step }) => step,
-				),
+				completedSteps: input.operationInput.completedSteps,
 				goal: input.operationInput.goal,
 				maxRemainingSteps: input.operationInput.maxRemainingSteps,
 				plan: input.operationInput.plan,
@@ -513,7 +527,9 @@ function modelInputItems(
 	const buildItems = (): ModelMessage[] => {
 		const items: ModelMessage[] = [];
 		for (const turn of recentTurns) {
-			const content = turn.content.trim();
+			const content = (
+				turn.role === "assistant" ? stripHistoricalCitations(turn.content) : turn.content
+			).trim();
 			if (!content) {
 				continue;
 			}
@@ -641,7 +657,6 @@ function operationResultFromRunner(args: {
 		toolContractFingerprint: args.toolContractFingerprint,
 		toolResults: runnerResult.toolResults,
 		usage: runnerResult.usage,
-		searchSuggestions: runnerResult.searchSuggestions ?? [],
 	};
 
 	try {
@@ -750,7 +765,6 @@ function operationResultFromRunner(args: {
 					status: "completed",
 					evidence: [],
 					sourceAttempts: [],
-					searchSuggestions: input.operationInput.searchSuggestions ?? [],
 					terminalReason:
 						input.operationInput.mode === "recovery"
 							? "recovered_from_materials"
@@ -963,6 +977,7 @@ function evidenceFromRunnerResult(
 			schemaVersion: "workflow_evidence.v1",
 			source: "web_search",
 			title: citation.title,
+			...(citation.sourceLink ? { sourceLink: citation.sourceLink } : {}),
 			url: citation.url,
 		});
 		nextCitationIndex += 1;

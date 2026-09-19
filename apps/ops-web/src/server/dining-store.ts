@@ -320,9 +320,7 @@ async function loadDraft(
 	);
 	const row = result.rows[0];
 	if (!row) {
-		throw new DiningStoreNotFoundError(
-			"食堂地图尚未初始化，请先运行 pnpm --dir apps/ops-web db:bootstrap-dining。",
-		);
+		throw new DiningStoreNotFoundError("食堂地图尚未初始化，请先完成产品数据初始化。");
 	}
 	const bundle = parseStoredBundle(row.bundle_json);
 	const fingerprint = parseHash(row.fingerprint, "draft fingerprint");

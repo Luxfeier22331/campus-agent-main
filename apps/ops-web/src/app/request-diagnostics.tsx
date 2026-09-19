@@ -1,12 +1,19 @@
 import { cn } from "@campus-agent/ui";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 import { CampusSearchSection } from "./campus-search-diagnostics";
+import { CitationFailurePanel } from "./citation-failure-panel";
 import { formatDuration, formatTimestamp } from "./format";
 import { ModelOutputDiagnosticPanel } from "./model-output-diagnostic.tsx";
 import { KeyValue } from "./ops-display";
 import { formatOpsDomainValue } from "./ops-domain-labels";
 
-export function RequestDiagnostics({ detail }: { detail: OpsRequestDetailResponse }) {
+export function RequestDiagnostics({
+	detail,
+	from,
+}: {
+	detail: OpsRequestDetailResponse;
+	from?: string | undefined;
+}) {
 	return (
 		<>
 			{detail.execution.terminalFailure ? (
@@ -15,11 +22,12 @@ export function RequestDiagnostics({ detail }: { detail: OpsRequestDetailRespons
 					<KeyValue label="失败代码" value={detail.execution.terminalFailure.code ?? "未记录"} />
 					<KeyValue label="操作" value={detail.execution.terminalFailure.operation ?? "未记录"} />
 					<KeyValue label="详情" value={detail.execution.terminalFailure.detail ?? "未记录"} />
+					<CitationFailurePanel failure={detail.execution.terminalFailure} from={from} />
 				</section>
 			) : null}
-			<FailureSection detail={detail} />
+			<FailureSection detail={detail} from={from} />
 			<RunClosureSection detail={detail} />
-			<ExecutionSection detail={detail} />
+			<ExecutionSection detail={detail} from={from} />
 			<CampusSearchSection diagnostics={detail.execution.campusSearch} />
 		</>
 	);
@@ -43,7 +51,13 @@ function RunClosureSection({ detail }: { detail: OpsRequestDetailResponse }) {
 	);
 }
 
-function FailureSection({ detail }: { detail: OpsRequestDetailResponse }) {
+function FailureSection({
+	detail,
+	from,
+}: {
+	detail: OpsRequestDetailResponse;
+	from?: string | undefined;
+}) {
 	const failure = detail.execution.failure;
 	if (!hasFailure(failure)) {
 		return null;
@@ -62,12 +76,19 @@ function FailureSection({ detail }: { detail: OpsRequestDetailResponse }) {
 				<KeyValue label="详情" value={failure.detail ?? "未记录"} />
 				<KeyValue label="HTTP 状态" value={failure.httpStatus?.toString() ?? "未记录"} />
 				<KeyValue label="工具调用 ID" value={failure.invocationId ?? "未记录"} />
+				<CitationFailurePanel failure={failure} from={from} />
 			</div>
 		</section>
 	);
 }
 
-function ExecutionSection({ detail }: { detail: OpsRequestDetailResponse }) {
+function ExecutionSection({
+	detail,
+	from,
+}: {
+	detail: OpsRequestDetailResponse;
+	from?: string | undefined;
+}) {
 	const { model, releases, stages } = detail.execution;
 	return (
 		<section aria-labelledby="request-execution-title" data-testid="request-execution">
@@ -97,6 +118,7 @@ function ExecutionSection({ detail }: { detail: OpsRequestDetailResponse }) {
 					{stages.map((stage) => (
 						<li
 							className="grid gap-2 py-4"
+							id={stage.stepId ? `stage-${stage.stepId}` : undefined}
 							key={[
 								stage.kind,
 								stage.status,
@@ -136,6 +158,7 @@ function ExecutionSection({ detail }: { detail: OpsRequestDetailResponse }) {
 									失败类型：{formatOpsDomainValue(stage.failureKind)}
 								</p>
 							) : null}
+							{stage.failure ? <CitationFailurePanel failure={stage.failure} from={from} /> : null}
 							{stage.failureKind === "model_output_invalid" || stage.modelOutputDiagnostic ? (
 								<ModelOutputDiagnosticPanel diagnostic={stage.modelOutputDiagnostic} />
 							) : null}

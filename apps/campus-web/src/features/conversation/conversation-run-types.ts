@@ -4,6 +4,8 @@ import type { ChatRequestStreamEvent } from "./model";
 import type { ChatRunStatus } from "./run-client";
 
 export interface RuntimeRunState {
+	retrieval?: Partial<Record<"campus", string>>;
+	terminal?: boolean;
 	connection: "connected" | "disconnected" | "recovering";
 	operationId: number;
 	requestId: string | null;

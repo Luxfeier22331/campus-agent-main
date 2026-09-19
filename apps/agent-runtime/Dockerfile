@@ -18,7 +18,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
 
 COPY . .
 
-RUN ./node_modules/.bin/turbo prune agent-runtime --docker --out-dir=/repo/out
+RUN ./node_modules/.bin/turbo prune agent-runtime --docker --out-dir=/repo/out \
+  && node --experimental-strip-types scripts/release/prune-image.mts agent-runtime /repo/out
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 
@@ -67,6 +68,7 @@ RUN apt-get update \
 
 COPY --from=production-dependencies --chown=node:node /app /app
 COPY --from=build --chown=node:node /app/apps/agent-runtime/dist ./apps/agent-runtime/dist
+COPY --from=build --chown=node:node /app/packages/contracts/src ./packages/contracts/src
 COPY --chown=node:node configs/runtime/tools.v7.json ./configs/runtime/tools.v7.json
 COPY --chown=node:node configs/runtime/tool-function-schemas.v4.json ./configs/runtime/tool-function-schemas.v4.json
 

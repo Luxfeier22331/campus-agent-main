@@ -1,5 +1,6 @@
 import type { DataMessagePartProps } from "@assistant-ui/react";
 import { formatDocsVersionLabel } from "campus-contracts/campus-docs";
+import { Globe2 } from "lucide-react";
 import { useState } from "react";
 import type { SourceItemPayload } from "@/features/conversation/model";
 
@@ -39,15 +40,22 @@ export function SourceItemsList({ sourceItems }: { sourceItems: SourceItemPayloa
 }
 
 function sourceItemKey(sourceItem: SourceItemPayload) {
-	return [sourceItem.kind, sourceItem.primaryAction.href, sourceItem.title]
+	return [
+		sourceItem.kind,
+		sourceItem.citationIndexes.join(","),
+		sourceItem.primaryAction.href,
+		sourceItem.title,
+	]
 		.filter(Boolean)
 		.join(":");
 }
 
-function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
+export function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
 	const metadata =
 		sourceItem.kind === "web_page"
-			? [sourceItem.hostname]
+			? isGroundingRedirect(sourceItem.primaryAction.href)
+				? []
+				: [sourceItem.hostname].filter(Boolean)
 			: sourceItem.kind === "campus_notice"
 				? ["校园通知"]
 				: [sourceItem.collectionLabel, formatDocsVersionLabel(sourceItem.versionSlug)].filter(
@@ -65,6 +73,9 @@ function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
 					>
 						{sourceItem.citationIndexes.map((index) => `[${index}]`).join(" ")}
 					</span>
+					<SourceFavicon
+						href={sourceItem.kind === "web_page" ? sourceItem.primaryAction.href : null}
+					/>
 					<div className="min-w-0">
 						<p className="text-foreground line-clamp-2 text-sm font-medium">{sourceItem.title}</p>
 						{metadata.length > 0 ? (
@@ -87,8 +98,52 @@ function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
 	);
 }
 
+function SourceFavicon({ href }: { href: string | null }) {
+	const [failed, setFailed] = useState(false);
+	const favicon = sourceFaviconUrl(href);
+
+	if (!favicon || failed) {
+		return <Globe2 aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />;
+	}
+
+	return (
+		<img
+			alt=""
+			className="size-4 shrink-0 rounded-sm object-contain"
+			decoding="async"
+			loading="lazy"
+			onError={() => setFailed(true)}
+			referrerPolicy="no-referrer"
+			src={favicon}
+		/>
+	);
+}
+
+function sourceFaviconUrl(href: string | null): string | null {
+	if (!href || isGroundingRedirect(href)) {
+		return null;
+	}
+	try {
+		const url = new URL(href);
+		if (
+			(url.protocol !== "https:" && url.protocol !== "http:") ||
+			!url.hostname ||
+			url.username ||
+			url.password
+		) {
+			return null;
+		}
+		return `${url.origin}/favicon.ico`;
+	} catch {
+		return null;
+	}
+}
+
 function SourceItemAction({ sourceItem }: { sourceItem: SourceItemPayload }) {
 	const action = sourceItem.primaryAction;
+	if (action.href === null) {
+		return <span className="text-muted-foreground shrink-0 text-xs">来源暂不可用</span>;
+	}
 	return (
 		<a
 			className="border-border text-foreground hover:bg-accent hover:text-accent-foreground inline-flex h-8 shrink-0 items-center rounded-md border px-2 text-xs font-medium transition-colors"
@@ -99,4 +154,19 @@ function SourceItemAction({ sourceItem }: { sourceItem: SourceItemPayload }) {
 			{action.label}
 		</a>
 	);
+}
+
+function isGroundingRedirect(href: string | null): boolean {
+	if (!href) {
+		return false;
+	}
+	try {
+		const url = new URL(href);
+		return (
+			url.hostname === "vertexaisearch.cloud.google.com" &&
+			url.pathname.startsWith("/grounding-api-redirect/")
+		);
+	} catch {
+		return false;
+	}
 }

@@ -17,3 +17,9 @@ func TestValidateFinalizationRecoveryResponseAcceptsBoundedPayload(t *testing.T)
 		t.Fatalf("validate bounded response: %v", err)
 	}
 }
+
+func TestRecoverySourceRejectsUnknownFields(t *testing.T) {
+	if err := validateRecoveryResponseFields([]byte(`{"result":{"sources":[{"kind":"web_page","unavailable_reason":"source_unavailable","private_debug":true}]}}`)); err == nil || !strings.Contains(err.Error(), "private_debug") {
+		t.Fatalf("error = %v", err)
+	}
+}

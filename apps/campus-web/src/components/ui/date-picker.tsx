@@ -294,13 +294,11 @@ function DateCompleteness({
 }
 
 function formatDateLabel(value: string): string {
-	return new Intl.DateTimeFormat("zh-CN", {
-		year: "numeric",
-		month: "numeric",
-		day: "numeric",
+	const weekday = new Intl.DateTimeFormat("zh-CN", {
 		weekday: "short",
 		timeZone: TIME_ZONE,
 	}).format(new Date(`${value}T00:00:00+08:00`));
+	return `${value} ${weekday}`;
 }
 
 function formatRangeLabel(from?: string, to?: string): string {
@@ -308,16 +306,7 @@ function formatRangeLabel(from?: string, to?: string): string {
 		return "发布日期";
 	}
 	if (from && to) {
-		return `${formatLongDate(from)} - ${formatLongDate(to)}`;
+		return `${from} - ${to}`;
 	}
-	return from ? `${formatLongDate(from)}起` : `${formatLongDate(to as string)}前`;
-}
-
-function formatLongDate(value: string): string {
-	return new Intl.DateTimeFormat("zh-CN", {
-		day: "numeric",
-		month: "long",
-		year: "numeric",
-		timeZone: TIME_ZONE,
-	}).format(new Date(`${value}T00:00:00+08:00`));
+	return from ? `${from}起` : `${to}前`;
 }

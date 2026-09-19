@@ -30,6 +30,12 @@ import {
 import { resolveLocalQdrantConnection } from "./local-qdrant";
 import { removeLocalDevSecrets, resolveLocalDevSecretsPath } from "./local-secrets";
 import {
+	assertProductAppsOffline,
+	diagnoseProductData,
+	initializeProductData,
+} from "./product-data";
+import type { ProductDataOptions } from "./product-data-options";
+import {
 	ensureLocalDevProfile,
 	type LocalDevProfileV2,
 	listLocalDevProfiles,
@@ -51,10 +57,10 @@ import {
 } from "./targets";
 
 export type LocalDiagnosisStatus = "ready" | "incomplete" | "unknown" | "invalid";
-export type LocalDoctorScope = "config" | "runtime" | "shared";
+export type LocalDoctorScope = "config" | "runtime" | "shared" | "data";
 
 export interface LocalTargetDiagnosis {
-	bootstrap: Partial<Record<LocalApplicationBootstrapStep, BootstrapProbeResult>>;
+	bootstrap: Partial<Record<LocalApplicationBootstrapStep | "product-data", BootstrapProbeResult>>;
 	environment: {
 		paths: Record<string, boolean>;
 		secrets: boolean;
@@ -75,10 +81,14 @@ export interface LocalTargetDiagnosis {
 export async function initializeLocalDevelopmentTarget(
 	repoRoot: string,
 	target: LocalDevTarget,
-	options: { repair?: boolean } = {},
+	options: { repair?: boolean } & Partial<ProductDataOptions> = {},
 ): Promise<LocalDevProfileV2> {
 	const plan = resolveLocalDevTargetPlan(target);
 	const projections = plan.environmentProjections;
+	const productTarget = target === "core" || target === "ops-web";
+	if (!productTarget && (options.data === "cluster" || options.replace)) {
+		throw new Error("Product data options require --target core or ops-web");
+	}
 	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
 	const qdrant = projections.some((projection) =>
 		["core", "campus-rag-index-publisher"].includes(projection),
@@ -87,6 +97,9 @@ export async function initializeLocalDevelopmentTarget(
 		: undefined;
 
 	const profile = await ensureLocalDevProfile(repoRoot);
+	if (productTarget) {
+		await assertProductAppsOffline(profile);
+	}
 	const shared = await inspectSharedCapabilities({
 		derivedBucketName: profile.bucketName,
 		required: plan.capabilities,
@@ -114,7 +127,30 @@ export async function initializeLocalDevelopmentTarget(
 		(step): step is Exclude<LocalBootstrapStep, "temporal-namespace"> =>
 			step !== "temporal-namespace",
 	);
-	await bootstrapLocalApplications(repoRoot, profile, applicationSteps, plan.modelConfigNames);
+	await bootstrapLocalApplications(
+		repoRoot,
+		profile,
+		applicationSteps.filter(
+			(step) => step !== "model-config-check" && step !== "model-config-seed",
+		),
+		plan.modelConfigNames,
+	);
+	if (productTarget) {
+		await initializeProductData(repoRoot, profile, {
+			data: options.data ?? "seed",
+			replace: options.replace ?? false,
+			context: options.context,
+			namespace: options.namespace,
+		});
+	}
+	await bootstrapLocalApplications(
+		repoRoot,
+		profile,
+		applicationSteps.filter(
+			(step) => step === "model-config-seed" || step === "model-config-check",
+		),
+		plan.modelConfigNames,
+	);
 	console.log(formatProfileSummary(profile));
 	return profile;
 }
@@ -164,21 +200,29 @@ export async function diagnoseLocalDevelopment(
 		}
 		bootstrap[step] = await safeBootstrapProbe(repoRoot, profile, step, plan.modelConfigNames);
 	}
+	if (target === "core" || target === "ops-web") {
+		bootstrap["product-data"] = await diagnoseProductData(repoRoot, profile, scope === "data");
+	}
 	const namespace = plan.bootstrapSteps.includes("temporal-namespace")
 		? await probeLocalTemporalNamespace(repoRoot, profile)
 		: undefined;
 	const runtime = scope === "runtime" ? await diagnoseRuntime(target, profile) : undefined;
-	const status = classifyDiagnosis({
-		bootstrap,
-		database,
-		environmentPaths,
-		modelConfigKey,
-		namespace,
-		runtime,
-		secrets,
-		shared: sharedDiagnosis,
-		bucket,
-	});
+	const status =
+		scope === "data"
+			? bootstrap["product-data"]?.state === "ready"
+				? "ready"
+				: "incomplete"
+			: classifyDiagnosis({
+					bootstrap,
+					database,
+					environmentPaths,
+					modelConfigKey,
+					namespace,
+					runtime,
+					secrets,
+					shared: sharedDiagnosis,
+					bucket,
+				});
 	return {
 		bootstrap,
 		environment: { modelConfigKey, paths: environmentPaths, secrets },

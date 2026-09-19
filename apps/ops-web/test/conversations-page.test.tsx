@@ -29,7 +29,10 @@ const row = {
 	hasFeedback: false,
 };
 
-async function openPage(path = "/conversations") {
+async function openPage(
+	path = "/conversations",
+	owner: { id: string; email: string | null; displayName: string | null } = row.owner,
+) {
 	const urls: URL[] = [];
 	vi.stubGlobal(
 		"fetch",
@@ -47,7 +50,7 @@ async function openPage(path = "/conversations") {
 			}
 			urls.push(url);
 			return Response.json({
-				data: [row],
+				data: [{ ...row, owner }],
 				page: { nextCursor: "next" },
 				generatedAt: at,
 				filters: { from: url.searchParams.get("from"), to: url.searchParams.get("to") },
@@ -96,6 +99,17 @@ function submit() {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("conversation filters", () => {
+	it("shortens an unresolved owner while retaining the full ID in the title", async () => {
+		await openPage("/conversations", {
+			id: "anonymous-owner-123456789",
+			email: null,
+			displayName: null,
+		});
+		expect(await screen.findByText("用户：anonym...6789")).toHaveAttribute(
+			"title",
+			"anonymous-owner-123456789",
+		);
+	});
 	it("applies drafts only on submit and clears both fields and pagination", async () => {
 		const { urls } = await openPage("/conversations?cursor=previous");
 		const before = urls.length;
@@ -103,9 +117,14 @@ describe("conversation filters", () => {
 		change("会话状态", "RUNNING");
 		change("反馈状态", "WITH_FEEDBACK");
 		change("失败筛选", "false");
+		change("时间范围", "custom");
 		change("开始日期", "2026-09-14");
 		change("结束日期", "2026-09-14");
 		expect(urls).toHaveLength(before);
+		fireEvent.click(screen.getByRole("button", { name: "应用日期" }));
+		await waitFor(() => expect(urls.at(-1)?.searchParams.has("from")).toBe(true));
+		expect(urls.at(-1)?.searchParams.has("q")).toBe(false);
+		expect(screen.getByLabelText("搜索会话")).toHaveValue("奖学金");
 		submit();
 		await waitFor(() => expect(urls.at(-1)?.searchParams.get("q")).toBe("奖学金"));
 		expect(Object.fromEntries(urls.at(-1)?.searchParams ?? [])).toMatchObject({
@@ -113,12 +132,12 @@ describe("conversation filters", () => {
 			feedback: "WITH_FEEDBACK",
 			hasFailures: "false",
 			from: "2026-09-13T16:00:00.000Z",
-			to: "2026-09-14T15:59:59.999Z",
+			to: "2026-09-14T16:00:00.000Z",
 		});
 		expect(urls.at(-1)?.searchParams.has("cursor")).toBe(false);
 		fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
 		await waitFor(() => expect(urls.at(-1)?.search).toBe(""));
-		for (const label of ["搜索会话", "会话状态", "反馈状态", "失败筛选", "开始日期", "结束日期"]) {
+		for (const label of ["搜索会话", "会话状态", "反馈状态", "失败筛选"]) {
 			expect(screen.getByLabelText(label)).toHaveValue("");
 		}
 		submit();
@@ -148,24 +167,22 @@ describe("conversation filters", () => {
 		expect(urls.at(-1)?.searchParams.get("q")).toBe("second");
 	});
 
-	it("applies quick window and clears custom dates both ways", async () => {
+	it("applies presets immediately and waits for explicit custom date confirmation", async () => {
 		const { urls } = await openPage();
+		change("搜索会话", "unsaved");
+		change("时间范围", "this-week");
+		await waitFor(() => expect(urls.at(-1)?.searchParams.get("window")).toBe("this-week"));
+		expect(urls.at(-1)?.searchParams.has("q")).toBe(false);
+		expect(screen.getByLabelText("搜索会话")).toHaveValue("unsaved");
+		change("时间范围", "custom");
 		change("开始日期", "2026-09-14");
 		change("结束日期", "2026-09-14");
-		change("时间范围", "7d");
-		expect(screen.getByLabelText("开始日期")).toHaveValue("");
-		expect(screen.getByLabelText("结束日期")).toHaveValue("");
-		submit();
-		await waitFor(() => expect(urls.at(-1)?.searchParams.get("window")).toBe("7d"));
-		expect(urls.at(-1)?.searchParams.has("from")).toBe(false);
-		expect(urls.at(-1)?.searchParams.has("to")).toBe(false);
-		change("开始日期", "2026-09-14");
-		expect(screen.getByLabelText("时间范围")).toHaveValue("");
-		change("结束日期", "2026-09-14");
-		submit();
+		expect(urls.at(-1)?.searchParams.get("window")).toBe("this-week");
+		fireEvent.click(screen.getByRole("button", { name: "应用日期" }));
 		await waitFor(() =>
 			expect(urls.at(-1)?.searchParams.get("from")).toBe("2026-09-13T16:00:00.000Z"),
 		);
+		expect(urls.at(-1)?.searchParams.get("to")).toBe("2026-09-14T16:00:00.000Z");
 		expect(urls.at(-1)?.searchParams.has("window")).toBe(false);
 	});
 

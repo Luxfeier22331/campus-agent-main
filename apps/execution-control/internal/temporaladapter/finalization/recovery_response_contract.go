@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 // This is the internal successful recovery response, constructed by this owner.
@@ -25,29 +23,29 @@ type recoveryResponse struct {
 		TerminalReason string `json:"terminal_reason"`
 	} `json:"observability"`
 	Result *struct {
-		TerminalReason    string                             `json:"terminal_reason"`
-		Sources           []recoverySource                   `json:"sources"`
-		SearchSuggestions []temporalruntime.SearchSuggestion `json:"search_suggestions"`
+		TerminalReason string           `json:"terminal_reason"`
+		Sources        []recoverySource `json:"sources"`
 	} `json:"result"`
 	StageTiming map[string]float64 `json:"stage_timing"`
 }
 
 type recoverySource struct {
-	Kind          string   `json:"kind"`
-	CitationIndex int      `json:"citation_index"`
-	CitationHref  string   `json:"citation_href"`
-	EvidenceRef   string   `json:"evidence_ref"`
-	Title         string   `json:"title"`
-	Snippet       string   `json:"snippet"`
-	DocumentID    string   `json:"document_id"`
-	NoticeID      string   `json:"notice_id"`
-	SectionRef    string   `json:"section_ref"`
-	SectionTitle  string   `json:"section_title"`
-	VersionID     string   `json:"version_id"`
-	VersionSlug   string   `json:"version_slug"`
-	RootUnitIDs   []string `json:"root_unit_ids"`
-	URL           string   `json:"url"`
-	Hostname      string   `json:"hostname"`
+	UnavailableReason string   `json:"unavailable_reason,omitempty"`
+	Kind              string   `json:"kind"`
+	CitationIndex     int      `json:"citation_index"`
+	CitationHref      string   `json:"citation_href"`
+	EvidenceRef       string   `json:"evidence_ref"`
+	Title             string   `json:"title"`
+	Snippet           string   `json:"snippet"`
+	DocumentID        string   `json:"document_id"`
+	NoticeID          string   `json:"notice_id"`
+	SectionRef        string   `json:"section_ref"`
+	SectionTitle      string   `json:"section_title"`
+	VersionID         string   `json:"version_id"`
+	VersionSlug       string   `json:"version_slug"`
+	RootUnitIDs       []string `json:"root_unit_ids"`
+	URL               string   `json:"url"`
+	Hostname          string   `json:"hostname"`
 }
 
 func validateRecoveryResponseFields(encoded []byte) error {

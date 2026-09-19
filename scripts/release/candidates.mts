@@ -1,9 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-
+import { imageScopeBetween } from "../ci/image-scope.mts";
 import type { CommandRunner } from "../ci/scope.mts";
-import { imageTargetsForScope } from "./image-targets.mts";
 import { resolveReleaseScope } from "./source-scope.mts";
 import { readTopologyRetirements, type TopologyMigrationPlan } from "./topology-retirements.mts";
 import { type WorkerCandidate, workerCandidatesForPackage } from "./workers.mts";
@@ -127,7 +126,7 @@ export async function planCandidates(
 	if (changesPath(files, CAMPUS_MAP_ASSET_PATH)) {
 		workers.add(CAMPUS_WEB_WORKER);
 	}
-	const images = imageTargetsForScope(scope);
+	const images = imageScopeBetween(base, options.head, options.repositoryRoot, runner).images;
 	const sourceBases = affectedSourceBases(files);
 	const topologyMigrations = await readTopologyRetirements(options.repositoryRoot, base, runner);
 	if (options.refreshCampusWebDocs) {

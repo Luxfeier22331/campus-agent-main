@@ -1,16 +1,17 @@
 import { Button, Input, NativeSelect } from "@campus-agent/ui";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import type { AccountAdminEvent } from "campus-contracts/account-admin";
 import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AccountOutcomeBadge, accountActionLabel } from "./account-admin-display";
 import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
-import { formatTimestamp } from "./format";
+import { formatId, formatTimestamp } from "./format";
 import { fetchAccountAdminEvents } from "./ops-api/account-admin";
 import { ErrorState, PageHeader } from "./ops-display";
+import { replaceTimeQuery, type TimeSearch, timeQueryFields } from "./time-filters";
 import { DataTable } from "./ui/data-table";
-import { TimeWindowSelect } from "./ui/time-window-select";
+import { TimeRangeFilter, TimeRangeSummary } from "./ui/time-window-select";
 
 const actions: AccountAdminEvent["action"][] = [
 	"password_reset_email_sent",
@@ -22,14 +23,13 @@ const actions: AccountAdminEvent["action"][] = [
 	"temporary_password_issued",
 ];
 
-export interface AccountEventsSearch {
+export interface AccountEventsSearch extends TimeSearch {
 	action?: AccountAdminEvent["action"] | undefined;
 	actorId?: string | undefined;
 	cursor?: string | undefined;
 	history?: string | undefined;
 	outcome?: AccountAdminEvent["outcome"] | undefined;
 	targetUserId?: string | undefined;
-	window: "24h" | "7d" | "30d" | "90d";
 }
 
 export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
@@ -40,8 +40,11 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 	useEffect(() => setActorId(search.actorId ?? ""), [search.actorId]);
 	useEffect(() => setTargetUserId(search.targetUserId ?? ""), [search.targetUserId]);
 	const history = decodeCursorHistory(search.history);
-	const events = useQuery({
-		placeholderData: keepPreviousData,
+	const filterKey = JSON.stringify({ ...search, cursor: undefined, history: undefined });
+	const events = useQuery<Awaited<ReturnType<typeof fetchAccountAdminEvents>>>({
+		enabled: !search.timeError,
+		placeholderData: (previous, previousQuery) =>
+			previousQuery?.queryKey[2] === filterKey ? previous : undefined,
 		queryFn: ({ signal }) =>
 			fetchAccountAdminEvents(
 				{
@@ -51,11 +54,11 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 					limit: 50,
 					...(search.outcome ? { outcome: search.outcome } : {}),
 					...(search.targetUserId ? { targetUserId: search.targetUserId } : {}),
-					window: search.window,
+					...timeQueryFields(search),
 				},
 				{ signal },
 			),
-		queryKey: ["ops", "account-events", search],
+		queryKey: ["ops", "account-events", filterKey, search.cursor],
 	});
 	const setSearch = (next: AccountEventsSearch) => void navigate({ search: next });
 	const filters = {
@@ -63,7 +66,7 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 		actorId: search.actorId,
 		outcome: search.outcome,
 		targetUserId: search.targetUserId,
-		window: search.window,
+		...timeQueryFields(search),
 	};
 
 	return (
@@ -93,19 +96,11 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 					});
 				}}
 			>
-				<label className="grid gap-1 text-muted-foreground text-xs" htmlFor="account-event-window">
-					时间范围
-					<TimeWindowSelect
-						accessibilityLabel="时间范围"
-						className="min-h-10"
-						id="account-event-window"
-						onChange={(next) =>
-							setSearch({ ...filters, window: next as AccountEventsSearch["window"] })
-						}
-						scope="accountEvents"
-						value={search.window}
-					/>
-				</label>
+				<TimeRangeFilter
+					search={search}
+					scope="accountEvents"
+					onChange={(time) => setSearch(replaceTimeQuery(search, time))}
+				/>
 				<label className="grid gap-1 text-muted-foreground text-xs" htmlFor="account-event-action">
 					操作
 					<NativeSelect
@@ -174,14 +169,16 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 					查询
 				</Button>
 			</form>
+			{events.isPending && !search.timeError ? <p role="status">正在读取操作记录...</p> : null}
 			{events.isError ? (
 				<ErrorState
 					error={events.error}
 					onRetry={() => void events.refetch()}
 					title="操作记录读取失败"
 				/>
-			) : events.data ? (
+			) : events.data && !search.timeError ? (
 				<>
+					<TimeRangeSummary filters={events.data.filters} />
 					<DataTable<AccountAdminEvent>
 						busy={events.isFetching}
 						caption="账号操作记录"
@@ -206,11 +203,12 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 										<Link
 											params={{ userId: row.targetUserId }}
 											search={{ from: currentHref }}
+											title={row.targetUser ? undefined : row.targetUserId}
 											to="/users/$userId"
 										>
 											{row.targetUser
 												? `${row.targetUser.name}（${row.targetUser.email}）`
-												: row.targetUserId}
+												: formatId(row.targetUserId)}
 										</Link>
 									) : (
 										"-"

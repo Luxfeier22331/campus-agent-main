@@ -1,3 +1,8 @@
+import {
+	type CitationDiagnostic,
+	CitationDiagnosticSchema,
+	FailureReasonSchema,
+} from "campus-contracts/citation-diagnostic";
 import { ZodError } from "zod";
 import type { ExecutionFailure } from "./agent-run-contract.ts";
 
@@ -38,6 +43,10 @@ export class AgentRuntimeError extends Error {
 		this.failure = {
 			code,
 			operation: failure.operation ?? "agent.runtime",
+			...(FailureReasonSchema.safeParse(failure.reason).success ? { reason: failure.reason } : {}),
+			...(CitationDiagnosticSchema.safeParse(failure.citation).success
+				? { citation: failure.citation }
+				: {}),
 			...(failure.detail ? { detail: boundedErrorText(failure.detail, 1024) } : {}),
 			...(failure.httpStatus === undefined ? {} : { httpStatus: failure.httpStatus }),
 			...(failure.invocationId ? { invocationId: failure.invocationId } : {}),
@@ -53,6 +62,8 @@ export function agentRuntimeErrorPayload(
 	code: AgentRuntimeErrorCode;
 	message: string;
 	retryable: false;
+	reason?: string;
+	citation?: CitationDiagnostic;
 	operation: string;
 	detail?: string;
 	http_status?: number;
@@ -61,6 +72,8 @@ export function agentRuntimeErrorPayload(
 	const classified = classifyAgentRuntimeError(error, options.deadlineSignal);
 	return {
 		code: classified.code,
+		...(classified.failure.reason ? { reason: classified.failure.reason } : {}),
+		...(classified.failure.citation ? { citation: classified.failure.citation } : {}),
 		message: classified.message,
 		retryable: false,
 		operation:
@@ -159,6 +172,12 @@ export function agentRuntimeErrorLogFields(error: unknown, payload: AgentRuntime
 	}
 	return {
 		error_code: payload.code,
+		...(payload.reason ? { error_reason: payload.reason } : {}),
+		...Object.fromEntries(
+			Object.entries(payload.citation ?? {})
+				.filter(([, value]) => value !== undefined)
+				.map(([key, value]) => [`citation_${key}`, value]),
+		),
 		error_operation: payload.operation,
 		error_cause: summarizeRuntimeError(error),
 		...(stacks.some(Boolean) ? { error_stack: boundedErrorText(stacks.join("\n"), 8192) } : {}),

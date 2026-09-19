@@ -59,13 +59,13 @@ export function createS3WriterStore(env: ObjectStoreEnv = process.env): Writable
 				throw error;
 			}
 		},
-		async writeImmutable(key, body) {
+		async writeImmutable(key, body, contentType) {
 			try {
 				await client.send(
 					new PutObjectCommand({
 						Body: body,
 						Bucket: bucket,
-						ContentType: contentTypeForKey(key),
+						ContentType: contentType ?? contentTypeForKey(key),
 						IfNoneMatch: "*",
 						Key: key,
 					}),

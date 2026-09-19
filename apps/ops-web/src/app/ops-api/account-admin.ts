@@ -7,6 +7,7 @@ import {
 	AccountAdminUserPageSchema,
 	TemporaryPasswordResponseSchema,
 } from "campus-contracts/account-admin";
+import type { TimeWindow } from "campus-contracts/ops-time";
 import { fetchJson } from "./core";
 
 export async function fetchAccountAdminUsers(
@@ -46,9 +47,9 @@ export async function fetchAccountAdminEvents(
 		limit?: number;
 		outcome?: AccountAdminEvent["outcome"];
 		targetUserId?: string;
-		window?: "24h" | "7d" | "30d" | "90d";
-		from?: string;
-		to?: string;
+		window?: TimeWindow | undefined;
+		from?: string | undefined;
+		to?: string | undefined;
 	} = {},
 	input: { signal?: AbortSignal } = {},
 ) {

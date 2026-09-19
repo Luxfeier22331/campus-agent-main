@@ -17,7 +17,8 @@
 		"./notices": "./src/notices.ts",
 		"./product-availability": "./src/product-availability.ts",
 		"./chat-sources": "./src/chat-sources.ts",
-		"./chat-conversations": "./src/chat-conversations.ts"
+		"./chat-conversations": "./src/chat-conversations.ts",
+		"./citation-diagnostic": "./src/citation-diagnostic.ts"
 	},
 	"scripts": {
 		"check": "pnpm exec tsx ./scripts/generate_contracts.ts --check && pnpm exec tsx ./scripts/check_contract_schemas.ts",

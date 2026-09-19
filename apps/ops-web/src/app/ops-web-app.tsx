@@ -11,7 +11,6 @@ import {
 import {
 	AccountAdminAccessStateSchema,
 	AccountAdminActionSchema,
-	AccountAdminEventWindowSchema,
 	AccountAdminOutcomeSchema,
 	AccountAdminStateSchema,
 } from "campus-contracts/account-admin";
@@ -28,7 +27,7 @@ import {
 	Utensils,
 } from "lucide-react";
 import { useMemo } from "react";
-import type { OpsOverviewWindow } from "../shared/ops-contract";
+import { readFailureFilters } from "../shared/failure-filters.ts";
 import { AccountEventsPage } from "./account-events-page";
 import { ChatConversationPage } from "./chat-conversation-page";
 import { ChatFeedbackPage } from "./chat-feedback-page";
@@ -42,21 +41,21 @@ import { EmailAccessPage } from "./email-access-page";
 import { GroupsPage } from "./groups-page";
 import { InternalPortalPage } from "./internal-portal-page";
 import { NotFoundPage } from "./not-found-page";
+import { parseNoticeFilters } from "./notices/notice-filters";
 import { NoticesPage } from "./notices-page";
 import { OcrPage } from "./ocr-page";
 import {
 	ignoredRequestSearchParamNames,
 	optionalBoundedSearchString,
 	optionalRequestListView,
-	optionalRequestWindow,
 	optionalSearchString,
 	optionalStatus,
-	optionalTimeWindow,
 } from "./ops-view-helpers";
 import { OverviewPage } from "./overview-page";
 import { ProviderConfigPage } from "./provider-config-page";
 import { RequestDetailPage } from "./request-detail-page";
 import { RequestsPage as RequestsPageView } from "./requests-page";
+import { readTimeSearch } from "./time-filters";
 import { TransportPage } from "./transport-page";
 import { SidebarLayout } from "./ui/sidebar-layout";
 import { UserDetailPage } from "./user-detail-page";
@@ -92,7 +91,7 @@ const overviewRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/overview",
 	validateSearch: (search: Record<string, unknown>) => ({
-		window: optionalOverviewWindow(search.window) ?? "1h",
+		...readTimeSearch(search),
 	}),
 	component: OverviewRoute,
 });
@@ -103,12 +102,13 @@ const requestsRoute = createRoute({
 	validateSearch: (search: Record<string, unknown>) => {
 		const view = optionalRequestListView(search.view);
 		const parsed = {
+			...readFailureFilters(search),
 			cursor: optionalBoundedSearchString(search.cursor, 512),
 			q: optionalBoundedSearchString(search.q, 256),
 			requestId: optionalBoundedSearchString(search.requestId, 128),
 			status: optionalStatus(search.status),
 			view,
-			window: optionalRequestWindow(search.window),
+			...readTimeSearch(search),
 		};
 		const ignored = ignoredRequestSearchParamNames(search, parsed);
 		return {
@@ -125,9 +125,7 @@ const conversationsListRoute = createRoute({
 	validateSearch: (search: Record<string, unknown>) => ({
 		q: optionalBoundedSearchString(search.q, 256),
 		cursor: optionalBoundedSearchString(search.cursor, 512),
-		from: optionalSearchString(search.from),
-		to: optionalSearchString(search.to),
-		window: optionalTimeWindow(search.window),
+		...readTimeSearch(search),
 		status: optionalStatus(search.status),
 		feedback:
 			search.feedback === "WITH_FEEDBACK" || search.feedback === "WITHOUT_FEEDBACK"
@@ -173,6 +171,7 @@ const internalPortalRoute = createRoute({
 const noticesRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/notices",
+	validateSearch: parseNoticeFilters,
 	component: NoticesPage,
 });
 const ocrRoute = createRoute({
@@ -213,7 +212,7 @@ const accountEventsRoute = createRoute({
 		history: optionalBoundedSearchString(search.history, 4096),
 		outcome: AccountAdminOutcomeSchema.safeParse(search.outcome).data,
 		targetUserId: optionalBoundedSearchString(search.targetUserId, 200),
-		window: AccountAdminEventWindowSchema.safeParse(search.window).data ?? "7d",
+		...readTimeSearch(search),
 	}),
 	component: AccountEventsRoute,
 });
@@ -407,7 +406,7 @@ function RootLayout() {
 }
 
 function OverviewRoute() {
-	return <OverviewPage window={overviewRoute.useSearch().window} />;
+	return <OverviewPage search={overviewRoute.useSearch()} />;
 }
 
 function RequestsRoute() {
@@ -449,10 +448,6 @@ function AccountEventsRoute() {
 
 function DiningRoute() {
 	return <DiningPage />;
-}
-
-function optionalOverviewWindow(value: unknown): OpsOverviewWindow | undefined {
-	return value === "15m" || value === "1h" || value === "6h" || value === "24h" ? value : undefined;
 }
 
 function ChatConversationRoute() {

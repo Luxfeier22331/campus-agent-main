@@ -122,7 +122,7 @@ export function DiningMapToolbar(props: {
 				>
 					<Popover onOpenChange={setSearchOpen} open={showResults}>
 						<PopoverAnchor asChild>
-							<div className="flex min-w-0 overflow-hidden rounded-lg border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
+							<div className="flex min-w-0 overflow-hidden rounded-lg border border-input bg-background transition-[border-color] focus-within:border-ring">
 								<CommandInput
 									aria-label="搜索窗口"
 									className="h-11"

@@ -33,6 +33,9 @@ export function reduceRuntimeRunState(
 			sequence: Math.max(current.sequence, action.sequence ?? 0),
 		};
 	} else if (action.type === "event" && action.event) {
+		if (current.terminal) {
+			return current;
+		}
 		const eventRequestId = action.event.data.requestId?.trim();
 		const eventSequence = action.event.data.sequence;
 		if (
@@ -47,6 +50,15 @@ export function reduceRuntimeRunState(
 			requestId: eventRequestId || current.requestId,
 			sequence: eventSequence ?? current.sequence,
 		};
+		if (action.event.event === "retrieval.status" && action.event.data.source) {
+			next = {
+				...next,
+				retrieval: { ...current.retrieval, [action.event.data.source]: action.event.data.status },
+			};
+		}
+		if (["request.completed", "request.failed", "request.cancelled"].includes(action.event.event)) {
+			next = { ...next, retrieval: {}, terminal: true };
+		}
 	}
 	return next;
 }

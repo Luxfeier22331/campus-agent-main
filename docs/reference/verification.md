@@ -131,6 +131,19 @@ check；App API 的业务数据库测试也使用同一 schema Job，不保留�
 `scripts/release/image-targets.mts` 与候选发布共用的受影响目标映射，按 Bake 分组执行
 `scripts/release/images.mts --mode build-only`：固定 `linux/arm64`，输出为 BuildKit `type=cacheonly`，
 关闭发布阶段的 provenance/SBOM attestation，不 push、不 load、不复用 registry 现有发布镜像，也不运行 Trivy。
+
+镜像选择独立于 Turbo 校验任务图：按生产 workspace 依赖、实际编译的开发依赖、Dockerfile 和
+包外资源选择消费者，并同时读取比较前后两棵 Git 树的依赖声明。测试、README、Turbo 与测试配置
+变化不选择镜像。根 Node 依赖清单和 lockfile 选择 Node 镜像，Go 模块各自选择对应镜像。
+PR 优先与同一 PR 最近一次成功工作流中实际成功的镜像 job 比较，使用 reusable workflow 记录的
+merge SHA 直接比较两棵树；失败、取消或没有运行镜像构建的工作流不能成为基线。没有可用历史时
+按完整 PR diff 选择镜像。普通测试仍使用 PR base，summary 单独显示镜像比较基线与历史 run ID。
+
+Docker context 排除测试、校验配置和本地产物，保留 SQL、schema 和运行时合同 fixture。
+Node prune 保留冻结安装需要的全部 manifest，但只向编译层复制生产 workspace 源码；Go 分开复制
+模块清单与 `cmd`、`internal`。基础镜像继续使用现有 tag，不锁 digest、不新增自动更新工作流。
+选择与缓存的取舍见[镜像生产输入与 PR 增量构建](../../.agents/notes/implemented/testing/2026-09-19-image-production-inputs.md)。
+
 缓存导入缺失或不可读的诊断由 BuildKit 保留，不进行脚本级重试。
 本地可通过 `--cache-import-registries '["127.0.0.1:<port>/cache"]'` 指定回环 registry 前缀，
 实际引用为 `<prefix>/<image>:buildcache-arm64`；省略该参数不读取外部缓存。证据入口通过

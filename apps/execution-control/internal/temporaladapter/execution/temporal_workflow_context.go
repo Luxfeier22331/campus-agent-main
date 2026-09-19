@@ -153,7 +153,6 @@ type AgentRuntimeResponse struct {
 	WebSearchDiagnostic     *temporalruntime.WebSearchDiagnostic `json:"web_search_diagnostic"`
 	Failure                 *temporalruntime.ExecutionFailure    `json:"failure"`
 	AnswerStarted           bool                                 `json:"answer_started"`
-	SearchSuggestions       []temporalruntime.SearchSuggestion   `json:"search_suggestions,omitempty"`
 }
 
 type AgentToolResult struct {
@@ -177,15 +176,19 @@ type AgentRuntimeUsage struct {
 }
 
 type AgentRuntimeError struct {
-	Code         string `json:"code"`
-	Message      string `json:"message"`
-	Operation    string `json:"operation"`
-	Detail       string `json:"detail"`
-	HTTPStatus   int    `json:"http_status"`
-	InvocationID string `json:"invocation_id"`
+	Reason       string          `json:"reason,omitempty"`
+	Citation     json.RawMessage `json:"citation,omitempty"`
+	Code         string          `json:"code"`
+	Message      string          `json:"message"`
+	Operation    string          `json:"operation"`
+	Detail       string          `json:"detail"`
+	HTTPStatus   int             `json:"http_status"`
+	InvocationID string          `json:"invocation_id"`
 }
 
 type AgentRuntimeHTTPError struct {
+	Reason         string
+	Citation       json.RawMessage
 	StatusCode     int
 	HTTPStatus     int
 	Code           string
@@ -215,6 +218,8 @@ func (err AgentRuntimeHTTPError) Error() string {
 }
 
 type AgentRuntimeApplicationError struct {
+	Reason         string
+	Citation       json.RawMessage
 	Code           string
 	Operation      string
 	Detail         string

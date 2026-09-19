@@ -1,10 +1,12 @@
-import { TIME_WINDOWS, type TimeWindow } from "campus-contracts/ops-time";
+import { TIME_WINDOW_LABELS, TIME_WINDOWS, type TimeWindow } from "campus-contracts/ops-time";
+import { type FailureFilters, readFailureFilters } from "../shared/failure-filters.ts";
 import type {
 	OpsRequestListView,
 	OpsRequestSummary,
 	OpsRequestWindow,
 } from "../shared/ops-contract";
 import { formatDuration, formatHumanDuration, formatId, formatTimestamp } from "./format";
+import type { TimeSearch } from "./time-filters";
 
 export function formatNullableDuration(value: number | null | undefined, emptyLabel: string) {
 	return value === null || value === undefined ? emptyLabel : formatDuration(value);
@@ -77,6 +79,11 @@ export function formatRequestCompletedAt(
 
 export function requestFilterLabels(search: Partial<RequestSearchLike>) {
 	return [
+		...(["failureCode", "failureReason", "citationStage", "failureScope"] as const).map((key) =>
+			search[key]
+				? `${{ failureCode: "失败代码", failureReason: "失败原因", citationStage: "校验阶段", failureScope: "失败范围" }[key]}：${search[key]}`
+				: null,
+		),
 		search.status ? `状态 ${formatStatusLabel(search.status)}` : null,
 		search.q ? `关键词搜索 ${search.q}` : null,
 		search.requestId ? `requestId 精确 ${formatId(search.requestId)}` : null,
@@ -90,22 +97,28 @@ export function formatRequestViewLabel(value: OpsRequestListView) {
 
 export function requestSearchDraftFromSearch(search: Partial<RequestSearchLike>) {
 	return {
+		failureCode: search.failureCode ?? "",
+		failureReason: search.failureReason ?? "",
+		citationStage: search.citationStage ?? "",
+		failureScope: search.failureScope ?? "",
 		q: search.q ?? "",
 		requestId: search.requestId ?? "",
 		status: search.status ?? "",
 		view: search.view ?? "recent",
-		window: search.window ?? "1h",
 	};
 }
 
 export function cleanRequestSearch<T extends Partial<RequestSearchLike>>(search: T): T {
 	return {
+		...readFailureFilters({ ...search }),
 		...(search.cursor ? { cursor: search.cursor } : {}),
+		...(search.from ? { from: search.from } : {}),
+		...(search.to ? { to: search.to } : {}),
 		...(search.q ? { q: search.q } : {}),
 		...(search.requestId ? { requestId: search.requestId } : {}),
 		...(search.status ? { status: search.status } : {}),
 		...(search.view && search.view !== "recent" ? { view: search.view } : {}),
-		...(search.window && search.window !== "1h" ? { window: search.window } : {}),
+		...(search.window && search.window !== "today" ? { window: search.window } : {}),
 	} as T;
 }
 
@@ -171,6 +184,9 @@ export function ignoredRequestSearchParamNames(
 	const ignored = [
 		hasRawSearchValue(rawSearch.limit) ? "limit" : null,
 		hasRawSearchValue(rawSearch.previous) ? "previous" : null,
+		...(["failureCode", "failureReason", "citationStage", "failureScope"] as const).map((key) =>
+			isIgnoredParam(rawSearch, parsedSearch, key),
+		),
 		isIgnoredParam(rawSearch, parsedSearch, "status"),
 		isIgnoredParam(rawSearch, parsedSearch, "q"),
 		isIgnoredParam(rawSearch, parsedSearch, "requestId"),
@@ -215,9 +231,7 @@ export function optionalStatus(value: unknown): OpsRequestSummary["status"] | un
 }
 
 export function optionalRequestWindow(value: unknown): OpsRequestWindow | undefined {
-	return value === "15m" || value === "1h" || value === "6h" || value === "24h" || value === "7d"
-		? value
-		: undefined;
+	return optionalTimeWindow(value);
 }
 
 export function optionalRequestListView(value: unknown): OpsRequestListView | undefined {
@@ -225,12 +239,10 @@ export function optionalRequestListView(value: unknown): OpsRequestListView | un
 }
 
 export function formatRequestWindowLabel(value: OpsRequestWindow) {
-	return { "15m": "15 分钟", "1h": "1 小时", "6h": "6 小时", "24h": "24 小时", "7d": "7 天" }[
-		value
-	];
+	return TIME_WINDOW_LABELS[value];
 }
 
-export interface RequestSearchLike {
+export interface RequestSearchLike extends TimeSearch, FailureFilters {
 	cursor?: string | undefined;
 	ignored?: string | undefined;
 	q?: string | undefined;

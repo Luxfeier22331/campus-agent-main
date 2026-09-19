@@ -3,6 +3,7 @@ package executionapplication
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -523,5 +524,31 @@ func validApplicationTestAdmissionSnapshot(
 		AgentBudget:             budget,
 		ModelTargetSHA256:       strings.Repeat("d", 64),
 		ToolContractFingerprint: toolContract,
+	}
+}
+
+type missingApplicationTestIndexStore struct{}
+
+func (missingApplicationTestIndexStore) CurrentIndex(context.Context) (campusdocs.Index, bool, error) {
+	return campusdocs.Index{}, false, nil
+}
+
+func TestCampusSearchReportsMissingIndexAsUnavailable(t *testing.T) {
+	store, run, _ := applicationTestRunningRun(t, false)
+	service := NewAgentToolService(AgentToolServiceOptions{
+		CampusDocsIndexStore: missingApplicationTestIndexStore{},
+		CampusDocsSearcher:   &applicationTestSearcher{},
+		Store:                store,
+	})
+	_, err := service.CampusSearch(context.Background(), CampusSearchRequest{
+		AccessContext: AgentToolAccessContext{
+			ActivityAttempt: 1, CitationStart: 1, InvocationID: "missing-index",
+			RequestID: run.RequestID, ResultLimit: 5, UserGoal: "查校务信息",
+			WorkflowStepID: "task.step.step.lookup",
+		},
+		SearchQuery: "夜宵时间",
+	})
+	if !errors.Is(err, ErrCampusSearchUnavailable) {
+		t.Fatalf("missing index error = %v, want unavailable", err)
 	}
 }

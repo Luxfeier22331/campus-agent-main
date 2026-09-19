@@ -88,7 +88,7 @@ export function createQdrantClient(
 		},
 		async validate(input) {
 			if (
-				input.expectedPoints.length !== input.expectedPointCount ||
+				(Array.isArray(input.expectedPoints) && input.expectedPoints.length !== input.expectedPointCount) ||
 				input.expectedPointCount < 1
 			) {
 				throw new Error("Qdrant validation points do not match the expected point count");
@@ -133,7 +133,7 @@ function toQdrantPoint(
 	};
 }
 
-function assertCollectionConfiguration(
+export function assertCollectionConfiguration(
 	value: unknown,
 	denseDistance: string,
 	dimensions: number,
@@ -182,64 +182,39 @@ async function validateStoredPoints(
 		denseDistance: string;
 		denseVectorName: string;
 		dimensions: number;
-		expectedPoints: IndexPoint[];
+		expectedPointCount: number;
+		expectedPoints: Iterable<IndexPoint> | AsyncIterable<IndexPoint>;
 		sparseVectorName: string;
 	},
 ): Promise<void> {
-	const expected = new Map<string, IndexPoint>();
-	for (const point of input.expectedPoints) {
-		if (expected.has(point.id)) mismatch(`candidate point identity is duplicated: ${point.id}`);
-		expected.set(point.id, point);
+	const seen = new Set<string>();
+	let batch: IndexPoint[] = [];
+	const check = async () => {
+		const response = await request(`/collections/${encodeURIComponent(input.collection)}/points`, {
+			method: "POST",
+			body: JSON.stringify({ ids: batch.map((point) => point.id), with_payload: true,
+				with_vector: [input.denseVectorName, input.sparseVectorName] }),
+		});
+		if (!isRecord(response) || !Array.isArray(response.result)) mismatch("Qdrant point response is invalid");
+		const actual = new Map(response.result.map((point: unknown) => {
+			if (!isRecord(point) || typeof point.id !== "string") mismatch("Qdrant point identity is invalid");
+			return [point.id, point] as const;
+		}));
+		for (const point of batch) {
+			const stored = actual.get(point.id);
+			if (!stored) mismatch(`Qdrant target collection is missing expected point: ${point.id}`);
+			assertStoredPoint(stored, point, input.denseDistance, input.dimensions, input.denseVectorName, input.sparseVectorName);
+		}
+		batch = [];
+	};
+	for await (const point of input.expectedPoints) {
+		if (seen.has(point.id)) mismatch(`candidate point identity is duplicated: ${point.id}`);
+		seen.add(point.id);
+		batch.push(point);
+		if (batch.length === SCROLL_PAGE_SIZE) await check();
 	}
-	const seenPointIds = new Set<string>();
-	const seenOffsets = new Set<string>();
-	let offset: string | undefined;
-	for (;;) {
-		const page = await request(
-			`/collections/${encodeURIComponent(input.collection)}/points/scroll`,
-			{
-				body: JSON.stringify({
-					limit: SCROLL_PAGE_SIZE,
-					...(offset === undefined ? {} : { offset }),
-					with_payload: true,
-					with_vector: [input.denseVectorName, input.sparseVectorName],
-				}),
-				method: "POST",
-			},
-		);
-		if (!isRecord(page) || !isRecord(page.result) || !Array.isArray(page.result.points)) {
-			mismatch("Qdrant validation scroll response is invalid");
-		}
-		for (const stored of page.result.points) {
-			if (!isRecord(stored) || typeof stored.id !== "string" || !stored.id) {
-				mismatch("Qdrant validation point identity is invalid");
-			}
-			if (seenPointIds.has(stored.id)) mismatch(`Qdrant validation repeated point: ${stored.id}`);
-			seenPointIds.add(stored.id);
-			const point = expected.get(stored.id);
-			if (!point) mismatch(`Qdrant collection contains unexpected point: ${stored.id}`);
-			assertStoredPoint(
-				stored,
-				point,
-				input.denseDistance,
-				input.dimensions,
-				input.denseVectorName,
-				input.sparseVectorName,
-			);
-		}
-		const nextOffset = page.result.next_page_offset;
-		if (nextOffset === null || nextOffset === undefined) break;
-		if (typeof nextOffset !== "string" || !nextOffset || seenOffsets.has(nextOffset)) {
-			mismatch("Qdrant validation scroll offset is invalid");
-		}
-		seenOffsets.add(nextOffset);
-		offset = nextOffset;
-	}
-	for (const pointId of expected.keys()) {
-		if (!seenPointIds.has(pointId)) {
-			mismatch(`Qdrant target collection is missing expected point: ${pointId}`);
-		}
-	}
+	if (batch.length) await check();
+	if (seen.size !== input.expectedPointCount) mismatch("Qdrant validation points do not match the expected point count");
 }
 
 function assertStoredPoint(

@@ -365,6 +365,7 @@ export function renderLocalEnvironmentFiles(input: {
 			APP_API_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			AUTH_TURNSTILE_SITE_KEY: "",
 			CAMPUS_WEB_DEV_PORT: String(profile.ports.campusWeb),
+			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",

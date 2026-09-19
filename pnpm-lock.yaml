@@ -23,6 +23,12 @@ importers:
       '@biomejs/biome':
         specifier: 2.5.13
         version: 2.5.13
+      '@campus-agent/dining':
+        specifier: workspace:*
+        version: link:packages/domains/dining
+      '@campus-agent/embedding-runtime':
+        specifier: workspace:*
+        version: link:packages/embedding-runtime
       '@campus-agent/notices':
         specifier: workspace:*
         version: link:packages/domains/notices
@@ -32,6 +38,9 @@ importers:
       '@types/node':
         specifier: ^24.13.4
         version: 24.13.4
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0
@@ -50,6 +59,9 @@ importers:
       openai:
         specifier: 7.15.0
         version: 7.15.0(@aws-sdk/credential-provider-node@3.972.83)(@smithy/signature-v4@5.7.3)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
@@ -104,9 +116,21 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.43.0
         version: 1.43.0
+      campus-contracts:
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      htmlparser2:
+        specifier: 8.0.2
+        version: 8.0.2
+      ipaddr.js:
+        specifier: 2.2.0
+        version: 2.2.0
       openai:
         specifier: 7.15.0
         version: 7.15.0(@aws-sdk/credential-provider-node@3.972.83)(@smithy/signature-v4@5.7.3)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+      undici:
+        specifier: 8.10.2
+        version: 8.10.2
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -534,6 +558,9 @@ importers:
       hono:
         specifier: 4.13.7
         version: 4.13.7
+      ingestion-contracts:
+        specifier: workspace:*
+        version: link:../../packages/ingestion-contracts
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -720,25 +747,13 @@ importers:
       campus-contracts:
         specifier: workspace:*
         version: link:../../packages/contracts
-      pg:
-        specifier: ^8.23.0
-        version: 8.23.0
     devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.1.0
-        version: 12.1.0(supports-color@10.2.2)
       '@types/node':
         specifier: ^24.13.4
         version: 24.13.4
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
-      testcontainers:
-        specifier: 12.1.0
-        version: 12.1.0(supports-color@10.2.2)
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
@@ -5819,6 +5834,10 @@ packages:
     resolution: {integrity: sha512-R5SnVLJmgYYvf2F2ZgwSBnelz5G4q5AxIC277GDfUaNbrZKNANcBC7RHqYYePlszf4kBolVkJauG0ZjHHFh55g==}
     engines: {node: '>= 12'}
 
+  ipaddr.js@2.2.0:
+    resolution: {integrity: sha512-Ag3wB2o37wslZS19hZqorUnrnzSkpOVy+IiiDEiTqNubEYpYuHWIf6K4psgN2ZWKExS4xhVCrRVfb/wfW8fWJA==}
+    engines: {node: '>= 10'}
+
   is-alphabetical@2.0.1:
     resolution: {integrity: sha512-FWyyY60MeTNyeSRpkM2Iry0G9hpr7/9kD40mD/cGQEuilcZYS4okz8SN2Q6rLCJ8gbCt6fN+rC+6tMGS99LaxQ==}
 
@@ -7470,10 +7489,6 @@ packages:
     resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.10.0:
-    resolution: {integrity: sha512-HvltHd7avK13QIw/oLe4qoOLyoVSoafqJ2jYOrtMRBkbYT31eiBQ8O0ehRKZiEZCMEyLFQNIADpgCWC5fALvYQ==}
-    engines: {node: '>=22.19.0'}
-
   undici@8.10.2:
     resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==}
     engines: {node: '>=22.19.0'}
@@ -9008,7 +9023,7 @@ snapshots:
       socks-proxy-agent: 10.1.0(supports-color@10.2.2)
       stream-buffers: 3.0.3
       tar-fs: 3.1.3
-      undici: 8.10.0
+      undici: 8.10.2
       ws: 8.21.3
     transitivePeerDependencies:
       - bare-abort-controller
@@ -12141,6 +12156,8 @@ snapshots:
 
   ip-address@10.5.0: {}
 
+  ipaddr.js@2.2.0: {}
+
   is-alphabetical@2.0.1: {}
 
   is-alphanumerical@2.0.1:
@@ -14039,7 +14056,7 @@ snapshots:
       ssh-remote-port-forward: 1.0.4
       tar-fs: 3.1.3
       tmp: 0.2.7
-      undici: 8.10.0
+      undici: 8.10.2
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -14208,8 +14225,6 @@ snapshots:
   undici-types@8.3.0: {}
 
   undici@7.29.0: {}
-
-  undici@8.10.0: {}
 
   undici@8.10.2: {}
 

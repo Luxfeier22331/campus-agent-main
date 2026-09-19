@@ -186,7 +186,8 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 		if (command === "git" && args[0] === "diff") {
 			return {
 				status: 0,
-				stdout: "M\0apps/campus-web/src/app.tsx\0M\0apps/status-web/src/index.ts\0",
+				stdout:
+					"M\0apps/campus-web/src/app.tsx\0M\0apps/status-web/src/index.ts\0M\0apps/ops-web/Dockerfile\0",
 			};
 		}
 		return { status: 0 };
@@ -206,7 +207,7 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 
 	const commands = calls.map(({ command, args }) => [command, ...args]);
 	assert(commands.some((command) => command.includes("--dry-run=json")));
-	assert.equal(calls.filter((call) => call.command === "git" && call.args[0] === "diff").length, 1);
+	assert.equal(calls.filter((call) => call.command === "git" && call.args[0] === "diff").length, 2);
 	const evidenceCommands = commands.filter((command) => !command.includes("--dry-run=json"));
 	assert(!evidenceCommands.some((command) => command.includes("--affected")));
 	const taskIds = evidenceCommands.flat().filter((arg) => arg.includes("#"));
@@ -240,7 +241,11 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	assert(imageEvidence.includes("--cache-import-registries"));
 	assert(imageEvidence.includes('["127.0.0.1:15001/cache"]'));
 	assert(!commands.some((command) => command.includes("dlx")));
-	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
+	assert(
+		calls
+			.filter((call) => call.command !== "git")
+			.every((call) => call.base === BASE && call.head === HEAD),
+	);
 	const bake = calls.find(
 		(call) => call.command === "docker" && call.args.slice(0, 2).join(" ") === "buildx bake",
 	);

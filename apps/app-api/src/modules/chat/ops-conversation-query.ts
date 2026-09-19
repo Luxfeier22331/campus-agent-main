@@ -1,13 +1,22 @@
 import type { OpsConversationListQuery } from "campus-contracts/chat-conversations";
 import { OpsChatConversationSchema } from "campus-contracts/chat-conversations";
+import { resolveTimeQuery } from "campus-contracts/ops-time";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { RuntimeDbGetter } from "../../db/runtime";
 import { conversations, messageFeedback, messages, turnDispatches, user } from "../../db/schema";
 import { normalizeChatStructuredParts } from "./model";
 
-export function createOpsConversationQueryService({ getDb }: { getDb: RuntimeDbGetter }) {
+export function createOpsConversationQueryService({
+	getDb,
+	now = () => new Date(),
+}: {
+	getDb: RuntimeDbGetter;
+	now?: () => Date;
+}) {
 	return {
 		async listSummaries(query: OpsConversationListQuery) {
+			const generatedAt = now();
+			const filters = resolveTimeQuery(query, "conversations", generatedAt);
 			const db = await getDb();
 			const pattern = query.q ? `%${query.q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%` : null;
 			const cursorRow = query.cursor
@@ -66,8 +75,8 @@ export function createOpsConversationQueryService({ getDb }: { getDb: RuntimeDbG
 					and(
 						isNull(conversations.deletedAt),
 						query.ownerId ? eq(conversations.ownerUserId, query.ownerId) : undefined,
-						query.from ? sql`${conversations.updatedAt} >= ${new Date(query.from)}` : undefined,
-						query.to ? sql`${conversations.updatedAt} <= ${new Date(query.to)}` : undefined,
+						sql`${conversations.updatedAt} >= ${new Date(filters.from)}`,
+						sql`${conversations.updatedAt} < ${new Date(filters.to)}`,
 						cursorRow
 							? sql`(${conversations.updatedAt}, ${conversations.id}) < (${cursorRow.updatedAt}, ${cursorRow.id})`
 							: undefined,
@@ -91,6 +100,8 @@ export function createOpsConversationQueryService({ getDb }: { getDb: RuntimeDbG
 				.limit(query.limit + 1);
 			const page = rows.slice(0, query.limit);
 			return {
+				filters,
+				generatedAt: generatedAt.toISOString(),
 				rows: page.map((row) => ({ ...row, displayName: row.ownerName ?? null })),
 				nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
 			};

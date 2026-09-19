@@ -3,6 +3,7 @@ import { cn } from "@campus-agent/ui";
 import { ArrowDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useContext, useEffect, useRef, useState } from "react";
+import { RetrievalStatus } from "@/components/conversation/retrieval-status";
 import { Composer } from "./thread-composer";
 import {
 	DEFAULT_THREAD_SETTINGS,
@@ -107,6 +108,11 @@ const ThreadRunStatus: FC = () => {
 			? (extras as { connection?: string }).connection
 			: "connected";
 	});
+	const retrieval = useAuiState(
+		(state) =>
+			(state.thread.extras as { retrieval?: Partial<Record<"campus", string>> } | undefined)
+				?.retrieval,
+	);
 	const previousRef = useRef<{ isRunning: boolean; threadId: string } | null>(null);
 	const [announcement, setAnnouncement] = useState("");
 
@@ -143,6 +149,7 @@ const ThreadRunStatus: FC = () => {
 						: connection === "recovering"
 							? "正在恢复连接"
 							: "正在回答"}
+					{connection === "connected" ? <RetrievalStatus statuses={retrieval} /> : null}
 					{connection === "disconnected" ? (
 						<button
 							type="button"

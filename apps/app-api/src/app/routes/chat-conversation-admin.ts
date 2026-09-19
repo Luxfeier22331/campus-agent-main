@@ -48,8 +48,8 @@ export function registerChatConversationAdminRoutes(input: {
 						hasFeedback: Boolean(row.hasFeedback),
 					})),
 					page: { nextCursor: result.nextCursor },
-					generatedAt: new Date().toISOString(),
-					filters: { from: parsed.data.from ?? null, to: parsed.data.to ?? null },
+					generatedAt: result.generatedAt,
+					filters: result.filters,
 				}),
 			),
 		);

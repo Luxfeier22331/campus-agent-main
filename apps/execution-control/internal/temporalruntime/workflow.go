@@ -64,13 +64,12 @@ func ToolExecutionWorkflow(
 			recoveryReason = solveResult.Failure.Code
 		}
 		synthesis, synthesisErr := executeSynthesizeAnswer(ctx, activityOptions, input, SynthesizeAnswerActivityInput{
-			Mode:              "recovery",
-			Evidence:          evidence,
-			SourceAttempts:    append([]WorkflowSourceAttempt{}, solveResult.SourceAttempts...),
-			RemainingFacts:    []WorkflowRemainingFacts{},
-			RecoveryReason:    recoveryReason,
-			BufferAnswer:      solveResult.AnswerStarted,
-			SearchSuggestions: solveResult.SearchSuggestions,
+			Mode:           "recovery",
+			Evidence:       evidence,
+			SourceAttempts: append([]WorkflowSourceAttempt{}, solveResult.SourceAttempts...),
+			RemainingFacts: []WorkflowRemainingFacts{},
+			RecoveryReason: recoveryReason,
+			BufferAnswer:   solveResult.AnswerStarted,
 		})
 		if synthesisErr != nil {
 			if workflowExecutionCanceled(ctx, synthesisErr) {
@@ -154,7 +153,6 @@ func ToolExecutionWorkflow(
 				temporal.NewNonRetryableApplicationError("executor output failed", stepResult.Failure.Code, nil))
 			completed.Evidence = stepResult.Evidence
 			completed.SourceAttempts = stepResult.SourceAttempts
-			completed.SearchSuggestions = stepResult.SearchSuggestions
 		} else {
 			var completedErr error
 			completed, completedErr = canonicalCompletedWorkflowStep(stepResult, step, len(completedSteps)+1)
@@ -244,8 +242,7 @@ func ToolExecutionWorkflow(
 	}
 	synthesis, err := executeSynthesizeAnswer(ctx, activityOptions, input, SynthesizeAnswerActivityInput{
 		Mode: "planned", RemainingFacts: WorkflowRemainingFactsForSynthesis(completedSteps), Evidence: evidence,
-		SourceAttempts:    append(append([]WorkflowSourceAttempt{}, solveResult.SourceAttempts...), WorkflowCompletedSourceAttempts(completedSteps)...),
-		SearchSuggestions: workflowSearchSuggestions(solveResult.SearchSuggestions, completedSteps),
+		SourceAttempts: append(append([]WorkflowSourceAttempt{}, solveResult.SourceAttempts...), WorkflowCompletedSourceAttempts(completedSteps)...),
 	})
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
@@ -537,10 +534,9 @@ func canonicalCompletedWorkflowStep(
 ) (WorkflowCompletedStep, error) {
 	completed := WorkflowCompletedStep{
 		Step: want, ExecutionIndex: executionIndex, Summary: output.FinalOutput,
-		RemainingFacts:    append([]string{}, output.RemainingFacts...),
-		Evidence:          append([]WorkflowEvidence{}, output.Evidence...),
-		SourceAttempts:    append([]WorkflowSourceAttempt{}, output.SourceAttempts...),
-		SearchSuggestions: append([]SearchSuggestion{}, output.SearchSuggestions...),
+		RemainingFacts: append([]string{}, output.RemainingFacts...),
+		Evidence:       append([]WorkflowEvidence{}, output.Evidence...),
+		SourceAttempts: append([]WorkflowSourceAttempt{}, output.SourceAttempts...),
 	}
 	if strings.TrimSpace(completed.Summary) == "" {
 		return WorkflowCompletedStep{}, errors.New("executor summary is empty")
@@ -549,14 +545,6 @@ func canonicalCompletedWorkflowStep(
 		return WorkflowCompletedStep{}, err
 	}
 	return completed, nil
-}
-
-func workflowSearchSuggestions(initial []SearchSuggestion, completed []WorkflowCompletedStep) []SearchSuggestion {
-	result := append([]SearchSuggestion{}, initial...)
-	for _, step := range completed {
-		result = append(result, step.SearchSuggestions...)
-	}
-	return result
 }
 
 func WorkflowRemainingFactsForSynthesis(completed []WorkflowCompletedStep) []WorkflowRemainingFacts {

@@ -1,6 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createGeminiSourceResolver } from "./gemini-source-resolver.ts";
 import { createAgentRuntimeHandler } from "./http-server.ts";
 import { createAgentRuntimeNodeServer } from "./node-http.ts";
 import { createConfiguredRunner, createConfiguredStreamingRunner } from "./provider-config.ts";
@@ -39,10 +40,11 @@ const telemetry = (() => {
 })();
 
 const catalog = loadToolCatalog(catalogPath);
+const sourceResolver = createGeminiSourceResolver();
 const runtime = createWorkflowOperationRuntime({
 	catalog,
-	runner: createConfiguredRunner(),
-	streamingRunner: createConfiguredStreamingRunner(),
+	runner: createConfiguredRunner(sourceResolver.resolve),
+	streamingRunner: createConfiguredStreamingRunner(sourceResolver.resolve),
 	toolExecutor: createExecutionControlToolExecutor({
 		baseUrl: executionControlBaseUrl,
 		sharedSecret: executionAgentRuntimeSharedSecret,
@@ -88,7 +90,9 @@ server.listen(port, host, () => {
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	process.once(signal, () => {
 		server.close(() => {
-			void telemetry.shutdown().finally(() => process.exit(0));
+			void Promise.all([telemetry.shutdown(), sourceResolver.close()]).finally(() =>
+				process.exit(0),
+			);
 		});
 	});
 }

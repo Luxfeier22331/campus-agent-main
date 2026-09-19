@@ -437,9 +437,13 @@ function assertSafeDiningSvg(document: Document): void {
 function appendDiningFloorplanInteractionStyles(document: Document): void {
 	const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
 	style.textContent = `
+.wayfinding-canvas { fill: var(--dining-svg-canvas-bg); }
+.wayfinding-surface { fill: var(--dining-svg-surface-bg); }
+.wayfinding-window { fill: var(--dining-svg-window-bg); stroke: var(--dining-svg-window-border); }
+.wayfinding-window-number { fill: var(--dining-svg-window-text); }
 .dining-svg-anchor { outline: none; transition: opacity 140ms ease-out; }
 .dining-svg-anchor-hit { transition: fill 140ms ease-out, stroke-width 140ms ease-out; }
-.wayfinding-window-label { fill: var(--sys-text-default); font-size: 16px; font-weight: 650; }
+.wayfinding-window-label { fill: var(--dining-svg-window-text); font-size: 16px; font-weight: 650; }
 .dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--campus-selected-bg); stroke: var(--campus-selected-border); stroke-width: 3px; }
 .dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--campus-selected-border); stroke-width: 3px; }
 .dining-svg-anchor[role="button"]:not(.is-dimmed):focus-visible .dining-svg-anchor-hit { stroke-width: 5px; }

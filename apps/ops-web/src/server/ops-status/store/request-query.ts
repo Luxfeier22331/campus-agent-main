@@ -1,11 +1,13 @@
+import type { ResolvedTimeRange } from "campus-contracts/ops-time";
+import { hasFailureFilters } from "../../../shared/failure-filters.ts";
 import type { OpsRequestListQuery } from "../contract.ts";
 import { requestListView } from "../mapping/request.ts";
 import { normalizeDbStatusToSummaryKey, normalizeStatusToDbValues } from "../mapping/values.ts";
 import type { OpsRequestSummaryTotals } from "./types.ts";
 
-export function requestSql(suffix: string): string {
+export function requestSql(suffix: string, failureMatch?: string): string {
 	return `
-			${requestRowsCte()}
+			${requestRowsCte(failureMatch)}
 			select
 				"assistant_kind" as "assistantKind",
 				"assistant_message_present" as "assistantMessagePresent",
@@ -13,6 +15,7 @@ export function requestSql(suffix: string): string {
 				"completed_at" as "completedAt",
 				"duration_ms" as "durationMs",
 				"error_code" as "errorCode",
+				"matched_failure" as "matchedFailure",
 				"execution_failure_kind" as "executionFailureKind",
 				"execution_step_kind" as "executionStepKind",
 				"execution_step_status" as "executionStepStatus",
@@ -67,10 +70,11 @@ export function requestDetailSql(suffix: string): string {
 	`;
 }
 
-export function requestRowsCte(): string {
+export function requestRowsCte(failureMatch?: string): string {
 	return `
 		with request_rows as (
 			select
+				${failureMatch ? "matched.failure" : "null::jsonb"} as "matched_failure",
 				dispatch.conversation_id as "conversation_id",
  dispatch.user_message_id as "user_message_id",
  assistant_message.id as "assistant_message_id",
@@ -130,6 +134,7 @@ export function requestRowsCte(): string {
 					end as "attention_reason",
 					nullif(agent_run.terminal_reason, '') as "terminal_reason"
 			from "chat"."turn_dispatches" as dispatch
+ ${failureMatch ? `left join lateral (${failureMatch}) as matched on true` : ""}
 			join "chat"."messages" as user_message
 				on user_message.id = dispatch.user_message_id
 				left join "execution_control"."agent_runs" as agent_run
@@ -165,16 +170,17 @@ export function requestRowsCte(): string {
 
 export function buildRequestFilter(
 	query: OpsRequestListQuery,
-	since: Date,
+	range: ResolvedTimeRange,
 ): {
 	values: unknown[];
 	whereClause: string;
+	failureMatch?: string;
 } {
 	const values: unknown[] = [];
 	const conditions: string[] = [];
 	if (!query.requestId) {
-		values.push(since);
-		conditions.push(`"started_at" >= $${values.length}`);
+		values.push(range.from, range.to);
+		conditions.push(`"started_at" >= $${values.length - 1} and "started_at" < $${values.length}`);
 	}
 	if (requestListView(query) === "attention") {
 		conditions.push('"attention_priority" is not null');
@@ -187,7 +193,12 @@ export function buildRequestFilter(
 			`("request_id" ilike $${values.length} or "question_preview" ilike $${values.length} or "error_code" ilike $${values.length} or "execution_failure_kind" ilike $${values.length})`,
 		);
 	}
+	const failureMatch = requestFailureMatchSql(query, values);
+	if (failureMatch) {
+		conditions.push('"matched_failure" is not null');
+	}
 	return {
+		...(failureMatch ? { failureMatch } : {}),
 		values,
 		whereClause: conditions.length > 0 ? `where ${conditions.join(" and ")}` : "",
 	};
@@ -201,6 +212,7 @@ export function requestStagesSql(): string {
 			step."sanitized_payload_json" as "sanitizedPayloadJson",
 			result."model_output_diagnostic_json" as "modelOutputDiagnosticJson",
 			step."step_id" as "stepId",
+ step."activity_attempt" as "activityAttempt",
 			step."started_at" as "startedAt",
 			step."status",
 			step."step_kind" as "stepKind",
@@ -226,7 +238,9 @@ export function requestStagesSql(): string {
 export function requestModelAttemptsSql(): string {
 	return `
 		select
-			"cached_input_tokens" as "cachedInputTokens",
+			"step_id" as "stepId",
+ "activity_attempt" as "activityAttempt",
+ "cached_input_tokens" as "cachedInputTokens",
 			"completed_at" as "completedAt",
 			"duration_ms" as "durationMs",
 			"fail_close_reason" as "failCloseReason",
@@ -306,4 +320,42 @@ export function requestCampusSearchSql(): string {
 		updated_at as "updatedAt"
 		from execution_control.agent_campus_search_diagnostics where request_id = $1
 		order by coalesce(phase_times_json->>'queued', phase_times_json->>'received'), invocation_id`;
+}
+
+function requestFailureMatchSql(query: OpsRequestListQuery, values: unknown[]): string | undefined {
+	if (!hasFailureFilters(query)) {
+		return undefined;
+	}
+	const conditions = ["code is not null"];
+	const fields = {
+		code: query.failureCode,
+		reason: query.failureReason,
+		citation_stage: query.citationStage,
+	};
+	for (const [column, value] of Object.entries(fields)) {
+		if (value) {
+			values.push(value);
+			conditions.push(`${column} = $${values.length}`);
+		}
+	}
+	const sources: string[] = [];
+	if (query.failureScope !== "terminal") {
+		sources.push(`
+ select 'stage' as scope, step.step_id, step.step_id as record_id, step.updated_at as occurred_at,
+ nullif(step.sanitized_payload_json -> 'failure' ->> 'code','') as code,
+ nullif(step.sanitized_payload_json -> 'failure' ->> 'reason','') as reason,
+ step.sanitized_payload_json -> 'failure' -> 'citation' ->> 'validation_stage' as citation_stage,
+ null::text as source_code
+ from execution_control.agent_run_steps step where step.request_id = dispatch.request_id`);
+	}
+	if (query.failureScope !== "stage") {
+		sources.push(`
+ select 'terminal' as scope, terminal.step_id, terminal.event_id as record_id, terminal.occurred_at,
+ terminal.code, terminal.reason, terminal.citation ->> 'validation_stage' as citation_stage, terminal.source_code
+ from execution_control.ops_terminal_failures terminal where terminal.request_id = dispatch.request_id`);
+	}
+	return `select jsonb_build_object('code',code,'sourceCode',source_code,'reason',reason,'citationStage',citation_stage,
+ 'scope',scope,'stepId',step_id,'occurredAt',to_char(occurred_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) as failure
+ from (${sources.join(" union all ")}) failures where ${conditions.join(" and ")}
+ order by occurred_at desc, scope asc, record_id desc limit 1`;
 }

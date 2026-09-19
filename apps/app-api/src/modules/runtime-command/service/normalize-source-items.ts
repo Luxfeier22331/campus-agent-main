@@ -59,12 +59,12 @@ function parseSectionRef(value: string): { anchor: string | null; basePath: stri
 interface NormalizedSourceBase {
 	citationIndexes: number[];
 	identityKey: string;
-	primaryHref: string;
 	snippet: string | null;
 	title: string;
 }
 
 interface NormalizedCampusSource extends NormalizedSourceBase {
+	primaryHref: string;
 	anchor: string | null;
 	basePath: string;
 	kind: "campus_document";
@@ -74,13 +74,15 @@ interface NormalizedCampusSource extends NormalizedSourceBase {
 }
 
 interface NormalizedNoticeSource extends NormalizedSourceBase {
+	primaryHref: string;
 	kind: "campus_notice";
 	noticeId: string;
 	sectionTitle: string;
 }
 
 interface NormalizedWebSource extends NormalizedSourceBase {
-	hostname: string;
+	primaryHref: string | null;
+	hostname: string | null;
 	kind: "web_page";
 }
 
@@ -167,6 +169,22 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 	}
 
 	if (kind === "web_page") {
+		if (
+			source.unavailable_reason === "source_unavailable" &&
+			source.url === null &&
+			source.citation_href === null &&
+			source.hostname === null
+		) {
+			return {
+				citationIndexes: [citationIndex],
+				identityKey: `web:unavailable:${citationIndex}`,
+				kind: "web_page",
+				primaryHref: null,
+				hostname: null,
+				title,
+				snippet: normalizeSnippet(source.snippet),
+			};
+		}
 		const url = recordString(source, "url", "url");
 		const webHref = citationHref ?? url;
 		const normalizedUrl = normalizeWebUrl(url);
@@ -203,12 +221,10 @@ function sourceItemFromNormalized(source: NormalizedSource): ChatSourceItem {
 			citationIndexes: source.citationIndexes,
 			hostname: source.hostname,
 			kind: "web_page",
-			primaryAction: {
-				label: "打开网页",
-				href: source.primaryHref,
-				external: true,
-				disabledReason: null,
-			},
+			primaryAction:
+				source.primaryHref === null
+					? { label: "打开网页", href: null, external: true, disabledReason: "source_unavailable" }
+					: { label: "打开网页", href: source.primaryHref, external: true, disabledReason: null },
 			snippet: source.snippet,
 			title: source.title,
 		};
@@ -310,36 +326,7 @@ export function normalizeSourceItemsPart(input: {
 		normalizedSources.push(normalized);
 	}
 	const sourceItems = normalizedSources.map(sourceItemFromNormalized);
-	const suggestions: ChatMessageStructuredPart[] = [];
-	const seen = new Set<string>();
-	const rawSuggestions = isRecord(input.result) ? input.result.search_suggestions : undefined;
-	if (Array.isArray(rawSuggestions)) {
-		for (const suggestion of rawSuggestions) {
-			if (
-				isRecord(suggestion) &&
-				suggestion.provider === "google" &&
-				typeof suggestion.rendered_content === "string" &&
-				suggestion.rendered_content.trim() &&
-				!seen.has(suggestion.rendered_content)
-			) {
-				seen.add(suggestion.rendered_content);
-				suggestions.push({
-					type: "search_suggestions",
-					provider: "google",
-					renderedContent: suggestion.rendered_content,
-				});
-			}
-		}
-	}
-	return sourceItems.length > 0
-		? [
-				{
-					type: "source_items",
-					sourceItems,
-				},
-				...suggestions,
-			]
-		: suggestions;
+	return sourceItems.length > 0 ? [{ type: "source_items", sourceItems }] : [];
 }
 
 function dedupeStableNumbers(values: number[]): number[] {

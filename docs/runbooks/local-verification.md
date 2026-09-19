@@ -23,6 +23,8 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.e
 默认诊断 compose 使用 debug OTel Collector。只有验证本地 Agent trace 到 Langfuse 的转发时加入
 `docker-compose.execution-runtime.langfuse.yml`。
 
+初始化决策见[协作开发产品数据初始化](../../.agents/notes/implemented/process/2026-09-17-product-data-initialization.md)。
+
 ## Node 工具链
 
 Node 版本以根目录 `.node-version` 为准。使用 fnm 的本地环境在当前 worktree 执行：
@@ -59,9 +61,35 @@ pnpm dev
 
 `build:test` 只供浏览器回归使用确定性测试内容。Campus Web 的正常开发和构建读取对象存储固定键
 `campus-docs/source.json`。共享依赖只由 canonical checkout 的 `pnpm dev:shared-reconcile` 供应；
-`pnpm dev:init -- --target core` 为当前 worktree 创建实例资源，在来源键缺失时写入确定性开发样例，
+`pnpm dev:init -- --target core` 为当前 worktree 安装 schema、完整产品 seed、真实混合检索索引和
+Temporal namespace。Qdrant 也由 shared-reconcile 供应，保留现有数据卷和密钥。
 
-并安装核心 schema/seed 和 Temporal namespace。`pnpm dev` 随后只读取就绪状态，并由 Turbo 并行启动
+初始化前停止当前 worktree 的应用，保留共享基础设施。`core` 与 `ops-web` 使用相同完整数据集：
+
+```bash
+pnpm dev:init -- --target core --data seed
+pnpm dev:init -- --target core --data cluster --context <协作者-context> --namespace <namespace>
+pnpm dev:init -- --target core --data cluster --context <协作者-context> --namespace <namespace> --replace
+pnpm dev:doctor -- --scope data
+```
+
+默认 seed 包含通知、Docs 全版本和图片、食堂地图与菜单/评论、交通时段及通知关联、校园群组。
+11 个预生成真实 Qwen3-Embedding-4B（2560 维）检索点随仓库提供，初始化不调用模型供应商。
+模型连接仍由开发者提供；数据 ready 不等于模型配置或真实查询成功。
+
+已有数据时 seed 只校验并保留，不向自定义数据混入样例；不完整时需显式 `--replace`。
+cluster 模式在非空目标上同样要求 `--replace`。替换清除基础数据和依赖它的本地食堂评论、编辑、举报，
+保留用户、会话、模型配置。日期只在 seed 初始化时生成，重复初始化不会刷新日期。
+旧 worktree 的共享 Docs 引用闭包先复制到 profile bucket，不修改共享 source。
+
+cluster 模式使用 `pg-product-data-ro`、`objectstore-ro`、`qdrant-ro`，复制产品与内容管理数据，包括草稿，
+不复制门户原始采集数据、远端用户/会话/评论/模型密钥。附件仅复制元数据；图片复制实际对象。
+数据库使用单个只读 repeatable-read 事务导出；Qdrant 读取当前绑定 collection 的 points 和 dense/sparse
+向量，按批暂存，保留 collection 身份。已有本地 collection 必须通过内容校验，不会被覆盖。
+数据库内容与索引绑定同事务提交；随后更新本地 Docs source 并准备阅读资源。后续失败会报 incomplete，
+修复原因后重复同一条显式 replace 命令即可。浏览器验收按需使用 MCP，不增加 smoke 命令或 PR CI。
+
+`pnpm dev` 随后只读取就绪状态，并由 Turbo 并行启动
 Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行初始化、迁移或 seed。
 直接执行 `pnpm --dir apps/campus-web build` 也会读取当前 worktree 的托管配置。只有显式访问其他对象
 存储时才通过 `env/commands/campus-docs-source.env` 或进程环境覆盖，进程环境优先级最高。
@@ -134,7 +162,7 @@ internal-portal-collection 和 notice-classifier 不需要再单独运行 notice
 原生 `generate_content` 及对应凭据；Hindsight 的 provider/model/endpoint/Secret 属于环境仓的
 独立部署，不读取这份主模型配置，也不能借用主模型 key 修复记忆服务。
 
-先发起真实联网问题，等待会话终态后查看 Ops 同一请求：答案和搜索建议应保留；如果只有查询或
+先发起真实联网问题，等待会话终态后查看 Ops 同一请求：答案和引用应保留，搜索建议不应出现；如果只有查询或
 建议而没有 supports，应显示 `metadata_only`，不能把它称为“已验证引用”或“搜索无匹配”。
 有 supports 时确认正文未被引用替换、来源卡为 web_page，并核对丢弃原因与实际最终来源。
 
@@ -149,7 +177,7 @@ Hindsight 部署修复应在环境仓单独处理：使用该服务自己的 Sec
 网关无法稳定返回 supports 时，显式启动 `apps/agent-runtime/test/fixtures/search-boundaries-server.ts`
 补充受控端到端测试。启动方式与上面的格式错误 fixture 相同，必须监听 loopback；普通请求仍用
 真实 provider。分别在新会话发送 `[smoke:grounding]` 和 `[smoke:contract-failure]`：前者应保留
-正文、两个明确标记的测试来源与搜索建议，Ops 显示转换 2、丢弃 1；后者应产生失败终态与可见原因。
+正文与两个明确标记的测试来源，不展示搜索建议，Ops 显示转换 2、丢弃 1；后者应产生失败终态与可见原因。
 这只验证供应商响应之后的真实传输、Temporal、数据库与 UI，不代表真实搜索结果。结束后恢复
 普通 Runtime 和连接地址，不保留测试入口在线。
 
@@ -194,8 +222,7 @@ pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
 引用闭包。导入使用临时 object-store port-forward，并写入当前 worktree 的隔离本地 bucket；不会复制整个
 bucket，也不会写入共享 bucket。发布验证使用本地 PostgreSQL/Qdrant 和本地 S3，不调用 embedding provider，
 也不形成线上前置状态。`dev:init -- --target campus-rag-index-publisher` 从正在运行的本地 Qdrant Compose
-容器读取 writer key 和 HTTP 映射端口，经认证检查后写入本 worktree 的托管环境文件。容器需先由
-`infra/local/docker-compose.qdrant.yml` 启动；连接或认证失败时初始化报错，凭据变化后重跑初始化即可更新。
+容器读取 writer key 和 HTTP 映射端口，经认证检查后写入本 worktree 的托管环境文件。容器由主 checkout 的 `pnpm dev:shared-reconcile` 启动；连接或认证失败时初始化报错，凭据变化后重跑初始化即可更新。
 
 ## Ops Web API
 
@@ -248,7 +275,7 @@ Gemini 本地初始连接使用 `LLM_PROVIDER=google`、`LLM_API_PROTOCOL=google
 `LLM_BASE_URL`（包含 `/v1beta` 等原生版本路径）、`LLM_MODEL` 和 `LLM_API_KEY`。已有配置使用 Ops 的
 LLM 表单选择“Gemini（原生 API）”后保存，不重跑 seed 覆盖在线配置。OpenAI / Gemini 切换只影响新请求；
 不在运行中换 runner，不自动 fallback。验证时等待每个会话终态后再发送下一个问题，分别检查问候、
-Campus RAG、Google Search 来源卡及刷新后的搜索建议；单独验证配置连接成功不能替代真实会话。
+Campus RAG、Google Search 来源卡，以及刷新后仍不出现搜索建议；单独验证配置连接成功不能替代真实会话。
 
 验证查询 Embedding 精确缓存时，重启当前 worktree 的 execution-control 清空进程内缓存，再用已有
 开发账号发起两个独立的相同问题会话，每个都等待终态。核对 Ops 中实际 `effectiveQuery` 相同

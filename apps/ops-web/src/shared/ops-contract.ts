@@ -1,4 +1,10 @@
 import { ChatSourceItemSchema as OpsProductSourceSchema } from "campus-contracts/chat-sources";
+import {
+	CitationDiagnosticSchema,
+	CitationStageSchema,
+	FailureReasonSchema,
+} from "campus-contracts/citation-diagnostic";
+import { TimeFiltersSchema, TimeWindowSchema } from "campus-contracts/ops-time";
 
 export { CitationIndexesSchema } from "campus-contracts/chat-sources";
 
@@ -22,8 +28,8 @@ export {
 
 const IsoDateTimeSchema = z.string().datetime();
 
-export const OpsOverviewWindowSchema = z.enum(["15m", "1h", "6h", "24h"]);
-export const OpsRequestWindowSchema = z.enum(["15m", "1h", "6h", "24h", "7d"]);
+export const OpsOverviewWindowSchema = TimeWindowSchema;
+export const OpsRequestWindowSchema = TimeWindowSchema;
 export const OpsHealthStatusSchema = z.enum(["HEALTHY", "DEGRADED", "OUTAGE", "UNKNOWN"]);
 export const OpsDataStateSchema = z.enum(["FRESH", "PARTIAL", "STALE", "NO_DATA", "UNAVAILABLE"]);
 
@@ -364,7 +370,19 @@ const OpsRequestResultSummarySchema = z.discriminatedUnion("state", [
 	z.object({ kind: z.null(), state: z.literal("MISSING") }),
 ]);
 
+export const OpsMatchedFailureSchema = z.object({
+	code: z.string().min(1),
+	sourceCode: z.string().min(1).nullish(),
+	diagnosticState: z.enum(["recorded", "not_recorded", "invalid"]).optional(),
+	reason: FailureReasonSchema.nullable(),
+	citationStage: CitationStageSchema.nullable(),
+	scope: z.enum(["stage", "terminal"]),
+	stepId: z.string().nullable(),
+	occurredAt: IsoDateTimeSchema,
+});
+
 export const OpsRequestSummarySchema = z.object({
+	matchedFailure: OpsMatchedFailureSchema.nullish(),
 	attentionReason: z
 		.enum(["RESULT_MISSING", "REQUEST_FAILED", "EXECUTION_STAGE_FAILED", "WAITING_USER"])
 		.nullable(),
@@ -407,7 +425,8 @@ export const OpsRequestListResponseSchema = z.object({
 		total: z.number().int().nonnegative(),
 	}),
 	view: OpsRequestListViewSchema,
-	window: OpsRequestWindowSchema,
+	window: OpsRequestWindowSchema.nullable(),
+	filters: TimeFiltersSchema,
 });
 
 const OpsProductResultSchema = z.discriminatedUnion("state", [
@@ -421,7 +440,11 @@ const OpsProductResultSchema = z.discriminatedUnion("state", [
 	}),
 ]);
 
-const OpsExecutionFailureSchema = z.object({
+export const OpsExecutionFailureSchema = z.object({
+	sourceCode: z.string().min(1).nullish(),
+	reason: FailureReasonSchema.nullish(),
+	citation: CitationDiagnosticSchema.nullish(),
+	citationState: z.enum(["recorded", "not_recorded", "invalid"]).optional(),
 	code: z.string().min(1).nullable(),
 	detail: z.string().min(1).nullable(),
 	httpStatus: z.number().int().min(100).max(599).nullable(),
@@ -430,6 +453,8 @@ const OpsExecutionFailureSchema = z.object({
 });
 
 const OpsExecutionStageSchema = z.object({
+	stepId: z.string().optional(),
+	failure: OpsExecutionFailureSchema.nullish(),
 	webSearchDiagnostic: WebSearchDiagnosticSchema.nullish(),
 	modelOutputDiagnostic: ModelOutputDiagnosticSchema.nullish(),
 	completedAt: IsoDateTimeSchema.nullable(),
@@ -536,7 +561,8 @@ export const OpsOverviewResponseSchema = z.object({
 		dataState: OpsDataStateSchema,
 		reason: z.string().min(1).nullable(),
 	}),
-	window: OpsOverviewWindowSchema,
+	window: OpsOverviewWindowSchema.nullable(),
+	filters: TimeFiltersSchema,
 });
 
 export type OpsDataState = z.infer<typeof OpsDataStateSchema>;

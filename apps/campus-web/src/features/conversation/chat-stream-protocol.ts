@@ -25,6 +25,11 @@ const answerPayload = z
 const acceptedEventData = streamBase;
 const queuedEventData = streamBase.extend({ sequence: sequence.optional() });
 const runningEventData = streamBase.extend({ sequence: sequence.optional() });
+const retrievalEventData = streamBase.extend({
+	source: z.enum(["campus"]),
+	status: z.enum(["started", "completed", "no_match", "failed", "canceled"]),
+	sequence,
+});
 const phaseEventData = streamBase.extend({
 	phase: z.enum(["finalizing", "generating", "preparing"]),
 	sequence,
@@ -154,21 +159,23 @@ function parseSseBlock(block: string): ChatRequestStreamEvent | null {
 
 function validateProductStreamEvent(eventName: ChatRequestStreamEventName, data: unknown): boolean {
 	const schema =
-		eventName === "request.accepted"
-			? acceptedEventData
-			: eventName === "execution.queued"
-				? queuedEventData
-				: eventName === "execution.running"
-					? runningEventData
-					: eventName === "execution.phase"
-						? phaseEventData
-						: eventName === "answer.delta"
-							? deltaEventData
-							: eventName === "request.completed"
-								? completedEventData
-								: eventName === "request.failed"
-									? failedEventData
-									: cancelledEventData;
+		eventName === "retrieval.status"
+			? retrievalEventData
+			: eventName === "request.accepted"
+				? acceptedEventData
+				: eventName === "execution.queued"
+					? queuedEventData
+					: eventName === "execution.running"
+						? runningEventData
+						: eventName === "execution.phase"
+							? phaseEventData
+							: eventName === "answer.delta"
+								? deltaEventData
+								: eventName === "request.completed"
+									? completedEventData
+									: eventName === "request.failed"
+										? failedEventData
+										: cancelledEventData;
 	return schema.safeParse(data).success;
 }
 
@@ -187,6 +194,7 @@ function assertEventStreamContentType(response: Response): void {
 function isProductStreamEventName(value: string): value is ChatRequestStreamEventName {
 	return (
 		value === "answer.delta" ||
+		value === "retrieval.status" ||
 		value === "execution.phase" ||
 		value === "execution.queued" ||
 		value === "execution.running" ||

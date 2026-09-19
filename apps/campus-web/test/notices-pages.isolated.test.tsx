@@ -168,7 +168,7 @@ describe("notice pages", () => {
 		expect(screen.queryByLabelText("开始")).toBeNull();
 		expect(screen.queryByLabelText("结束")).toBeNull();
 
-		fireEvent.click(screen.getByRole("button", { name: "发布日期：2026年8月1日 - 2026年8月20日" }));
+		fireEvent.click(screen.getByRole("button", { name: "发布日期：2026-08-01 - 2026-08-20" }));
 		expect(await screen.findByLabelText("开始")).toBeVisible();
 		expect(screen.getByLabelText("结束")).toBeVisible();
 		expect(screen.queryByLabelText("正文来源")).toBeNull();
@@ -233,7 +233,7 @@ describe("notice pages", () => {
 
 		renderWithQuery(<NoticesPageContent />);
 
-		fireEvent.click(screen.getByRole("button", { name: "发布日期：2026年3月1日 - 2026年8月13日" }));
+		fireEvent.click(screen.getByRole("button", { name: "发布日期：2026-03-01 - 2026-08-13" }));
 		const from = await screen.findByLabelText("开始");
 		const to = screen.getByLabelText("结束");
 		expect(screen.getByRole("group", { name: "发布日期范围" })).toBeVisible();

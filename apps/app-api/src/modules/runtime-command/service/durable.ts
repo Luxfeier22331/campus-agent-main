@@ -204,6 +204,22 @@ export function lifecycleEventFromDurableRunEvent(
 		requestId: context.requestId,
 		sequence: event.sequence,
 	};
+	if (event.eventType === "run.retrieval_status") {
+		const { source, status } = event.payload;
+		if (
+			source !== "campus" ||
+			typeof status !== "string" ||
+			!["started", "completed", "no_match", "failed", "canceled"].includes(status)
+		) {
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Invalid retrieval status",
+				retryable: false,
+				status: 502,
+			});
+		}
+		return { event: "retrieval.status", data: { ...baseData, source, status } };
+	}
 	if (event.eventType === "run.queued") {
 		return {
 			data: {

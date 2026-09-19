@@ -3,7 +3,6 @@ import { cn } from "@campus-agent/ui";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { SourceItemsDataPart } from "@/components/conversation/source-items";
-import { SearchSuggestionsDataPart } from "./search-suggestions";
 
 interface AssistantConversationSurfaceProps {
 	className?: string;
@@ -26,6 +25,5 @@ export function AssistantConversationSurface({
 
 function ConversationDataRegistrations() {
 	useAssistantDataUI({ name: "source_items", render: SourceItemsDataPart });
-	useAssistantDataUI({ name: "search_suggestions", render: SearchSuggestionsDataPart });
 	return null;
 }

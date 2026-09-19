@@ -1,3 +1,4 @@
+import type { ResolvedTimeRange } from "campus-contracts/ops-time";
 import type { OpsRequestListQuery } from "../src/server/ops-status/contract.ts";
 import {
 	decodeRequestCursor,
@@ -22,7 +23,9 @@ export function createFakeOpsDb(
 
 	return {
 		async getRequestOverview(since) {
-			const visible = requestRows.filter((row) => row.startedAt >= since);
+			const visible = requestRows.filter(
+				(row) => row.startedAt >= new Date(since.from) && row.startedAt < new Date(since.to),
+			);
 			const summary = summarizeRows(visible);
 			const durations = visible
 				.map((row) => row.durationMs)
@@ -44,12 +47,14 @@ export function createFakeOpsDb(
 			return diagnostics;
 		},
 		async getRequestTrends(since) {
-			const visible = requestRows.filter((row) => row.startedAt >= since);
+			const visible = requestRows.filter(
+				(row) => row.startedAt >= new Date(since.from) && row.startedAt < new Date(since.to),
+			);
 			return visible.length === 0
 				? []
 				: [
 						{
-							bucketStart: since,
+							bucketStart: new Date(since.from),
 							...summarizeRows(visible),
 							p95DurationMs: visible[0]?.durationMs ?? null,
 						},
@@ -185,6 +190,7 @@ export function runStepRow(overrides: Partial<OpsRequestStageRow> = {}): OpsRequ
 			execution_control_release: "execution-control@a77a046",
 		},
 		stepId: "step_001",
+		activityAttempt: 1,
 		startedAt: new Date("2026-07-09T07:29:00.700Z"),
 		status: "completed",
 		stepKind: "agent",
@@ -197,6 +203,8 @@ export function runAttemptRow(
 	overrides: Partial<OpsRequestModelAttemptRow> = {},
 ): OpsRequestModelAttemptRow {
 	return {
+		stepId: "step_001",
+		activityAttempt: 1,
 		cachedInputTokens: 200,
 		completedAt: new Date("2026-07-09T07:29:03.800Z"),
 		durationMs: 3_100,
@@ -221,10 +229,14 @@ export function runAttemptRow(
 function filterRequestRows(
 	rows: OpsRequestDetailRow[],
 	query: OpsRequestListQuery,
-	since: Date,
+	since: ResolvedTimeRange,
 ): OpsRequestDetailRow[] {
 	return rows
-		.filter((row) => query.requestId || row.startedAt >= since)
+		.filter(
+			(row) =>
+				query.requestId ||
+				(row.startedAt >= new Date(since.from) && row.startedAt < new Date(since.to)),
+		)
 		.filter((row) => {
 			if (requestListView(query) === "attention" && row.attentionReason === null) {
 				return false;

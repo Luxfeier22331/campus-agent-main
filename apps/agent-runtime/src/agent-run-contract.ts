@@ -1,4 +1,6 @@
+import type { CitationDiagnostic } from "campus-contracts/citation-diagnostic";
 import type { CampusSearchObservation, CampusSearchReporter } from "./campus-search-observer.ts";
+import type { RetrievalObservation, RetrievalReporter } from "./retrieval-status.ts";
 import type {
 	JsonObjectSchema,
 	ToolCatalog,
@@ -29,7 +31,12 @@ export interface TaskReplan {
 	remainingSteps: TaskPlanStep[];
 }
 
+export interface SourceLink {
+	href: string | null;
+}
+
 export interface WorkflowEvidence {
+	sourceLink?: SourceLink;
 	schemaVersion: "workflow_evidence.v1";
 	id: string;
 	source: WorkflowSource;
@@ -49,7 +56,6 @@ export interface WorkflowEvidence {
 }
 
 export interface CompletedTaskStep {
-	searchSuggestions?: SearchSuggestion[];
 	remainingFacts: string[];
 	failure?: ExecutionFailure;
 	step: TaskPlanStep;
@@ -119,7 +125,6 @@ export interface SynthesizeWorkflowOperationInput extends WorkflowOperationInput
 		sourceAttempts: SourceAttempt[];
 		remainingFacts: { objective: string; facts: string[] }[];
 		recoveryReason?: string;
-		searchSuggestions?: SearchSuggestion[];
 	};
 }
 
@@ -130,6 +135,8 @@ export type WorkflowOperationInput =
 	| SynthesizeWorkflowOperationInput;
 
 export interface ExecutionFailure {
+	reason?: string;
+	citation?: CitationDiagnostic;
 	stage?: string;
 	code: string;
 	operation: string;
@@ -238,6 +245,7 @@ export interface ToolExecutionResult extends UntimedToolExecutionResult {
 }
 
 export interface WebEvidence {
+	sourceLink?: SourceLink;
 	excerpt: string;
 	title: string;
 	url: string;
@@ -253,10 +261,6 @@ export interface ModelMessage {
 export interface ModelResponseSchema {
 	name: string;
 	schema: Record<string, unknown>;
-}
-export interface SearchSuggestion {
-	provider: "google";
-	renderedContent: string;
 }
 
 export interface SdkToolRuntime {
@@ -285,6 +289,7 @@ export interface SdkToolExecutionContext {
 }
 
 export interface AgentRunnerInput {
+	reportRetrieval?: RetrievalReporter;
 	deadlineAt?: string;
 	priorSourceAttempts?: SourceAttempt[];
 	activityAttempt?: number;
@@ -314,7 +319,6 @@ export interface AgentRunnerResult {
 	providerResponseId: string;
 	toolResults: ToolExecutionResult[];
 	webEvidence?: WebEvidence[];
-	searchSuggestions?: SearchSuggestion[];
 	webSearchUsed?: boolean;
 	usage: UsageSummary;
 }
@@ -356,7 +360,6 @@ export interface WorkflowOperationResult {
 	stageTiming: Record<string, number>;
 	toolContractFingerprint: ToolContractFingerprint;
 	toolResults: ToolExecutionResult[];
-	searchSuggestions?: SearchSuggestion[];
 	terminalReason: "operation_completed" | "agent_runtime_failed" | "recovered_from_materials";
 	usage: UsageSummary;
 }
@@ -389,7 +392,10 @@ export interface WebSearchDiagnostic {
 export interface WorkflowOperationRuntime {
 	run(input: WorkflowOperationInput): Promise<WorkflowOperationResult>;
 	stream(
-		input: SolveWorkflowOperationInput | SynthesizeWorkflowOperationInput,
+		input:
+			| SolveWorkflowOperationInput
+			| SynthesizeWorkflowOperationInput
+			| ExecuteStepWorkflowOperationInput,
 	): AsyncIterable<WorkflowOperationStreamEvent>;
 }
 
@@ -402,6 +408,7 @@ export interface CreateWorkflowOperationRuntimeOptions {
 }
 
 export type WorkflowOperationStreamEvent =
+	| { event: "retrieval_status"; data: RetrievalObservation }
 	| {
 			event: "solve_decision";
 			data: { outcome: "answer" | "plan" };

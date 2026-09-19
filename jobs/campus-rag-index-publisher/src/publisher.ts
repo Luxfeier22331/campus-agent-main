@@ -165,9 +165,19 @@ export function buildNoticePoints(
 	});
 }
 
-async function materializeCollection(
+export interface StreamingIndexCandidate {
+	collection: string;
+	pointCount: number;
+	points(): AsyncIterable<UnifiedPoint>;
+}
+
+function candidatePoints(candidate: UnifiedIndexCandidate | StreamingIndexCandidate) {
+	return typeof candidate.points === "function" ? candidate.points() : candidate.points;
+}
+
+export async function materializeCollection(
 	qdrant: QdrantIndexClient,
-	candidate: UnifiedIndexCandidate,
+	candidate: UnifiedIndexCandidate | StreamingIndexCandidate,
 ): Promise<{ created: boolean }> {
 	if (await qdrant.collectionExists(candidate.collection)) {
 		await validate(qdrant, candidate);
@@ -181,14 +191,18 @@ async function materializeCollection(
 		sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
 	});
 	try {
-		for (let offset = 0; offset < candidate.points.length; offset += QDRANT_UPSERT_BATCH_SIZE) {
-			await qdrant.upsert({
-				collection: candidate.collection,
+		let batch: UnifiedPoint[] = [];
+		const write = async () => {
+			await qdrant.upsert({ collection: candidate.collection,
 				denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
-				points: candidate.points.slice(offset, offset + QDRANT_UPSERT_BATCH_SIZE),
-				sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
-			});
+				points: batch, sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName });
+			batch = [];
+		};
+		for await (const point of candidatePoints(candidate)) {
+			batch.push(point);
+			if (batch.length === QDRANT_UPSERT_BATCH_SIZE) await write();
 		}
+		if (batch.length) await write();
 		await validate(qdrant, candidate);
 	} catch (error) {
 		await qdrant.deleteCollection(candidate.collection).catch(() => undefined);
@@ -199,15 +213,15 @@ async function materializeCollection(
 
 async function validate(
 	qdrant: QdrantIndexClient,
-	candidate: UnifiedIndexCandidate,
+	candidate: UnifiedIndexCandidate | StreamingIndexCandidate,
 ): Promise<void> {
 	await qdrant.validate({
 		collection: candidate.collection,
 		denseDistance: COLLECTION_DEFINITION.dense.distance,
 		denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
 		dimensions: EMBEDDING_SPACE.dimensions,
-		expectedPointCount: candidate.points.length,
-		expectedPoints: candidate.points,
+		expectedPointCount: "pointCount" in candidate ? candidate.pointCount : candidate.points.length,
+		expectedPoints: candidatePoints(candidate),
 		sparseModifier: COLLECTION_DEFINITION.sparse.modifier,
 		sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
 	});

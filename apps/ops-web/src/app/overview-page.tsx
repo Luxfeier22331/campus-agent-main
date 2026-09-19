@@ -1,6 +1,7 @@
-import { Alert, Button, Field } from "@campus-agent/ui";
+import { Alert, Button } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import type { ResolvedTimeRange } from "campus-contracts/ops-time";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import {
 	CartesianGrid,
@@ -12,46 +13,30 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import type { OpsOverviewResponse, OpsOverviewWindow } from "../shared/ops-contract";
+import type { OpsOverviewResponse } from "../shared/ops-contract";
 import { formatDuration, formatPercent, formatTimestamp } from "./format";
 import { fetchOpsOverview } from "./ops-api/observability";
 import {
 	ErrorState,
 	formatIssueSeverity,
 	PageHeader,
-	PageShell,
 	StaleDataWarning,
 	StatusBadge,
 } from "./ops-display";
-import { formatDataStateLabel } from "./ops-view-helpers";
-import { TimeWindowSelect } from "./ui/time-window-select";
+import { formatDataStateLabel, requestListPath } from "./ops-view-helpers";
+import { type TimeSearch, timeQueryFields } from "./time-filters";
+import { TimeRangeFilter, TimeRangeSummary } from "./ui/time-window-select";
 
-export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
+export function OverviewPage({ search }: { search: TimeSearch }) {
+	const queryTime = timeQueryFields(search);
 	const navigate = useNavigate();
 	const overview = useQuery({
-		queryFn: ({ signal }) => fetchOpsOverview(window, { signal }),
-		queryKey: ["ops", "overview", window],
+		enabled: !search.timeError,
+		queryFn: ({ signal }) => fetchOpsOverview(queryTime, { signal }),
+		queryKey: ["ops", "overview", queryTime],
 		refetchInterval: 30_000,
 		refetchIntervalInBackground: false,
 	});
-
-	if (overview.isPending) {
-		return <PageShell title="运行概览">正在读取运行状态...</PageShell>;
-	}
-	if (overview.isError && !overview.data) {
-		return (
-			<PageShell title="运行概览">
-				<ErrorState
-					error={overview.error}
-					onRetry={() => overview.refetch()}
-					title="运行概览读取失败"
-				/>
-			</PageShell>
-		);
-	}
-	if (!overview.data) {
-		return <PageShell title="运行概览">正在读取运行状态...</PageShell>;
-	}
 
 	const data = overview.data;
 	return (
@@ -59,21 +44,11 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 			<PageHeader
 				actions={
 					<div className="flex flex-wrap items-end gap-3">
-						<Field label="统计窗口">
-							<TimeWindowSelect
-								accessibilityLabel="统计窗口"
-								className="min-h-11"
-								name="window"
-								onChange={(next) => {
-									void navigate({
-										search: { window: next as OpsOverviewWindow },
-										to: "/overview",
-									});
-								}}
-								scope="overview"
-								value={window}
-							/>
-						</Field>
+						<TimeRangeFilter
+							search={search}
+							scope="overview"
+							onChange={(next) => void navigate({ to: "/overview", search: next })}
+						/>
 						<Button
 							aria-busy={overview.isFetching}
 							disabled={overview.isFetching}
@@ -88,113 +63,130 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 				description="确认产品请求状态、结果和趋势是否正常。"
 				title="运行概览"
 			/>
-			{overview.isRefetchError ? (
-				<StaleDataWarning
+			{overview.isPending && !search.timeError ? <p role="status">正在读取运行状态...</p> : null}
+			{overview.isError && !data ? (
+				<ErrorState
 					error={overview.error}
-					lastSuccessfulAt={overview.dataUpdatedAt}
-					onRetry={() => void overview.refetch()}
-					title="运行概览刷新失败"
+					onRetry={() => overview.refetch()}
+					title="运行概览读取失败"
 				/>
 			) : null}
-			{data.cache.status === "STALE" ? (
-				<Alert className="mb-4" tone="warning">
-					部分来源显示旧数据，最旧结果距本次刷新约 {formatDuration(data.cache.ageMs)}。
-				</Alert>
+			{data && !search.timeError ? (
+				<>
+					<TimeRangeSummary filters={data.filters} />
+					{overview.isRefetchError ? (
+						<StaleDataWarning
+							error={overview.error}
+							lastSuccessfulAt={overview.dataUpdatedAt}
+							onRetry={() => void overview.refetch()}
+							title="运行概览刷新失败"
+						/>
+					) : null}
+					{data.cache.status === "STALE" ? (
+						<Alert className="mb-4" tone="warning">
+							部分来源显示旧数据，最旧结果距本次刷新约 {formatDuration(data.cache.ageMs)}。
+						</Alert>
+					) : null}
+
+					<dl className="grid border-border border-y md:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-border">
+						<div className="grid content-start gap-2 border-border border-b px-1 py-4 md:border-r md:px-4 xl:border-b-0 xl:border-r-0 xl:pl-0">
+							<dt className="font-medium ui-metadata text-muted-foreground">整体状态</dt>
+							<dd>
+								<StatusBadge status={data.health.status} />
+							</dd>
+							<dd className="text-muted-foreground text-sm">
+								{data.issues.length > 0
+									? `${data.issues.length} 个问题需要处理`
+									: "当前没有阻塞问题"}
+							</dd>
+							{data.health.dataState === "FRESH" ? null : (
+								<dd className="font-medium text-warning text-xs">
+									数据状态：{formatDataStateLabel(data.health.dataState)}
+								</dd>
+							)}
+						</div>
+						<OverviewMetric
+							href="/requests"
+							label="请求总数"
+							search={data.filters}
+							value={data.requests.total.toLocaleString("en-US")}
+						/>
+						<OverviewMetric
+							href="/requests"
+							label="请求成功率"
+							search={{ status: "FAILED", ...data.filters }}
+							value={
+								data.requests.successRate === null
+									? "无数据"
+									: formatPercent(data.requests.successRate)
+							}
+						/>
+						<OverviewMetric
+							href="/requests"
+							label="95% 请求耗时"
+							search={data.filters}
+							value={
+								data.requests.p95DurationMs === null
+									? "无数据"
+									: formatDuration(data.requests.p95DurationMs)
+							}
+						/>
+					</dl>
+
+					<div className="mt-[var(--ui-section-gap)] grid items-start gap-[var(--ui-section-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:gap-0">
+						<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:border-r xl:pr-8">
+							<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+								<h2 className="ui-section-title">请求趋势</h2>
+							</div>
+							<RequestTrendChart trends={data.trends} range={data.filters as ResolvedTimeRange} />
+						</section>
+						<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:pl-8">
+							<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+								<h2 className="ui-section-title">当前问题</h2>
+								{data.issues.length > 0 ? (
+									<Link
+										className="text-sm font-medium text-info hover:underline"
+										search={{ status: "FAILED", ...data.filters }}
+										to="/requests"
+									>
+										查看失败请求
+									</Link>
+								) : null}
+							</div>
+							{data.issues.length === 0 ? (
+								<p className="text-muted-foreground text-sm">当前没有需要处理的问题。</p>
+							) : (
+								<ul className="divide-y divide-border">
+									{data.issues.map((issue) => (
+										<li className="grid gap-2 py-4 first:pt-0 last:pb-0" key={issue.code}>
+											<div className="flex items-start gap-2">
+												<AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+												<div className="min-w-0">
+													<p className="font-semibold text-foreground">{issue.title}</p>
+													<p className="mt-1 text-muted-foreground text-sm">{issue.detail}</p>
+												</div>
+											</div>
+											<div className="flex flex-wrap items-center gap-3 pl-6 text-xs">
+												<span className="font-medium text-warning">
+													{formatIssueSeverity(issue.severity)}
+												</span>
+												<details>
+													<summary className="cursor-pointer font-medium text-muted-foreground">
+														技术信息
+													</summary>
+													<code className="mt-2 block break-all text-muted-foreground">
+														{issue.code}
+													</code>
+												</details>
+											</div>
+										</li>
+									))}
+								</ul>
+							)}
+						</section>
+					</div>
+				</>
 			) : null}
-
-			<dl className="grid border-border border-y md:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-border">
-				<div className="grid content-start gap-2 border-border border-b px-1 py-4 md:border-r md:px-4 xl:border-b-0 xl:border-r-0 xl:pl-0">
-					<dt className="font-medium ui-metadata text-muted-foreground">整体状态</dt>
-					<dd>
-						<StatusBadge status={data.health.status} />
-					</dd>
-					<dd className="text-muted-foreground text-sm">
-						{data.issues.length > 0 ? `${data.issues.length} 个问题需要处理` : "当前没有阻塞问题"}
-					</dd>
-					{data.health.dataState === "FRESH" ? null : (
-						<dd className="font-medium text-warning text-xs">
-							数据状态：{formatDataStateLabel(data.health.dataState)}
-						</dd>
-					)}
-				</div>
-				<OverviewMetric
-					href="/requests"
-					label="请求总数"
-					search={{ window }}
-					value={data.requests.total.toLocaleString("en-US")}
-				/>
-				<OverviewMetric
-					href="/requests"
-					label="请求成功率"
-					search={{ status: "FAILED", window }}
-					value={
-						data.requests.successRate === null ? "无数据" : formatPercent(data.requests.successRate)
-					}
-				/>
-				<OverviewMetric
-					href="/requests"
-					label="95% 请求耗时"
-					search={{ window }}
-					value={
-						data.requests.p95DurationMs === null
-							? "无数据"
-							: formatDuration(data.requests.p95DurationMs)
-					}
-				/>
-			</dl>
-
-			<div className="mt-[var(--ui-section-gap)] grid items-start gap-[var(--ui-section-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:gap-0">
-				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:border-r xl:pr-8">
-					<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-						<h2 className="ui-section-title">请求趋势</h2>
-					</div>
-					<RequestTrendChart trends={data.trends} />
-				</section>
-				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:pl-8">
-					<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-						<h2 className="ui-section-title">当前问题</h2>
-						{data.issues.length > 0 ? (
-							<Link
-								className="text-sm font-medium text-info hover:underline"
-								search={{ status: "FAILED", window }}
-								to="/requests"
-							>
-								查看失败请求
-							</Link>
-						) : null}
-					</div>
-					{data.issues.length === 0 ? (
-						<p className="text-muted-foreground text-sm">当前没有需要处理的问题。</p>
-					) : (
-						<ul className="divide-y divide-border">
-							{data.issues.map((issue) => (
-								<li className="grid gap-2 py-4 first:pt-0 last:pb-0" key={issue.code}>
-									<div className="flex items-start gap-2">
-										<AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-										<div className="min-w-0">
-											<p className="font-semibold text-foreground">{issue.title}</p>
-											<p className="mt-1 text-muted-foreground text-sm">{issue.detail}</p>
-										</div>
-									</div>
-									<div className="flex flex-wrap items-center gap-3 pl-6 text-xs">
-										<span className="font-medium text-warning">
-											{formatIssueSeverity(issue.severity)}
-										</span>
-										<details>
-											<summary className="cursor-pointer font-medium text-muted-foreground">
-												技术信息
-											</summary>
-											<code className="mt-2 block break-all text-muted-foreground">
-												{issue.code}
-											</code>
-										</details>
-									</div>
-								</li>
-							))}
-						</ul>
-					)}
-				</section>
-			</div>
 		</section>
 	);
 }
@@ -226,7 +218,13 @@ function OverviewMetric({
 	);
 }
 
-export function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["trends"] }) {
+export function RequestTrendChart({
+	trends,
+	range,
+}: {
+	trends: OpsOverviewResponse["trends"];
+	range: ResolvedTimeRange;
+}) {
 	if (trends.dataState === "UNAVAILABLE") {
 		return (
 			<div className="border border-warning/30 bg-warning-subtle p-4 text-warning" role="status">
@@ -268,6 +266,9 @@ export function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["tre
 				{dataWarningStatus}
 				<div>
 					<p className="font-medium text-foreground">当前窗口只有一个统计点</p>
+					<a className="text-info underline" href={requestListPath(range)}>
+						查看当前区间请求
+					</a>
 					<p className="mt-1 text-muted-foreground text-sm">
 						{formatTimestamp(point.bucketStart)}，暂时无法形成变化趋势。
 					</p>
@@ -286,7 +287,11 @@ export function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["tre
 		<div className="grid gap-3">
 			{dataWarningStatus}
 			<div className="grid gap-6 lg:grid-cols-2">
-				<div className="min-w-0 border-border border-y py-3">
+				<a
+					href={requestListPath(range)}
+					aria-label="查看当前窗口的请求量与结果"
+					className="min-w-0 border-border border-y py-3 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>
 					<p className="px-1 font-medium text-foreground text-sm">请求量与结果</p>
 					<div aria-hidden="true" className="mt-2 h-48 min-w-0 sm:h-56">
 						<ResponsiveContainer height="100%" width="100%">
@@ -337,8 +342,12 @@ export function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["tre
 							</LineChart>
 						</ResponsiveContainer>
 					</div>
-				</div>
-				<div className="min-w-0 border-border border-y py-3">
+				</a>
+				<a
+					href={requestListPath(range)}
+					aria-label="查看当前窗口的请求耗时"
+					className="min-w-0 border-border border-y py-3 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>
 					<p className="px-1 font-medium text-foreground text-sm">95% 耗时</p>
 					{hasLatencyData ? (
 						<div aria-hidden="true" className="mt-2 h-48 min-w-0 sm:h-56">
@@ -382,8 +391,14 @@ export function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["tre
 					) : (
 						<p className="px-1 py-8 text-muted-foreground text-sm">当前没有耗时数据。</p>
 					)}
-				</div>
+				</a>
 			</div>
+			<a
+				className="text-sm text-info hover:underline"
+				href={requestListPath({ ...range, status: "FAILED" })}
+			>
+				查看当前窗口的失败请求
+			</a>
 			<TrendSummaryTable trends={trends.data} />
 		</div>
 	);

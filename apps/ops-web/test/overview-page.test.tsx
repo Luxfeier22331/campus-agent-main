@@ -1,3 +1,5 @@
+const range = { from: "2026-09-13T16:00:00.000Z", to: "2026-09-16T04:00:00.000Z" };
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
 	createMemoryHistory,
@@ -46,6 +48,7 @@ describe("RequestTrendChart", () => {
 	it("preserves missing p95 buckets instead of connecting across them", () => {
 		render(
 			<RequestTrendChart
+				range={range}
 				trends={trends({
 					dataState: "PARTIAL",
 					reason: "部分时间段没有耗时样本。",
@@ -59,7 +62,9 @@ describe("RequestTrendChart", () => {
 	});
 
 	it("distinguishes request outcomes without relying on color alone", () => {
-		render(<RequestTrendChart trends={trends({ dataState: "FRESH", reason: null })} />);
+		render(
+			<RequestTrendChart range={range} trends={trends({ dataState: "FRESH", reason: null })} />,
+		);
 
 		expect(screen.getByTestId("line-total")).not.toHaveAttribute("data-stroke-dasharray");
 		expect(screen.getByTestId("line-completed")).toHaveAttribute("data-stroke-dasharray", "7 4");
@@ -69,7 +74,7 @@ describe("RequestTrendChart", () => {
 
 	it("keeps a live region mounted when trend freshness changes", () => {
 		const initial = trends({ dataState: "FRESH", reason: null });
-		const { rerender } = render(<RequestTrendChart trends={initial} />);
+		const { rerender } = render(<RequestTrendChart range={range} trends={initial} />);
 		const status = screen.getByRole("status");
 
 		expect(status).toBeEmptyDOMElement();
@@ -77,6 +82,7 @@ describe("RequestTrendChart", () => {
 
 		rerender(
 			<RequestTrendChart
+				range={range}
 				trends={{
 					...initial,
 					dataState: "STALE",
@@ -95,13 +101,18 @@ describe("OverviewPage drill-down", () => {
 	it("links metrics and issues to requests with the current window", async () => {
 		vi.stubGlobal(
 			"fetch",
-			vi.fn(async () => Response.json(overviewFixture({ issueCount: 2 }))),
+			vi.fn(async () =>
+				Response.json({
+					...overviewFixture({ issueCount: 2 }),
+					trends: trends({ dataState: "FRESH", reason: null }),
+				}),
+			),
 		);
 		const root = createRootRoute({ component: Outlet });
 		const overview = createRoute({
 			getParentRoute: () => root,
 			path: "/overview",
-			component: () => <OverviewPage window="6h" />,
+			component: () => <OverviewPage search={{ window: "this-week" }} />,
 		});
 		const router = createRouter({
 			routeTree: root.addChildren([overview]),
@@ -116,18 +127,30 @@ describe("OverviewPage drill-down", () => {
 		await screen.findByRole("heading", { name: "运行概览" });
 		await waitFor(() => expect(screen.getByText("12")).toBeInTheDocument());
 		const total = screen.getByRole<HTMLAnchorElement>("link", { name: "12" });
-		expect(new URL(total.href, "https://ops.example.test").searchParams.get("window")).toBe("6h");
+		expect(new URL(total.href, "https://ops.example.test").searchParams.get("from")).toBe(
+			range.from,
+		);
 		const successRate = screen.getByRole<HTMLAnchorElement>("link", { name: "91.7%" });
 		const successUrl = new URL(successRate.href, "https://ops.example.test");
 		expect(successUrl.pathname).toBe("/requests");
 		expect(successUrl.searchParams.get("status")).toBe("FAILED");
-		expect(successUrl.searchParams.get("window")).toBe("6h");
+		expect(successUrl.searchParams.get("from")).toBe(range.from);
 		const failedRequests = screen.getByRole<HTMLAnchorElement>("link", { name: "查看失败请求" });
 		const failedUrl = new URL(failedRequests.href, "https://ops.example.test");
 		expect(failedUrl.pathname).toBe("/requests");
 		expect(failedUrl.searchParams.get("status")).toBe("FAILED");
-		expect(failedUrl.searchParams.get("window")).toBe("6h");
+		expect(failedUrl.searchParams.get("from")).toBe(range.from);
 		expect(screen.queryByRole("link", { name: "切换到 24 小时" })).toBeNull();
+		for (const name of ["查看当前窗口的请求量与结果", "查看当前窗口的请求耗时"]) {
+			expect(screen.getByRole("link", { name })).toHaveAttribute(
+				"href",
+				`/requests?${new URLSearchParams(range)}`,
+			);
+		}
+		expect(screen.getByRole("link", { name: "查看当前窗口的失败请求" })).toHaveAttribute(
+			"href",
+			`/requests?${new URLSearchParams({ ...range, status: "FAILED" })}`,
+		);
 	});
 });
 
@@ -159,7 +182,8 @@ function overviewFixture({ issueCount }: { issueCount: number }): OpsOverviewRes
 			updatedAt: null,
 		},
 		trends: { data: [], dataState: "NO_DATA", reason: null },
-		window: "6h",
+		window: "this-week",
+		filters: range,
 	};
 }
 

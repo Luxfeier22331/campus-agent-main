@@ -80,6 +80,110 @@ function scripted(responses: GenerateContentResponse[]) {
 }
 
 describe("Gemini native runner", () => {
+	it("observes Gemini server tool parts without leaking them into answer text", async () => {
+		const reportRetrieval = vi.fn();
+		const generateContentStream = vi.fn(async function* (_request: GenerateContentParameters) {
+			yield {
+				candidates: [
+					{
+						content: {
+							role: "model",
+							parts: [
+								{
+									toolCall: {
+										id: "search",
+										toolType: "GOOGLE_SEARCH_WEB",
+										args: { query: "private" },
+									},
+								},
+							],
+						},
+					},
+				],
+			} as unknown as GenerateContentResponse;
+			yield {
+				candidates: [
+					{
+						content: {
+							role: "model",
+							parts: [
+								{ toolResponse: { id: "search", toolType: "GOOGLE_SEARCH_WEB", response: {} } },
+							],
+						},
+					},
+				],
+			} as unknown as GenerateContentResponse;
+			yield response("资料答案");
+		});
+		const runner = createStreamingGeminiRunner({
+			createModels: () => ({
+				generateContent: vi.fn(),
+				generateContentStream: async (request) => generateContentStream(request),
+			}),
+		});
+		const events: (AgentRunnerAnswerDelta | AgentRunnerSolveDecision | AgentRunnerResult)[] = [];
+		for await (const event of runner(
+			input({ operation: "synthesize", allowWebSearch: true, reportRetrieval }),
+		)) {
+			events.push(event);
+		}
+		expect(
+			generateContentStream.mock.calls[0]?.[0].config?.toolConfig?.includeServerSideToolInvocations,
+		).toBe(true);
+		expect(events.at(-1)).toMatchObject({ finalOutput: "资料答案" });
+		expect(JSON.stringify(events)).not.toContain("private");
+	});
+	it.each([false, true])(
+		"resolves collected grounding before returning a result (stream=%s)",
+		async (stream) => {
+			const grounded = response("海淀校区地址。");
+			grounded.candidates[0].groundingMetadata = {
+				groundingChunks: [
+					{
+						web: {
+							uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/test",
+							title: "muc.edu.cn",
+						},
+					},
+				],
+				groundingSupports: [{ segment: { text: "海淀校区地址。" }, groundingChunkIndices: [0] }],
+			};
+			const resolveSources = vi.fn(async (_input: AgentRunnerInput, result: AgentRunnerResult) => {
+				for (const item of result.webEvidence ?? []) {
+					item.title = "民大概况";
+					item.sourceLink = { href: "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm" };
+				}
+			});
+			const options = {
+				resolveSources,
+				createModels: () => ({
+					generateContent: async () => grounded,
+					generateContentStream: async () =>
+						(async function* () {
+							yield grounded;
+						})(),
+				}),
+			};
+			let output: AgentRunnerResult | undefined;
+			if (stream) {
+				for await (const event of createStreamingGeminiRunner(options)(
+					input({ allowWebSearch: true }),
+				)) {
+					if ("webEvidence" in event) {
+						output = event;
+					}
+				}
+			} else {
+				output = await createGeminiRunner(options)(input({ allowWebSearch: true }));
+			}
+			expect(resolveSources).toHaveBeenCalledTimes(1);
+			expect(output?.webEvidence?.[0]).toMatchObject({
+				title: "民大概况",
+				sourceLink: { href: "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm" },
+			});
+		},
+	);
+
 	it.each([false, true])(
 		"preserves failed structured output and usage before any tools (stream=%s)",
 		async (stream) => {
@@ -400,7 +504,7 @@ describe("Gemini native runner", () => {
 		});
 		expect(result.usage.modelRequestCount).toBe(2);
 	});
-	it("extracts UTF-8 grounding excerpts and the unchanged search entry point", () => {
+	it("extracts UTF-8 grounding excerpts while discarding search suggestions", () => {
 		const grounded = response("😀海淀校区地址。");
 		grounded.candidates[0].groundingMetadata = {
 			webSearchQueries: ["中央民族大学 地址"],
@@ -411,16 +515,10 @@ describe("Gemini native runner", () => {
 					'<div><a href="https://www.google.com/search?q=muc" target="_blank">搜索建议</a></div>',
 			},
 		};
+		expect(geminiGrounding(grounded)).not.toHaveProperty("suggestions");
 		expect(geminiGrounding(grounded)).toMatchObject({
 			used: true,
 			evidence: [{ excerpt: "海淀校区", url: "https://www.muc.edu.cn/", title: "学校官网" }],
-			suggestions: [
-				{
-					provider: "google",
-					renderedContent:
-						grounded.candidates?.[0]?.groundingMetadata.searchEntryPoint?.renderedContent,
-				},
-			],
 		});
 	});
 	it("stops at the turn budget", async () => {
@@ -494,6 +592,7 @@ describe("Gemini native runner", () => {
 			{ delta: "你" },
 			{ delta: "好" },
 		]);
+		expect(events.at(-1)).not.toHaveProperty("searchSuggestions");
 		expect(events.at(-1) as AgentRunnerResult).toMatchObject({
 			finalOutput: "你好",
 			structuredOutput: { outcome: "answer", answer: "你好" },
@@ -622,10 +721,10 @@ describe("Gemini native runner", () => {
 		})(input({ allowWebSearch: true }))) {
 			events.push(event);
 		}
+		expect(events.at(-1)).not.toHaveProperty("searchSuggestions");
 		expect(events.at(-1) as AgentRunnerResult).toMatchObject({
 			webSearchUsed: true,
 			webEvidence: [{ url: "https://www.muc.edu.cn/", title: "学校官网" }],
-			searchSuggestions: [{ provider: "google", renderedContent: "<div>搜索建议</div>" }],
 		});
 	});
 	it("preserves earlier stream grounding through a suggestions-only tail", async () => {
@@ -659,11 +758,11 @@ describe("Gemini native runner", () => {
 		})(input({ allowWebSearch: true }))) {
 			events.push(event);
 		}
+		expect(events.at(-1)).not.toHaveProperty("searchSuggestions");
 		expect(events.at(-1)).toMatchObject({
 			finalOutput: text,
 			webEvidence: [{ excerpt: "海淀校区地址。", startIndex: 1, endIndex: 8 }],
 			webSearchDiagnostic: { state: "sources_available", support_count: 1, converted_count: 1 },
-			searchSuggestions: [{ provider: "google", renderedContent: "<div>搜索建议</div>" }],
 		});
 	});
 
@@ -715,6 +814,7 @@ describe("Gemini native runner", () => {
 		grounded.candidates[0].groundingMetadata = {
 			searchEntryPoint: { renderedContent: "<div>建议</div>" },
 		};
+		expect(geminiGrounding(grounded)).not.toHaveProperty("suggestions");
 		expect(geminiGrounding(grounded)).toMatchObject({
 			used: true,
 			evidence: [],

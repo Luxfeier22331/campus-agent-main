@@ -185,9 +185,10 @@ func (s *Adapter) ProjectWorkflowAnswerCompleted(
 
 func AgentRuntimeFailureFromResponse(statusCode int, response AgentRuntimeResponse) error {
 	return AgentRuntimeHTTPError{
-		StatusCode:     statusCode,
-		HTTPStatus:     response.Error.HTTPStatus,
-		Code:           strings.TrimSpace(response.Error.Code),
+		StatusCode: statusCode,
+		HTTPStatus: response.Error.HTTPStatus,
+		Code:       strings.TrimSpace(response.Error.Code),
+		Reason:     response.Error.Reason, Citation: response.Error.Citation,
 		Detail:         strings.TrimSpace(response.Error.Detail),
 		InvocationID:   strings.TrimSpace(response.Error.InvocationID),
 		Operation:      strings.TrimSpace(response.Error.Operation),

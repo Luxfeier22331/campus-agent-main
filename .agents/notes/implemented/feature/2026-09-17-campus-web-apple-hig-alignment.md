@@ -40,3 +40,9 @@ sheet 无拖拽关闭。食堂是首个对齐目标，但基线改动落在 pack
   交通页分段 Tabs 无 TabsContent，`aria-controls` 改指真实结果区
   `campus-transport-results`；AuthDialog 迁移后补回 `data-campus-account-surface="auth-modal"`。
 - 单测 293（campus-web isolated）+ 456（fast）+ 70（packages/ui）全绿；typecheck、Biome 通过。
+
+## UI 控件边界
+
+- 共享输入、选择和复合搜索控件只保留一套边框职责；独立控件由自身绘制边框，复合控件由外层容器绘制。
+- 控件焦点保留可见 ring，但不再使用额外 ring offset 形成第二层边线；全局 focus outline 仍作为未覆盖元素的兜底。
+- Button、Disclosure 和账户菜单沿用同一 focus ring 规则；弹层、Field、Alert 和列表原有语义合同保持不变。

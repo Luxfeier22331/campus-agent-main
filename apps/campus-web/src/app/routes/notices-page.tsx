@@ -108,7 +108,7 @@ export function NoticesPageContent() {
 				<Label className="sr-only" htmlFor="notice-search">
 					标题或正文关键词
 				</Label>
-				<div className="relative flex items-center rounded-[var(--input-radius)] border border-input bg-background transition-shadow focus-within:ring-2 focus-within:ring-ring">
+				<div className="relative flex items-center rounded-[var(--input-radius)] border border-input bg-background transition-[border-color] focus-within:border-ring">
 					<Search
 						aria-hidden="true"
 						className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"

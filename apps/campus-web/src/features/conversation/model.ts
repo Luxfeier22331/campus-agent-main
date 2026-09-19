@@ -33,14 +33,12 @@ export interface CampusNoticeSourceItemPayload {
 
 export interface WebPageSourceItemPayload {
 	citationIndexes: number[];
-	hostname: string;
+	hostname: string | null;
 	kind: "web_page";
-	primaryAction: {
-		disabledReason: null;
-		external: true;
-		href: string;
-		label: "打开网页";
-	};
+	primaryAction: { external: true; label: "打开网页" } & (
+		| { href: string; disabledReason: null }
+		| { href: null; disabledReason: "source_unavailable" }
+	);
 	snippet: string | null;
 	title: string;
 }
@@ -50,9 +48,10 @@ export type SourceItemPayload =
 	| CampusNoticeSourceItemPayload
 	| WebPageSourceItemPayload;
 
-export type ChatStructuredPart =
-	| { sourceItems: SourceItemPayload[]; type: "source_items" }
-	| { type: "search_suggestions"; provider: "google"; renderedContent: string };
+export interface ChatStructuredPart {
+	sourceItems: SourceItemPayload[];
+	type: "source_items";
+}
 
 export interface ChatMessage {
 	conversationId: string;
@@ -131,6 +130,7 @@ export interface ChatAnswerPayload {
 
 export type ChatRequestStreamEventName =
 	| "answer.delta"
+	| "retrieval.status"
 	| "execution.phase"
 	| "execution.queued"
 	| "execution.running"
@@ -149,6 +149,7 @@ export interface ChatRequestStreamEvent {
 		};
 		delta?: string;
 		messageId?: string;
+		source?: "campus";
 		occurredAt: string;
 		requestId: string;
 		phase?: "finalizing" | "generating" | "preparing";

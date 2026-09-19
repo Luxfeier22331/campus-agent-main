@@ -1,10 +1,15 @@
+const timeMetadata = {
+	generatedAt: "2026-09-17T04:00:00.000Z",
+	filters: { from: "2026-09-16T16:00:00.000Z", to: "2026-09-17T04:00:00.000Z" },
+};
+
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app";
 
 const headers = { authorization: "Bearer conversation-test-token" };
 function setup() {
 	const service = {
-		listSummaries: vi.fn().mockResolvedValue({ rows: [], nextCursor: null }),
+		listSummaries: vi.fn().mockResolvedValue({ rows: [], nextCursor: null, ...timeMetadata }),
 		getDetail: vi.fn().mockResolvedValue(null),
 	};
 	const app = createApp(
@@ -19,6 +24,7 @@ describe("Ops conversation read route", () => {
 		async (status) => {
 			const { app, service } = setup();
 			service.listSummaries.mockResolvedValue({
+				...timeMetadata,
 				rows: [
 					{
 						id: "conv-1",

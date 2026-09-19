@@ -109,6 +109,13 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 	if event.Payload == nil {
 		return fmt.Errorf("%w: payload is required", ErrInvalidRunEvent)
 	}
+	if event.EventType == DurableRunEventTypeRunRetrievalStatus {
+		source, _ := event.Payload["source"].(string)
+		status, _ := event.Payload["status"].(string)
+		if event.Visibility != DurableRunEventVisibilityBrowser || event.PayloadSchemaVersion != "run-retrieval-status-v1" || len(event.Payload) != 2 || !ValidRetrievalStatus(source, status) {
+			return fmt.Errorf("%w: invalid retrieval status payload", ErrInvalidRunEvent)
+		}
+	}
 	if event.EventType == DurableRunEventTypeRunProgress {
 		if event.Visibility != DurableRunEventVisibilityBrowser {
 			return fmt.Errorf("%w: run.progress visibility must be browser", ErrInvalidRunEvent)
@@ -519,4 +526,15 @@ func cloneDurableRunEvent(event DurableRunEvent) DurableRunEvent {
 	clone := event
 	clone.Payload = cloneAnyMap(event.Payload)
 	return clone
+}
+
+func ValidRetrievalStatus(source, status string) bool {
+	if source != "campus" {
+		return false
+	}
+	switch status {
+	case "started", "completed", "no_match", "failed", "canceled":
+		return true
+	}
+	return false
 }
