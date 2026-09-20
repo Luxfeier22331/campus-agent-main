@@ -45,12 +45,15 @@ gh variable delete CI_RUNNER_MODE \
 Self-hosted Runner 服务为作业注入 `HOME`、`DOCKER_CONFIG` 和 `BUILDX_BUILDER`。源码工作流只依赖
 这个能力合同，不判断 builder 是原生目标、QEMU/binfmt 还是其他宿主实现。GitHub-hosted 的镜像任务
 在工作流内初始化 `docker-container` Buildx，BuildKit `max-parallelism=2`，不消费 self-hosted Runner
-的 builder 配置。该限制约束 builder 的并发构建操作；Bake 每次只提交一个现有 heavy/standard 分组。
+的 builder 配置。Self-hosted builder 同样必须在 `[worker.oci]` 中设置 `max-parallelism = 2`。
+该限制约束 builder 内部构建操作；PR 镜像检查和候选发布按 heavy、standard 顺序逐个提交镜像，
+等待当前镜像的构建与导出完成才处理下一个。分组不再代表一次多目标 Bake 调用。
 
 ## 能力探针
 
 备用 Runner 的探针入口是 `scripts/ci/runner-capability-probe.sh`。它会检查 Docker、runner-owned builder 的
-`docker-container` driver、运行状态和 `linux/arm64` 平台、根文件系统至少 25GB 可用空间，并使用
+`docker-container` driver、运行状态和 `linux/arm64` 平台、节点配置中 `[worker.oci]` 的
+`max-parallelism = 2`、根文件系统至少 25GB 可用空间，并使用
 `scratch` Dockerfile 同时输出 OCI 制品和 `mode=max` 本地缓存，再检查 OCI platform 元数据和缓存
 index。探针不删除或重建已有 builder；本地 exporter 验证不替代 GHCR 权限验收。
 
@@ -64,7 +67,8 @@ bash scripts/ci/runner-capability-probe.sh
 ```
 
 `sq-nixos` 使用 `/var/lib/github-runner` 作为 `HOME` 和 Docker 配置目录。服务启动前必须通过同一
-探针；失败时 Runner 不接收任务。
+探针；失败时 Runner 不接收任务。并发检查读取 Buildx 注册节点的 `buildkitd.toml`，不以宿主机
+上尚未应用的配置文件作为已生效的证据。
 
 ## BuildKit 容量治理
 
@@ -99,8 +103,23 @@ sudo -u github-runner env \
 ## Self-hosted 维护
 
 修改 builder 配置前先确认 GitHub Runner `busy=false`，并停止对应 Runner 服务；不要在有作业运行时
-重启 Docker、删除 builder 或清理缓存。`nc-arm-6c` 的现有 builder state 默认保留。只有确认目标
-builder 无任务且缓存可丢弃时，才精确删除并重建该 builder，然后重新运行能力探针。
+重启 Docker、删除 builder 或清理缓存。维护期间暂停该 builder 的 GC timer，并确认 GC service 已结束。
+
+`nc-arm-6c` 的配置源是 `/etc/campus-agent/buildkit.toml`，初始化入口是
+`campus-agent-buildkit.service` 调用的 `/usr/local/lib/campus-agent/buildkit-ensure.sh`。
+初始化只在 builder 不存在时加载配置；修改宿主机文件不会更新已有 builder。
+初始化参数显式保留该主机的 2 CPU、2GiB 内存、无容器 swap 和现有 bridge 网络设置。
+
+应用配置时先保存原配置、实际容器镜像 ID、资源限制及状态卷名称。以 Runner 用户对指定 builder 执行
+`docker buildx rm --keep-state campus-agent-release`，然后使用相同 builder 与节点名称、现有 BuildKit
+镜像和资源配置重新创建，传入更新后的 `--buildkitd-config`。不得删除状态卷或顺带升级 BuildKit。
+核对容器中的 `/etc/buildkit/buildkitd.toml`、资源限制、版本和 `/var/lib/buildkit` 挂载仍使用原状态卷，
+再运行能力探针。全部通过后恢复 GC timer 和 Runner 服务；失败时保留状态卷并恢复原配置，
+在构建能力恢复前不接收新任务。
+
+缓存导出失败继续作为发布摘要中的 warning；正式镜像推送失败阻断发布，不输出部分 digest 集合。
+同一 SHA 重试仍复用已经验证的不可变镜像。若源码修复已合入 main，使用新 main 的正常发布，
+不要重跑会被当前 main 校验拒绝的旧版本。
 
 源码工作流不引用 CPU 或主机专属标签。备用 Runner 故障时先删除 `CI_RUNNER_MODE` 恢复 hosted 默认，
 再修复 Runner 服务并按本手册验证 builder；不得将 `campus-ci` 添加到未通过探针的 Runner。

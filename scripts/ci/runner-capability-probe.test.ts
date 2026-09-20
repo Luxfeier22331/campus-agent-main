@@ -33,6 +33,7 @@ async function runProbe(options: {
 	architecture: string;
 	driver?: string;
 	skipCache?: boolean;
+	config?: string | null;
 }): Promise<{
 	status: number;
 	stdout: string;
@@ -44,6 +45,25 @@ async function runProbe(options: {
 	const fixture = await createOciFixture(root, options.architecture);
 	const fakeDocker = path.join(bin, "docker");
 	const fakeDf = path.join(bin, "df");
+	const builder = JSON.stringify({
+		Name: "campus-agent-release",
+		Driver: options.driver ?? "docker-container",
+		Nodes: [
+			{
+				Name: "campus-agent-release0",
+				Status: "running",
+				Platforms: ["linux/arm64"],
+				Files:
+					options.config === null
+						? {}
+						: {
+								"buildkitd.toml": Buffer.from(
+									options.config ?? "[worker.oci]\nmax-parallelism = 2\n",
+								).toString("base64"),
+							},
+			},
+		],
+	});
 	await writeFile(
 		fakeDf,
 		`#!/usr/bin/env bash
@@ -63,8 +83,7 @@ case "\${1:-}" in
     case "\${2:-}" in
       inspect) exit 0 ;;
       ls)
-        printf '%s\\n' "{\\"Name\\":\\"campus-agent-release\\",\\"Driver\\":\\"${options.driver ?? "docker-container"}\\",\\"Nodes\\":[{\\"Status\\":\\"running\\",\\"Platforms\\":[\\"linux/arm64\\"]}]}"
-        printf '%s\\n' "{\\"Name\\":\\"campus-agent-release\\",\\"Driver\\":\\"${options.driver ?? "docker-container"}\\",\\"Nodes\\":[{\\"Status\\":\\"running\\",\\"Platforms\\":[\\"linux/arm64\\"]}]}"
+        printf '%s\\n' '${builder}' '${builder}'
         exit 0
         ;;
       build)
@@ -120,6 +139,29 @@ test("runner capability probe accepts an arm64 builder and OCI result", async ()
 	const result = await runProbe({ architecture: "arm64" });
 	assert.equal(result.status, 0, String(result.stderr));
 	assert.match(String(result.stdout), /linux\/arm64/u);
+});
+
+test("runner capability probe rejects missing or ineffective concurrency limits", async () => {
+	for (const config of [
+		null,
+		"[worker.oci]\ngc = true\n",
+		"[worker.oci]\nmax-parallelism = 0\n",
+		"[worker.oci]\nmax-parallelism = 4\n",
+		"[worker.oci]\n# max-parallelism = 2\n",
+		"[worker.oci]\ngc = true\n[worker.containerd]\nmax-parallelism = 2\n",
+	]) {
+		const result = await runProbe({ architecture: "arm64", config });
+		assert.notEqual(result.status, 0, `accepted ${config}`);
+		assert.match(result.stderr, /buildkitd\.toml|max-parallelism = 2/u);
+	}
+});
+
+test("runner capability probe accepts spacing and comments in the OCI configuration", async () => {
+	const result = await runProbe({
+		architecture: "arm64",
+		config: "[worker.oci] # native worker\n  max-parallelism=2 # bounded\n[registry]\n",
+	});
+	assert.equal(result.status, 0, result.stderr);
 });
 
 test("runner capability probe rejects a non-arm64 OCI result", async () => {

@@ -32,16 +32,20 @@ test("batch selection rejects overlapping and missing group membership", () => {
 	]);
 });
 
-test("twelve selected images run in two batches with PR and canonical cache imports", async (t) => {
+test("twelve selected images run serially in two groups with PR and canonical cache imports", async (t) => {
 	const { options } = await fixture(t);
 	const bake = await readFile(path.join(REPOSITORY_ROOT, "docker-bake.hcl"), "utf8");
 	const images = [...bake.matchAll(/^target "([a-z][a-z-]+)"/gmu)].map((match) => match[1]);
 	assert.equal(images.length, 12);
 	const calls: string[][] = [];
-	await buildImages(
+	const firstEntered = Promise.withResolvers<void>();
+	const releaseFirst = Promise.withResolvers<void>();
+	const logs: string[] = [];
+	const building = buildImages(
 		{
 			...options,
 			images,
+			logger: (message) => logs.push(message),
 			cacheImportRegistries: ["ghcr.io/test/pr-cache-442", "ghcr.io/test/main"],
 			cacheExportRegistry: "ghcr.io/test/pr-cache-442",
 		},
@@ -50,20 +54,47 @@ test("twelve selected images run in two batches with PR and canonical cache impo
 				return bakePrint(images);
 			}
 			calls.push(args);
+			if (calls.length === 1) {
+				firstEntered.resolve();
+				await releaseFirst.promise;
+			}
 			return result();
 		},
 	);
-	assert.equal(calls.length, 2);
+	await firstEntered.promise;
+	try {
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		assert.equal(calls.length, 1, "the next target must wait for the first Bake command");
+	} finally {
+		releaseFirst.resolve();
+		await building;
+	}
+	assert.equal(calls.length, 12);
 	assert.deepEqual(
-		calls.map((args) => args.filter((arg) => images.includes(arg))),
+		calls.map((args) => args.at(-1)),
 		[
-			["execution-control", "model-config", "ops-web"],
-			images
+			"execution-control",
+			"model-config",
+			"ops-web",
+			...images
 				.filter((image) => !["execution-control", "model-config", "ops-web"].includes(image))
 				.sort(),
 		],
 	);
+	const batchLogs = logs
+		.filter((line) => line.startsWith("[release-batch] "))
+		.map((line) => JSON.parse(line.slice(16)));
+	assert.deepEqual(
+		batchLogs.map(({ batch, state }) => [batch, state]),
+		[
+			["heavy", "start"],
+			["heavy", "success"],
+			["standard", "start"],
+			["standard", "success"],
+		],
+	);
 	for (const args of calls) {
+		assert.equal(args.filter((arg) => images.includes(arg)).length, 1);
 		for (const image of args.filter((arg) => images.includes(arg))) {
 			assert(
 				args.includes(
@@ -85,39 +116,104 @@ test("twelve selected images run in two batches with PR and canonical cache impo
 	}
 });
 
-test("batch failures distinguish named errors, cancellation and later targets without publishing digests", async (t) => {
+test("publication preserves completed targets and stops on failure or cancellation without publishing partial digests", async (t) => {
+	for (const failure of ["exit code 1", "context canceled"]) {
+		await t.test(failure, async (t) => {
+			const { options } = await fixture(t);
+			options.images = ["ops-web", "model-config", "execution-control", "agent-runtime"];
+			options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+			const calls: string[] = [];
+			await assert.rejects(
+				publishImages(options, async (_command, args) => {
+					if (args.includes("--print")) {
+						return bakePrint(options.images);
+					}
+					if (args.includes("imagetools")) {
+						return result({ code: 1, stderr: "manifest unknown" });
+					}
+					const target = args.at(-1) as string;
+					calls.push(target);
+					if (target === "execution-control") {
+						await writeFile(
+							args[args.indexOf("--metadata-file") + 1],
+							JSON.stringify({ [target]: { "containerimage.digest": FIRST_DIGEST } }),
+						);
+						return result();
+					}
+					return result({
+						code: 1,
+						stderr: failure,
+						buildkit: parseBuildkit(
+							JSON.stringify({
+								vertexes: [
+									{ digest: "bad", name: "[model-config build 1/1] RUN go build", error: failure },
+								],
+							}),
+						),
+					});
+				}),
+				new RegExp(failure, "u"),
+			);
+			assert.deepEqual(calls, ["execution-control", "model-config"]);
+			const summary = await readFile(options.summaryFile, "utf8");
+			assert(summary.includes("| `execution-control` | built |"));
+			assert(
+				summary.includes(
+					`| \`model-config\` | ${failure === "context canceled" ? "unfinished" : "failed (build)"} |`,
+				),
+			);
+			assert(summary.includes("| `ops-web` | not-started |"));
+			assert(summary.includes("| `agent-runtime` | not-started |"));
+			await assert.rejects(access(options.outputFile));
+		});
+	}
+});
+
+test("serial builds retain each image's phases and do not hide an earlier cache warning", async (t) => {
 	const { options } = await fixture(t);
-	options.images = ["ops-web", "execution-control", "agent-runtime"];
-	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
-	const buildkit = parseBuildkit(
-		JSON.stringify({
-			vertexes: [
-				{ digest: "bad", name: "[ops-web build 1/1] RUN pnpm build", error: "exit code 1" },
-				{
-					digest: "cancel",
-					name: "[execution-control build 1/1] RUN go build",
-					error: "context canceled",
-				},
-			],
-		}),
-	);
-	await assert.rejects(
-		publishImages(options, async (_command, args) => {
+	const images = ["agent-runtime", "campus-agent-schema"];
+	const logs: string[] = [];
+	const summaryFile = path.join(options.repositoryRoot, "summary.md");
+	await buildImages(
+		{ ...options, images, summaryFile, logger: (message) => logs.push(message) },
+		async (_command, args) => {
 			if (args.includes("--print")) {
-				return bakePrint(options.images);
+				return bakePrint(images);
 			}
-			if (args.includes("imagetools")) {
-				return result({ code: 1, stderr: "manifest unknown" });
-			}
-			return result({ code: 1, stderr: "build failed", buildkit });
-		}),
-		/build failed/u,
+			const image = args.at(-1);
+			return result({
+				buildkit: parseBuildkit(
+					JSON.stringify({
+						vertexes: [
+							{
+								digest: "cache",
+								name: `[${image}] exporting cache to registry`,
+								started: "2026-09-20T00:00:00Z",
+								completed: "2026-09-20T00:00:01Z",
+								...(image === "agent-runtime"
+									? { error: "error writing layer blob: no active session" }
+									: {}),
+							},
+						],
+					}),
+				),
+			});
+		},
 	);
-	const summary = await readFile(options.summaryFile, "utf8");
-	assert(summary.includes("| `ops-web` | failed (build) |"));
-	assert(summary.includes("| `execution-control` | unfinished |"));
-	assert(summary.includes("| `agent-runtime` | not-started |"));
-	await assert.rejects(access(options.outputFile));
+	const summary = await readFile(summaryFile, "utf8");
+	for (const image of images) {
+		assert(summary.includes(`Build phases: ${image}`));
+	}
+	assert.match(summary, /Cache export: \*\*warning\*\*/u);
+	assert.match(summary, /Cache export: \*\*success\*\*/u);
+	assert(
+		logs.some(
+			(line) =>
+				line.startsWith("[release-batch] ") &&
+				line.includes('"state":"success"') &&
+				line.includes('"cacheExport":"warning"'),
+		),
+	);
 });
 
 function result(overrides: Partial<CommandResult> = {}): CommandResult {
@@ -243,7 +339,7 @@ test("rejects image names that Docker Bake does not declare", async (t) => {
 	);
 });
 
-test("publication excludes reused targets, batches missing targets and writes only complete digests", async (t) => {
+test("publication excludes reused targets and publishes each missing target with separate metadata", async (t) => {
 	const { options } = await fixture(t);
 	options.images = ["ops-web", "model-config", "execution-control", "agent-runtime"];
 	const calls: string[][] = [];
@@ -283,8 +379,9 @@ test("publication excludes reused targets, batches missing targets and writes on
 	const digests = await publishImages(options, runner);
 	assert.deepEqual(
 		calls.map((args) => args.filter((arg) => options.images.includes(arg))),
-		[["execution-control", "ops-web"], ["agent-runtime"]],
+		[["execution-control"], ["ops-web"], ["agent-runtime"]],
 	);
+	assert.equal(new Set(calls.map((args) => args[args.indexOf("--metadata-file") + 1])).size, 3);
 	assert.deepEqual(digests, {
 		"agent-runtime": SECOND_DIGEST,
 		"execution-control": SECOND_DIGEST,
@@ -646,8 +743,8 @@ test("records a build failure and leaves later images not started", async (t) =>
 		),
 	);
 	const summary = await readFile(options.summaryFile, "utf8");
-	assert.match(summary, /failed=0 unfinished=1 not-started=1/u);
-	assert.match(summary, /\| `ops-web` \| unfinished \|/u);
+	assert.match(summary, /failed=1 unfinished=0 not-started=1/u);
+	assert.match(summary, /\| `ops-web` \| failed \(build\) \|/u);
 	assert.match(summary, /\| `agent-runtime` \| not-started \|/u);
 });
 
@@ -978,7 +1075,7 @@ test("build-only evidence stops after the first failed image", async (t) => {
 		/build failed/u,
 	);
 	assert.equal(calls.filter((call) => call.includes("--progress=rawjson")).length, 1);
-	assert(logs.some((line) => line.includes("unfinished=1 not_started=1")));
+	assert(logs.some((line) => line.includes("failed=1 unfinished=0 not_started=1")));
 	assert.match(await readFile(summaryFile, "utf8"), /not-started/u);
 });
 

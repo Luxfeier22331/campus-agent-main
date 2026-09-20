@@ -25,6 +25,26 @@ jq -e '
 	)
 ' <<<"$builder_json" >/dev/null
 
+while IFS= read -r node; do
+	node_name="$(jq -r '.Name' <<<"$node")"
+	if ! config="$(jq -er '.Files["buildkitd.toml"] | select(type == "string") | @base64d' <<<"$node")"; then
+		echo "builder node $node_name has no readable buildkitd.toml" >&2
+		exit 1
+	fi
+	if ! awk '
+		{ sub(/#.*/, "") }
+		/^[[:space:]]*\[/ { oci = ($0 ~ /^[[:space:]]*\[worker\.oci\][[:space:]]*$/) }
+		oci && /^[[:space:]]*max-parallelism[[:space:]]*=/ {
+			count++
+			valid = ($0 ~ /^[[:space:]]*max-parallelism[[:space:]]*=[[:space:]]*2[[:space:]]*$/)
+		}
+		END { exit !(count == 1 && valid) }
+	' <<<"$config"; then
+		echo "builder node $node_name must configure [worker.oci] max-parallelism = 2" >&2
+		exit 1
+	fi
+done < <(jq -c '.Nodes | unique_by(.Name)[]' <<<"$builder_json")
+
 available_bytes="$(df -P -B1 / | awk 'NR == 2 { print $4 }')"
 if [[ -z "$available_bytes" || "$available_bytes" -lt "$required_free_space_bytes" ]]; then
 	echo "runner root filesystem has less than 25GB available" >&2
