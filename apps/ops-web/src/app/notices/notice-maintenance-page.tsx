@@ -12,7 +12,6 @@ import {
 import { RefreshCw } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ErrorState, PageHeader, StaleDataWarning } from "../ops-display";
-import { NoticeAutomationPanel } from "./notice-automation";
 import { NoticeInspector } from "./notice-inspector";
 import { NoticeMaintenanceToolbar } from "./notice-maintenance-toolbar";
 import { NoticeQueue } from "./notice-queue";
@@ -174,30 +173,20 @@ export function NoticeMaintenancePage() {
 				) : null}
 			</div>
 
-			<details className="mt-5">
-				<summary className="min-h-11 cursor-pointer py-3 font-medium focus-visible:outline-2 focus-visible:outline-ring">
-					自动采集设置
-				</summary>
-				<NoticeAutomationPanel
-					data={model.automation.data}
-					error={model.automation.error}
-					saving={model.saveAutomation.isPending}
-					saveError={model.saveAutomation.error}
-					busy={model.isFamilyBusy("collection")}
-					latest={model.jobs.data?.jobs.find((job) =>
-						["notice-sync", "notice-rescan", "notice-backfill"].includes(job.operation),
-					)}
-					onSave={(value) => model.saveAutomation.mutateAsync(value)}
-					onRun={() => {
-						model.setTaskCenterOpen(true);
-						model.startJob({ operation: "notice-sync" });
-					}}
-					onTasks={() => model.setTaskCenterOpen(true)}
-					onRetry={() => {
-						void model.automation.refetch();
-					}}
-				/>
-			</details>
+			<div className="flex gap-4">
+				<a href="/tasks" className="underline">
+					查看定时任务与调度设置
+				</a>
+				<a href="/notices?issueStage=classification" className="underline">
+					分类问题
+				</a>
+				<a href="/notices?issueStage=publication" className="underline">
+					发布问题
+				</a>
+				<a href="/notices" className="underline">
+					全部通知
+				</a>
+			</div>
 
 			{desktop ? null : (
 				<Sheet

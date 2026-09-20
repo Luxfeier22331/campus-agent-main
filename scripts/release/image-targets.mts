@@ -7,6 +7,7 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"campus-agent-schema",
 	"campus-docs-index-publisher",
 	"campus-rag-index-publisher",
+	"campus-rag-worker",
 	"document-ocr",
 	"execution-control",
 	"internal-portal-collection",
@@ -29,7 +30,7 @@ export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> 
 );
 export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map(
 	ACTIVE_IMAGE_TARGETS.map((image) => [
-		`${["agent-runtime", "execution-control", "model-config", "ops-web"].includes(image) ? "apps" : "jobs"}/${image}/Dockerfile`,
+		`${["agent-runtime", "execution-control", "model-config", "ops-web", "campus-rag-worker"].includes(image) ? "apps" : "jobs"}/${image}/Dockerfile`,
 		[image],
 	]),
 );

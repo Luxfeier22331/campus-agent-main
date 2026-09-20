@@ -154,6 +154,26 @@ describe("unified Campus RAG publisher", () => {
 		expect(catalog.activations).toHaveLength(0);
 	});
 
+    it("registers before rebuilding a partial unvalidated candidate", async () => {
+        const prepared = await prepareArtifacts();
+        const events: string[] = [];
+        let exists = true;
+        const catalog = fakeCatalog();
+        catalog.register = async () => { events.push("register"); return { rebuildIncomplete: true }; };
+        const qdrant = {
+            ...fakeQdrant(),
+            collectionExists: async () => exists,
+            deleteCollection: async () => { events.push("delete"); exists = false; },
+            createCollection: async () => { events.push("create"); exists = true; },
+            upsert: async () => { events.push("upsert"); },
+        };
+        await publishCampusRagIndex({ artifactStore: prepared.store, catalog,
+            docsEmbeddingSet: prepared.docsEmbeddingSet, noticeEmbeddingSet: prepared.noticeEmbeddingSet, qdrant });
+        expect(events.slice(0, 3)).toEqual(["register", "delete", "create"]);
+        expect(events).toContain("upsert");
+        expect(catalog.activations).toHaveLength(1);
+    });
+
 	it("retains a verified candidate when activation fails and supports no-op reruns", async () => {
 		const prepared = await prepareArtifacts();
 		const failingCatalog = fakeCatalog({ activationError: new Error("activation failed") });
@@ -436,11 +456,15 @@ function fakeCatalog(input: {
 	activationError?: Error;
 	noOp?: boolean;
 } = {}): {
+	register(): Promise<{ rebuildIncomplete: boolean }>;
+	markValidated(): Promise<void>;
 	activations: CurrentIndexBinding[];
 	activate(index: CurrentIndexBinding): Promise<{ noOp: boolean }>;
 } {
 	const activations: CurrentIndexBinding[] = [];
 	return {
+		async register() { return { rebuildIncomplete: false }; },
+		async markValidated() {},
 		activations,
 		async activate(index) {
 			if (input.activationError) throw input.activationError;

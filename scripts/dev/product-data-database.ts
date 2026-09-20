@@ -1,5 +1,6 @@
 import type { Client } from "pg";
 import { createTransactionalIndexCatalog } from "../../jobs/campus-rag-index-publisher/src/catalog.ts";
+import type { Sha256Ref } from "../../jobs/campus-rag-index-publisher/src/types.ts";
 import {
 	PRODUCT_DATA_TABLES,
 	type ProductDataRows,
@@ -9,9 +10,12 @@ import {
 
 const tables = Object.keys(PRODUCT_DATA_TABLES) as ProductDataTable[];
 
-export async function exportProductData(
-	client: Client,
-): Promise<{ rows: ProductDataRows; collection: string }> {
+export async function exportProductData(client: Client): Promise<{
+	rows: ProductDataRows;
+	collection: string;
+	docsEmbeddingSet: Sha256Ref;
+	noticeEmbeddingSet: Sha256Ref;
+}> {
 	await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
 	try {
 		const rows = {} as ProductDataRows;
@@ -22,15 +26,24 @@ export async function exportProductData(
 			);
 			rows[table] = result.rows.map(({ row }) => row);
 		}
-		const binding = await client.query<{ collection: string }>(
-			"select collection from campus_docs_serving.current_index where singleton = true",
+		const binding = await client.query<{
+			collection: string;
+			docs_embedding_set: Sha256Ref;
+			notice_embedding_set: Sha256Ref;
+		}>(
+			"select c.collection, v.docs_embedding_set, v.notice_embedding_set from campus_docs_serving.current_index c join campus_docs_serving.index_versions v using (collection) where singleton = true",
 		);
 		const collection = binding.rows[0]?.collection;
 		if (!(collection && /^campus_docs_[a-f0-9]{64}$/u.test(collection))) {
 			throw new Error("Product data has no valid current index");
 		}
 		await client.query("COMMIT");
-		return { rows, collection };
+		return {
+			rows,
+			collection,
+			docsEmbeddingSet: binding.rows[0]?.docs_embedding_set,
+			noticeEmbeddingSet: binding.rows[0]?.notice_embedding_set,
+		};
 	} catch (error) {
 		await client.query("ROLLBACK");
 		throw error;
@@ -55,6 +68,8 @@ export async function importProductData(
 	input: {
 		rows: ProductDataRows;
 		collection: string;
+		docsEmbeddingSet: Sha256Ref;
+		noticeEmbeddingSet: Sha256Ref;
 		replace: boolean;
 		localReviews?: Record<string, unknown>[];
 	},
@@ -103,7 +118,15 @@ export async function importProductData(
 				[JSON.stringify(input.localReviews)],
 			);
 		}
-		await createTransactionalIndexCatalog(client).activate({ collection: input.collection });
+		const catalog = createTransactionalIndexCatalog(client);
+		await catalog.register({
+			collection: input.collection,
+			docsEmbeddingSet: input.docsEmbeddingSet,
+			noticeEmbeddingSet: input.noticeEmbeddingSet,
+			producer: "manual",
+		});
+		await catalog.markValidated(input.collection);
+		await catalog.activate({ collection: input.collection });
 		await client.query("COMMIT");
 	} catch (error) {
 		await client.query("ROLLBACK");

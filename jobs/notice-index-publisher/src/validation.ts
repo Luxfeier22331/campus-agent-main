@@ -1,9 +1,10 @@
+import { ArtifactValidationError } from "@campus-agent/embedding-runtime";
 import { unicodeLength } from "./encoding.ts";
 import type { BuiltNoticeChunk, BuiltNoticeChunks, NoticeChunk, SourceRange } from "./types.ts";
 
 export function assertValidNoticeChunks(build: BuiltNoticeChunks): void {
 	if (build.chunks.length === 0) {
-		throw new Error(`notice has no chunks: ${build.source.noticeId}`);
+		throw new ArtifactValidationError(`notice has no chunks: ${build.source.noticeId}`);
 	}
 	const coverage = new Uint8Array(build.source.contentText.length);
 	for (const heading of build.headings) {
@@ -12,23 +13,23 @@ export function assertValidNoticeChunks(build: BuiltNoticeChunks): void {
 
 	for (const [index, chunk] of build.chunks.entries()) {
 		if (chunk.chunkIndex !== index) {
-			throw new Error(`notice chunk indexes are not contiguous: ${build.source.noticeId}`);
+			throw new ArtifactValidationError(`notice chunk indexes are not contiguous: ${build.source.noticeId}`);
 		}
 		if (chunk.noticeId !== build.source.noticeId || chunk.content.length === 0) {
-			throw new Error(`notice chunk identity or content is invalid: ${chunk.chunkId}`);
+			throw new ArtifactValidationError(`notice chunk identity or content is invalid: ${chunk.chunkId}`);
 		}
 		if (unicodeLength(chunk.content) > build.definition.maxChars) {
-			throw new Error(`notice chunk exceeds the character limit: ${chunk.chunkId}`);
+			throw new ArtifactValidationError(`notice chunk exceeds the character limit: ${chunk.chunkId}`);
 		}
 		const expectedContent = chunk.parts.reduce((content, part, partIndex) => {
 			if (partIndex === 0) return part.content;
 			return `${content}${part.joinSeparator ?? "\n\n"}${part.content}`;
 		}, "");
 		if (chunk.content !== expectedContent) {
-			throw new Error(`notice chunk content provenance is invalid: ${chunk.chunkId}`);
+			throw new ArtifactValidationError(`notice chunk content provenance is invalid: ${chunk.chunkId}`);
 		}
 		if (chunk.retrievalText !== expectedRetrievalText(build.source.title, chunk)) {
-			throw new Error(`notice chunk retrieval text is invalid: ${chunk.chunkId}`);
+			throw new ArtifactValidationError(`notice chunk retrieval text is invalid: ${chunk.chunkId}`);
 		}
 		if (
 			!sameStrings(
@@ -36,23 +37,23 @@ export function assertValidNoticeChunks(build: BuiltNoticeChunks): void {
 				commonHeadingPath(chunk.parts.map((part) => part.headingPath)),
 			)
 		) {
-			throw new Error(`notice chunk heading path is invalid: ${chunk.chunkId}`);
+			throw new ArtifactValidationError(`notice chunk heading path is invalid: ${chunk.chunkId}`);
 		}
 		const hardSections = new Set(
 			chunk.bodyRanges.map((range) => hardSectionForRange(range, build)),
 		);
 		if (hardSections.size !== 1 || !hardSections.has(chunk.hardSectionId)) {
-			throw new Error(`notice chunk crosses a primary section: ${chunk.chunkId}`);
+			throw new ArtifactValidationError(`notice chunk crosses a primary section: ${chunk.chunkId}`);
 		}
 		for (const part of chunk.parts) {
 			const first = part.bodyRanges[0];
 			const last = part.bodyRanges.at(-1);
 			if (!(first && last)) {
-				throw new Error(`notice chunk part has no source ranges: ${chunk.chunkId}`);
+				throw new ArtifactValidationError(`notice chunk part has no source ranges: ${chunk.chunkId}`);
 			}
 			const expectedPart = build.source.contentText.slice(first.start, last.end);
 			if (part.content !== expectedPart) {
-				throw new Error(`notice chunk part does not match the source: ${chunk.chunkId}`);
+				throw new ArtifactValidationError(`notice chunk part does not match the source: ${chunk.chunkId}`);
 			}
 		}
 		for (const range of chunk.bodyRanges) {
@@ -62,7 +63,7 @@ export function assertValidNoticeChunks(build: BuiltNoticeChunks): void {
 
 	for (let index = 0; index < coverage.length; index += 1) {
 		if (coverage[index] === 0 && build.source.contentText[index] !== "\n") {
-			throw new Error(
+			throw new ArtifactValidationError(
 				`notice source text is absent from chunks: ${build.source.noticeId}/${index}`,
 			);
 		}
@@ -71,19 +72,19 @@ export function assertValidNoticeChunks(build: BuiltNoticeChunks): void {
 
 export function assertValidChunkRun(builds: readonly BuiltNoticeChunks[]): void {
 	if (builds.length === 0) {
-		throw new Error("notice chunk source has no published text notices");
+		throw new ArtifactValidationError("notice chunk source has no published text notices");
 	}
 	const noticeIds = new Set<string>();
 	const chunkIds = new Set<string>();
 	for (const build of builds) {
 		if (noticeIds.has(build.source.noticeId)) {
-			throw new Error(`notice chunk source is duplicated: ${build.source.noticeId}`);
+			throw new ArtifactValidationError(`notice chunk source is duplicated: ${build.source.noticeId}`);
 		}
 		noticeIds.add(build.source.noticeId);
 		assertValidNoticeChunks(build);
 		for (const chunk of build.chunks) {
 			if (chunkIds.has(chunk.chunkId)) {
-				throw new Error(`notice chunk identity is duplicated: ${chunk.chunkId}`);
+				throw new ArtifactValidationError(`notice chunk identity is duplicated: ${chunk.chunkId}`);
 			}
 			chunkIds.add(chunk.chunkId);
 		}
@@ -126,11 +127,11 @@ function markRange(
 	noticeId: string,
 ): void {
 	if (range.start < 0 || range.end <= range.start || range.end > coverage.length) {
-		throw new Error(`notice source range is invalid: ${noticeId}/${range.start}-${range.end}`);
+		throw new ArtifactValidationError(`notice source range is invalid: ${noticeId}/${range.start}-${range.end}`);
 	}
 	for (let index = range.start; index < range.end; index += 1) {
 		if (coverage[index] !== 0) {
-			throw new Error(`notice source range is covered more than once: ${noticeId}/${index}`);
+			throw new ArtifactValidationError(`notice source range is covered more than once: ${noticeId}/${index}`);
 		}
 		coverage[index] = value;
 	}

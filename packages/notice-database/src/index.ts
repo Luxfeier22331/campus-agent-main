@@ -81,3 +81,10 @@ function required(env: Record<string, string | undefined>, key: string): string 
 	}
 	return value;
 }
+
+export {
+	type NoticeProcessingStage,
+	recordAutomaticClassificationFailure,
+	recordNoticeProcessingFailure,
+	withNoticeProcessingLock,
+} from "./processing.ts";

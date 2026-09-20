@@ -114,7 +114,7 @@ test("transactional catalog never commits the caller's foundation import", async
 	const statements: string[] = [];
 	const query = async (sql: string) => {
 		statements.push(sql);
-		return { rows: [], rowCount: 0 };
+		return { rows: sql.includes("SELECT validated") ? [{ validated: true }] : [], rowCount: 0 };
 	};
 	await createTransactionalIndexCatalog({ query } as never).activate({
 		collection: `campus_docs_${"a".repeat(64)}`,
@@ -137,6 +137,8 @@ test("failed foundation import rolls back and never activates the index", async 
 			rows: createProductSeed(new Date()).rows,
 			collection: `campus_docs_${"a".repeat(64)}`,
 			replace: true,
+			docsEmbeddingSet: `sha256:${"a".repeat(64)}`,
+			noticeEmbeddingSet: `sha256:${"b".repeat(64)}`,
 		}),
 		/foreign key/u,
 	);

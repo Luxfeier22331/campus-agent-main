@@ -14,6 +14,14 @@ import {
 	validateInternalPortalNoticeSource,
 } from "ingestion-contracts";
 import type { PoolClient } from "pg";
+import { recordNoticeProcessingFailure } from "@campus-agent/notice-database";
+
+export class NoticePublicationDataError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "NoticePublicationDataError";
+	}
+}
 
 import type { PublisherObjectStore } from "./store.ts";
 
@@ -51,45 +59,48 @@ interface PublishedNotice extends RegisteredNotice {
 
 export async function publishNotices(input: {
 	client: PoolClient;
+	signal?: AbortSignal;
 	noticeIds?: readonly number[];
 	onProgress?: (progress: NoticePublicationProgress) => void;
 	objectStore: PublisherObjectStore;
 	portalHost: string;
-}): Promise<{ assets: number; notices: number }> {
+}): Promise<{ assets: number; notices: number; failed: number; outcome: "success" | "partial" }> {
 	const candidates = await loadCandidates(input.client, input.noticeIds);
-	if (candidates.length === 0) {
+	const result = { assets: 0, notices: 0, failed: 0, outcome: "success" as "success" | "partial" };
+	if (!candidates.length) {
 		input.onProgress?.({ phase: "finalizing", processed: 0, total: 0 });
-		return { assets: 0, notices: 0 };
+		return result;
 	}
 	const meta = await loadMeta(input.objectStore);
-	const records: PublishedNotice[] = [];
-	input.onProgress?.({ phase: "processing", processed: 0, total: candidates.length });
+	let processed = 0;
 	for (const candidate of candidates) {
-		records.push(await loadRecord(input.objectStore, meta, candidate, input.portalHost));
-		input.onProgress?.({
-			phase: "processing",
-			processed: records.length,
-			total: candidates.length,
-		});
-	}
-
-	await input.client.query("BEGIN");
-	try {
-		for (const [index, record] of records.entries()) {
-			input.onProgress?.({ phase: "writing", processed: index, total: records.length });
-			await publishOrVerify(input.client, record);
-			input.onProgress?.({ phase: "writing", processed: index + 1, total: records.length });
+		input.signal?.throwIfAborted();
+		input.onProgress?.({ phase: "processing", processed, total: candidates.length });
+		try {
+			const record = await loadRecord(input.objectStore, meta, candidate, input.portalHost);
+			input.signal?.throwIfAborted();
+			await input.client.query("BEGIN");
+			try {
+				await publishOrVerify(input.client, record);
+				await input.client.query("DELETE FROM notices.processing_failures WHERE notice_id=$1 AND stage='publication'", [record.noticeId]);
+				await input.client.query("COMMIT");
+			} catch (error) {
+				await input.client.query("ROLLBACK");
+				throw error;
+			}
+			result.assets += record.assets.length;
+			result.notices += 1;
+		} catch (error) {
+			if (!(error instanceof NoticePublicationDataError)) throw error;
+			input.signal?.throwIfAborted();
+			await recordNoticeProcessingFailure(input.client, candidate.noticeId, "publication", error);
+			result.failed += 1;
+			result.outcome = "partial";
 		}
-		await input.client.query("COMMIT");
-	} catch (error) {
-		await input.client.query("ROLLBACK");
-		throw error;
+		processed += 1;
+		input.onProgress?.({ phase: "writing", processed, total: candidates.length });
 	}
-	const result = {
-		assets: records.reduce((sum, item) => sum + item.assets.length, 0),
-		notices: records.length,
-	};
-	input.onProgress?.({ phase: "finalizing", processed: result.notices, total: result.notices });
+	input.onProgress?.({ phase: "finalizing", processed, total: candidates.length });
 	return result;
 }
 
@@ -103,6 +114,7 @@ export interface NoticeRepublishResult {
 
 export async function republishNotices(input: {
 	client: PoolClient;
+	signal?: AbortSignal;
 	noticeIds?: readonly number[];
 	onProgress?: (progress: NoticePublicationProgress) => void;
 	objectStore: PublisherObjectStore;
@@ -118,6 +130,7 @@ export async function republishNotices(input: {
 	let skipped = 0;
 	input.onProgress?.({ phase: "processing", processed: 0, total: candidates.length });
 	for (const candidate of candidates) {
+		input.signal?.throwIfAborted();
 		const record = await loadRecord(input.objectStore, meta, candidate, input.portalHost, {
 			skipAssetsWhenNoText: true,
 		});
@@ -146,6 +159,7 @@ export async function republishNotices(input: {
 	await input.client.query("BEGIN");
 	try {
 		for (const [index, record] of records.entries()) {
+			input.signal?.throwIfAborted();
 			input.onProgress?.({ phase: "writing", processed: index, total: records.length });
 			if (await updatePublishedContent(input.client, record)) {
 				updated += 1;
@@ -153,6 +167,7 @@ export async function republishNotices(input: {
 				unchanged += 1;
 			}
 			await insertOrVerifyAssets(input.client, record);
+			await input.client.query("DELETE FROM notices.processing_failures WHERE notice_id=$1 AND stage='publication'", [record.noticeId]);
 			input.onProgress?.({ phase: "writing", processed: index + 1, total: records.length });
 		}
 		await input.client.query("COMMIT");
@@ -196,7 +211,7 @@ async function loadCandidates(
 				`SELECT notice_id::text, notice_type, organization_id, title, released_at,
 				        is_external, external_url, category, is_published
 				 FROM notices.notices
-				 WHERE ${mode === "republish" ? "is_published AND NOT is_external" : "category IS NOT NULL AND NOT is_published"}
+				 WHERE ${mode === "republish" ? "is_published AND NOT is_external" : "category IS NOT NULL AND NOT is_published AND NOT EXISTS (SELECT 1 FROM notices.processing_failures f WHERE f.notice_id=notices.notices.notice_id AND f.stage='publication')"}
 				 ORDER BY notice_id`,
 			);
 	const rows = result.rows.map(toDatabaseNotice);
@@ -272,13 +287,23 @@ export function parseNoticeSource(body: Uint8Array, key: string): InternalPortal
 	try {
 		value = JSON.parse(Buffer.from(body).toString("utf8"));
 	} catch (error) {
-		throw new Error(`${key} is not valid JSON`, { cause: error });
+		throw new NoticePublicationDataError(`${key} is not valid JSON`, { cause: error });
 	}
 	const valid = validateInternalPortalNoticeSource(value);
 	if (!valid.ok) {
-		throw new Error(`${key} violates its contract: ${valid.errors.join("; ")}`);
+		throw new NoticePublicationDataError(`${key} violates its contract: ${valid.errors.join("; ")}`);
 	}
 	return value as InternalPortalNoticeSource;
+}
+
+async function requiredNoticeSource(store: PublisherObjectStore, key: string) {
+    try { return await store.getSource(key); }
+    catch (error) {
+        if (error instanceof Error && ["NoSuchKey", "NotFound"].includes(error.name)) {
+            throw new NoticePublicationDataError(`required notice source is missing: ${key}`, { cause: error });
+        }
+        throw error;
+    }
 }
 
 async function loadRecord(
@@ -289,22 +314,22 @@ async function loadRecord(
 	options: { skipAssetsWhenNoText?: boolean } = {},
 ): Promise<PublishedNotice> {
 	const key = `internal_portal/notices/${registered.noticeId}.json`;
-	const stored = await store.getSource(key);
+	const stored = await requiredNoticeSource(store, key);
 	const source = parseNoticeSource(stored.body, key);
 	if (source.notice_id !== registered.noticeId) {
-		throw new Error(`${key} has mismatched notice_id`);
+		throw new NoticePublicationDataError(`${key} has mismatched notice_id`);
 	}
 	if (!meta.notice_types[String(source.notice_type)]) {
-		throw new Error(`${key} references unknown notice_type ${source.notice_type}`);
+		throw new NoticePublicationDataError(`${key} references unknown notice_type ${source.notice_type}`);
 	}
 	if (source.organization_id !== null && !meta.organizations[source.organization_id]) {
-		throw new Error(`${key} references unknown organization_id ${source.organization_id}`);
+		throw new NoticePublicationDataError(`${key} references unknown organization_id ${source.organization_id}`);
 	}
 	assertRegisteredSourceMatches(registered, source, key);
 	if (!source.is_external) {
 		for (const [ordinal, attachment] of source.attachments.entries()) {
 			if (!attachment.notice_annex_id) {
-				throw new Error(`notice ${source.notice_id} attachment ${ordinal} has no notice_annex_id`);
+				throw new NoticePublicationDataError(`notice ${source.notice_id} attachment ${ordinal} has no notice_annex_id`);
 			}
 		}
 	}
@@ -318,7 +343,7 @@ async function loadRecord(
 	const assets: AssetRow[] = [];
 	if (!source.is_external && !(options.skipAssetsWhenNoText && content.contentText === null)) {
 		for (const image of content.images) {
-			const stored = await store.getSource(
+			const stored = await requiredNoticeSource(store,
 				assetSourceKey(source.notice_id, "image", image.sourceOrdinal),
 			);
 			assets.push(
@@ -413,7 +438,7 @@ function assertRegisteredSourceMatches(
 		registered.externalUrl,
 	];
 	if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-		throw new Error(`registered notice conflicts with source: ${registered.noticeId}`);
+		throw new NoticePublicationDataError(`registered notice conflicts with source: ${registered.noticeId}`);
 	}
 }
 
@@ -501,7 +526,7 @@ async function verifyPublishedContent(client: PoolClient, record: PublishedNotic
 		(row.content_html ?? null) !== record.contentHtml ||
 		(row.content_text ?? null) !== record.contentText
 	) {
-		throw new Error(`published notice conflicts: ${record.noticeId}`);
+		throw new NoticePublicationDataError(`published notice conflicts: ${record.noticeId}`);
 	}
 }
 
@@ -532,7 +557,7 @@ async function insertOrVerifyAssets(client: PoolClient, record: PublishedNotice)
 			])
 			.sort(compareAssetRows);
 		if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-			throw new Error(`published notice assets conflict: ${record.noticeId}`);
+			throw new NoticePublicationDataError(`published notice assets conflict: ${record.noticeId}`);
 		}
 	} else {
 		for (const asset of record.assets) {

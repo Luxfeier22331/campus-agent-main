@@ -1,3 +1,4 @@
+import { ArtifactValidationError } from "@campus-agent/embedding-runtime";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
@@ -62,7 +63,7 @@ export async function resolveNoticeEmbeddingVectors(input: {
 	const sortedInputs = sortNoticeEmbeddingInputs(input.textBySha256);
 	for (const [textSha256, text] of sortedInputs) {
 		if (sha256(text) !== textSha256) {
-			throw new Error(`notice embedding input text hash is invalid: ${textSha256}`);
+			throw new ArtifactValidationError(`notice embedding input text hash is invalid: ${textSha256}`);
 		}
 		const fileName = `${artifactHex(textSha256)}.json`;
 		if (!cachedNames.has(fileName)) {
@@ -81,7 +82,7 @@ export async function resolveNoticeEmbeddingVectors(input: {
 			await Promise.all(
 				batch.vectors.map(async (dense, index) => {
 					const entry = missing[batch.offset + index];
-					if (!entry) throw new Error("embedding result batch offset is invalid");
+					if (!entry) throw new ArtifactValidationError("embedding result batch offset is invalid");
 					const [textSha256] = entry;
 					assertValidNoticeEmbeddingVector(dense, textSha256);
 					vectorsByTextSha256.set(textSha256, dense);
@@ -101,7 +102,7 @@ export async function resolveNoticeEmbeddingVectors(input: {
 		input.onProgress,
 	);
 	if (vectorsByTextSha256.size !== input.textBySha256.size) {
-		throw new Error("embedding cache does not cover every notice embedding input");
+		throw new ArtifactValidationError("embedding cache does not cover every notice embedding input");
 	}
 	return {
 		generatedInputCount: missing.length,
@@ -128,7 +129,7 @@ export async function resolveStoredNoticeEmbeddingCache(input: {
 	const reusedTextSha256s = new Set<Sha256Ref>();
 	for (const [textSha256, text] of sortedInputs) {
 		if (sha256(text) !== textSha256) {
-			throw new Error(`notice embedding input text hash is invalid: ${textSha256}`);
+			throw new ArtifactValidationError(`notice embedding input text hash is invalid: ${textSha256}`);
 		}
 		const key = noticeEmbeddingCacheKey(input.modelTargetSha256, textSha256);
 		if (!storedKeys.has(key)) {
@@ -151,7 +152,7 @@ export async function resolveStoredNoticeEmbeddingCache(input: {
 			await Promise.all(
 				batch.vectors.map(async (dense, index) => {
 					const entry = missing[batch.offset + index];
-					if (!entry) throw new Error("embedding result batch offset is invalid");
+					if (!entry) throw new ArtifactValidationError("embedding result batch offset is invalid");
 					const [textSha256] = entry;
 					assertValidNoticeEmbeddingVector(dense, textSha256);
 					const bytes = canonicalJsonBytes(
@@ -185,18 +186,18 @@ export async function importLocalNoticeEmbeddingCache(input: {
 	const sortedInputs = sortNoticeEmbeddingInputs(input.textBySha256);
 	for (const [textSha256, text] of sortedInputs) {
 		if (sha256(text) !== textSha256) {
-			throw new Error(`notice embedding input text hash is invalid: ${textSha256}`);
+			throw new ArtifactValidationError(`notice embedding input text hash is invalid: ${textSha256}`);
 		}
 	}
 	const names = new Set(await readdir(input.cacheDirectory));
 	const expectedNames = new Set(sortedInputs.map(([textSha256]) => cacheFileName(textSha256)));
 	const extraNames = [...names].filter((name) => !expectedNames.has(name)).sort();
 	if (extraNames.length > 0) {
-		throw new Error(`notice embedding cache contains extra files: ${extraNames[0]}`);
+		throw new ArtifactValidationError(`notice embedding cache contains extra files: ${extraNames[0]}`);
 	}
 	const missingNames = [...expectedNames].filter((name) => !names.has(name)).sort();
 	if (missingNames.length > 0) {
-		throw new Error(`notice embedding cache is missing files: ${missingNames[0]}`);
+		throw new ArtifactValidationError(`notice embedding cache is missing files: ${missingNames[0]}`);
 	}
 
 	for (const [textSha256] of sortedInputs) {
@@ -232,7 +233,7 @@ export function collectNoticeEmbeddingInputs(
 		const textSha256 = sha256(chunk.retrievalText);
 		const existing = textBySha256.get(textSha256);
 		if (existing !== undefined && existing !== chunk.retrievalText) {
-			throw new Error(`notice retrieval text SHA-256 collision: ${textSha256}`);
+			throw new ArtifactValidationError(`notice retrieval text SHA-256 collision: ${textSha256}`);
 		}
 		textBySha256.set(textSha256, chunk.retrievalText);
 	}
@@ -265,7 +266,7 @@ export function parseCachedNoticeEmbedding(
 ): CachedNoticeEmbedding {
 	const value = parseJson(bytes, "cached notice embedding");
 	if (!isRecord(value) || value.schemaVersion !== NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION) {
-		throw new Error("cached notice embedding schema is invalid");
+		throw new ArtifactValidationError("cached notice embedding schema is invalid");
 	}
 	const cached = value as unknown as CachedNoticeEmbedding;
 	if (
@@ -273,11 +274,11 @@ export function parseCachedNoticeEmbedding(
 		cached.modelTargetSha256 !== expectedModelTargetSha256 ||
 		!isDeepStrictEqual(cached.embeddingSpace, EMBEDDING_SPACE)
 	) {
-		throw new Error(`cached notice embedding is invalid: ${expectedTextSha256}`);
+		throw new ArtifactValidationError(`cached notice embedding is invalid: ${expectedTextSha256}`);
 	}
 	assertValidNoticeEmbeddingVector(cached.dense, expectedTextSha256);
 	if (!Buffer.from(canonicalJsonBytes(cached)).equals(Buffer.from(bytes))) {
-		throw new Error(`cached notice embedding is not canonical: ${expectedTextSha256}`);
+		throw new ArtifactValidationError(`cached notice embedding is not canonical: ${expectedTextSha256}`);
 	}
 	return cached;
 }
@@ -291,11 +292,11 @@ export function assertValidNoticeEmbeddingVector(
 		value.length !== EMBEDDING_SPACE.dimensions ||
 		value.some((item) => typeof item !== "number" || !Number.isFinite(item))
 	) {
-		throw new Error(`notice embedding vector is invalid: ${label}`);
+		throw new ArtifactValidationError(`notice embedding vector is invalid: ${label}`);
 	}
 	const norm = Math.sqrt(value.reduce((sum, item) => sum + item * item, 0));
 	if (!Number.isFinite(norm) || norm === 0) {
-		throw new Error(`notice embedding vector norm is invalid: ${label}`);
+		throw new ArtifactValidationError(`notice embedding vector norm is invalid: ${label}`);
 	}
 }
 
@@ -314,7 +315,7 @@ export function noticeEmbeddingCachePath(
 
 export function assertNoticeEmbeddingModelTargetSha256(value: string): void {
 	if (!/^[0-9a-f]{64}$/u.test(value)) {
-		throw new Error("embedding model target must be 64 lowercase hex characters");
+		throw new ArtifactValidationError("embedding model target must be 64 lowercase hex characters");
 	}
 }
 
@@ -348,7 +349,7 @@ function parseJson(bytes: Uint8Array, label: string): unknown {
 	try {
 		return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
 	} catch (error) {
-		throw new Error(`${label} is not valid UTF-8 JSON`, { cause: error });
+		throw new ArtifactValidationError(`${label} is not valid UTF-8 JSON`, { cause: error });
 	}
 }
 
@@ -363,7 +364,7 @@ function cacheFileName(value: Sha256Ref): string {
 
 function assertTextSha256(value: Sha256Ref): void {
 	if (!/^sha256:[0-9a-f]{64}$/u.test(value)) {
-		throw new Error("notice embedding text SHA-256 is invalid");
+		throw new ArtifactValidationError("notice embedding text SHA-256 is invalid");
 	}
 }
 

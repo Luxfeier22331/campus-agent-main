@@ -244,3 +244,8 @@ function isLoopback(hostname: string): boolean {
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
+
+/** Deterministic artifact/input incompatibility; repeating I/O cannot repair it. */
+export class ArtifactValidationError extends Error {
+	override readonly name = "ArtifactValidationError";
+}

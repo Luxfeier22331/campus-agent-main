@@ -32,11 +32,11 @@ test("batch selection rejects overlapping and missing group membership", () => {
 	]);
 });
 
-test("twelve selected images run serially in two groups with PR and canonical cache imports", async (t) => {
+test("thirteen selected images run serially in two groups with PR and canonical cache imports", async (t) => {
 	const { options } = await fixture(t);
 	const bake = await readFile(path.join(REPOSITORY_ROOT, "docker-bake.hcl"), "utf8");
 	const images = [...bake.matchAll(/^target "([a-z][a-z-]+)"/gmu)].map((match) => match[1]);
-	assert.equal(images.length, 12);
+	assert.equal(images.length, 13);
 	const calls: string[][] = [];
 	const firstEntered = Promise.withResolvers<void>();
 	const releaseFirst = Promise.withResolvers<void>();
@@ -69,7 +69,7 @@ test("twelve selected images run serially in two groups with PR and canonical ca
 		releaseFirst.resolve();
 		await building;
 	}
-	assert.equal(calls.length, 12);
+	assert.equal(calls.length, 13);
 	assert.deepEqual(
 		calls.map((args) => args.at(-1)),
 		[
@@ -273,6 +273,7 @@ test("Docker Bake groups cover all targets without overlap", async () => {
 			"campus-agent-schema",
 			"campus-docs-index-publisher",
 			"campus-rag-index-publisher",
+			"campus-rag-worker",
 			"execution-control",
 			"model-config",
 			"notice-classifier",

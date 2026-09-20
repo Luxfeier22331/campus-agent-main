@@ -35,5 +35,13 @@
 		"tsx": "^4.23.13",
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.0"
+	},
+	"exports": {
+		"./command": "./src/command.ts",
+		"./embedding": "./src/embedding.ts",
+		"./embedding-set": "./src/embedding-set.ts",
+		"./object-store": "./src/object-store.ts",
+		"./run-reader": "./src/run-reader.ts",
+		"./types": "./src/types.ts"
 	}
 }

@@ -87,6 +87,9 @@ export type NoticeJobCreate = z.infer<typeof NoticeJobCreateSchema>;
 export const NoticeJobStatusSchema = z.enum(["pending", "running", "succeeded", "failed"]);
 export const NoticeJobSummarySchema = z
 	.object({
+		outcome: z.enum(["success", "partial", "failed", "skipped"]).optional(),
+		reason: z.literal("already-running").optional(),
+		failed: z.number().int().nonnegative().optional(),
 		assets: z.number().int().nonnegative().optional(),
 		attachmentsDownloaded: z.number().int().nonnegative().optional(),
 		attachmentsMissing: z.number().int().nonnegative().optional(),
@@ -136,8 +139,17 @@ export const NoticeCategorySchema = z.enum(NOTICE_CATEGORIES);
 export const NoticeStateSchema = z.enum(["needs_classification", "needs_publication", "published"]);
 export type NoticeState = z.infer<typeof NoticeStateSchema>;
 
+export const NoticeProcessingStageSchema = z.enum(["classification", "publication"]);
+export const NoticeProcessingFailureSchema = z.object({
+	stage: NoticeProcessingStageSchema,
+	errorType: z.string(),
+	rawError: z.string(),
+	failedAt: z.string(),
+});
+
 export const NoticeSummarySchema = z
 	.object({
+		processingFailures: z.array(NoticeProcessingFailureSchema).optional(),
 		category: NoticeCategorySchema.nullable(),
 		externalUrl: z.string().url().nullable(),
 		isExternal: z.boolean(),

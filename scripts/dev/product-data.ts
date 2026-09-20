@@ -3,6 +3,9 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { Client } from "pg";
 import { createS3ObjectStore } from "../../apps/campus-web/src/docs-reader-build/published-reader-object-store.ts";
+import { createFilesystemArtifactStore } from "../../jobs/campus-docs-index-publisher/src/filesystem-artifact-store.ts";
+import { importCampusRagArtifacts } from "../../jobs/campus-rag-index-publisher/src/artifact-import.ts";
+import { createPostgresIndexCatalog } from "../../jobs/campus-rag-index-publisher/src/catalog.ts";
 import { createS3WriterStore } from "../../jobs/campus-rag-index-publisher/src/object-store.ts";
 import { materializeCollection } from "../../jobs/campus-rag-index-publisher/src/publisher.ts";
 import { createQdrantClient } from "../../jobs/campus-rag-index-publisher/src/qdrant.ts";
@@ -115,6 +118,12 @@ export async function initializeProductData(
 					candidate: Parameters<typeof materializeCollection>[1],
 					localReviews?: Record<string, unknown>[],
 				) => {
+					await importCampusRagArtifacts({
+						docsEmbeddingSet: dataset.docsEmbeddingSet,
+						noticeEmbeddingSet: dataset.noticeEmbeddingSet,
+						sourceStore: source,
+						targetStore: target,
+					});
 					const docs = await copyDocsClosure(source, target);
 					await copyProductAssets(dataset.rows, source, target);
 					const points =
@@ -126,24 +135,53 @@ export async function initializeProductData(
 						resolve(registry, "qdrant-materialize.lock"),
 						"product-data-index",
 						async () => {
-							await materializeCollection(
-								createQdrantClient(
-									{ QDRANT_URL: qdrant.url, QDRANT_API_KEY: qdrant.apiKey },
-									async (url, init) => {
-										if (init?.method !== "DELETE") {
-											signal.throwIfAborted();
-										}
-										return fetch(url, { ...init, signal: AbortSignal.timeout(30_000) });
-									},
-								),
-								candidate,
-							);
-							signal.throwIfAborted();
-							await importProductData(client, {
-								...dataset,
-								replace: options.replace,
-								localReviews,
+							const catalog = createPostgresIndexCatalog({
+								EXECUTION_CONTROL_DATABASE_URL: localDatabaseUrls(profile).owner,
 							});
+							try {
+								await catalog.acquirePublisherLock();
+								const publishSignal = AbortSignal.any([signal, catalog.signal]);
+								const registration = await catalog.register({
+									collection: dataset.collection,
+									docsEmbeddingSet: dataset.docsEmbeddingSet,
+									noticeEmbeddingSet: dataset.noticeEmbeddingSet,
+									producer: "manual",
+								});
+								const qdrantClient = createQdrantClient({
+									QDRANT_URL: qdrant.url,
+									QDRANT_API_KEY: qdrant.apiKey,
+								});
+								if (
+									registration.rebuildIncomplete &&
+									(await qdrantClient.collectionExists(dataset.collection))
+								) {
+									await qdrantClient.deleteCollection(dataset.collection);
+								}
+								await materializeCollection(
+									createQdrantClient(
+										{ QDRANT_URL: qdrant.url, QDRANT_API_KEY: qdrant.apiKey },
+										async (url, init) => {
+											if (init?.method !== "DELETE") {
+												signal.throwIfAborted();
+											}
+											return fetch(url, {
+												...init,
+												signal: AbortSignal.any([publishSignal, AbortSignal.timeout(30_000)]),
+											});
+										},
+									),
+									candidate,
+									publishSignal,
+								);
+								publishSignal.throwIfAborted();
+								await importProductData(client, {
+									...dataset,
+									replace: options.replace,
+									localReviews,
+								});
+							} finally {
+								await catalog.close();
+							}
 						},
 					);
 					await createS3ObjectStore(env).writeBytesObject({
@@ -164,14 +202,21 @@ export async function initializeProductData(
 							signal.throwIfAborted();
 							const object = seed.objects.get(key);
 							if (!object) {
-								throw new Error(`Missing seed object: ${key}`);
+								return createFilesystemArtifactStore(
+									join(repoRoot, "scripts/dev/fixtures/product-data"),
+								).read(key);
 							}
 							return object.body;
 						},
 					};
 					const candidate = await readProductSeedIndex(repoRoot);
 					await prepareAndApply(
-						{ rows: seed.rows, collection: candidate.collection },
+						{
+							rows: seed.rows,
+							collection: candidate.collection,
+							docsEmbeddingSet: candidate.docsEmbeddingSet,
+							noticeEmbeddingSet: candidate.noticeEmbeddingSet,
+						},
 						source,
 						candidate,
 						seed.reviews,

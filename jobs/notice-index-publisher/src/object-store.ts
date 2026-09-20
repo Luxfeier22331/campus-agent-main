@@ -4,7 +4,10 @@ import { stat } from "node:fs/promises";
 
 import {
 	GetObjectCommand,
+	HeadObjectCommand,
+	DeleteObjectCommand,
 	ListObjectsV2Command,
+    ListObjectVersionsCommand,
 	PutObjectCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
@@ -15,11 +18,14 @@ export interface NoticeObjectStoreEnv {
 	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
 	OBJECT_STORE_ENDPOINT?: string;
+	OBJECT_STORE_BUCKET_DERIVED?: string;
 }
 
 export function createNoticeS3ArtifactStore(
 	env: NoticeObjectStoreEnv = process.env,
-): NoticeArtifactStore {
+	options: { signal?: AbortSignal; producerRunId?: string } = {},
+): NoticeArtifactStore & { close(): void; inspect(key: string): Promise<{ runId: string | null; modifiedAt: Date | null }>; remove(key: string): Promise<void> } {
+	const bucket = env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-agent-derived";
 	const client = new S3Client({
 		credentials: {
 			accessKeyId: required(env.OBJECT_STORE_DERIVED_ACCESS_KEY, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
@@ -32,22 +38,58 @@ export function createNoticeS3ArtifactStore(
 		forcePathStyle: true,
 		region: "us-east-1",
 	});
+	const send: typeof client.send = ((command: any) => { options.signal?.throwIfAborted(); return client.send(command, options.signal ? { abortSignal: options.signal } : {}); }) as typeof client.send;
 	const read = async (key: string): Promise<Uint8Array> => {
-		const response = await client.send(
-			new GetObjectCommand({ Bucket: "campus-agent-derived", Key: key }),
+		const response = await send(
+			new GetObjectCommand({ Bucket: bucket, Key: key }),
 		);
 		if (!response.Body) throw new Error(`notice artifact body is missing: ${key}`);
 		return response.Body.transformToByteArray();
 	};
 	return {
+		close: () => client.destroy(),
+		async inspect(key) {
+            try {
+                const result = await send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+                return { runId: result.Metadata?.["campus-rag-producer-run"] ?? null, modifiedAt: result.LastModified ?? null };
+            } catch (error) {
+                if (error instanceof Error && ["NotFound", "NoSuchKey"].includes(error.name)) {
+                    return { runId: null, modifiedAt: null };
+                }
+                throw error;
+            }
+		},
+		async remove(key) {
+            if (!/^notices\/rag\/(?:chunk-runs|embedding-data|embedding-sets)\/sha256\/[a-f0-9]{64}\/[a-z.-]+$/u.test(key)) {
+                throw new Error("Automatic cleanup only removes Notice RAG artifact keys");
+            }
+            const versions: string[] = [];
+            let keyMarker: string | undefined;
+            let versionIdMarker: string | undefined;
+            do {
+                const page = await send(new ListObjectVersionsCommand({ Bucket: bucket, Prefix: key, KeyMarker: keyMarker, VersionIdMarker: versionIdMarker }));
+                for (const entry of [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]) {
+                    if (entry.Key === key && entry.VersionId) versions.push(entry.VersionId);
+                }
+                keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
+                versionIdMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
+            } while (keyMarker);
+            for (const versionId of versions) {
+                await send(new DeleteObjectCommand({ Bucket: bucket, Key: key, VersionId: versionId }));
+            }
+            const remaining = await send(new ListObjectVersionsCommand({ Bucket: bucket, Prefix: key }));
+            if ([...(remaining.Versions ?? []), ...(remaining.DeleteMarkers ?? [])].some((entry) => entry.Key === key)) {
+                throw new Error(`Notice artifact versions remain after cleanup: ${key}`);
+            }
+        },
 		read,
 		async list(prefix) {
 			const keys: string[] = [];
 			let continuationToken: string | undefined;
 			do {
-				const response = await client.send(
+				const response = await send(
 					new ListObjectsV2Command({
-						Bucket: "campus-agent-derived",
+						Bucket: bucket,
 						Prefix: prefix,
 						...(continuationToken ? { ContinuationToken: continuationToken } : {}),
 					}),
@@ -63,14 +105,15 @@ export function createNoticeS3ArtifactStore(
 		},
 		async writeImmutable(key, body) {
 			try {
-				await client.send(
+				await send(
 					new PutObjectCommand({
 						Body: body,
-						Bucket: "campus-agent-derived",
+						Bucket: bucket,
 						ContentType: key.endsWith(".ndjson")
 							? "application/x-ndjson"
 							: "application/json",
 						IfNoneMatch: "*",
+						...(options.producerRunId && !key.includes("/embedding-cache/") ? { Metadata: { "campus-rag-producer-run": options.producerRunId } } : {}),
 						Key: key,
 					}),
 				);
@@ -88,15 +131,16 @@ export function createNoticeS3ArtifactStore(
 				throw new Error(`notice artifact file size changed before upload: ${input.path}`);
 			}
 			try {
-				await client.send(
+				await send(
 					new PutObjectCommand({
 						Body: createReadStream(input.path),
-						Bucket: "campus-agent-derived",
+						Bucket: bucket,
 						ContentLength: input.byteSize,
 						ContentType: key.endsWith(".ndjson")
 							? "application/x-ndjson"
 							: "application/json",
 						IfNoneMatch: "*",
+						...(options.producerRunId && !key.includes("/embedding-cache/") ? { Metadata: { "campus-rag-producer-run": options.producerRunId } } : {}),
 						Key: key,
 					}),
 				);
@@ -111,8 +155,8 @@ export function createNoticeS3ArtifactStore(
 		key: string,
 		input: { byteSize: number; path: string; sha256: Sha256Ref },
 	): Promise<void> {
-		const response = await client.send(
-			new GetObjectCommand({ Bucket: "campus-agent-derived", Key: key }),
+		const response = await send(
+			new GetObjectCommand({ Bucket: bucket, Key: key }),
 		);
 		if (!response.Body) throw new Error(`notice artifact body is missing: ${key}`);
 		const digest = createHash("sha256");

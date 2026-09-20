@@ -34,7 +34,7 @@ describe("PostgreSQL notice store", () => {
 					},
 				],
 			});
-		const store = createPgNoticeStore({ query });
+		const store = createPgNoticeStore({ query, connect: vi.fn() });
 
 		await expect(
 			store.list({
@@ -47,6 +47,7 @@ describe("PostgreSQL notice store", () => {
 			counts: { all: 4, needsClassification: 1, needsPublication: 2, published: 1 },
 			items: [
 				{
+					processingFailures: [],
 					category: "campus_news",
 					externalUrl: null,
 					isExternal: false,

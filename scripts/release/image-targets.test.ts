@@ -17,6 +17,7 @@ test("active image target registry excludes the historical schema image", () => 
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"campus-rag-worker",
 		"document-ocr",
 		"execution-control",
 		"internal-portal-collection",
@@ -47,6 +48,7 @@ test("maps shared Node build inputs to all active Node images", () => {
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"campus-rag-worker",
 		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
@@ -59,6 +61,7 @@ test("maps shared Node build inputs to all active Node images", () => {
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"campus-rag-worker",
 		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
@@ -98,6 +101,7 @@ test("test-only source and configuration changes do not select images", () => {
 
 test("maps non-Turbo notice and execution inputs to their consumers", () => {
 	assert.deepEqual(targets(["packages/notice-database/src/index.ts"]), [
+		"campus-rag-worker",
 		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
@@ -111,10 +115,14 @@ test("maps non-Turbo notice and execution inputs to their consumers", () => {
 });
 
 test("maps notice index and embedding runtime changes to their artifact images", () => {
-	assert.deepEqual(targets(["jobs/notice-index-publisher/src/cli.ts"]), ["notice-index-publisher"]);
+	assert.deepEqual(targets(["jobs/notice-index-publisher/src/cli.ts"]), [
+		"campus-rag-worker",
+		"notice-index-publisher",
+	]);
 	assert.deepEqual(targets(["packages/embedding-runtime/src/index.ts"]), [
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"campus-rag-worker",
 		"notice-index-publisher",
 	]);
 });

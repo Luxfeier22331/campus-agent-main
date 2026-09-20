@@ -12,10 +12,8 @@ import type { NoticeJob, NoticeJobCreate, NoticeState } from "../../shared/ops-c
 import {
 	createNoticeJob,
 	fetchNotice,
-	fetchNoticeAutomation,
 	fetchNoticeJobs,
 	fetchNotices,
-	saveNoticeAutomation,
 	updateNoticeCategory,
 } from "../ops-api/notices";
 import {
@@ -29,7 +27,6 @@ import {
 export const noticesQueryKey = ["notices"] as const;
 export const noticeQueryKey = ["notice"] as const;
 export const noticeJobsQueryKey = ["notice-jobs"] as const;
-export const noticeAutomationQueryKey = ["notice-automation"] as const;
 export const noticeJobCreateMutationKey = ["notice-job-create"] as const;
 
 export interface NoticeMaintenanceFilters {
@@ -64,7 +61,7 @@ export type NoticeNavigationIntent =
 export function useNoticeMaintenance() {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate({ from: "/notices" });
-	const { category, page, q, state } = useSearch({ from: "/notices" });
+	const { category, page, q, state, issueStage } = useSearch({ from: "/notices" });
 	const [search, setSearch] = useState(q);
 	useEffect(() => setSearch(q), [q]);
 	const [selectedNoticeId, setSelectedNoticeId] = useState<number | null>(null);
@@ -72,20 +69,6 @@ export function useNoticeMaintenance() {
 	const [pendingIntent, setPendingIntent] = useState<NoticeNavigationIntent | null>(null);
 	const [taskCenterOpen, setTaskCenterOpen] = useState(false);
 	const previousJobStatuses = useRef(new Map<string, NoticeJob["status"]>());
-	const automation = useQuery({
-		queryKey: noticeAutomationQueryKey,
-		queryFn: ({ signal }) => fetchNoticeAutomation({ signal }),
-		refetchInterval: (query) => (query.state.data?.enabled ? 30_000 : false),
-		refetchIntervalInBackground: false,
-		refetchOnWindowFocus: "always",
-	});
-	const saveAutomation = useMutation({
-		mutationFn: saveNoticeAutomation,
-		onSuccess: (value) => {
-			queryClient.setQueryData(noticeAutomationQueryKey, value);
-			void queryClient.invalidateQueries({ queryKey: noticeJobsQueryKey });
-		},
-	});
 
 	const filters = useMemo<NoticeMaintenanceFilters>(
 		() => ({ category, page, q, state }),
@@ -94,6 +77,7 @@ export function useNoticeMaintenance() {
 	const notices = useQuery({
 		queryFn: ({ signal }) =>
 			fetchNotices({
+				...(issueStage ? { issueStage } : {}),
 				...(category ? { category } : {}),
 				page,
 				...(q ? { q } : {}),
@@ -101,7 +85,7 @@ export function useNoticeMaintenance() {
 				...(state ? { state } : {}),
 			}),
 		placeholderData: keepPreviousData,
-		queryKey: [...noticesQueryKey, filters],
+		queryKey: [...noticesQueryKey, filters, issueStage],
 	});
 	const detail = useQuery({
 		enabled: selectedNoticeId !== null,
@@ -111,12 +95,7 @@ export function useNoticeMaintenance() {
 	const jobs = useQuery({
 		queryFn: ({ signal }) => fetchNoticeJobs({ signal }),
 		queryKey: noticeJobsQueryKey,
-		refetchInterval: (query) =>
-			query.state.data?.jobs.some(isActiveNoticeJob)
-				? 3_000
-				: automation.data?.enabled
-					? 30_000
-					: false,
+		refetchInterval: (query) => (query.state.data?.jobs.some(isActiveNoticeJob) ? 3_000 : 30_000),
 		refetchIntervalInBackground: false,
 		refetchOnWindowFocus: "always",
 	});
@@ -227,7 +206,6 @@ export function useNoticeMaintenance() {
 			return;
 		}
 		const invalidations = [
-			queryClient.invalidateQueries({ queryKey: noticeAutomationQueryKey }),
 			queryClient.invalidateQueries({ queryKey: noticesQueryKey }),
 			...[...detailNoticeIds].map((noticeId) =>
 				queryClient.invalidateQueries({ queryKey: [...noticeQueryKey, noticeId] }),
@@ -250,12 +228,18 @@ export function useNoticeMaintenance() {
 			setSearch(intent.q);
 			void navigate({
 				to: "/notices",
-				search: { category: intent.category, page: intent.page, q: intent.q, state: intent.state },
+				search: {
+					category: intent.category,
+					page: intent.page,
+					q: intent.q,
+					state: intent.state,
+					issueStage,
+				},
 				resetScroll: false,
 				ignoreBlocker: true,
 			});
 		},
-		[navigate, resetSaveCategory],
+		[navigate, resetSaveCategory, issueStage],
 	);
 
 	const requestIntent = useCallback(
@@ -449,8 +433,6 @@ export function useNoticeMaintenance() {
 	}, [pendingJobSubmissions, selectedNoticeId]);
 
 	return {
-		automation,
-		saveAutomation,
 		activeJobCount,
 		activeFamilies,
 		blocker,

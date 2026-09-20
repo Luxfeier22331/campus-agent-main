@@ -8,6 +8,7 @@ import {
 	NoticeJobListResponseSchema,
 	NoticeJobResponseSchema,
 	NoticeListResponseSchema,
+	NoticeProcessingStageSchema,
 	NoticeStateSchema,
 } from "../../shared/ops-contract.ts";
 import { NoticeJobNotFoundError, type NoticeJobService } from "../notice-jobs.ts";
@@ -22,6 +23,7 @@ const NoticeListQuerySchema = z
 		page: z.coerce.number().int().positive().default(1),
 		q: z.string().trim().min(1).max(200).optional(),
 		state: NoticeStateSchema.optional(),
+		issueStage: NoticeProcessingStageSchema.optional(),
 	})
 	.strict();
 
@@ -49,6 +51,7 @@ export function registerNoticeRoutes(input: {
 					page: query.data.page,
 					...(query.data.q ? { q: query.data.q } : {}),
 					...(query.data.state ? { state: query.data.state } : {}),
+					...(query.data.issueStage ? { issueStage: query.data.issueStage } : {}),
 				}),
 			),
 		);

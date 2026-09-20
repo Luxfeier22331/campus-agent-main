@@ -6,6 +6,7 @@ export type LocalDevTarget =
 	| "internal-portal-collection"
 	| "notice-classifier"
 	| "campus-docs-index-publisher"
+	| "campus-rag-worker"
 	| "campus-rag-index-publisher"
 	| "notice-index-publisher";
 
@@ -27,6 +28,7 @@ export type LocalDevEnvironmentProjection =
 	| "internal-portal-collection"
 	| "notice-classifier"
 	| "campus-docs-index-publisher"
+	| "campus-rag-worker"
 	| "campus-rag-index-publisher"
 	| "notice-index-publisher";
 
@@ -154,6 +156,20 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 		modelConfigNames: [],
 		runtimeDependencies: [],
 		target: "campus-docs-index-publisher",
+	},
+	"campus-rag-worker": {
+		bootstrapSteps: [
+			"campus-agent-schema",
+			"model-config-seed",
+			"model-config-check",
+			"temporal-namespace",
+		],
+		capabilities: ["postgres", "derived-bucket", "qdrant", "temporal"],
+		directEnvironmentProjections: ["model-config", "campus-rag-worker"],
+		environmentDependencies: [],
+		modelConfigNames: ["campus_docs_embedding"],
+		runtimeDependencies: ["model-config"],
+		target: "campus-rag-worker",
 	},
 	"campus-rag-index-publisher": {
 		bootstrapSteps: [],

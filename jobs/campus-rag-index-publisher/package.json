@@ -25,5 +25,15 @@
 		"tsx": "^4.23.13",
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.0"
+	},
+	"exports": {
+		"./catalog": "./src/catalog.ts",
+		"./publisher": "./src/publisher.ts",
+		"./run": "./src/run.ts",
+		"./types": "./src/types.ts",
+		"./artifacts": "./src/artifacts.ts",
+		"./artifact-import": "./src/artifact-import.ts",
+		"./object-store": "./src/object-store.ts",
+		"./qdrant": "./src/qdrant.ts"
 	}
 }

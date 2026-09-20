@@ -11,7 +11,7 @@ rules:
     verbs: ["get"]
   - apiGroups: ["batch"]
     resources: ["cronjobs"]
-    resourceNames: ["notice-sync"]
+    resourceNames: ["notice-sync", "notice-classifier", "notice-publisher"]
     verbs: ["patch"]
   - apiGroups: ["batch"]
     resources: ["jobs"]

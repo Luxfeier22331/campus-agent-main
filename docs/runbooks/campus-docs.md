@@ -401,7 +401,16 @@ collection；已发布的当前 collection 由 `campus_search` 按需消费。
 2. 确认没有正在运行的 Campus RAG Publisher Job 或仍在使用旧绑定的在线查询访问待删除 collection；
 3. 使用 Qdrant 管理凭据删除明确列出的非当前 collection，并再次确认当前 collection 可读取。
 
-仓库不维护 collection 历史表、保留状态机或自动回收任务。每次清理只处理本次明确核对的集合。
+自动通知刷新由 `campus-rag-worker` 管理版本目录，保留 current 与 previous，自动版本退休至少一小时
+后回收 collection 及独占的自动产物。手动产物不自动认领。人工清理前必须在 Ops `/tasks` 暂停
+索引刷新并等待运行结束，同时保护 current 与 previous。回滚使用任务页的“暂停并回滚至上一版本”，
+回滚后调度保持暂停。首次开启前以真实 Docs/Notice Embedding Set 正常发布一次，确认版本目录已登记，
+再运行一次刷新并检查结果；禁止写入空引用跳过登记。
+
+更新本次互斥与回滚合同前，先暂停 Schedule 并停止旧 Ops 接口的新触发，等待旧刷新和回滚全部结束。
+部署 worker 与 Ops 后重新初始化 Schedule action 为 `campusRagScheduledRefresh`，保留运维设置，
+再执行一次手动刷新与回滚验收。新定时入口、手动刷新和回滚共同使用
+`campus-rag-refresh-workflow` 执行 ID；旧时间戳执行不在这条互斥边界内，不能省略排空步骤。
 
 ## 相关文档
 

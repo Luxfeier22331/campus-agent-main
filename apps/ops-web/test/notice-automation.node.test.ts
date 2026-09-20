@@ -3,8 +3,6 @@
 import type { V1CronJob } from "@kubernetes/client-node";
 import { describe, expect, it, vi } from "vitest";
 import { createNoticeAutomationService } from "../src/server/notice-automation";
-import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
-import { createTestOpsApp } from "./helpers/ops-app";
 
 function fixture(local = false) {
 	const cron: V1CronJob = {
@@ -55,19 +53,6 @@ describe("notice automation", () => {
 		);
 		expect(batch.readNamespacedCronJob).not.toHaveBeenCalled();
 		expect(batch.patchNamespacedCronJob).not.toHaveBeenCalled();
-		const get = vi.spyOn(service, "get");
-		const update = vi.spyOn(service, "update");
-		const app = createTestOpsApp({
-			noticeAutomationService: service,
-			admission: {
-				admit: async () => ({ operator: null, response: new Response(null, { status: 401 }) }),
-			},
-		});
-		for (const method of ["GET", "PUT"]) {
-			expect((await app.request("/api/ops/notices/automation", { method })).status).toBe(401);
-		}
-		expect(get).not.toHaveBeenCalled();
-		expect(update).not.toHaveBeenCalled();
 	});
 	it("reads the actual schedule and patches only the two operator-owned fields", async () => {
 		const { service, batch } = fixture();
@@ -121,36 +106,5 @@ describe("notice automation", () => {
 		await expect(service.update({ enabled: false, intervalMinutes: 15 })).rejects.toThrow(
 			"patch denied",
 		);
-	});
-	it("validates the HTTP input and refuses arbitrary Kubernetes fields", async () => {
-		const { service } = fixture();
-		const app = createTestOpsApp({
-			admission: createAllowAllOpsAdmission(),
-			noticeAutomationService: service,
-		});
-		expect((await app.request("/api/ops/notices/automation")).status).toBe(200);
-		for (const body of [
-			{ enabled: true, intervalMinutes: 5 },
-			{ enabled: true, intervalMinutes: 15, command: "arbitrary" },
-		]) {
-			expect(
-				(
-					await app.request("/api/ops/notices/automation", {
-						method: "PUT",
-						headers: { "content-type": "application/json" },
-						body: JSON.stringify(body),
-					})
-				).status,
-			).toBe(400);
-		}
-		expect(
-			(
-				await app.request("/api/ops/notices/automation", {
-					method: "PUT",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ enabled: true, intervalMinutes: 15 }),
-				})
-			).status,
-		).toBe(200);
 	});
 });

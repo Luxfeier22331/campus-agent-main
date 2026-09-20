@@ -80,6 +80,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	opsWeb: "apps/ops-web/.env.local",
 	internalPortalCollection: "jobs/internal-portal-collection/adapters/internal-portal/.env.local",
 	campusDocsIndexPublisher: "jobs/campus-docs-index-publisher/.env.local",
+	campusRagWorker: "apps/campus-rag-worker/.env.local",
 	campusRagIndexPublisher: "jobs/campus-rag-index-publisher/.env.local",
 	noticeIndexPublisher: "jobs/notice-index-publisher/.env.local",
 } as const;
@@ -106,6 +107,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	"notice-classifier": ["noticeClassifier"],
 	"campus-docs-index-publisher": ["campusDocsIndexPublisher"],
 	"campus-rag-index-publisher": ["campusRagIndexPublisher"],
+	"campus-rag-worker": ["campusRagWorker"],
 	"notice-index-publisher": ["noticeIndexPublisher"],
 };
 
@@ -438,6 +440,8 @@ export function renderLocalEnvironmentFiles(input: {
 			OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
 			OPS_WEB_WEB_PORT: String(profile.ports.opsWeb),
 			PORT: String(profile.ports.opsWebApi),
+			TEMPORAL_ADDRESS: "127.0.0.1:7233",
+			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 		});
 	}
 	if (shouldRender("internalPortalCollection")) {
@@ -503,6 +507,26 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+		});
+	}
+	if (shouldRender("campusRagWorker")) {
+		if (!input.qdrant) {
+			throw new Error("Local Qdrant connection is required for campus-rag-worker");
+		}
+		writeManagedEnv(paths.campusRagWorker, {
+			DEPLOYMENT_ENVIRONMENT: "local",
+			NOTICES_DATABASE_SSLMODE: "disable",
+			NOTICES_DATABASE_URL: database.owner,
+			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
+			TEMPORAL_ADDRESS: "127.0.0.1:7233",
+			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
+			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
+			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
+			QDRANT_URL: input.qdrant.url,
+			QDRANT_API_KEY: input.qdrant.apiKey,
 		});
 	}
 	if (shouldRender("campusRagIndexPublisher")) {

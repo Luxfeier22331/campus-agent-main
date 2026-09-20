@@ -28,12 +28,13 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；数据库结构由 data-postgres
   Application 中的统一 `campus-agent-schema` Job 安装；
 - `agent-runtime`：一个独立 Deployment；
-- `ops-web`：一个运维 API Deployment；
+- `ops-web`：一个运维 API Deployment，直接管理允许的 CronJob 和 Temporal Schedule 启停、周期；
+- `campus-rag-worker`：独立离线索引 Deployment，在 `campus-rag` 队列执行通知刷新；
 - `ops-web-internal-portal-check`：使用 Ops Web 凭据 store 顺序检查凭据池的 CronJob；
 - `internal-portal-collection` 提供一个镜像和共用采集实现；ingestion runtime base 声明通知增量、通知
-  回填和文件发布三个默认暂停的 CronJob 模板，每个模板固定一种动作，没有常驻 Deployment 或自动调度。
+  回填和文件发布三个默认暂停的 CronJob 模板，每个模板固定一种动作。通知采集、分类与发布可由 Ops 开启定时执行，维护模板保持暂停。
 
-Temporal Server 只属于 execution-control 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
+Temporal Server 是 execution-control 与 campus-rag-worker 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
 WorkerDeployment、WorkerResourceTemplate 或 KEDA 资源。
 
 Agent Runtime 的可选 OTLP endpoint 由环境仓选择。源码仓不把 OpenTelemetry Agent/Gateway、节点

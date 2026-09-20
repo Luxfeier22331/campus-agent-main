@@ -389,6 +389,13 @@
 			"env": ["CAMPUS_NODE_RUNTIME"],
 			"outputs": [],
 			"outputLogs": "new-only"
+		},
+		"campus-rag-worker#dev": {
+			"cache": false,
+			"persistent": true
+		},
+		"campus-rag-worker#schedule:init": {
+			"cache": false
 		}
 	}
 }

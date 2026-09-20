@@ -9,12 +9,56 @@ import {
 import type { PublisherObjectStore } from "../src/store.ts";
 
 describe("notice publisher", () => {
+	it("isolates invalid source data and still commits the next notice", async () => {
+		const database = { query: vi.fn(async (sql: string) => {
+			if (sql.includes("SELECT notice_id::text")) return { rows: [candidate({ notice_id: "1" }), candidate()], rowCount: 2 };
+			return { rows: [], rowCount: 1 };
+		}) } as unknown as PoolClient;
+		const store = fakeStore();
+		const get = store.getSource;
+		store.getSource = async (key) => key.endsWith("/1.json") ? { body: Buffer.from("broken json"), contentType: "application/json" } : get(key);
+		expect(await publishNotices({ client: database, objectStore: store, portalHost: "my.muc.edu.cn" })).toEqual({ assets: 0, notices: 1, failed: 1, outcome: "partial" });
+		expect(database.query).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO notices.processing_failures"), expect.arrayContaining([1, "publication", "NoticePublicationDataError"]));
+		expect(database.query).toHaveBeenCalledWith("COMMIT");
+	});
+
+    it("records a missing notice source as an item failure", async () => {
+        const database = fakeClient([{ rows: [candidate()] }]);
+        const store = fakeStore();
+        const get = store.getSource;
+        store.getSource = async (key) => {
+            if (key.endsWith("meta.json")) return get(key);
+            throw Object.assign(new Error("missing object"), { name: "NoSuchKey" });
+        };
+        expect(await publishNotices({ client: database, objectStore: store, portalHost: "my.muc.edu.cn" })).toMatchObject({ failed: 1, outcome: "partial" });
+        expect(database.query).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO notices.processing_failures"), expect.arrayContaining([358159, "publication", "NoticePublicationDataError"]));
+    });
+
+	it("stops on storage outages without recording item failures", async () => {
+		const database = fakeClient([{ rows: [candidate()] }]);
+		const store = fakeStore();
+		store.getSource = async () => { throw new Error("service unavailable"); };
+		await expect(publishNotices({ client: database, objectStore: store, portalHost: "my.muc.edu.cn" })).rejects.toThrow("service unavailable");
+		expect(database.query).toHaveBeenCalledTimes(1);
+	});
+
+	it("rolls back the notice when asset insertion fails", async () => {
+		const database = { query: vi.fn(async (sql: string) => {
+			if (sql.includes("SELECT notice_id::text")) return { rows: [candidate()], rowCount: 1 };
+			if (sql.includes("SELECT asset_kind")) throw new Error("database unavailable");
+			return { rows: [], rowCount: 1 };
+		}) } as unknown as PoolClient;
+		await expect(publishNotices({ client: database, objectStore: fakeStore(), portalHost: "my.muc.edu.cn" })).rejects.toThrow("database unavailable");
+		expect(database.query).toHaveBeenCalledWith("ROLLBACK");
+		expect(database.query).not.toHaveBeenCalledWith("COMMIT");
+	});
+
 	it("succeeds without object-store reads when no notices are pending", async () => {
 		const client = fakeClient([{ rows: [] }]);
 		const store = fakeStore();
 		await expect(
 			publishNotices({ client, objectStore: store, portalHost: "my.muc.edu.cn" }),
-		).resolves.toEqual({ assets: 0, notices: 0 });
+		).resolves.toEqual({ assets: 0, notices: 0, failed: 0, outcome: "success" });
 		expect(store.getSource).not.toHaveBeenCalled();
 	});
 
@@ -49,7 +93,7 @@ describe("notice publisher", () => {
 				objectStore: fakeStore(),
 				portalHost: "my.muc.edu.cn",
 			}),
-		).resolves.toEqual({ assets: 0, notices: 1 });
+		).resolves.toEqual({ assets: 0, notices: 1, failed: 0, outcome: "success" });
 		expect(queries).toContain("BEGIN");
 		expect(queries).toContain("COMMIT");
 		expect(queries.find((text) => text.includes("UPDATE notices.notices"))).not.toContain(
@@ -57,8 +101,6 @@ describe("notice publisher", () => {
 		);
 		expect(progress).toEqual([
 			{ phase: "processing", processed: 0, total: 1 },
-			{ phase: "processing", processed: 1, total: 1 },
-			{ phase: "writing", processed: 0, total: 1 },
 			{ phase: "writing", processed: 1, total: 1 },
 			{ phase: "finalizing", processed: 1, total: 1 },
 		]);
@@ -224,7 +266,7 @@ describe("notice publisher", () => {
 
 		await expect(
 			publishNotices({ client, objectStore: store, portalHost: "my.muc.edu.cn" }),
-		).resolves.toEqual({ assets: 1, notices: 1 });
+		).resolves.toEqual({ assets: 1, notices: 1, failed: 0, outcome: "success" });
 
 		expect(store.getSourceIfExists).toHaveBeenCalledTimes(2);
 		expect(insertedAssets).toHaveLength(1);

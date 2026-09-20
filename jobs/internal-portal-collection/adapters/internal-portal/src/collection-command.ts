@@ -109,6 +109,7 @@ export async function runCollectionCommand(
 			maintenanceRange: noticeSummary.maintenanceRange,
 			processedRange: noticeSummary.processedRange,
 			summary: {
+                outcome: counts.failures.length > 0 ? "partial" : "success",
 				attachmentsDownloaded: counts.resources.attachmentsDownloaded,
 				attachmentsMissing: counts.resources.attachmentsMissing,
 				attachmentsReused: counts.resources.attachmentsReused,

@@ -2,7 +2,7 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { formatRawError } from "ingestion-contracts/raw-error";
-import { createNoticeDatabasePool } from "@campus-agent/notice-database";
+import { createNoticeDatabasePool, withNoticeProcessingLock } from "@campus-agent/notice-database";
 
 import { runNoticeClassificationJob } from "./job.ts";
 import {
@@ -14,11 +14,15 @@ import { parseNoticeClassifierOptions } from "./options.ts";
 
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
 	const options = parseNoticeClassifierOptions(argv);
-	const database = createNoticeDatabasePool(process.env, { max: options.concurrency });
+	const database = createNoticeDatabasePool(process.env, { max: options.concurrency + 1 });
 	try {
 		let runtimeConfigPromise: ReturnType<typeof resolveNoticeClassifierRuntimeConfig> | undefined;
 		let modelClassifier: ReturnType<typeof createNoticeClassifierFromRuntimeConfig> | undefined;
-		const result = await runNoticeClassificationJob({
+		const lockClient = await database.connect();
+		let result;
+		try {
+		result = await withNoticeProcessingLock(lockClient, "classification", (signal) => runNoticeClassificationJob({
+			signal,
 			concurrency: options.concurrency,
 			createModelClassifier: () => async (input) => {
 				modelClassifier ??= createNoticeClassifierFromRuntimeConfig(
@@ -33,7 +37,10 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 			...(options.noticeIds ? { noticeIds: options.noticeIds } : {}),
 			onProgress: (progress) =>
 				console.log(JSON.stringify({ progress, status: "running" })),
-		});
+		}));
+		} finally {
+			lockClient.release();
+		}
 		process.stdout.write(`${JSON.stringify({ summary: result })}\n`);
 	} finally {
 		await database.end();

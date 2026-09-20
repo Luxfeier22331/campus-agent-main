@@ -1,18 +1,45 @@
 import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 
+import { NoticeClassificationInvalidOutputError, NoticeClassificationProviderError } from "../src/classifier.ts";
 import { NoticeClassificationJobError, runNoticeClassificationJob } from "../src/job.ts";
 
 describe("notice classification job", () => {
+	it("quarantines invalid output after retries while continuing good notices", async () => {
+		vi.useFakeTimers();
+		try {
+			const database = fakeDatabase([{ notice_id: "1", title: "bad" }, { notice_id: "2", title: "good" }]);
+			const classify = vi.fn(async (title: string) => {
+				if (title === "bad") throw new NoticeClassificationInvalidOutputError("invalid category");
+				return "campus_news" as const;
+			});
+			const run = runNoticeClassificationJob({ database, concurrency: 1, createModelClassifier: () => classify });
+			await vi.runAllTimersAsync();
+			expect(await run).toEqual({ classified: 1, failed: 1, requested: 2, skipped: 0, outcome: "partial" });
+			expect(classify).toHaveBeenCalledTimes(4);
+			expect(database.query).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO notices.processing_failures"), expect.arrayContaining([1, "classification", "NoticeClassificationInvalidOutputError"]));
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not quarantine provider credentials failures", async () => {
+		const database = fakeDatabase([{ notice_id: "1", title: "notice" }]);
+		await expect(runNoticeClassificationJob({ database, createModelClassifier: () => async () => {
+			throw new NoticeClassificationProviderError("unauthorized", { retryable: false });
+		} })).rejects.toThrow("unauthorized");
+		expect(database.query).toHaveBeenCalledTimes(1);
+	});
+
 	it("classifies only rows whose category is missing", async () => {
 		const database = fakeDatabase([{ notice_id: "1", title: "临时关闭校园南门" }]);
 		const result = await runNoticeClassificationJob({
 			createModelClassifier: () => async () => "campus_operations",
 			database,
 		});
-		expect(result).toEqual({ classified: 1, requested: 1, skipped: 0 });
+		expect(result).toEqual({ classified: 1, failed: 0, outcome: "success", requested: 1, skipped: 0 });
 		expect(database.query).toHaveBeenLastCalledWith(
-			"UPDATE notices.notices SET category=$2 WHERE notice_id=$1 AND category IS NULL",
+			expect.stringContaining("WHERE notice_id=$1 AND category IS NULL RETURNING notice_id"),
 			[1, "campus_operations"],
 		);
 	});
@@ -39,7 +66,7 @@ describe("notice classification job", () => {
 				createModelClassifier: () => async () => "campus_news",
 				database,
 			}),
-		).resolves.toEqual({ classified: 0, requested: 1, skipped: 1 });
+		).resolves.toEqual({ classified: 0, failed: 0, outcome: "success", requested: 1, skipped: 1 });
 	});
 
 	it("explicitly reclassifies an existing notice", async () => {
@@ -50,7 +77,7 @@ describe("notice classification job", () => {
 			noticeIds: [2],
 		});
 		expect(database.query).toHaveBeenLastCalledWith(
-			"UPDATE notices.notices SET category=$2 WHERE notice_id=$1",
+			expect.stringContaining("WHERE notice_id=$1 RETURNING notice_id"),
 			[2, "research_affairs"],
 		);
 	});
@@ -133,7 +160,7 @@ describe("notice classification job", () => {
 		await startedGate;
 		expect(active).toBe(8);
 		releaseWorkers?.();
-		await expect(run).resolves.toEqual({ classified: 16, requested: 16, skipped: 0 });
+		await expect(run).resolves.toEqual({ classified: 16, failed: 0, outcome: "success", requested: 16, skipped: 0 });
 		expect(maximum).toBe(8);
 		expect([...classifications.values()]).toEqual(Array.from({ length: 16 }, () => 1));
 		expect(database.query).toHaveBeenCalledTimes(17);

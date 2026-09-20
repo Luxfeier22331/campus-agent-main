@@ -81,6 +81,39 @@ data:
           "Effect": "Allow",
           "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
           "Resource": ["arn:aws:s3:::campus-agent-derived/dining/submissions/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": { "StringLike": { "s3:prefix": "notices/rag/chunk-runs/*" } }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/notices/rag/chunk-runs/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": { "StringLike": { "s3:prefix": "notices/rag/embedding-data/*" } }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/notices/rag/embedding-data/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": { "StringLike": { "s3:prefix": "notices/rag/embedding-sets/*" } }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/notices/rag/embedding-sets/*"]
         }
       ]
     }

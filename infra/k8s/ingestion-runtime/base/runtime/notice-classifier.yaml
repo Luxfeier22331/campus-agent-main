@@ -6,12 +6,18 @@ metadata:
     app.kubernetes.io/name: notice-classifier
     app.kubernetes.io/part-of: campus-agent
 spec:
-  schedule: "0 0 1 1 *"
+  schedule: "*/15 * * * *"
+  timeZone: Asia/Shanghai
+  startingDeadlineSeconds: 300
   suspend: true
   concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 1
-  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1000
+  successfulJobsHistoryLimit: 1000
   jobTemplate:
+    metadata:
+      labels:
+        campus-agent.muc.wiki/notice-operation: notice-classify-missing
+        campus-agent.muc.wiki/notice-operation-family: classification
     spec:
       ttlSecondsAfterFinished: 86400
       activeDeadlineSeconds: 3600

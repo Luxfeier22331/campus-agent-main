@@ -63,6 +63,16 @@ spec:
             - name: http
               containerPort: 5178
           env:
+            - name: TEMPORAL_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+            - name: TEMPORAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
             - name: DEPLOYMENT_ENVIRONMENT
               valueFrom:
                 configMapKeyRef:

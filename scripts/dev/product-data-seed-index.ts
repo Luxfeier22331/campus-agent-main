@@ -80,9 +80,10 @@ export async function readProductSeedIndex(repoRoot: string) {
 		docsEmbeddingSet: Sha256Ref;
 		noticeEmbeddingSet: Sha256Ref;
 	};
-	return assembleCandidate(
+	const candidate = await assembleCandidate(
 		createFilesystemArtifactStore(root),
 		binding.docsEmbeddingSet,
 		binding.noticeEmbeddingSet,
 	);
+	return { ...candidate, ...binding };
 }

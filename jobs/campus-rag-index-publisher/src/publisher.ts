@@ -1,3 +1,4 @@
+import { ArtifactValidationError } from "@campus-agent/embedding-runtime";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
@@ -39,13 +40,23 @@ export async function publishCampusRagIndex(
 		input.docsEmbeddingSet,
 		input.noticeEmbeddingSet,
 	);
+	input.signal?.throwIfAborted();
+	const registered = await input.catalog.register({ collection: candidate.collection,
+		docsEmbeddingSet: input.docsEmbeddingSet, noticeEmbeddingSet: input.noticeEmbeddingSet,
+		producer: input.producer ?? "manual", ...(input.producerRunId ? { producerRunId: input.producerRunId } : {}) });
+	if (registered.rebuildIncomplete && await input.qdrant.collectionExists(candidate.collection)) {
+		await input.qdrant.deleteCollection(candidate.collection);
+	}
 	input.onPublishProgress?.("materialize");
-	const materialized = await materializeCollection(input.qdrant, candidate);
+	const materialized = await materializeCollection(input.qdrant, candidate, input.signal);
+	await input.catalog.markValidated(candidate.collection);
+	input.signal?.throwIfAborted();
 	input.onPublishProgress?.("activate");
-	const activated = await input.catalog.activate({ collection: candidate.collection });
+	const activated = await input.catalog.activate({ collection: candidate.collection, ...(input.expectedCurrent !== undefined ? { expectedCurrent: input.expectedCurrent } : {}) });
 	return {
 		collection: candidate.collection,
-		noOp: materialized.created ? false : activated.noOp,
+		noOp: activated.obsolete ? true : materialized.created ? false : activated.noOp,
+		...(activated.obsolete ? { obsolete: true } : {}),
 		pointCount: candidate.points.length,
 	};
 }
@@ -63,13 +74,13 @@ export async function assembleCandidate(
 		docs.manifest.embeddingSpace.dimensions !== EMBEDDING_SPACE.dimensions ||
 		notices.manifest.embeddingSpace.dimensions !== EMBEDDING_SPACE.dimensions
 	) {
-		throw new Error("Docs and Notice embedding dimensions do not match the active Campus RAG space");
+		throw new ArtifactValidationError("Docs and Notice embedding dimensions do not match the active Campus RAG space");
 	}
 	if (!isDeepStrictEqual(docs.manifest.embeddingSpace, notices.manifest.embeddingSpace)) {
-		throw new Error("Docs and Notice embedding spaces do not match");
+		throw new ArtifactValidationError("Docs and Notice embedding spaces do not match");
 	}
 	if (docs.manifest.modelTargetSha256 !== notices.manifest.modelTargetSha256) {
-		throw new Error("Docs and Notice model targets do not match");
+		throw new ArtifactValidationError("Docs and Notice model targets do not match");
 	}
 	const docsPoints = buildDocsPoints(docsChunks.chunks, docs.embeddings);
 	const noticePoints = buildNoticePoints(
@@ -77,7 +88,7 @@ export async function assembleCandidate(
 		notices.embeddings,
 	);
 	if (docsPoints.length === 0 || noticePoints.length === 0) {
-		throw new Error("Campus RAG candidate must contain Docs and Notice points");
+		throw new ArtifactValidationError("Campus RAG candidate must contain Docs and Notice points");
 	}
 	const identity = sha256(
 		JSON.stringify(
@@ -103,10 +114,10 @@ export function buildDocsPoints(
 	assertExactEmbeddingCoverage(dense, expected, "Docs");
 	return chunks.map((chunk) => {
 		if (sha256(chunk.retrievalText) !== chunk.retrievalTextSha256) {
-			throw new Error(`Docs retrieval text digest does not match ${chunk.chunkId}`);
+			throw new ArtifactValidationError(`Docs retrieval text digest does not match ${chunk.chunkId}`);
 		}
 		const vector = dense.get(chunk.retrievalTextSha256);
-		if (!vector) throw new Error(`Docs embedding is missing chunk ${chunk.chunkId}`);
+		if (!vector) throw new ArtifactValidationError(`Docs embedding is missing chunk ${chunk.chunkId}`);
 		return {
 			id: stableId("document", chunk.chunkId),
 			payload: {
@@ -141,9 +152,9 @@ export function buildNoticePoints(
 	return chunks.map((chunk) => {
 		const retrievalTextSha256 = sha256(chunk.retrievalText);
 		const vector = dense.get(retrievalTextSha256);
-		if (!vector) throw new Error(`Notice embedding is missing chunk ${chunk.chunkId}`);
+		if (!vector) throw new ArtifactValidationError(`Notice embedding is missing chunk ${chunk.chunkId}`);
 		const title = titles.get(chunk.noticeId);
-		if (!title) throw new Error(`Notice title is missing: ${chunk.noticeId}`);
+		if (!title) throw new ArtifactValidationError(`Notice title is missing: ${chunk.noticeId}`);
 		return {
 			id: stableId("notice", chunk.chunkId),
 			payload: {
@@ -178,6 +189,7 @@ function candidatePoints(candidate: UnifiedIndexCandidate | StreamingIndexCandid
 export async function materializeCollection(
 	qdrant: QdrantIndexClient,
 	candidate: UnifiedIndexCandidate | StreamingIndexCandidate,
+	signal?: AbortSignal,
 ): Promise<{ created: boolean }> {
 	if (await qdrant.collectionExists(candidate.collection)) {
 		await validate(qdrant, candidate);
@@ -193,6 +205,7 @@ export async function materializeCollection(
 	try {
 		let batch: UnifiedPoint[] = [];
 		const write = async () => {
+			signal?.throwIfAborted();
 			await qdrant.upsert({ collection: candidate.collection,
 				denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
 				points: batch, sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName });
@@ -234,7 +247,7 @@ function indexEmbeddings(
 	const dense = new Map<Sha256Ref, number[]>();
 	for (const embedding of embeddings) {
 		if (dense.has(embedding.retrievalTextSha256)) {
-			throw new Error(`${label} embedding data repeats retrieval text: ${embedding.retrievalTextSha256}`);
+			throw new ArtifactValidationError(`${label} embedding data repeats retrieval text: ${embedding.retrievalTextSha256}`);
 		}
 		dense.set(embedding.retrievalTextSha256, embedding.dense);
 	}
@@ -250,7 +263,7 @@ function assertExactEmbeddingCoverage(
 		dense.size !== expected.size ||
 		[...dense.keys()].some((digest) => !expected.has(digest))
 	) {
-		throw new Error(`${label} embedding data does not exactly cover the chunk retrieval texts`);
+		throw new ArtifactValidationError(`${label} embedding data does not exactly cover the chunk retrieval texts`);
 	}
 }
 
@@ -258,10 +271,10 @@ function noticeTitles(chunks: readonly NoticeChunk[]): Map<string, string> {
 	const result = new Map<string, string>();
 	for (const chunk of chunks) {
 		const title = chunk.retrievalText.split("\n", 1)[0]?.trim();
-		if (!title) throw new Error(`Notice title is missing from chunk ${chunk.chunkId}`);
+		if (!title) throw new ArtifactValidationError(`Notice title is missing from chunk ${chunk.chunkId}`);
 		const existing = result.get(chunk.noticeId);
 		if (existing && existing !== title) {
-			throw new Error(`Notice title is inconsistent: ${chunk.noticeId}`);
+			throw new ArtifactValidationError(`Notice title is inconsistent: ${chunk.noticeId}`);
 		}
 		if (!existing) {
 			result.set(chunk.noticeId, title);

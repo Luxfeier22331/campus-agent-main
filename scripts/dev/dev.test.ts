@@ -1426,6 +1426,7 @@ function createRepositoryShape(): string {
 		"model-config",
 		"agent-runtime",
 		"ops-web",
+		"campus-rag-worker",
 	]) {
 		mkdirSync(resolve(repoRoot, "apps", app), { recursive: true });
 	}

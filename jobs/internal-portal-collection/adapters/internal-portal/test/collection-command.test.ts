@@ -128,6 +128,7 @@ describe("collection command", () => {
 			maintenanceRange: { from: "2025-12-01", to: "2026-08-27" },
 			processedRange: { from: "2025-12-01", to: "2026-08-27" },
 			summary: {
+                outcome: "success",
 				attachmentsMissing: 1,
 				noticesFailed: 0,
 				noticesProcessed: 4,
@@ -184,7 +185,7 @@ describe("collection command", () => {
 		});
 		expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
 			maintenanceRange: null,
-			summary: { noticesFailed: 1, noticesProcessed: 1 },
+			summary: { outcome: "partial", noticesFailed: 1, noticesProcessed: 1 },
 		});
 		error.mockRestore();
 		log.mockRestore();

@@ -106,7 +106,8 @@ Notice Embedding Set 从对象存储中的 Chunk Run 构建，不直接消费本
 寻址，本地制品不自动晋升；Notice Embedding cache 的显式校验导入见
 [通知制品手册](../../runbooks/notice-indexing.md#导入本地-embedding-cache)。
 
-阶段之间只传递显式 `sha256:<id>`，不自动串联，不维护 `latest` 制品指针或构建状态机。manifest 和
+阶段之间只传递显式 `sha256:<id>`。`campus-rag-worker` 在独立 Temporal 队列串联 Notice 构建和统一发布，
+沿用当前 Docs Embedding Set；手动维护仍可显式执行各阶段，不维护 `latest` 制品指针。manifest 和
 NDJSON 使用规范序列化、最终换行和内容寻址对象键，不可变写入采用 create-or-verify。两个 Embedding
 Job 都从 Model Config 读取一次当前 Embedding 连接；在同空间、同 dimensions 且 retrieval text 未变时，
 可从操作者显式指定的旧 Embedding Set 复用向量，但不扫描 bucket，也不把 Qdrant 当作复用缓存。统一
@@ -165,3 +166,21 @@ Agent 正文只引用实际采用的候选；当前 Campus Docs 来源由 `campu
 - [文档阅读器数据模型](../../data/document-reader.md)
 - [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/campus-docs.md)
 - [Qdrant 托管方式](../../../.agents/notes/implemented/architecture/2026-07-16-qdrant-hosting.md)
+
+## 自动通知索引生命周期
+
+Ops `/tasks` 直接管理 `campus-rag-refresh` Schedule，默认暂停、周期 60 分钟、重叠 SKIP。
+Schedule 入口启动固定 ID `campus-rag-refresh-workflow` 的刷新子工作流；手动刷新与回滚使用同一
+执行 ID，运行中冲突由 Temporal 原子拒绝。Schedule action 自身的时间戳 ID 不承担互斥。
+工作流保持制品引用和计数，活动复用 builder 与唯一 publisher；每次读取已发布通知快照。
+Chunk Run 未变化时跳过 embedding 和激活，仍执行清理。
+
+`campus_docs_serving.index_versions` 登记真实制品引用、生产者、验证与激活/退休时间。
+候选先登记再创建 collection；未验证且从未激活的中断候选可在 publisher 锁下重建。
+激活检查预期当前值，重复确认已激活版本不移动 previous。保留当前与上一版本，自动版本退休至少
+一小时后清理；无引用自动产物与未完成产物按所有权和活动工作流保护，后者额外保留 24 小时。
+共享缓存、来源和未认领手动制品不自动删除。清理错误不撤销索引切换。
+
+回滚先读取已验证的上一版本，无目标时返回 409；有目标时暂停调度，将制品引用与预期当前值固定为
+Workflow 输入，再以同一 publisher 激活。活动刷新冲突返回 409 并保持暂停，结束后可重新请求；
+回滚重试不会重新选择上一版本。Ops 运行记录按 Run ID 区分，详情不受最近运行列表条数限制。

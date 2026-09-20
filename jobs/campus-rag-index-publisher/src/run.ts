@@ -5,6 +5,10 @@ import type { ReaderObjectStore, Sha256Ref, UnifiedPublishResult } from "./types
 
 export interface CampusRagPublishRunInput {
 	artifactStore: ReaderObjectStore;
+	expectedCurrent?: string | null;
+	producer?: "manual" | "automatic";
+	producerRunId?: string;
+	signal?: AbortSignal;
 	docsEmbeddingSet: Sha256Ref;
 	env?: NodeJS.ProcessEnv;
 	noticeEmbeddingSet: Sha256Ref;
@@ -19,6 +23,7 @@ export async function runCampusRagPublish(
 	const catalog = createPostgresIndexCatalog(env);
 	try {
 		await catalog.acquirePublisherLock();
+        const signal = AbortSignal.any([catalog.signal, ...(input.signal ? [input.signal] : [])]);
 		emit({
 			docs_embedding_set: input.docsEmbeddingSet,
 			notice_embedding_set: input.noticeEmbeddingSet,
@@ -27,13 +32,17 @@ export async function runCampusRagPublish(
 		});
 		return await publishCampusRagIndex({
 			artifactStore: input.artifactStore,
+			...(input.expectedCurrent !== undefined ? { expectedCurrent: input.expectedCurrent } : {}),
+			...(input.producer ? { producer: input.producer } : {}),
+			...(input.producerRunId ? { producerRunId: input.producerRunId } : {}),
+			signal,
 			catalog,
 			docsEmbeddingSet: input.docsEmbeddingSet,
 			noticeEmbeddingSet: input.noticeEmbeddingSet,
 			onPublishProgress(stage) {
 				emit({ stage: `publish:${stage}`, status: "running" });
 			},
-			qdrant: createQdrantClient(env),
+			qdrant: createQdrantClient(env, (url, init) => fetch(url, { ...init, signal })),
 		});
 	} finally {
 		await catalog.close();

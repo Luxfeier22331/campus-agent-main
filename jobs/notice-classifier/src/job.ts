@@ -1,11 +1,14 @@
 import type { NoticeClassificationTask } from "notice-classifier-core/batch";
 import type { Pool } from "pg";
+import { recordNoticeProcessingFailure, recordAutomaticClassificationFailure } from "@campus-agent/notice-database";
+import { NoticeClassificationInvalidOutputError } from "./classifier.ts";
 
 import { classifyNotice, type NoticeModelClassifier } from "./classifier.ts";
 import { mapWithConcurrency } from "./concurrency.ts";
 
 export interface NoticeClassificationJobOptions {
 	concurrency?: number;
+	signal?: AbortSignal;
 	createModelClassifier: () => NoticeModelClassifier;
 	database: Pick<Pool, "query">;
 	noticeIds?: readonly number[];
@@ -20,6 +23,8 @@ export interface NoticeClassificationProgress {
 
 export interface NoticeClassificationJobResult {
 	classified: number;
+	failed: number;
+	outcome: "success" | "partial";
 	requested: number;
 	skipped: number;
 }
@@ -45,29 +50,52 @@ export async function runNoticeClassificationJob(
 	const inputs = await loadInputs(options.database, options.noticeIds);
 	if (inputs.length === 0) {
 		emitProgress(options, { phase: "finalizing", processed: 0, total: 0 });
-		return { classified: 0, requested: 0, skipped: 0 };
+		return { classified: 0, failed: 0, outcome: "success", requested: 0, skipped: 0 };
 	}
 
 	const modelClassifier = options.createModelClassifier();
 	let classified = 0;
+	let failed = 0;
 	let skipped = 0;
 	let processed = 0;
 	emitProgress(options, { phase: "processing", processed: 0, total: inputs.length });
 	try {
 		await mapWithConcurrency(inputs, concurrency, async (input) => {
-			const category = await classifyNotice(input.noticeTitle, modelClassifier).catch((error) => {
-				throw new NoticeClassificationJobError(
-					`notice ${input.noticeId} model classification failed: ${classificationErrorMessage(error)}`,
-					{ cause: error, noticeId: input.noticeId },
-				);
-			});
+			options.signal?.throwIfAborted();
+			let category;
+			try {
+				category = await classifyNotice(input.noticeTitle, modelClassifier);
+			} catch (error) {
+				const cause = error instanceof Error ? error.cause : undefined;
+				if (!(cause instanceof NoticeClassificationInvalidOutputError)) {
+					throw new NoticeClassificationJobError(
+						`notice ${input.noticeId} model classification failed: ${classificationErrorMessage(error)}`,
+						{ cause: error, noticeId: input.noticeId },
+					);
+				}
+				options.signal?.throwIfAborted();
+				if (explicit) {
+					await recordNoticeProcessingFailure(options.database, input.noticeId, "classification", cause);
+				} else {
+					await recordAutomaticClassificationFailure(options.database, input.noticeId, cause);
+				}
+				failed += 1;
+				processed += 1;
+				emitProgress(options, { phase: "processing", processed, total: inputs.length });
+				return;
+			}
+			options.signal?.throwIfAborted();
 			const updated = explicit
 				? await options.database.query(
-						"UPDATE notices.notices SET category=$2 WHERE notice_id=$1",
+						`WITH updated AS (UPDATE notices.notices SET category=$2 WHERE notice_id=$1 RETURNING notice_id),
+                         cleared AS (DELETE FROM notices.processing_failures WHERE stage='classification' AND notice_id IN (SELECT notice_id FROM updated))
+                         SELECT notice_id FROM updated`,
 						[input.noticeId, category],
 					)
 				: await options.database.query(
-						"UPDATE notices.notices SET category=$2 WHERE notice_id=$1 AND category IS NULL",
+						`WITH updated AS (UPDATE notices.notices SET category=$2 WHERE notice_id=$1 AND category IS NULL RETURNING notice_id),
+                         cleared AS (DELETE FROM notices.processing_failures WHERE stage='classification' AND notice_id IN (SELECT notice_id FROM updated))
+                         SELECT notice_id FROM updated`,
 						[input.noticeId, category],
 					);
 			if (updated.rowCount === 1) {
@@ -91,7 +119,7 @@ export async function runNoticeClassificationJob(
 		);
 	}
 	emitProgress(options, { phase: "finalizing", processed, total: inputs.length });
-	return { classified, requested: inputs.length, skipped };
+	return { classified, failed, outcome: failed ? "partial" : "success", requested: inputs.length, skipped };
 }
 
 function emitProgress(
@@ -117,7 +145,9 @@ async function loadInputs(
 		: await database.query(
 				`SELECT notice_id::text, title
 				 FROM notices.notices
-				 WHERE category IS NULL
+				 WHERE category IS NULL AND NOT EXISTS (
+                     SELECT 1 FROM notices.processing_failures f WHERE f.notice_id=notices.notices.notice_id AND f.stage='classification'
+                 )
 				 ORDER BY notice_id`,
 			);
 	const inputs = result.rows.map((row) => ({

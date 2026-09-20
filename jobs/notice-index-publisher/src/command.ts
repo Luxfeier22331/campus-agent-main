@@ -46,10 +46,12 @@ export async function buildLocalNoticeChunkRun(input: {
 
 export async function runStoredNoticeChunkBuild(input: {
 	artifactStore: NoticeArtifactStore;
+	signal?: AbortSignal;
 	definition?: NoticeChunkDefinition;
 	pool: Pick<Pool, "connect">;
 }): Promise<StoredChunkRunResult> {
-	const sources = await loadPublishedNoticeSources(input.pool);
+	const sources = await loadPublishedNoticeSources(input.pool, input.signal);
+	input.signal?.throwIfAborted();
 	const run = buildNoticeChunkRun({
 		...(input.definition ? { definition: input.definition } : {}),
 		sources,

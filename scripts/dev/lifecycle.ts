@@ -29,6 +29,7 @@ import {
 } from "./instance-resources";
 import { resolveLocalQdrantConnection } from "./local-qdrant";
 import { removeLocalDevSecrets, resolveLocalDevSecretsPath } from "./local-secrets";
+import { runCommand } from "./process";
 import {
 	assertProductAppsOffline,
 	diagnoseProductData,
@@ -91,7 +92,7 @@ export async function initializeLocalDevelopmentTarget(
 	}
 	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
 	const qdrant = projections.some((projection) =>
-		["core", "campus-rag-index-publisher"].includes(projection),
+		["core", "campus-rag-index-publisher", "campus-rag-worker"].includes(projection),
 	)
 		? await resolveLocalQdrantConnection()
 		: undefined;
@@ -151,6 +152,9 @@ export async function initializeLocalDevelopmentTarget(
 		),
 		plan.modelConfigNames,
 	);
+	if (target === "campus-rag-worker") {
+		runCommand("pnpm", ["--filter", "campus-rag-worker", "schedule:init"], { cwd: repoRoot });
+	}
 	console.log(formatProfileSummary(profile));
 	return profile;
 }

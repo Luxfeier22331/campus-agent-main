@@ -37,7 +37,7 @@ describe("notice maintenance page", () => {
 		window.history.replaceState(
 			null,
 			"",
-			"/notices?state=published&category=campus_operations&q=first&page=2",
+			"/notices?state=published&category=campus_operations&q=first&page=2&issueStage=publication",
 		);
 		const view = render(<OpsWebApp />);
 		await waitFor(() => expect(requests.at(-1)?.searchParams.get("page")).toBe("2"));
@@ -51,6 +51,7 @@ describe("notice maintenance page", () => {
 			expect(new URLSearchParams(window.location.search).get("category")).toBe("research_affairs"),
 		);
 		expect(new URLSearchParams(window.location.search).get("page")).toBe("1");
+		expect(new URLSearchParams(window.location.search).get("issueStage")).toBe("publication");
 		await act(async () => window.history.back());
 		await waitFor(() =>
 			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("campus_operations"),
@@ -626,13 +627,12 @@ describe("notice maintenance page", () => {
 		expect(await screen.findByText("选择一条通知")).toBeInTheDocument();
 	});
 
-	it("discovers a completed automatic job between idle polls and stops polling when paused", async () => {
+	it("discovers a completed automatic job between idle polls", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		useDesktopViewport();
 		let jobsRequests = 0;
 		let noticesRequests = 0;
 		let completed = false;
-		let enabled = true;
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async (input: RequestInfo | URL) => {
@@ -640,21 +640,6 @@ describe("notice maintenance page", () => {
 					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
 					"https://ops.example.test",
 				);
-				if (url.pathname === "/api/ops/notices/automation") {
-					return Response.json({
-						supported: true,
-						enabled,
-						intervalMinutes: 15,
-						timeZone: "Asia/Shanghai",
-						lastScheduleTime: null,
-						lastSuccessfulTime: null,
-						maintenanceRange: { from: "2025-12-01", to: "2026-09-14" },
-						credentialAvailable: true,
-						scheduleError: null,
-						stateError: null,
-						credentialError: null,
-					});
-				}
 				if (url.pathname === "/api/ops/notices/jobs") {
 					jobsRequests++;
 					return Response.json({
@@ -679,17 +664,12 @@ describe("notice maintenance page", () => {
 			}),
 		);
 		render(<OpsWebApp initialPath="/notices" />);
-		await screen.findByText("已开启 · 每 15 分钟");
+		await screen.findByText("查看定时任务与调度设置");
 		await waitFor(() => expect(noticesRequests).toBe(1));
 		completed = true;
 		await vi.advanceTimersByTimeAsync(30_000);
 		await waitFor(() => expect(noticesRequests).toBeGreaterThan(1));
-		enabled = false;
-		await vi.advanceTimersByTimeAsync(30_000);
-		await screen.findByText("已暂停");
-		const count = jobsRequests;
-		await vi.advanceTimersByTimeAsync(60_000);
-		expect(jobsRequests).toBe(count);
+		expect(jobsRequests).toBeGreaterThan(1);
 	});
 
 	it.each(["succeeded", "failed"] as const)(

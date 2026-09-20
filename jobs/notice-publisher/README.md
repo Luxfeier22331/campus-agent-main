@@ -1,8 +1,12 @@
 # 通知发布器
 
-`notice-publisher` 清洗已经登记且已有分类的通知，校验 source 资源，并在一个数据库事务中写入正文、
+`notice-publisher` 清洗已经登记且已有分类的通知，校验 source 资源，并逐条在数据库事务中写入正文、
 资源 metadata 和发布状态。图片写入 derived bucket，附件字节保留在 source bucket；该包不负责采集
 或分类。
+
+自动发布排除 `notices.processing_failures` 中的 publication 问题；明确的单条来源校验错误记录后继续，
+数据库与对象存储故障停止本轮。指定 notice ID 的人工重试成功提交后清除当前问题。CLI 使用会话级
+数据库锁，定时与人工入口互斥；锁忙返回 skipped，不执行发布。
 
 ## 入口
 

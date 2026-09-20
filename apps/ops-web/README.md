@@ -31,6 +31,7 @@
 - `/email-access`、`/users`、`/users/:userId`、`/users/activity`：账号管理；
 - `/dining`：食堂内容维护；
 - `/groups`：同好群目录维护。
+- `/tasks`：统一查看采集、分类、发布和索引刷新；调整启停与 15/30/60 分钟周期，查看业务结果、当前问题及索引回滚。OCR 与凭据检查只读。
 - `/notices`：查看通知库存与已采集正文、图片及附件，维护分类，并启动固定的采集、分类和发布任务。
 - `/transport`：维护班车线路、完整时间段和班次明细。线路表单可独立编辑默认乘车点、下车点和乘车指引；
   后两项可留空，指引支持换行。时间段备注用于运行说明，不承担通知审核或自动提取。
@@ -46,7 +47,8 @@ Node 构建内联通知 workspace 源码，但外部加载生产依赖 `jsdom`�
 发布单条通知和重新发布单条通知。分类编辑直接更新通知数据库中的唯一分类字段。部署环境的服务端从
 同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能
 提交任意 command、image、environment、namespace 或 Secret。每个采集、分类和发布操作族同时只允许
-一个待运行或运行中的 Job，不排队、不自动串联、不自动重试。GitOps 只管理暂停的 CronJob 模板；动态
+一个待运行或运行中的 Job。分类与发布执行入口另用数据库会话锁防止跨入口重叠，忙时报告 skipped。
+GitOps 创建暂停的 CronJob；Ops 拥有采集、分类、发布的 schedule 与 suspend，其他字段由 GitOps 管理。动态
 Job 引用来源 CronJob 作为 owner，固定零重试，并在完成 24 小时后回收。
 
 Job 的 stdout 使用结构化 JSON。Ops Web 读取运行中、成功和失败 Job 的 Pod 输出，返回 Kubernetes

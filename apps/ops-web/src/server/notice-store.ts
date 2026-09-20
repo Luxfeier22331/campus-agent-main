@@ -11,6 +11,7 @@ const PAGE_SIZE = 30;
 
 export interface NoticeListInput {
 	category?: NoticeCategory;
+	issueStage?: "classification" | "publication";
 	page: number;
 	q?: string;
 	state?: NoticeState;
@@ -59,9 +60,11 @@ interface NoticeRow extends Record<string, unknown> {
 const NOTICE_SELECT = `
 	n.notice_id::text, n.notice_type, t.name AS notice_type_name,
 	n.organization_id, o.name AS organization_name, n.title, n.released_at,
-	n.is_external, n.external_url, n.category, n.is_published`;
+	n.is_external, n.external_url, n.category, n.is_published,
+	COALESCE((SELECT json_agg(json_build_object('stage', f.stage, 'errorType', f.error_type, 'rawError', f.raw_error, 'failedAt', f.failed_at) ORDER BY f.stage)
+	FROM notices.processing_failures f WHERE f.notice_id=n.notice_id), '[]'::json) AS processing_failures`;
 
-export function createPgNoticeStore(pool: Pick<Pool, "query">): NoticeStore {
+export function createPgNoticeStore(pool: Pick<Pool, "query" | "connect">): NoticeStore {
 	return {
 		async get(noticeId) {
 			return withDatabaseError(async () => {
@@ -90,6 +93,12 @@ export function createPgNoticeStore(pool: Pick<Pool, "query">): NoticeStore {
 				if (input.category) {
 					values.push(input.category);
 					baseConditions.push(`n.category = $${values.length}`);
+				}
+				if (input.issueStage) {
+					values.push(input.issueStage);
+					baseConditions.push(
+						`EXISTS (SELECT 1 FROM notices.processing_failures f WHERE f.notice_id=n.notice_id AND f.stage=$${values.length})`,
+					);
 				}
 				const conditions = [...baseConditions];
 				if (input.state === "needs_classification") {
@@ -151,12 +160,27 @@ export function createPgNoticeStore(pool: Pick<Pool, "query">): NoticeStore {
 		},
 		async updateCategory(noticeId, category) {
 			return withDatabaseError(async () => {
-				const updated = await pool.query(
-					"UPDATE notices.notices SET category=$2 WHERE notice_id=$1 RETURNING notice_id",
-					[noticeId, category],
-				);
-				if (updated.rowCount !== 1) {
-					throw new NoticeNotFoundError();
+				const client = await pool.connect();
+				try {
+					await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+					const updated = await client.query(
+						"UPDATE notices.notices SET category=$2 WHERE notice_id=$1 RETURNING notice_id",
+						[noticeId, category],
+					);
+					if (updated.rowCount !== 1) {
+						throw new NoticeNotFoundError();
+					}
+					// A new statement sees a failure committed while UPDATE waited for the row lock.
+					await client.query(
+						"DELETE FROM notices.processing_failures WHERE notice_id=$1 AND stage='classification'",
+						[noticeId],
+					);
+					await client.query("COMMIT");
+				} catch (error) {
+					await client.query("ROLLBACK");
+					throw error;
+				} finally {
+					client.release();
 				}
 				const notice = await this.get(noticeId);
 				if (!notice) {
@@ -175,6 +199,9 @@ export function createUnavailableNoticeStore(cause: unknown): NoticeStore {
 
 function toNotice(row: NoticeRow): NoticeSummary {
 	return {
+		processingFailures: (row.processing_failures ?? []) as NonNullable<
+			NoticeSummary["processingFailures"]
+		>,
 		category: row.category as NoticeCategory | null,
 		externalUrl: row.external_url,
 		isExternal: row.is_external,

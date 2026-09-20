@@ -474,6 +474,9 @@ function parseScalarSummary(value: unknown): NoticeJob["summary"] {
 	const record = value as Record<string, unknown>;
 	const known = Object.fromEntries(
 		[
+			"outcome",
+			"reason",
+			"failed",
 			"assets",
 			"attachmentsDownloaded",
 			"attachmentsMissing",

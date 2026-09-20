@@ -1,7 +1,7 @@
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
-import { createNoticeDatabasePool } from "@campus-agent/notice-database";
+import { createNoticeDatabasePool, withNoticeProcessingLock } from "@campus-agent/notice-database";
 import { formatRawError } from "ingestion-contracts/raw-error";
 import { backfillAttachmentLinks } from "./backfill.ts";
 import { internalPortalHost } from "./portal.ts";
@@ -19,6 +19,7 @@ async function main(): Promise<void> {
 	const pool = createNoticeDatabasePool(process.env, { max: 1 });
 	const client = await pool.connect();
 	try {
+		const execution = await withNoticeProcessingLock(client, "publication", async (signal) => {
 		if (command === "backfill-attachment-links") {
 			const parsed = parseBackfillArgs(args);
 			const store = createPublisherObjectStoreFromEnv(process.env);
@@ -41,13 +42,14 @@ async function main(): Promise<void> {
 			try {
 				const result = await republishNotices({
 					client,
+					signal,
 					noticeIds: parsed.noticeIds.length ? parsed.noticeIds : undefined,
 					onProgress: (progress) =>
 						console.log(JSON.stringify({ progress, status: "running" })),
 					objectStore: store,
 					portalHost: internalPortalHost(),
 				});
-				console.log(JSON.stringify({ summary: result }));
+				console.log(JSON.stringify({ summary: { outcome: "success", ...result } }));
 			} finally {
 				store.close();
 			}
@@ -63,6 +65,7 @@ async function main(): Promise<void> {
 		try {
 			const result = await publishNotices({
 				client,
+				signal,
 				noticeIds: parsed.noticeIds.length ? parsed.noticeIds : undefined,
 				onProgress: (progress) =>
 					console.log(JSON.stringify({ progress, status: "running" })),
@@ -73,6 +76,8 @@ async function main(): Promise<void> {
 		} finally {
 			store.close();
 		}
+		});
+		if (execution) console.log(JSON.stringify({ summary: execution }));
 	} finally {
 		client.release();
 		await pool.end();

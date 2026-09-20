@@ -113,6 +113,9 @@ export function noticeJobSummaryLabel(
 	if (!summary) {
 		return null;
 	}
+	if (summary.outcome === "skipped") {
+		return "已有同类任务运行，本轮跳过";
+	}
 	const family = noticeJobFamily(operation);
 	const entries =
 		family === "collection"
@@ -132,11 +135,13 @@ export function noticeJobSummaryLabel(
 			: family === "classification"
 				? ([
 						["classified", "完成分类"],
+						["failed", "处理失败"],
 						["requested", "请求处理"],
 						["skipped", "跳过"],
 					] as const)
 				: ([
 						["notices", "发布通知"],
+						["failed", "处理失败"],
 						["assets", "发布资源"],
 					] as const);
 	const labels = entries.flatMap(([key, label]) =>

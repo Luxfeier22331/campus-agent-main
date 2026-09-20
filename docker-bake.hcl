@@ -17,6 +17,7 @@ group "default" {
     "campus-agent-schema",
     "campus-docs-index-publisher",
 	"campus-rag-index-publisher",
+    "campus-rag-worker",
     "execution-control",
     "model-config",
     "notice-classifier",
@@ -42,6 +43,7 @@ group "standard" {
     "campus-agent-schema",
     "campus-docs-index-publisher",
     "campus-rag-index-publisher",
+    "campus-rag-worker",
     "notice-classifier",
     "notice-index-publisher",
     "notice-publisher",
@@ -121,4 +123,9 @@ target "internal-portal-collection" {
 target "document-ocr" {
   inherits = ["_common"]
   dockerfile = "jobs/document-ocr/Dockerfile"
+}
+
+target "campus-rag-worker" {
+  inherits = ["_common"]
+  dockerfile = "apps/campus-rag-worker/Dockerfile"
 }

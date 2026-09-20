@@ -65,7 +65,8 @@
 		"remark-gfm": "^4.0.1",
 		"tailwind-merge": "^3.7.0",
 		"tldraw": "5.4.2",
-		"zod": "^4.6.5"
+		"zod": "^4.6.5",
+		"@temporalio/client": "1.24.0"
 	},
 	"devDependencies": {
 		"@axe-core/playwright": "4.13.0",

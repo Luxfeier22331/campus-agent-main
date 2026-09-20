@@ -145,14 +145,37 @@ export interface QdrantIndexClient {
 
 export interface CurrentIndexBinding {
 	collection: string;
+	expectedCurrent?: string | null;
 }
 
+export interface IndexVersionInput {
+	collection: string;
+	docsEmbeddingSet: Sha256Ref;
+	noticeEmbeddingSet: Sha256Ref;
+	producer: "manual" | "automatic";
+	producerRunId?: string;
+}
+
+export interface IndexVersion extends IndexVersionInput {
+	validated: boolean;
+	createdAt: string;
+	activatedAt: string | null;
+	retiredAt: string | null;
+}
+
+
 export interface IndexCatalog {
-	activate(index: CurrentIndexBinding): Promise<{ noOp: boolean }>;
+	activate(index: CurrentIndexBinding): Promise<{ noOp: boolean; obsolete?: boolean }>;
+	register(index: IndexVersionInput): Promise<{ rebuildIncomplete: boolean }>;
+	markValidated(collection: string): Promise<void>;
 }
 
 export interface UnifiedPublishInput {
 	artifactStore: ReaderObjectStore;
+	expectedCurrent?: string | null;
+	producer?: "manual" | "automatic";
+	producerRunId?: string;
+	signal?: AbortSignal;
 	catalog: IndexCatalog;
 	docsEmbeddingSet: Sha256Ref;
 	noticeEmbeddingSet: Sha256Ref;
@@ -164,6 +187,7 @@ export interface UnifiedPublishInput {
 
 export interface UnifiedPublishResult {
 	collection: string;
+	obsolete?: boolean;
 	noOp: boolean;
 	pointCount: number;
 }

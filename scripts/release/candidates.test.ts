@@ -252,6 +252,7 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"campus-rag-worker",
 		"document-ocr",
 		"execution-control",
 		"internal-portal-collection",
@@ -313,6 +314,7 @@ test("publishes all notice and transport consumers when the shared notice databa
 	const runner = syntheticScopeRunner(changed("packages/notice-database/src/index.ts"), []);
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, [
+		"campus-rag-worker",
 		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
@@ -406,7 +408,12 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,
-		images: ["campus-docs-index-publisher", "campus-rag-index-publisher", "execution-control"],
+		images: [
+			"campus-docs-index-publisher",
+			"campus-rag-index-publisher",
+			"campus-rag-worker",
+			"execution-control",
+		],
 		sourceBases: [],
 		topologyMigrations: [],
 		workers: [],
@@ -449,6 +456,7 @@ test("a Node lockfile change selects all active Node images but not the independ
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"campus-rag-worker",
 		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",

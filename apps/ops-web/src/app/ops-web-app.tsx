@@ -55,6 +55,7 @@ import { OverviewPage } from "./overview-page";
 import { ProviderConfigPage } from "./provider-config-page";
 import { RequestDetailPage } from "./request-detail-page";
 import { RequestsPage as RequestsPageView } from "./requests-page";
+import { TasksPage } from "./tasks-page";
 import { readTimeSearch } from "./time-filters";
 import { TransportPage } from "./transport-page";
 import { SidebarLayout } from "./ui/sidebar-layout";
@@ -166,6 +167,12 @@ const internalPortalRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/internal-portal",
 	component: InternalPortalPage,
+});
+
+const tasksRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/tasks",
+	component: TasksPage,
 });
 
 const noticesRoute = createRoute({
@@ -324,6 +331,7 @@ const routeTree = rootRoute.addChildren([
 	requestDetailRoute,
 	providerConfigRoute,
 	internalPortalRoute,
+	tasksRoute,
 	noticesRoute,
 	ocrRoute,
 	emailAccessRoute,
@@ -376,6 +384,7 @@ function RootLayout() {
 				{
 					label: "内容维护",
 					items: [
+						{ href: "/tasks", icon: ListChecks, label: "定时任务" },
 						{ href: "/notices", icon: ListChecks, label: "通知维护" },
 						{ href: "/ocr", icon: ListChecks, label: "文档识别" },
 					],

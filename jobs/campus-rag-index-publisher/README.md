@@ -5,7 +5,9 @@ builder 仍由各自 package 拥有；本包只读取显式的 immutable Embeddi
 collection，并原子替换 `campus_docs_serving.current_index`。
 
 本包不采集来源、不连接 Notices 数据库、不读取 Campus Docs reader、不调用 embedding provider，也不重新
-生成 embedding。重复发布同一组制品只做验证和 pointer 激活，不创建第二套索引历史。
+生成 embedding。重复发布同一组制品只做验证和 pointer 激活。版本目录登记真实制品引用，
+保留 current 与 previous；手动入口和自动 worker 共用发布会话锁，候选先登记再创建 collection，
+校验成功后使用预期 current 激活。已验证或受保护的集合不自动重建。
 
 ## 入口
 

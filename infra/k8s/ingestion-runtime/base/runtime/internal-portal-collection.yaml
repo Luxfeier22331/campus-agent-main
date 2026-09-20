@@ -9,6 +9,8 @@ spec:
   schedule: "*/15 * * * *"
   timeZone: Asia/Shanghai
   startingDeadlineSeconds: 300
+  failedJobsHistoryLimit: 1000
+  successfulJobsHistoryLimit: 1000
   suspend: true
   concurrencyPolicy: Forbid
   jobTemplate:

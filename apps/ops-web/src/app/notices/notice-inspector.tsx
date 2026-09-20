@@ -146,6 +146,30 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 							<span className="font-mono text-muted-foreground text-xs">#{notice.noticeId}</span>
 						</div>
 						<h2 className="break-words font-semibold text-xl leading-tight">{notice.title}</h2>
+						{notice.processingFailures?.map((failure) => (
+							<div key={failure.stage} role="alert" className="rounded border p-3">
+								<p>
+									{failure.stage === "classification" ? "分类" : "发布"}处理失败 ·{" "}
+									{failure.failedAt}
+								</p>
+								<pre className="whitespace-pre-wrap break-words">{failure.rawError}</pre>
+								<button
+									type="button"
+									disabled={isFamilyBusy(failure.stage)}
+									onClick={() =>
+										onStartJob({
+											operation:
+												failure.stage === "classification"
+													? "notice-classify-one"
+													: "notice-publish-one",
+											noticeId: notice.noticeId,
+										})
+									}
+								>
+									重新处理此通知
+								</button>
+							</div>
+						))}
 						{detailError ? <InlineError error={detailError} title="详情刷新失败" /> : null}
 						{detailPending ? <p className="text-muted-foreground text-xs">正在刷新详情…</p> : null}
 					</header>

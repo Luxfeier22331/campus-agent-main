@@ -1,3 +1,4 @@
+import { ArtifactValidationError } from "@campus-agent/embedding-runtime";
 import { createHash } from "node:crypto";
 import { mkdtemp, open, rm } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
@@ -109,11 +110,11 @@ export async function readNoticeEmbeddingSet(
 	assertSha256Ref(id, "notice embedding set");
 	const manifestBytes = await store.read(noticeEmbeddingSetManifestKey(id));
 	if (sha256(manifestBytes) !== id) {
-		throw new Error(`notice embedding set manifest digest does not match ${id}`);
+		throw new ArtifactValidationError(`notice embedding set manifest digest does not match ${id}`);
 	}
 	const value = parseJson(manifestBytes, "notice embedding set manifest");
 	if (!isRecord(value) || value.schemaVersion !== "notice_embedding_set.v1") {
-		throw new Error("notice embedding set manifest schema is invalid");
+		throw new ArtifactValidationError("notice embedding set manifest schema is invalid");
 	}
 	const manifest = value as unknown as NoticeEmbeddingSetManifest;
 	assertSha256Ref(manifest.chunkRun, "notice embedding chunk run");
@@ -122,7 +123,7 @@ export async function readNoticeEmbeddingSet(
 		!positiveInteger(manifest.embeddingCount) ||
 		!isDeepStrictEqual(manifest.embeddingSpace, EMBEDDING_SPACE)
 	) {
-		throw new Error("notice embedding set manifest definition is invalid");
+		throw new ArtifactValidationError("notice embedding set manifest definition is invalid");
 	}
 	assertObjectReference(manifest.embeddings, "notice embedding data");
 	const bytes = await store.read(manifest.embeddings.key);
@@ -130,7 +131,7 @@ export async function readNoticeEmbeddingSet(
 		bytes.byteLength !== manifest.embeddings.byteSize ||
 		sha256(bytes) !== manifest.embeddings.sha256
 	) {
-		throw new Error("notice embedding data reference does not match its object");
+		throw new ArtifactValidationError("notice embedding data reference does not match its object");
 	}
 	const embeddings = decodeEmbeddings(bytes, manifest.embeddingCount);
 	return { embeddings, manifest };
@@ -149,13 +150,13 @@ function decodeEmbeddings(bytes: Uint8Array, expectedCount: number): StoredNotic
 	// a time; the verified bytes and resulting vectors need no full text copy.
 	const decoder = new TextDecoder("utf-8", { fatal: true });
 	const data = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-	if (data.at(-1) !== 10) throw new Error("notice embedding NDJSON must end with a newline");
+	if (data.at(-1) !== 10) throw new ArtifactValidationError("notice embedding NDJSON must end with a newline");
 	const seen = new Set<Sha256Ref>();
 	const result: StoredNoticeEmbedding[] = [];
 	for (let start = 0; start < data.length;) {
 		const end = data.indexOf(10, start);
 		if (end === start || result.length >= expectedCount) {
-			throw new Error("notice embedding data count does not match its manifest");
+			throw new ArtifactValidationError("notice embedding data count does not match its manifest");
 		}
 		const line = decoder.decode(data.subarray(start, end));
 		start = end + 1;
@@ -164,18 +165,18 @@ function decodeEmbeddings(bytes: Uint8Array, expectedCount: number): StoredNotic
 		try {
 			value = JSON.parse(line) as unknown;
 		} catch (error) {
-			throw new Error(`notice embedding record ${index} is not valid JSON`, { cause: error });
+			throw new ArtifactValidationError(`notice embedding record ${index} is not valid JSON`, { cause: error });
 		}
-		if (!isRecord(value)) throw new Error(`notice embedding record ${index} is invalid`);
+		if (!isRecord(value)) throw new ArtifactValidationError(`notice embedding record ${index} is invalid`);
 		assertSha256Ref(value.retrievalTextSha256, `notice embedding record ${index}`);
 		assertValidNoticeEmbeddingVector(value.dense, value.retrievalTextSha256);
 		if (seen.has(value.retrievalTextSha256)) {
-			throw new Error(`notice embedding data repeats retrieval text: ${value.retrievalTextSha256}`);
+			throw new ArtifactValidationError(`notice embedding data repeats retrieval text: ${value.retrievalTextSha256}`);
 		}
 		seen.add(value.retrievalTextSha256);
 		result.push(value as unknown as StoredNoticeEmbedding);
 	}
-	if (result.length !== expectedCount) throw new Error("notice embedding data count does not match its manifest");
+	if (result.length !== expectedCount) throw new ArtifactValidationError("notice embedding data count does not match its manifest");
 	return result;
 }
 
@@ -187,7 +188,7 @@ async function writeAll(fileHandle: FileHandle, bytes: Uint8Array): Promise<void
 	let offset = 0;
 	while (offset < bytes.byteLength) {
 		const result = await fileHandle.write(bytes, offset, bytes.byteLength - offset);
-		if (result.bytesWritten <= 0) throw new Error("notice embedding data file write made no progress");
+		if (result.bytesWritten <= 0) throw new ArtifactValidationError("notice embedding data file write made no progress");
 		offset += result.bytesWritten;
 	}
 }
@@ -199,18 +200,18 @@ function assertObjectReference(value: unknown, label: string): asserts value is 
 		!nonEmptyString(value.key) ||
 		!isSha256Ref(value.sha256)
 	) {
-		throw new Error(`${label} reference is invalid`);
+		throw new ArtifactValidationError(`${label} reference is invalid`);
 	}
 }
 
 function assertModelTarget(value: string): void {
 	if (!/^[0-9a-f]{64}$/u.test(value)) {
-		throw new Error("notice embedding model target SHA-256 is invalid");
+		throw new ArtifactValidationError("notice embedding model target SHA-256 is invalid");
 	}
 }
 
 function assertSha256Ref(value: unknown, label: string): asserts value is Sha256Ref {
-	if (!isSha256Ref(value)) throw new Error(`${label} must be sha256:<64 lowercase hex characters>`);
+	if (!isSha256Ref(value)) throw new ArtifactValidationError(`${label} must be sha256:<64 lowercase hex characters>`);
 }
 
 function isSha256Ref(value: unknown): value is Sha256Ref {
@@ -225,7 +226,7 @@ function parseJson(bytes: Uint8Array, label: string): unknown {
 	try {
 		return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
 	} catch (error) {
-		throw new Error(`${label} is not valid UTF-8 JSON`, { cause: error });
+		throw new ArtifactValidationError(`${label} is not valid UTF-8 JSON`, { cause: error });
 	}
 }
 

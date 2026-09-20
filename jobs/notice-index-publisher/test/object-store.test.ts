@@ -33,6 +33,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 				name: command.constructor.name,
 			};
 			if (command.input.Prefix !== undefined) entry.prefix = command.input.Prefix;
+            if (command.input.VersionId !== undefined) entry.versionId = command.input.VersionId;
 			if (command.input.ContinuationToken !== undefined) {
 				entry.continuationToken = command.input.ContinuationToken;
 			}
@@ -41,7 +42,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 				if (command.input.Body !== undefined) entry.body = command.input.Body;
 			}
 			this.record.commands.push(entry);
-			if (command.constructor.name === "ListObjectsV2Command") {
+			if (["ListObjectsV2Command", "ListObjectVersionsCommand"].includes(command.constructor.name)) {
 				return s3.responses.shift() ?? {};
 			}
 			if (command.constructor.name === "GetObjectCommand") {
@@ -66,6 +67,26 @@ const environment: NoticeObjectStoreEnv = {
 };
 
 describe("notice object store", () => {
+    it("removes all exact-key versions and markers, then verifies removal", async () => {
+        s3.clients.length = 0;
+        s3.responses.length = 0;
+        const key = `notices/rag/embedding-sets/sha256/${"a".repeat(64)}/manifest.json`;
+        s3.responses.push({ Versions: [{ Key: key, VersionId: "first" }, { Key: `${key}.other`, VersionId: "neighbor" }], DeleteMarkers: [{ Key: key, VersionId: "marker" }] }, {});
+        await createNoticeS3ArtifactStore(environment).remove(key);
+        expect(s3.clients[0]?.commands.filter(command => command.name === "DeleteObjectCommand")).toEqual([
+            { bucket: "campus-agent-derived", key, name: "DeleteObjectCommand", versionId: "first" },
+            { bucket: "campus-agent-derived", key, name: "DeleteObjectCommand", versionId: "marker" },
+        ]);
+    });
+    it("does not report cleanup success while versions remain or accept cache keys", async () => {
+        s3.responses.length = 0;
+        const key = `notices/rag/chunk-runs/sha256/${"b".repeat(64)}/chunks.ndjson`;
+        s3.responses.push({}, { Versions: [{ Key: key, VersionId: "remaining" }] });
+        const store = createNoticeS3ArtifactStore(environment);
+        await expect(store.remove(key)).rejects.toThrow("versions remain");
+        await expect(store.remove("notices/rag/embedding-cache/cached.json")).rejects.toThrow("only removes");
+    });
+
 	it.each([
 		"OBJECT_STORE_DERIVED_ACCESS_KEY",
 		"OBJECT_STORE_DERIVED_SECRET_KEY",

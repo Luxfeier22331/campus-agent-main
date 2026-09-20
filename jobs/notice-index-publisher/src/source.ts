@@ -16,12 +16,21 @@ interface NoticeSourceRow {
 
 export async function loadPublishedNoticeSources(
 	pool: Pick<Pool, "connect">,
+	signal?: AbortSignal,
 ): Promise<NoticeSource[]> {
+	signal?.throwIfAborted();
 	const client = await pool.connect();
+	let released = false;
+	const abort = () => { if (!released) { released = true; client.release(true); } };
+	signal?.addEventListener("abort", abort, { once: true });
 	try {
-		return await loadInSnapshot(client);
+		signal?.throwIfAborted();
+		const sources = await loadInSnapshot(client);
+		signal?.throwIfAborted();
+		return sources;
 	} finally {
-		client.release();
+		signal?.removeEventListener("abort", abort);
+		if (!released) client.release();
 	}
 }
 
@@ -52,7 +61,7 @@ async function loadInSnapshot(client: PoolClient): Promise<NoticeSource[]> {
 		await client.query("COMMIT");
 		return sources;
 	} catch (error) {
-		await client.query("ROLLBACK");
+		await client.query("ROLLBACK").catch(() => undefined);
 		throw error;
 	}
 }

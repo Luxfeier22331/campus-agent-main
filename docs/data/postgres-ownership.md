@@ -60,7 +60,7 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
-| `campus_docs_serving.current_index` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher、execution-control Campus Search |
+| `campus_docs_serving.current_index`、`index_versions` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher、execution-control Campus Search |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `transport.*` | Ops Web；空库 baseline 由 Ops Web bootstrap 写入 | App API 公开 projection、Ops Web |
@@ -202,6 +202,10 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 - `execution_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
   但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；统一 Campus RAG publisher 和在线
   Campus Search 复用该身份，前者负责激活当前绑定，后者只读取当前绑定；Docs/Notice builder 不访问该表；
+- Campus RAG publisher 与离线 worker 复用 `execution_control` 维护 `index_versions`，登记真实制品引用、
+  生产者及校验、激活、退休时间；`current_index.previous_collection` 保护上一版本。Ops 和本地数据导出
+  只读版本目录。目录不是调度状态副本，自动清理只有确认独占产物已删除后才移除退休版本；
+- `notices.processing_failures` 由分类和发布 Job 写入，Ops 只读及删除用于人工分类修复，App API 无权限；
 - `model_config.model_configs` 可以为空或只配置一个 name；schema 安装不把业务配置完整性
   变成部署门禁。缺失 name 由其消费路径失败关闭。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，

@@ -138,13 +138,14 @@ import {
 	providerConfigAdminErrorResponse,
 	registerModelSettingsRoutes,
 } from "./routes/model-settings.ts";
-import { registerNoticeAutomationRoutes } from "./routes/notice-automation.ts";
 import { registerNoticePreviewRoutes } from "./routes/notice-preview.ts";
 import { registerNoticeRoutes } from "./routes/notices.ts";
 import { registerObservabilityRoutes, registerOverviewRoute } from "./routes/observability.ts";
 import { registerOcrRoutes } from "./routes/ocr.ts";
+import { registerTaskRoutes } from "./routes/tasks.ts";
 import { registerTransportRoutes } from "./routes/transport.ts";
 import { logOpsError } from "./safe-logging.ts";
+import { createTaskService } from "./tasks.ts";
 import { createPgTransportStore } from "./transport-store.ts";
 import type { TransportStore } from "./transport-store-contract.ts";
 import {
@@ -155,6 +156,8 @@ import {
 } from "./transport-store-errors.ts";
 
 interface OpsHealthEnv {
+	TEMPORAL_ADDRESS?: string;
+	TEMPORAL_NAMESPACE?: string;
 	OPS_WEB_KUBERNETES_NAMESPACE?: string;
 	OPS_WEB_AUTOMATION_ORIGIN?: string;
 	OPS_WEB_PUBLIC_ORIGIN?: string;
@@ -607,18 +610,27 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	registerEmailAccessRoutes({ admission, app, client: emailAccessClient, publicOrigin });
 	registerObservabilityRoutes({ admission, app, store });
 	registerCampusGroupsRoutes({ admission, app, client: campusGroupsClient, publicOrigin });
-	registerNoticeAutomationRoutes({
+	const collectionAutomation =
+		options.noticeAutomationService ??
+		createNoticeAutomationService({
+			local: isLocalOpsEnvironment(env),
+			namespace: env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default",
+			source: options.noticePreviewStore ?? createNoticePreviewStore(env),
+			credentials: internalPortalCredentialService,
+		});
+	registerTaskRoutes({
 		admission,
 		app,
-		service:
-			options.noticeAutomationService ??
-			createNoticeAutomationService({
-				local: isLocalOpsEnvironment(env),
-				namespace: env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default",
-				source: options.noticePreviewStore ?? createNoticePreviewStore(env),
-				credentials: internalPortalCredentialService,
-			}),
+		service: createTaskService({
+			local: isLocalOpsEnvironment(env),
+			namespace: env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default",
+			env,
+			jobs: noticeJobService,
+			collection: collectionAutomation,
+			...(databasePool ? { pool: databasePool } : {}),
+		}),
 	});
+
 	registerNoticeRoutes({ admission, app, jobService: noticeJobService, store: noticeStore });
 	registerNoticePreviewRoutes({
 		admission,

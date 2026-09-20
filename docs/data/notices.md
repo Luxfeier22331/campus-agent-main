@@ -113,6 +113,14 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 显式单条分类可以覆盖已有值。`unclassified` 是合法分类，不等于待分类。本地 JSONL 输出只用于开发和
 模型比较，不作为 publisher 输入。分类完成不表示通知已发布。
 
+## 当前处理问题
+
+`notices.processing_failures` 以 `(notice_id, stage)` 为主键，stage 为 classification 或 publication，
+保存当前错误类型、原始错误和发生时间，不保存执行历史。自动批次排除对应阶段的问题；显式单条重试
+仍可处理，业务写入成功后在同一事务中清除问题。有效人工分类修改同时清除分类问题。
+模型输出或来源数据错误隔离到单条，基础设施错误终止本轮，Ops `/tasks` 展示问题数量并链接通知维护。
+分类、发布的手动与定时入口共用各自数据库会话锁；锁忙返回 skipped，锁失效停止接新工作。
+
 ## 规范化投影
 
 ### PostgreSQL

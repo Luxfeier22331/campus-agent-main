@@ -15,3 +15,7 @@
 - 离线分类与模型评测：`scripts/notices/README.md`
 - 模型配置所有权：`docs/environment/providers.md`
 - 通知数据：`docs/data/notices.md`
+
+自动批次排除 `notices.processing_failures` 中的分类问题，模型输出无效时记录当前问题并继续其他通知；
+连接、供应商等基础设施错误终止本轮。显式单条重试成功或 Ops 人工修改有效分类时原子清除问题。
+CLI 与本地入口共用分类会话锁，已被占用时输出 `skipped`，不计作分类成功。

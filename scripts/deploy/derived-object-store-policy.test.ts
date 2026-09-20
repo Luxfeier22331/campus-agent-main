@@ -212,3 +212,24 @@ test("bootstrap provisions only source and derived identities without dining-spe
 		rmSync(directory, { recursive: true, force: true });
 	}
 });
+
+test("automatic Notice RAG cleanup can remove versioned artifacts while caches and sources stay protected", () => {
+	for (const prefix of ["chunk-runs", "embedding-data", "embedding-sets"]) {
+		const key = `notices/rag/${prefix}/sha256/id/manifest.json`;
+		assert(allows("derived-policy.json", "s3:ListBucketVersions", bucket, key));
+		for (const action of ["DeleteObject", "DeleteObjectVersion"]) {
+			assert(allows("derived-policy.json", `s3:${action}`, `${bucket}/${key}`));
+		}
+	}
+	for (const key of [
+		"notices/rag/embedding-cache/cache.json",
+		"notices/assets/sha256/file",
+		"docs/rag/manifest.json",
+	]) {
+		assert.equal(allows("derived-policy.json", "s3:ListBucketVersions", bucket, key), false);
+		assert.equal(
+			allows("derived-policy.json", "s3:DeleteObjectVersion", `${bucket}/${key}`),
+			false,
+		);
+	}
+});
