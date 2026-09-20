@@ -4,18 +4,14 @@ import type {
 	DiningSubmission,
 } from "@campus-agent/dining/domain";
 import {
-	AlertDialog,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
+	ActionGroup,
 	Button,
-	Label,
+	ConfirmDialog,
+	Field,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
+	StateMessage,
 	Textarea,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -169,6 +165,7 @@ function DiningSubmissionSheetContent(props: {
 						</div>
 					) : props.own && ownQuery.data ? (
 						<OwnSubmissionContent
+							fallbackFocusRef={titleRef}
 							submission={ownQuery.data.submission}
 							windowName={props.windowName(ownQuery.data.submission.windowId)}
 							onRefresh={() => ownQuery.refetch()}
@@ -272,14 +269,10 @@ function PublicSubmissionContent({
 				) : null}
 			</div>
 			{resumeMessage ? (
-				<p role="status" className="text-sm text-muted-foreground">
-					{resumeMessage}
-				</p>
+				<StateMessage layout="inline" role="status" description={resumeMessage} />
 			) : null}
 			{report.isSuccess ? (
-				<p className="text-sm text-muted-foreground" role="status">
-					举报已提交。
-				</p>
+				<StateMessage layout="inline" role="status" description={<>举报已提交。</>} />
 			) : null}
 			{reportOpen ? (
 				<form
@@ -294,42 +287,51 @@ function PublicSubmissionContent({
 					}}
 				>
 					<h3 className="text-sm font-semibold">举报投稿</h3>
-					<Label htmlFor="submission-report-reason">原因</Label>
-					<AdaptiveSelect
-						id="submission-report-reason"
-						onValueChange={(value) => setReason(value as DiningReportReason)}
-						options={[
-							{ label: "垃圾信息", value: "spam" },
-							{ label: "不当内容", value: "inappropriate" },
-							{ label: "隐私泄露", value: "privacy" },
-							{ label: "其他", value: "other" },
-						]}
-						value={reason}
-					/>
-					<Label htmlFor="submission-report-details">补充说明</Label>
-					<Textarea
-						id="submission-report-details"
-						maxLength={300}
-						value={details}
-						onChange={(event) => setDetails(event.target.value)}
-					/>
+					<Field label={<> 原因 </>} id="submission-report-reason">
+						<AdaptiveSelect
+							id="submission-report-reason"
+							onValueChange={(value) => setReason(value as DiningReportReason)}
+							options={[
+								{ label: "垃圾信息", value: "spam" },
+								{ label: "不当内容", value: "inappropriate" },
+								{ label: "隐私泄露", value: "privacy" },
+								{ label: "其他", value: "other" },
+							]}
+							value={reason}
+						/>
+					</Field>
+					<Field label={<> 补充说明 </>} id="submission-report-details">
+						<Textarea
+							id="submission-report-details"
+							maxLength={300}
+							value={details}
+							onChange={(event) => setDetails(event.target.value)}
+						/>
+					</Field>
 					{report.isError ? (
-						<p className="text-sm text-destructive" role="alert">
-							{submissionErrorMessage(report.error)}
-						</p>
+						<StateMessage
+							layout="inline"
+							role="alert"
+							tone="danger"
+							description={submissionErrorMessage(report.error)}
+						/>
 					) : null}
-					<div className="flex gap-2">
+					<ActionGroup>
 						<Button disabled={report.isPending} type="submit">
 							{report.isPending ? "提交中" : "提交举报"}
 						</Button>
 						<Button type="button" variant="outline" onClick={() => setReportOpen(false)}>
 							取消
 						</Button>
-					</div>
+					</ActionGroup>
 				</form>
 			) : null}
 			{reviewsOpen ? (
-				<Suspense fallback={<p role="status">正在打开评价</p>}>
+				<Suspense
+					fallback={
+						<StateMessage layout="inline" role="status" description={<> 正在打开评价 </>} />
+					}
+				>
 					<DiningReviewSheet
 						item={submission}
 						open
@@ -343,10 +345,12 @@ function PublicSubmissionContent({
 }
 
 function OwnSubmissionContent({
+	fallbackFocusRef,
 	submission,
 	windowName,
 	onRefresh,
 }: {
+	fallbackFocusRef: import("react").RefObject<HTMLElement | null>;
 	submission: DiningMySubmission;
 	windowName: string;
 	onRefresh(): Promise<unknown>;
@@ -422,73 +426,53 @@ function OwnSubmissionContent({
 					<Button onClick={() => setEditing(submission)}>编辑投稿</Button>
 				) : null}
 				{submission.canDelete ? (
-					<AlertDialog
+					<ConfirmDialog
+						fallbackFocusRef={fallbackFocusRef}
 						open={deleting}
 						onOpenChange={(open) => {
-							if (!remove.isPending) {
-								setDeleting(open);
-								if (open) {
-									remove.reset();
-								}
+							setDeleting(open);
+							if (open) {
+								remove.reset();
 							}
 						}}
-					>
-						<AlertDialogTrigger asChild>
+						title="删除这条投稿？"
+						description="投稿及其评价将停止公开，仍计入今日新增数量。保留 30 天，期间仅内容维护人员可以恢复；到期后清理。"
+						confirmLabel="确认删除"
+						pendingLabel="正在删除"
+						pending={remove.isPending}
+						confirmDisabled={conflict}
+						trigger={
 							<Button variant="outline" disabled={remove.isPending}>
 								删除投稿
 							</Button>
-						</AlertDialogTrigger>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>删除这条投稿？</AlertDialogTitle>
-								<AlertDialogDescription>
-									投稿及其评价将停止公开，仍计入今日新增数量。保留 30
-									天，期间仅内容维护人员可以恢复；到期后清理。
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							{remove.isError ? (
-								<p className="text-sm text-destructive" role="alert">
-									{conflict
-										? "投稿已发生变化，请重新读取当前状态后确认。"
-										: submissionErrorMessage(remove.error)}
-								</p>
-							) : null}
-							<AlertDialogFooter>
-								<Button
-									disabled={remove.isPending}
-									variant="outline"
-									onClick={() => setDeleting(false)}
-								>
-									取消
-								</Button>
-								{conflict ? (
-									<Button
-										variant="outline"
-										onClick={() => {
-											setDeleting(false);
-											remove.reset();
-											void onRefresh();
-										}}
-									>
-										重新读取当前状态
-									</Button>
-								) : (
-									<Button
-										disabled={remove.isPending}
-										variant="destructive"
-										onClick={() =>
-											remove.mutate({
-												submissionId: submission.submissionId,
-												revision: submission.revision,
-											})
-										}
-									>
-										{remove.isPending ? "正在删除" : "确认删除"}
-									</Button>
-								)}
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
+						}
+						onConfirm={() =>
+							remove.mutate({
+								submissionId: submission.submissionId,
+								revision: submission.revision,
+							})
+						}
+						error={
+							remove.isError
+								? conflict
+									? "投稿已发生变化，请重新读取当前状态后确认。"
+									: submissionErrorMessage(remove.error)
+								: null
+						}
+					>
+						{conflict ? (
+							<Button
+								variant="outline"
+								onClick={() => {
+									setDeleting(false);
+									remove.reset();
+									void onRefresh();
+								}}
+							>
+								重新读取当前状态
+							</Button>
+						) : null}
+					</ConfirmDialog>
 				) : null}
 				{current?.status === "public" && current.windowAvailable ? (
 					<Button asChild variant="outline">

@@ -9,6 +9,10 @@ Status: implemented
 
 ## 决策
 
+引用语法由 Goldmark CommonMark/GFM AST 决定，只在原始文本片段内识别数字分组。
+这修复了手写扫描把相邻裸编号误认作参考链接的问题；有真实定义的参考链接仍是链接。
+不渲染或重新序列化整段正文，继续使用原始字节位置替换；Go 与前端共享 Markdown 用例。
+
 - 复用 operation SSE、execution-control 持久事件和 App API 回放。Runtime 从实际工具生命周期产生
   校内检索状态，Executor 流仅交付状态与终态，不向学生展示步骤摘要。
 - 同类并行调用在 operation 内归并；队列、候选来源和最终 grounding 不充当开始信号。诊断仍独立，

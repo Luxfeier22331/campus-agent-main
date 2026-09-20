@@ -3,6 +3,7 @@ packages:
   - "jobs/*"
   - "packages/*"
   - "packages/domains/*"
+  - "scripts"
 
 overrides:
   # 本节是 override 的唯一当前清单。上游依赖图不再请求对应范围后才能删除条目，

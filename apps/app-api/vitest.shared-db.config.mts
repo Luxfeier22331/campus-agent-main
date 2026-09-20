@@ -10,6 +10,7 @@ export default defineProject({
 		maxWorkers: 1,
 		testTimeout: 60_000,
 		include: [
+			"test/transport-postgres.integration.test.ts",
 			"test/account-admin-postgres.integration.test.ts",
 			"test/chat-feedback-postgres.integration.test.ts",
 			"test/account-journeys-postgres.integration.test.ts",

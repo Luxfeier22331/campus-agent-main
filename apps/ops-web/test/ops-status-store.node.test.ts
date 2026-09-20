@@ -534,6 +534,91 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
+	it.each(["completed", "running", "skipped", "missing"])(
+		"does not promote historical attempt failures when the current stage is %s",
+		async (status) => {
+			const stepId = "memory.append";
+			const db = createFakeOpsDb({
+				diagnostics: runDiagnostics({
+					steps:
+						status === "missing"
+							? []
+							: [
+									runStepRow({
+										stepId,
+										stepKind: "memory",
+										activityAttempt: 2,
+										status,
+										sanitizedPayloadJson: { status },
+									}),
+								],
+					attempts: [
+						runAttemptRow({
+							stepId,
+							activityAttempt: 1,
+							status: "failed",
+							sanitizedPayloadJson: {
+								failure: { code: "hindsight_append_failed", operation: stepId },
+							},
+						}),
+					],
+				}),
+			});
+			const detail = await createPgOpsStatusStore({ db, now: () => now }).getRequestDetail(
+				"req_pg_001",
+			);
+			expect(detail?.execution.failure).toEqual({
+				code: null,
+				detail: null,
+				operation: null,
+				httpStatus: null,
+				invocationId: null,
+				reason: null,
+				citation: null,
+				citationState: "not_recorded",
+			});
+			expect(detail?.execution.stages.every((stage) => stage.failure === null)).toBe(true);
+		},
+	);
+
+	it("keeps another current stage failure after memory recovers", async () => {
+		const db = createFakeOpsDb({
+			diagnostics: runDiagnostics({
+				steps: [
+					runStepRow({ stepId: "memory.append", activityAttempt: 2, sanitizedPayloadJson: {} }),
+					runStepRow({
+						stepId: "tool.call",
+						status: "failed",
+						sanitizedPayloadJson: {
+							failure: { code: "agent_tool_failed", operation: "tool.call" },
+						},
+					}),
+				],
+				attempts: [
+					runAttemptRow({
+						stepId: "memory.append",
+						status: "failed",
+						sanitizedPayloadJson: {
+							failure: {
+								code: "hindsight_append_failed",
+								operation: "memory.append",
+								detail: "Old failure",
+							},
+						},
+					}),
+				],
+			}),
+		});
+		const detail = await createPgOpsStatusStore({ db, now: () => now }).getRequestDetail(
+			"req_pg_001",
+		);
+		expect(detail?.execution.failure).toMatchObject({
+			code: "agent_tool_failed",
+			operation: "tool.call",
+			detail: null,
+		});
+	});
+
 	it("projects attempt-level failures without inventing model activity", async () => {
 		const db = createFakeOpsDb({
 			diagnostics: runDiagnostics({

@@ -1,5 +1,5 @@
 import {
-	selectTransportPeriod,
+	createTransportPeriodSelector,
 	type TransportPublicDeparture,
 	type TransportPublicNotice,
 	TransportPublicNoticeSchema,
@@ -10,7 +10,6 @@ import {
 	type TransportRouteInput,
 	TransportRouteInputSchema,
 	type TransportScheduleItem,
-	TransportScheduleItemSchema,
 	type TransportSchedulePeriodInput,
 	TransportSchedulePeriodInputSchema,
 	transportDateRange,
@@ -20,7 +19,7 @@ import {
 	transportScheduleItems,
 	transportSchedulePeriods,
 } from "@campus-agent/transport/schema";
-import { asc, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import type { RuntimeDatabase, RuntimeDbGetter } from "../../db/runtime";
 import { AppApiRouteError } from "../../http";
 
@@ -38,8 +37,8 @@ export interface TransportScheduleService {
 	): Promise<TransportPublicScheduleRange>;
 }
 
-type RouteRow = typeof transportRoutes.$inferSelect;
-type PeriodRow = typeof transportSchedulePeriods.$inferSelect;
+type RouteRow = Omit<typeof transportRoutes.$inferSelect, "createdAt" | "updatedAt" | "updatedBy">;
+type PeriodRow = Omit<typeof transportSchedulePeriods.$inferSelect, "createdAt" | "updatedBy">;
 type ItemRow = typeof transportScheduleItems.$inferSelect;
 
 interface ParsedRoute {
@@ -59,38 +58,53 @@ export function createPgTransportScheduleService(options: {
 	return {
 		async getSchedule(date, options) {
 			const db = await getDb();
-			const schedules = await loadSchedules(db);
-			const notices = await loadNotices(db, schedules, options?.includeNotices ?? false);
-			return projectSchedule(schedules, date, notices, options?.includeNotices ?? false);
+			const schedules = await loadSchedules(db, date);
+			const response = projectSchedule(schedules, date, options?.includeNotices ?? false);
+			await attachNotices(db, schedules, [response], options?.includeNotices ?? false);
+			const parsed = TransportPublicScheduleResponseSchema.safeParse(response);
+			if (!parsed.success) {
+				throw projectionError("班车公开投影无效。", parsed.error.flatten());
+			}
+			return parsed.data;
 		},
 		async getRange(from, to, options) {
 			const dates = transportDateRange(from, to);
 			const db = await getDb();
-			const schedules = await loadSchedules(db);
-			const notices = await loadNotices(db, schedules, options?.includeNotices ?? false);
+			const schedules = await loadSchedules(db, from);
 			const days = dates.map((date) =>
-				projectSchedule(schedules, date, notices, options?.includeNotices ?? false),
+				projectSchedule(schedules, date, options?.includeNotices ?? false),
 			);
-			return TransportPublicScheduleRangeSchema.parse({ from, to, days });
+			await attachNotices(db, schedules, days, options?.includeNotices ?? false);
+			const parsed = TransportPublicScheduleRangeSchema.safeParse({ from, to, days });
+			if (!parsed.success) {
+				throw projectionError("班车公开投影无效。", parsed.error.flatten());
+			}
+			return parsed.data;
 		},
 	};
 }
 
-async function loadNotices(
+async function attachNotices(
 	db: RuntimeDatabase,
-	{ periodsByRoute }: Awaited<ReturnType<typeof loadSchedules>>,
+	{ selectors }: Awaited<ReturnType<typeof loadSchedules>>,
+	days: TransportPublicScheduleResponse[],
 	includeNotices: boolean,
 ) {
+	if (!includeNotices) {
+		return;
+	}
 	const ids = new Set<string>();
-	for (const periods of periodsByRoute.values()) {
-		for (const period of periods) {
-			ids.add(period.scheduleId);
+	for (const day of days) {
+		for (const route of day.routes) {
+			const period = selectors.get(route.routeId)?.(day.date);
+			if (period) {
+				ids.add(period.scheduleId);
+			}
 		}
 	}
 	const grouped = new Map<string, TransportPublicNotice[]>();
-	const sourceReleasedAt = new Map<string, string>();
 	if (ids.size === 0) {
-		return { grouped, sourceReleasedAt };
+		return;
 	}
 	const result = await db.execute<{
 		schedule_id: string;
@@ -100,7 +114,7 @@ async function loadNotices(
 		is_external: boolean;
 		external_url: string | null;
 	}>(sql`
-		SELECT l.schedule_id, n.released_at ${includeNotices ? sql`, n.notice_id::text, n.title, n.is_external, n.external_url` : sql``}
+			SELECT l.schedule_id, n.released_at, n.notice_id::text, n.title, n.is_external, n.external_url
 		FROM transport.schedule_period_notices l
 		JOIN notices.notices n ON n.notice_id = l.notice_id
 		WHERE l.schedule_id IN (${sql.join(
@@ -112,13 +126,6 @@ async function loadNotices(
 	`);
 	for (const row of result.rows) {
 		const releasedAt = new Date(row.released_at).toISOString();
-		const currentSource = sourceReleasedAt.get(row.schedule_id);
-		if (!currentSource || releasedAt > currentSource) {
-			sourceReleasedAt.set(row.schedule_id, releasedAt);
-		}
-		if (!includeNotices) {
-			continue;
-		}
 		const notices = grouped.get(row.schedule_id) ?? [];
 		notices.push(
 			TransportPublicNoticeSchema.parse({
@@ -131,81 +138,138 @@ async function loadNotices(
 		);
 		grouped.set(row.schedule_id, notices);
 	}
-	return { grouped, sourceReleasedAt };
+	for (const day of days) {
+		for (const route of day.routes) {
+			const period = selectors.get(route.routeId)?.(day.date);
+			if (route.noticeContext && period) {
+				route.noticeContext.notices = grouped.get(period.scheduleId) ?? [];
+			}
+		}
+	}
 }
 
-async function loadSchedules(db: RuntimeDatabase) {
-	const [routeRows, periodRows, itemRows] = await Promise.all([
-		db
-			.select()
-			.from(transportRoutes)
-			.orderBy(asc(transportRoutes.displayOrder), asc(transportRoutes.routeId)),
-		db
-			.select()
-			.from(transportSchedulePeriods)
-			.orderBy(asc(transportSchedulePeriods.routeId), asc(transportSchedulePeriods.validFrom)),
-		db
-			.select()
-			.from(transportScheduleItems)
-			.orderBy(
-				asc(transportScheduleItems.scheduleId),
-				asc(transportScheduleItems.sortOrder),
-				asc(transportScheduleItems.itemId),
-			),
-	]);
-
-	const routes = routeRows.map(parseRoute);
-	const itemsBySchedule = groupItems(itemRows);
+async function loadSchedules(db: RuntimeDatabase, from: string) {
+	const r = transportRoutes;
+	const p = transportSchedulePeriods;
+	const i = transportScheduleItems;
+	const rows = await db
+		.select({
+			route: {
+				routeId: r.routeId,
+				boardingGuide: r.boardingGuide,
+				defaultBoardingPoint: r.defaultBoardingPoint,
+				dropOffPoint: r.dropOffPoint,
+				destination: r.destination,
+				displayOrder: r.displayOrder,
+				origin: r.origin,
+				serviceKind: r.serviceKind,
+			},
+			period: {
+				scheduleId: p.scheduleId,
+				routeId: p.routeId,
+				boardingPointOverride: p.boardingPointOverride,
+				dropOffPointOverride: p.dropOffPointOverride,
+				note: p.note,
+				status: p.status,
+				updatedAt: p.updatedAt,
+				validFrom: p.validFrom,
+				validTo: p.validTo,
+				weekdays: p.weekdays,
+			},
+			item: {
+				itemId: i.itemId,
+				scheduleId: i.scheduleId,
+				boardingPoint: i.boardingPoint,
+				capacity: i.capacity,
+				departureTime: i.departureTime,
+				firstDepartureTime: i.firstDepartureTime,
+				intervalMinutes: i.intervalMinutes,
+				kind: i.kind,
+				lastDepartureTime: i.lastDepartureTime,
+				note: i.note,
+				riderType: i.riderType,
+				sortOrder: i.sortOrder,
+			},
+		})
+		.from(r)
+		.leftJoin(p, and(eq(p.routeId, r.routeId), or(isNull(p.validTo), gte(p.validTo, from))))
+		.leftJoin(i, eq(i.scheduleId, p.scheduleId))
+		.orderBy(
+			asc(r.displayOrder),
+			asc(r.routeId),
+			desc(p.validFrom),
+			asc(p.validTo),
+			desc(p.updatedAt),
+			asc(p.scheduleId),
+			asc(i.sortOrder),
+			asc(i.itemId),
+		);
+	const routeRows = new Map<string, RouteRow>();
+	const periodRows = new Map<string, PeriodRow>();
+	const itemsBySchedule = new Map<string, ItemRow[]>();
+	for (const row of rows) {
+		routeRows.set(row.route.routeId, row.route);
+		if (row.period) {
+			periodRows.set(row.period.scheduleId, row.period);
+		}
+		if (row.item) {
+			const items = itemsBySchedule.get(row.item.scheduleId) ?? [];
+			items.push(row.item);
+			itemsBySchedule.set(row.item.scheduleId, items);
+		}
+	}
+	const routes = [...routeRows.values()].map(parseRoute);
 	const periodsByRoute = new Map<string, ParsedPeriod[]>();
-	for (const row of periodRows) {
+	for (const row of periodRows.values()) {
 		const period = parsePeriod(row, itemsBySchedule.get(String(row.scheduleId)) ?? []);
 		const periods = periodsByRoute.get(period.input.routeId) ?? [];
 		periods.push(period);
 		periodsByRoute.set(period.input.routeId, periods);
 	}
 
-	return { routes, periodsByRoute };
+	const selectors = new Map(
+		[...periodsByRoute].map(([routeId, periods]) => [
+			routeId,
+			createTransportPeriodSelector(periods.map((period) => ({ ...period, ...period.input }))),
+		]),
+	);
+	const nextServiceDates = new Map(
+		[...periodsByRoute].map(([routeId, periods]) => [
+			routeId,
+			createNextServiceDate(periods, selectors.get(routeId) ?? (() => null)),
+		]),
+	);
+	return { routes, selectors, nextServiceDates };
 }
 
 function projectSchedule(
-	{ routes, periodsByRoute }: Awaited<ReturnType<typeof loadSchedules>>,
+	{ routes, selectors, nextServiceDates }: Awaited<ReturnType<typeof loadSchedules>>,
 	date: string,
-	notices?: Awaited<ReturnType<typeof loadNotices>>,
 	includeNotices = false,
 ): TransportPublicScheduleResponse {
-	const sourceReleasedAt = notices?.sourceReleasedAt;
 	const response: TransportPublicScheduleResponse = {
 		date,
 		routeCatalog: routes.map(({ input: { displayOrder: _order, ...route } }) => ({
 			...route,
 			dropOffPoint:
-				selectPeriod(periodsByRoute.get(route.routeId) ?? [], date, sourceReleasedAt)?.input
-					.dropOffPointOverride ?? route.dropOffPoint,
-			nextServiceDate: nextServiceDate(
-				periodsByRoute.get(route.routeId) ?? [],
-				date,
-				sourceReleasedAt,
-			),
+				selectors.get(route.routeId)?.(date)?.input.dropOffPointOverride ?? route.dropOffPoint,
+			nextServiceDate: nextServiceDates.get(route.routeId)?.(date) ?? null,
 		})),
 		routes: [],
 	};
 	for (const route of routes) {
-		const period = selectPeriod(
-			periodsByRoute.get(route.input.routeId) ?? [],
-			date,
-			sourceReleasedAt,
-		);
+		const period = selectors.get(route.input.routeId)?.(date);
 		if (!period) {
 			continue;
 		}
 		response.routes.push({
-			...(notices && includeNotices
+			...(includeNotices
 				? {
 						noticeContext: {
 							validFrom: period.input.validFrom,
 							validTo: period.input.validTo,
 							weekdays: period.input.weekdays,
-							notices: notices.grouped.get(period.scheduleId) ?? [],
+							notices: [],
 						},
 					}
 				: {}),
@@ -230,11 +294,7 @@ function projectSchedule(
 		});
 	}
 
-	const parsed = TransportPublicScheduleResponseSchema.safeParse(response);
-	if (!parsed.success) {
-		throw projectionError("班车公开投影无效。", parsed.error.flatten());
-	}
-	return parsed.data;
+	return response;
 }
 
 function parseRoute(row: RouteRow): ParsedRoute {
@@ -282,11 +342,11 @@ function parsePeriod(row: PeriodRow, rows: readonly ItemRow[]): ParsedPeriod {
 	}
 }
 
-function parseItem(row: ItemRow): TransportScheduleItem {
+function parseItem(row: ItemRow) {
 	try {
 		const kind = String(row.kind);
 		if (kind === "fixed") {
-			return TransportScheduleItemSchema.parse({
+			return {
 				boardingPoint: nullableText(row.boardingPoint),
 				capacity: row.capacity ?? null,
 				departureTime: requiredText(row.departureTime, "固定班次时间"),
@@ -294,10 +354,10 @@ function parseItem(row: ItemRow): TransportScheduleItem {
 				note: nullableText(row.note),
 				riderType: row.riderType,
 				sortOrder: row.sortOrder,
-			});
+			};
 		}
 		if (kind === "interval") {
-			return TransportScheduleItemSchema.parse({
+			return {
 				boardingPoint: nullableText(row.boardingPoint),
 				capacity: row.capacity ?? null,
 				firstDepartureTime: requiredText(row.firstDepartureTime, "首班时间"),
@@ -307,7 +367,7 @@ function parseItem(row: ItemRow): TransportScheduleItem {
 				note: nullableText(row.note),
 				riderType: row.riderType,
 				sortOrder: row.sortOrder,
-			});
+			};
 		}
 		throw new Error(`未知班次类型: ${kind}`);
 	} catch (error) {
@@ -315,62 +375,39 @@ function parseItem(row: ItemRow): TransportScheduleItem {
 	}
 }
 
-function groupItems(rows: readonly ItemRow[]): Map<string, ItemRow[]> {
-	const grouped = new Map<string, ItemRow[]>();
-	for (const row of rows) {
-		const scheduleId = String(row.scheduleId);
-		const items = grouped.get(scheduleId) ?? [];
-		items.push(row);
-		grouped.set(scheduleId, items);
-	}
-	return grouped;
-}
-
-function selectPeriod(
+function createNextServiceDate(
 	periods: readonly ParsedPeriod[],
-	date: string,
-	sourceReleasedAt?: ReadonlyMap<string, string>,
-): ParsedPeriod | null {
-	return selectTransportPeriod(
-		periods.map((period) => ({
-			...period,
-			...period.input,
-			sourceReleasedAt: sourceReleasedAt?.get(period.scheduleId) ?? null,
-		})),
-		date,
-	);
-}
-
-function nextServiceDate(
-	periods: readonly ParsedPeriod[],
-	date: string,
-	sourceReleasedAt?: ReadonlyMap<string, string>,
-): string | null {
+	select: (date: string) => ParsedPeriod | null,
+) {
 	// Between period boundaries the winning schedule repeats weekly. Check one week
 	// per segment, including the final unbounded segment, rather than scanning days indefinitely.
-	const boundaries = new Set([date]);
+	const boundaries = new Set<string>();
 	for (const { input } of periods) {
-		if (input.validFrom > date) {
-			boundaries.add(input.validFrom);
-		}
-		if (input.validTo !== null && input.validTo >= date) {
+		boundaries.add(input.validFrom);
+		if (input.validTo !== null) {
 			boundaries.add(addDays(input.validTo, 1));
 		}
 	}
-	const starts = [...boundaries].sort();
-	for (const [index, start] of starts.entries()) {
-		const end = starts[index + 1];
-		for (let offset = 0; offset < 7; offset++) {
-			const candidate = addDays(start, offset);
-			if (end && candidate >= end) {
-				break;
-			}
-			if (selectPeriod(periods, candidate, sourceReleasedAt)?.input.status === "operating") {
-				return candidate;
+	const sorted = [...boundaries].sort();
+	return (date: string): string | null => {
+		if (select(date)?.input.status === "operating") {
+			return date;
+		}
+		const starts = [date, ...sorted.filter((boundary) => boundary > date)];
+		for (const [index, start] of starts.entries()) {
+			const end = starts[index + 1];
+			for (let offset = 0; offset < 7; offset++) {
+				const candidate = addDays(start, offset);
+				if (end && candidate >= end) {
+					break;
+				}
+				if (select(candidate)?.input.status === "operating") {
+					return candidate;
+				}
 			}
 		}
-	}
-	return null;
+		return null;
+	};
 }
 
 function addDays(date: string, amount: number): string {

@@ -41,6 +41,10 @@ function writeTurboFixture(root: string, outputLogs?: string): void {
 			"native:typecheck",
 			"test",
 			"test:worker",
+			"test:node:fast",
+			"test:node:isolated",
+			"test:dom:fast",
+			"test:dom:isolated",
 			"typecheck",
 		].map((taskName) => [
 			taskName,
@@ -122,11 +126,11 @@ test("parses Turbo JSON after an informational prefix", () => {
 			[
 				"• turbo 2.10.10",
 				JSON.stringify({
-					tasks: [{ command: "vitest", package: "campus-web", task: "test" }],
+					tasks: [{ command: "vitest", package: "campus-web", task: "test:dom:fast" }],
 				}),
 			].join("\n"),
 		),
-		[{ package: "campus-web", task: "test" }],
+		[{ package: "campus-web", task: "test:dom:fast" }],
 	);
 });
 
@@ -142,7 +146,7 @@ test("validates ancestry, reads the diff once, and uses the lockfile Turbo", () 
 		if (command === "pnpm") {
 			return result({
 				stdout: JSON.stringify({
-					tasks: [{ command: "vitest", package: "campus-web", task: "test" }],
+					tasks: [{ command: "vitest", package: "campus-web", task: "test:dom:fast" }],
 				}),
 			});
 		}
@@ -157,7 +161,7 @@ test("validates ancestry, reads the diff once, and uses the lockfile Turbo", () 
 			base: BASE,
 			changedFiles: ["apps/campus-web/src/app.tsx"],
 			head: HEAD,
-			tasks: [{ package: "campus-web", task: "test" }],
+			tasks: [{ package: "campus-web", task: "test:dom:fast" }],
 		},
 	);
 	assert.equal(calls.filter(({ args }) => args[0] === "diff").length, 1);

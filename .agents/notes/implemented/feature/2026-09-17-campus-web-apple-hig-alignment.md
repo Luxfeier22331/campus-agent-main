@@ -10,6 +10,10 @@ sheet 无拖拽关闭。食堂是首个对齐目标，但基线改动落在 pack
 
 ## 决策
 
+Campus 与 Ops 的确认框、浮层、状态、字段、操作组和卡片共用 UI primitives。
+ConfirmDialog 只拥有展示与焦点行为，请求、错误及成功关闭由应用拥有；删除触发项时使用稳定焦点目标。
+迁移移除 Campus 重复菜单/状态实现与 Ops ConfirmAction，保留领域布局及技术诊断。
+
 - 触摸与焦点基线进 `packages/ui/src/theme.css`：`-webkit-tap-highlight-color: transparent`、
   `text-size-adjust: 100%`，交互控件 `touch-action: manipulation` + `user-select: none`；
   只读 Input（`packages/ui/src/form.tsx`）用边框高亮替代焦点环，取代此前食堂分享链接的局部补丁。

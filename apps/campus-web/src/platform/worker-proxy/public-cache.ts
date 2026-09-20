@@ -1,3 +1,5 @@
+import { normalizeTransportPublicSearch } from "@campus-agent/transport/public-query";
+
 type AppApiFetch = (request: Request) => Promise<Response> | Response;
 type CacheStatus = "bypass" | "hit" | "miss";
 type SecurityHeaders = Record<string, string>;
@@ -118,14 +120,7 @@ function getPublicCacheSearch(url: URL): string | null {
 		url.pathname === "/api/transport/schedule" ||
 		url.pathname === "/api/transport/schedule-range"
 	) {
-		const names = url.pathname.endsWith("schedule-range") ? ["from", "to"] : ["date"];
-		if (
-			url.searchParams.size !== names.length ||
-			names.some((name) => !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u.test(url.searchParams.get(name) ?? ""))
-		) {
-			return null;
-		}
-		return `?${names.map((name) => `${name}=${encodeURIComponent(url.searchParams.get(name) as string)}`).join("&")}`;
+		return normalizeTransportPublicSearch(url);
 	}
 	if (url.searchParams.size > 0) {
 		return null;

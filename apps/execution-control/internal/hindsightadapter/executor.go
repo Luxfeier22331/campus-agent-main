@@ -24,6 +24,7 @@ type Options struct {
 }
 
 type hindsightClient interface {
+	GetOperation(context.Context, string, string) (memoryruntime.AppendOperation, error)
 	BankExists(context.Context, string) (bool, error)
 	EnsureBank(context.Context, string, hindsightBankConfig) error
 	DeleteBank(context.Context, string) error
@@ -183,8 +184,19 @@ func (e hindsightExecutor) AppendConversationTurn(
 	if err := e.ensureBankForWrite(ctx, bankID); err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
+	retainResult, err := e.client.RetainMemories(ctx, bankID, e.conversationRetainRequest(bankID, request))
+	if err != nil {
+		return memoryruntime.AppendConversationTurnResult{}, err
+	}
+	if err := requireHindsightRetainAccepted(retainResult, bankID, 1, false); err != nil {
+		return memoryruntime.AppendConversationTurnResult{}, err
+	}
+	return memoryruntime.AppendConversationTurnResult{AppendedMessageCount: 1}, nil
+}
+
+func (e hindsightExecutor) conversationRetainRequest(bankID string, request memoryruntime.AppendConversationTurnRequest) hindsightRetainRequest {
 	documentID := e.conversationMessageDocumentID(bankID, request.ThreadID, request.UserMessageID)
-	retainResult, err := e.client.RetainMemories(ctx, bankID, hindsightRetainRequest{
+	return hindsightRetainRequest{
 		Async: boolPointer(false),
 		Items: []hindsightMemoryItem{{
 			Content:    strings.TrimSpace(request.UserMessage),
@@ -201,16 +213,7 @@ func (e hindsightExecutor) AppendConversationTurn(
 			Timestamp:         strings.TrimSpace(request.UserMessageCreatedAt),
 			UpdateMode:        "replace",
 		}},
-	})
-	if err != nil {
-		return memoryruntime.AppendConversationTurnResult{}, err
 	}
-	if err := requireHindsightRetainAccepted(retainResult, bankID, 1, false); err != nil {
-		return memoryruntime.AppendConversationTurnResult{}, err
-	}
-	return memoryruntime.AppendConversationTurnResult{
-		AppendedMessageCount: 1,
-	}, nil
 }
 
 func (e hindsightExecutor) ensureBankForWrite(ctx context.Context, bankID string) error {

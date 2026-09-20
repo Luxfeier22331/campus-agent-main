@@ -67,6 +67,7 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 	write("flake.nix", "# fixture\n");
 	write("flake.lock", "{}");
 	write("nix/tools.nix", "# fixture\n");
+	write("scripts/ci/turbo.mts", readFileSync(path.join(ROOT, "scripts/ci/turbo.mts"), "utf8"));
 	for (const owner of ["execution-control", "model-config"]) {
 		json(`apps/${owner}/package.json`, {
 			name: owner,
@@ -134,7 +135,25 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 	turbo(target);
 	write("nix/tools.nix", "# changed toolchain\n");
 	assert.equal(plan(target).tasks[0].cache.local, false);
-	turbo("web#test");
+	const execute = (
+		command: string,
+		args: string[],
+		options: { cwd: string; env: NodeJS.ProcessEnv },
+	) => {
+		try {
+			execFileSync(command, args, { ...options, stdio: "pipe" });
+			return { status: 0 };
+		} catch (error) {
+			return { status: (error as { status: number }).status };
+		}
+	};
+	runTasks(
+		"affected-node",
+		NODE_TASKS,
+		execute,
+		{ cwd: root, env },
+		{ scope: [{ package: "web", task: "test" }] },
+	);
 	assert.equal(readFileSync(path.join(root, "apps/web/result.txt"), "utf8"), "consumer");
 	write("apps/web/task.cjs", "process.exit(17);");
 	assert.throws(
@@ -142,14 +161,7 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 			runTasks(
 				"affected-node",
 				NODE_TASKS,
-				(command, args, options) => {
-					try {
-						execFileSync(command, args, { ...options, stdio: "pipe" });
-						return { status: 0 };
-					} catch (error) {
-						return { status: (error as { status: number }).status };
-					}
-				},
+				execute,
 				{ cwd: root, env },
 				{ scope: [{ package: "web", task: "test" }] },
 			),
@@ -199,7 +211,11 @@ test("real Turbo keeps integration-only app dependencies out of ordinary test ca
 	const git = (...args: string[]) =>
 		execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: "pipe" }).trim();
 	const env = { ...process.env, TURBO_TELEMETRY_DISABLED: "1", TURBO_CACHE: "local:rw" };
-	const ordinary = ["campus-web#test", "app-api#test", "ops-web#test"] as const;
+	const ordinary = [
+		"campus-web#test:dom:fast",
+		"app-api#test:node:fast",
+		"ops-web#test:node:fast",
+	] as const;
 	const integration = [
 		"app-api#test:shared-db-integration",
 		"ops-web#test:database-integration",
@@ -250,7 +266,7 @@ test("real Turbo keeps integration-only app dependencies out of ordinary test ca
 				),
 			);
 			const scripts = Object.fromEntries(
-				["test", "test:database-integration", "test:shared-db-integration"]
+				[...NODE_TASKS, "test:database-integration", "test:shared-db-integration"]
 					.filter((task) => manifest.scripts?.[task])
 					.map((task) => [task, "node -e \"process.stdout.write('checked\\n')\""]),
 			);
@@ -261,7 +277,7 @@ test("real Turbo keeps integration-only app dependencies out of ordinary test ca
 		json("turbo.json", {
 			futureFlags: rootTurbo.futureFlags,
 			tasks: Object.fromEntries(
-				["test", "ops-web#test", "test:database-integration", "test:shared-db-integration"].map(
+				["source", ...NODE_TASKS, "test:database-integration", "test:shared-db-integration"].map(
 					(task) => [task, rootTurbo.tasks[task]],
 				),
 			),
@@ -272,7 +288,9 @@ test("real Turbo keeps integration-only app dependencies out of ordinary test ca
 				extends: ["//"],
 				tasks: Object.fromEntries(
 					Object.entries(config.tasks).filter(([task]) =>
-						["test", "test:database-integration", "test:shared-db-integration"].includes(task),
+						[...NODE_TASKS, "test:database-integration", "test:shared-db-integration"].includes(
+							task,
+						),
 					),
 				),
 			});

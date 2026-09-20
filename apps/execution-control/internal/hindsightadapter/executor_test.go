@@ -83,6 +83,10 @@ type fakeHindsightClient struct {
 	retainedItems     []hindsightMemoryItem
 }
 
+func (c *fakeHindsightClient) GetOperation(_ context.Context, _, operationID string) (memoryruntime.AppendOperation, error) {
+	return memoryruntime.AppendOperation{OperationID: operationID, Status: "completed"}, nil
+}
+
 func (f *fakeHindsightClient) BankExists(context.Context, string) (bool, error) {
 	f.bankExistsCalls++
 	return f.bankExists, nil

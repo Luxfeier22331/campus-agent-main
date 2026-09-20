@@ -37,8 +37,9 @@ type hindsightMemoryDefenseRule struct {
 }
 
 type hindsightRetainRequest struct {
-	Async *bool                 `json:"async,omitempty"`
-	Items []hindsightMemoryItem `json:"items"`
+	OperationID string
+	Async       *bool                 `json:"async,omitempty"`
+	Items       []hindsightMemoryItem `json:"items"`
 }
 
 type hindsightRetainResponse struct {

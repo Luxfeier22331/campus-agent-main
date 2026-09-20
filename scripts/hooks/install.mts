@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { accessSync, constants, statSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -114,6 +115,20 @@ export function installHooks(
 		runner,
 	);
 	requireSuccess("pnpm", ["exec", "prek", "install", "--force"], commandOptions, runner);
+	const installedPath = requireSuccess(
+		"git",
+		["rev-parse", "--git-path", "hooks/pre-commit"],
+		commandOptions,
+		runner,
+	).stdout?.trim();
+	if (!installedPath) {
+		throw new Error("Git did not resolve the installed pre-commit hook");
+	}
+	const hook = path.resolve(root, installedPath);
+	if (!statSync(hook).isFile()) {
+		throw new Error(`The pre-commit hook is not a file: ${hook}`);
+	}
+	accessSync(hook, constants.X_OK);
 	return { repositoryRoot: root, status: "installed" };
 }
 

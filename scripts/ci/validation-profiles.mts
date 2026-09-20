@@ -1,4 +1,18 @@
-export const NODE_TASKS = ["typecheck", "test", "test:worker"] as const;
+export const NODE_TEST_GROUPS = [
+	"test:node:fast",
+	"test:node:isolated",
+	"test:dom:fast",
+	"test:dom:isolated",
+] as const;
+export const NODE_TASKS = ["typecheck", "test", "test:worker", ...NODE_TEST_GROUPS] as const;
+
+// These packages keep `test` as a human entry point; evidence executes its leaves once.
+export function isEvidenceTask(item: { package: string; task: string }): boolean {
+	if (item.task === "test" && ["app-api", "campus-web", "ops-web"].includes(item.package)) {
+		return false;
+	}
+	return !(item.package === "status-web" && item.task === "build");
+}
 export const NATIVE_TASKS = [
 	"native:format",
 	"native:lint",
@@ -39,15 +53,21 @@ interface ValidationProfileDefinition {
 }
 
 function turboCommand(packageName: string, ...tasks: string[]): ValidationCommand {
-	return ["pnpm", "exec", "turbo", "run", ...tasks, `--filter=${packageName}`, "--summarize"];
+	return [
+		"node",
+		"--experimental-strip-types",
+		"scripts/ci/turbo.mts",
+		...tasks,
+		`--filter=${packageName}`,
+		"--summarize",
+	];
 }
 
 function serializedTurboCommand(packageName: string, task: string): ValidationCommand {
 	return [
-		"pnpm",
-		"exec",
-		"turbo",
-		"run",
+		"node",
+		"--experimental-strip-types",
+		"scripts/ci/turbo.mts",
 		task,
 		`--filter=${packageName}`,
 		"--concurrency=1",

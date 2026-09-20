@@ -1,18 +1,11 @@
 import {
+	ActionGroup,
 	Alert,
 	AlertDescription,
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
 	AlertTitle,
 	Badge,
 	Button,
+	ConfirmDialog,
 	cn,
 	Dialog,
 	DialogContent,
@@ -134,7 +127,7 @@ function MemorySettings({ userId }: { userId: string }) {
 				{busy(item.memoryId) ? <Badge>处理中</Badge> : null}
 			</div>
 			<p className="whitespace-pre-wrap break-words text-sm">{item.text}</p>
-			<div className="flex gap-2">
+			<ActionGroup>
 				<Button size="sm" variant="ghost" onClick={() => setDetailId(item.memoryId)}>
 					{item.kind === "summary" ? "查看支持事实" : "查看详情"}
 				</Button>
@@ -164,7 +157,7 @@ function MemorySettings({ userId }: { userId: string }) {
 						</Button>
 					</>
 				)}
-			</div>
+			</ActionGroup>
 		</div>
 	);
 	return (
@@ -329,8 +322,22 @@ function MemorySettings({ userId }: { userId: string }) {
 				<p className="my-3 text-sm text-muted-foreground">
 					清除全部长期记忆、来源资料和停用归档，完成后保持关闭。聊天记录不受影响，也不会自动重新导入。
 				</p>
-				<AlertDialog open={eraseOpen} onOpenChange={setEraseOpen}>
-					<AlertDialogTrigger asChild>
+				<ConfirmDialog
+					open={eraseOpen}
+					onOpenChange={setEraseOpen}
+					title="确认清除全部记忆？"
+					description="此操作不可恢复。聊天记录保留，记忆完成清除后保持关闭。"
+					confirmLabel="确认清除"
+					pending={erase.isPending}
+					error={
+						erase.error
+							? erase.error instanceof Error
+								? erase.error.message
+								: "清除请求未完成。"
+							: null
+					}
+					onConfirm={() => erase.mutate(undefined, { onSuccess: () => setEraseOpen(false) })}
+					trigger={
 						<Button
 							variant="destructive"
 							disabled={
@@ -340,28 +347,8 @@ function MemorySettings({ userId }: { userId: string }) {
 						>
 							清除全部记忆
 						</Button>
-					</AlertDialogTrigger>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>确认清除全部记忆？</AlertDialogTitle>
-							<AlertDialogDescription>
-								此操作不可恢复。聊天记录保留，记忆完成清除后保持关闭。
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel>取消</AlertDialogCancel>
-							<AlertDialogAction
-								onClick={(e) => {
-									e.preventDefault();
-									erase.mutate(undefined, { onSuccess: () => setEraseOpen(false) });
-								}}
-								disabled={erase.isPending}
-							>
-								确认清除
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
+					}
+				/>
 			</section>
 			<Dialog
 				open={editing !== null}

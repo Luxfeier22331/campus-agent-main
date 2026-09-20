@@ -1,13 +1,18 @@
 import { APP_API_ROUTE_EXPOSURE_INVENTORY } from "./route-exposure";
 
+const ROUTE_MATCHERS = APP_API_ROUTE_EXPOSURE_INVENTORY.map((route) => ({
+	...route,
+	matches: compileRouteTemplate(route.path),
+}));
+
 export function normalizeAppApiRoute(value: string | null | undefined, method?: string): string {
 	const pathname = pathnameFrom(value);
 	const normalizedMethod = method?.toUpperCase();
-	for (const route of APP_API_ROUTE_EXPOSURE_INVENTORY) {
+	for (const route of ROUTE_MATCHERS) {
 		if (normalizedMethod && route.method !== "ALL" && route.method !== normalizedMethod) {
 			continue;
 		}
-		if (matchesRouteTemplate(pathname, route.path)) {
+		if (route.matches(pathname)) {
 			return route.path;
 		}
 	}
@@ -26,13 +31,16 @@ function pathnameFrom(value: string | null | undefined): string {
 	}
 }
 
-function matchesRouteTemplate(pathname: string, template: string): boolean {
+function compileRouteTemplate(template: string): (pathname: string) => boolean {
 	if (template.endsWith("/*")) {
-		return pathname === template.slice(0, -2) || pathname.startsWith(template.slice(0, -1));
+		const root = template.slice(0, -2);
+		const prefix = template.slice(0, -1);
+		return (pathname) => pathname === root || pathname.startsWith(prefix);
 	}
 	const pattern = template
 		.split("/")
 		.map((segment) => (segment.startsWith(":") ? "[^/]+" : RegExp.escape(segment)))
 		.join("/");
-	return new RegExp(`^${pattern}$`, "u").test(pathname);
+	const regex = new RegExp(`^${pattern}$`, "u");
+	return (pathname) => regex.test(pathname);
 }

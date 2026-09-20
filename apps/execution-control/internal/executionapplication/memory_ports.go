@@ -27,3 +27,8 @@ type MemoryReader interface {
 	ListMemories(context.Context, memoryruntime.MemoryQuery) (memoryruntime.MemoryPage, error)
 	GetMemory(context.Context, memoryruntime.MemoryQuery) (memoryruntime.MemoryRecord, error)
 }
+
+type AsyncMemoryExecutor interface {
+	SubmitConversationTurn(context.Context, memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendOperation, error)
+	GetConversationTurnOperation(context.Context, memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendOperation, error)
+}

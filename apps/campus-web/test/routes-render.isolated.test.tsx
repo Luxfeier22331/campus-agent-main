@@ -273,7 +273,7 @@ describe("campus routes", () => {
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(screen.getByPlaceholderText("输入校园问题")).toBeInTheDocument();
 		await waitFor(() => {
-			expect(screen.getAllByRole("button", { name: "账号" })).toHaveLength(1);
+			expect(screen.getAllByRole("button", { name: "测试用户" })).toHaveLength(1);
 		});
 		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
 		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
@@ -381,11 +381,11 @@ describe("campus routes", () => {
 		expect(footer).not.toBeNull();
 		await waitFor(() => {
 			expect(
-				within(footer as HTMLElement).getByRole("button", { name: "账号" }),
+				within(footer as HTMLElement).getByRole("button", { name: "测试用户" }),
 			).toBeInTheDocument();
 		});
 		expect(footer?.previousElementSibling).toHaveAttribute("data-sidebar", "content");
-		expect(screen.getAllByRole("button", { name: "账号" })).toHaveLength(1);
+		expect(screen.getAllByRole("button", { name: "测试用户" })).toHaveLength(1);
 		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
 		expect(screen.queryByRole("separator", { name: "账号区域" })).toBeNull();
 	});

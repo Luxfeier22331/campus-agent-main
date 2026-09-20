@@ -1,8 +1,3 @@
-import {
-	transportRoutes,
-	transportScheduleItems,
-	transportSchedulePeriods,
-} from "@campus-agent/transport/schema";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -16,7 +11,7 @@ const ROUTE_ID = "route:test";
 const DATE = "2026-09-07";
 
 describe("transport schedule public projection", () => {
-	it("loads candidate-period metadata in one batch and keeps the old shape without include", async () => {
+	it("loads only displayed-period notices in one batch and skips notices without include", async () => {
 		const execute = vi.fn().mockResolvedValue({
 			rows: [
 				{
@@ -54,14 +49,13 @@ describe("transport schedule public projection", () => {
 		db.execute = execute;
 		const service = createPgTransportScheduleService({ getDb: async () => db });
 		expect((await service.getSchedule(DATE)).routes[0]).not.toHaveProperty("noticeContext");
-		expect(execute).toHaveBeenCalledTimes(1);
-		expect(new PgDialect().sqlToQuery(execute.mock.calls[0]?.[0]).sql).not.toContain("n.title");
+		expect(execute).not.toHaveBeenCalled();
 		execute.mockClear();
 		const result = await service.getRange("2026-09-07", "2026-09-09", { includeNotices: true });
 		expect(execute).toHaveBeenCalledTimes(1);
 		const query = new PgDialect().sqlToQuery(execute.mock.calls[0]?.[0]);
 		expect(query.sql).toContain("AND n.is_published");
-		expect(query.params).toEqual(["baseline", "special"]);
+		expect(query.params).toEqual(["special", "baseline"]);
 		expect(query.sql).not.toMatch(/summary|content_html|ocr/);
 		const first = result.days[0];
 		expect(first?.routes[0]).toMatchObject({
@@ -83,7 +77,7 @@ describe("transport schedule public projection", () => {
 			expect(await service.getSchedule(day.date, { includeNotices: true })).toEqual(day);
 		}
 	});
-	it("prefers the newer notice when two complete periods overlap", async () => {
+	it("uses schedule priority independently of notice publication dates", async () => {
 		const execute = vi.fn().mockResolvedValue({
 			rows: [
 				{
@@ -133,7 +127,7 @@ describe("transport schedule public projection", () => {
 		expect(without.routeCatalog).toEqual(result.routeCatalog);
 		expect((await service.getRange("2026-04-28", "2026-04-29")).days[0]).toEqual(without);
 	});
-	it("uses future notice priorities for the next running date", async () => {
+	it("uses future periods for the next running date without loading their notices", async () => {
 		const db = fakeDatabase({
 			routes: [route()],
 			periods: [
@@ -199,7 +193,7 @@ describe("transport schedule public projection", () => {
 			(await service.getSchedule("2026-08-30")).routes.reduce((n, r) => n + r.departures.length, 0),
 		).toBe(4);
 	});
-	it("reads the three tables once for a whole month and applies the same period precedence as Ops", async () => {
+	it("joins the tables once for a whole month and applies the same period precedence as Ops", async () => {
 		const db = fakeDatabase({
 			routes: [route()],
 			periods: [
@@ -214,7 +208,7 @@ describe("transport schedule public projection", () => {
 		const select = vi.spyOn(db, "select");
 		const service = createPgTransportScheduleService({ getDb: async () => db });
 		const range = await service.getRange("2026-09-01", "2026-09-30");
-		expect(select).toHaveBeenCalledTimes(3);
+		expect(select).toHaveBeenCalledTimes(1);
 		expect(range.days).toHaveLength(30);
 		expect(range.days.find((day) => day.date === DATE)?.routes[0]?.departures[0]).toMatchObject({
 			departureTime: "08:30",
@@ -515,27 +509,26 @@ function fakeDatabase(input: {
 	periods: unknown[];
 	routes: unknown[];
 }): RuntimeDatabase {
-	const rowsFor = (table: unknown) => {
-		if (table === transportRoutes) {
-			return input.routes;
+	const routes = input.routes as Record<string, unknown>[];
+	const periods = input.periods as Record<string, unknown>[];
+	const items = input.items as Record<string, unknown>[];
+	const rows = routes.flatMap<{
+		route: Record<string, unknown>;
+		period: Record<string, unknown> | null;
+		item: Record<string, unknown> | null;
+	}>((route) => {
+		const matches = periods.filter((period) => period.routeId === route.routeId);
+		if (matches.length === 0) {
+			return [{ route, period: null, item: null }];
 		}
-		if (table === transportSchedulePeriods) {
-			return input.periods;
-		}
-		if (table === transportScheduleItems) {
-			return input.items;
-		}
-		throw new Error("unexpected transport table");
-	};
+		return matches.flatMap((period) => {
+			const entries = items.filter((item) => item.scheduleId === period.scheduleId);
+			return (entries.length > 0 ? entries : [null]).map((item) => ({ route, period, item }));
+		});
+	});
+	const query = { leftJoin: () => query, orderBy: async () => rows };
 	return {
 		execute: vi.fn().mockResolvedValue({ rows: [] }),
-		select: () => ({
-			from: (table: unknown) => {
-				const rows = rowsFor(table);
-				return Object.assign(Promise.resolve(rows), {
-					orderBy: async () => rows,
-				});
-			},
-		}),
+		select: vi.fn(() => ({ from: () => query })),
 	} as never;
 }

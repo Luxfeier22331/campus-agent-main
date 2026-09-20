@@ -1,4 +1,4 @@
-import { Button, Input, NativeSelect } from "@campus-agent/ui";
+import { Button, Input, NativeSelect, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
@@ -160,7 +160,9 @@ export function ConversationsPage({ search }: { search: TimeSearch & Record<stri
 				</div>
 				<Button type="submit">搜索</Button>
 			</form>
-			{query.isPending && !search.timeError ? <p role="status">正在读取历史会话...</p> : null}
+			{query.isPending && !search.timeError ? (
+				<StateMessage layout="inline" role="status" description={<> 正在读取历史会话... </>} />
+			) : null}
 			{query.isError && !query.data ? (
 				<ErrorState error={query.error} onRetry={() => query.refetch()} title="历史会话读取失败" />
 			) : null}
@@ -172,12 +174,19 @@ export function ConversationsPage({ search }: { search: TimeSearch & Record<stri
 						{query.isFetching ? <span role="status">正在更新结果…</span> : null}
 					</div>
 					{query.isRefetchError ? (
-						<p className="mb-3 text-sm text-warning" role="status">
-							刷新失败，当前显示上一次成功结果。{" "}
-							<button className="underline" onClick={() => void query.refetch()} type="button">
-								重试
-							</button>
-						</p>
+						<StateMessage
+							layout="inline"
+							role="status"
+							className="mb-3"
+							description={
+								<>
+									刷新失败，当前显示上一次成功结果。{" "}
+									<button className="underline" onClick={() => void query.refetch()} type="button">
+										重试
+									</button>
+								</>
+							}
+						/>
 					) : null}
 					{query.data?.data.length === 0 ? (
 						<div className="border-border border-y bg-secondary p-4 text-sm">

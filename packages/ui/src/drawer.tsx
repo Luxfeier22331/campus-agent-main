@@ -2,6 +2,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
+import { buttonVariants } from "./button";
 import { cn } from "./cn";
 
 // vaul 基于 Radix Dialog：focus 管理、Escape、aria 合同与 Sheet 对齐，
@@ -42,12 +43,12 @@ export const DrawerContent = React.forwardRef<
 	<DrawerPrimitive.Portal>
 		<DrawerPrimitive.Overlay
 			className={cn(
-				"fixed inset-0 z-[var(--layer-overlay)] bg-black/40 duration-[var(--motion-duration-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
+				"fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)] duration-[var(--motion-duration-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
 			)}
 		/>
 		<DrawerPrimitive.Content
 			className={cn(
-				"fixed inset-x-0 bottom-0 z-[var(--layer-overlay)] flex max-h-[92dvh] flex-col rounded-t-[var(--radius-xl)] border bg-background pb-[max(0px,env(safe-area-inset-bottom))] shadow-lg duration-[var(--motion-duration-slow)] ease-[var(--motion-easing-spring)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
+				"fixed inset-x-0 bottom-0 z-[var(--layer-overlay)] flex max-h-[92dvh] flex-col rounded-t-[var(--radius-xl)] border bg-background pb-[max(0px,env(safe-area-inset-bottom))] shadow-[var(--shadow-lg)] duration-[var(--motion-duration-slow)] ease-[var(--motion-easing-spring)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
 				className,
 			)}
 			ref={ref}
@@ -61,7 +62,8 @@ export const DrawerContent = React.forwardRef<
 			{children}
 			<DrawerPrimitive.Close
 				className={cn(
-					"absolute right-3 top-3 rounded-[var(--radius-md)] text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+					buttonVariants({ variant: "ghost", size: "icon" }),
+					"absolute right-3 top-3 text-muted-foreground",
 				)}
 			>
 				<X aria-hidden="true" className="size-4" />

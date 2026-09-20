@@ -5,7 +5,7 @@ import {
 	type DiningSubmissionUpdate,
 	DiningSubmissionUpdateSchema,
 } from "@campus-agent/dining/domain";
-import { Button, Input, Label } from "@campus-agent/ui";
+import { ActionGroup, Button, Field, Input, StateMessage } from "@campus-agent/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { type FormEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -200,38 +200,44 @@ function SubmissionForm(props: Props) {
 				<p>投稿会公开显示你的账号名称。请确认文字和照片适合公开分享。</p>
 				{current ? null : <p>每天最多新增三条投稿，删除后仍计入当天数量。</p>}
 				{current?.status === "hidden" ? <p>此投稿已隐藏，保存修改后仍不会公开。</p> : null}
-				{current && !current.canEdit ? <p role="status">此投稿当前不能编辑。</p> : null}
-				{session.status === "authenticated" ? null : <p role="status">请先登录后投稿。</p>}
+				{current && !current.canEdit ? (
+					<StateMessage layout="inline" role="status" description={<> 此投稿当前不能编辑。 </>} />
+				) : null}
+				{session.status === "authenticated" ? null : (
+					<StateMessage layout="inline" role="status" description={<> 请先登录后投稿。 </>} />
+				)}
 			</div>
 			<div className="space-y-2">
-				<Label htmlFor={`${id}-name`}>菜品名称</Label>
-				<Input
-					aria-describedby={fieldError ? `${id}-fields-error` : undefined}
-					disabled={disabled}
-					id={`${id}-name`}
-					maxLength={80}
-					onChange={(event) => {
-						setName(event.target.value);
-						changed();
-					}}
-					required
-					value={name}
-				/>
+				<Field label={<> 菜品名称 </>} id={`${id}-name`}>
+					<Input
+						aria-describedby={fieldError ? `${id}-fields-error` : undefined}
+						disabled={disabled}
+						id={`${id}-name`}
+						maxLength={80}
+						onChange={(event) => {
+							setName(event.target.value);
+							changed();
+						}}
+						required
+						value={name}
+					/>
+				</Field>
 			</div>
 			<div className="space-y-2">
-				<Label htmlFor={`${id}-price`}>价格说明（选填）</Label>
-				<Input
-					aria-describedby={fieldError ? `${id}-fields-error` : undefined}
-					disabled={disabled}
-					id={`${id}-price`}
-					maxLength={40}
-					onChange={(event) => {
-						setPrice(event.target.value);
-						changed();
-					}}
-					placeholder="例如 12 元 / 份"
-					value={price}
-				/>
+				<Field label={<> 价格说明（选填） </>} id={`${id}-price`}>
+					<Input
+						aria-describedby={fieldError ? `${id}-fields-error` : undefined}
+						disabled={disabled}
+						id={`${id}-price`}
+						maxLength={40}
+						onChange={(event) => {
+							setPrice(event.target.value);
+							changed();
+						}}
+						placeholder="例如 12 元 / 份"
+						value={price}
+					/>
+				</Field>
 			</div>
 			{fieldError ? (
 				<p className="text-sm text-destructive" id={`${id}-fields-error`} role="alert">
@@ -268,25 +274,26 @@ function SubmissionForm(props: Props) {
 			) : null}
 			{!current || photoAction === "replace" ? (
 				<div className="space-y-2">
-					<Label htmlFor={`${id}-photo`}>{current ? "替换照片" : "照片（选填）"}</Label>
-					<Input
-						accept="image/jpeg,image/png,image/webp"
-						aria-describedby={`${id}-photo-help${photoError ? ` ${id}-photo-error` : ""}`}
-						disabled={disabled}
-						id={`${id}-photo`}
-						onChange={(event) => {
-							const file = event.target.files?.[0] ?? null;
-							setPhoto(file);
-							setPhotoError(
-								file && (file.size === 0 || file.size > DINING_SUBMISSION_PHOTO_MAX_INPUT_BYTES)
-									? "请选择非空且不超过 10 MiB 的照片。"
-									: null,
-							);
-							changed();
-						}}
-						ref={fileInput}
-						type="file"
-					/>
+					<Field label={<> {current ? "替换照片" : "照片（选填）"} </>} id={`${id}-photo`}>
+						<Input
+							accept="image/jpeg,image/png,image/webp"
+							aria-describedby={`${id}-photo-help${photoError ? ` ${id}-photo-error` : ""}`}
+							disabled={disabled}
+							id={`${id}-photo`}
+							onChange={(event) => {
+								const file = event.target.files?.[0] ?? null;
+								setPhoto(file);
+								setPhotoError(
+									file && (file.size === 0 || file.size > DINING_SUBMISSION_PHOTO_MAX_INPUT_BYTES)
+										? "请选择非空且不超过 10 MiB 的照片。"
+										: null,
+								);
+								changed();
+							}}
+							ref={fileInput}
+							type="file"
+						/>
+					</Field>
 					<p className="text-xs text-muted-foreground" id={`${id}-photo-help`}>
 						仅一张 JPEG、PNG 或 WebP；不超过 10 MiB，宽高均不超过 4096
 						像素，不支持动画。照片将在提交后进行检查。
@@ -318,11 +325,16 @@ function SubmissionForm(props: Props) {
 			) : null}
 			{error ? (
 				<div className="space-y-2">
-					<p className="text-sm text-destructive" role="alert">
-						{conflict
-							? "投稿已发生变化，请重新读取当前内容后再编辑。"
-							: submissionErrorMessage(error)}
-					</p>
+					<StateMessage
+						layout="inline"
+						role="alert"
+						tone="danger"
+						description={
+							conflict
+								? "投稿已发生变化，请重新读取当前内容后再编辑。"
+								: submissionErrorMessage(error)
+						}
+					/>
 					{error instanceof ApiRequestError && error.status === 401 ? (
 						<Button type="button" variant="outline" onClick={() => void session.refresh()}>
 							重新确认登录状态
@@ -343,7 +355,7 @@ function SubmissionForm(props: Props) {
 					) : null}
 				</div>
 			) : null}
-			<div className="flex flex-wrap justify-end gap-3">
+			<ActionGroup className="justify-end">
 				<Button
 					disabled={pending}
 					onClick={() => requestExit(props.onCancel)}
@@ -359,7 +371,7 @@ function SubmissionForm(props: Props) {
 					{pending ? <LoaderCircle className="animate-spin" /> : null}
 					{pending ? "正在保存" : current ? "保存修改" : "发布投稿"}
 				</Button>
-			</div>
+			</ActionGroup>
 		</form>
 	);
 }

@@ -1,4 +1,4 @@
-import { Button, Input, NativeSelect } from "@campus-agent/ui";
+import { ActionGroup, Button, Input, NativeSelect, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import type { AccountAdminEvent } from "campus-contracts/account-admin";
@@ -169,7 +169,9 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 					查询
 				</Button>
 			</form>
-			{events.isPending && !search.timeError ? <p role="status">正在读取操作记录...</p> : null}
+			{events.isPending && !search.timeError ? (
+				<StateMessage layout="inline" role="status" description={<> 正在读取操作记录... </>} />
+			) : null}
 			{events.isError ? (
 				<ErrorState
 					error={events.error}
@@ -243,7 +245,7 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 						minWidth="0"
 						rowKey={(row) => row.eventId}
 					/>
-					<div className="mt-4 flex gap-2">
+					<ActionGroup className="mt-4">
 						<Button
 							disabled={history.length === 0}
 							onClick={() => {
@@ -268,7 +270,7 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 						>
 							下一页
 						</Button>
-					</div>
+					</ActionGroup>
 				</>
 			) : (
 				<p className="text-muted-foreground text-sm">正在读取操作记录...</p>

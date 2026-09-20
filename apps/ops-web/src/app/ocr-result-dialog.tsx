@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle } from "@campus-agent/ui";
+import { Dialog, DialogContent, DialogTitle, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -27,7 +27,9 @@ export function OcrResultDialog({ url, onClose }: { url: string | null; onClose:
 				aria-describedby={undefined}
 			>
 				<DialogTitle>识别结果</DialogTitle>
-				{result.isPending ? <p role="status">正在读取结果…</p> : null}
+				{result.isPending ? (
+					<StateMessage layout="inline" role="status" description={<> 正在读取结果… </>} />
+				) : null}
 				{result.isError ? (
 					<ErrorState
 						error={result.error}

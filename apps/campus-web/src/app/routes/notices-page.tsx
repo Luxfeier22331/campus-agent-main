@@ -1,4 +1,4 @@
-import { Button, Input, Label } from "@campus-agent/ui";
+import { Button, Input, Label, StateMessage } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import type {
@@ -8,7 +8,6 @@ import type {
 } from "campus-contracts/notices";
 import { Search, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
-import { StateMessage } from "@/components/ui/state-message";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { noticeListQueryOptions } from "@/features/notices/queries";
 import { noticeQueryClient } from "@/features/notices/query-client";

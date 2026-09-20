@@ -2,9 +2,13 @@ import { Slot } from "@radix-ui/react-slot";
 import * as React from "react";
 import { cn } from "./cn";
 
-export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-	({ className, ...props }, ref) => (
-		<div
+export const Card = React.forwardRef<
+	HTMLDivElement,
+	React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }
+>(({ asChild = false, className, ...props }, ref) => {
+	const Component = asChild ? Slot : "div";
+	return (
+		<Component
 			className={cn(
 				"min-w-0 [--card-padding:1rem] md:[--card-padding:1.25rem] rounded-[var(--card-radius)] border border-[var(--card-border)] bg-card text-card-foreground shadow-[var(--card-shadow)]",
 				className,
@@ -13,8 +17,8 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 			ref={ref}
 			{...props}
 		/>
-	),
-);
+	);
+});
 Card.displayName = "Card";
 
 export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(

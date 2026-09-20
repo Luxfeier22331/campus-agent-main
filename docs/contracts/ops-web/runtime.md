@@ -115,6 +115,7 @@ attempt 诊断。
 `execution.failure`、`execution.stages[].failure` 和 `execution.terminalFailure` 保留通用失败字段，
 并提供可空的 `reason`、`citation` 与 `citationState`。阶段另返回 `stepId`。
 摘要只合并同一步骤、同一 activity attempt 的失败，不能因错误码相同而借用其他阶段的诊断。
+没有当前失败阶段时，不从历史失败 attempt 生成摘要；重试成功后保留历史尝试，但不再作为当前阶段失败展示。
 
 引用校验的 `citation` v1 是最多2 KiB的严格字段集合：`schema_version`、`validation_stage`，以及
 可选 `field`、`item_index`、`citation_index`、`start`、`end`、`text_length`、`offset_unit`、`actual_type`。

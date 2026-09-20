@@ -18,6 +18,10 @@ Status: implemented
 
 ## 决策
 
+本文的根任务、完整索引树和不拆分测试集合条目已由
+[源码依赖与分组测试缓存](../testing/2026-09-19-source-and-test-cache-boundaries.md)部分取代。
+pre-commit 所有权、pre-push 退役、并发额度和失败阻断继续有效；以下保留原选择理由。
+
 重验证由 pre-commit 拥有，沿用现有静态检查、Secret 扫描和 Node/Go 任务集合。静态检查成功后
 执行根脚本测试，再执行受影响模块任务；失败阻止提交。pre-push 的重验证与适配入口删除，安装器
 只卸载当前 worktree 的受管理 shim。PR 仍检查完整分支差异，不把一次本地提交检查作为合并证明。

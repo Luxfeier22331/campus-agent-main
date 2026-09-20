@@ -203,7 +203,13 @@ export function checkValidationOutcomes(
 		.map(([name]) => name);
 	const failures = [...new Set([...failed, ...unexpectedFailures])];
 	if (failures.length > 0) {
-		throw new Error(`Selected checks did not succeed: ${failures.join(", ")}`);
+		const blocked = failed.filter((name) => outcomes[name] === "skipped");
+		throw new Error(
+			`Selected checks did not succeed: ${failures.join(", ")}` +
+				(blocked.length > 0 && unexpectedFailures.length > 0
+					? `. Not run after a prerequisite failed: ${blocked.join(", ")}`
+					: ""),
+		);
 	}
 }
 

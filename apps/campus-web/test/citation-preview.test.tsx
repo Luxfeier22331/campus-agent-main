@@ -7,6 +7,7 @@ import {
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import fixtures from "../../../packages/contracts/fixtures/citation-markers.v1.json";
 import { MarkdownText } from "../src/components/assistant-ui/markdown-text";
 import { CitationSourcesContext } from "../src/components/conversation/citation-preview";
 import type { SourceItemPayload } from "../src/features/conversation/model";
@@ -50,6 +51,16 @@ function Fixture({ text, sources = [source] }: { text: string; sources?: SourceI
 }
 
 describe("inline citation preview", () => {
+	it.each(fixtures)("matches shared Markdown grammar: $name", async ({ text, indexes }) => {
+		const sources = Array.from({ length: 9 }, (_, i) => ({ ...source, citationIndexes: [i + 1] }));
+		const { container } = render(<Fixture text={text} sources={sources} />);
+		await act(async () => undefined);
+		expect(
+			Array.from(container.querySelectorAll('button[aria-label^="查看引用"]')).map((el) =>
+				Number(el.getAttribute("aria-label")?.match(/\d+/)?.[0]),
+			),
+		).toEqual(indexes);
+	});
 	it("renders grouped and markdown citations as separate previews with direct source links", async () => {
 		const user = userEvent.setup();
 		const { container } = render(

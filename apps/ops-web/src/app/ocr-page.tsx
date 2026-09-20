@@ -8,8 +8,9 @@ import {
 	DialogDescription,
 	DialogFooter,
 	DialogTitle,
+	Field,
 	Input,
-	Label,
+	StateMessage,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -99,15 +100,16 @@ export function OcrPage() {
 						}}
 					>
 						<div className="space-y-1">
-							<Label htmlFor="ocr-notice">通知 ID</Label>
-							<Input
-								id="ocr-notice"
-								inputMode="numeric"
-								pattern="[1-9][0-9]*"
-								required
-								value={noticeId}
-								onChange={(e) => setNoticeId(e.target.value)}
-							/>
+							<Field label={<> 通知 ID </>} id="ocr-notice">
+								<Input
+									id="ocr-notice"
+									inputMode="numeric"
+									pattern="[1-9][0-9]*"
+									required
+									value={noticeId}
+									onChange={(e) => setNoticeId(e.target.value)}
+								/>
+							</Field>
 						</div>
 						<Button disabled={create.isPending} type="submit">
 							{create.isPending ? "提交中…" : "识别通知附件"}
@@ -117,18 +119,22 @@ export function OcrPage() {
 						</Button>
 					</form>
 					{message ? (
-						<p role="status" className="mt-3 text-sm">
-							{message}
-						</p>
+						<StateMessage layout="inline" role="status" className="mt-3" description={message} />
 					) : null}
 					{create.isError || action.isError ? (
-						<p role="alert" className="mt-3 text-destructive">
-							{(create.error ?? action.error)?.message}
-						</p>
+						<StateMessage
+							layout="inline"
+							role="alert"
+							tone="danger"
+							className="mt-3"
+							description={(create.error ?? action.error)?.message}
+						/>
 					) : null}
 				</CardContent>
 			</Card>
-			{tasks.isPending ? <p role="status">正在读取任务…</p> : null}
+			{tasks.isPending ? (
+				<StateMessage layout="inline" role="status" description={<> 正在读取任务… </>} />
+			) : null}
 			{tasks.isError ? (
 				<ErrorState error={tasks.error} onRetry={() => tasks.refetch()} title="识别任务读取失败" />
 			) : null}

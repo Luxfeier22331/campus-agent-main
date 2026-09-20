@@ -33,7 +33,9 @@
 				".generated/docs-content/sources/**",
 				"dist/**",
 				".tanstack/**"
-			]
+			],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"build:test": {
 			"inputs": [
@@ -67,7 +69,9 @@
 				".generated/docs-content/sources/**",
 				"dist/**",
 				".tanstack/**"
-			]
+			],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"build:worker": {
 			"inputs": [
@@ -102,17 +106,12 @@
 				".wrangler/deploy/**",
 				"dist/**",
 				".tanstack/**"
-			]
+			],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"test": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"assets/favicon.ico",
-				"$TURBO_ROOT$/configs/sources/internal-portal.json",
-				"$TURBO_ROOT$/scripts/deploy/**"
-			]
+			"cache": false
 		},
 		"test:e2e:full": {
 			"inputs": [
@@ -145,8 +144,7 @@
 				"vitest.worker.config.mts",
 				"wrangler.test.toml",
 				"assets/favicon.ico",
-				"$TURBO_ROOT$/configs/sources/internal-portal.json",
-				"$TURBO_ROOT$/scripts/deploy/**"
+				"$TURBO_ROOT$/configs/sources/internal-portal.json"
 			]
 		},
 		"typecheck": {
@@ -155,8 +153,150 @@
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
-				"$TURBO_ROOT$/scripts/deploy/**"
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/packages/contracts/fixtures/citation-markers.v1.json"
 			]
+		},
+		"test:node:fast": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"tsconfig*.json",
+				"vitest*.config.mts",
+				"wrangler*.toml",
+				"assets/**",
+				"fixtures/**",
+				"test/fixtures/**",
+				"test/helpers/**",
+				"test/*setup*.ts",
+				"test/**/*.suite.ts",
+				"test/**/*.test.ts",
+				"!test/**/*.isolated.test.ts",
+				"!test/**/*.integration.test.*",
+				"!test/**/*.worker.test.ts",
+				"!test/worker.test.ts",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/ci/evidence.mts",
+				"!test/runtime-config.test.ts",
+				"!test/maplibre-boundary.test.ts",
+				"!test/browser-answer-timing.test.ts",
+				"!test/docs-data-source.test.ts",
+				"!test/docs-router.test.ts",
+				"!test/notices-content-html.test.ts",
+				"!test/dining-floorplan-asset-loader.test.ts",
+				"test/**/*support*",
+				"test/**/*helpers*",
+				"test/**/*test-utils*",
+				"test/support/**"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:node:isolated": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"tsconfig*.json",
+				"vitest*.config.mts",
+				"wrangler*.toml",
+				"assets/**",
+				"fixtures/**",
+				"test/fixtures/**",
+				"test/helpers/**",
+				"test/*setup*.ts",
+				"test/**/*.suite.ts",
+				"test/**/*.isolated.test.ts",
+				"!test/**/*.integration.test.*",
+				"!test/**/*.worker.test.ts",
+				"!test/worker.test.ts",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/ci/evidence.mts",
+				"test/**/*support*",
+				"test/**/*helpers*",
+				"test/**/*test-utils*",
+				"test/support/**"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:dom:fast": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"tsconfig*.json",
+				"vitest*.config.mts",
+				"wrangler*.toml",
+				"assets/**",
+				"fixtures/**",
+				"test/fixtures/**",
+				"test/helpers/**",
+				"test/*setup*.ts",
+				"test/**/*.suite.ts",
+				"test/**/*.test.tsx",
+				"!test/**/*.isolated.test.tsx",
+				"!test/**/*.integration.test.*",
+				"!test/**/*.worker.test.ts",
+				"!test/worker.test.ts",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/packages/contracts/fixtures/citation-markers.v1.json",
+				"$TURBO_ROOT$/scripts/ci/evidence.mts",
+				"test/runtime-config.test.ts",
+				"test/maplibre-boundary.test.ts",
+				"test/browser-answer-timing.test.ts",
+				"test/docs-data-source.test.ts",
+				"test/docs-router.test.ts",
+				"test/notices-content-html.test.ts",
+				"test/dining-floorplan-asset-loader.test.ts",
+				"test/**/*support*",
+				"test/**/*helpers*",
+				"test/**/*test-utils*",
+				"test/support/**"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:dom:isolated": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"tsconfig*.json",
+				"vitest*.config.mts",
+				"wrangler*.toml",
+				"assets/**",
+				"fixtures/**",
+				"test/fixtures/**",
+				"test/helpers/**",
+				"test/*setup*.ts",
+				"test/**/*.suite.ts",
+				"test/**/*.isolated.test.tsx",
+				"!test/**/*.integration.test.*",
+				"!test/**/*.worker.test.ts",
+				"!test/worker.test.ts",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/ci/evidence.mts",
+				"test/**/*support*",
+				"test/**/*helpers*",
+				"test/**/*test-utils*",
+				"test/support/**"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
 		}
 	}
 }

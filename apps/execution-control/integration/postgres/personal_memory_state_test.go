@@ -9,6 +9,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/stretchr/testify/require"
 )
 
 func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
@@ -25,6 +26,20 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 		t.Fatalf("create personal memory state store: %v", err)
 	}
 	t.Cleanup(store.Close)
+	t.Run("durable append drains only after explicit completion", func(t *testing.T) {
+		ctx := t.Context()
+		require.NoError(t, store.BeginCall(ctx, "durable-owner", "durable-call", 1, "append", 0))
+		require.NoError(t, store.BeginCall(ctx, "durable-owner", "durable-call", 1, "append", 0))
+		drained, err := store.GenerationDrained(ctx, "durable-owner", 1)
+		require.NoError(t, err)
+		require.False(t, drained)
+		require.ErrorIs(t, store.MarkOwnerDeleted(ctx, "durable-owner"), memoryruntime.ErrMemoryOwnerNotDrained)
+		require.ErrorIs(t, store.BeginCall(ctx, "durable-owner", "durable-call", 2, "append", 0), memoryruntime.ErrMemoryFenceConflict)
+		require.NoError(t, store.EndCall(ctx, "durable-owner", "durable-call"))
+		drained, err = store.GenerationDrained(ctx, "durable-owner", 1)
+		require.NoError(t, err)
+		require.True(t, drained)
+	})
 	first := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-memory-first",
 		CommandKind:       "memory_add",

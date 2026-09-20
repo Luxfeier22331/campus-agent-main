@@ -13,6 +13,10 @@ import (
 // HTTP integration overrides the finalizers that write its run projections.
 type Activities struct{}
 
+func (Activities) AdvanceMemoryAppendActivity(_ context.Context, input temporalruntime.MemoryAppendWorkflowInput) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+	return temporalruntime.AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil
+}
+
 const workflowTestGoal = "查询并整理校园信息"
 
 func (Activities) FinalizePersonalMemoryCommandReceiptActivity(

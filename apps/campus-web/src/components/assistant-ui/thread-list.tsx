@@ -6,7 +6,7 @@ import {
 	useAui,
 	useAuiState,
 } from "@assistant-ui/react";
-import { Button, Input, Skeleton } from "@campus-agent/ui";
+import { Button, Input, Skeleton, StateMessage } from "@campus-agent/ui";
 import {
 	ArchiveIcon,
 	MoreHorizontalIcon,
@@ -50,9 +50,13 @@ export const ThreadList: FC<{
 	if (accountUnavailable) {
 		return (
 			<ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-2 px-2.5 py-3">
-				<p className="m-0 text-xs leading-5 text-muted-foreground" role="alert">
-					账号状态暂时不可用，聊天记录未能读取。
-				</p>
+				<StateMessage
+					layout="inline"
+					role="alert"
+					tone="danger"
+					className="m-0"
+					description={<>账号状态暂时不可用，聊天记录未能读取。</>}
+				/>
 				<Button
 					aria-busy={retryingAccountStatus || undefined}
 					disabled={retryingAccountStatus}
@@ -77,9 +81,13 @@ export const ThreadList: FC<{
 	return (
 		<ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-0.5">
 			{actionError ? (
-				<p role="alert" className="text-destructive px-2.5 py-1 text-xs">
-					{actionError}
-				</p>
+				<StateMessage
+					layout="inline"
+					role="alert"
+					tone="danger"
+					className="px-2.5 py-1"
+					description={actionError}
+				/>
 			) : null}
 			<AuiIf condition={(s) => s.threads.isLoading}>
 				<ThreadListSkeleton />

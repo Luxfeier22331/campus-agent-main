@@ -84,6 +84,7 @@ func NewOwner(cfg config.Config, logger *slog.Logger) (*Owner, error) {
 		Timeout:           time.Duration(cfg.PersonalMemoryTimeoutSeconds * float64(time.Second)),
 	})
 	personalMemoryReader, _ := personalMemoryExecutor.(executionapplication.MemoryReader)
+	asyncMemoryExecutor, _ := personalMemoryExecutor.(executionapplication.AsyncMemoryExecutor)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(ctx, cfg)
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
 		personalMemoryExecutor = executionapplication.NewFencedExecutor(
@@ -105,7 +106,7 @@ func NewOwner(cfg config.Config, logger *slog.Logger) (*Owner, error) {
 
 	writer := projection.New(projection.Writer{Config: cfg, ExecutionInputLoader: executionInputLoader, ExecutionInputErr: executionInputErr, ProductCallbackClient: productCallbackClient, RunProjectionStore: runProjectionStore})
 	executionAdapter := executionactivities.New(executionactivities.Adapter{Writer: writer, AgentRuntimeClient: agentRuntimeClient, Receipts: executionapplication.NewReceiptService(receiptOwner)})
-	memoryAdapter := memoryactivities.New(memoryactivities.Adapter{Writer: writer, PersonalMemoryExecutor: personalMemoryExecutor, PersonalMemoryErr: personalMemoryErr, PersonalMemoryStateStore: personalMemoryStateStore, PersonalMemoryStateErr: personalMemoryStateErr})
+	memoryAdapter := memoryactivities.New(memoryactivities.Adapter{Writer: writer, PersonalMemoryExecutor: personalMemoryExecutor, AsyncMemoryExecutor: asyncMemoryExecutor, PersonalMemoryErr: personalMemoryErr, PersonalMemoryStateStore: personalMemoryStateStore, PersonalMemoryStateErr: personalMemoryStateErr})
 	finalizationAdapter := finalizationactivities.New(finalizationactivities.Adapter{Writer: writer, AdmissionService: admissionService, Logger: logger})
 	reconciler := executionreconciler.New(executionreconciler.Options{
 		Finalizer:        control.NewFinalizer(finalizationAdapter),

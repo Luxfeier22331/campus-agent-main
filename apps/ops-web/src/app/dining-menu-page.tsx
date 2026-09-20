@@ -1,8 +1,10 @@
 import type { DiningMenuItemRecord } from "@campus-agent/dining/domain";
 import {
+	ActionGroup,
 	Badge,
 	Button,
 	Checkbox,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -31,10 +33,12 @@ import {
 	updateDiningMenuItem,
 } from "./ops-api/dining";
 import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
-import { ConfirmAction } from "./ui/alert-dialog";
 import { DataTable } from "./ui/data-table";
+import { useConfirmCommand } from "./use-confirm-command";
 
 export function DiningMenuPage() {
+	const confirmCommand = useConfirmCommand();
+
 	const queryClient = useQueryClient();
 	const [selectedWindowId, setSelectedWindowId] = useState("");
 	const [showArchived, setShowArchived] = useState(false);
@@ -145,7 +149,7 @@ export function DiningMenuPage() {
 			<DiningTaskNavigation />
 			<PageHeader
 				actions={
-					<div className="flex flex-wrap gap-2">
+					<ActionGroup>
 						<Button
 							aria-label="刷新菜单"
 							disabled={state.isFetching || menu.isFetching}
@@ -159,7 +163,7 @@ export function DiningMenuPage() {
 							<Plus className="size-4" />
 							新增菜品
 						</Button>
-					</div>
+					</ActionGroup>
 				}
 				description="按地图窗口维护学生端立即可见的菜品和价格。"
 				title="菜单维护"
@@ -239,7 +243,7 @@ export function DiningMenuPage() {
 						{ cell: (item) => formatTimestamp(item.updatedAt), header: "最近修改" },
 						{
 							cell: (item) => (
-								<div className="flex flex-wrap justify-end gap-1">
+								<ActionGroup className="justify-end">
 									{selectedWindowId && !item.archivedAt ? (
 										<>
 											<Button
@@ -274,16 +278,20 @@ export function DiningMenuPage() {
 									>
 										<Pencil className="size-4" />
 									</Button>
-									<ConfirmAction
+									<ConfirmDialog
 										confirmLabel={item.archivedAt ? "恢复" : "归档"}
+										confirmVariant={item.archivedAt ? "primary" : "destructive"}
 										description={
 											item.archivedAt
 												? "恢复后该菜品会立即重新出现在学生端菜单中。"
 												: "归档后该菜品不再出现在学生端，已有评价仍会保留。"
 										}
-										onConfirm={() =>
-											archive.mutate({ archived: !item.archivedAt, menuItemId: item.menuItemId })
-										}
+										{...confirmCommand(item.menuItemId, () =>
+											archive.mutateAsync({
+												archived: !item.archivedAt,
+												menuItemId: item.menuItemId,
+											}),
+										)}
 										title={`${item.archivedAt ? "恢复" : "归档"}“${item.name}”？`}
 										trigger={
 											<Button
@@ -300,7 +308,7 @@ export function DiningMenuPage() {
 											</Button>
 										}
 									/>
-								</div>
+								</ActionGroup>
 							),
 							header: "操作",
 						},

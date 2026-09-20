@@ -1,4 +1,12 @@
-import { Badge, Button, Input, NativeSelect, Skeleton } from "@campus-agent/ui";
+import {
+	ActionGroup,
+	Badge,
+	Button,
+	Input,
+	NativeSelect,
+	Skeleton,
+	StateMessage,
+} from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
@@ -115,7 +123,7 @@ export function ChatFeedbackPage({ search }: { search: ChatFeedbackSearch }) {
 						onChange={(event) => setDraft({ ...draft, requestId: event.target.value })}
 					/>
 				</label>
-				<div className="flex flex-wrap gap-2">
+				<ActionGroup>
 					<Button type="submit">查询</Button>
 					<Button
 						type="button"
@@ -128,12 +136,16 @@ export function ChatFeedbackPage({ search }: { search: ChatFeedbackSearch }) {
 					>
 						清除筛选
 					</Button>
-				</div>
+				</ActionGroup>
 			</form>
 			{error ? (
-				<p role="alert" className="mb-4 text-sm text-destructive">
-					{error}
-				</p>
+				<StateMessage
+					layout="inline"
+					role="alert"
+					tone="danger"
+					className="mb-4"
+					description={error}
+				/>
 			) : null}
 			{"query" in parsed ? (
 				page.data ? (
@@ -201,7 +213,7 @@ export function ChatFeedbackPage({ search }: { search: ChatFeedbackSearch }) {
 								},
 							]}
 						/>
-						<div className="mt-4 flex flex-wrap justify-end gap-2">
+						<ActionGroup className="mt-4 justify-end">
 							<Button
 								variant="outline"
 								disabled={history.length === 0 || page.isFetching}
@@ -232,7 +244,7 @@ export function ChatFeedbackPage({ search }: { search: ChatFeedbackSearch }) {
 								下一页
 								<ChevronRight className="size-4" />
 							</Button>
-						</div>
+						</ActionGroup>
 					</>
 				) : page.isError ? (
 					<ErrorState

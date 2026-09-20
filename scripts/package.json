@@ -1,0 +1,39 @@
+{
+	"name": "@campus-agent/tooling",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test:ci": "tsx --test ci/*.test.ts",
+		"test:deploy": "tsx --test deploy/*.test.ts",
+		"test:dev": "tsx --test dev/*.test.ts",
+		"test:docs": "tsx --test docs/*.test.ts",
+		"test:hooks": "tsx --test hooks/*.test.ts",
+		"test:notices": "tsx --test notices/*.test.ts",
+		"test:release": "tsx --test release/*.test.ts release/*.test.mjs"
+	},
+	"dependencies": {
+		"@campus-agent/dining": "workspace:*",
+		"@campus-agent/embedding-runtime": "workspace:*",
+		"@campus-agent/notices": "workspace:*",
+		"ingestion-contracts": "workspace:*",
+		"notice-classifier-core": "workspace:*",
+		"@aws-sdk/client-s3": "^3.1132.0",
+		"@types/pg": "^8.23.1",
+		"@types/react": "19.3.0",
+		"@types/react-dom": "19.3.0",
+		"openai": "7.15.0",
+		"pg": "^8.23.0",
+		"zod": "^4.6.5",
+		"@campus-agent/document-ocr": "workspace:*",
+		"campus-web": "workspace:*",
+		"campus-docs-index-publisher": "workspace:*",
+		"campus-rag-index-publisher": "workspace:*",
+		"notice-index-publisher": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.4",
+		"tsx": "^4.23.13",
+		"typescript": "^7.0.2",
+		"yaml": "2.9.1"
+	}
+}

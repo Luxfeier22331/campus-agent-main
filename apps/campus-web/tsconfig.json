@@ -41,8 +41,7 @@
 		"test/**/*.test.ts",
 		"test/**/*.test.tsx",
 		"vite.config.ts",
-		"vitest.fast.config.mts",
-		"vitest.isolated.config.mts",
+		"vitest.config.mts",
 		"vitest.worker.config.mts"
 	],
 	"exclude": ["test/**/*.worker.test.ts"]

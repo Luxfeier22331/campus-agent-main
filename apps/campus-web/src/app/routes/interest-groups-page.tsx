@@ -1,9 +1,8 @@
-import { Badge, Button, cn, Input, Skeleton } from "@campus-agent/ui";
+import { Badge, Button, Card, cn, Input, Skeleton, StateMessage } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { ArrowUp, Check, Copy, ExternalLink, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { StateMessage } from "@/components/ui/state-message";
 import {
 	countInterestGroups,
 	filterInterestGroupCatalog,
@@ -367,124 +366,126 @@ function GroupCard({
 	const nameId = `${group.id}-name`;
 	return (
 		<li className="h-full min-w-0">
-			<article
-				aria-labelledby={nameId}
-				className="group flex h-full min-h-40 min-w-0 flex-col rounded-[var(--card-radius)] border border-border bg-card p-4 transition-[border-color] duration-200 hover:border-border-default focus-within:border-border-selected sm:min-h-44 motion-reduce:transition-none"
-			>
-				<div className="flex min-w-0 items-start gap-3">
-					{joinLink ? (
-						<a
-							aria-label={`打开 ${group.name} 的加入链接`}
-							className="group/avatar shrink-0 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-ring"
-							href={joinLink.url}
-							rel="noopener noreferrer"
-							target="_blank"
-							title="打开加入链接"
-						>
+			<Card asChild>
+				<article
+					aria-labelledby={nameId}
+					className="group flex h-full min-h-40 min-w-0 flex-col p-4 transition-[border-color] duration-200 hover:border-border-default focus-within:border-border-selected sm:min-h-44 motion-reduce:transition-none"
+				>
+					<div className="flex min-w-0 items-start gap-3">
+						{joinLink ? (
+							<a
+								aria-label={`打开 ${group.name} 的加入链接`}
+								className="group/avatar shrink-0 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-ring"
+								href={joinLink.url}
+								rel="noopener noreferrer"
+								target="_blank"
+								title="打开加入链接"
+							>
+								<GroupAvatar avatarUrl={avatarUrl} group={group} />
+							</a>
+						) : (
 							<GroupAvatar avatarUrl={avatarUrl} group={group} />
-						</a>
-					) : (
-						<GroupAvatar avatarUrl={avatarUrl} group={group} />
-					)}
-					<div className="min-w-0 flex-1">
-						<h3
-							className="break-words text-base font-semibold leading-6 text-[var(--sys-text-strong)]"
-							id={nameId}
-						>
-							{group.name}
-						</h3>
-						{group.tags.length > 0 ? (
-							<ul
-								aria-label="群标签"
-								className="mt-2 flex min-w-0 flex-wrap gap-1.5 overflow-hidden"
+						)}
+						<div className="min-w-0 flex-1">
+							<h3
+								className="break-words text-base font-semibold leading-6 text-[var(--sys-text-strong)]"
+								id={nameId}
 							>
-								{group.tags.map((tag) => (
-									<li className="min-w-0 max-w-full" key={tag}>
-										<Badge
-											className="min-w-0 max-w-full border-border-selected bg-selected font-medium text-selected-foreground"
-											tone="neutral"
-										>
-											<span className="block min-w-0 truncate" title={tag}>
-												{tag}
-											</span>
-										</Badge>
-									</li>
-								))}
-							</ul>
-						) : null}
+								{group.name}
+							</h3>
+							{group.tags.length > 0 ? (
+								<ul
+									aria-label="群标签"
+									className="mt-2 flex min-w-0 flex-wrap gap-1.5 overflow-hidden"
+								>
+									{group.tags.map((tag) => (
+										<li className="min-w-0 max-w-full" key={tag}>
+											<Badge
+												className="min-w-0 max-w-full border-border-selected bg-selected font-medium text-selected-foreground"
+												tone="neutral"
+											>
+												<span className="block min-w-0 truncate" title={tag}>
+													{tag}
+												</span>
+											</Badge>
+										</li>
+									))}
+								</ul>
+							) : null}
+						</div>
 					</div>
-				</div>
 
-				<div className="mt-3 flex min-h-11 items-center justify-between gap-2 border-border border-t pt-2">
-					<p className="min-w-0 text-sm text-[var(--sys-text-muted)]">
-						<span className="text-xs text-[var(--sys-text-subtle)]">
-							{group.qqGroupNumber
-								? "QQ 群"
-								: joinLink?.platform === "discord"
-									? "Discord"
-									: "加入方式"}
-						</span>{" "}
-						<span className="font-semibold tabular-nums text-[var(--sys-text-strong)]">
-							{group.qqGroupNumber ?? (joinLink ? "邀请链接" : "暂未提供")}
-						</span>
-					</p>
-					<div className="flex shrink-0 items-center gap-1">
-						{copyState ? (
-							<span
-								aria-hidden="true"
-								className={
-									copyState === "success"
-										? "text-xs text-[var(--sys-status-success)]"
-										: "text-destructive text-xs"
-								}
-							>
-								{copyState === "success" ? "已复制" : "复制失败"}
+					<div className="mt-3 flex min-h-11 items-center justify-between gap-2 border-border border-t pt-2">
+						<p className="min-w-0 text-sm text-[var(--sys-text-muted)]">
+							<span className="text-xs text-[var(--sys-text-subtle)]">
+								{group.qqGroupNumber
+									? "QQ 群"
+									: joinLink?.platform === "discord"
+										? "Discord"
+										: "加入方式"}
+							</span>{" "}
+							<span className="font-semibold tabular-nums text-[var(--sys-text-strong)]">
+								{group.qqGroupNumber ?? (joinLink ? "邀请链接" : "暂未提供")}
 							</span>
-						) : null}
-						{group.qqGroupNumber ? (
-							<Button
-								aria-label={`复制群号 ${group.qqGroupNumber}`}
-								className="size-11 shrink-0 -mr-2"
-								onClick={onCopy}
-								size="icon-lg"
-								title={copyState === "error" ? "复制失败，请重试" : "复制群号"}
-								type="button"
-								variant="ghost"
-							>
-								{copyState === "success" ? (
-									<Check aria-hidden="true" className="text-[var(--sys-status-success)]" />
-								) : (
-									<Copy
-										aria-hidden="true"
-										className={copyState === "error" ? "text-destructive" : ""}
-									/>
-								)}
-							</Button>
-						) : null}
+						</p>
+						<div className="flex shrink-0 items-center gap-1">
+							{copyState ? (
+								<span
+									aria-hidden="true"
+									className={
+										copyState === "success"
+											? "text-xs text-[var(--sys-status-success)]"
+											: "text-destructive text-xs"
+									}
+								>
+									{copyState === "success" ? "已复制" : "复制失败"}
+								</span>
+							) : null}
+							{group.qqGroupNumber ? (
+								<Button
+									aria-label={`复制群号 ${group.qqGroupNumber}`}
+									className="size-11 shrink-0 -mr-2"
+									onClick={onCopy}
+									size="icon-lg"
+									title={copyState === "error" ? "复制失败，请重试" : "复制群号"}
+									type="button"
+									variant="ghost"
+								>
+									{copyState === "success" ? (
+										<Check aria-hidden="true" className="text-[var(--sys-status-success)]" />
+									) : (
+										<Copy
+											aria-hidden="true"
+											className={copyState === "error" ? "text-destructive" : ""}
+										/>
+									)}
+								</Button>
+							) : null}
+						</div>
 					</div>
-				</div>
-				{group.summary ? (
-					<p
-						className="mt-2 break-words text-xs leading-5 text-[var(--sys-text-subtle)] sm:line-clamp-4"
-						title={group.summary}
-					>
-						{group.summary}
-					</p>
-				) : null}
-				{joinLink ? (
-					<Button asChild className="mt-auto self-end" size="sm" variant="outline">
-						<a
-							aria-label={`加入 ${group.name}`}
-							href={joinLink.url}
-							rel="noopener noreferrer"
-							target="_blank"
+					{group.summary ? (
+						<p
+							className="mt-2 break-words text-xs leading-5 text-[var(--sys-text-subtle)] sm:line-clamp-4"
+							title={group.summary}
 						>
-							{joinLink.platform === "discord" ? "加入 Discord" : "加入群聊"}
-							<ExternalLink aria-hidden="true" className="size-3.5" />
-						</a>
-					</Button>
-				) : null}
-			</article>
+							{group.summary}
+						</p>
+					) : null}
+					{joinLink ? (
+						<Button asChild className="mt-auto self-end" size="sm" variant="outline">
+							<a
+								aria-label={`加入 ${group.name}`}
+								href={joinLink.url}
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								{joinLink.platform === "discord" ? "加入 Discord" : "加入群聊"}
+								<ExternalLink aria-hidden="true" className="size-3.5" />
+							</a>
+						</Button>
+					) : null}
+				</article>
+			</Card>
 		</li>
 	);
 }

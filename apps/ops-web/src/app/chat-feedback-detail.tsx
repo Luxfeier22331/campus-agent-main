@@ -1,4 +1,5 @@
 import {
+	ActionGroup,
 	Button,
 	Dialog,
 	DialogContent,
@@ -7,6 +8,7 @@ import {
 	DialogTitle,
 	Disclosure,
 	DisclosureSummary,
+	StateMessage,
 } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -72,7 +74,13 @@ function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; return
 		staleTime: 0,
 	});
 	if (detail.error instanceof OpsApiError && detail.error.status === 404) {
-		return <p role="status">该反馈已不可用，可能已撤回或所属会话已删除。请刷新列表。</p>;
+		return (
+			<StateMessage
+				layout="inline"
+				role="status"
+				description={<> 该反馈已不可用，可能已撤回或所属会话已删除。请刷新列表。 </>}
+			/>
+		);
 	}
 	if (!detail.data) {
 		return detail.isError ? (
@@ -82,7 +90,7 @@ function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; return
 				onRetry={() => void detail.refetch()}
 			/>
 		) : (
-			<p role="status">正在读取反馈详情…</p>
+			<StateMessage layout="inline" role="status" description={<> 正在读取反馈详情… </>} />
 		);
 	}
 	const data = detail.data;
@@ -112,7 +120,7 @@ function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; return
 				<ChatAnswerBody text={data.answer.text} kind="answer" />
 				<ChatAnswerSources sources={data.answer.sources} />
 			</section>
-			<div className="flex flex-wrap gap-2">
+			<ActionGroup>
 				<Button asChild variant="outline">
 					<Link
 						to="/conversations/$conversationId"
@@ -131,7 +139,7 @@ function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; return
 						查看对应请求
 					</Link>
 				</Button>
-			</div>
+			</ActionGroup>
 			<Disclosure className="border-t pt-4 text-sm">
 				<DisclosureSummary>关联标识</DisclosureSummary>
 				{[

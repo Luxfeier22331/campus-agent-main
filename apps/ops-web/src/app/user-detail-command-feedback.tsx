@@ -1,4 +1,4 @@
-import { Button } from "@campus-agent/ui";
+import { Button, StateMessage } from "@campus-agent/ui";
 import type { TemporaryPasswordResponse } from "campus-contracts/account-admin";
 import { RefreshCw, X } from "lucide-react";
 import { formatTimestamp } from "./format";
@@ -38,17 +38,20 @@ export function UserDetailCommandFeedback({
 				</div>
 			) : null}
 			{commandNotice ? (
-				<p
-					className="mb-4 rounded-md border border-success/20 bg-success-subtle px-3 py-2 text-success text-sm"
+				<StateMessage
+					layout="inline"
 					role="status"
-				>
-					{commandNotice}
-				</p>
+					className="mb-4 rounded-md border border-success/20 bg-success-subtle px-3 py-2"
+					description={commandNotice}
+				/>
 			) : null}
 			{commandPending ? (
-				<p className="mb-4 text-muted-foreground text-sm" role="status">
-					正在执行账号操作...
-				</p>
+				<StateMessage
+					layout="inline"
+					role="status"
+					className="mb-4"
+					description={<>正在执行账号操作...</>}
+				/>
 			) : null}
 			{temporaryPassword ? (
 				<div

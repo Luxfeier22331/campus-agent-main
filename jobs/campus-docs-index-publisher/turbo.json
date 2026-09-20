@@ -6,7 +6,17 @@
 	"tasks": {
 		"build": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/packages/contracts/package.json",
@@ -19,6 +29,12 @@
 			],
 			"outputs": [
 				"dist/**"
+			],
+			"dependsOn": [
+				"^source"
+			],
+			"env": [
+				"CAMPUS_NODE_RUNTIME"
 			]
 		},
 		"test": {

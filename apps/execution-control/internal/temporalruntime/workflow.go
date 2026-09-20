@@ -350,6 +350,13 @@ func finalizeWorkflowAnswer(
 	postFinalizationCtx, postFinalizationCancel := workflow.NewDisconnectedContext(ctx)
 	defer postFinalizationCancel()
 
+	if workflow.GetVersion(postFinalizationCtx, memoryAppendVersion, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := startMemoryAppendWorkflow(postFinalizationCtx, input.RequestID); err != nil {
+			return workflowResultFromFinalization(finalization), err
+		}
+		return workflowResultFromFinalization(finalization), nil
+	}
+	// Replay-only path for histories created before async-memory-append-v1.
 	if appendErr := executeMemoryAppend(postFinalizationCtx, activityOptions, input); appendErr != nil {
 		finalCtx := workflow.WithActivityOptions(postFinalizationCtx, unlimitedFinalizerActivityOptions(15*time.Second))
 		if err := executeBoundedActivity(finalCtx, FinalizeMemoryAppendActivityName, FinalizeMemoryAppendActivityInput{

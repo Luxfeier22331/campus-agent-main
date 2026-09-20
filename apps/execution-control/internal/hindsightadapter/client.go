@@ -93,6 +93,9 @@ func (c hindsightHTTPClient) RetainMemories(
 		Async: request.Async,
 		Items: make([]hindsight.MemoryItem, 0, len(request.Items)),
 	}
+	if request.OperationID != "" {
+		payload.SetOperationId(request.OperationID)
+	}
 	for _, item := range request.Items {
 		sdkItem, err := toHindsightSDKMemoryItem(item)
 		if err != nil {

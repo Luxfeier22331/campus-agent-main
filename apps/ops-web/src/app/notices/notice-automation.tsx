@@ -1,4 +1,4 @@
-import { Button, Checkbox, Field, NativeSelect } from "@campus-agent/ui";
+import { ActionGroup, Button, Checkbox, Field, NativeSelect, StateMessage } from "@campus-agent/ui";
 import { useState } from "react";
 import type {
 	NoticeAutomation,
@@ -58,9 +58,7 @@ export function NoticeAutomationPanel({
 			</div>
 			{error ? <InlineError error={error} title="自动采集读取失败" /> : null}
 			{data?.scheduleError ? (
-				<p role="alert" className="text-sm text-danger">
-					{data.scheduleError}
-				</p>
+				<StateMessage layout="inline" role="alert" tone="danger" description={data.scheduleError} />
 			) : null}
 			{error || data?.scheduleError ? (
 				<Button onClick={onRetry} variant="outline">
@@ -143,9 +141,7 @@ export function NoticeAutomationPanel({
 						: "尚未初始化"}
 			</p>
 			{data?.stateError ? (
-				<p role="alert" className="text-sm">
-					{data.stateError}
-				</p>
+				<StateMessage layout="inline" role="alert" tone="danger" description={data.stateError} />
 			) : null}
 			<p className="text-sm">
 				门户凭据：
@@ -160,18 +156,21 @@ export function NoticeAutomationPanel({
 				</a>
 			</p>
 			{data?.credentialError ? (
-				<p role="alert" className="text-sm">
-					{data.credentialError}
-				</p>
+				<StateMessage
+					layout="inline"
+					role="alert"
+					tone="danger"
+					description={data.credentialError}
+				/>
 			) : null}
-			<div className="flex flex-wrap gap-2">
+			<ActionGroup>
 				<Button onClick={onRun} disabled={busy} variant="outline">
 					立即采集
 				</Button>
 				<Button onClick={onTasks} variant="ghost">
 					查看任务
 				</Button>
-			</div>
+			</ActionGroup>
 		</section>
 	);
 }

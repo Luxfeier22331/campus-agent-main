@@ -3,9 +3,11 @@ import type {
 	DiningOpsContentReviewRecord,
 } from "@campus-agent/dining/domain";
 import {
+	ActionGroup,
 	Badge,
 	Button,
 	Checkbox,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -31,8 +33,8 @@ import {
 	updateDiningReview,
 } from "./ops-api/dining";
 import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
-import { ConfirmAction } from "./ui/alert-dialog";
 import { DataTable } from "./ui/data-table";
+import { useConfirmCommand } from "./use-confirm-command";
 
 type ReviewVisibility = "deleted" | "hidden" | "visible";
 
@@ -41,6 +43,8 @@ export function DiningReviewsPage({
 }: {
 	initialSubmissionId?: string | undefined;
 } = {}) {
+	const confirmCommand = useConfirmCommand();
+
 	const queryClient = useQueryClient();
 	const [cursor, setCursor] = useState<string | undefined>();
 	const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([]);
@@ -122,7 +126,7 @@ export function DiningReviewsPage({
 			<DiningTaskNavigation />
 			<PageHeader
 				actions={
-					<div className="flex flex-wrap gap-2">
+					<ActionGroup>
 						<Button
 							aria-label="刷新评价"
 							disabled={reviews.isFetching}
@@ -136,7 +140,7 @@ export function DiningReviewsPage({
 							<MessageSquarePlus className="size-4" />
 							新增评价
 						</Button>
-					</div>
+					</ActionGroup>
 				}
 				description="查看学生评价，录入普通评价，并处理内容修改和隐藏状态。"
 				title="评价维护"
@@ -291,7 +295,7 @@ export function DiningReviewsPage({
 						{ cell: (review) => formatTimestamp(review.createdAt), header: "提交时间" },
 						{
 							cell: (review) => (
-								<div className="flex flex-wrap justify-end gap-1">
+								<ActionGroup className="justify-end">
 									<Button
 										aria-label={`查看评价 ${review.reviewId}`}
 										onClick={() => setDetailReviewId(review.reviewId)}
@@ -317,10 +321,12 @@ export function DiningReviewsPage({
 										</Button>
 									)}
 									{review.authorKind === "operator" && !review.deletedAt ? (
-										<ConfirmAction
+										<ConfirmDialog
 											confirmLabel="删除"
 											description="评价会从学生端移除并保留数据库记录，删除后不能编辑。"
-											onConfirm={() => deleteMutation.mutate(review.reviewId)}
+											{...confirmCommand(review.reviewId, () =>
+												deleteMutation.mutateAsync(review.reviewId),
+											)}
 											title="删除这条运维录入评价？"
 											trigger={
 												<Button
@@ -334,7 +340,7 @@ export function DiningReviewsPage({
 											}
 										/>
 									) : null}
-								</div>
+								</ActionGroup>
 							),
 							header: "操作",
 						},
@@ -347,7 +353,7 @@ export function DiningReviewsPage({
 				/>
 			)}
 
-			<div className="mt-4 flex justify-end gap-2">
+			<ActionGroup className="mt-4 justify-end">
 				<Button
 					disabled={previousCursors.length === 0 || reviews.isFetching}
 					onClick={() => {
@@ -369,7 +375,7 @@ export function DiningReviewsPage({
 				>
 					下一页
 				</Button>
-			</div>
+			</ActionGroup>
 
 			{creating ? (
 				<CreateReviewDialog

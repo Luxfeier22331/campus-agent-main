@@ -8,7 +8,14 @@ import {
 	type ToolCallMessagePartStatus,
 	useScrollLock,
 } from "@assistant-ui/react";
-import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger, cn } from "@campus-agent/ui";
+import {
+	ActionGroup,
+	Button,
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+	cn,
+} from "@campus-agent/ui";
 import { AlertCircleIcon, CheckIcon, ChevronDownIcon, LoaderIcon, XCircleIcon } from "lucide-react";
 import { memo, useCallback, useRef, useState } from "react";
 
@@ -309,7 +316,7 @@ function ToolFallbackApproval({
 						))}
 					</ul>
 				)}
-				<div className="flex items-center gap-2">
+				<ActionGroup>
 					<Button size="sm" onClick={() => respondWithOption(confirming)} disabled={submitted}>
 						确认
 					</Button>
@@ -321,7 +328,7 @@ function ToolFallbackApproval({
 					>
 						返回
 					</Button>
-				</div>
+				</ActionGroup>
 			</div>
 		);
 	}

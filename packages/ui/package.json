@@ -14,7 +14,7 @@
 		"./tokens.css": "./src/tokens.css"
 	},
 	"scripts": {
-		"test": "vitest run --environment jsdom",
+		"test": "vitest run --environment jsdom --no-file-parallelism",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

@@ -6,27 +6,20 @@ import type {
 	DiningSubmissionReview,
 } from "@campus-agent/dining/domain";
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
 	Button,
 	Checkbox,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-	Label,
+	Field,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
+	StateMessage,
 	Textarea,
 } from "@campus-agent/ui";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -246,9 +239,13 @@ function DiningReviewSheetContent(props: DiningReviewSheetProps) {
 							</Button>
 						)}
 						{mutationError ? (
-							<p className="mt-3 text-destructive text-sm" role="alert">
-								{mutationError.message}
-							</p>
+							<StateMessage
+								layout="inline"
+								role="alert"
+								tone="danger"
+								className="mt-3"
+								description={mutationError.message}
+							/>
 						) : null}
 					</section>
 
@@ -291,8 +288,11 @@ function DiningReviewSheetContent(props: DiningReviewSheetProps) {
 												</p>
 											</div>
 											<ReviewActions
+												fallbackFocusRef={titleRef}
 												authenticated={session.status === "authenticated"}
-												onDelete={() => remove.mutate(review.reviewId)}
+												onDelete={() => remove.mutateAsync(review.reviewId)}
+												pending={remove.isPending && remove.variables === review.reviewId}
+												error={remove.variables === review.reviewId ? remove.error : null}
 												onLogin={() => setAuthOpen(true)}
 												onReport={(trigger) => {
 													reportTriggerRef.current = trigger;
@@ -341,27 +341,29 @@ function DiningReviewSheetContent(props: DiningReviewSheetProps) {
 					</DialogHeader>
 					<div className="space-y-4">
 						<div className="space-y-2">
-							<Label htmlFor="dining-report-reason">原因</Label>
-							<AdaptiveSelect
-								id="dining-report-reason"
-								onValueChange={(value) => setReportReason(value as DiningReportReason)}
-								options={[
-									{ label: "垃圾信息", value: "spam" },
-									{ label: "不当内容", value: "inappropriate" },
-									{ label: "隐私泄露", value: "privacy" },
-									{ label: "其他", value: "other" },
-								]}
-								value={reportReason}
-							/>
+							<Field label={<> 原因 </>} id="dining-report-reason">
+								<AdaptiveSelect
+									id="dining-report-reason"
+									onValueChange={(value) => setReportReason(value as DiningReportReason)}
+									options={[
+										{ label: "垃圾信息", value: "spam" },
+										{ label: "不当内容", value: "inappropriate" },
+										{ label: "隐私泄露", value: "privacy" },
+										{ label: "其他", value: "other" },
+									]}
+									value={reportReason}
+								/>
+							</Field>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="dining-report-details">补充说明</Label>
-							<Textarea
-								id="dining-report-details"
-								maxLength={300}
-								onChange={(event) => setReportDetails(event.target.value)}
-								value={reportDetails}
-							/>
+							<Field label={<> 补充说明 </>} id="dining-report-details">
+								<Textarea
+									id="dining-report-details"
+									maxLength={300}
+									onChange={(event) => setReportDetails(event.target.value)}
+									value={reportDetails}
+								/>
+							</Field>
 						</div>
 					</div>
 					<DialogFooter>
@@ -392,8 +394,11 @@ function DiningReviewSheetContent(props: DiningReviewSheetProps) {
 }
 
 function ReviewActions(props: {
+	fallbackFocusRef: import("react").RefObject<HTMLElement | null>;
 	authenticated: boolean;
-	onDelete(): void;
+	onDelete(): Promise<unknown>;
+	pending: boolean;
+	error: unknown;
 	onLogin(): void;
 	onReport(trigger: HTMLButtonElement): void;
 	review: {
@@ -402,27 +407,34 @@ function ReviewActions(props: {
 		hasReported: boolean;
 	};
 }) {
+	const [deleting, setDeleting] = useState(false);
 	if (props.review.canDelete) {
 		return (
-			<AlertDialog>
-				<AlertDialogTrigger asChild>
+			<ConfirmDialog
+				fallbackFocusRef={props.fallbackFocusRef}
+				open={deleting}
+				onOpenChange={setDeleting}
+				title="删除这条评价？"
+				description="评价将不再公开展示，并继续计入今天的提交数量。"
+				confirmLabel="删除"
+				pending={props.pending}
+				error={
+					props.error ? (props.error instanceof Error ? props.error.message : "删除未完成。") : null
+				}
+				onConfirm={() => {
+					void props.onDelete().then(
+						() => setDeleting(false),
+						() => {
+							/* Mutation error remains visible in the confirmation. */
+						},
+					);
+				}}
+				trigger={
 					<Button aria-label="删除评价" size="icon" variant="ghost">
 						<Trash2 />
 					</Button>
-				</AlertDialogTrigger>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>删除这条评价？</AlertDialogTitle>
-						<AlertDialogDescription>
-							评价将不再公开展示，并继续计入今天的提交数量。
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>取消</AlertDialogCancel>
-						<AlertDialogAction onClick={props.onDelete}>删除</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				}
+			/>
 		);
 	}
 	if (props.review.hasReported) {

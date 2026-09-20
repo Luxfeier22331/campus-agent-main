@@ -50,6 +50,19 @@ test("skips lifecycle contexts that cannot own development hooks", () => {
 	assert.equal(calls, 1);
 });
 
+test("rejects a successful installer that leaves the Git hook missing or non-executable", (t) => {
+	const root = mkdtempSync(path.join(os.tmpdir(), "campus-hook-missing-"));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const hook = path.join(root, "pre-commit");
+	const runner: HookCommandRunner = (_command, args) =>
+		result({
+			stdout: args.includes("--show-toplevel") ? root : args.includes("--git-path") ? hook : "",
+		});
+	assert.throws(() => installHooks({ cwd: root, env: {}, runner }), /ENOENT/u);
+	writeFileSync(hook, "#!/bin/sh\n", { mode: 0o644 });
+	assert.throws(() => installHooks({ cwd: root, env: {}, runner }), /EACCES/u);
+});
+
 test("delegates standard prek installation to independent checkout hook paths", (t) => {
 	const parent = mkdtempSync(path.join(os.tmpdir(), "campus-agent-hooks-test-"));
 	t.after(() => rmSync(parent, { force: true, recursive: true }));
@@ -75,7 +88,7 @@ test("delegates standard prek installation to independent checkout hook paths", 
 				return result();
 			}
 			for (const hook of ["pre-commit"]) {
-				writeFileSync(path.join(hookRoot, hook), `${options.cwd}\n`);
+				writeFileSync(path.join(hookRoot, hook), `${options.cwd}\n`, { mode: 0o755 });
 			}
 			return result();
 		}

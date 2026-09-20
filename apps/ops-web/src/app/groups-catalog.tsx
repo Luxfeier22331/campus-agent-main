@@ -1,4 +1,4 @@
-import { Badge, Button, cn } from "@campus-agent/ui";
+import { ActionGroup, Badge, Button, cn } from "@campus-agent/ui";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -76,7 +76,7 @@ export function SortableGroupSection({
 					<h3 className="truncate font-semibold text-base text-foreground">{section.name}</h3>
 					<p className="mt-0.5 text-muted-foreground text-xs">{section.groups.length} 个群</p>
 				</div>
-				<div className="flex shrink-0 items-center gap-1">
+				<ActionGroup className="shrink-0">
 					<Button
 						aria-label={`在“${section.name}”中新增群`}
 						className="size-10 p-0"
@@ -107,7 +107,7 @@ export function SortableGroupSection({
 					>
 						<Trash2 className="size-4 text-destructive" />
 					</Button>
-				</div>
+				</ActionGroup>
 			</header>
 
 			<SortableContext
@@ -193,7 +193,7 @@ function SortableGroupRow({
 			<div className="col-start-2 mt-2 min-w-0 self-center text-muted-foreground text-sm md:col-start-auto md:mt-0">
 				{group.tags.join("、") || "未填写标签"}
 			</div>
-			<div className="col-start-3 row-span-3 row-start-1 flex shrink-0 gap-1 self-center md:col-start-auto md:row-span-1 md:row-start-auto">
+			<ActionGroup className="col-start-3 row-span-3 row-start-1 shrink-0 self-center md:col-start-auto md:row-span-1 md:row-start-auto">
 				<Button
 					aria-label={`编辑 ${group.name}`}
 					className="size-10 p-0"
@@ -214,7 +214,7 @@ function SortableGroupRow({
 				>
 					<Trash2 className="size-4 text-destructive" />
 				</Button>
-			</div>
+			</ActionGroup>
 		</li>
 	);
 }

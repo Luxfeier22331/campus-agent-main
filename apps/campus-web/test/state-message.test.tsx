@@ -1,6 +1,6 @@
+import { StateMessage } from "@campus-agent/ui";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { StateMessage } from "../src/components/ui/state-message";
 
 describe("state message", () => {
 	it("renders a section state without adding a card container", () => {

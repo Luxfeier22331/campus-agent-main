@@ -1,4 +1,4 @@
-import { Button, cn } from "@campus-agent/ui";
+import { Button, cn, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { lazy, memo, Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
@@ -126,9 +126,12 @@ function DiningFloorplanUnavailable(props: {
 						})}
 					</ul>
 				) : (
-					<p className="py-4 text-center text-sm text-[var(--sys-text-muted)]" role="status">
-						{props.windows.length > 0 ? "没有匹配的窗口" : "当前楼层暂无窗口"}
-					</p>
+					<StateMessage
+						layout="inline"
+						role="status"
+						className="py-4"
+						description={props.windows.length > 0 ? "没有匹配的窗口" : "当前楼层暂无窗口"}
+					/>
 				)}
 			</div>
 		</section>

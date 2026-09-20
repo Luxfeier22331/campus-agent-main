@@ -15,10 +15,14 @@
 		"dev:fixture": "set -a && . ./.env.local && set +a && exec node --experimental-strip-types test/fixtures/internal-portal-automation-server.ts --port \"$PORT\"",
 		"dev:web": "set -a && . ./.env.local && set +a && exec vite --host 127.0.0.1 --port \"$OPS_WEB_WEB_PORT\" --strictPort",
 		"start": "node --env-file-if-exists=.env dist-server/node.js",
-		"test": "vitest run --config vitest.config.mts",
+		"test": "vitest run -c vitest.config.mts",
 		"test:browser": "pnpm build && playwright test --config browser.config.ts",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:node:fast": "vitest run -c vitest.config.mts --project=ops-node-fast",
+		"test:node:isolated": "vitest run -c vitest.config.mts --project=ops-node-isolated",
+		"test:dom:fast": "vitest run -c vitest.config.mts --project=ops-dom-fast",
+		"test:dom:isolated": "vitest run -c vitest.config.mts --project=ops-dom-isolated"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1132.0",

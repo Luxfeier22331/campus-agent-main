@@ -94,7 +94,8 @@ jobs:
           set -euo pipefail
           pnpm install --frozen-lockfile \
             --filter campus-agent-web-workspace \
-            --filter 'campus-contracts...'
+            --filter 'campus-contracts...' \
+            --filter '@campus-agent/tooling...'
 
       - name: Generate pull request validation plan
         id: plan
@@ -126,7 +127,7 @@ jobs:
           has_image_build="$(jq -r --arg profile image-build \
             '.validationProfiles | index($profile) != null' <<< "$plan")"
           pnpm_install_scope="$(jq -c '
-            ["campus-agent-web-workspace", "campus-contracts..."] +
+            ["campus-agent-web-workspace", "campus-contracts...", "@campus-agent/tooling..."] +
             (if (.validationProfiles | index("affected-node")) != null
              then [.affectedPackages[] + "..."] else [] end) | unique
           ' <<< "$plan")"
@@ -283,7 +284,12 @@ jobs:
 
       - name: Install affected workspaces
         id: install_affected
-        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node')"
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') &&
+          steps.repository_test.outcome == 'success' &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
         continue-on-error: true
         env:
           AFFECTED_PACKAGES: ${{ steps.plan.outputs.affected_packages }}
@@ -317,9 +323,11 @@ jobs:
       - name: Run affected Node evidence
         id: node_evidence
         if: >-
-          !cancelled() && steps.plan.outcome == 'success' &&
-          steps.plan.outputs.node_evidence_profiles != '[]' &&
-          steps.install_affected.outcome == 'success'
+          !cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.node_evidence_profiles != '[]' && steps.install_affected.outcome == 'success' &&
+          steps.repository_test.outcome == 'success' &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
         continue-on-error: true
         env:
           CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/node.jsonl
@@ -335,7 +343,13 @@ jobs:
           node --experimental-strip-types scripts/ci/evidence.mts --plan "$RUNNER_TEMP/ci-evidence/plan.json" --profiles "$VALIDATION_PROFILES" --repository "$GITHUB_REPOSITORY" --summary "$GITHUB_STEP_SUMMARY"
       - name: Run container build contract evidence
         id: container_build
-        if: "!cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.has_container_build == 'true'"
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.has_container_build == 'true' &&
+          steps.repository_test.outcome == 'success' &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success')
         continue-on-error: true
         env:
           CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/container.jsonl
@@ -347,7 +361,14 @@ jobs:
           node --experimental-strip-types scripts/ci/evidence.mts --profiles "$VALIDATION_PROFILES"
       - name: Check affected native code
         id: native_evidence
-        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native')"
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native') &&
+          steps.repository_test.outcome == 'success' &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'container-build') || steps.container_build.outcome == 'success')
         continue-on-error: true
         shell: nix develop .#ci-go --command bash -e {0}
         env:
@@ -379,7 +400,15 @@ jobs:
           key: ${{ steps.restore_go.outputs.cache-primary-key }}
       - name: Verify unified database upgrade
         id: schema_migration
-        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'schema-migration')"
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'schema-migration') &&
+          steps.repository_test.outcome == 'success' &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'container-build') || steps.container_build.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native') || steps.native_evidence.outcome == 'success')
         continue-on-error: true
         shell: nix develop .#ci-release --command bash -e {0}
         run: |

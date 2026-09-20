@@ -6,19 +6,57 @@
 	"globalPassThroughEnv": ["WORKERS"],
 	"tasks": {
 		"build": {
-			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
-			"outputs": ["dist/**", ".tanstack/**"]
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"!README.md",
+				"!**/README.md"
+			],
+			"outputs": ["dist/**", ".tanstack/**"],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"agent-runtime#build": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
 				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v4.json",
 				"$TURBO_ROOT$/configs/runtime/tools.v7.json"
-			]
+			],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"ops-web#build": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
@@ -37,11 +75,33 @@
 				"$TURBO_ROOT$/packages/domains/notices/package.json",
 				"$TURBO_ROOT$/packages/domains/notices/src/**"
 			],
-			"outputs": ["dist/**", "dist-ops/**", "dist-server/**", ".tanstack/**"]
+			"outputs": ["dist/**", "dist-ops/**", "dist-server/**", ".tanstack/**"],
+			"dependsOn": [
+				"@campus-agent/dining#source",
+				"@campus-agent/document-ocr#source",
+				"@campus-agent/internal-portal-client#source",
+				"@campus-agent/notices#source",
+				"@campus-agent/transport#source",
+				"@campus-agent/ui#source",
+				"campus-contracts#source",
+				"ingestion-contracts#source",
+				"notice-publisher#source"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"campus-web#build": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/packages/contracts/package.json",
@@ -53,16 +113,18 @@
 			"outputs": ["dist/**", ".tanstack/**"]
 		},
 		"typecheck": {
-			"dependsOn": ["^typecheck"],
+			"dependsOn": ["^source"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputLogs": "new-only",
-			"outputs": []
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"test": {
-			"dependsOn": ["^test"],
+			"dependsOn": ["^source"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputLogs": "new-only",
-			"outputs": []
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"native:format": {
 			"outputLogs": "new-only",
@@ -129,14 +191,15 @@
 			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
 		},
 		"internal-portal-collection#test": {
-			"dependsOn": ["^test"],
+			"dependsOn": ["^source"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/sources/**"
 			],
-			"outputLogs": "new-only"
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"test:eval": {
 			"dependsOn": ["^test:eval"],
@@ -163,13 +226,14 @@
 			"cache": false
 		},
 		"test:worker": {
-			"dependsOn": ["^test"],
+			"dependsOn": ["^source"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputLogs": "new-only",
-			"outputs": []
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"campus-contracts#typecheck": {
-			"dependsOn": ["^typecheck"],
+			"dependsOn": ["^source"],
 			"inputs": [
 				"package.json",
 				"schemas/**",
@@ -178,20 +242,22 @@
 				"test/**/*.ts",
 				"tsconfig.json"
 			],
-			"outputLogs": "new-only"
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"eval-langfuse#test": {
-			"dependsOn": ["^test"],
+			"dependsOn": ["^source"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			],
-			"outputLogs": "new-only"
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"eval-langfuse#typecheck": {
-			"dependsOn": ["^typecheck"],
+			"dependsOn": ["^source"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -201,12 +267,13 @@
 			"outputLogs": "new-only"
 		},
 		"ingestion-contracts#typecheck": {
-			"dependsOn": ["^typecheck"],
+			"dependsOn": ["^source"],
 			"inputs": ["package.json", "schemas/**", "src/**/*.ts", "test/**/*.ts", "tsconfig.json"],
-			"outputLogs": "new-only"
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"ingestion-contracts#test": {
-			"dependsOn": ["^test"],
+			"dependsOn": ["^source"],
 			"inputs": [
 				"assertions/**",
 				"package.json",
@@ -215,32 +282,11 @@
 				"test/**/*.ts",
 				"tsconfig.json"
 			],
-			"outputLogs": "new-only"
-		},
-		"ops-web#test": {
-			"dependsOn": [
-				"@campus-agent/dining#test",
-				"@campus-agent/document-ocr#test",
-				"@campus-agent/internal-portal-client#test",
-				"@campus-agent/notices#test",
-				"@campus-agent/transport#test",
-				"@campus-agent/ui#test",
-				"campus-contracts#test",
-				"notice-publisher#test"
-			],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/.dockerignore",
-				"$TURBO_ROOT$/configs/sources/internal-portal.json",
-				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
-			],
 			"outputLogs": "new-only",
-			"outputs": []
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"ops-web#typecheck": {
-			"dependsOn": ["^typecheck"],
+			"dependsOn": ["^source"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -249,7 +295,8 @@
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
 			],
 			"outputLogs": "new-only",
-			"outputs": []
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"test:shared-db-integration": {
 			"cache": false
@@ -271,7 +318,17 @@
 		},
 		"document-ocr#build": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
 				"$TURBO_ROOT$/packages/notice-database/package.json",
 				"$TURBO_ROOT$/packages/notice-database/src/**",
 				"$TURBO_ROOT$/packages/contracts/package.json",
@@ -282,16 +339,56 @@
 				"$TURBO_ROOT$/packages/domains/notices/src/**",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json"
 			],
-			"outputs": ["dist/**"]
+			"outputs": ["dist/**"],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"ocr": {
 			"cache": false
 		},
-		"//#test:scripts": {
-			"inputs": ["$TURBO_DEFAULT$"],
+		"source": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"package.json",
+				"src/**",
+				"schemas/**",
+				"assertions/**",
+				"assets/**",
+				"public/**",
+				"adapters/**/src/**",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*"
+			],
+			"outputs": []
+		},
+		"test:node:fast": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"env": ["CAMPUS_NODE_RUNTIME"],
 			"outputs": [],
-			"outputLogs": "new-only",
-			"env": ["CAMPUS_REPO_TEST_INDEX_TREE", "CAMPUS_REPO_TEST_RUNTIME"]
+			"outputLogs": "new-only"
+		},
+		"test:node:isolated": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:dom:fast": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:dom:isolated": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
 		}
 	}
 }

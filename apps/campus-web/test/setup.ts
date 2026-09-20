@@ -41,4 +41,11 @@ if (typeof Element !== "undefined") {
 
 afterEach(() => {
 	cleanup();
+	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
+	vi.unstubAllEnvs();
+	vi.useRealTimers();
+	window.history.replaceState(null, "", "/");
+	window.localStorage.clear();
+	window.sessionStorage.clear();
 });

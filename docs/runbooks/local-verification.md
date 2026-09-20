@@ -53,6 +53,7 @@ pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 
 ```bash
 pnpm --dir apps/campus-web test:node:fast
+pnpm --dir apps/campus-web test:dom:fast
 pnpm --dir apps/campus-web build:test
 pnpm dev:shared-reconcile
 pnpm dev:init -- --target core

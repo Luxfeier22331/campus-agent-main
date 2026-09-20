@@ -49,10 +49,10 @@ export function toExecutionDiagnostics(
 	const stageFailure = readExecutionFailure(failedStagePayload.failure);
 	const failedAttempt = [...diagnostics.modelAttempts].reverse().find((attempt) => {
 		if (
-			failedStage &&
-			(failedStage.activityAttempt === undefined ||
-				attempt.stepId !== failedStage.stepId ||
-				attempt.activityAttempt !== failedStage.activityAttempt)
+			!failedStage ||
+			failedStage.activityAttempt === undefined ||
+			attempt.stepId !== failedStage.stepId ||
+			attempt.activityAttempt !== failedStage.activityAttempt
 		) {
 			return false;
 		}

@@ -1,4 +1,4 @@
-import { Button } from "@campus-agent/ui";
+import { ActionGroup, Button } from "@campus-agent/ui";
 import { type CalendarDate, parseDate, today } from "@internationalized/date";
 import { CalendarDays } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
@@ -195,7 +195,7 @@ export function CampusDateRangePicker({
 						>
 							清除日期
 						</Button>
-						<div className="flex gap-2">
+						<ActionGroup>
 							<Button variant="ghost" onClick={() => setOpen(false)}>
 								取消
 							</Button>
@@ -211,7 +211,7 @@ export function CampusDateRangePicker({
 							>
 								应用
 							</Button>
-						</div>
+						</ActionGroup>
 					</div>
 				</div>
 			</PopoverContent>

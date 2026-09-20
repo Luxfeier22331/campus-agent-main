@@ -271,6 +271,7 @@ export function createProductSeed(now: Date) {
 			author_id: "local-seed-reviewer",
 			author_kind: "member",
 			body: "热汤面分量充足，夜宵时段也能吃到。",
+			content_revision: 1,
 			created_at: timestamp,
 			deleted_at: null,
 			deleted_by: null,

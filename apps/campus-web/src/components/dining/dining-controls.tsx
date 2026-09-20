@@ -7,6 +7,7 @@ import {
 	SelectLabel,
 	SelectTrigger,
 	SelectValue,
+	StateMessage,
 } from "@campus-agent/ui";
 import { X } from "lucide-react";
 import { useState } from "react";
@@ -184,12 +185,19 @@ export function DiningMapToolbar(props: {
 			</div>
 			{props.query.trim() &&
 			!props.searchResults.some((result) => result.floorId === props.selectedFloorId) ? (
-				<p className="mt-2 text-sm text-[var(--sys-text-muted)]" role="status">
-					本层没有匹配的窗口。
-					{props.searchResults.length > 0
-						? `其他楼层有 ${props.searchResults.length} 个结果，请从搜索结果选择。`
-						: "可清除搜索查看全部窗口。"}
-				</p>
+				<StateMessage
+					layout="inline"
+					role="status"
+					className="mt-2"
+					description={
+						<>
+							本层没有匹配的窗口。
+							{props.searchResults.length > 0
+								? `其他楼层有 ${props.searchResults.length} 个结果，请从搜索结果选择。`
+								: "可清除搜索查看全部窗口。"}
+						</>
+					}
+				/>
 			) : null}
 		</div>
 	);

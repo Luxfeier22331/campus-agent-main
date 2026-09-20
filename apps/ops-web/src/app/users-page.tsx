@@ -1,4 +1,4 @@
-import { Button, Input, NativeSelect } from "@campus-agent/ui";
+import { ActionGroup, Button, Input, NativeSelect, StateMessage } from "@campus-agent/ui";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import type {
@@ -158,9 +158,12 @@ export function UsersPage({ search }: { search: UsersSearch }) {
 			) : users.data ? (
 				<>
 					{users.isFetching ? (
-						<p className="mb-2 text-muted-foreground text-sm" role="status">
-							正在更新结果...
-						</p>
+						<StateMessage
+							layout="inline"
+							role="status"
+							className="mb-2"
+							description={<>正在更新结果...</>}
+						/>
 					) : null}
 					<DataTable<AccountAdminUserSummary>
 						busy={users.isFetching}
@@ -231,7 +234,7 @@ export function UsersPage({ search }: { search: UsersSearch }) {
 						<p className="text-muted-foreground text-sm">
 							第 {history.length + 1} 页，本页 {users.data.items.length} 位用户
 						</p>
-						<div className="flex gap-2">
+						<ActionGroup>
 							<Button
 								disabled={users.isFetching || history.length === 0}
 								onClick={() => {
@@ -266,7 +269,7 @@ export function UsersPage({ search }: { search: UsersSearch }) {
 								下一页
 								<ChevronRight className="size-4" />
 							</Button>
-						</div>
+						</ActionGroup>
 					</div>
 				</>
 			) : (

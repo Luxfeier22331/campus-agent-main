@@ -1,6 +1,8 @@
 import {
+	ActionGroup,
 	Badge,
 	Button,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -35,8 +37,8 @@ import {
 	validateInternalPortalCredential,
 } from "./ops-api/internal-portal";
 import { ErrorState, InlineError, PageHeader } from "./ops-display";
-import { ConfirmAction } from "./ui/alert-dialog";
 import { DataTable } from "./ui/data-table";
+import { useConfirmCommand } from "./use-confirm-command";
 
 const CREDENTIALS_QUERY_KEY = ["ops", "internal-portal", "credentials"] as const;
 
@@ -92,7 +94,7 @@ export function InternalPortalCredentialsSection() {
 	const actions = {
 		delete: (credential: InternalPortalCredential) => {
 			setCommandError(null);
-			remove.mutate(credential);
+			return remove.mutateAsync(credential);
 		},
 		open: (next: CredentialDialog) => {
 			setCommandError(null);
@@ -108,7 +110,7 @@ export function InternalPortalCredentialsSection() {
 			<section>
 				<PageHeader
 					actions={
-						<div className="flex gap-2">
+						<ActionGroup>
 							<Button
 								aria-label="刷新凭据"
 								disabled={credentials.isFetching}
@@ -123,7 +125,7 @@ export function InternalPortalCredentialsSection() {
 								<Plus className="size-4" />
 								新增凭据
 							</Button>
-						</div>
+						</ActionGroup>
 					}
 					title="内部门户凭据"
 				/>
@@ -221,7 +223,7 @@ function credentialColumns(actions: CredentialActions) {
 }
 
 interface CredentialActions {
-	delete: (credential: InternalPortalCredential) => void;
+	delete: (credential: InternalPortalCredential) => Promise<unknown>;
 	open: (dialog: Exclude<CredentialDialog, null>) => void;
 	validate: (credentialId: string) => void;
 }
@@ -230,6 +232,8 @@ function CredentialActions(props: {
 	actions: CredentialActions;
 	credential: InternalPortalCredential;
 }) {
+	const confirmCommand = useConfirmCommand();
+
 	return (
 		<div className="flex flex-wrap justify-end gap-1">
 			<IconAction
@@ -252,10 +256,10 @@ function CredentialActions(props: {
 				label="轮换凭据"
 				onClick={() => props.actions.open({ credential: props.credential, kind: "rotate" })}
 			/>
-			<ConfirmAction
+			<ConfirmDialog
 				confirmLabel="删除"
 				description={`将删除“${props.credential.name}”。`}
-				onConfirm={() => props.actions.delete(props.credential)}
+				{...confirmCommand("delete", () => props.actions.delete(props.credential))}
 				title="删除内部门户凭据"
 				trigger={
 					<span>

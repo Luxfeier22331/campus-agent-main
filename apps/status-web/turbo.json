@@ -29,7 +29,9 @@
 				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
 			],
 			"outputLogs": "new-only",
-			"outputs": ["dist/worker/**"]
+			"outputs": ["dist/worker/**"],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		}
 	}
 }

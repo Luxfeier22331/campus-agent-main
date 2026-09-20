@@ -297,6 +297,13 @@ func (s *Adapter) TemporalCompletedFinalizationRun(
 	if err := s.EnsureTemporalActivityOwnsRootExecution(ctx, requestID, false); err != nil {
 		return execution.DurableRun{}, err
 	}
+	return s.completedFinalizationRun(ctx, requestID)
+}
+
+func (s *Adapter) completedFinalizationRun(ctx context.Context, requestID string) (execution.DurableRun, error) {
+	if s == nil || s.RunProjectionStore == nil {
+		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
+	}
 	run, err := s.RunProjectionStore.GetRun(ctx, strings.TrimSpace(requestID))
 	if err != nil {
 		return execution.DurableRun{}, err

@@ -1,4 +1,4 @@
-import { Button, cn, Skeleton } from "@campus-agent/ui";
+import { ActionGroup, Button, Card, cn, Skeleton } from "@campus-agent/ui";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { NoticeSummary } from "../../shared/ops-contract";
 import { formatTimestamp } from "../format";
@@ -136,7 +136,7 @@ function QueuePagination({
 			<p>
 				第 {data.page} / {totalPages} 页
 			</p>
-			<div className="flex gap-2">
+			<ActionGroup>
 				<Button
 					aria-label="上一页"
 					disabled={disabled || data.page <= 1}
@@ -157,7 +157,7 @@ function QueuePagination({
 					<span className="hidden sm:inline">下一页</span>
 					<ChevronRight className="size-4" />
 				</Button>
-			</div>
+			</ActionGroup>
 		</div>
 	);
 }
@@ -169,18 +169,20 @@ function NoticeQueueSkeleton() {
 				<Skeleton className="h-5 w-24" />
 				<Skeleton className="h-4 w-12" />
 			</div>
-			<div className="overflow-hidden rounded-[var(--card-radius)] border border-border bg-card">
-				{[0, 1, 2, 3, 4].map((item) => (
-					<div className="grid gap-3 border-border border-b px-4 py-4 last:border-b-0" key={item}>
-						<div className="flex justify-between gap-4">
-							<Skeleton className="h-4 w-2/3" />
-							<Skeleton className="h-5 w-16" />
+			<Card asChild>
+				<div className="overflow-hidden">
+					{[0, 1, 2, 3, 4].map((item) => (
+						<div className="grid gap-3 border-border border-b px-4 py-4 last:border-b-0" key={item}>
+							<div className="flex justify-between gap-4">
+								<Skeleton className="h-4 w-2/3" />
+								<Skeleton className="h-5 w-16" />
+							</div>
+							<Skeleton className="h-3 w-1/2" />
+							<Skeleton className="h-3 w-1/3" />
 						</div>
-						<Skeleton className="h-3 w-1/2" />
-						<Skeleton className="h-3 w-1/3" />
-					</div>
-				))}
-			</div>
+					))}
+				</div>
+			</Card>
 		</section>
 	);
 }

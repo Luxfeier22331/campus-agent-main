@@ -3,6 +3,7 @@ import test from "node:test";
 import { nodeTaskConcurrency, runPreCommitEvidence } from "./evidence.mts";
 import { runRepositoryTests } from "./repository-test.mts";
 import { type CommandRunner, resolveStagedTasks } from "./scope.mts";
+import { TOOLING_GROUPS, toolingTask } from "./tooling-tasks.mts";
 
 const head = "a".repeat(40);
 const plan = JSON.stringify({
@@ -108,7 +109,7 @@ test("root cache context records the index before cleaning Git variables and pre
 	const code = runRepositoryTests(
 		{ repositoryRoot: "/repo", env, args: ["--test-name-pattern=example"] },
 		(command, args, options) => {
-			if (args[0] === "write-tree") {
+			if (args[0] === "ls-files") {
 				assert.equal(options.env.GIT_INDEX_FILE, env.GIT_INDEX_FILE);
 				return { status: 0, stdout: head };
 			}
@@ -118,17 +119,19 @@ test("root cache context records the index before cleaning Git variables and pre
 			if (args.includes("--version")) {
 				return { status: 0, stdout: `${command}-version` };
 			}
-			assert.deepEqual(args.slice(0, 5), [
+			assert.deepEqual(args.slice(0, -2), [
 				"exec",
 				"turbo",
 				"run",
-				"//#test:scripts",
+				...TOOLING_GROUPS.map(toolingTask),
+				"--concurrency=1",
 				"--summarize",
 			]);
-			assert.deepEqual(args.slice(5), ["--", "--test-name-pattern=example"]);
+			assert.deepEqual(args.slice(-2), ["--", "--test-name-pattern=example"]);
 			assert.equal(options.env.GIT_DIR, undefined);
 			assert.equal(options.env.GIT_INDEX_FILE, undefined);
-			assert.equal(options.env.CAMPUS_REPO_TEST_INDEX_TREE, head);
+			assert.match(options.env.CAMPUS_TOOLING_TRACKED_CI ?? "", /^[a-f0-9]{64}$/u);
+			assert.equal(options.env.CAMPUS_REPO_TEST_INDEX_TREE, undefined);
 			assert.equal(JSON.parse(options.env.CAMPUS_REPO_TEST_RUNTIME ?? "").node, process.version);
 			assert.equal(options.env.PATH, "/bin");
 			return { status: 7 };

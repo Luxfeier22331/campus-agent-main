@@ -1,4 +1,5 @@
 import {
+	ActionGroup,
 	Button,
 	Card,
 	CardContent,
@@ -8,6 +9,7 @@ import {
 	Field as FormField,
 	Input,
 	NativeSelect,
+	StateMessage,
 } from "@campus-agent/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Eye, EyeOff, RefreshCw, Save, Undo2 } from "lucide-react";
@@ -288,9 +290,11 @@ export function ExecutionModelSettingForm({
 									) : null}
 								</div>
 								{discovery.data ? (
-									<p className="text-muted-foreground text-xs" role="status">
-										已获取 {discovery.data.models.length} 个模型
-									</p>
+									<StateMessage
+										layout="inline"
+										role="status"
+										description={<>已获取 {discovery.data.models.length} 个模型</>}
+									/>
 								) : null}
 								{discovery.isError ? (
 									<InlineError error={discovery.error} title="模型列表获取失败" />
@@ -403,7 +407,7 @@ export function ExecutionModelSettingForm({
 						{revalidate.isError ? (
 							<InlineError error={revalidate.error} title="重新验证失败" />
 						) : null}
-						<div className="grid gap-2 sm:flex sm:flex-wrap">
+						<ActionGroup className="grid sm:flex sm:flex-wrap">
 							<Button disabled={!dirty || save.isPending} type="submit">
 								<Save className="size-4" />
 								{save.isPending ? "验证并保存中" : "保存并验证"}
@@ -437,7 +441,7 @@ export function ExecutionModelSettingForm({
 									放弃更改
 								</Button>
 							) : null}
-						</div>
+						</ActionGroup>
 					</fieldset>
 				</form>
 			</CardContent>

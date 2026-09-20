@@ -2,7 +2,14 @@ import type {
 	DiningOpsContentReportRecord,
 	DiningOpsSubmissionRecord,
 } from "@campus-agent/dining/domain";
-import { Button, Input, NativeSelect } from "@campus-agent/ui";
+import {
+	ActionGroup,
+	Button,
+	ConfirmDialog,
+	Input,
+	NativeSelect,
+	StateMessage,
+} from "@campus-agent/ui";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -29,8 +36,8 @@ import {
 	resolveDiningSubmissionReports,
 } from "./ops-api/dining";
 import { ErrorState, InlineError, PageHeader } from "./ops-display";
-import { ConfirmAction } from "./ui/alert-dialog";
 import { DataTable } from "./ui/data-table";
+import { useConfirmCommand } from "./use-confirm-command";
 
 type SubmissionStatusFilter = NonNullable<DiningSubmissionListParams["status"]> | "";
 type ReportStatusFilter = NonNullable<DiningSubmissionListParams["reportStatus"]> | "";
@@ -165,15 +172,21 @@ export function DiningSubmissionsPage() {
 				</div>
 			) : null}
 			{submissions.isPending ? (
-				<p role="status" className="py-8 text-muted-foreground">
-					正在读取投稿...
-				</p>
+				<StateMessage
+					layout="inline"
+					role="status"
+					className="py-8"
+					description={<>正在读取投稿...</>}
+				/>
 			) : submissions.data ? (
 				<>
 					{submissions.isPlaceholderData ? (
-						<p role="status" className="mb-3 text-muted-foreground text-sm">
-							正在读取新范围，暂时显示上次结果。
-						</p>
+						<StateMessage
+							layout="inline"
+							role="status"
+							className="mb-3"
+							description={<>正在读取新范围，暂时显示上次结果。</>}
+						/>
 					) : null}
 					{submissions.data.items.length === 0 ? (
 						<p className="border-border border-y py-10 text-center text-muted-foreground">
@@ -245,7 +258,7 @@ export function DiningSubmissionsPage() {
 							</ul>
 						</>
 					)}
-					<div className="mt-4 flex justify-end gap-2">
+					<ActionGroup className="mt-4 justify-end">
 						<Button
 							variant="outline"
 							disabled={previous.length === 0 || submissions.isFetching}
@@ -267,7 +280,7 @@ export function DiningSubmissionsPage() {
 						>
 							下一页
 						</Button>
-					</div>
+					</ActionGroup>
 				</>
 			) : null}
 		</section>
@@ -330,6 +343,8 @@ const actionDescriptions: Record<SubmissionAction, string> = {
 };
 
 export function DiningSubmissionDetailPage({ submissionId }: { submissionId: string }) {
+	const confirmCommand = useConfirmCommand();
+
 	const queryClient = useQueryClient();
 	const [notice, setNotice] = useState("");
 	const detail = useQuery({
@@ -396,9 +411,12 @@ export function DiningSubmissionDetailPage({ submissionId }: { submissionId: str
 				</div>
 			) : null}
 			{detail.isPending ? (
-				<p role="status" className="py-8">
-					正在读取投稿详情...
-				</p>
+				<StateMessage
+					layout="inline"
+					role="status"
+					className="py-8"
+					description={<>正在读取投稿详情...</>}
+				/>
 			) : null}
 			{submission && detail.data ? (
 				<>
@@ -423,9 +441,7 @@ export function DiningSubmissionDetailPage({ submissionId }: { submissionId: str
 						</div>
 					) : null}
 					{notice ? (
-						<p role="status" className="mb-4 text-sm">
-							{notice}
-						</p>
+						<StateMessage layout="inline" role="status" className="mb-4" description={notice} />
 					) : null}
 					<div className="mb-6 flex flex-wrap gap-2">
 						{(["hide", "unhide", "delete", "restore"] as const)
@@ -439,7 +455,7 @@ export function DiningSubmissionDetailPage({ submissionId }: { submissionId: str
 											: submission.status === "deleted",
 							)
 							.map((action) => (
-								<ConfirmAction
+								<ConfirmDialog
 									key={action}
 									title={`${actionLabels[action]}？`}
 									confirmLabel={actionLabels[action]}
@@ -447,10 +463,10 @@ export function DiningSubmissionDetailPage({ submissionId }: { submissionId: str
 										action === "unhide" || action === "restore" ? "primary" : "destructive"
 									}
 									description={actionDescriptions[action]}
-									onConfirm={() => {
+									{...confirmCommand(action, () => {
 										setNotice("");
-										mutation.mutate({ action, revision: submission.revision });
-									}}
+										return mutation.mutateAsync({ action, revision: submission.revision });
+									})}
 									trigger={
 										<Button
 											variant={action === "delete" ? "destructive" : "outline"}
@@ -657,7 +673,7 @@ function SubmissionReports({
 					status={status}
 					isResolving={resolve.isPending}
 					resolveError={resolve.error}
-					onResolve={(input) => resolve.mutate(input)}
+					onResolve={(input) => resolve.mutateAsync(input)}
 					hasNextPage={Boolean(reports.data.nextCursor)}
 					hasPreviousPage={history.length > 0}
 					isFetching={reports.isFetching}
@@ -672,9 +688,7 @@ function SubmissionReports({
 					}}
 				/>
 			) : (
-				<p role="status" className="text-sm">
-					正在读取相关举报...
-				</p>
+				<StateMessage layout="inline" role="status" description={<>正在读取相关举报...</>} />
 			)}
 		</section>
 	);

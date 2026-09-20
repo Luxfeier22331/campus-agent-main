@@ -1,3 +1,4 @@
+import { ActionGroup, Card, StateMessage } from "@campus-agent/ui";
 import "./transport-page.css";
 import {
 	formatWeekdays,
@@ -6,15 +7,9 @@ import {
 	transportPeriodIncludesDate,
 } from "@campus-agent/transport/domain";
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogTitle,
 	Badge,
 	Button,
+	ConfirmDialog,
 	cn,
 	Disclosure,
 	DisclosureSummary,
@@ -45,7 +40,7 @@ import { TransportCalendar } from "./transport-calendar";
 import { TransportPeriodEditor, TransportRouteEditor } from "./transport-editors";
 import { effectiveDetails } from "./transport-impact";
 import { TransportNoticeLinkEditor } from "./transport-notice-links";
-import { ConfirmAction } from "./ui/alert-dialog";
+import { useConfirmCommand } from "./use-confirm-command";
 
 function weekdayOf(date: string) {
 	const day = new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -269,7 +264,7 @@ function TransportWorkspace({
 			<PageHeader
 				title="班车维护"
 				actions={
-					<div className="flex gap-2">
+					<ActionGroup>
 						<Button
 							aria-label="刷新班车数据"
 							disabled={refreshing || busy}
@@ -288,13 +283,18 @@ function TransportWorkspace({
 							<Plus />
 							新增线路
 						</Button>
-					</div>
+					</ActionGroup>
 				}
 			/>
 			{error ? <InlineError error={error} title="刷新失败，仍显示已有班车数据" /> : null}
 			{initialScheduleId && !target ? (
 				<div className="grid gap-3 rounded border p-4">
-					<p role="alert">所关联的时间段不存在或已删除。</p>
+					<StateMessage
+						layout="inline"
+						role="alert"
+						tone="danger"
+						description={<> 所关联的时间段不存在或已删除。 </>}
+					/>
 					<Button className="justify-self-start" variant="outline" onClick={() => guard(close)}>
 						返回班车维护
 					</Button>
@@ -451,102 +451,101 @@ function TransportWorkspace({
 												})
 											}
 										/>
-										<section
-											aria-label="当天有效班次"
-											className="grid gap-3 rounded-[var(--card-radius)] border border-[var(--card-border)] bg-card p-4 text-card-foreground md:p-5"
-										>
-											<div className="flex flex-wrap items-center justify-between gap-2">
-												<h3 className="font-semibold">{viewDate} · 当天有效班次</h3>
-												<Button onClick={() => quickEdit("add")}>新增班次</Button>
+										<Card asChild>
+											<section aria-label="当天有效班次" className="grid gap-3 p-4 md:p-5">
+												<div className="flex flex-wrap items-center justify-between gap-2">
+													<h3 className="font-semibold">{viewDate} · 当天有效班次</h3>
+													<Button onClick={() => quickEdit("add")}>新增班次</Button>
+													{effective ? (
+														<Button
+															variant="outline"
+															onClick={() =>
+																begin({ type: "period", source: effective, copy: false })
+															}
+														>
+															编辑生效时间段
+														</Button>
+													) : (
+														<Button
+															onClick={() =>
+																begin({
+																	type: "period",
+																	source: null,
+																	copy: false,
+																	initial: {
+																		routeId: selected.routeId,
+																		validFrom: viewDate,
+																		validTo: viewDate,
+																		weekdays: [weekdayOf(viewDate)],
+																		status: "operating",
+																		items: [],
+																		boardingPointOverride: null,
+																		note: null,
+																	},
+																})
+															}
+														>
+															新增时间段
+														</Button>
+													)}
+												</div>
 												{effective ? (
-													<Button
-														variant="outline"
-														onClick={() =>
-															begin({ type: "period", source: effective, copy: false })
-														}
-													>
-														编辑生效时间段
-													</Button>
-												) : (
-													<Button
-														onClick={() =>
-															begin({
-																type: "period",
-																source: null,
-																copy: false,
-																initial: {
-																	routeId: selected.routeId,
-																	validFrom: viewDate,
-																	validTo: viewDate,
-																	weekdays: [weekdayOf(viewDate)],
-																	status: "operating",
-																	items: [],
-																	boardingPointOverride: null,
-																	note: null,
-																},
-															})
-														}
-													>
-														新增时间段
-													</Button>
-												)}
-											</div>
-											{effective ? (
-												<p className="text-xs text-muted-foreground">
-													生效时间段：{periodLabel(effective)}
-												</p>
-											) : null}
-											{effective?.status === "operating" ? (
-												<p className="text-sm">
-													下车点：
-													{effective.dropOffPointOverride ?? selected.dropOffPoint ?? "未填写"}
-												</p>
-											) : null}
-											{effective?.status === "operating" ? (
-												<ul className="divide-y">
-													{effective.items.map((item, index) => (
-														<li key={item.itemId} className="grid gap-2 py-3">
-															<div className="flex flex-wrap items-center justify-between gap-2">
-																<span className="font-mono">
-																	{itemTime(item)} · {riderLabel(item.riderType)}
-																</span>
-																<div className="flex gap-1">
-																	<Button
-																		size="sm"
-																		variant="outline"
-																		aria-label={`修改班次 ${itemTime(item)} ${riderLabel(item.riderType)}`}
-																		onClick={() => quickEdit("edit", index)}
-																	>
-																		修改
-																	</Button>
-																	<Button
-																		size="sm"
-																		variant="ghost"
-																		aria-label={`取消班次 ${itemTime(item)} ${riderLabel(item.riderType)}`}
-																		onClick={() => quickEdit("cancel", index)}
-																	>
-																		取消班次
-																	</Button>
+													<p className="text-xs text-muted-foreground">
+														生效时间段：{periodLabel(effective)}
+													</p>
+												) : null}
+												{effective?.status === "operating" ? (
+													<p className="text-sm">
+														下车点：
+														{effective.dropOffPointOverride ?? selected.dropOffPoint ?? "未填写"}
+													</p>
+												) : null}
+												{effective?.status === "operating" ? (
+													<ul className="divide-y">
+														{effective.items.map((item, index) => (
+															<li key={item.itemId} className="grid gap-2 py-3">
+																<div className="flex flex-wrap items-center justify-between gap-2">
+																	<span className="font-mono">
+																		{itemTime(item)} · {riderLabel(item.riderType)}
+																	</span>
+																	<ActionGroup>
+																		<Button
+																			size="sm"
+																			variant="outline"
+																			aria-label={`修改班次 ${itemTime(item)} ${riderLabel(item.riderType)}`}
+																			onClick={() => quickEdit("edit", index)}
+																		>
+																			修改
+																		</Button>
+																		<Button
+																			size="sm"
+																			variant="ghost"
+																			aria-label={`取消班次 ${itemTime(item)} ${riderLabel(item.riderType)}`}
+																			onClick={() => quickEdit("cancel", index)}
+																		>
+																			取消班次
+																		</Button>
+																	</ActionGroup>
 																</div>
-															</div>
-															<p className="text-sm">
-																{item.boardingPoint ??
-																	effective.boardingPointOverride ??
-																	selected.defaultBoardingPoint ??
-																	"乘车点未填写"}
-															</p>
-															{item.note ? (
-																<p className="text-sm text-muted-foreground">{item.note}</p>
-															) : null}
-														</li>
-													))}
-												</ul>
-											) : (
-												<p className="text-sm">
-													{effectiveDetails(effective, selected).join("\n")}
-												</p>
-											)}
-										</section>
+																<p className="text-sm">
+																	{item.boardingPoint ??
+																		effective.boardingPointOverride ??
+																		selected.defaultBoardingPoint ??
+																		"乘车点未填写"}
+																</p>
+																{item.note ? (
+																	<p className="text-sm text-muted-foreground">{item.note}</p>
+																) : null}
+															</li>
+														))}
+													</ul>
+												) : (
+													<p className="text-sm">
+														{effectiveDetails(effective, selected).join("\n")}
+													</p>
+												)}
+											</section>
+										</Card>
 									</div>
 									<RouteDetails
 										route={selected}
@@ -575,8 +574,9 @@ function TransportWorkspace({
 					</div>
 				</TabsContent>
 			</Tabs>
-			<AlertDialog
+			<ConfirmDialog
 				open={confirmOpen || (!busy && blocker.status === "blocked")}
+				pending={busy}
 				onOpenChange={(open) => {
 					setConfirmOpen(open);
 					if (!open) {
@@ -586,29 +586,22 @@ function TransportWorkspace({
 						}
 					}
 				}}
-			>
-				<AlertDialogContent>
-					<AlertDialogTitle>放弃未保存的修改？</AlertDialogTitle>
-					<AlertDialogDescription>当前修改尚未保存。</AlertDialogDescription>
-					<AlertDialogFooter>
-						<AlertDialogCancel>继续编辑</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={() => {
-								setDirty(false);
-								if (blocker.status === "blocked") {
-									blocker.proceed();
-									return;
-								}
-								const action = pendingAction.current;
-								pendingAction.current = null;
-								action?.();
-							}}
-						>
-							放弃修改
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				title="放弃未保存的修改？"
+				description="当前修改尚未保存。"
+				cancelLabel="继续编辑"
+				confirmLabel="放弃修改"
+				onConfirm={() => {
+					setDirty(false);
+					setConfirmOpen(false);
+					if (blocker.status === "blocked") {
+						blocker.proceed();
+						return;
+					}
+					const action = pendingAction.current;
+					pendingAction.current = null;
+					action?.();
+				}}
+			/>
 		</section>
 	);
 }
@@ -636,6 +629,8 @@ function RouteDetails({
 	onEnd: (period: TransportOpsSchedulePeriod) => void;
 	onNotices: (period: TransportOpsSchedulePeriod) => void;
 }) {
+	const confirmCommand = useConfirmCommand();
+
 	const remove = useMutation({ mutationFn: deleteTransportRoute, onSuccess: onChanged });
 	const groups = [
 		{
@@ -719,11 +714,11 @@ function RouteDetails({
 					</section>
 				))}
 			<div className="border-t pt-3">
-				<ConfirmAction
+				<ConfirmDialog
 					title="删除这条线路？"
 					description="请先删除该线路关联的时间安排。"
 					confirmLabel="删除线路"
-					onConfirm={() => remove.mutate(route.routeId)}
+					{...confirmCommand(route.routeId, () => remove.mutateAsync(route.routeId))}
 					trigger={
 						<Button variant="ghost" disabled={periods.length > 0 || remove.isPending}>
 							删除线路
@@ -757,117 +752,120 @@ function PeriodCard({
 	canEnd: boolean;
 	onNotices: () => void;
 }) {
+	const confirmCommand = useConfirmCommand();
+
 	const remove = useMutation({ mutationFn: deleteTransportSchedulePeriod, onSuccess: onChanged });
 	return (
-		<section
-			className="rounded-[var(--card-radius)] border border-[var(--card-border)] bg-card p-4 text-card-foreground md:p-5"
-			aria-label={periodLabel(period)}
-		>
-			<div className="flex flex-wrap items-start justify-between gap-2">
-				<div className="grid gap-1">
-					<div className="flex flex-wrap gap-2 items-center">
-						<h5 className="font-medium">{weekdayLabel(period.weekdays)}</h5>
-						<Badge tone={period.status === "operating" ? "success" : "danger"}>
-							{period.status === "operating" ? "运行" : "停运"}
-						</Badge>
+		<Card asChild>
+			<section className="p-4 md:p-5" aria-label={periodLabel(period)}>
+				<div className="flex flex-wrap items-start justify-between gap-2">
+					<div className="grid gap-1">
+						<div className="flex flex-wrap gap-2 items-center">
+							<h5 className="font-medium">{weekdayLabel(period.weekdays)}</h5>
+							<Badge tone={period.status === "operating" ? "success" : "danger"}>
+								{period.status === "operating" ? "运行" : "停运"}
+							</Badge>
+						</div>
+						<p className="text-xs text-muted-foreground">
+							{period.validFrom} 起{period.validTo ? `，至 ${period.validTo}` : "，长期"}
+							{transportPeriodIncludesDate(period, today) ? " · 包含今天" : ""}
+						</p>
 					</div>
-					<p className="text-xs text-muted-foreground">
-						{period.validFrom} 起{period.validTo ? `，至 ${period.validTo}` : "，长期"}
-						{transportPeriodIncludesDate(period, today) ? " · 包含今天" : ""}
-					</p>
-				</div>
-				<div className="flex flex-wrap gap-1">
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={onNotices}
-						aria-label={`关联通知 ${period.scheduleId}`}
-					>
-						关联通知
-					</Button>
-					<Button
-						onClick={onEdit}
-						size="sm"
-						variant="outline"
-						aria-label={`编辑时间段 ${period.scheduleId}`}
-					>
-						编辑
-					</Button>
-					{canEnd && period.validFrom < today ? (
-						<Button size="sm" variant="ghost" onClick={onEnd}>
-							结束安排
+					<ActionGroup>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={onNotices}
+							aria-label={`关联通知 ${period.scheduleId}`}
+						>
+							关联通知
 						</Button>
-					) : null}
-					<Button
-						onClick={onCopy}
-						size="sm"
-						variant="ghost"
-						aria-label={`复制时间段 ${period.scheduleId}`}
-					>
-						复制
-					</Button>
-					<ConfirmAction
-						title="删除这个时间段？"
-						description="删除后将重新按照剩余时间安排展示班次。"
-						confirmLabel="删除"
-						onConfirm={() => remove.mutate(period.scheduleId)}
-						trigger={
-							<Button
-								aria-label={`删除时间段 ${period.scheduleId}`}
-								size="sm"
-								variant="ghost"
-								disabled={remove.isPending}
-							>
-								删除
+						<Button
+							onClick={onEdit}
+							size="sm"
+							variant="outline"
+							aria-label={`编辑时间段 ${period.scheduleId}`}
+						>
+							编辑
+						</Button>
+						{canEnd && period.validFrom < today ? (
+							<Button size="sm" variant="ghost" onClick={onEnd}>
+								结束安排
 							</Button>
-						}
-					/>
+						) : null}
+						<Button
+							onClick={onCopy}
+							size="sm"
+							variant="ghost"
+							aria-label={`复制时间段 ${period.scheduleId}`}
+						>
+							复制
+						</Button>
+						<ConfirmDialog
+							title="删除这个时间段？"
+							description="删除后将重新按照剩余时间安排展示班次。"
+							confirmLabel="删除"
+							{...confirmCommand(period.scheduleId, () => remove.mutateAsync(period.scheduleId))}
+							trigger={
+								<Button
+									aria-label={`删除时间段 ${period.scheduleId}`}
+									size="sm"
+									variant="ghost"
+									disabled={remove.isPending}
+								>
+									删除
+								</Button>
+							}
+						/>
+					</ActionGroup>
 				</div>
-			</div>
-			{period.note ? <p className="mt-2 text-sm">{period.note}</p> : null}
-			{period.boardingPointOverride ? (
-				<p className="mt-2 text-sm">本时间段乘车点：{period.boardingPointOverride}</p>
-			) : null}
-			{period.dropOffPointOverride ? (
-				<p className="mt-2 text-sm">本时间段下车点：{period.dropOffPointOverride}</p>
-			) : null}
-			{period.status === "operating" ? (
-				<Disclosure className="mt-3 text-sm">
-					<DisclosureSummary className="leading-relaxed">
-						<span className="font-mono">{period.items.slice(0, 4).map(itemTime).join(" · ")}</span>
-						<span className="ml-2 text-info">查看全部 {period.items.length} 班</span>
-					</DisclosureSummary>
-					<ul className="mt-3 divide-y">
-						{period.items.map((item) => (
-							<li
-								key={item.itemId}
-								className="grid gap-1 py-2 sm:grid-cols-[10rem_5rem_minmax(0,1fr)]"
-							>
-								<span className="font-mono">{itemTime(item)}</span>
-								<span>{riderLabel(item.riderType)}</span>
-								<span>
-									{item.boardingPoint ??
-										period.boardingPointOverride ??
-										route.defaultBoardingPoint ??
-										"乘车点未填写"}
-								</span>
-								{item.note ? (
-									<span className="text-muted-foreground sm:col-span-3">{item.note}</span>
-								) : null}
-								{item.capacity ? (
-									<span className="text-muted-foreground sm:col-span-3">
-										容量 {item.capacity} 人
+				{period.note ? <p className="mt-2 text-sm">{period.note}</p> : null}
+				{period.boardingPointOverride ? (
+					<p className="mt-2 text-sm">本时间段乘车点：{period.boardingPointOverride}</p>
+				) : null}
+				{period.dropOffPointOverride ? (
+					<p className="mt-2 text-sm">本时间段下车点：{period.dropOffPointOverride}</p>
+				) : null}
+				{period.status === "operating" ? (
+					<Disclosure className="mt-3 text-sm">
+						<DisclosureSummary className="leading-relaxed">
+							<span className="font-mono">
+								{period.items.slice(0, 4).map(itemTime).join(" · ")}
+							</span>
+							<span className="ml-2 text-info">查看全部 {period.items.length} 班</span>
+						</DisclosureSummary>
+						<ul className="mt-3 divide-y">
+							{period.items.map((item) => (
+								<li
+									key={item.itemId}
+									className="grid gap-1 py-2 sm:grid-cols-[10rem_5rem_minmax(0,1fr)]"
+								>
+									<span className="font-mono">{itemTime(item)}</span>
+									<span>{riderLabel(item.riderType)}</span>
+									<span>
+										{item.boardingPoint ??
+											period.boardingPointOverride ??
+											route.defaultBoardingPoint ??
+											"乘车点未填写"}
 									</span>
-								) : null}
-							</li>
-						))}
-					</ul>
-				</Disclosure>
-			) : (
-				<p className="mt-2 text-sm text-muted-foreground">此期间停运</p>
-			)}
-			{remove.error ? <InlineError error={remove.error} title="删除失败" /> : null}
-		</section>
+									{item.note ? (
+										<span className="text-muted-foreground sm:col-span-3">{item.note}</span>
+									) : null}
+									{item.capacity ? (
+										<span className="text-muted-foreground sm:col-span-3">
+											容量 {item.capacity} 人
+										</span>
+									) : null}
+								</li>
+							))}
+						</ul>
+					</Disclosure>
+				) : (
+					<p className="mt-2 text-sm text-muted-foreground">此期间停运</p>
+				)}
+				{remove.error ? <InlineError error={remove.error} title="删除失败" /> : null}
+			</section>
+		</Card>
 	);
 }
 

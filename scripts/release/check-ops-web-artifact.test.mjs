@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-const checker = join(process.cwd(), "scripts/release/check-ops-web-artifact.mjs");
+const checker = join(import.meta.dirname, "check-ops-web-artifact.mjs");
 
 function artifact({
 	bootstrap = "export const ready = true;",

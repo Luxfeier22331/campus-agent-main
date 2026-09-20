@@ -1,13 +1,6 @@
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogTitle,
-	AlertDialogTrigger,
 	Button,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -44,20 +37,18 @@ function DialogExample() {
 }
 
 function AlertExample() {
+	const [open, setOpen] = useState(false);
 	return (
-		<AlertDialog>
-			<AlertDialogTrigger asChild>
-				<Button variant="outline">打开放弃修改确认</Button>
-			</AlertDialogTrigger>
-			<AlertDialogContent>
-				<AlertDialogTitle>放弃未保存的修改？</AlertDialogTitle>
-				<AlertDialogDescription>当前修改尚未保存。</AlertDialogDescription>
-				<AlertDialogFooter>
-					<AlertDialogCancel>继续编辑</AlertDialogCancel>
-					<AlertDialogAction>放弃修改</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
+		<ConfirmDialog
+			open={open}
+			onOpenChange={setOpen}
+			title="放弃未保存的修改？"
+			description="当前修改尚未保存。"
+			confirmLabel="放弃修改"
+			cancelLabel="继续编辑"
+			onConfirm={() => setOpen(false)}
+			trigger={<Button variant="outline">打开放弃修改确认</Button>}
+		/>
 	);
 }
 function SheetExample() {

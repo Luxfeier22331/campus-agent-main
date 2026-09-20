@@ -3,6 +3,7 @@ import {
 	Field,
 	NativeSelect,
 	Skeleton,
+	StateMessage,
 	Tabs,
 	TabsContent,
 	TabsList,
@@ -188,15 +189,15 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 									保存分类
 								</Button>
 								{dirty ? (
-									<p className="text-warning text-xs" role="status">
-										有未保存的分类更改。
-									</p>
+									<StateMessage
+										layout="inline"
+										role="status"
+										description={<>有未保存的分类更改。</>}
+									/>
 								) : null}
 								{saveError ? <InlineError error={saveError} title="分类保存失败" /> : null}
 								{saveSucceeded && !dirty ? (
-									<p className="text-success text-xs" role="status">
-										分类已保存。
-									</p>
+									<StateMessage layout="inline" role="status" description={<>分类已保存。</>} />
 								) : null}
 							</section>
 

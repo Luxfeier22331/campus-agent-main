@@ -62,7 +62,7 @@ export const SelectContent = React.forwardRef<
 	<SelectPrimitive.Portal>
 		<SelectPrimitive.Content
 			className={cn(
-				"relative z-[var(--layer-overlay)] max-h-[var(--radix-select-content-available-height)] max-w-[calc(100vw-2rem)] min-w-32 overflow-hidden rounded-[var(--radius-lg)] border bg-popover text-popover-foreground shadow-md",
+				"relative z-[var(--layer-overlay)] max-h-[var(--radix-select-content-available-height)] max-w-[calc(100vw-2rem)] min-w-32 overflow-hidden rounded-[var(--radius-lg)] border bg-popover text-popover-foreground shadow-[var(--shadow-sm)]",
 				position === "popper" &&
 					"data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
 				className,
@@ -104,7 +104,7 @@ export const SelectItem = React.forwardRef<
 >(({ children, className, ...props }, ref) => (
 	<SelectPrimitive.Item
 		className={cn(
-			"relative flex min-h-[var(--control-height-touch)] select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+			"relative flex min-h-[var(--control-height-touch)] select-none items-center rounded-[var(--radius-lg)] py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 			className,
 		)}
 		ref={ref}

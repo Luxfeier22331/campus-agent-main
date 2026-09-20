@@ -82,3 +82,15 @@ export function AppEntry() {
 pnpm --dir packages/ui typecheck
 pnpm --dir packages/ui test
 ```
+
+## 页面组合
+
+Campus 与 Ops 共用 `ConfirmDialog`、`StateMessage`、`Field`、`ActionGroup`、`Card` 和浮层基础样式。
+确认框由应用控制打开、请求、错误和成功关闭；默认聚焦取消，请求中禁用取消与重复提交，
+失败保留内容。触发项被删除时由应用传入 `fallbackFocusRef` 指向仍存在的列表或标题。
+带原生校验的输入用 `formId` 关联底部表单，嵌入的其他表单不嵌套。
+
+`StateMessage` 统一 inline/section/page/overlay 的布局；文案、tone、role 与恢复操作由应用决定。
+`Field` 关联标签、说明和错误；`ActionGroup` 统一操作间距及窄屏 footer 排列。
+`Card asChild` 保留 section/li 等页面语义，普通章节仍用标题和间距，不强制卡片化。
+共享 DropdownMenu 同时服务账号菜单和主题菜单；不改变地图、画布和数据表的领域布局。

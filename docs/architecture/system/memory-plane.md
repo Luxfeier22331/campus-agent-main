@@ -19,7 +19,7 @@ Hindsight 是唯一个人记忆运行时；Qdrant 只负责机构知识。记忆
 | --- | --- |
 | Hindsight | 内容、原生事实编辑/停用/恢复、来源、派生观察、consolidation、bank 清除 |
 | execution-control | bank 身份派生、SDK 适配、generation fence、在途租约、命令回执 |
-| Temporal | 命令串行执行、回答后的追加与有界重试、终态投影 |
+| Temporal | 命令串行执行、回答后的独立追加任务、提交确认与状态查询恢复、终态投影 |
 | app-api | 当前用户接口、生命周期、命令 outbox；不复制记忆内容列表 |
 | campus-web | 原生内容管理、条目级待处理状态及重试、暂停与完整清除 |
 | ops-web | 已有 step/attempt 投影上的后台追加进度，不代理 Hindsight 内部任务 |
@@ -44,8 +44,22 @@ recall 在 Agent 的普通工具调用中执行，使用当前用户范围和 ac
 无匹配不代表用户事实不存在；依赖失败返回失败工具结果，不阻止与记忆无关的回答，也不为了弥补
 个人记忆失败触发联网搜索。机构知识仍需 campus_search 或合适的当轮来源。
 
-回答提交后才追加当前用户消息，不追加助手回答。追加使用原生同步 retain 和 private observation scope；
-错误不能回滚已经完成的回答。失败/取消的产品请求不追加。
+回答提交后才追加当前用户消息，不追加助手回答。追加使用原生异步 retain 和 private observation scope。
+调用方根据 bank、generation 和消息 document ID 派生稳定的 operation UUID；提交确认丢失时复用该 ID，
+不创建第二个远端任务。错误不能回滚已经完成的回答。失败/取消的产品请求不追加。
+
+回答工作流等待 `MemoryAppendWorkflow` 启动成功后返回，子工作流采用 ABANDON，
+不继承回答的 900 秒期限。短 Activity 使用 15 秒 API 请求期限和 30 秒执行期限，
+网络失败按 2 秒起步、最多 30 秒间隔恢复；每 10 秒查询原任务，等待不占用 Activity slot。
+历史达到 Temporal 建议阈值时 Continue-As-New，保留同一任务身份和提交阶段。
+
+记忆提取模型请求期限为 300 秒，由 Hindsight 负责模型及任务内部重试；继续保留其 3600 秒
+整项任务保护。外层不把 pending、processing、查询失败或 not_found 当成写入最终失败。
+Hindsight 明确终态后才结束跟踪；最终失败不调用额外的任务重试。
+
+后台追加使用已有调用登记表中 `expires_at IS NULL` 的记录，提交前登记，终态投影完成后释放。
+该形式只允许 append 使用；读取仍使用有期限租约。相同 owner、generation、call ID 可以恢复已有登记，
+新登记仍需通过当前 generation fence。清除等待此登记释放，不能因 HTTP 超时或 Worker 重启提前删除 bank。
 
 ## 用户管理
 
@@ -70,14 +84,23 @@ app-api 只保存 lifecycle、命令及其待执行正文；成功后清空正�
 回调保存命令终态后继续派发下一条；定时任务之间互不阻塞。页面只在存在未完成命令时轮询，
 查询和缓存按用户隔离，完成时刷新实际 bank 内容；不把接受命令当作修改完成。
 
-memory.append 在完成投影前登记 pending，Activity 开始投影 running。单次失败记入 attempt，
-整体 step 在 Temporal 重试期间保持 running；重试耗尽由 workflow 记录最终 failed。
+memory.append 在完成投影前登记 pending，提交前投影 running。新的异步路径将一次远端任务投影为
+一个业务 attempt；查询的重试次数不覆盖业务 attempt，不为每轮查询新增 step。
+接收任务不算 completed；只有 Hindsight 终态才投影 completed/failed。网络错误在 Temporal
+Activity 历史中记录，结果未知时继续跟踪，不改成写入终态失败。
 Ops 在产品完成后仍观察已有 pending/running 的记忆或 finalization step，直到终态才停止，
 不使用固定两秒补刷。失败、取消和 skipped 不使轮询永久等待。
 
 记忆管理正文只返回给当前用户，不进入通用运行日志或 Ops 列表。已有有界模型恢复上下文仍可包含
 memory excerpt；Langfuse 不新增原始记忆导出，见 [Langfuse 合同](../../contracts/langfuse-runtime.md)。
 不采集 Hindsight 内部 consolidation 的第二套进度。
+
+部署先应用允许 append 无到期登记的迁移，再发布 execution-control。
+本次升级须先停止旧 execution-control Worker，再启动新 Worker，不能采用新旧版本混跑的滚动发布：
+旧版本的清除逻辑不识别无到期登记。存在无到期登记时也不能直接回滚至旧版本；须先排空追加任务。
+`async-memory-append-v1` 版本标记保留旧同步历史重放路径；它不接收新任务，也不作为 fallback。
+旧执行全部结束且相关历史超过保留期后删除该路径。Hindsight 内置 worker 和现有 Go SDK 已支持此协议，
+无需新增任务队列或升级组件。决策见 [异步记忆追加](../../../.agents/notes/implemented/bug-fix/2026-09-19-async-memory-append.md)。
 
 ## 部署与退役
 

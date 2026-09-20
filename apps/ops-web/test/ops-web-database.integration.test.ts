@@ -703,6 +703,91 @@ describe("ops-web PostgreSQL grants", () => {
 			const searched = await store.listRequests({ q: "hindsight_append_failed", window: "today" });
 			expect(searched.data.map((request) => request.requestId)).toEqual([requestIds[0]]);
 
+			// Retrying updates the current stage; the failed attempt remains for diagnosis.
+			await management.query(
+				`insert into execution_control.agent_step_attempts
+				 (attempt_id, request_id, step_id, attempt, activity_attempt, status, updated_at,
+				 payload_schema_version, sanitized_payload_json)
+				 values ($1,$2,'memory.append',1,1,'failed','2026-08-30T00:59:10Z','ops-status-test.v1',$3::jsonb)`,
+				[
+					`${answerRequestId}:memory:1`,
+					answerRequestId,
+					JSON.stringify({
+						failure: {
+							code: "hindsight_append_failed",
+							operation: "memory.append",
+							detail: "Upstream unavailable",
+							http_status: 503,
+						},
+					}),
+				],
+			);
+			await management.query(
+				"update execution_control.agent_run_steps set activity_attempt=1 where request_id=$1 and step_id='memory.append'",
+				[answerRequestId],
+			);
+			expect((await store.getRequestDetail(answerRequestId))?.execution.failure).toMatchObject({
+				code: "hindsight_append_failed",
+				detail: "Upstream unavailable",
+				httpStatus: 503,
+			});
+			await management.query(
+				`update execution_control.agent_run_steps set activity_attempt=2, status='completed',
+				 sanitized_payload_json='{}', completed_at='2026-08-30T00:59:20Z', updated_at='2026-08-30T00:59:20Z'
+				 where request_id=$1 and step_id='memory.append'`,
+				[answerRequestId],
+			);
+			const memoryRecovered = await store.getRequestDetail(answerRequestId);
+			expect(memoryRecovered?.execution.failure).toMatchObject({
+				code: null,
+				operation: null,
+				detail: null,
+				httpStatus: null,
+			});
+			expect(
+				memoryRecovered?.execution.stages.find((stage) => stage.stepId === "memory.append"),
+			).toMatchObject({ status: "completed", failure: null });
+			expect(
+				(await store.listRequests({ view: "attention", requestId: answerRequestId })).data,
+			).toEqual([]);
+			expect(
+				(await store.listRequests({ q: "hindsight_append_failed", window: "today" })).data,
+			).toEqual([]);
+			expect(
+				(
+					await store.listRequests({
+						failureCode: "hindsight_append_failed",
+						failureScope: "stage",
+						window: "today",
+					})
+				).data,
+			).toEqual([]);
+			expect((await store.listRequests({ requestId: answerRequestId })).data[0]).toMatchObject({
+				status: "COMPLETED",
+				failureKind: null,
+				attentionReason: null,
+			});
+			expect(
+				(
+					await management.query(
+						"select status from execution_control.agent_step_attempts where attempt_id=$1",
+						[`${answerRequestId}:memory:1`],
+					)
+				).rows,
+			).toEqual([{ status: "failed" }]);
+			// Restore the current failure for the independent filtering scenarios below.
+			await management.query(
+				`update execution_control.agent_run_steps set activity_attempt=0, status='failed',
+				 sanitized_payload_json=$2::jsonb, completed_at='2026-08-30T00:59:10Z', updated_at='2026-08-30T00:59:10Z'
+				 where request_id=$1 and step_id='memory.append'`,
+				[
+					answerRequestId,
+					JSON.stringify({
+						failure: { code: "hindsight_append_failed", operation: "memory.append" },
+					}),
+				],
+			);
+
 			const overview = await store.getOverview({
 				from: "2026-08-29T16:00:00.000Z",
 				to: generatedAt.toISOString(),

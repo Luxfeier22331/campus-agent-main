@@ -4,6 +4,7 @@ import {
 	Badge,
 	Button,
 	Card,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -25,7 +26,7 @@ import {
 	restoreDiningRelease,
 	saveDiningDraft,
 } from "./ops-api/dining";
-import { ConfirmAction } from "./ui/alert-dialog";
+import { useConfirmCommand } from "./use-confirm-command";
 import "./dining-page.css";
 
 const loadDiningFloorplanEditor = () =>
@@ -35,6 +36,8 @@ const loadDiningFloorplanEditor = () =>
 const DiningFloorplanEditor = lazy(loadDiningFloorplanEditor);
 
 export function DiningPage() {
+	const confirmCommand = useConfirmCommand();
+
 	const queryClient = useQueryClient();
 	const [unsavedCount, setUnsavedCount] = useState(0);
 	const [navigationWarningOpen, setNavigationWarningOpen] = useState(false);
@@ -122,10 +125,11 @@ export function DiningPage() {
 					>
 						<RefreshCw className={`size-4 ${state.isFetching ? "animate-spin" : ""}`} />
 					</Button>
-					<ConfirmAction
+					<ConfirmDialog
 						confirmLabel="发布"
+						confirmVariant="primary"
 						description="当前已保存草稿会成为学生端使用的地图，并创建一个不可变版本。"
-						onConfirm={() => publish.mutate(draft.revision)}
+						{...confirmCommand("command", () => publish.mutateAsync(draft.revision))}
 						title="发布当前地图？"
 						trigger={
 							<Button
@@ -169,7 +173,9 @@ export function DiningPage() {
 					draftRevision={draft.revision}
 					error={releases.error}
 					loading={releases.isLoading}
-					onRestore={(releaseId) => restore.mutate({ expectedRevision: draft.revision, releaseId })}
+					onRestore={(releaseId) =>
+						restore.mutateAsync({ expectedRevision: draft.revision, releaseId })
+					}
 					onRetry={() => void releases.refetch()}
 					restoring={restore.isPending}
 					releases={releases.data?.releases ?? []}
@@ -244,12 +250,14 @@ function ReleaseHistory(props: {
 	draftRevision: number;
 	error: unknown;
 	loading: boolean;
-	onRestore: (releaseId: string) => void;
+	onRestore: (releaseId: string) => Promise<unknown>;
 	onRetry: () => void;
 	releases: DiningReleaseSummary[];
 	restoring: boolean;
 	unsavedCount: number;
 }) {
+	const confirmCommand = useConfirmCommand();
+
 	return (
 		<aside aria-labelledby="dining-release-history" className="dining-release-history min-w-0">
 			<div className="mb-3 flex items-center gap-2">
@@ -301,10 +309,11 @@ function ReleaseHistory(props: {
 									{release.releaseId}
 								</p>
 								{current ? null : (
-									<ConfirmAction
+									<ConfirmDialog
 										confirmLabel="恢复"
+										confirmVariant="primary"
 										description="该版本会成为新的地图草稿和学生端版本，并保留现有发布历史。"
-										onConfirm={() => props.onRestore(release.releaseId)}
+										{...confirmCommand(release.releaseId, () => props.onRestore(release.releaseId))}
 										title="恢复这个地图版本？"
 										trigger={
 											<Button

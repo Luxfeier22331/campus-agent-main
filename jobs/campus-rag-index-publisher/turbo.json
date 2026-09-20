@@ -1,12 +1,48 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
-	"extends": ["//"],
+	"extends": [
+		"//"
+	],
 	"tasks": {
 		"build": {
-			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
-			"outputs": ["dist/**"]
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"!README.md",
+				"!**/README.md"
+			],
+			"outputs": [
+				"dist/**"
+			],
+			"dependsOn": [
+				"^source"
+			],
+			"env": [
+				"CAMPUS_NODE_RUNTIME"
+			]
 		},
-		"test": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] },
-		"typecheck": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] }
+		"test": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md"
+			]
+		},
+		"typecheck": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md"
+			]
+		}
 	}
 }

@@ -1,4 +1,4 @@
-import { Button } from "@campus-agent/ui";
+import { ActionGroup, Button, ConfirmDialog } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	AccountAdminUserDetailSchema,
@@ -14,16 +14,6 @@ import {
 	revokeAccountAdminSession,
 } from "./ops-api/account-admin";
 import { ErrorState, PageHeader } from "./ops-display";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "./ui/alert-dialog";
 import {
 	UserDetailAccountActions,
 	UserDetailAccountOverview,
@@ -192,21 +182,31 @@ export function UserDetailPage({ from, userId }: { from?: string; userId: string
 			return;
 		}
 		if (confirmation.kind === "command") {
-			startCommand(confirmation.action, { reason: confirmation.reason });
+			command.mutate(
+				{
+					action: confirmation.action,
+					payload: { reason: confirmation.reason },
+					idempotencyKey: crypto.randomUUID(),
+					successMessage: commandSuccessMessage(confirmation.action),
+				},
+				{ onSuccess: () => setConfirmation(null) },
+			);
 		} else {
-			revokeSession.mutate({
-				idempotencyKey: crypto.randomUUID(),
-				sessionId: confirmation.sessionId,
-			});
+			revokeSession.mutate(
+				{
+					idempotencyKey: crypto.randomUUID(),
+					sessionId: confirmation.sessionId,
+				},
+				{ onSuccess: () => setConfirmation(null) },
+			);
 		}
-		setConfirmation(null);
 	};
 
 	return (
 		<section>
 			<PageHeader
 				actions={
-					<div className="flex gap-2">
+					<ActionGroup>
 						<Button asChild variant="outline">
 							<a href={returnPath}>
 								<ArrowLeft className="size-4" />
@@ -221,7 +221,7 @@ export function UserDetailPage({ from, userId }: { from?: string; userId: string
 							<RefreshCw className="size-4" />
 							刷新
 						</Button>
-					</div>
+					</ActionGroup>
 				}
 				description={detail.email}
 				title={detail.name}
@@ -268,35 +268,26 @@ export function UserDetailPage({ from, userId }: { from?: string; userId: string
 			/>
 			<UserDetailEventsTable events={detail.events} />
 
-			<AlertDialog
+			<ConfirmDialog
+				open={confirmation !== null}
 				onOpenChange={(open) => {
 					if (!open) {
 						setConfirmation(null);
 					}
 				}}
-				open={confirmation !== null}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>{confirmation?.title}</AlertDialogTitle>
-						<AlertDialogDescription>{confirmation?.description}</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel asChild>
-							<Button variant="outline">取消</Button>
-						</AlertDialogCancel>
-						<AlertDialogAction asChild>
-							<Button
-								disabled={commandPending}
-								onClick={confirmRequestedAction}
-								variant="destructive"
-							>
-								{confirmation?.confirmLabel}
-							</Button>
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				title={confirmation?.title}
+				description={confirmation?.description}
+				confirmLabel={confirmation?.confirmLabel ?? "确认"}
+				pending={commandPending}
+				error={
+					commandError
+						? commandError instanceof Error
+							? commandError.message
+							: "操作未完成，请重试。"
+						: null
+				}
+				onConfirm={confirmRequestedAction}
+			/>
 		</section>
 	);
 }

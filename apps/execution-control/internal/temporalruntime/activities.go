@@ -3,6 +3,7 @@ package temporalruntime
 import "context"
 
 type ContextActivities interface {
+	AdvanceMemoryAppendActivity(context.Context, MemoryAppendWorkflowInput) (AppendConversationMemoryActivityOutput, error)
 	FinalizeMemoryAppendActivity(context.Context, FinalizeMemoryAppendActivityInput) error
 	AppendConversationMemoryActivity(
 		context.Context,

@@ -12,6 +12,7 @@ import (
 type Adapter struct {
 	*activityprojection.Writer
 	PersonalMemoryExecutor   executionapplication.MemoryExecutor
+	AsyncMemoryExecutor      executionapplication.AsyncMemoryExecutor
 	PersonalMemoryErr        error
 	PersonalMemoryStateStore executionapplication.MemoryStore
 	PersonalMemoryStateErr   error

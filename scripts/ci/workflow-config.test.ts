@@ -327,6 +327,104 @@ test("Go caches follow native selection and save fresh successful analysis only"
 	}
 });
 
+test("failed prerequisites prevent expensive PR checks while diagnostics remain available", async () => {
+	const job = workflowJob(await loadWorkflow("pr.yml"), "repository-validation");
+	const heavy = [
+		"Install affected workspaces",
+		"Run affected Node evidence",
+		"Run container build contract evidence",
+		"Check affected native code",
+		"Verify unified database upgrade",
+	];
+	const successful = Object.fromEntries(
+		[
+			"repository_lint",
+			"repository_docs",
+			"repository_test",
+			"secrets",
+			"contracts",
+			"github_actions",
+			"install_affected",
+			"node_evidence",
+			"container_build",
+			"native_evidence",
+		].map((id) => [id, { outcome: "success" }]),
+	);
+	const plan = {
+		outcome: "success",
+		outputs: {
+			validation_profiles: JSON.stringify([
+				"affected-node",
+				"container-build",
+				"affected-native",
+				"schema-migration",
+			]),
+			light_surfaces: JSON.stringify(["contracts", "config"]),
+			node_evidence_profiles: '["affected-node"]',
+			has_container_build: "true",
+		},
+	};
+	for (const failed of [undefined, "repository_test", "secrets", "contracts", "github_actions"]) {
+		const steps = { ...successful, plan, ...(failed ? { [failed]: { outcome: "failure" } } : {}) };
+		for (const name of heavy) {
+			assert.equal(
+				condition(namedStep(job, name).if, { steps }),
+				failed === undefined,
+				`${name}: ${failed}`,
+			);
+		}
+	}
+	const lintFailure = {
+		...successful,
+		plan,
+		repository_lint: { outcome: "failure" },
+		repository_docs: { outcome: "skipped" },
+		repository_test: { outcome: "skipped" },
+	};
+	for (const name of heavy) {
+		assert.equal(condition(namedStep(job, name).if, { steps: lintFailure }), false);
+	}
+	for (const skipped of ["contracts", "github_actions"]) {
+		const steps = { ...successful, plan, [skipped]: { outcome: "skipped" } };
+		for (const name of heavy) {
+			assert.equal(condition(namedStep(job, name).if, { steps }), false);
+		}
+	}
+	const installFailure = {
+		...successful,
+		plan,
+		install_affected: { outcome: "failure" },
+		node_evidence: { outcome: "skipped" },
+	};
+	for (const name of heavy.slice(1)) {
+		assert.equal(condition(namedStep(job, name).if, { steps: installFailure }), false);
+	}
+	const nativeOnly = {
+		...successful,
+		plan: {
+			...plan,
+			outputs: {
+				...plan.outputs,
+				validation_profiles: '["affected-native"]',
+				light_surfaces: "[]",
+				node_evidence_profiles: "[]",
+				has_container_build: "false",
+			},
+		},
+		contracts: { outcome: "skipped" },
+		github_actions: { outcome: "skipped" },
+		install_affected: { outcome: "skipped" },
+		node_evidence: { outcome: "skipped" },
+		container_build: { outcome: "skipped" },
+	};
+	assert.equal(
+		condition(namedStep(job, "Check affected native code").if, { steps: nativeOnly }),
+		true,
+	);
+	assert.equal(namedStep(job, "Summarize repository evidence").if, "always()");
+	assert.equal(namedStep(job, "Scan authored commits for secrets").if, "always()");
+});
+
 test("workflow jq selects Node and image evidence from the plan profile array", async () => {
 	const workflow = await loadWorkflow("pr.yml");
 	const plan = namedStep(
@@ -534,13 +632,13 @@ test("pull request validation keeps the shared required-check contract", async (
 	const summary = namedStep(repoChecks, "Summarize repository evidence");
 	assert(isObject(summary.env));
 	assert.match(String(summary.env.RESULTS), /steps\.native_evidence\.outcome/u);
-	assert.equal(
-		namedStep(repoChecks, "Run affected Node evidence").if,
-		"!cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.node_evidence_profiles != '[]' && steps.install_affected.outcome == 'success'",
+	assert.match(
+		String(namedStep(repoChecks, "Run affected Node evidence").if),
+		/node_evidence_profiles != '\[\]'/u,
 	);
-	assert.equal(
-		namedStep(repoChecks, "Run container build contract evidence").if,
-		"!cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.has_container_build == 'true'",
+	assert.match(
+		String(namedStep(repoChecks, "Run container build contract evidence").if),
+		/has_container_build == 'true'/u,
 	);
 	assert.equal(
 		namedStep(repoChecks, "Run affected Node evidence").shell,

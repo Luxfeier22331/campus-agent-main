@@ -1,7 +1,6 @@
-import { Button, useTheme } from "@campus-agent/ui";
+import { Button, StateMessage, useTheme } from "@campus-agent/ui";
 import { useEffect, useMemo } from "react";
 import { MapProductExperience } from "@/components/map/map-product-experience";
-import { StateMessage } from "@/components/ui/state-message";
 import { getCampusMapProfile } from "@/features/map/campus-map-style";
 import {
 	createMapPlaceViews,

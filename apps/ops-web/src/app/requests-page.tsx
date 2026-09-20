@@ -1,4 +1,4 @@
-import { Alert, Button, cn } from "@campus-agent/ui";
+import { Alert, Button, cn, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
@@ -90,7 +90,9 @@ export function RequestsPage({
 				</Alert>
 			) : null}
 			<RequestFilters search={search} />
-			{requests.isPending && !search.timeError ? <p role="status">正在读取运行诊断...</p> : null}
+			{requests.isPending && !search.timeError ? (
+				<StateMessage layout="inline" role="status" description={<> 正在读取运行诊断... </>} />
+			) : null}
 			{requests.isError && !requests.data ? (
 				<ErrorState
 					error={requests.error}
@@ -139,9 +141,12 @@ export function RequestsPage({
 						</p>
 					) : null}
 					{requests.isPlaceholderData ? (
-						<p className="mb-3 text-warning text-sm" role="status">
-							正在读取新筛选结果，当前列表仍是上一组数据。
-						</p>
+						<StateMessage
+							layout="inline"
+							role="status"
+							className="mb-3"
+							description={<>正在读取新筛选结果，当前列表仍是上一组数据。</>}
+						/>
 					) : null}
 					{requests.data.data.length === 0 ? (
 						<RequestListEmptyState hasActiveFilters={hasActiveFilters} view={view} />

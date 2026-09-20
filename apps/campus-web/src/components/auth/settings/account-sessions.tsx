@@ -8,17 +8,13 @@ import {
 	useSignOut,
 } from "@better-auth-ui/react";
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogTitle,
+	ActionGroup,
 	Badge,
 	Button,
+	ConfirmDialog,
 	Field,
 	Input,
+	StateMessage,
 } from "@campus-agent/ui";
 import { useNavigate } from "@tanstack/react-router";
 import Bowser from "bowser";
@@ -80,9 +76,12 @@ export function AccountSessions() {
 					/>
 				)}
 				{sessions.isPending ? (
-					<p className="ui-supporting" role="status">
-						正在读取登录设备…
-					</p>
+					<StateMessage
+						layout="inline"
+						role="status"
+						className="ui-supporting"
+						description={<>正在读取登录设备…</>}
+					/>
 				) : null}
 				{sessions.data && devices.length === 0 ? (
 					<p className="ui-supporting">没有可显示的登录设备。</p>
@@ -145,7 +144,7 @@ export function AccountSessions() {
 					</ul>
 				) : null}
 				{sessions.data && !sessions.isError ? (
-					<div className="flex flex-wrap gap-2">
+					<ActionGroup>
 						<Button
 							variant="outline"
 							disabled={busy || !devices.some((device) => device.id !== session.data?.session.id)}
@@ -166,57 +165,46 @@ export function AccountSessions() {
 						>
 							退出所有设备
 						</Button>
-					</div>
+					</ActionGroup>
 				) : null}
 			</div>
-			<AlertDialog
+			<ConfirmDialog
 				open={action !== null}
 				onOpenChange={(open) => {
-					if (!(open || busy)) {
+					if (!open) {
 						setAction(null);
 					}
 				}}
+				title={action === "all" ? "退出所有设备？" : "退出其他设备？"}
+				description={
+					action === "all"
+						? "包括当前设备在内的所有登录设备都会退出，需要重新登录。"
+						: "其他设备会退出登录，当前设备保持登录。"
+				}
+				confirmLabel="确认退出"
+				pendingLabel="正在退出"
+				pending={busy}
+				onConfirm={() => {
+					setNotice(undefined);
+					if (action === "all") {
+						all.mutate();
+					} else {
+						others.mutate();
+					}
+				}}
 			>
-				<AlertDialogContent>
-					<AlertDialogTitle>
-						{action === "all" ? "退出所有设备？" : "退出其他设备？"}
-					</AlertDialogTitle>
-					<AlertDialogDescription>
-						{action === "all"
-							? "包括当前设备在内的所有登录设备都会退出，需要重新登录。"
-							: "其他设备会退出登录，当前设备保持登录。"}
-					</AlertDialogDescription>
-					{isReauthenticationRequiredError(bulkError) ? (
-						<FreshSessionForm
-							onFresh={async () => {
-								others.reset();
-								all.reset();
-								await sessions.refetch();
-							}}
-						/>
-					) : (
-						<SettingsFeedback error={bulkError} />
-					)}
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
-						<AlertDialogAction
-							disabled={busy}
-							aria-busy={busy}
-							onClick={(event) => {
-								event.preventDefault();
-								setNotice(undefined);
-								if (action === "all") {
-									all.mutate();
-								} else {
-									others.mutate();
-								}
-							}}
-						>
-							{busy ? "正在退出" : "确认退出"}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				{isReauthenticationRequiredError(bulkError) ? (
+					<FreshSessionForm
+						onFresh={async () => {
+							others.reset();
+							all.reset();
+							await sessions.refetch();
+						}}
+					/>
+				) : (
+					<SettingsFeedback error={bulkError} />
+				)}
+			</ConfirmDialog>
 		</SettingsSection>
 	);
 }

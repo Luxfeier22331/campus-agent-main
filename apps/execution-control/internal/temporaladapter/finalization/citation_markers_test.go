@@ -1,6 +1,8 @@
 package finalization
 
 import (
+	"fmt"
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -46,7 +48,7 @@ func TestGroupedCitationClosure(t *testing.T) {
 }
 
 func TestCitationMarkdownLiterals(t *testing.T) {
-	answer := "`[9]`\n```go\n[8, 9]\n```\n~~~\n[7]\n~~~\n\\[6] [5](https://example.com) [学校](https://example.com) [4][ref]"
+	answer := "`[9]`\n```go\n[8, 9]\n```\n~~~\n[7]\n~~~\n\\[6] [5](https://example.com) [学校](https://example.com) [4][ref]\n\n[ref]: https://example.com"
 	for _, operation := range []string{"solve", "synthesize"} {
 		closure, err := (&Adapter{}).WorkflowCitationClosureForFinalization(map[string]any{"operation": operation}, answer)
 		if err != nil || closure.AnswerText != answer || len(closure.Sources) != 0 {
@@ -116,4 +118,24 @@ func TestCitationNestedMarkdownLiterals(t *testing.T) {
 			t.Fatalf("literal %q: %#v", text, markers)
 		}
 	}
+}
+
+func TestAdjacentCitationClosure(t *testing.T) {
+	indexes := []int{1, 2, 3, 5, 8}
+	results := []map[string]any{}
+	evidence := []temporalruntime.WorkflowEvidence{}
+	for _, index := range indexes {
+		item := citationSearchItem("notice", fmt.Sprint(index))
+		results = append(results, citationToolResult([]campusdocs.SearchResultItem{item}, index))
+		evidence = append(evidence, temporalruntime.WorkflowEvidence{ID: fmt.Sprint(index), Source: temporalruntime.WorkflowSourceWebSearch, Title: "学校", Excerpt: "资料", URL: fmt.Sprintf("https://muc.edu.cn/%d", index), CitationIndex: index})
+	}
+	answer := "答案[1][2][3][5]；补充[2][8]"
+	solve, err := (&Adapter{}).WorkflowCitationClosureForFinalization(map[string]any{"tool_results": results}, answer)
+	require.NoError(t, err)
+	require.Len(t, solve.Sources, 5)
+	require.Equal(t, "答案[1](/notices/12345)[2](/notices/12345)[3](/notices/12345)[4](/notices/12345)；补充[2](/notices/12345)[5](/notices/12345)", solve.AnswerText)
+	synthesis, err := WorkflowEvidenceCitationClosureForFinalization(evidence, answer)
+	require.NoError(t, err)
+	require.Len(t, synthesis.Sources, 5)
+	require.Equal(t, "答案[1](https://muc.edu.cn/1)[2](https://muc.edu.cn/2)[3](https://muc.edu.cn/3)[5](https://muc.edu.cn/5)；补充[2](https://muc.edu.cn/2)[8](https://muc.edu.cn/8)", synthesis.AnswerText)
 }

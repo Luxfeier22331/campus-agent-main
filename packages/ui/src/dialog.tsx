@@ -3,8 +3,14 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 import * as React from "react";
+import { ActionGroup } from "./action-group";
 import { buttonVariants } from "./button";
 import { cn } from "./cn";
+
+const overlayClass =
+	"fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none";
+const dialogContentClass =
+	"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-4 rounded-[var(--radius-xl)] border bg-background p-5 sm:p-6 shadow-[var(--shadow-lg)] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none";
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
@@ -15,14 +21,7 @@ export const DialogOverlay = React.forwardRef<
 	React.ElementRef<typeof DialogPrimitive.Overlay>,
 	React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
-	<DialogPrimitive.Overlay
-		className={cn(
-			"fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
-			className,
-		)}
-		ref={ref}
-		{...props}
-	/>
+	<DialogPrimitive.Overlay className={cn(overlayClass, className)} ref={ref} {...props} />
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
@@ -38,14 +37,7 @@ export const DialogContent = React.forwardRef<
 >(({ children, className, closeLabel = "关闭", showCloseButton = true, ...props }, ref) => (
 	<DialogPortal>
 		<DialogOverlay />
-		<DialogPrimitive.Content
-			className={cn(
-				"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-4 rounded-[var(--radius-xl)] border bg-background p-5 sm:p-6 shadow-lg duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
-				className,
-			)}
-			ref={ref}
-			{...props}
-		>
+		<DialogPrimitive.Content className={cn(dialogContentClass, className)} ref={ref} {...props}>
 			{children}
 			{showCloseButton ? (
 				<DialogPrimitive.Close
@@ -67,13 +59,8 @@ export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLD
 	return <div className={cn("flex flex-col gap-2 text-left", className)} {...props} />;
 }
 
-export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-	return (
-		<div
-			className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
-			{...props}
-		/>
-	);
+export function DialogFooter(props: React.HTMLAttributes<HTMLDivElement>) {
+	return <ActionGroup layout="footer" {...props} />;
 }
 
 export const DialogTitle = React.forwardRef<
@@ -104,12 +91,9 @@ export const AlertDialogContent = React.forwardRef<
 	React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(({ className, ...props }, ref) => (
 	<AlertDialogPrimitive.Portal>
-		<AlertDialogPrimitive.Overlay className="fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)]" />
+		<AlertDialogPrimitive.Overlay className={overlayClass} />
 		<AlertDialogPrimitive.Content
-			className={cn(
-				"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-4 rounded-[var(--radius-xl)] border bg-background p-5 sm:p-6 shadow-lg",
-				className,
-			)}
+			className={cn(dialogContentClass, className)}
 			ref={ref}
 			{...props}
 		/>
@@ -146,12 +130,7 @@ export function AlertDialogHeader(props: React.HTMLAttributes<HTMLDivElement>) {
 }
 
 export function AlertDialogFooter(props: React.HTMLAttributes<HTMLDivElement>) {
-	return (
-		<div
-			{...props}
-			className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", props.className)}
-		/>
-	);
+	return <ActionGroup layout="footer" {...props} />;
 }
 
 export function AlertDialogAction({
@@ -187,7 +166,7 @@ export const SheetHeader = DialogHeader;
 export const SheetFooter = DialogFooter;
 
 const sheetVariants = cva(
-	"fixed z-[var(--layer-overlay)] overflow-y-auto overscroll-contain bg-background p-5 shadow-lg duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
+	"fixed z-[var(--layer-overlay)] overflow-y-auto overscroll-contain bg-background p-5 shadow-[var(--shadow-lg)] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
 	{
 		variants: {
 			side: {

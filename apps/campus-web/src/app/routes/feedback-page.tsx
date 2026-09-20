@@ -5,6 +5,7 @@ import {
 	CardContent,
 	CardHeader,
 	CardTitle,
+	Field,
 	Input,
 	Label,
 	Select,
@@ -157,14 +158,17 @@ export function FeedbackPage({
 								<input type="hidden" {...form.register("routeContext")} />
 							</div>
 							<div className="grid gap-2">
-								<Label htmlFor="feedback-body">问题描述</Label>
-								<Textarea
-									aria-describedby={form.formState.errors.body ? "feedback-body-error" : undefined}
-									aria-invalid={form.formState.errors.body ? "true" : undefined}
-									id="feedback-body"
-									required
-									{...form.register("body")}
-								/>
+								<Field label={<> 问题描述 </>} id="feedback-body">
+									<Textarea
+										aria-describedby={
+											form.formState.errors.body ? "feedback-body-error" : undefined
+										}
+										aria-invalid={form.formState.errors.body ? "true" : undefined}
+										id="feedback-body"
+										required
+										{...form.register("body")}
+									/>
+								</Field>
 								{form.formState.errors.body ? (
 									<p className="text-destructive text-xs" id="feedback-body-error" role="alert">
 										{form.formState.errors.body.message ?? "请填写问题描述。"}
@@ -172,13 +176,14 @@ export function FeedbackPage({
 								) : null}
 							</div>
 							<div className="grid gap-2">
-								<Label htmlFor="feedback-contact">联系方式（可选）</Label>
-								<Input
-									className="min-h-11"
-									id="feedback-contact"
-									placeholder="邮箱或其他联系方式"
-									{...form.register("contact")}
-								/>
+								<Field label={<> 联系方式（可选） </>} id="feedback-contact">
+									<Input
+										className="min-h-11"
+										id="feedback-contact"
+										placeholder="邮箱或其他联系方式"
+										{...form.register("contact")}
+									/>
+								</Field>
 							</div>
 							<LayoutGroup>
 								<motion.div aria-live="polite" className="grid gap-2" layout>

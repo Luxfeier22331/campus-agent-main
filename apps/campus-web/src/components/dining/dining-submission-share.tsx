@@ -1,4 +1,4 @@
-import { Button, Input, Label } from "@campus-agent/ui";
+import { Button, Input, Label, StateMessage } from "@campus-agent/ui";
 import { useEffect, useId, useRef, useState } from "react";
 
 export function DiningSubmissionShare({ submissionId }: { submissionId: string }) {
@@ -40,9 +40,11 @@ export function DiningSubmissionShare({ submissionId }: { submissionId: string }
 				{pending ? "正在复制" : "复制链接"}
 			</Button>
 			{result ? (
-				<p className="text-sm text-muted-foreground" role="status">
-					{result.copied ? "链接已复制" : "无法自动复制，请手动复制下方链接。"}
-				</p>
+				<StateMessage
+					layout="inline"
+					role="status"
+					description={result.copied ? "链接已复制" : "无法自动复制，请手动复制下方链接。"}
+				/>
 			) : null}
 			{result && !result.copied ? (
 				<>

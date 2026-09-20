@@ -91,7 +91,7 @@ test("uses the head task graph once when a diff changes Turbo configuration", ()
 		if (command === "pnpm") {
 			return result({
 				stdout: JSON.stringify({
-					tasks: [{ command: "vitest", package: "campus-web", task: "test" }],
+					tasks: [{ command: "vitest", package: "campus-web", task: "test:dom:fast" }],
 				}),
 			});
 		}
@@ -103,7 +103,7 @@ test("uses the head task graph once when a diff changes Turbo configuration", ()
 		runner,
 	);
 	assert.deepEqual(scope.changedFiles, ["apps/campus-web/src/app.tsx", "turbo.json"]);
-	assert.deepEqual(scope.tasks, [{ package: "campus-web", task: "test" }]);
+	assert.deepEqual(scope.tasks, [{ package: "campus-web", task: "test:dom:fast" }]);
 	assert.equal(calls.filter(({ command }) => command === "pnpm").length, 1);
 	assert.equal(
 		calls.filter(({ command, args }) => command === "git" && args[0] === "log").length,

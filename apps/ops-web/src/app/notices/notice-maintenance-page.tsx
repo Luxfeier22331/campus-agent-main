@@ -1,4 +1,5 @@
 import {
+	ActionGroup,
 	Button,
 	Dialog,
 	DialogContent,
@@ -82,7 +83,7 @@ export function NoticeMaintenancePage() {
 		<section className="min-w-0">
 			<PageHeader
 				actions={
-					<div className="flex flex-wrap items-center gap-2">
+					<ActionGroup>
 						<Button onClick={() => model.setTaskCenterOpen(true)} variant="outline">
 							任务中心
 							{model.activeJobCount > 0 ? (
@@ -98,7 +99,7 @@ export function NoticeMaintenancePage() {
 							<RefreshCw className={model.notices.isFetching ? "size-4 animate-spin" : "size-4"} />
 							刷新
 						</Button>
-					</div>
+					</ActionGroup>
 				}
 				description="从同一条通知记录完成分类维护，并按状态处理发布任务。"
 				title="通知维护"

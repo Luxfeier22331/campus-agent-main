@@ -1,6 +1,8 @@
 import {
+	ActionGroup,
 	Badge,
 	Button,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -28,8 +30,8 @@ import {
 	revokeInternalPortalAutomationToken,
 } from "./ops-api/automation";
 import { ErrorState, InlineError } from "./ops-display";
-import { ConfirmAction } from "./ui/alert-dialog";
 import { DataTable } from "./ui/data-table";
+import { useConfirmCommand } from "./use-confirm-command";
 
 const AUTOMATION_TOKENS_QUERY_KEY = ["ops", "internal-portal", "automation-tokens"] as const;
 
@@ -72,7 +74,7 @@ export function InternalPortalAutomationSection() {
 				}}
 				onRevoke={(token) => {
 					setCommandError(null);
-					revoke.mutate(token);
+					return revoke.mutateAsync(token);
 				}}
 				query={query}
 			/>
@@ -102,7 +104,7 @@ interface AutomationTokenQueryResult {
 
 function AutomationTokensSection(props: {
 	onOpen: (dialog: AutomationTokenDialog) => void;
-	onRevoke: (token: InternalPortalAutomationTokenMetadata) => void;
+	onRevoke: (token: InternalPortalAutomationTokenMetadata) => Promise<unknown>;
 	query: AutomationTokenQueryResult;
 }) {
 	const [copied, setCopied] = useState(false);
@@ -139,7 +141,7 @@ function AutomationTokensSection(props: {
 						开发者程序使用下方端点和 Bearer token 创建、更新或删除凭据。
 					</p>
 				</div>
-				<div className="flex gap-2">
+				<ActionGroup>
 					<Button
 						aria-label="刷新自动化 token"
 						disabled={props.query.isFetching}
@@ -154,7 +156,7 @@ function AutomationTokensSection(props: {
 						<KeyRound className="size-4" />
 						生成 token
 					</Button>
-				</div>
+				</ActionGroup>
 			</div>
 			<div className="mt-4 flex max-w-3xl items-center gap-2">
 				<Input aria-label="自动化接口地址" readOnly value={endpoint} />
@@ -209,7 +211,7 @@ function AutomationTokensSection(props: {
 
 function automationTokenColumns(actions: {
 	onOpen: (dialog: AutomationTokenDialog) => void;
-	onRevoke: (token: InternalPortalAutomationTokenMetadata) => void;
+	onRevoke: (token: InternalPortalAutomationTokenMetadata) => Promise<unknown>;
 }) {
 	return [
 		{
@@ -245,7 +247,7 @@ function automationTokenColumns(actions: {
 
 function AutomationTokenMobileRow(props: {
 	onOpen: (dialog: AutomationTokenDialog) => void;
-	onRevoke: (token: InternalPortalAutomationTokenMetadata) => void;
+	onRevoke: (token: InternalPortalAutomationTokenMetadata) => Promise<unknown>;
 	token: InternalPortalAutomationTokenMetadata;
 }) {
 	return (
@@ -271,9 +273,11 @@ function AutomationTokenStatus({ revokedAt }: { revokedAt: string | null }) {
 
 function AutomationTokenActions(props: {
 	onOpen: (dialog: AutomationTokenDialog) => void;
-	onRevoke: (token: InternalPortalAutomationTokenMetadata) => void;
+	onRevoke: (token: InternalPortalAutomationTokenMetadata) => Promise<unknown>;
 	token: InternalPortalAutomationTokenMetadata;
 }) {
+	const confirmCommand = useConfirmCommand();
+
 	return (
 		<div className="flex justify-end gap-1">
 			<IconAction
@@ -282,10 +286,10 @@ function AutomationTokenActions(props: {
 				onClick={() => props.onOpen({ kind: "reveal", token: props.token })}
 			/>
 			{props.token.revokedAt ? null : (
-				<ConfirmAction
+				<ConfirmDialog
 					confirmLabel="撤销"
 					description={`撤销“${props.token.name}”后，使用该 token 的程序将无法继续访问。`}
-					onConfirm={() => props.onRevoke(props.token)}
+					{...confirmCommand("command", () => props.onRevoke(props.token))}
 					title="撤销自动化 token"
 					trigger={
 						<span>

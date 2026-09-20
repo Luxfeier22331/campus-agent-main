@@ -1,11 +1,13 @@
 import { formatWeekdays } from "@campus-agent/transport/domain";
 import {
+	ActionGroup,
 	Button,
 	Disclosure,
 	DisclosureSummary,
 	Field,
 	Input,
 	NativeSelect,
+	StateMessage,
 	Textarea,
 	ToggleGroup,
 	ToggleGroupItem,
@@ -192,9 +194,12 @@ export function TransportRouteEditor({
 					</div>
 				</Disclosure>
 				{Object.keys(errors).length > 0 ? (
-					<p role="alert" className="text-danger text-sm">
-						请检查标出的线路信息。
-					</p>
+					<StateMessage
+						layout="inline"
+						role="alert"
+						tone="danger"
+						description={<>请检查标出的线路信息。</>}
+					/>
 				) : null}
 				{save.error ? <InlineError title="线路保存失败" error={save.error} /> : null}
 			</Errors.Provider>
@@ -491,9 +496,12 @@ export function TransportPeriodEditor({
 							))}
 						</ToggleGroup>
 						{errors.weekdays ? (
-							<p role="alert" className="text-danger text-sm">
-								{errors.weekdays}
-							</p>
+							<StateMessage
+								layout="inline"
+								role="alert"
+								tone="danger"
+								description={errors.weekdays}
+							/>
 						) : null}
 					</fieldset>
 					<Disclosure
@@ -575,15 +583,16 @@ export function TransportPeriodEditor({
 							</div>
 						)}
 						{errors.items ? (
-							<p className="text-danger text-sm" role="alert">
-								{errors.items}
-							</p>
+							<StateMessage layout="inline" role="alert" tone="danger" description={errors.items} />
 						) : null}
 					</section>
 					{Object.keys(errors).length > 0 ? (
-						<p role="alert" className="text-danger text-sm">
-							请检查标出的日期、星期或班次信息。
-						</p>
+						<StateMessage
+							layout="inline"
+							role="alert"
+							tone="danger"
+							description={<>请检查标出的日期、星期或班次信息。</>}
+						/>
 					) : null}
 					{!source || copy ? (
 						<TransportNoticePicker
@@ -664,11 +673,11 @@ function ItemRow({
 					placeholder={`沿用：${inheritedPoint}`}
 					onChange={(boardingPoint) => onChange({ ...item, boardingPoint })}
 				/>
-				<div className="flex gap-1">
+				<ActionGroup>
 					<Button size="sm" variant="ghost" aria-label={`删除班次 ${index + 1}`} onClick={onRemove}>
 						删除
 					</Button>
-				</div>
+				</ActionGroup>
 			</div>
 			{item.kind === "interval" ? (
 				<div className="mt-2 grid gap-2 sm:grid-cols-2">

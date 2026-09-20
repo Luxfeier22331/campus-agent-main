@@ -1,4 +1,12 @@
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "@campus-agent/ui";
+import {
+	ActionGroup,
+	Button,
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+	Input,
+} from "@campus-agent/ui";
 import type { AccountAdminUserDetail } from "campus-contracts/account-admin";
 import { Ban, KeyRound, Mail, ShieldCheck, ShieldX } from "lucide-react";
 import { AccountAccessBadge, AccountStateBadge } from "./account-admin-display";
@@ -99,7 +107,7 @@ export function UserDetailAccountActions({
 						value={reason}
 					/>
 				</label>
-				<div className="flex flex-wrap gap-2">
+				<ActionGroup>
 					<Button
 						disabled={deletionInProgress || commandPending}
 						onClick={() => onStartCommand("password-reset-email", {})}
@@ -170,7 +178,7 @@ export function UserDetailAccountActions({
 							封禁账号
 						</Button>
 					)}
-				</div>
+				</ActionGroup>
 			</CardContent>
 		</Card>
 	);

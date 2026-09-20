@@ -12,7 +12,7 @@ export const TooltipContent = React.forwardRef<
 	<TooltipPrimitive.Portal>
 		<TooltipPrimitive.Content
 			className={cn(
-				"z-[var(--layer-overlay)] max-w-72 overflow-hidden rounded-md bg-foreground px-3 py-1.5 text-background text-xs shadow-sm",
+				"z-[var(--layer-overlay)] max-w-72 overflow-hidden rounded-[var(--radius-lg)] bg-foreground px-3 py-1.5 text-background text-xs shadow-[var(--shadow-sm)]",
 				className,
 			)}
 			ref={ref}

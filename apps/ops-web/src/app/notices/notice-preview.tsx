@@ -1,5 +1,5 @@
 import { prepareNoticeContentHtml } from "@campus-agent/notices/browser";
-import { Button, buttonVariants, Skeleton } from "@campus-agent/ui";
+import { Button, buttonVariants, Skeleton, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, File } from "lucide-react";
 import { memo, useEffect, useMemo, useRef } from "react";
@@ -112,7 +112,12 @@ export function NoticePreviewPanel({
 				</p>
 			) : null}
 			{prepared?.status === "invalid" ? (
-				<p role="alert">正文暂时无法展示。{hasAttachments ? "可查看下方附件。" : ""}</p>
+				<StateMessage
+					layout="inline"
+					role="alert"
+					tone="danger"
+					description={<> 正文暂时无法展示。{hasAttachments ? "可查看下方附件。" : ""} </>}
+				/>
 			) : null}
 			{query.data && query.data.attachments.length > 0 ? (
 				<section aria-label="附件" className="border-t pt-4">

@@ -1,5 +1,6 @@
-import { cn } from "@campus-agent/ui";
 import type { ReactNode } from "react";
+import { ActionGroup } from "./action-group";
+import { cn } from "./cn";
 
 export type StateMessageLayout = "inline" | "section" | "page" | "overlay";
 export type StateMessageTone = "neutral" | "danger" | "warning";
@@ -49,13 +50,20 @@ export function StateMessage({
 				<h2 className="text-sm font-semibold text-[var(--sys-text-strong)]">{title}</h2>
 			) : null}
 			{description ? (
-				<p className="m-0 text-sm leading-6 text-[var(--sys-text-muted)]">{description}</p>
+				<p
+					className={cn(
+						"m-0 text-sm leading-6",
+						tone === "neutral" && "text-[var(--sys-text-muted)]",
+					)}
+				>
+					{description}
+				</p>
 			) : null}
 			{primaryAction || secondaryAction ? (
-				<div className="flex flex-wrap items-center gap-2">
+				<ActionGroup>
 					{primaryAction}
 					{secondaryAction}
-				</div>
+				</ActionGroup>
 			) : null}
 		</div>
 	);

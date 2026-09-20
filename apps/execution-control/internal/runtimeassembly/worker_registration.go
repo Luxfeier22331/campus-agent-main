@@ -80,6 +80,7 @@ func NewWorkflowWorkerWithOptions(
 	workflowWorker.RegisterWorkflowWithOptions(temporalruntime.PersonalMemoryCommandWorkflow, workflow.RegisterOptions{
 		Name: temporalruntime.PersonalMemoryCommandWorkflowType,
 	})
+	workflowWorker.RegisterWorkflowWithOptions(temporalruntime.MemoryAppendWorkflow, workflow.RegisterOptions{Name: temporalruntime.MemoryAppendWorkflowType})
 	return workflowWorker
 }
 
@@ -95,6 +96,7 @@ func NewCoreActivityWorkerWithOptions(
 		coreQueue = temporalruntime.ActivityTaskQueueCore
 	}
 	coreWorker := worker.New(temporalClient, coreQueue, options)
+	coreWorker.RegisterActivityWithOptions(contextActivities.AdvanceMemoryAppendActivity, activityRegisterOptions(temporalruntime.AdvanceMemoryAppendActivityName))
 	coreWorker.RegisterActivityWithOptions(contextActivities.FinalizeMemoryAppendActivity, activityRegisterOptions(temporalruntime.FinalizeMemoryAppendActivityName))
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.AppendConversationMemoryActivity,

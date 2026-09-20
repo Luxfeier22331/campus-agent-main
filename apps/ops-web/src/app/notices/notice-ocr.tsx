@@ -1,4 +1,4 @@
-import { Button, NativeSelect } from "@campus-agent/ui";
+import { Button, NativeSelect, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { NoticeOcrSchema } from "../../shared/ocr-contract";
@@ -47,9 +47,7 @@ export function NoticeOcrSection({
 				<p className="text-xs text-muted-foreground">可识别资源 {query.data.resources.length} 项</p>
 			) : null}
 			{query.isPending ? (
-				<p role="status" className="text-sm text-muted-foreground">
-					正在读取识别结果…
-				</p>
+				<StateMessage layout="inline" role="status" description={<>正在读取识别结果…</>} />
 			) : null}
 			{query.isError ? (
 				<ErrorState

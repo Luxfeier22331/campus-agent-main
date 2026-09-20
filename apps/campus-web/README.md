@@ -36,6 +36,9 @@ pnpm --dir apps/campus-web build
 pnpm --dir apps/campus-web typecheck
 ```
 
+`test` 串行运行 Node/DOM 的普通组与隔离组；CI 分别缓存四个叶任务，不重复执行聚合入口。
+只有需要模块 mock 的测试使用 `.isolated.test.*`；公共 setup 在每个测试后恢复环境和清理 DOM。
+
 `style-dev.html` 是独立的本地组件展示入口。运行 `pnpm dev:init -- --target core` 后访问 `/style-dev.html#overview`，
 目录按组件族列出真实组件和真实组合组件；详情页一次只挂载当前示例。示例可以通过
 `/style-dev.html#style-dev-conversation-thread/messages` 这样的 hash 直接打开，搜索只作用于本地目录。

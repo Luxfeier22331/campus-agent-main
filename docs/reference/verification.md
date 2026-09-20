@@ -76,20 +76,27 @@ pre-commit 先执行静态检查与 Secret 扫描，再执行根目录 `pnpm tes
 Node/Go 源码任务，不依赖远端引用或自动 fetch。PR 继续按真实 base/head 检查完整分支差异。
 `pnpm lint` 通过排除 validation group 保持静态检查语义，不因 hook 迁移而重复调用测试。
 
-`pnpm test` 通过根任务 `//#test:scripts` 执行原有脚本测试，不依赖模块测试或递归调用自身。
-该任务输入为仓库默认未忽略文件，覆盖脚本读取的应用源码、工作流、文档、配置和工具链文件；
-还使用当前 Git 索引树及实际 Node、Git、pnpm 版本、OS 和架构作为专属缓存输入。索引树用于区分
-测试读取的 Git 跟踪文件集合，提交 SHA、分支名和 worktree 绝对路径不进入缓存键。
+`pnpm test` 串行执行 `scripts` tooling workspace 的 CI、deploy、dev、docs、hooks、notices 和
+release 测试组，各组独立缓存。脚本的业务依赖属于 tooling workspace，不进入根包的全局依赖 hash。
+各组声明实际读取的源码、工作流、文档、配置和工具链；CI 组检查全仓合同，保留广泛输入。
+读取 Git 文件清单的组额外使用对应范围的跟踪路径摘要，文件内容仍由 Turbo 输入负责；实际
+Node、Git、pnpm 版本及 OS/架构进入缓存键，提交 SHA、分支名和 worktree 绝对路径不进入。
 Git 上下文在测试子进程启动前清理，避免临时仓库被 hook 的 Git 路径变量指向当前仓库。
 缓存只复用成功结果；失败照常阻断。`pnpm check`、verify、提交 hook 和 PR 共用这个入口。
 
 pre-push 不再执行重验证。`pnpm hooks:install` 在当前 worktree 卸载 prek 管理的旧 pre-push shim，
-再安装 pre-commit；其他 worktree 和自定义 hook 不因此改变。迁移原因与取舍见
+再安装并检查 pre-commit 文件存在且可执行；其他 worktree 和自定义 hook 不因此改变。迁移原因与取舍见
 [提交前验证与根测试缓存](../../.agents/notes/implemented/process/2026-09-16-pre-commit-validation.md)。
 仓库文档检查仍由 `pnpm check`、`pnpm verify` 和 PR 执行。
 
 源码 affected 使用真实提交和 Turbo 配置。发布候选由 release 所有者保留现有配置过滤及显式镜像
 选择规则，不让发布选择反向抑制源码校验。PR 复用生成的任务计划；选中但未成功执行的检查不能通过汇总。
+
+Node 的 test、typecheck 和 build 通过不执行命令的 `source` 节点跟踪依赖包源码，不要求执行依赖包
+测试。前端按 Node/DOM 和是否需要模块隔离分为可缓存叶任务，CI 不重复执行聚合 `test`。跨包 fixture
+由实际消费者显式声明；实际 Node 版本及运行平台在选定工具链内计算。取舍见
+[源码依赖与分组测试缓存](../../.agents/notes/implemented/testing/2026-09-19-source-and-test-cache-boundaries.md)。
+PR 基础检查失败后停止安装受影响依赖及重检查；选中的前置任务意外跳过也不能继续，最终汇总仍失败。
 
 完整验证保留现有数据库与配置检查，不扫描所有 `test:*` 命令。Temporal、stream、replay、浏览器
 与制品构建按实际边界显式运行。GitHub 手动 validation profile 先确定工具环境和工作区依赖，再执行

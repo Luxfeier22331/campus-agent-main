@@ -1,4 +1,5 @@
 import {
+	ActionGroup,
 	Button,
 	Field,
 	Input,
@@ -127,7 +128,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 							}
 						/>
 					</div>
-					<div className="flex gap-2 md:col-span-2 xl:col-span-1">
+					<ActionGroup className="md:col-span-2 xl:col-span-1">
 						<Button
 							className="flex-1 md:hidden"
 							onClick={() => changeMobileFiltersOpen(true)}
@@ -150,7 +151,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 						>
 							重置
 						</Button>
-					</div>
+					</ActionGroup>
 				</div>
 				<div className="hidden md:block border-border border-t py-3">
 					<FailureFields

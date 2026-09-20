@@ -1,13 +1,14 @@
-import { cn } from "@campus-agent/ui";
-import { useNavigate } from "@tanstack/react-router";
-import { LogOut, Settings, ShieldCheck } from "lucide-react";
-import { useState } from "react";
 import {
+	cn,
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+	StateMessage,
+} from "@campus-agent/ui";
+import { useNavigate } from "@tanstack/react-router";
+import { LogOut, Settings, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 import { campusAuthClient } from "@/platform/auth/client";
 import { useCampusSession } from "@/platform/auth/session";
 
@@ -137,9 +138,13 @@ export function AuthenticatedAccountMenu({
 					<span>{signingOut ? "正在退出" : "退出登录"}</span>
 				</DropdownMenuItem>
 				{signOutError ? (
-					<p className="max-w-64 border-t px-3 py-2 text-danger text-xs" role="alert">
-						退出失败，你仍保持登录状态。请稍后重试。
-					</p>
+					<StateMessage
+						layout="inline"
+						role="alert"
+						tone="danger"
+						className="max-w-64 border-t px-3 py-2"
+						description={<>退出失败，你仍保持登录状态。请稍后重试。</>}
+					/>
 				) : null}
 			</DropdownMenuContent>
 		</DropdownMenu>

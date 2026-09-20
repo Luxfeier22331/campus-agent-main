@@ -1,4 +1,12 @@
-import { Button, Card, CardContent, Input, Label } from "@campus-agent/ui";
+import {
+	ActionGroup,
+	Button,
+	Card,
+	CardContent,
+	Field,
+	Input,
+	StateMessage,
+} from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { fetchJson } from "./ops-api/core";
@@ -82,30 +90,32 @@ function Form({ config }: { config: OcrConfigView | null }) {
 						className="grid min-w-0 gap-4 md:grid-cols-2"
 					>
 						<div className="space-y-1">
-							<Label htmlFor="ocr-base-url">服务地址</Label>
-							<Input
-								id="ocr-base-url"
-								type="url"
-								required
-								value={baseUrl}
-								onChange={(e) => setBaseUrl(e.target.value)}
-							/>
+							<Field label={<> 服务地址 </>} id="ocr-base-url">
+								<Input
+									id="ocr-base-url"
+									type="url"
+									required
+									value={baseUrl}
+									onChange={(e) => setBaseUrl(e.target.value)}
+								/>
+							</Field>
 						</div>
 						<div className="space-y-1">
-							<Label htmlFor="ocr-key">API Key</Label>
-							<Input
-								id="ocr-key"
-								type="password"
-								autoComplete="new-password"
-								required={!config?.credential_configured}
-								value={apiKey}
-								onChange={(e) => setApiKey(e.target.value)}
-								placeholder={
-									config?.credential_configured ? "已配置，留空保持不变" : "填写 Paddle API Key"
-								}
-							/>
+							<Field label={<> API Key </>} id="ocr-key">
+								<Input
+									id="ocr-key"
+									type="password"
+									autoComplete="new-password"
+									required={!config?.credential_configured}
+									value={apiKey}
+									onChange={(e) => setApiKey(e.target.value)}
+									placeholder={
+										config?.credential_configured ? "已配置，留空保持不变" : "填写 Paddle API Key"
+									}
+								/>
+							</Field>
 						</div>
-						<div className="flex gap-2">
+						<ActionGroup>
 							<Button type="submit" disabled={save.isPending || validate.isPending}>
 								{save.isPending ? "保存中…" : "保存配置"}
 							</Button>
@@ -118,7 +128,7 @@ function Form({ config }: { config: OcrConfigView | null }) {
 							>
 								{validate.isPending ? "提交验证中…" : "验证连接"}
 							</Button>
-						</div>
+						</ActionGroup>
 					</fieldset>
 				</form>
 				<p className="text-sm">
@@ -126,11 +136,16 @@ function Form({ config }: { config: OcrConfigView | null }) {
 						? `${config.validation.status === "passed" ? "验证通过" : "验证失败"}：${config.validation.message}`
 						: "尚未验证"}
 				</p>
-				{message ? <p role="status">{message}</p> : null}
+				{message ? (
+					<StateMessage layout="inline" role="status" description={<> {message} </>} />
+				) : null}
 				{save.error || validate.error ? (
-					<p role="alert" className="text-destructive">
-						{(save.error ?? validate.error)?.message}
-					</p>
+					<StateMessage
+						layout="inline"
+						role="alert"
+						tone="danger"
+						description={(save.error ?? validate.error)?.message}
+					/>
 				) : null}
 			</CardContent>
 		</Card>

@@ -1,6 +1,5 @@
-import { Button } from "@campus-agent/ui";
+import { Button, Card, StateMessage } from "@campus-agent/ui";
 import type { ReactNode, RefObject } from "react";
-import { StateMessage } from "@/components/ui/state-message";
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
@@ -119,39 +118,38 @@ export function DiningPageView({
 						className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start lg:gap-6"
 						data-testid="dining-selection-panel"
 					>
-						<section
-							className="min-w-0 overflow-hidden rounded-lg border border-border/80 bg-card"
-							data-testid="dining-map-panel"
-						>
-							<DiningMapToolbar
-								floors={selectedHall.floors}
-								onQueryChange={onQueryChange}
-								onSelectFloor={onSelectFloor}
-								onSelectResult={onSelectResult}
-								query={query}
-								searchResults={searchResults}
-								selectedFloorId={selectedFloor.floorId}
-							/>
-							<InteractiveFloorplan
-								initialViewport={initialViewport}
-								onViewportChange={onViewportChange}
-								onReady={onMapReady}
-								floor={activeFloor}
-								matchedWindowIds={matchedWindowIds}
-								onSelectWindow={onSelectWindow}
-								selectedWindowId={selectedWindow?.windowId ?? null}
-								windows={activeFloor.windows}
-							/>
-							<div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-border/70 border-t px-3 text-xs text-[var(--sys-text-subtle)] sm:px-4">
-								<span>更新于 {formatTimestamp(data.updatedAt)}</span>
-								<a
-									className="inline-flex min-h-11 items-center text-link hover:text-link-hover hover:underline"
-									href="/feedback?source=dining"
-								>
-									信息有误？反馈
-								</a>
-							</div>
-						</section>
+						<Card asChild>
+							<section className="min-w-0 overflow-hidden" data-testid="dining-map-panel">
+								<DiningMapToolbar
+									floors={selectedHall.floors}
+									onQueryChange={onQueryChange}
+									onSelectFloor={onSelectFloor}
+									onSelectResult={onSelectResult}
+									query={query}
+									searchResults={searchResults}
+									selectedFloorId={selectedFloor.floorId}
+								/>
+								<InteractiveFloorplan
+									initialViewport={initialViewport}
+									onViewportChange={onViewportChange}
+									onReady={onMapReady}
+									floor={activeFloor}
+									matchedWindowIds={matchedWindowIds}
+									onSelectWindow={onSelectWindow}
+									selectedWindowId={selectedWindow?.windowId ?? null}
+									windows={activeFloor.windows}
+								/>
+								<div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-border/70 border-t px-3 text-xs text-[var(--sys-text-subtle)] sm:px-4">
+									<span>更新于 {formatTimestamp(data.updatedAt)}</span>
+									<a
+										className="inline-flex min-h-11 items-center text-link hover:text-link-hover hover:underline"
+										href="/feedback?source=dining"
+									>
+										信息有误？反馈
+									</a>
+								</div>
+							</section>
+						</Card>
 						<div
 							className="min-w-0 scroll-mt-28 border-border/70 border-t pt-4 lg:sticky lg:top-20 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
 							data-testid="dining-detail-panel"

@@ -1,9 +1,12 @@
 import type { DiningOpsContentReportRecord, DiningReportReason } from "@campus-agent/dining/domain";
 import {
+	ActionGroup,
 	Badge,
 	Button,
+	ConfirmDialog,
 	Input,
 	NativeSelect,
+	StateMessage,
 	Tabs,
 	TabsContent,
 	TabsList,
@@ -22,8 +25,8 @@ import {
 	resolveDiningSubmissionReports,
 } from "./ops-api/dining";
 import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
-import { ConfirmAction } from "./ui/alert-dialog";
 import { DataTable } from "./ui/data-table";
+import { useConfirmCommand } from "./use-confirm-command";
 
 type ReportStatus = "pending" | "resolved";
 
@@ -104,7 +107,7 @@ export function DiningReportsPage() {
 				setCursor(previous.pop());
 				setPreviousCursors(previous);
 			}}
-			onResolve={(input) => resolve.mutate(input)}
+			onResolve={(input) => resolve.mutateAsync(input)}
 			reports={reportData}
 			resolveError={resolve.error}
 			isResolving={resolve.isPending}
@@ -173,9 +176,11 @@ export function DiningReportsPage() {
 				<InlineError error={reports.error} title="刷新失败，以下为上次结果" />
 			) : null}
 			{reports.isPlaceholderData ? (
-				<p role="status" className="text-muted-foreground text-sm">
-					正在读取新范围，暂时显示上次结果。
-				</p>
+				<StateMessage
+					layout="inline"
+					role="status"
+					description={<>正在读取新范围，暂时显示上次结果。</>}
+				/>
 			) : null}
 			<Tabs
 				className="mt-5"
@@ -215,7 +220,10 @@ export function ReportsPanel({
 	isResolving: boolean;
 	onNextPage: () => void;
 	onPreviousPage: () => void;
-	onResolve: (input: { resolution: "hide" | "keep"; report: DiningOpsContentReportRecord }) => void;
+	onResolve: (input: {
+		resolution: "hide" | "keep";
+		report: DiningOpsContentReportRecord;
+	}) => Promise<unknown>;
 	reports: Awaited<ReturnType<typeof fetchDiningReports>>;
 	resolveError: unknown;
 	status: ReportStatus;
@@ -271,7 +279,7 @@ export function ReportsPanel({
 					</ul>
 				</>
 			)}
-			<div className="mt-4 flex justify-end gap-2">
+			<ActionGroup className="mt-4 justify-end">
 				<Button
 					disabled={!hasPreviousPage || isFetching}
 					onClick={onPreviousPage}
@@ -282,7 +290,7 @@ export function ReportsPanel({
 				<Button disabled={!hasNextPage || isFetching} onClick={onNextPage} variant="outline">
 					下一页
 				</Button>
-			</div>
+			</ActionGroup>
 		</>
 	);
 }
@@ -366,8 +374,13 @@ function ReportActions({
 }: {
 	report: DiningOpsContentReportRecord;
 	isResolving: boolean;
-	onResolve: (input: { report: DiningOpsContentReportRecord; resolution: "keep" | "hide" }) => void;
+	onResolve: (input: {
+		report: DiningOpsContentReportRecord;
+		resolution: "keep" | "hide";
+	}) => Promise<unknown>;
 }) {
+	const confirmCommand = useConfirmCommand();
+
 	if (report.resolution) {
 		return (
 			<div className="space-y-2">
@@ -395,7 +408,7 @@ function ReportActions({
 				{(["keep", "hide"] as const).map((resolution) => {
 					const label = `${resolution === "keep" ? "保留" : "隐藏"}${target.kind === "review" ? "评价" : "投稿"}`;
 					return (
-						<ConfirmAction
+						<ConfirmDialog
 							key={resolution}
 							title={`${resolution === "keep" ? "保留" : "隐藏"}这条${target.kind === "review" ? "评价" : "投稿"}？`}
 							confirmLabel={label}
@@ -405,7 +418,7 @@ function ReportActions({
 									? "保持目标当前状态，并仅关闭这个目标的全部待处理举报。不会恢复内容或采纳为正式菜品。"
 									: "从学生端隐藏这个目标，并仅关闭它的全部待处理举报。父稿与评价的举报分别处理。"
 							}
-							onConfirm={() => onResolve({ resolution, report })}
+							{...confirmCommand(resolution, () => onResolve({ resolution, report }))}
 							trigger={
 								<Button
 									disabled={isResolving || purged || (resolution === "hide" && !canHide)}

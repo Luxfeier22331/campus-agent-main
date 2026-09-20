@@ -19,17 +19,17 @@ type blockedMemoryActivities struct {
 	release chan struct{}
 }
 
-func (a *blockedMemoryActivities) AppendConversationMemoryActivity(ctx context.Context, input temporalruntime.AppendConversationMemoryActivityInput) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+func (a *blockedMemoryActivities) AdvanceMemoryAppendActivity(ctx context.Context, input temporalruntime.MemoryAppendWorkflowInput) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	close(a.started)
 	select {
 	case <-a.release:
-		return a.Activities.AppendConversationMemoryActivity(ctx, input)
+		return a.Activities.AdvanceMemoryAppendActivity(ctx, input)
 	case <-ctx.Done():
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, ctx.Err()
 	}
 }
 
-func TestFinalizationCompletesBeforeMemoryButWorkflowWaitsForAppend(t *testing.T) {
+func TestAnswerWorkflowCompletesWhileBackgroundMemoryContinues(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	activities := &blockedMemoryActivities{started: make(chan struct{}), release: make(chan struct{})}
@@ -44,6 +44,8 @@ func TestFinalizationCompletesBeforeMemoryButWorkflowWaitsForAppend(t *testing.T
 		t.Fatal(err)
 	}
 	packageHarness.CleanupRun(t, run.GetID(), run.GetRunID())
+	childID := "memory.append/" + input.RequestID
+	packageHarness.CleanupRun(t, childID, "")
 	select {
 	case <-activities.started:
 	case <-ctx.Done():
@@ -57,20 +59,26 @@ func TestFinalizationCompletesBeforeMemoryButWorkflowWaitsForAppend(t *testing.T
 		historyContainsCompletedActivity(history, temporalruntime.AppendConversationMemoryActivityName) {
 		t.Fatal("memory append must be pending after finalization completes")
 	}
-	description, err := packageHarness.Client.DescribeWorkflowExecution(ctx, run.GetID(), run.GetRunID())
-	if err != nil || description.GetWorkflowExecutionInfo().GetStatus() != enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING {
-		t.Fatalf("workflow must remain running while memory append is blocked: %v, %v", description, err)
-	}
-	activities.release <- struct{}{}
 	var result temporalruntime.ToolExecutionWorkflowResult
 	if err := run.Get(ctx, &result); err != nil || result.Status != "completed" {
 		t.Fatalf("result=%#v err=%v", result, err)
 	}
-	history, err = packageHarness.History(ctx, run.GetID(), run.GetRunID())
+	description, err := packageHarness.Client.DescribeWorkflowExecution(ctx, childID, "")
+	if err != nil || description.GetWorkflowExecutionInfo().GetStatus() != enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING {
+		t.Fatalf("background workflow must remain running: %v, %v", description, err)
+	}
+	if description.GetExecutionConfig().GetWorkflowExecutionTimeout().AsDuration() != 0 {
+		t.Fatal("background workflow inherited the answer execution timeout")
+	}
+	activities.release <- struct{}{}
+	if err := packageHarness.Client.GetWorkflow(ctx, childID, "").Get(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	history, err = packageHarness.History(ctx, childID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !historyContainsCompletedActivity(history, temporalruntime.AppendConversationMemoryActivityName) ||
+	if !historyContainsCompletedActivity(history, temporalruntime.AdvanceMemoryAppendActivityName) ||
 		!historyContains(history, enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED) {
 		t.Fatal("workflow did not finish after memory append completed")
 	}

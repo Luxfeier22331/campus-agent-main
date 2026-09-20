@@ -16,6 +16,7 @@ type InMemoryStateStore struct {
 }
 
 type memoryCallLease struct {
+	Kind           string
 	ExpiresAt      time.Time
 	Generation     int64
 	OwnerScopeHash string
@@ -25,9 +26,12 @@ func NewInMemoryStateStore() *InMemoryStateStore {
 	return &InMemoryStateStore{fences: map[string]memoryruntime.FenceState{}, leases: map[string]memoryCallLease{}, receipts: map[string]memoryruntime.CommandReceipt{}}
 }
 
-func (s *InMemoryStateStore) BeginCall(_ context.Context, ownerHash string, callID string, generation int64, _ string, ttl time.Duration) error {
+func (s *InMemoryStateStore) BeginCall(_ context.Context, ownerHash string, callID string, generation int64, kind string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if existing, ok := s.leases[callID]; ok && kind == "append" && ttl == 0 && existing.ExpiresAt.IsZero() && existing.Kind == kind && existing.Generation == generation && existing.OwnerScopeHash == ownerHash {
+		return nil
+	}
 	fence, ok := s.fences[ownerHash]
 	if !ok {
 		if generation != 1 {
@@ -39,10 +43,14 @@ func (s *InMemoryStateStore) BeginCall(_ context.Context, ownerHash string, call
 	if fence.Generation != generation || fence.Lifecycle != "active" {
 		return memoryruntime.ErrMemoryFenceConflict
 	}
-	if existing, ok := s.leases[callID]; ok && time.Now().Before(existing.ExpiresAt) {
+	if existing, ok := s.leases[callID]; ok && (existing.ExpiresAt.IsZero() || time.Now().Before(existing.ExpiresAt)) {
 		return memoryruntime.ErrMemoryFenceConflict
 	}
-	s.leases[callID] = memoryCallLease{ExpiresAt: time.Now().Add(ttl), Generation: generation, OwnerScopeHash: ownerHash}
+	expiresAt := time.Now().Add(ttl)
+	if kind == "append" && ttl == 0 {
+		expiresAt = time.Time{}
+	}
+	s.leases[callID] = memoryCallLease{Kind: kind, ExpiresAt: expiresAt, Generation: generation, OwnerScopeHash: ownerHash}
 	return nil
 }
 
@@ -60,7 +68,7 @@ func (s *InMemoryStateStore) GenerationDrained(_ context.Context, ownerHash stri
 	defer s.mu.Unlock()
 	now := time.Now()
 	for callID, lease := range s.leases {
-		if now.After(lease.ExpiresAt) {
+		if !lease.ExpiresAt.IsZero() && now.After(lease.ExpiresAt) {
 			delete(s.leases, callID)
 			continue
 		}
@@ -81,7 +89,7 @@ func (s *InMemoryStateStore) MarkOwnerDeleted(_ context.Context, ownerHash strin
 	defer s.mu.Unlock()
 	now := time.Now()
 	for callID, lease := range s.leases {
-		if now.After(lease.ExpiresAt) {
+		if !lease.ExpiresAt.IsZero() && now.After(lease.ExpiresAt) {
 			delete(s.leases, callID)
 		}
 	}

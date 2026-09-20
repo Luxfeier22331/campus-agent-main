@@ -1,3 +1,7 @@
+import {
+	transportScheduleRangeUrl,
+	transportScheduleUrl,
+} from "@campus-agent/transport/public-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import worker, { type Env } from "../src/index";
@@ -32,6 +36,89 @@ function installFakeEdgeCache() {
 describe("campus worker public app-api cache", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
+	});
+
+	it.each([
+		transportScheduleUrl("2026-09-19"),
+		transportScheduleRangeUrl("2026-09-01", "2026-09-30"),
+	])("caches the actual frontend URL, normalizes order and separates include: %s", async (path) => {
+		installFakeEdgeCache();
+		const fetch = vi.fn(async (request: Request) =>
+			Response.json(
+				{ query: new URL(request.url).search },
+				{
+					headers: { "cache-control": "public, max-age=30, s-maxage=60" },
+				},
+			),
+		);
+		const env = createEnv({ fetch });
+		const url = new URL(path, "https://campus.muc.wiki");
+		const first = await worker.fetch(new Request(url), env);
+		url.search = new URLSearchParams([...url.searchParams].reverse()).toString();
+		const second = await worker.fetch(new Request(url), env);
+		const head = await worker.fetch(new Request(url, { method: "HEAD" }), env);
+		expect(first.headers.get("x-campus-edge-cache")).toBe("miss");
+		expect(second.headers.get("x-campus-edge-cache")).toBe("hit");
+		expect(head.headers.get("x-campus-edge-cache")).toBe("hit");
+		expect(await head.text()).toBe("");
+		expect(fetch).toHaveBeenCalledOnce();
+		expect(new URL(fetch.mock.calls[0]?.[0].url ?? "").searchParams.get("include")).toBe("notices");
+		url.searchParams.delete("include");
+		expect((await worker.fetch(new Request(url), env)).headers.get("x-campus-edge-cache")).toBe(
+			"miss",
+		);
+		expect((await worker.fetch(new Request(url), env)).headers.get("x-campus-edge-cache")).toBe(
+			"hit",
+		);
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it.each([
+		"schedule?date=2026-09-19&include=notices&include=notices",
+		"schedule?date=2026-09-19&date=2026-09-20&include=notices",
+		"schedule?date=2026-02-30&include=notices",
+		"schedule?date=2026-09-19&include=other",
+		"schedule?date=2026-09-19&include=notices&extra=1",
+		"schedule-range?from=2026-09-02&to=2026-09-01&include=notices",
+		"schedule-range?from=2026-09-01&to=2026-10-02&include=notices",
+	])("bypasses invalid/unknown transport parameters without stripping them: %s", async (query) => {
+		installFakeEdgeCache();
+		const fetch = vi.fn(async (_request: Request) =>
+			Response.json({}, { headers: { "cache-control": "public, max-age=60" } }),
+		);
+		const env = createEnv({ fetch });
+		const url = `https://campus.muc.wiki/api/transport/${query}`;
+		for (let i = 0; i < 2; i++) {
+			const response = await worker.fetch(new Request(url), env);
+			expect(response.headers.get("cache-control")).toBe("no-store");
+		}
+		expect(fetch).toHaveBeenCalledTimes(2);
+		expect(new URL(fetch.mock.calls[0]?.[0].url ?? "").search).toBe(new URL(url).search);
+	});
+
+	it.each(["error", "cookie", "private"])("does not cache transport %s responses", async (kind) => {
+		installFakeEdgeCache();
+		const fetch = vi.fn(async () =>
+			Response.json(
+				{},
+				{
+					status: kind === "error" ? 503 : 200,
+					headers: {
+						"cache-control": kind === "private" ? "private, no-store" : "public, max-age=60",
+						...(kind === "cookie" ? { "set-cookie": "session=private" } : {}),
+					},
+				},
+			),
+		);
+		const env = createEnv({ fetch });
+		for (let i = 0; i < 2; i++) {
+			const response = await worker.fetch(
+				new Request(`https://campus.muc.wiki${transportScheduleUrl("2026-09-19")}`),
+				env,
+			);
+			expect(response.headers.get("cache-control")).toBe("no-store");
+		}
+		expect(fetch).toHaveBeenCalledTimes(2);
 	});
 
 	it.each([

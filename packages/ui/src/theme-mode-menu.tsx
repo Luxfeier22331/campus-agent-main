@@ -1,8 +1,8 @@
-import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import { Check, Monitor, Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import * as React from "react";
 import { Button } from "./button";
 import { cn } from "./cn";
+import * as DropdownMenuPrimitive from "./dropdown-menu";
 import { type ThemeMode, useTheme } from "./theme-provider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
 
@@ -33,14 +33,14 @@ export function ThemeModeMenu({ className, contentClassName, label = "外观" }:
 	const accessibleLabel = `${label}，当前${current.label}`;
 
 	return (
-		<DropdownMenuPrimitive.Root onOpenChange={setMenuOpen} open={menuOpen}>
+		<DropdownMenuPrimitive.DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
 			<TooltipProvider delayDuration={300}>
 				<Tooltip
 					onOpenChange={(open) => setTooltipOpen(menuOpen ? false : open)}
 					open={menuOpen ? false : tooltipOpen}
 				>
 					<TooltipTrigger asChild>
-						<DropdownMenuPrimitive.Trigger asChild>
+						<DropdownMenuPrimitive.DropdownMenuTrigger asChild>
 							<Button
 								aria-label={accessibleLabel}
 								className={className}
@@ -53,49 +53,39 @@ export function ThemeModeMenu({ className, contentClassName, label = "外观" }:
 									className: "size-4",
 								})}
 							</Button>
-						</DropdownMenuPrimitive.Trigger>
+						</DropdownMenuPrimitive.DropdownMenuTrigger>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">{accessibleLabel}</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
-			<DropdownMenuPrimitive.Portal>
-				<DropdownMenuPrimitive.Content
+			<DropdownMenuPrimitive.DropdownMenuPortal>
+				<DropdownMenuPrimitive.DropdownMenuContent
 					align="end"
 					aria-labelledby={menuLabelId}
-					className={cn(
-						"z-[var(--layer-overlay)] select-none min-w-44 max-w-[calc(100vw-2rem)] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto rounded-[var(--radius-lg)] border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-sm)]",
-						contentClassName,
-					)}
+					className={cn("min-w-44", contentClassName)}
 					data-slot="theme-mode-menu-content"
 					collisionPadding={16}
 					sideOffset={6}
 				>
-					<DropdownMenuPrimitive.Label
+					<DropdownMenuPrimitive.DropdownMenuLabel
 						className="px-2 py-1.5 font-medium text-muted-foreground text-xs"
 						id={menuLabelId}
 					>
 						{label}
-					</DropdownMenuPrimitive.Label>
-					<DropdownMenuPrimitive.RadioGroup
+					</DropdownMenuPrimitive.DropdownMenuLabel>
+					<DropdownMenuPrimitive.DropdownMenuRadioGroup
 						onValueChange={(value) => setMode(value as ThemeMode)}
 						value={mode}
 					>
 						{options.map(({ icon: Icon, label: optionLabel, value }) => (
-							<DropdownMenuPrimitive.RadioItem
-								className="relative flex min-h-11 cursor-default select-none items-center gap-2 rounded-[var(--radius-md)] px-3 pr-9 text-sm outline-none transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none focus:bg-surface-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[disabled]:pointer-events-none data-[disabled]:text-[var(--state-disabled-text)] data-[state=checked]:bg-selected data-[state=checked]:font-medium data-[state=checked]:text-selected-foreground"
-								key={value}
-								value={value}
-							>
+							<DropdownMenuPrimitive.DropdownMenuRadioItem key={value} value={value}>
 								<Icon aria-hidden="true" className="size-4" />
 								<span>{optionLabel}</span>
-								<DropdownMenuPrimitive.ItemIndicator className="absolute right-3 inline-flex size-4 items-center justify-center">
-									<Check aria-hidden="true" className="size-4" />
-								</DropdownMenuPrimitive.ItemIndicator>
-							</DropdownMenuPrimitive.RadioItem>
+							</DropdownMenuPrimitive.DropdownMenuRadioItem>
 						))}
-					</DropdownMenuPrimitive.RadioGroup>
-				</DropdownMenuPrimitive.Content>
-			</DropdownMenuPrimitive.Portal>
-		</DropdownMenuPrimitive.Root>
+					</DropdownMenuPrimitive.DropdownMenuRadioGroup>
+				</DropdownMenuPrimitive.DropdownMenuContent>
+			</DropdownMenuPrimitive.DropdownMenuPortal>
+		</DropdownMenuPrimitive.DropdownMenu>
 	);
 }

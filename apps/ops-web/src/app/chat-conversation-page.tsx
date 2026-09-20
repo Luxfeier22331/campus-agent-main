@@ -1,4 +1,11 @@
-import { Button, cn, Disclosure, DisclosureSummary } from "@campus-agent/ui";
+import {
+	ActionGroup,
+	Button,
+	cn,
+	Disclosure,
+	DisclosureSummary,
+	StateMessage,
+} from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -68,7 +75,7 @@ export function ChatConversationPage({
 				title={data?.title || "会话详情"}
 				description="查看已保存的会话内容。消息时间为北京时间。"
 				actions={
-					<div className="flex flex-wrap gap-2">
+					<ActionGroup>
 						{messageId && targetExists ? (
 							<Button variant="outline" onClick={() => focusMessage(messageId)}>
 								回到定位消息
@@ -83,11 +90,11 @@ export function ChatConversationPage({
 							<RefreshCw className="size-4" />
 							{detail.isFetching ? "刷新中" : "刷新"}
 						</Button>
-					</div>
+					</ActionGroup>
 				}
 			/>
 			{unavailable ? (
-				<p role="status">该会话已删除或不存在。</p>
+				<StateMessage layout="inline" role="status" description={<> 该会话已删除或不存在。 </>} />
 			) : data ? (
 				<>
 					{detail.isRefetchError ? (
@@ -99,9 +106,12 @@ export function ChatConversationPage({
 						/>
 					) : null}
 					{messageId && !targetExists ? (
-						<p role="status" className="mb-4 text-sm text-muted-foreground">
-							定位的消息已不可用，以下为当前保存的会话内容。
-						</p>
+						<StateMessage
+							layout="inline"
+							role="status"
+							className="mb-4"
+							description={<>定位的消息已不可用，以下为当前保存的会话内容。</>}
+						/>
 					) : null}
 					{data.activeRequestId ? (
 						<p className="mb-4 text-sm">
@@ -117,7 +127,11 @@ export function ChatConversationPage({
 						</p>
 					) : null}
 					{data.messages.length === 0 ? (
-						<p role="status">此会话尚无已保存的消息。</p>
+						<StateMessage
+							layout="inline"
+							role="status"
+							description={<> 此会话尚无已保存的消息。 </>}
+						/>
 					) : (
 						<div className="max-w-3xl divide-y divide-border border-y border-border">
 							{data.messages.map((message) => (
@@ -200,7 +214,7 @@ export function ChatConversationPage({
 					onRetry={() => void detail.refetch()}
 				/>
 			) : (
-				<p role="status">正在读取会话…</p>
+				<StateMessage layout="inline" role="status" description={<> 正在读取会话… </>} />
 			)}
 		</section>
 	);

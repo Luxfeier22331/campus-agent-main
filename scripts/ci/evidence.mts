@@ -9,6 +9,8 @@ import {
 	type AffectedScope,
 	type CommandResult,
 	type CommandRunner,
+	parseTurboTasks,
+	requireSuccess,
 	resolveAffectedScope,
 	resolveStagedTasks,
 	type ScopeTask,
@@ -19,6 +21,7 @@ import {
 	CONTRACT_COMMAND,
 	DATABASE_TASKS,
 	EVAL_TASKS,
+	isEvidenceTask,
 	isValidationProfile,
 	NATIVE_TASKS,
 	NODE_TASKS,
@@ -145,22 +148,27 @@ export function runTasks(
 	options: { cwd: string; env: NodeJS.ProcessEnv },
 	input: { scope?: readonly ScopeTask[]; native?: boolean; shell?: string } = {},
 ): void {
-	const selected = input.scope
-		? [
-				...new Set(
-					input.scope
-						.filter((item) => tasks.includes(item.task))
-						.map((item) => `${item.package}#${item.task}`),
-				),
-			].sort()
-		: [...tasks];
+	let scope = input.scope;
+	if (!scope) {
+		const args = ["exec", "turbo", "run", ...tasks, "--dry-run=json"];
+		scope = parseTurboTasks(
+			requireSuccess("pnpm", args, runner("pnpm", args, options)).stdout ?? "",
+		);
+	}
+	const selected = [
+		...new Set(
+			scope
+				.filter(isEvidenceTask)
+				.filter((item) => tasks.includes(item.task))
+				.map((item) => `${item.package}#${item.task}`),
+		),
+	].sort();
 	if (selected.length === 0) {
 		return;
 	}
 	const args = [
-		"exec",
-		"turbo",
-		"run",
+		"--experimental-strip-types",
+		"scripts/ci/turbo.mts",
 		...selected,
 		...(input.native ? ["--concurrency=1"] : [`--concurrency=${nodeTaskConcurrency()}`]),
 		"--summarize",
@@ -177,8 +185,8 @@ export function runTasks(
 		: options;
 	runProfileCommand(
 		profile,
-		input.shell ? "nix" : "pnpm",
-		input.shell ? ["develop", `.#${input.shell}`, "--command", "pnpm", ...args] : args,
+		input.shell ? "nix" : "node",
+		input.shell ? ["develop", `.#${input.shell}`, "--command", "node", ...args] : args,
 		runner,
 		taskOptions,
 	);

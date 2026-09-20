@@ -1,13 +1,5 @@
 import type { DiningMySubmission } from "@campus-agent/dining/domain";
-import {
-	AlertDialog,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	Button,
-} from "@campus-agent/ui";
+import { ActionGroup, Button, ConfirmDialog, StateMessage } from "@campus-agent/ui";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { AuthDialog } from "@/components/auth/auth-dialog";
@@ -42,7 +34,7 @@ function MySubmissions(props: { onOpenSubmission(submission: DiningMySubmission)
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<Error | null>(null);
 	const [authOpen, setAuthOpen] = useState(false);
-	const trigger = useRef<HTMLButtonElement | null>(null);
+	const listFocus = useRef<HTMLElement | null>(null);
 	const active = useRef(true);
 	useEffect(() => {
 		active.current = true;
@@ -57,18 +49,17 @@ function MySubmissions(props: { onOpenSubmission(submission: DiningMySubmission)
 		),
 	);
 	if (session.status === "loading") {
-		return (
-			<p className="text-sm text-muted-foreground" role="status">
-				正在确认登录状态
-			</p>
-		);
+		return <StateMessage layout="inline" role="status" description={<>正在确认登录状态</>} />;
 	}
 	if (session.status === "unavailable") {
 		return (
 			<div className="space-y-2">
-				<p className="text-sm text-destructive" role="alert">
-					暂时无法确认登录状态。
-				</p>
+				<StateMessage
+					layout="inline"
+					role="alert"
+					tone="danger"
+					description={<>暂时无法确认登录状态。</>}
+				/>
 				<Button
 					disabled={session.isRefreshing}
 					onClick={() => void session.refresh()}
@@ -94,9 +85,12 @@ function MySubmissions(props: { onOpenSubmission(submission: DiningMySubmission)
 	if (query.isError && !query.data) {
 		return (
 			<div className="space-y-3">
-				<p className="text-sm text-destructive" role="alert">
-					暂时无法读取我的投稿。
-				</p>
+				<StateMessage
+					layout="inline"
+					role="alert"
+					tone="danger"
+					description={<>暂时无法读取我的投稿。</>}
+				/>
 				<Button onClick={() => void query.refetch()} variant="outline">
 					重试
 				</Button>
@@ -131,12 +125,15 @@ function MySubmissions(props: { onOpenSubmission(submission: DiningMySubmission)
 		}
 	}
 	return (
-		<section aria-label="我的投稿" className="space-y-3">
+		<section ref={listFocus} tabIndex={-1} aria-label="我的投稿" className="space-y-3">
 			{query.isError ? (
 				<div className="space-y-2">
-					<p className="text-sm text-destructive" role="alert">
-						刷新失败，当前显示上次读取的投稿。
-					</p>
+					<StateMessage
+						layout="inline"
+						role="alert"
+						tone="danger"
+						description={<>刷新失败，当前显示上次读取的投稿。</>}
+					/>
 					<Button onClick={() => void query.refetch()} variant="outline">
 						重试
 					</Button>
@@ -180,7 +177,7 @@ function MySubmissions(props: { onOpenSubmission(submission: DiningMySubmission)
 									</p>
 								) : null}
 							</div>
-							<div className="flex flex-wrap gap-2">
+							<ActionGroup>
 								<Button
 									data-submission-id={submission.submissionId}
 									onClick={() => props.onOpenSubmission(submission)}
@@ -191,8 +188,7 @@ function MySubmissions(props: { onOpenSubmission(submission: DiningMySubmission)
 								</Button>
 								{submission.canDelete ? (
 									<Button
-										onClick={(event) => {
-											trigger.current = event.currentTarget;
+										onClick={() => {
 											setDeleting(submission);
 											setError(null);
 										}}
@@ -202,7 +198,7 @@ function MySubmissions(props: { onOpenSubmission(submission: DiningMySubmission)
 										删除投稿
 									</Button>
 								) : null}
-							</div>
+							</ActionGroup>
 						</li>
 					))}
 				</ul>
@@ -217,58 +213,41 @@ function MySubmissions(props: { onOpenSubmission(submission: DiningMySubmission)
 					{query.isFetchingNextPage ? "读取中" : "加载更多"}
 				</Button>
 			) : null}
-			<AlertDialog
+			<ConfirmDialog
+				open={Boolean(deleting)}
 				onOpenChange={(open) => {
-					if (!(open || pending)) {
+					if (!open) {
 						setDeleting(null);
 					}
 				}}
-				open={Boolean(deleting)}
+				title="删除这条投稿？"
+				description="删除后停止公开，仍计入当天新增数量。你不能自行恢复；仅运营可在删除后 30 天内且清理前恢复。"
+				confirmLabel="确认删除"
+				pendingLabel="正在删除"
+				pending={pending}
+				confirmDisabled={conflict}
+				onConfirm={() => void confirmDelete()}
+				fallbackFocusRef={listFocus}
+				error={
+					error
+						? conflict
+							? "投稿已发生变化，请重新读取列表后确认当前状态。"
+							: submissionErrorMessage(error)
+						: null
+				}
 			>
-				<AlertDialogContent
-					onCloseAutoFocus={(event) => {
-						if (trigger.current?.isConnected) {
-							event.preventDefault();
-							trigger.current.focus();
-						}
-					}}
-				>
-					<AlertDialogHeader>
-						<AlertDialogTitle>删除这条投稿？</AlertDialogTitle>
-						<AlertDialogDescription>
-							删除后停止公开，仍计入当天新增数量。你不能自行恢复；仅运营可在删除后 30
-							天内且清理前恢复。
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					{error ? (
-						<p className="text-sm text-destructive" role="alert">
-							{conflict
-								? "投稿已发生变化，请重新读取列表后确认当前状态。"
-								: submissionErrorMessage(error)}
-						</p>
-					) : null}
-					<AlertDialogFooter>
-						<Button disabled={pending} onClick={() => setDeleting(null)} variant="outline">
-							取消
-						</Button>
-						{conflict ? (
-							<Button
-								onClick={() => {
-									setDeleting(null);
-									void query.refetch();
-								}}
-								variant="outline"
-							>
-								重新读取列表
-							</Button>
-						) : (
-							<Button disabled={pending} onClick={() => void confirmDelete()} variant="destructive">
-								{pending ? "正在删除" : "确认删除"}
-							</Button>
-						)}
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				{conflict ? (
+					<Button
+						variant="outline"
+						onClick={() => {
+							setDeleting(null);
+							void query.refetch();
+						}}
+					>
+						重新读取列表
+					</Button>
+				) : null}
+			</ConfirmDialog>
 		</section>
 	);
 }

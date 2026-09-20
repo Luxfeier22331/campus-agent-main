@@ -1,4 +1,4 @@
-import { Alert, AlertDescription, Button, Field, Input } from "@campus-agent/ui";
+import { ActionGroup, Alert, AlertDescription, Button, Field, Input } from "@campus-agent/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, CircleAlert, LoaderCircle, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -233,12 +233,12 @@ export function VerificationResult({
 					accessRequired ? (
 						<Button onClick={onSignIn}>返回登录</Button>
 					) : (
-						<div className="flex flex-col gap-3 sm:flex-row">
+						<ActionGroup className="flex-col sm:flex-row">
 							<Button onClick={onResend}>{expired ? "重新发送验证邮件" : "获取新验证链接"}</Button>
 							<Button onClick={onSignIn} variant="outline">
 								返回登录
 							</Button>
-						</div>
+						</ActionGroup>
 					)
 				}
 				description={

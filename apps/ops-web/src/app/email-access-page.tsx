@@ -1,4 +1,4 @@
-import { Badge, Button, Checkbox, Input, NativeSelect } from "@campus-agent/ui";
+import { ActionGroup, Badge, Button, Checkbox, Input, NativeSelect } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
 	EmailAccessGrant,
@@ -225,7 +225,7 @@ export function EmailAccessPage() {
 					</>
 				)}
 			</section>
-			<div className="mt-4 flex justify-end gap-2">
+			<ActionGroup className="mt-4 justify-end">
 				<Button
 					disabled={previousCursors.length === 0}
 					onClick={() => {
@@ -247,7 +247,7 @@ export function EmailAccessPage() {
 				>
 					下一页
 				</Button>
-			</div>
+			</ActionGroup>
 		</section>
 	);
 }
@@ -422,7 +422,7 @@ function GrantActions({
 		return null;
 	}
 	return (
-		<div className="flex flex-wrap gap-2">
+		<ActionGroup>
 			{grant.state === "pending" ? (
 				<Button
 					className="min-h-9 py-1"
@@ -443,7 +443,7 @@ function GrantActions({
 				<ShieldX className="size-4" />
 				撤销
 			</Button>
-		</div>
+		</ActionGroup>
 	);
 }
 

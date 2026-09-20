@@ -93,7 +93,7 @@ describe("UI foundation boundaries", () => {
 			readFileSync(join(import.meta.dirname, "../package.json"), "utf8"),
 		) as { dependencies?: Record<string, string> };
 		const confirmationSource = readFileSync(
-			join(import.meta.dirname, "../src/app/ui/alert-dialog.tsx"),
+			join(import.meta.dirname, "../src/app/dining-reviews-page.tsx"),
 			"utf8",
 		);
 

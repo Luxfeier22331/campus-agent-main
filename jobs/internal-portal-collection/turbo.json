@@ -1,10 +1,22 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
-	"extends": ["//"],
+	"extends": [
+		"//"
+	],
 	"tasks": {
 		"build": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/packages/contracts/package.json",
 				"$TURBO_ROOT$/packages/contracts/src/**",
@@ -14,10 +26,19 @@
 				"$TURBO_ROOT$/packages/ingestion-contracts/src/**",
 				"$TURBO_ROOT$/packages/internal-portal-client/package.json",
 				"$TURBO_ROOT$/packages/internal-portal-client/src/**"
+			],
+			"dependsOn": [
+				"^source"
+			],
+			"env": [
+				"CAMPUS_NODE_RUNTIME"
 			]
 		},
 		"typecheck": {
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/configs/sources/internal-portal.json"]
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json"
+			]
 		},
 		"test": {
 			"inputs": [

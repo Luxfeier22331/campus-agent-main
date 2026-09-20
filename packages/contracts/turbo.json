@@ -27,6 +27,21 @@
 				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
 				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
 			]
+		},
+		"source": {
+			"inputs": [
+				"package.json",
+				"src/**",
+				"schemas/**",
+				"assertions/**",
+				"assets/**",
+				"public/**",
+				"adapters/**/src/**",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"test/campus-docs/**"
+			]
 		}
 	}
 }

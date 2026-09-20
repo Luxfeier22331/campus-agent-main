@@ -366,7 +366,7 @@ export function formatIssueSeverity(severity: "CRITICAL" | "INFO" | "WARNING") {
 	return { CRITICAL: "严重", INFO: "提示", WARNING: "警告" }[severity];
 }
 
-function describeError(error: unknown) {
+export function describeError(error: unknown) {
 	if (error instanceof OpsApiError) {
 		const details = formatErrorDetails(error.details);
 		return {

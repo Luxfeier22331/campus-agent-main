@@ -74,7 +74,7 @@ test("Turbo affected selection uses task inputs and no phantom CI tasks", () => 
 	);
 	assert.equal(tasks["execution-control#build"], undefined);
 
-	for (const task of ["build", "typecheck", "test", "test:worker"]) {
+	for (const task of ["typecheck", "test", "test:worker"]) {
 		const inputs = inputsFor(tasks, task);
 		assert(inputs.includes("$TURBO_DEFAULT$"), `${task} must include package defaults`);
 	}
@@ -104,6 +104,10 @@ test("every root Turbo task has a tracked workspace script owner", () => {
 	});
 
 	for (const taskName of Object.keys(tasks)) {
+		// A transit node owns hashes and dependency edges, not an executable check.
+		if (taskName === "source") {
+			continue;
+		}
 		const separator = taskName.indexOf("#");
 		if (separator === -1) {
 			assert(
@@ -229,14 +233,22 @@ test("candidate build tasks declare their package-external artifact inputs", () 
 
 test("tasks compiling the internal portal descriptor declare it as an affected input", () => {
 	const descriptor = "$TURBO_ROOT$/configs/sources/internal-portal.json";
-	assertTaskInputs("apps/app-api/turbo.json", ["test", "test:worker", "typecheck"], [descriptor]);
 	assertTaskInputs(
-		"apps/campus-web/turbo.json",
-		["test", "test:e2e:full", "test:worker", "typecheck"],
+		"apps/app-api/turbo.json",
+		["test:node:fast", "test:node:isolated", "test:worker", "typecheck"],
 		[descriptor],
 	);
-	assertTaskInputs("apps/ops-web/turbo.json", ["test:browser"], [descriptor]);
-	assertTaskInputs("turbo.json", ["ops-web#test", "ops-web#typecheck"], [descriptor]);
+	assertTaskInputs(
+		"apps/campus-web/turbo.json",
+		["test:node:fast", "test:dom:fast", "test:e2e:full", "test:worker", "typecheck"],
+		[descriptor],
+	);
+	assertTaskInputs(
+		"apps/ops-web/turbo.json",
+		["test:browser", "test:node:fast", "test:dom:fast", "test:node:isolated", "test:dom:isolated"],
+		[descriptor],
+	);
+	assertTaskInputs("turbo.json", ["ops-web#typecheck"], [descriptor]);
 	assertTaskInputs(
 		"jobs/notice-publisher/turbo.json",
 		["build", "test", "typecheck"],

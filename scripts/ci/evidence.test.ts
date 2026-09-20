@@ -18,7 +18,12 @@ test("complete and source verification share checks without losing database cove
 		const commands: string[][] = [];
 		runVerification({ sourceOnly, repositoryRoot: REPOSITORY_ROOT }, (command, args) => {
 			commands.push([command, ...args]);
-			return { status: 0 };
+			return {
+				status: 0,
+				stdout: JSON.stringify({
+					tasks: args.slice(3, -1).map((task) => ({ package: "fixture", task, command: "check" })),
+				}),
+			};
 		});
 		return commands;
 	};
@@ -293,14 +298,20 @@ test("runs fixed profiles without consulting Git", () => {
 		},
 		(command, args) => {
 			calls.push([command, ...args].join(" "));
-			return { status: 0 };
+			return {
+				status: 0,
+				stdout: JSON.stringify({
+					tasks: args.slice(3, -1).map((task) => ({ package: "fixture", task, command: "check" })),
+				}),
+			};
 		},
 	);
 	assert.deepEqual(calls, [
-		"pnpm exec turbo run native:format native:lint native:typecheck native:test --concurrency=1 --summarize",
-		"pnpm exec turbo run typecheck test --filter=eval-langfuse --summarize",
-		"pnpm exec turbo run test:eval --filter=ragas-runner --concurrency=1 --summarize",
-		"pnpm exec turbo run test:database-integration --filter=ops-web --summarize",
+		"pnpm exec turbo run native:format native:lint native:typecheck native:test --dry-run=json",
+		"node --experimental-strip-types scripts/ci/turbo.mts fixture#native:format fixture#native:lint fixture#native:test fixture#native:typecheck --concurrency=1 --summarize",
+		"node --experimental-strip-types scripts/ci/turbo.mts typecheck test --filter=eval-langfuse --summarize",
+		"node --experimental-strip-types scripts/ci/turbo.mts test:eval --filter=ragas-runner --concurrency=1 --summarize",
+		"node --experimental-strip-types scripts/ci/turbo.mts test:database-integration --filter=ops-web --summarize",
 		"scripts/otel/validate-config.sh",
 	]);
 });

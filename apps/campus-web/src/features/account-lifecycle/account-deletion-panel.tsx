@@ -1,21 +1,14 @@
 import {
 	Alert,
 	AlertDescription,
-	AlertDialog,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
 	AlertTitle,
 	Button,
+	ConfirmDialog,
+	Field,
 	Input,
-	Label,
 } from "@campus-agent/ui";
-import { CircleAlert, LoaderCircle } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { CircleAlert } from "lucide-react";
+import { useState } from "react";
 
 import { type AccountDeletionReceipt, requestAccountDeletion } from "./api";
 
@@ -31,8 +24,7 @@ export function AccountDeletionPanel({
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	async function submit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
+	async function submit() {
 		setPending(true);
 		setError(null);
 		try {
@@ -58,48 +50,42 @@ export function AccountDeletionPanel({
 			<p className="mt-2 text-sm text-muted-foreground">
 				注销受理后将停止登录并撤下食堂投稿，后台清理聊天记录、个人记忆、投稿与照片及账号关联数据。此操作无法撤销。
 			</p>
-			{error ? (
+			{error && !open ? (
 				<Alert className="mt-4" tone="danger">
 					<CircleAlert className="size-4" />
 					<AlertTitle>注销请求未完成</AlertTitle>
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
 			) : null}
-			<AlertDialog onOpenChange={setOpen} open={open}>
-				<AlertDialogTrigger asChild>
+			<ConfirmDialog
+				open={open}
+				onOpenChange={setOpen}
+				title="确认注销账号？"
+				description="请输入当前密码确认。提交后账号会立即退出，数据清理完成后无法恢复。"
+				confirmLabel="确认注销"
+				pendingLabel="正在提交"
+				pending={pending}
+				confirmDisabled={!password}
+				onConfirm={() => void submit()}
+				error={error}
+				formId="account-deletion-confirm"
+				trigger={
 					<Button className="mt-4" variant="destructive">
 						注销账号
 					</Button>
-				</AlertDialogTrigger>
-				<AlertDialogContent>
-					<form onSubmit={submit}>
-						<AlertDialogHeader>
-							<AlertDialogTitle>确认注销账号？</AlertDialogTitle>
-							<AlertDialogDescription>
-								请输入当前密码确认。提交后账号会立即退出，数据清理完成后无法恢复。
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<div className="mt-5 space-y-2">
-							<Label htmlFor="account-deletion-password">当前密码</Label>
-							<Input
-								autoComplete="current-password"
-								id="account-deletion-password"
-								onChange={(event) => setPassword(event.target.value)}
-								required
-								type="password"
-								value={password}
-							/>
-						</div>
-						<AlertDialogFooter className="mt-6">
-							<AlertDialogCancel disabled={pending}>取消</AlertDialogCancel>
-							<Button disabled={pending || !password} type="submit" variant="destructive">
-								{pending ? <LoaderCircle className="animate-spin" /> : null}
-								确认注销
-							</Button>
-						</AlertDialogFooter>
-					</form>
-				</AlertDialogContent>
-			</AlertDialog>
+				}
+			>
+				<Field label="当前密码">
+					<Input
+						form="account-deletion-confirm"
+						autoComplete="current-password"
+						onChange={(event) => setPassword(event.target.value)}
+						required
+						type="password"
+						value={password}
+					/>
+				</Field>
+			</ConfirmDialog>
 		</section>
 	);
 }

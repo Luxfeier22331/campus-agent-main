@@ -99,7 +99,6 @@ func TestTemporalDevServerRunsPlannedWorkflowActivities(t *testing.T) {
 		temporalruntime.ExecuteTaskStepActivityName,
 		temporalruntime.SynthesizeAnswerActivityName,
 		temporalruntime.WriteWorkflowFinalizationActivityName,
-		temporalruntime.AppendConversationMemoryActivityName,
 	}
 	scheduled := map[int64]string{}
 	var completed []string

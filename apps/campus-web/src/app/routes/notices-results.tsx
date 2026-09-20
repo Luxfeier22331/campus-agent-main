@@ -1,4 +1,4 @@
-import { Button } from "@campus-agent/ui";
+import { ActionGroup, Button } from "@campus-agent/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { NoticeListItem, NoticeListResponse } from "campus-contracts/notices";
 import {
@@ -83,7 +83,7 @@ export function NoticeResults({
 						跳转
 					</Button>
 				</div>
-				<div className="flex gap-1">
+				<ActionGroup>
 					<Button
 						disabled={pending || data.pagination.page <= 1}
 						onClick={() =>
@@ -110,7 +110,7 @@ export function NoticeResults({
 						下一页
 						<ArrowRight />
 					</Button>
-				</div>
+				</ActionGroup>
 			</nav>
 		</div>
 	);

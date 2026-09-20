@@ -53,13 +53,28 @@ func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, ca
 	} else if err != nil {
 		return err
 	}
+	// A durable append may resume after an owner transition. Only the exact
+	// already-admitted call can resume; new calls must still pass the fence.
+	if kind == "append" && ttl == 0 {
+		var exists bool
+		if err := tx.QueryRow(ctx, `select exists(select 1 from execution_control.personal_memory_call_leases where call_id=$1 and owner_scope_hash=$2 and generation=$3 and operation_kind='append' and expires_at is null)`, callID, ownerHash, generation).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			return tx.Commit(ctx)
+		}
+	}
 	if fence.Generation != generation || fence.Lifecycle != "active" {
 		return memoryruntime.ErrMemoryFenceConflict
 	}
 	if _, err := tx.Exec(ctx, `delete from execution_control.personal_memory_call_leases where call_id=$1 and expires_at <= now()`, callID); err != nil {
 		return err
 	}
-	command, err := tx.Exec(ctx, `insert into execution_control.personal_memory_call_leases (call_id,owner_scope_hash,generation,operation_kind,expires_at,created_at) values ($1,$2,$3,$4,$5,now()) on conflict do nothing`, callID, ownerHash, generation, kind, time.Now().Add(ttl))
+	var expiresAt any = time.Now().Add(ttl)
+	if kind == "append" && ttl == 0 {
+		expiresAt = nil
+	}
+	command, err := tx.Exec(ctx, `insert into execution_control.personal_memory_call_leases (call_id,owner_scope_hash,generation,operation_kind,expires_at,created_at) values ($1,$2,$3,$4,$5,now()) on conflict do nothing`, callID, ownerHash, generation, kind, expiresAt)
 	if err != nil {
 		return err
 	}
@@ -77,7 +92,7 @@ func (s *PostgresStateStore) EndCall(ctx context.Context, ownerHash string, call
 func (s *PostgresStateStore) GenerationDrained(ctx context.Context, ownerHash string, generation int64) (bool, error) {
 	var active bool
 	err := s.pool.QueryRow(ctx, `select
-		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and expires_at > now())
+		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and (expires_at is null or expires_at > now()))
 		or exists(select 1 from execution_control.personal_memory_command_receipts where owner_scope_hash=$1 and generation=$2 and status not in ('succeeded','failed'))`, ownerHash, generation).Scan(&active)
 	return !active, err
 }
@@ -105,7 +120,7 @@ func (s *PostgresStateStore) MarkOwnerDeleted(ctx context.Context, ownerHash str
 	}
 	var active bool
 	if err := tx.QueryRow(ctx, `select
-		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash = $1 and expires_at > now())
+		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash = $1 and (expires_at is null or expires_at > now()))
 		or exists(select 1 from execution_control.personal_memory_command_receipts where owner_scope_hash = $1 and status not in ('succeeded', 'failed'))`, ownerHash).Scan(&active); err != nil {
 		return err
 	}

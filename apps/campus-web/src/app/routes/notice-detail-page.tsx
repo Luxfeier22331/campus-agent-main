@@ -1,10 +1,9 @@
-import { Button, Skeleton } from "@campus-agent/ui";
+import { Button, Skeleton, StateMessage } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearch } from "@tanstack/react-router";
 import type { NoticeAttachmentMetadata } from "campus-contracts/notices";
 import { ArrowLeft, ExternalLink, File } from "lucide-react";
 import { useMemo } from "react";
-import { StateMessage } from "@/components/ui/state-message";
 import { NoticeCategoryBadge } from "@/features/notices/category-badge";
 import { prepareNoticeContentHtml } from "@/features/notices/content-html";
 import { buildInternalPortalNoticeUrl } from "@/features/notices/internal-portal-url";

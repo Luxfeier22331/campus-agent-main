@@ -1,12 +1,6 @@
 import {
-	AlertDialog,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
 	Button,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogFooter,
@@ -248,32 +242,19 @@ export function ActionConfirmation({
 				? `该分组中的 ${removal.section.groups.length} 个群将同时删除。`
 				: "该分组将从目录中删除。";
 	return (
-		<AlertDialog
+		<ConfirmDialog
+			open
 			onOpenChange={(open) => {
-				if (!(open || pending)) {
+				if (!open) {
 					onCancel();
 				}
 			}}
-			open
-		>
-			<AlertDialogContent className="max-w-2xl border-warning/30 bg-warning-subtle">
-				<AlertDialogHeader>
-					<AlertDialogTitle>{title}</AlertDialogTitle>
-					<AlertDialogDescription className="text-warning">{description}</AlertDialogDescription>
-				</AlertDialogHeader>
-				{error ? <InlineError error={error} title="删除失败" /> : null}
-				<AlertDialogFooter>
-					<AlertDialogCancel disabled={pending}>取消</AlertDialogCancel>
-					<Button
-						className="border-destructive/30 text-destructive hover:bg-destructive/10"
-						disabled={pending}
-						onClick={onConfirm}
-						variant="outline"
-					>
-						{pending ? "处理中..." : "确认"}
-					</Button>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
+			title={title}
+			description={description}
+			confirmLabel="确认"
+			pending={pending}
+			onConfirm={onConfirm}
+			error={error ? (error instanceof Error ? error.message : "删除失败，请重试。") : null}
+		/>
 	);
 }

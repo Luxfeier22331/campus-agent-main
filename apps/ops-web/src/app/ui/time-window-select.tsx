@@ -1,4 +1,4 @@
-import { Button, Input, NativeSelect } from "@campus-agent/ui";
+import { Button, Input, NativeSelect, StateMessage } from "@campus-agent/ui";
 import {
 	beijingDate,
 	dateRangeQuery,
@@ -105,9 +105,7 @@ export function TimeRangeFilter({
 			) : null}
 			<p className="text-xs text-muted-foreground">{TIME_SCOPE[scope].label} · 北京时间</p>
 			{error || timeError ? (
-				<p role="alert" className="text-sm text-danger">
-					{error ?? timeError}
-				</p>
+				<StateMessage layout="inline" role="alert" tone="danger" description={error ?? timeError} />
 			) : null}
 		</div>
 	);

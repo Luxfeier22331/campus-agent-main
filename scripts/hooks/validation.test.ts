@@ -18,8 +18,8 @@ import { installHooks } from "./install.mts";
 const source = path.resolve(import.meta.dirname, "../..");
 const manifest = JSON.parse(readFileSync(path.join(source, "package.json"), "utf8"));
 const config = parse(readFileSync(path.join(source, ".pre-commit-config.yaml"), "utf8"));
-const rootTask = JSON.parse(readFileSync(path.join(source, "turbo.json"), "utf8")).tasks[
-	"//#test:scripts"
+const rootTask = JSON.parse(readFileSync(path.join(source, "scripts/turbo.json"), "utf8")).tasks[
+	"test:ci"
 ];
 
 function fixture() {
@@ -69,20 +69,36 @@ function fixture() {
 		packageManager: manifest.packageManager,
 		scripts: {
 			test: `node --experimental-strip-types ${source}/scripts/ci/repository-test.mts`,
-			"test:scripts": "node root-check.cjs",
 		},
 	});
-	write("pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n');
+	write("pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n  - "scripts"\n');
 	write(
 		"pnpm-lock.yaml",
-		"lockfileVersion: '9.0'\nimporters:\n  .: {}\n  apps/shared: {}\n  apps/web:\n    dependencies:\n      shared:\n        specifier: 'workspace:*'\n        version: link:../shared\n  apps/native: {}\n",
+		"lockfileVersion: '9.0'\nimporters:\n  .: {}\n  scripts: {}\n  apps/shared: {}\n  apps/web:\n    dependencies:\n      shared:\n        specifier: 'workspace:*'\n        version: link:../shared\n  apps/native: {}\n",
 	);
 	write("turbo.json", {
 		futureFlags: { affectedUsingTaskInputs: true },
 		tasks: {
-			"//#test:scripts": rootTask,
+			...Object.fromEntries(
+				["ci", "deploy", "dev", "docs", "hooks", "notices", "release"].map((group) => [
+					`@campus-agent/tooling#test:${group}`,
+					{
+						...rootTask,
+						inputs: [
+							"$TURBO_ROOT$/root*",
+							"$TURBO_ROOT$/apps/**",
+							"$TURBO_ROOT$/.github/**",
+							"$TURBO_ROOT$/flake.lock",
+						],
+					},
+				]),
+			),
 			typecheck: { outputs: [] },
 			"test:worker": { outputs: [] },
+			"test:node:fast": { outputs: [] },
+			"test:node:isolated": { outputs: [] },
+			"test:dom:fast": { outputs: [] },
+			"test:dom:isolated": { outputs: [] },
 			"native:format": { outputs: [] },
 			"native:lint": { outputs: [] },
 			"native:typecheck": { outputs: [] },
@@ -90,6 +106,11 @@ function fixture() {
 			"native:test": { inputs: ["$TURBO_DEFAULT$"], outputs: [] },
 		},
 	});
+	write("scripts/package.json", {
+		name: "@campus-agent/tooling",
+		scripts: { "test:ci": "cd .. && node root-check.cjs" },
+	});
+	write("scripts/ci/turbo.mts", readFileSync(path.join(source, "scripts/ci/turbo.mts"), "utf8"));
 	for (const app of ["shared", "web", "native"]) {
 		write(`apps/${app}/package.json`, {
 			name: app,
@@ -189,12 +210,24 @@ test("root test cache hits before/after commit, invalidates real inputs/index, a
 		check();
 		assert.equal(f.counts().length, 7);
 		// Environment-only changes must also invalidate the root task's result.
-		const baseline = f.run("pnpm", ["exec", "turbo", "run", "//#test:scripts", "--dry-run=json"]);
+		const baseline = f.run("pnpm", [
+			"exec",
+			"turbo",
+			"run",
+			"@campus-agent/tooling#test:ci",
+			"--dry-run=json",
+		]);
 		const baseHash = JSON.parse(
 			baseline.slice(baseline.indexOf("{"), baseline.lastIndexOf("}") + 1),
 		).tasks[0].hash;
 		f.env.CAMPUS_REPO_TEST_RUNTIME = "different-toolchain";
-		const changed = f.run("pnpm", ["exec", "turbo", "run", "//#test:scripts", "--dry-run=json"]);
+		const changed = f.run("pnpm", [
+			"exec",
+			"turbo",
+			"run",
+			"@campus-agent/tooling#test:ci",
+			"--dry-run=json",
+		]);
 		assert.notEqual(
 			JSON.parse(changed.slice(changed.indexOf("{"), changed.lastIndexOf("}") + 1)).tasks[0].hash,
 			baseHash,

@@ -6,6 +6,8 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 )
 
 type Activities struct{}
@@ -16,7 +18,13 @@ type workflowTestActivityRegistrar interface {
 	RegisterActivityWithOptions(activity any, options activity.RegisterOptions)
 }
 
-func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activities *Activities) {
+func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activities *Activities, asyncAppend ...bool) {
+	// These scenarios also guard replay of pre-async histories. The new branch
+	// and background workflow have dedicated tests in workflow_memory_append_test.
+	if workflowEnv, ok := env.(*testsuite.TestWorkflowEnvironment); ok && (len(asyncAppend) == 0 || !asyncAppend[0]) {
+		workflowEnv.OnGetVersion(memoryAppendVersion, workflow.DefaultVersion, 1).Return(workflow.DefaultVersion).Maybe()
+	}
+	env.RegisterActivityWithOptions(activities.AdvanceMemoryAppendActivity, activity.RegisterOptions{Name: AdvanceMemoryAppendActivityName})
 	env.RegisterActivityWithOptions(activities.FinalizeMemoryAppendActivity, activity.RegisterOptions{Name: FinalizeMemoryAppendActivityName})
 	env.RegisterActivityWithOptions(
 		activities.AppendConversationMemoryActivity,
@@ -62,6 +70,10 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 		activities.WritePersonalMemoryCommandResultActivity,
 		activity.RegisterOptions{Name: WritePersonalMemoryCommandResultActivityName},
 	)
+}
+
+func (Activities) AdvanceMemoryAppendActivity(_ context.Context, input MemoryAppendWorkflowInput) (AppendConversationMemoryActivityOutput, error) {
+	return AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil
 }
 
 func (Activities) FinalizePersonalMemoryCommandReceiptActivity(

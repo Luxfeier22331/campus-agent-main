@@ -4,7 +4,7 @@ import {
 	isPasswordCompromisedError,
 } from "@better-auth-ui/core";
 import { useChangePassword, useListAccounts, useRequestPasswordReset } from "@better-auth-ui/react";
-import { Button, FieldGroup } from "@campus-agent/ui";
+import { Button, FieldGroup, StateMessage } from "@campus-agent/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { CAMPUS_PASSWORD_MIN_LENGTH } from "campus-contracts/auth";
@@ -27,9 +27,12 @@ export function AccountPassword() {
 	return (
 		<SettingsSection title="修改密码">
 			{accounts.isPending ? (
-				<p className="ui-supporting" role="status">
-					正在读取密码设置…
-				</p>
+				<StateMessage
+					layout="inline"
+					role="status"
+					className="ui-supporting"
+					description={<>正在读取密码设置…</>}
+				/>
 			) : accounts.isError ? (
 				<SettingsFeedback error={accounts.error} onRetry={() => void accounts.refetch()} />
 			) : accounts.data?.some((account) => account.providerId === "credential") ? (

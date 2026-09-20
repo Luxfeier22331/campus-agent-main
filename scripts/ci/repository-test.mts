@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { type CommandRunner, requireSuccess } from "./scope.mts";
+import { TOOLING_GROUPS, TOOLING_TRACKED_PATHS, toolingTask } from "./tooling-tasks.mts";
+import { nodeRuntimeEnvironment } from "./turbo.mts";
 
 const run: CommandRunner = (command, args, options) => {
 	const result = spawnSync(command, args, {
@@ -22,11 +25,15 @@ export function runRepositoryTests(
 	input: { repositoryRoot: string; env?: NodeJS.ProcessEnv; args?: string[] },
 	runner: CommandRunner = run,
 ): number {
-	const options = { cwd: input.repositoryRoot, env: { ...(input.env ?? process.env) } };
+	const options = { cwd: input.repositoryRoot, env: nodeRuntimeEnvironment(input.env) };
 	const read = (command: string, args: string[]) =>
 		requireSuccess(command, args, runner(command, args, options)).stdout?.trim() ?? "";
-	// The suite reads the index's tracked paths. A commit ID would invalidate identical content.
-	options.env.CAMPUS_REPO_TEST_INDEX_TREE = read("git", ["write-tree"]);
+	for (const [group, paths] of Object.entries(TOOLING_TRACKED_PATHS)) {
+		const tracked = read("git", ["ls-files", "--cached", "-z", "--", ...paths]);
+		options.env[`CAMPUS_TOOLING_TRACKED_${group.toUpperCase()}`] = createHash("sha256")
+			.update(JSON.stringify(tracked.split("\0").filter(Boolean).sort()))
+			.digest("hex");
+	}
 	options.env.CAMPUS_REPO_TEST_RUNTIME = JSON.stringify({
 		node: process.version,
 		platform: process.platform,
@@ -38,7 +45,14 @@ export function runRepositoryTests(
 	for (const name of read("git", ["rev-parse", "--local-env-vars"]).split(/\s+/u).filter(Boolean)) {
 		delete options.env[name];
 	}
-	const args = ["exec", "turbo", "run", "//#test:scripts", "--summarize"];
+	const args = [
+		"exec",
+		"turbo",
+		"run",
+		...TOOLING_GROUPS.map(toolingTask),
+		"--concurrency=1",
+		"--summarize",
+	];
 	if (input.args?.length) {
 		args.push("--", ...input.args);
 	}

@@ -8,6 +8,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./domain": "./src/domain/index.ts",
+		"./public-query": "./src/public-query.ts",
 		"./schema": "./src/schema.ts"
 	},
 	"scripts": {

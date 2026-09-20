@@ -262,23 +262,50 @@ export function transportPeriodIncludesDate(
 	return period.weekdays.includes(isoWeekday(date));
 }
 
-export function selectTransportPeriod<
-	T extends Pick<TransportSchedulePeriodInput, "validFrom" | "validTo" | "weekdays"> & {
-		scheduleId?: string;
-		updatedAt?: string;
-		sourceReleasedAt?: string | null;
-	},
->(periods: readonly T[], date: string): T | null {
+type SelectablePeriod = Pick<TransportSchedulePeriodInput, "validFrom" | "validTo" | "weekdays"> & {
+	scheduleId?: string;
+	updatedAt?: string;
+	sourceReleasedAt?: string | null;
+};
+
+function comparePeriods(left: SelectablePeriod, right: SelectablePeriod): number {
+	return (
+		right.validFrom.localeCompare(left.validFrom) ||
+		compareNullableDates(left.validTo, right.validTo) ||
+		(right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") ||
+		(left.scheduleId ?? "").localeCompare(right.scheduleId ?? "")
+	);
+}
+
+// Request-local selector for already validated periods and dates. Do not retain across requests.
+export function createTransportPeriodSelector<T extends SelectablePeriod>(periods: readonly T[]) {
+	const sorted = [...periods].sort(comparePeriods);
+	const selected = new Map<string, T | null>();
+	return (date: string): T | null => {
+		if (selected.has(date)) {
+			return selected.get(date) ?? null;
+		}
+		const weekday = isoWeekday(date);
+		const result =
+			sorted.find(
+				(period) =>
+					date >= period.validFrom &&
+					(period.validTo === null || date <= period.validTo) &&
+					period.weekdays.includes(weekday),
+			) ?? null;
+		selected.set(date, result);
+		return result;
+	};
+}
+
+export function selectTransportPeriod<T extends SelectablePeriod>(
+	periods: readonly T[],
+	date: string,
+): T | null {
 	return (
 		[...periods]
 			.filter((period) => transportPeriodIncludesDate(period, date))
-			.sort(
-				(left, right) =>
-					right.validFrom.localeCompare(left.validFrom) ||
-					compareNullableDates(left.validTo, right.validTo) ||
-					(right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") ||
-					(left.scheduleId ?? "").localeCompare(right.scheduleId ?? ""),
-			)[0] ?? null
+			.sort(comparePeriods)[0] ?? null
 	);
 }
 

@@ -1,4 +1,4 @@
-import { Skeleton } from "@campus-agent/ui";
+import { Card, Skeleton } from "@campus-agent/ui";
 
 export function DiningPageSkeleton({
 	includeHallSwitcher = false,
@@ -18,16 +18,15 @@ export function DiningPageSkeleton({
 			<span className="sr-only">{label}</span>
 			{includeHallSwitcher ? <Skeleton className="h-11 w-full sm:w-80" /> : null}
 			<div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
-				<div
-					className="rounded-lg border border-border/80 bg-card p-3 sm:p-4"
-					data-testid="dining-map-skeleton"
-				>
-					<div className="flex items-center gap-3">
-						<Skeleton className="h-10 min-w-0 flex-1" />
-						<Skeleton className="size-10 shrink-0" />
+				<Card asChild>
+					<div className="p-3 sm:p-4" data-testid="dining-map-skeleton">
+						<div className="flex items-center gap-3">
+							<Skeleton className="h-10 min-w-0 flex-1" />
+							<Skeleton className="size-10 shrink-0" />
+						</div>
+						<Skeleton className="mt-3 aspect-[16/10] w-full" />
 					</div>
-					<Skeleton className="mt-3 aspect-[16/10] w-full" />
-				</div>
+				</Card>
 				<div className="space-y-4 py-1" data-testid="dining-detail-skeleton">
 					<Skeleton className="h-7 w-32" />
 					<Skeleton className="h-4 w-full" />

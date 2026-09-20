@@ -1,5 +1,5 @@
 import type { TransportRouteCatalogEntry } from "@campus-agent/transport/domain";
-import { Button } from "@campus-agent/ui";
+import { Button, StateMessage } from "@campus-agent/ui";
 import { parseDate } from "@internationalized/date";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -76,9 +76,7 @@ export function TransportMonthCalendar({
 				}}
 			/>
 			{query.isPending ? (
-				<p role="status" className="text-xs text-muted-foreground">
-					正在读取月历…
-				</p>
+				<StateMessage layout="inline" role="status" description={<>正在读取月历…</>} />
 			) : null}
 			{query.isError ? (
 				<div role="alert" className="text-xs text-danger">

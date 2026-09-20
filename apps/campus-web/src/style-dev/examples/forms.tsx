@@ -1,4 +1,5 @@
 import {
+	ActionGroup,
 	Alert,
 	AlertDescription,
 	AlertTitle,
@@ -45,7 +46,7 @@ function ButtonsExample({ disabled = false }: { disabled?: boolean }) {
 					),
 				)}
 			</div>
-			<div className="flex flex-wrap items-center gap-3">
+			<ActionGroup>
 				<Button disabled={disabled} size="sm" variant="secondary">
 					编辑
 				</Button>
@@ -63,7 +64,7 @@ function ButtonsExample({ disabled = false }: { disabled?: boolean }) {
 				<Button aria-label="更多设置" disabled={disabled} size="icon-lg" variant="secondary">
 					<MoreHorizontalIcon aria-hidden />
 				</Button>
-			</div>
+			</ActionGroup>
 			<Button asChild variant="link" className="w-fit">
 				<a href="#style-dev-fields">查看表单示例</a>
 			</Button>
@@ -74,14 +75,14 @@ function ButtonsExample({ disabled = false }: { disabled?: boolean }) {
 function SavingButtonExample() {
 	const [busy, setBusy] = useState(false);
 	return (
-		<div className="mx-auto flex max-w-2xl flex-wrap items-center gap-3">
+		<ActionGroup className="mx-auto max-w-2xl">
 			<Button className="min-w-32" disabled={busy} aria-busy={busy} onClick={() => setBusy(true)}>
 				{busy ? "保存中…" : "确认保存"}
 			</Button>
 			<Button variant="ghost" onClick={() => setBusy(false)}>
 				重置示例
 			</Button>
-		</div>
+		</ActionGroup>
 	);
 }
 

@@ -1,4 +1,4 @@
-import { Alert, Button } from "@campus-agent/ui";
+import { Alert, Button, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ResolvedTimeRange } from "campus-contracts/ops-time";
@@ -63,7 +63,9 @@ export function OverviewPage({ search }: { search: TimeSearch }) {
 				description="确认产品请求状态、结果和趋势是否正常。"
 				title="运行概览"
 			/>
-			{overview.isPending && !search.timeError ? <p role="status">正在读取运行状态...</p> : null}
+			{overview.isPending && !search.timeError ? (
+				<StateMessage layout="inline" role="status" description={<> 正在读取运行状态... </>} />
+			) : null}
 			{overview.isError && !data ? (
 				<ErrorState
 					error={overview.error}

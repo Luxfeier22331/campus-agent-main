@@ -1,12 +1,4 @@
-import {
-	AlertDialog,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	Button,
-} from "@campus-agent/ui";
+import { ConfirmDialog } from "@campus-agent/ui";
 import { useBlocker } from "@tanstack/react-router";
 import {
 	createContext,
@@ -33,7 +25,6 @@ export function DiningSubmissionExitProvider({ children }: { children: ReactNode
 	const editor = useRef<(() => EditState) | null>(null);
 	const decision = useRef<((leave: boolean) => void) | null>(null);
 	const [confirming, setConfirming] = useState(false);
-	const continueButton = useRef<HTMLButtonElement>(null);
 	const register = useCallback((read: () => EditState) => {
 		editor.current = read;
 		return () => {
@@ -87,34 +78,19 @@ export function DiningSubmissionExitProvider({ children }: { children: ReactNode
 	return (
 		<ExitContext.Provider value={{ register, requestExit }}>
 			{children}
-			<AlertDialog
+			<ConfirmDialog
 				open={confirming}
 				onOpenChange={(open) => {
 					if (!open) {
 						decide(false);
 					}
 				}}
-			>
-				<AlertDialogContent
-					onOpenAutoFocus={(event) => {
-						event.preventDefault();
-						continueButton.current?.focus();
-					}}
-				>
-					<AlertDialogHeader>
-						<AlertDialogTitle>放弃未保存的修改？</AlertDialogTitle>
-						<AlertDialogDescription>关闭后，未保存的文字和所选照片将丢失。</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<Button ref={continueButton} variant="outline" onClick={() => decide(false)}>
-							继续编辑
-						</Button>
-						<Button variant="destructive" onClick={() => decide(true)}>
-							放弃修改
-						</Button>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				title="放弃未保存的修改？"
+				description="关闭后，未保存的文字和所选照片将丢失。"
+				cancelLabel="继续编辑"
+				confirmLabel="放弃修改"
+				onConfirm={() => decide(true)}
+			/>
 		</ExitContext.Provider>
 	);
 }

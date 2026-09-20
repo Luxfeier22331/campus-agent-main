@@ -12,7 +12,9 @@
 				"$TURBO_ROOT$/flake.nix",
 				"$TURBO_ROOT$/nix/**",
 				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**"
+				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**",
+				"$TURBO_ROOT$/packages/contracts/fixtures/citation-diagnostic.v1.json",
+				"$TURBO_ROOT$/packages/contracts/fixtures/citation-markers.v1.json"
 			]
 		},
 		"test:database-integration": {

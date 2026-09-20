@@ -1,5 +1,6 @@
 import { formatWeekdays } from "@campus-agent/transport/domain";
 import {
+	ActionGroup,
 	Button,
 	Dialog,
 	DialogContent,
@@ -7,6 +8,7 @@ import {
 	Disclosure,
 	DisclosureSummary,
 	Input,
+	StateMessage,
 	Textarea,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -122,7 +124,9 @@ export function TransportNoticePicker({
 							搜索
 						</Button>
 					</div>
-					{results.isPending ? <p role="status">正在读取通知…</p> : null}
+					{results.isPending ? (
+						<StateMessage layout="inline" role="status" description={<> 正在读取通知… </>} />
+					) : null}
 					{results.error ? (
 						<ErrorState
 							error={results.error}
@@ -271,7 +275,7 @@ export function TransportNoticeLinkEditor({
 					onRetry={() => void links.refetch()}
 				/>
 			) : (
-				<p role="status">正在读取关联通知…</p>
+				<StateMessage layout="inline" role="status" description={<> 正在读取关联通知… </>} />
 			)}
 		</section>
 	);
@@ -314,11 +318,11 @@ function NoticeLinkDraft({
 			<TransportNoticePicker value={links} onChange={setLinks} disabled={save.isPending} />
 			<p className="text-sm text-muted-foreground">关联只用于查看通知；移除关联不会取消班次。</p>
 			{save.error ? <InlineError error={save.error} title="关联保存失败" /> : null}
-			<div className="flex gap-2">
+			<ActionGroup>
 				<Button disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
 					{save.isPending ? "保存中…" : "保存关联"}
 				</Button>
-			</div>
+			</ActionGroup>
 		</div>
 	);
 }
@@ -345,7 +349,9 @@ export function NoticeTransportPeriods({
 			<DisclosureSummary>关联班车安排</DisclosureSummary>
 			{open ? (
 				<div className="grid gap-3 pt-3">
-					{query.isPending ? <p role="status">正在读取班车安排…</p> : null}
+					{query.isPending ? (
+						<StateMessage layout="inline" role="status" description={<> 正在读取班车安排… </>} />
+					) : null}
 					{query.error ? (
 						<ErrorState
 							error={query.error}

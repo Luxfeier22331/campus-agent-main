@@ -8,11 +8,10 @@ import {
 	transportRiderLabel,
 	transportServiceKindLabel,
 } from "@campus-agent/transport/domain";
-import { Button, cn, Disclosure, DisclosureSummary } from "@campus-agent/ui";
+import { Button, cn, Disclosure, DisclosureSummary, StateMessage } from "@campus-agent/ui";
 import { ChevronLeft, ChevronRight, MapPin, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { CampusDatePicker } from "@/components/ui/date-picker";
-import { StateMessage } from "@/components/ui/state-message";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatDate } from "@/lib/date-time";
 
@@ -632,16 +631,14 @@ function Arrangement({
 				</p>
 			) : null}
 			{hasNotices ? (
-				<>
-					{context.notices.length === 1 ? (
+				context.notices.length === 1 ? (
+					<ul>{links}</ul>
+				) : (
+					<Disclosure>
+						<DisclosureSummary>相关通知（{context.notices.length}）</DisclosureSummary>
 						<ul>{links}</ul>
-					) : (
-						<Disclosure>
-							<DisclosureSummary>相关通知（{context.notices.length}）</DisclosureSummary>
-							<ul>{links}</ul>
-						</Disclosure>
-					)}
-				</>
+					</Disclosure>
+				)
 			) : null}
 		</section>
 	);

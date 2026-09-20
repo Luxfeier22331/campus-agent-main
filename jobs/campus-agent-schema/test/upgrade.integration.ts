@@ -137,6 +137,18 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		);
 		await client.query("select payload from profile.memory_commands limit 1");
 		await client.query(
+			"insert into execution_control.personal_memory_call_leases(call_id,owner_scope_hash,generation,operation_kind,expires_at) values('durable','owner',1,'append',null)",
+		);
+		await assert.rejects(
+			client.query(
+				"insert into execution_control.personal_memory_call_leases(call_id,owner_scope_hash,generation,operation_kind,expires_at) values('invalid','owner',1,'recall',null)",
+			),
+			/personal_memory_call_leases_durable_append_check/,
+		);
+		await client.query(
+			"delete from execution_control.personal_memory_call_leases where call_id='durable'",
+		);
+		await client.query(
 			"insert into execution_control.personal_memory_call_leases(call_id,owner_scope_hash,generation,operation_kind,expires_at) values('smoke','owner',1,'append',now())",
 		);
 		await client.query(
