@@ -46,7 +46,7 @@ describe("unified Campus RAG publisher", () => {
 			citation_href: "/notices/42",
 			heading_path: [],
 			notice_id: "42",
-			schema_version: "campus_rag_point.v1",
+			schema_version: "campus_rag_point.v2",
 			section_title: "正文",
 			source_kind: "notice",
 			text: NOTICE_TEXT,

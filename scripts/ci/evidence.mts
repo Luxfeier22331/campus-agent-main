@@ -9,12 +9,14 @@ import {
 	type AffectedScope,
 	type CommandResult,
 	type CommandRunner,
+	parseChangedFiles,
 	parseTurboTasks,
 	requireSuccess,
 	resolveAffectedScope,
 	resolveStagedTasks,
 	type ScopeTask,
 } from "./scope.mts";
+import { toolingGroupsForFiles } from "./tooling-tasks.mts";
 import {
 	ACTION_COMMANDS,
 	BUILD_TASKS,
@@ -25,6 +27,7 @@ import {
 	isValidationProfile,
 	NATIVE_TASKS,
 	NODE_TASKS,
+	PR_NODE_TASKS,
 	VALIDATION_PROFILE_REGISTRY,
 	type ValidationProfile,
 } from "./validation-profiles.mts";
@@ -197,7 +200,7 @@ function runAffectedNodeEvidence(
 	runner: EvidenceCommandRunner,
 ): void {
 	const options = { cwd: input.repositoryRoot, env: input.env };
-	runTasks("affected-node", NODE_TASKS, runner, options, { scope: input.scope.tasks });
+	runTasks("affected-node", PR_NODE_TASKS, runner, options, { scope: input.scope.tasks });
 	// Campus Web's worker task owns its fixture build; do not also run the data-backed build.
 	const builds = input.scope.tasks.filter(
 		(task) => !(task.package === "campus-web" && task.task === "build"),
@@ -247,14 +250,21 @@ export function runPreCommitEvidence(
 	runner: EvidenceCommandRunner = runCommand,
 ): void {
 	const options = { cwd: input.repositoryRoot, env: { ...(input.env ?? process.env) } };
-	// The root test entry owns its cache context and cleans Git variables for fixture repositories.
-	runProfileCommand(
-		"pre-commit",
-		"nix",
-		["develop", ".#ci-core", "--command", "pnpm", "test"],
-		runner,
-		options,
+	const stagedDiff = requireSuccess(
+		"git",
+		["diff", "--cached", "--name-status", "-z", "--diff-filter=ACDMRT"],
+		runner("git", ["diff", "--cached", "--name-status", "-z", "--diff-filter=ACDMRT"], options),
 	);
+	const toolingGroups = toolingGroupsForFiles(parseChangedFiles(stagedDiff.stdout ?? ""));
+	if (toolingGroups.length > 0) {
+		runProfileCommand(
+			"pre-commit",
+			"nix",
+			["develop", ".#ci-core", "--command", "pnpm", "test", `--groups=${toolingGroups.join(",")}`],
+			runner,
+			options,
+		);
+	}
 	const scope = resolveStagedTasks(
 		{ repositoryRoot: input.repositoryRoot, env: options.env },
 		runner,

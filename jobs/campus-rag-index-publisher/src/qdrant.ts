@@ -63,6 +63,13 @@ export function createQdrantClient(
 				}),
 				method: "PUT",
 			});
+			for (const field of input.payloadIndexes ?? []) {
+				const fieldSchema = field === "is_current" ? "bool" : field.includes("year") ? "integer" : "keyword";
+				await request(`/collections/${encodeURIComponent(input.collection)}/index`, {
+					body: JSON.stringify({ field_name: field, field_schema: fieldSchema }),
+					method: "PUT",
+				});
+			}
 		},
 		async deleteCollection(collection) {
 			const response = await fetchImpl(

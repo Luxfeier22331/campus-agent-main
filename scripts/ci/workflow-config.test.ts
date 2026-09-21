@@ -353,6 +353,7 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 	const plan = {
 		outcome: "success",
 		outputs: {
+			repository_groups: JSON.stringify(["ci", "docs"]),
 			validation_profiles: JSON.stringify([
 				"affected-node",
 				"container-build",

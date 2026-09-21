@@ -13,7 +13,13 @@ export const CampusSearchCandidateSchema = z.object({
 	rerankRank: z.number().int().nullable(),
 	returned: z.boolean(),
 	exclusionReason: z
-		.enum(["rerank_below_threshold", "result_limit", "evidence_char_budget", "source_group_limit"])
+		.enum([
+			"rerank_below_threshold",
+			"result_limit",
+			"evidence_char_budget",
+			"source_group_limit",
+			"already_returned",
+		])
 		.optional(),
 	text: z.string().max(4000),
 	citationIndex: z.number().int().nullable(),

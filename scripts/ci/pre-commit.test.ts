@@ -9,6 +9,7 @@ const head = "a".repeat(40);
 const plan = JSON.stringify({
 	tasks: [
 		{ package: "web", task: "test", command: "node test.cjs" },
+		{ package: "web", task: "typecheck", command: "tsc --noEmit" },
 		{ package: "model-config", task: "native:test", command: "go test" },
 	],
 });
@@ -48,8 +49,9 @@ test("commit verification runs root tests before staged Node/Go tasks without ne
 		TURBO_SCM_BASE: "stale",
 	};
 	runPreCommitEvidence({ repositoryRoot: "/repo", env }, stagedRunner(calls));
-	assert.equal(calls[0], "nix develop .#ci-core --command pnpm test");
+	assert.equal(calls[0], "git diff --cached --name-status -z --diff-filter=ACDMRT");
 	assert(calls.some((c) => c.includes("web#test")));
+	assert(calls.some((c) => c.includes("web#typecheck")));
 	assert(calls.some((c) => c.includes("model-config#native:test")));
 	assert(!calls.some((c) => /fetch|origin|merge-base/u.test(c)));
 	assert.equal(env.GIT_INDEX_FILE, "/tmp/commit-index");
@@ -63,7 +65,7 @@ test("root failure prevents task selection and module failures stop subsequent p
 				calls.push([command, ...args].join(" "));
 				return { status: 17 };
 			}),
-		/pre-commit failed.*17/u,
+		/git diff.*17/u,
 	);
 	assert.equal(calls.length, 1);
 	calls.length = 0;
@@ -87,7 +89,7 @@ test("an empty index diff skips module tasks; an unborn HEAD selects the complet
 		calls.push([command, ...args].join(" "));
 		return { status: 0, stdout: "" };
 	});
-	assert.equal(calls.filter((c) => c.startsWith("nix ")).length, 1);
+	assert.equal(calls.filter((c) => c.startsWith("nix ")).length, 0);
 	assert.equal(
 		resolveStagedTasks({ repositoryRoot: "/repo", env: {} }, (_command, args) =>
 			args[0] === "diff" ? { status: 0, stdout: "A\0new.ts\0" } : { status: 1 },

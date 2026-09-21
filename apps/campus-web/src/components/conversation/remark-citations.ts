@@ -10,6 +10,24 @@ interface Node {
 }
 const numbers = /^[0-9]+(?:[ \t]*,[ \t]*[0-9]+)*$/;
 const marker = /\[([0-9]+(?:[ \t]*,[ \t]*[0-9]+)*)\]/g;
+function matchesSource(source: SourceItemPayload | undefined, href: string | undefined): boolean {
+	const target = source?.primaryAction.href;
+	if (!(target && href)) {
+		return false;
+	}
+	if (target === href) {
+		return true;
+	}
+	if (source.kind !== "campus_document" || !href.startsWith("/docs/")) {
+		return false;
+	}
+	const actual = new URL(href, "https://campus.invalid");
+	const expected = new URL(target, "https://campus.invalid");
+	// Reader highlighting identifies the passage, not a different document destination.
+	actual.searchParams.delete("hl");
+	expected.searchParams.delete("hl");
+	return actual.href === expected.href;
+}
 function citations(label: string): Node[] {
 	return [...new Set(label.split(",").map((value) => Number(value.trim())))].map((index) => ({
 		type: "link",
@@ -38,9 +56,7 @@ export function remarkCitations(sources: ReadonlyMap<number, SourceItemPayload> 
 						numbers.test(label) &&
 						label
 							.split(",")
-							.every(
-								(value) => sources.get(Number(value.trim()))?.primaryAction.href === child.url,
-							);
+							.every((value) => matchesSource(sources.get(Number(value.trim())), child.url));
 					return matched ? citations(label) : [child];
 				}
 				if (child.type !== "text") {

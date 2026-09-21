@@ -26,7 +26,7 @@ workflow、history replay 和 cleanup。测试失败或超时由 `integration/te
 和 server，不依赖 `pnpm dev`。`test:temporal-replay` 只验证已提交 history，不启动外部服务。
 
 `integration/temporal` 用生产 30 秒 heartbeat 验证 activity timeout/retry，用缩短的测试执行预算验证
-workflow 硬超时，并确认 finalization 后 memory append 仍阻塞 workflow 完成。测试不改变生产的
+workflow 硬超时，并确认 finalization 后 memory append 作为独立 workflow 运行，不阻塞已完成回答。测试不改变生产的
 900 秒总预算。stream 的三类 completed 失败验证位于独立的 `integration/stream`，当前已发布的 delta
 在失败后仍保留；receipt 的完整结果恢复、冲突和随父 run 删除的行为由 PostgreSQL integration 验证。
 这些测试记录 #401、#414、#415、#416 的当前边界，不表示相关产品语义已修改。

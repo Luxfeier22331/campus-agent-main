@@ -8,7 +8,7 @@ import (
 )
 
 func TestExecutorOutputFailurePreservesMaterials(t *testing.T) {
-	for _, scenario := range []string{"materials", "no_match", "none", "deadline"} {
+	for _, scenario := range []string{"materials", "no_match", "none", "deadline", "max_turns_exceeded", "tool_call_budget_exhausted"} {
 		t.Run(scenario, func(t *testing.T) {
 			env := (&testsuite.WorkflowTestSuite{}).NewTestWorkflowEnvironment()
 			registerWorkflowTestActivities(env, &Activities{})
@@ -19,7 +19,10 @@ func TestExecutorOutputFailurePreservesMaterials(t *testing.T) {
 			plan := WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: "借购数量", Steps: []WorkflowTaskPlanStep{step}}
 			env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(workflowPlanOutput(input.RequestID, plan), nil).Once()
 			failure := WorkflowOperationActivityOutput{Operation: WorkflowOperationExecuteStep, Status: "failed", Failure: &ExecutionFailure{Code: "model_output_invalid", Operation: "workflow.execute_step"}}
-			if scenario == "materials" {
+			if scenario == "materials" || scenario == "max_turns_exceeded" || scenario == "tool_call_budget_exhausted" {
+				if scenario != "materials" {
+					failure.Failure.Code = scenario
+				}
 				failure.Evidence = []WorkflowEvidence{{SchemaVersion: "workflow_evidence.v1", ID: "notice-246587", Source: WorkflowSourceCampusSearch, Title: "借购数量", Excerpt: "由2册增加至4册", CitationIndex: 1}}
 				failure.SourceAttempts = []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "matched"}}
 			}
@@ -30,7 +33,7 @@ func TestExecutorOutputFailurePreservesMaterials(t *testing.T) {
 				failure.Failure.Code = "agent_deadline_exceeded"
 			}
 			env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.Anything).Return(failure, nil).Once()
-			success := scenario == "materials" || scenario == "no_match"
+			success := scenario == "materials" || scenario == "no_match" || scenario == "max_turns_exceeded" || scenario == "tool_call_budget_exhausted"
 			if success {
 				env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
 					return len(actual.RemainingFacts) == 1 && actual.RemainingFacts[0].Objective == step.Objective &&

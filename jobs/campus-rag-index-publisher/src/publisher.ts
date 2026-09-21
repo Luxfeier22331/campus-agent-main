@@ -135,6 +135,10 @@ export function buildDocsPoints(
 				text_sha256: sha256(chunk.content),
 				version_id: chunk.versionId,
 				version_slug: chunk.versionSlug,
+				is_current: chunk.isCurrent,
+				applicable_from_admission_year: chunk.applicableFromAdmissionYear,
+				applicable_to_admission_year: chunk.applicableToAdmissionYear,
+				corpus: chunk.corpus ?? (chunk.documentId.startsWith("curriculum-") ? "curriculum" : "regulations"),
 			},
 			vector: { dense: vector, sparse: buildSparseVector(chunk.retrievalText) },
 		} satisfies UnifiedPoint;
@@ -201,6 +205,7 @@ export async function materializeCollection(
 		denseDimensions: EMBEDDING_SPACE.dimensions,
 		denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
 		sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
+		payloadIndexes: ["source_kind", "document_id", "version_slug", "is_current", "corpus", "applicable_from_admission_year", "applicable_to_admission_year"],
 	});
 	try {
 		let batch: UnifiedPoint[] = [];

@@ -8,6 +8,7 @@
 			"additionalProperties": false,
 			"required": ["search_query"],
 			"properties": {
+				"search_goal": { "type": "string", "minLength": 1, "maxLength": 800 },
 				"search_query": { "type": "string", "minLength": 1, "maxLength": 400 }
 			}
 		},
@@ -28,7 +29,7 @@
 				"text"
 			],
 			"properties": {
-				"citation_index": { "type": "integer", "minimum": 1, "maximum": 10 },
+				"citation_index": { "type": "integer", "minimum": 1 },
 				"result_ref": { "type": "string", "pattern": "^result://[a-f0-9]{64}$" },
 				"source_kind": { "const": "document" },
 				"document_id": { "type": "string", "minLength": 1 },
@@ -60,7 +61,7 @@
 				"text"
 			],
 			"properties": {
-				"citation_index": { "type": "integer", "minimum": 1, "maximum": 10 },
+				"citation_index": { "type": "integer", "minimum": 1 },
 				"result_ref": { "type": "string", "pattern": "^result://[a-f0-9]{64}$" },
 				"source_kind": { "const": "notice" },
 				"notice_id": { "type": "string", "minLength": 1 },

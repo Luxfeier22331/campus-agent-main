@@ -287,7 +287,7 @@ cacheOutcome 从 miss 变为 hit。hit 的 estimatedSavedMs 是避免的上游�
 
 Campus Search v2 实际验收需要完整跑通已有账号发问、工具完成、Ops 请求详情和引用通知详情：
 核对诊断完整性与调用结果分开展示，实际模型和 collection 不被 DTO 丢弃，Qdrant HTTP/server/
-decode/postprocess 可区分；已知同通知多块候选在分组后仅返回一块，排除原因可见，最终引用数与
+decode/postprocess 可区分；同一通知的互补片段可同时返回，跨调用重复片段的排除原因可见，最终引用数与
 产品来源一致。先等待会话结束再发下一题。离线标注评测与真实会话各验证自己的链路，不能互相替代。
 schema 0008 只清除旧诊断；先停止本 worktree 的旧 execution-control，执行统一 schema migration，
 再启动新版与 Ops API。不要在仍有旧生产者的 staging 单独提前应用这次硬切。

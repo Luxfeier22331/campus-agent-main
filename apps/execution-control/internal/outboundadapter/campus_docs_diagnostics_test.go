@@ -23,7 +23,7 @@ func TestOptionalQdrantTimingCannotFailRetrieval(t *testing.T) {
 	}
 }
 
-func TestCampusSearchGroupsNoticesBeforeLimitAndKeepsStableTies(t *testing.T) {
+func TestCampusSearchKeepsComplementaryNoticeSectionsAndExcludesPriorEvidence(t *testing.T) {
 	notice := func(id, chunk string) qdrantPoint {
 		return qdrantPoint{ID: chunk, Score: .1, Payload: map[string]any{
 			"source_kind": "notice", "schema_version": "campus_rag_point.v1",
@@ -56,16 +56,16 @@ func TestCampusSearchGroupsNoticesBeforeLimitAndKeepsStableTies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 3 || results[0].Text != "first" || results[1].SourceKind != "document" || results[2].SourceKind != "document" {
+	if len(results) != 3 || results[0].Text != "first" || results[1].Text != "sibling" || results[2].SourceKind != "document" {
 		t.Fatalf("selection=%+v", results)
 	}
-	if snapshot.Candidates[1].ExclusionReason != "source_group_limit" || snapshot.Candidates[4].ExclusionReason != "result_limit" {
+	if snapshot.Candidates[1].ExclusionReason != "" || snapshot.Candidates[4].ExclusionReason != "result_limit" {
 		t.Fatalf("exclusions=%+v", snapshot.Candidates)
 	}
-	if snapshot.SourceGroupedCount != 4 || snapshot.SourceGroupedExcludedCount != 1 || snapshot.ExcludedCount != 2 || snapshot.ReturnedCount != 3 {
+	if snapshot.SourceGroupedCount != 5 || snapshot.SourceGroupedExcludedCount != 0 || snapshot.ExcludedCount != 2 || snapshot.ReturnedCount != 3 {
 		t.Fatalf("counts=%+v", snapshot)
 	}
-	for i, candidateIndex := range []int{0, 2, 3} {
+	for i, candidateIndex := range []int{0, 1, 2} {
 		if got := snapshot.Candidates[candidateIndex].CitationIndex; got == nil || *got != i+4 {
 			t.Fatalf("citation %d=%v", candidateIndex, got)
 		}
@@ -73,26 +73,12 @@ func TestCampusSearchGroupsNoticesBeforeLimitAndKeepsStableTies(t *testing.T) {
 	if snapshot.Retrieval.QdrantMs == nil || *snapshot.Retrieval.QdrantMs != 0 || snapshot.Retrieval.DecodeMs == nil || snapshot.Retrieval.PostprocessMs == nil {
 		t.Fatal("zero/missing timing conflated")
 	}
-}
-
-func TestCampusSearchGroupsOnlyNoticesAfterRerank(t *testing.T) {
-	snapshot := &campusdiagnostics.Snapshot{Candidates: make([]campusdiagnostics.Candidate, 5)}
-	items := []campusDocsCandidate{
-		{result: campusdocs.SearchResultItem{SourceKind: "notice", NoticeID: "1", ResultRef: "best"}},
-		{result: campusdocs.SearchResultItem{SourceKind: "notice", NoticeID: "1", ResultRef: "sibling"}},
-		{result: campusdocs.SearchResultItem{SourceKind: "document", DocumentID: "doc", ResultRef: "doc-a"}},
-		{result: campusdocs.SearchResultItem{SourceKind: "document", DocumentID: "doc", ResultRef: "doc-b"}},
-		{result: campusdocs.SearchResultItem{SourceKind: "notice", NoticeID: "2", ResultRef: "other"}},
-	}
-	for i := range items {
-		items[i].diagnostic = &snapshot.Candidates[i]
-	}
-	got := groupNoticeCandidates(items, snapshot)
-	if len(got) != 4 || got[0].result.ResultRef != "best" || got[1].result.ResultRef != "doc-a" || got[2].result.ResultRef != "doc-b" || got[3].result.ResultRef != "other" {
-		t.Fatalf("wrong representatives/order: %+v", got)
-	}
-	if snapshot.SourceGroupedCount != 4 || snapshot.SourceGroupedExcludedCount != 1 || snapshot.Candidates[1].ExclusionReason != "source_group_limit" {
-		t.Fatalf("wrong grouping diagnostics: %+v", snapshot)
+	prior := results[0].ResultRef
+	snapshot = &campusdiagnostics.Snapshot{CitationStart: 11, Durations: map[string]int64{}}
+	ctx = campusdocs.WithSearchObserver(t.Context(), &campusdocs.SearchObserver{Snapshot: snapshot, Phase: func(string) {}})
+	results, err = client.Search(ctx, campusdocs.Index{Collection: "campus_docs_" + strings.Repeat("a", 64)}, campusdocs.SearchQuery{RetrievalQuery: "费用", RerankQuery: "项目费用是什么", ExcludedResultRefs: []string{prior}}, 3)
+	if err != nil || len(results) != 3 || results[0].Text != "sibling" || snapshot.Candidates[0].ExclusionReason != "already_returned" {
+		t.Fatalf("prior evidence consumed a result slot: %+v %v", results, err)
 	}
 }
 

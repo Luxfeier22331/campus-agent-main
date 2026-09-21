@@ -2,10 +2,10 @@ export const COLLECTION_DEFINITION = {
 	dense: {
 		distance: "Cosine",
 		queryInstruction:
-			"Given a Campus Web question, retrieve relevant current passages from Campus Docs and published Notices that answer the query.",
+			"Given a Campus Web question, retrieve relevant passages from Campus Docs and published Notices that answer the query.",
 		vectorName: "dense",
 	},
-	pointSchemaVersion: "campus_rag_point.v1",
+	pointSchemaVersion: "campus_rag_point.v2",
 	sparse: {
 		language: "none",
 		model: "fnv1a_log_tf.v1",

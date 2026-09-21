@@ -21,14 +21,15 @@ type personalMemoryRecallToolEnvelope struct {
 }
 
 type agentToolAccessContext struct {
-	ActivityAttempt int    `json:"activity_attempt"`
-	DeadlineAt      string `json:"deadline_at"`
-	RequestID       string `json:"request_id"`
-	InvocationID    string `json:"invocation_id"`
-	WorkflowStepID  string `json:"workflow_step_id"`
-	CitationStart   int    `json:"citation_start,omitempty"`
-	ResultLimit     int    `json:"result_limit,omitempty"`
-	UserGoal        string `json:"user_goal,omitempty"`
+	ExcludedResultRefs []string `json:"excluded_result_refs,omitempty"`
+	ActivityAttempt    int      `json:"activity_attempt"`
+	DeadlineAt         string   `json:"deadline_at"`
+	RequestID          string   `json:"request_id"`
+	InvocationID       string   `json:"invocation_id"`
+	WorkflowStepID     string   `json:"workflow_step_id"`
+	CitationStart      int      `json:"citation_start,omitempty"`
+	ResultLimit        int      `json:"result_limit,omitempty"`
+	UserGoal           string   `json:"user_goal,omitempty"`
 }
 
 type personalMemoryRecallToolPayload struct {
@@ -103,14 +104,15 @@ func agentToolAccessContextToApplication(
 	access agentToolAccessContext,
 ) executionapplication.AgentToolAccessContext {
 	return executionapplication.AgentToolAccessContext{
-		ActivityAttempt: access.ActivityAttempt,
-		DeadlineAt:      parseDeadlineAt(access.DeadlineAt),
-		CitationStart:   access.CitationStart,
-		InvocationID:    access.InvocationID,
-		RequestID:       access.RequestID,
-		ResultLimit:     access.ResultLimit,
-		UserGoal:        access.UserGoal,
-		WorkflowStepID:  access.WorkflowStepID,
+		ExcludedResultRefs: access.ExcludedResultRefs,
+		ActivityAttempt:    access.ActivityAttempt,
+		DeadlineAt:         parseDeadlineAt(access.DeadlineAt),
+		CitationStart:      access.CitationStart,
+		InvocationID:       access.InvocationID,
+		RequestID:          access.RequestID,
+		ResultLimit:        access.ResultLimit,
+		UserGoal:           access.UserGoal,
+		WorkflowStepID:     access.WorkflowStepID,
 	}
 }
 

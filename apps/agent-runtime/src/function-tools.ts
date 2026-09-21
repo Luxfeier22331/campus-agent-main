@@ -3,12 +3,12 @@ import type {
 	SdkToolRuntime,
 	ToolExecutionResult,
 } from "./agent-run-contract.ts";
-import { retrievalDeadlineAt, sourceUnavailable } from "./execution-budget.ts";
+import { retrievalDeadlineAt } from "./execution-budget.ts";
 import { AgentRuntimeError } from "./runtime-errors.ts";
 export interface FunctionToolContext {
 	reportRetrieval?: AgentRunnerInput["reportRetrieval"];
-	unavailableSources: Set<string>;
 	campusSearch: {
+		resultRefs: Set<string>;
 		nextCitationIndex: number;
 		queue: Promise<void>;
 	};
@@ -22,12 +22,13 @@ export interface FunctionToolContext {
 export function createFunctionToolContext(input: AgentRunnerInput): FunctionToolContext {
 	return {
 		reportRetrieval: input.reportRetrieval,
-		unavailableSources: new Set(
-			(input.priorSourceAttempts ?? [])
-				.filter((attempt) => sourceUnavailable(attempt.failureCode))
-				.map((attempt) => attempt.source),
-		),
-		campusSearch: { nextCitationIndex: input.citationStart, queue: Promise.resolve() },
+		campusSearch: {
+			nextCitationIndex: input.citationStart,
+			queue: Promise.resolve(),
+			resultRefs: new Set(
+				(input.priorEvidence ?? []).flatMap((item) => (item.resultRef ? [item.resultRef] : [])),
+			),
+		},
 		functionToolBudget: { limit: input.limits.maxFunctionToolCalls, reserved: 0 },
 		functionToolResults: new Map(),
 	};
@@ -40,7 +41,7 @@ export async function invokeFunctionTool(
 ) {
 	if (context.functionToolBudget.reserved >= context.functionToolBudget.limit) {
 		throw new AgentRuntimeError(
-			"tool_execution_failed",
+			"tool_call_budget_exhausted",
 			"The admitted function tool call budget is exhausted.",
 		);
 	}
@@ -54,19 +55,7 @@ export async function invokeFunctionTool(
 			retrievalDeadlineAt(runtimeTool.deadlineAt),
 		),
 	).toISOString();
-	const result = context.unavailableSources.has(runtimeTool.name)
-		? {
-				status: "failed" as const,
-				result: {
-					error:
-						"This source is unavailable for this request; use existing materials or another admitted source.",
-				},
-				failure: { code: "source_unavailable_for_request", operation: `tool.${runtimeTool.name}` },
-			}
-		: await executeSdkTool(runtimeTool, args, context, invocationId, deadlineAt);
-	if (sourceUnavailable(result.failure?.code)) {
-		context.unavailableSources.add(runtimeTool.name);
-	}
+	const result = await executeSdkTool(runtimeTool, args, context, invocationId, deadlineAt);
 	context.functionToolResults.set(invocationId, {
 		...result,
 		argumentsJson: args,
@@ -76,13 +65,6 @@ export async function invokeFunctionTool(
 		toolName: runtimeTool.name,
 		invocationId,
 	});
-	if (result.failure?.code === "campus_search_result_budget_exhausted") {
-		throw new AgentRuntimeError(
-			"retrieval_budget_exhausted",
-			"Campus Search result budget is exhausted; synthesize from the materials already retrieved.",
-			{ operation: `tool.${runtimeTool.name}`, invocationId },
-		);
-	}
 	return result;
 }
 async function executeSdkTool(
@@ -132,31 +114,23 @@ async function executeSdkTool(
 			throw runtimeTool.signal.reason ?? new Error("Agent run was canceled.");
 		}
 		const citationStart = context.campusSearch.nextCitationIndex;
-		if (citationStart > 10) {
-			await runtimeTool.observe?.(argumentsJson, invocationId, {
-				phase: "failed",
-				failureCode: "campus_search_result_budget_exhausted",
-			});
-			return {
-				failure: {
-					code: "campus_search_result_budget_exhausted",
-					operation: "tool.campus_search",
-					detail: "campus search result budget is exhausted",
-					invocationId,
-				},
-				result: { error: "campus search result budget is exhausted" },
-				status: "failed" as const,
-			};
-		}
-		const resultLimit = Math.min(5, 11 - citationStart);
+		const resultLimit = 5;
 		context.reportRetrieval?.("campus", invocationId, "started");
 		const result = await runtimeTool.execute(argumentsJson, {
 			deadlineAt,
 			citationStart,
 			invocationId,
 			resultLimit,
+			excludedResultRefs: [...context.campusSearch.resultRefs],
 		});
 		const count = campusSearchResultCount(result, citationStart, resultLimit);
+		if (result.status === "completed") {
+			for (const item of result.result.results as Record<string, unknown>[]) {
+				if (typeof item.result_ref === "string") {
+					context.campusSearch.resultRefs.add(item.result_ref);
+				}
+			}
+		}
 		context.campusSearch.nextCitationIndex += count;
 		context.reportRetrieval?.(
 			"campus",

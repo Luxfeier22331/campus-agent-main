@@ -18,12 +18,14 @@ func TestCampusSearchRepeatedResultsFinalize(t *testing.T) {
 			agentResult := map[string]any{"tool_results": []map[string]any{
 				citationToolResult([]campusdocs.SearchResultItem{first, other}, 1),
 				citationToolResult([]campusdocs.SearchResultItem{first}, 5),
+				citationToolResult([]campusdocs.SearchResultItem{other}, 11),
 			}}
 			for _, tc := range []struct {
 				name, answer, linked string
 				refs                 []string
 			}{
 				{"first", "答案 [1]", "答案 [1](%s)", []string{first.ResultRef}},
+				{"beyond ten", "答案 [11]", "答案 [1](%s)", []string{other.ResultRef}},
 				{"second", "答案 [5]", "答案 [1](%s)", []string{first.ResultRef}},
 				{"both", "答案 [5]，补充 [1]", "答案 [1](%s)，补充 [1](%s)", []string{first.ResultRef}},
 				{"unused", "答案", "答案", []string{}},
@@ -71,7 +73,7 @@ func TestCampusSearchCitationValidationRemainsStrict(t *testing.T) {
 		{"unknown", "[2]", "引用编号没有对应证据", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
 		{"zero", "[0]", "引用标记非法", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
 		{"out of range", "[11]", "引用编号没有对应证据", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 1)}},
-		{"invalid result index", "[11]", "result fields are invalid", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 11)}},
+		{"invalid result index", "[0]", "result fields are invalid", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{item}, 0)}},
 		{"source identity", "[1]", "notice result fields are invalid", []map[string]any{citationToolResult([]campusdocs.SearchResultItem{invalid}, 1)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

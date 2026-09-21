@@ -3,7 +3,12 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { type CommandRunner, requireSuccess } from "./scope.mts";
-import { TOOLING_GROUPS, TOOLING_TRACKED_PATHS, toolingTask } from "./tooling-tasks.mts";
+import {
+	TOOLING_GROUPS,
+	TOOLING_TRACKED_PATHS,
+	type ToolingGroup,
+	toolingTask,
+} from "./tooling-tasks.mts";
 import { nodeRuntimeEnvironment } from "./turbo.mts";
 
 const run: CommandRunner = (command, args, options) => {
@@ -22,7 +27,12 @@ const run: CommandRunner = (command, args, options) => {
 };
 
 export function runRepositoryTests(
-	input: { repositoryRoot: string; env?: NodeJS.ProcessEnv; args?: string[] },
+	input: {
+		repositoryRoot: string;
+		env?: NodeJS.ProcessEnv;
+		args?: string[];
+		groups?: readonly ToolingGroup[];
+	},
 	runner: CommandRunner = run,
 ): number {
 	const options = { cwd: input.repositoryRoot, env: nodeRuntimeEnvironment(input.env) };
@@ -45,11 +55,12 @@ export function runRepositoryTests(
 	for (const name of read("git", ["rev-parse", "--local-env-vars"]).split(/\s+/u).filter(Boolean)) {
 		delete options.env[name];
 	}
+	const groups = input.groups?.length ? input.groups : TOOLING_GROUPS;
 	const args = [
 		"exec",
 		"turbo",
 		"run",
-		...TOOLING_GROUPS.map(toolingTask),
+		...groups.map(toolingTask),
 		"--concurrency=1",
 		"--summarize",
 	];
@@ -65,9 +76,14 @@ export function runRepositoryTests(
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
 	try {
+		const groupArg = process.argv.slice(2).find((arg) => arg.startsWith("--groups="));
+		const groups = groupArg
+			? (groupArg.slice("--groups=".length).split(",").filter(Boolean) as ToolingGroup[])
+			: undefined;
 		process.exitCode = runRepositoryTests({
 			repositoryRoot: process.cwd(),
-			args: process.argv.slice(2),
+			args: process.argv.slice(2).filter((arg) => !arg.startsWith("--groups=")),
+			...(groups ? { groups } : {}),
 		});
 	} catch (error) {
 		process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

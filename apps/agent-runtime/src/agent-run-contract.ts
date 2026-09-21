@@ -215,6 +215,7 @@ export interface AgentRunnerAnswerDelta {
 }
 
 export interface ToolExecutionRequest {
+	excludedResultRefs?: string[];
 	deadlineAt?: string;
 	activityAttempt?: number;
 	tool: ToolCatalogEntry;
@@ -282,6 +283,7 @@ export interface SdkToolRuntime {
 }
 
 export interface SdkToolExecutionContext {
+	excludedResultRefs?: string[];
 	deadlineAt?: string;
 	invocationId?: string;
 	citationStart?: number;
@@ -289,6 +291,7 @@ export interface SdkToolExecutionContext {
 }
 
 export interface AgentRunnerInput {
+	priorEvidence?: WorkflowEvidence[];
 	reportRetrieval?: RetrievalReporter;
 	deadlineAt?: string;
 	priorSourceAttempts?: SourceAttempt[];

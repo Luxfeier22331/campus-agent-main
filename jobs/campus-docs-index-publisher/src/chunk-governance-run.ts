@@ -25,7 +25,7 @@ import type {
 import { canonicalJsonBytes, sha256 } from "./indexing/content-digest.ts";
 import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
 import { buildChunks } from "./indexing/chunks.ts";
-import { loadCurrentVersions, parseIndexingSource, sourceProjectionSha256 } from "./indexing/source.ts";
+import { loadCurrentVersions, parseIndexingSource, indexedSourceProjectionSha256 } from "./indexing/source.ts";
 import { assertValidChunkSet } from "./chunk-validation.ts";
 import {
 	type ArtifactObjectStore,
@@ -54,7 +54,7 @@ export async function runLocalCampusDocsChunkGovernanceReview(input: {
 	}
 	const source = parseIndexingSource(sourceBytes);
 	const selections = await loadCurrentVersions({ source, readerStore: input.sourceStore });
-	const projection = sourceProjectionSha256(selections);
+	const projection = indexedSourceProjectionSha256(selections);
 	if (projection !== chunkSet.manifest.sourceProjectionSha256) {
 		throw new Error("Campus docs chunk set does not match the current source projection");
 	}
@@ -63,6 +63,9 @@ export async function runLocalCampusDocsChunkGovernanceReview(input: {
 			document: selection.document,
 			reader: selection.reader,
 			version: selection.version,
+			isCurrent: selection.isCurrent,
+			applicableFromAdmissionYear: selection.applicableFromAdmissionYear,
+			applicableToAdmissionYear: selection.applicableToAdmissionYear,
 		}),
 	);
 	assertValidChunkSet({ chunks: generatedChunks, selections });

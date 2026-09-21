@@ -118,10 +118,16 @@ type Store interface {
 	MarkCampusSearchCitations(context.Context, string, []string) error
 }
 
-// No retry and no background queue: a diagnostic outage cannot change a tool
-// result or prevent cancellation. Each write has its own short deadline.
+// Diagnostics remain best effort and never change a tool result. The write
+// deadline is owned here so callers do not invent competing deadlines.
 func Record(ctx context.Context, store any, observation Observation) {
-	_ = RecordError(ctx, store, observation)
+	writer, ok := store.(Store)
+	if !ok {
+		return
+	}
+	go func() {
+		_ = RecordError(ctx, writer, observation)
+	}()
 }
 
 func RecordError(ctx context.Context, store any, observation Observation) error {
@@ -129,7 +135,7 @@ func RecordError(ctx context.Context, store any, observation Observation) error 
 	if !ok {
 		return nil
 	}
-	bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), 200*time.Millisecond)
+	bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
 	return writer.ObserveCampusSearch(bounded, observation)
 }

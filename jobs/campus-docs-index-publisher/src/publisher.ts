@@ -25,7 +25,7 @@ import {
 	loadCurrentVersions,
 	parseIndexingSource,
 	selectCurrentVersions,
-	sourceProjectionSha256,
+	indexedSourceProjectionSha256,
 } from "./indexing/source.ts";
 import { sha256Text } from "./indexing/content-digest.ts";
 import {
@@ -63,6 +63,9 @@ export async function buildCampusDocsChunkSet(
 			document: selection.document,
 			reader: selection.reader,
 			version: selection.version,
+			isCurrent: selection.isCurrent,
+			applicableFromAdmissionYear: selection.applicableFromAdmissionYear,
+			applicableToAdmissionYear: selection.applicableToAdmissionYear,
 		}),
 	);
 	if (chunks.length === 0) throw new Error("Campus docs source produced no index chunks");
@@ -71,13 +74,14 @@ export async function buildCampusDocsChunkSet(
 		...chunk,
 		retrievalTextSha256: sha256Text(chunk.retrievalText),
 	}));
-	const sourceProjection = sourceProjectionSha256(selections);
+	const sourceProjection = indexedSourceProjectionSha256(selections);
+	const documentCount = selections.length;
 	const chunkData = await writeChunkData(input.artifactStore, storedChunks);
 	const manifest = {
 		chunkCount: storedChunks.length,
 		chunkDefinition: CHUNK_SET_DEFINITION.chunking,
 		chunks: chunkData,
-		documentCount: selections.length,
+		documentCount,
 		readerSchemaVersion: CHUNK_SET_DEFINITION.readerSchemaVersion,
 		schemaVersion: "campus_docs_chunk_set.v2",
 		sourceProjectionSha256: sourceProjection,
@@ -87,7 +91,7 @@ export async function buildCampusDocsChunkSet(
 	return {
 		chunkCount: chunks.length,
 		chunkSet,
-		documentCount: selections.length,
+		documentCount,
 		sourceDigest: source.sourceDigest,
 		sourceProjectionSha256: sourceProjection,
 	};
@@ -325,7 +329,7 @@ async function assertSourceProjectionUnchanged(
 		const sourceBytes = await store.read(DOCS_SOURCE_KEY);
 		const source = parseIndexingSource(sourceBytes);
 		const selections = selectCurrentVersions(source.manifest);
-		if (sourceProjectionSha256(selections) !== expectedProjection) {
+		if (indexedSourceProjectionSha256(selections) !== expectedProjection) {
 			throw new Error("current source projection differs");
 		}
 	} catch (error) {

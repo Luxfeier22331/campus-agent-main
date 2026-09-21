@@ -32,13 +32,13 @@ hit 的 `saved_ms` 以首次加载耗时估算避免的上游延迟；不记录�
 Ops 现有 `embedding/retrieval/rerank/selection` 阶段语义不变，Embedding 耗时包括配置读取和缓存等待。
 该缓存只缓解重复查询的上游延迟；若未来检索服务已有等价共享缓存，在迁移时重新评估或移除这一层。
 
-召回使用工具提供的搜索表达，rerank 使用当前用户目标，不将扩展关键词拼接为排序目标。Ops 的现有
+召回使用工具提供的搜索表达，rerank 使用本次检索要补足的 `search_goal`，旧调用未提供时使用用户目标。Ops 的现有
 诊断分别记录实际召回查询和排序目标；历史记录未保存排序目标时显示未记录，不回填推断值。
 
-检索只保留 rerank `relevance_score >= 0.5` 的候选，每次返回最多 5 条，同一 run 累计最多 10 条；
+检索只保留 rerank `relevance_score >= 0.5` 的候选，每次返回最多 5 条；
 没有候选时返回 `no_match`。该分数只表示查询与候选文本的相关性，不判断机构、人群或规则适用主体。
 工具返回的 `results` 是供 Agent 选择的候选，不等于答案已经使用。模型只对实际采用的结果使用其
-全局 `citation_index` 写入 `[1]` 到 `[10]`；execution-control 在 Finalization 时从引用和真实工具
+全局递增的 `citation_index` 写入 `[n]`；execution-control 在 Finalization 时从引用和真实工具
 结果派生公开 source cards。未知或越界引用使 Finalization 失败。模型不能自行创建来源，也不能把
 `result_ref` 写入答案。
 

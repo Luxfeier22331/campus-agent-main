@@ -228,8 +228,10 @@ describe("workflow operation runtime", () => {
 				throw new Error("missing replan payload");
 			}
 			const payload = JSON.parse(message.content.slice(message.content.indexOf("\n") + 1));
-			expect(payload.completedSteps[0].sourceAttempts).toEqual(attempts);
-			expect(payload.completedSteps[0].evidence).toEqual(result.evidence);
+			expect(payload.completedSteps[0].sourceAttempts).toBeUndefined();
+			expect(payload.completedSteps[0].evidence).toBeUndefined();
+			expect(payload.priorSourceAttempts).toEqual(attempts);
+			expect(payload.priorMaterials).toEqual(result.evidence);
 		},
 	);
 
@@ -981,6 +983,38 @@ describe("workflow operation runtime", () => {
 			policyVersion: "workflow_context.v1",
 		});
 		expect(JSON.stringify(observed?.input)).toContain("你好");
+	});
+
+	it("keeps gathered materials beyond the history budget without duplicating them", async () => {
+		let observed: AgentRunnerInput | undefined;
+		const evidence: WorkflowEvidence = {
+			schemaVersion: "workflow_evidence.v1",
+			id: "campus:material",
+			source: "campus_search",
+			title: "费用",
+			excerpt: "费用说明".repeat(100),
+			citationIndex: 11,
+			resultRef: "result://material",
+		};
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async (input) => {
+				observed = input;
+				return runnerResult({ finalOutput: "费用说明 [11]。" });
+			},
+		});
+		const request = synthesizeInput(taskPlan("费用", []), [], [evidence]);
+		request.priorEvidence = [evidence];
+		request.limits = { ...limits, contextCharLimit: 100 };
+		request.conversationContext = {
+			schemaVersion: "agent_conversation_context.v1",
+			recentTurns: [{ role: "user", content: "旧问题" }],
+		};
+		const result = await runtime.run(request);
+		expect(result.status).toBe("completed");
+		const content = JSON.stringify(observed?.input);
+		expect(content).not.toContain("旧问题");
+		expect(content.split(evidence.excerpt)).toHaveLength(2);
 	});
 
 	it("rejects an invalid JSON plan instead of silently executing it", async () => {

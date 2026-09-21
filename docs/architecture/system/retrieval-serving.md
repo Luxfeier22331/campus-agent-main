@@ -139,10 +139,10 @@ PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或
 在线 execution-control 只读取 `current_index`；它不执行 publisher 的激活流程。由于两条路径当前共享
 `execution_control` 技术身份，数据库权限不能单独表达这一进程级区分，代码行为和 ACL 需要分别验证。
 
-当前查询先从 dense/sparse hybrid RRF 取得最多 24 个候选，再使用当前 `campus_docs_reranker`
-连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。随后按 noticeId
-分组，每条通知只保留重排最高的一块，同分保持原召回次序；Docs 候选不做来源分组。分组发生在数量
-和字符预算之前，不合并兄弟 Chunk，不补回已排除块，也不按通知发布时间自动排除旧通知。最终返回
+当前查询先根据问题中的版本意图生成检索范围：默认只允许 Docs 的当前版本；培养方案可按入学年份选择适用版本；明确历史或版本问题只有在索引中存在对应版本时才可能命中。该范围作为 Qdrant payload filter 同时应用到 dense/sparse hybrid RRF 的两个 prefetch。随后最多取得 24 个候选，再使用当前 `campus_docs_reranker`
+连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。数量和字符预算前
+排除本轮已返回的 `result_ref`；同一通知的不同片段仍可返回，不按通知来源折叠互补章节，
+也不按通知发布时间自动排除旧通知。版本过滤不改变 Notices 的已发布通知范围。最终返回
 每次最多 5 条候选结果，正文总字符预算为 4000。execution-control 校验 point schema、文本 hash、section
 URL、版本字段和 `root_unit_ids` 后才把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
 score 必须是有限数值；调用或校验失败直接使检索失败，不回退到未重排候选。过滤后无结果返回成功的
@@ -152,9 +152,9 @@ score 必须是有限数值；调用或校验失败直接使检索失败，不�
 所需事实与工具声明范围决定是否检索，不通过实体名称特判、Qdrant filter、rerank 阈值或 collection 字段
 实现路由。
 
-同一 run 的 `campus_search` 结果使用全局 `citation_index` `1..10`，失败和 `no_match` 不占编号。
-单次调用内来源不重复，跨调用允许同一 `result_ref` 对应不同编号；Finalization 保留编号映射，
-按正文引用将相同稳定来源合并为一份来源卡，不要求模型避免重复召回。
+同一 run 的 `campus_search` 结果使用全局递增的 `citation_index`，失败和 `no_match` 不占编号。
+后续调用排除本轮已经返回的 `result_ref`，但保留同一通知的互补章节；Finalization 保留编号映射，
+按正文引用将相同稳定来源的相同段落合并为一份来源卡。
 Agent 正文只引用实际采用的候选；当前 Campus Docs 来源由 `campus_search` adapter 校验。Finalization
 拒绝未知、零或越界编号，忽略未引用候选，并从有效引用派生公开 source cards。检索失败不会回退到
 其他数据源，也不会改变当前索引绑定。

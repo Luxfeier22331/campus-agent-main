@@ -4,7 +4,8 @@ export const NODE_TEST_GROUPS = [
 	"test:dom:fast",
 	"test:dom:isolated",
 ] as const;
-export const NODE_TASKS = ["typecheck", "test", "test:worker", ...NODE_TEST_GROUPS] as const;
+export const PR_NODE_TASKS = ["test", "test:worker", ...NODE_TEST_GROUPS] as const;
+export const NODE_TASKS = ["typecheck", ...PR_NODE_TASKS] as const;
 
 // These packages keep `test` as a human entry point; evidence executes its leaves once.
 export function isEvidenceTask(item: { package: string; task: string }): boolean {

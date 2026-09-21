@@ -37,6 +37,10 @@ export function buildPoint(input: {
 		text_sha256: textSha,
 		version_id: input.chunk.versionId,
 		version_slug: input.chunk.versionSlug,
+		is_current: input.chunk.isCurrent ?? true,
+		applicable_from_admission_year: input.chunk.applicableFromAdmissionYear ?? null,
+		applicable_to_admission_year: input.chunk.applicableToAdmissionYear ?? null,
+		corpus: input.chunk.corpus ?? "regulations",
 	};
 	return {
 		id: buildPointId(input.chunk),

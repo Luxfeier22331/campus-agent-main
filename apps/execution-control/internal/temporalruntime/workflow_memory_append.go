@@ -26,7 +26,7 @@ func MemoryAppendWorkflow(ctx workflow.Context, input MemoryAppendWorkflowInput)
 	}
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		TaskQueue:           ActivityTaskQueueCore,
-		StartToCloseTimeout: 30 * time.Second,
+		StartToCloseTimeout: 300 * time.Second,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval: 2 * time.Second, BackoffCoefficient: 2,
 			MaximumInterval: 30 * time.Second,

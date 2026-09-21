@@ -6,6 +6,7 @@ status: active
 # 操作手册
 
 - 发布与环境交接：[release.md](./release.md)；
+- Staging 前台测试账号：[staging-test-account.md](./staging-test-account.md)；
 - GHCR 镜像盘点、保护与清理：[ghcr-retention.md](./ghcr-retention.md)；
 - CI Runner 与 BuildKit：[runner-buildkit.md](./runner-buildkit.md)；
 - 数据恢复：[data-recovery.md](./data-recovery.md)；

@@ -10,6 +10,12 @@
 				"type": "object",
 				"additionalProperties": false,
 				"properties": {
+					"search_goal": {
+						"type": "string",
+						"description": "本次检索要确认的具体事实，用完整问题表述并保留学校、项目等必要上下文；补查时聚焦尚缺的信息。",
+						"minLength": 1,
+						"maxLength": 800
+					},
 					"search_query": {
 						"type": "string",
 						"description": "根据用户当前问题整理出的、面向中央民族大学校内资料的聚焦检索表达。",
@@ -17,7 +23,7 @@
 						"maxLength": 400
 					}
 				},
-				"required": ["search_query"]
+				"required": ["search_query", "search_goal"]
 			}
 		},
 		{

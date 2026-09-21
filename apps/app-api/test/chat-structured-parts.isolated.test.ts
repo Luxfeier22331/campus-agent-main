@@ -6,6 +6,28 @@ import { normalizeChatStructuredParts } from "../src/modules/chat";
 import { normalizeSourceItemsPart } from "../src/modules/runtime-command/service/normalize";
 
 describe("chat structured parts", () => {
+	it("keeps complementary notice passages in their own citation previews", () => {
+		const parts = normalizeSourceItemsPart({
+			status: "completed",
+			result: {
+				sources: [
+					{ citation_index: 2, section_title: "正文", snippet: "项目选项" },
+					{ citation_index: 11, section_title: "其他说明", snippet: "费用及资助条件" },
+				].map((passage) => ({
+					...passage,
+					kind: "campus_notice",
+					notice_id: "348539",
+					citation_href: "/notices/348539",
+					title: "访学项目",
+				})),
+			},
+		});
+		expect(parts[0]?.sourceItems).toMatchObject([
+			{ citationIndexes: [2], sectionTitle: "正文", snippet: "项目选项" },
+			{ citationIndexes: [11], sectionTitle: "其他说明", snippet: "费用及资助条件" },
+		]);
+		expect(normalizeChatStructuredParts(JSON.parse(JSON.stringify(parts)))).toEqual(parts);
+	});
 	it("persists resolved and unavailable sources without inventing an empty link", () => {
 		const parts = normalizeSourceItemsPart({
 			status: "completed",
@@ -279,10 +301,10 @@ describe("chat structured parts", () => {
 		});
 	});
 
-	it("keeps citation ten and more than five cited source cards", () => {
+	it("keeps more than ten cited source cards", () => {
 		const parts = normalizeSourceItemsPart({
 			result: {
-				sources: Array.from({ length: 6 }, (_, offset) => {
+				sources: Array.from({ length: 11 }, (_, offset) => {
 					const citationIndex = offset + 5;
 					return {
 						citation_index: citationIndex,
@@ -306,8 +328,14 @@ describe("chat structured parts", () => {
 				{ citationIndexes: [8] },
 				{ citationIndexes: [9] },
 				{ citationIndexes: [10] },
+				{ citationIndexes: [11] },
+				{ citationIndexes: [12] },
+				{ citationIndexes: [13] },
+				{ citationIndexes: [14] },
+				{ citationIndexes: [15] },
 			],
 		});
+		expect(normalizeChatStructuredParts(JSON.parse(JSON.stringify(parts)))).toEqual(parts);
 	});
 
 	it("projects Web sources with citation hrefs and preserves URL identity", () => {
@@ -427,7 +455,7 @@ describe("chat structured parts", () => {
 	it.each([
 		["missing", undefined],
 		["zero", 0],
-		["eleven", 11],
+		["negative", -1],
 		["fraction", 1.5],
 	] as const)("rejects invalid citation index: %s", (_name, citationIndex) => {
 		expect(() =>

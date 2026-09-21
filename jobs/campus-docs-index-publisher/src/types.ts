@@ -47,6 +47,10 @@ export interface IndexChunk {
 	sectionTitle: string;
 	versionId: string;
 	versionSlug: string;
+	corpus?: string;
+	isCurrent?: boolean;
+	applicableFromAdmissionYear?: number | null;
+	applicableToAdmissionYear?: number | null;
 }
 
 export interface StoredChunk extends IndexChunk {
@@ -76,6 +80,10 @@ export interface CampusDocsPointPayload {
 	text_sha256: `sha256:${string}`;
 	version_id: string;
 	version_slug: string;
+	is_current?: boolean;
+	applicable_from_admission_year?: number | null;
+	applicable_to_admission_year?: number | null;
+	corpus?: string;
 }
 
 export interface IndexPoint {

@@ -446,7 +446,7 @@ const OpsProductResultSchema = z.discriminatedUnion("state", [
 	z.object({ reasonCode: z.literal("ASSISTANT_MESSAGE_MISSING"), state: z.literal("MISSING") }),
 	z.object({
 		kind: OpsAssistantMessageKindSchema,
-		sources: z.array(OpsProductSourceSchema).max(10),
+		sources: z.array(OpsProductSourceSchema),
 		state: z.literal("WRITTEN"),
 		text: z.string(),
 	}),

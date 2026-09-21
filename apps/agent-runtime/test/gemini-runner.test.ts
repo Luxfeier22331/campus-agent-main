@@ -249,7 +249,7 @@ describe("Gemini native runner", () => {
 	});
 
 	it.each([false, true])(
-		"stops at the citation limit and retains multi-turn usage (stream=%s)",
+		"retrieves beyond ten citations and retains multi-turn usage (stream=%s)",
 		async (stream) => {
 			const responses = Array.from({ length: 3 }, (_, index) => {
 				const item = response("");
@@ -265,6 +265,7 @@ describe("Gemini native runner", () => {
 				];
 				return item;
 			});
+			responses.push(response("完成 [11]。"));
 			const { models } = scripted(responses);
 			models.generateContentStream = vi.fn(async function* () {
 				const item = responses.shift();
@@ -295,16 +296,16 @@ describe("Gemini native runner", () => {
 			} else {
 				result = await createGeminiRunner({ createModels: () => models })(request);
 			}
-			expect(execute).toHaveBeenCalledTimes(2);
-			expect(result.failure?.code).toBe("retrieval_budget_exhausted");
+			expect(execute).toHaveBeenCalledTimes(3);
+			expect(result.failure).toBeUndefined();
 			expect(result.toolResults).toHaveLength(3);
 			expect(result.usage).toMatchObject({
-				modelRequestCount: 3,
-				inputTokens: 36,
-				outputTokens: 24,
-				cachedInputTokens: 9,
+				modelRequestCount: 4,
+				inputTokens: 48,
+				outputTokens: 32,
+				cachedInputTokens: 12,
 			});
-			expect(result.providerResponseId).toBe("response-2");
+			expect(result.finalOutput).toBe("完成 [11]。");
 		},
 	);
 	it("selects the native SDK and sends its HTTP request to the configured versioned endpoint", async () => {

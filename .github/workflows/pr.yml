@@ -121,6 +121,7 @@ jobs:
           affected_packages="$(jq -c '.affectedPackages' <<< "$plan")"
           light_surfaces="$(jq -c '.lightSurfaces' <<< "$plan")"
           validation_profiles="$(jq -c '.validationProfiles' <<< "$plan")"
+          repository_groups="$(jq -c '.repositoryGroups' <<< "$plan")"
           node_evidence_profiles="$(jq -c '[.validationProfiles[] | select(. == "affected-node")]' <<< "$plan")"
           has_container_build="$(jq -r --arg profile container-build \
             '.validationProfiles | index($profile) != null' <<< "$plan")"
@@ -138,6 +139,7 @@ jobs:
             echo "affected_packages=$affected_packages"
             echo "light_surfaces=$light_surfaces"
             echo "validation_profiles=$validation_profiles"
+            echo "repository_groups=$repository_groups"
             echo "node_evidence_profiles=$node_evidence_profiles"
             echo "has_container_build=$has_container_build"
             echo "has_image_build=$has_image_build"
@@ -196,7 +198,7 @@ jobs:
 
       - name: Lint repository
         id: repository_lint
-        if: ${{ !cancelled() && steps.install_static_dependencies.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.install_static_dependencies.outcome == 'success' && steps.plan.outcome == 'success' && fromJSON(steps.plan.outputs.repository_groups)[0] != null }}
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -226,7 +228,7 @@ jobs:
 
       - name: Check repository documentation
         id: repository_docs
-        if: ${{ !cancelled() && steps.repository_lint.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.repository_lint.outcome == 'success' && contains(fromJSON(steps.plan.outputs.repository_groups), 'docs') }}
         continue-on-error: true
         run: |
           echo CI_BODY_STARTED
@@ -240,12 +242,12 @@ jobs:
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-        if: ${{ !cancelled() && steps.repository_docs.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.repository_lint.outcome == 'success' && (!contains(fromJSON(steps.plan.outputs.repository_groups), 'docs') || steps.repository_docs.outcome == 'success') && steps.plan.outcome == 'success' && fromJSON(steps.plan.outputs.repository_groups)[0] != null }}
         continue-on-error: true
         run: |
           echo CI_BODY_STARTED
           mkdir -p "$RUNNER_TEMP/ci-evidence"
-          pnpm test
+          pnpm test --groups="$(jq -r 'join(",")' <<< '${{ steps.plan.outputs.repository_groups }}')"
 
       - name: Check executable contracts
         id: contracts
@@ -286,7 +288,7 @@ jobs:
         id: install_affected
         if: >-
           !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') &&
-          steps.repository_test.outcome == 'success' &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
@@ -324,7 +326,7 @@ jobs:
         id: node_evidence
         if: >-
           !cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.node_evidence_profiles != '[]' && steps.install_affected.outcome == 'success' &&
-          steps.repository_test.outcome == 'success' &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
@@ -447,7 +449,7 @@ jobs:
             echo '| --- | --- |'
             jq -r 'to_entries[] | "| \(.key) | \(.value) |"' <<< "$RESULTS"
             echo
-            echo 'Skipped repository stages follow pnpm check short-circuit order; other skips follow the validation selection or a failed prerequisite.'
+            echo 'Repository stages follow the selected tooling groups; other skips follow validation selection or a failed prerequisite.'
           } >> "$GITHUB_STEP_SUMMARY"
           node --experimental-strip-types scripts/ci/validation.mts \
             --check-outcomes "$RUNNER_TEMP/ci-evidence/outcomes.json" \

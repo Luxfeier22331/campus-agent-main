@@ -386,12 +386,11 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 }
 
 function normalizeCitationIndexes(value: unknown): number[] | null {
-	if (!Array.isArray(value) || value.length === 0 || value.length > 10) {
+	if (!Array.isArray(value) || value.length === 0) {
 		return null;
 	}
 	const indexes = value.filter(
-		(item): item is number =>
-			typeof item === "number" && Number.isInteger(item) && item >= 1 && item <= 10,
+		(item): item is number => typeof item === "number" && Number.isSafeInteger(item) && item >= 1,
 	);
 	if (indexes.length !== value.length || new Set(indexes).size !== indexes.length) {
 		return null;
@@ -406,8 +405,7 @@ function normalizeSourceItems(value: unknown): ChatSourceItem[] {
 
 	return value
 		.map((item) => normalizeSourceItem(item))
-		.filter((item): item is ChatSourceItem => item !== null)
-		.slice(0, 10);
+		.filter((item): item is ChatSourceItem => item !== null);
 }
 
 function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | null {

@@ -7,6 +7,7 @@ import {
 import {
 	assertReaderExtractionQuality,
 	assertReaderSegmentationQuality,
+	compareDocsVersionSlugs,
 } from "campus-contracts/campus-docs";
 import type {
 	DocsReader,
@@ -25,7 +26,17 @@ export function parseIndexingSource(sourceBytes: Uint8Array): IndexingSource {
 	const manifest = normalizeSourceManifest(parseSourceManifest(sourceValue));
 	return { manifest, sourceBytes, sourceDigest: sha256(sourceBytes) };
 }
-export function selectCurrentVersions(source: DocsSourceManifest): SourceVersionSelection[] {
+export function selectCurrentVersions(source: DocsSourceManifest): IndexedVersionSelection[] {
+	return selectVersions(source).filter((item) => item.isCurrent);
+}
+
+export interface IndexedVersionSelection extends SourceVersionSelection {
+	isCurrent: boolean;
+	applicableFromAdmissionYear: number | null;
+	applicableToAdmissionYear: number | null;
+}
+
+export function selectVersions(source: DocsSourceManifest): IndexedVersionSelection[] {
 	const versionsByDocument = new Map<string, DocsSourceManifest["versions"]>();
 	for (const version of source.versions) {
 		versionsByDocument.set(version.docId, [
@@ -33,13 +44,23 @@ export function selectCurrentVersions(source: DocsSourceManifest): SourceVersion
 			version,
 		]);
 	}
-	const selected = source.documents.map((document) => {
-		const version = selectCurrentVersion(
-			versionsByDocument.get(document.docId) ?? [],
-			document.docId,
-		);
-		const readerRef = assertObjectRef(version.reader, `reader ${version.versionId}`);
-		return { document, reader: undefined as unknown as DocsReader, readerRef, version };
+	const selected = source.documents.flatMap((document) => {
+		const versions = versionsByDocument.get(document.docId) ?? [];
+		const current = selectCurrentVersion(versions, document.docId);
+		const ordered = [...versions].sort((left, right) => compareDocsVersionSlugs(left.versionSlug, right.versionSlug));
+		return ordered.map((version, index) => {
+			const readerRef = assertObjectRef(version.reader, `reader ${version.versionId}`);
+			const year = document.corpus === "curriculum" && /^\d{4}$/u.test(version.versionSlug)
+				? Number(version.versionSlug) : null;
+			const next = ordered[index + 1];
+			const nextYear = next && /^\d{4}$/u.test(next.versionSlug) ? Number(next.versionSlug) : null;
+			return {
+				document, reader: undefined as unknown as DocsReader, readerRef, version,
+				isCurrent: version.versionId === current.versionId,
+				applicableFromAdmissionYear: year,
+				applicableToAdmissionYear: year !== null ? (nextYear !== null ? nextYear - 1 : 9999) : null,
+			};
+		});
 	});
 	if (selected.length === 0) {
 		throw new Error("campus docs source has no documents");
@@ -50,8 +71,15 @@ export function selectCurrentVersions(source: DocsSourceManifest): SourceVersion
 export async function loadCurrentVersions(input: {
 	source: IndexingSource;
 	readerStore: { read(key: string): Promise<Uint8Array> };
-}): Promise<SourceVersionSelection[]> {
+}): Promise<IndexedVersionSelection[]> {
 	const selected = selectCurrentVersions(input.source.manifest);
+	return loadSelections(input, selected) as Promise<IndexedVersionSelection[]>;
+}
+
+async function loadSelections(
+	input: { source: IndexingSource; readerStore: { read(key: string): Promise<Uint8Array> } },
+	selected: Array<SourceVersionSelection | IndexedVersionSelection>,
+): Promise<Array<SourceVersionSelection | IndexedVersionSelection>> {
 	for (const item of selected) {
 		const bytes = await readVerifiedObject(input.readerStore, item.readerRef);
 		item.reader = parseReader(parseJson(bytes, `reader ${item.version.versionId}`));
@@ -84,6 +112,24 @@ export function buildCurrentSourceProjection(
 			version_slug: item.version.versionSlug,
 		}))
 		.sort((left, right) => String(left.doc_id).localeCompare(String(right.doc_id)));
+}
+
+export function buildIndexedSourceProjection(
+	selections: readonly IndexedVersionSelection[],
+): Array<Record<string, unknown>> {
+	return selections.map((item) => ({
+		collection: item.document.collection, corpus: item.document.corpus,
+		doc_id: item.document.docId, document_slug: item.document.documentSlug,
+		reader: item.readerRef, title: item.document.title,
+		version_id: item.version.versionId, version_slug: item.version.versionSlug,
+		is_current: item.isCurrent,
+		applicable_from_admission_year: item.applicableFromAdmissionYear,
+		applicable_to_admission_year: item.applicableToAdmissionYear,
+	})).sort((left, right) => `${left.doc_id}/${left.version_slug}`.localeCompare(`${right.doc_id}/${right.version_slug}`));
+}
+
+export function indexedSourceProjectionSha256(selections: readonly IndexedVersionSelection[]): Sha256Ref {
+	return sha256Bytes(canonicalJsonBytes(buildIndexedSourceProjection(selections)));
 }
 
 export function sourceProjectionSha256(

@@ -18,16 +18,3 @@ export function operationDeadlineMs(deadlineAt: string, operation: WorkflowOpera
 export function retrievalDeadlineAt(deadlineAt: string | undefined): number {
 	return deadlineAt ? Date.parse(deadlineAt) - retrievalReserveMs : Number.POSITIVE_INFINITY;
 }
-
-export function sourceUnavailable(code: string | undefined): boolean {
-	return (
-		code === "personal_memory_recall_failed" ||
-		code === "personal_memory_recall_timeout" ||
-		code === "personal_memory_recall_network_failed" ||
-		code === "campus_search_timeout" ||
-		code === "campus_search_network_failed" ||
-		code === "campus_search_unavailable" ||
-		code === "campus_search_rate_limited" ||
-		code === "transient_internal_query_failed"
-	);
-}

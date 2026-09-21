@@ -855,7 +855,7 @@ func executeMemoryAppend(
 ) error {
 	contextCtx := workflow.WithActivityOptions(
 		ctx,
-		memoryActivityOptions(activityOptions, input.PersonalMemoryTimeoutSeconds),
+		memoryActivityOptions(activityOptions, 300),
 	)
 	var appendResult AppendConversationMemoryActivityOutput
 	return executeBoundedActivity(

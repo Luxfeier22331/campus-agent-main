@@ -111,6 +111,39 @@ describe("inline citation preview", () => {
 		expect(await screen.findAllByRole("button", { name: /查看引用 1/ })).toHaveLength(1);
 	});
 
+	it("opens document citations when the reader adds passage highlighting", async () => {
+		const item: SourceItemPayload = {
+			kind: "campus_document",
+			citationIndexes: [12],
+			title: "国家励志奖学金条件",
+			collectionLabel: "学生手册",
+			versionSlug: "2018",
+			sectionTitle: "申请条件",
+			snippet: "单科不低于70分",
+			primaryAction: {
+				href: "/docs/regulations/grants/v/2018?hl=unit-12#conditions",
+				label: "查看文档",
+				external: false,
+				disabledReason: null,
+			},
+		};
+		render(
+			<Fixture
+				text="条件[12](/docs/regulations/grants/v/2018#conditions)；其他[12](/docs/regulations/grants/v/2018#other)。"
+				sources={[item]}
+			/>,
+		);
+		fireEvent.click(await screen.findByRole("button", { name: /查看引用 12/ }));
+		expect(await screen.findByRole("link", { name: "查看文档" })).toHaveAttribute(
+			"href",
+			item.primaryAction.href,
+		);
+		expect(screen.getByRole("link", { name: "12" })).toHaveAttribute(
+			"href",
+			"/docs/regulations/grants/v/2018#other",
+		);
+	});
+
 	it.each(["campus_notice", "campus_document"] as const)(
 		"uses the %s internal reader",
 		async (kind) => {

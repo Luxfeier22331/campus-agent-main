@@ -100,16 +100,14 @@ func TestAsyncMemoryAppendRetainsFenceUntilConfirmedTerminal(t *testing.T) {
 			adapter.PersonalMemoryStateStore = state
 			input := temporalruntime.MemoryAppendWorkflowInput{RequestID: requestID, StartedAt: now}
 			owner := memoryruntime.OwnerScopeHash("salt", "tenant-main", "user-executor")
-			_, err := adapter.AdvanceMemoryAppendActivity(ctx, input)
-			require.Error(t, err)
+			out, err := adapter.AdvanceMemoryAppendActivity(ctx, input)
+			require.NoError(t, err)
+			require.Equal(t, "running", out.Status)
 			drained, err := state.GenerationDrained(ctx, owner, 1)
 			require.NoError(t, err)
 			require.False(t, drained)
 			require.ErrorIs(t, state.MarkOwnerDeleted(ctx, owner), memoryruntime.ErrMemoryOwnerNotDrained)
 			remote.submitErr = nil
-			out, err := adapter.AdvanceMemoryAppendActivity(ctx, input)
-			require.NoError(t, err)
-			require.Equal(t, "running", out.Status)
 			input.Submitted = true
 			remote.queryErr = errors.New("connection interrupted")
 			_, err = adapter.AdvanceMemoryAppendActivity(ctx, input)
@@ -143,7 +141,7 @@ func TestAsyncMemoryAppendRetainsFenceUntilConfirmedTerminal(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, terminal, out.Status)
 			require.Equal(t, polls, remote.polls)
-			require.Equal(t, 2, remote.submits)
+			require.Equal(t, 1, remote.submits)
 			steps, err := store.ListRunSteps(ctx, requestID)
 			require.NoError(t, err)
 			for _, step := range steps {

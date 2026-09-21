@@ -12,7 +12,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const appendOperationHTTPTimeout = 15 * time.Second
+// A retain submission or status read may represent an already accepted remote
+// write. Keep one operation identity alive long enough to observe it instead
+// of letting a short client timeout start a competing submission.
+const appendOperationHTTPTimeout = 300 * time.Second
 
 func (e hindsightExecutor) appendOperationID(request memoryruntime.AppendConversationTurnRequest) string {
 	bankID := e.scopedBankIDForGeneration(request.TenantID, request.UserID, request.OwnerGeneration)

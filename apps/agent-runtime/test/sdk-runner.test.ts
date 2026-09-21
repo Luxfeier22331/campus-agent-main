@@ -291,7 +291,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					const citationStart = context?.citationStart ?? 0;
 					starts.push(citationStart);
 					if (argumentsJson.search_query === "失败") {
-						return { status: "failed", result: { error: "unavailable" } };
+						return {
+							status: "failed",
+							result: { error: "timeout" },
+							failure: { code: "campus_search_timeout", operation: "tool.campus_search" },
+						};
 					}
 					const matched = argumentsJson.search_query === "命中";
 					return {
@@ -308,7 +312,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(starts).toEqual([1, 1, 1]);
 	});
 
-	it("caps campus search results at ten per run", async () => {
+	it("continues targeted retrieval beyond ten citations", async () => {
 		const model = new ScriptedModel([
 			[functionCall("campus_search", { search_query: "一" }, { callId: "search-1" })],
 			[functionCall("campus_search", { search_query: "二" }, { callId: "search-2" })],
@@ -318,6 +322,9 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		let downstreamCalls = 0;
 		const observations: Array<{ invocationId: string; phase: string; failureCode?: string }> = [];
 		const searchTool = campusSearchTool(async (_arguments, context) => {
+			expect(context?.excludedResultRefs).toEqual(
+				searchResults(1, downstreamCalls * 5).map((item) => item.result_ref),
+			);
 			downstreamCalls += 1;
 			const citationStart = context?.citationStart ?? 0;
 			return {
@@ -333,25 +340,19 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			modelProvider: providerFor(model),
 		})(input([searchTool]));
 
-		expect(downstreamCalls).toBe(2);
-		expect(model.calls).toHaveLength(3);
-		expect(result.failure?.code).toBe("retrieval_budget_exhausted");
-		expect(result.usage.modelRequestCount).toBe(3);
+		expect(downstreamCalls).toBe(3);
+		expect(model.calls).toHaveLength(4);
+		expect(result.failure).toBeUndefined();
+		expect(result.usage.modelRequestCount).toBe(4);
 		expect(result.providerResponseId).not.toBe("");
 		expect(observations.filter((item) => item.invocationId === "search-3")).toEqual([
 			{ invocationId: "search-3", phase: "queued" },
-			{
-				invocationId: "search-3",
-				phase: "failed",
-				failureCode: "campus_search_result_budget_exhausted",
-			},
 		]);
 		expect(result.toolResults.at(-1)).toMatchObject({
-			status: "failed",
+			status: "completed",
 			invocationId: "search-3",
-			failure: {
-				code: "campus_search_result_budget_exhausted",
-				operation: "tool.campus_search",
+			result: {
+				results: expect.arrayContaining([expect.objectContaining({ citation_index: 11 })]),
 			},
 		});
 	});
@@ -369,7 +370,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				modelProvider: providerFor(model),
 			})(input([lookupTool(execute)], { limits: { ...limits, maxFunctionToolCalls: 1 } })),
 		).resolves.toMatchObject({
-			failure: { code: "tool_execution_failed" },
+			failure: { code: "tool_call_budget_exhausted" },
 			toolResults: [expect.objectContaining({ invocationId: "call-1", status: "completed" })],
 		});
 	});

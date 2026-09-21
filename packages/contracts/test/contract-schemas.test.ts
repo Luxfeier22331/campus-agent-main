@@ -100,7 +100,8 @@ describe("contract schema registry", () => {
 		}
 
 		expect(payload?.required).toEqual(["search_query"]);
-		expect(Object.keys(payloadProperties)).toEqual(["search_query"]);
+		expect(Object.keys(payloadProperties)).toEqual(["search_goal", "search_query"]);
+		expect(payloadProperties.search_goal).toMatchObject({ type: "string", minLength: 1 });
 		expect(result?.required).toEqual(["outcome", "results"]);
 		expect(resultProperties.results).toMatchObject({ maxItems: 5 });
 		expect(item?.oneOf).toHaveLength(2);

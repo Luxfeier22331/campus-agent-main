@@ -24,11 +24,12 @@ v2 硬切由统一 schema migration 0008 删除旧诊断行并替换版本约束
 生产者与 Ops 消费者一起升级，不保留 v1 读取或双写。升级时先停止旧生产者，迁移后启动新版；
 历史请求没有诊断时展示无数据，不从日志重建。
 
-Agent Runtime 经现有内部 query auth 上报 queued、dispatching、completed、failed、canceled；服务端记录
+Agent Runtime 经现有内部 query auth 上报 queued、dispatching、failed、canceled；成功终态由 execution-control
+根据真实 Campus Search 结果写入，服务端记录
 received、index_loaded、embedded、retrieved、reranked、selected。固定接口为
 `POST /internal/execution/requests/:requestId/campus-search/observations`，仅接收固定生命周期字段，不能
 注入候选正文。阶段时间首次观察后保留，后到的早期阶段不会覆盖终态；服务端累积快照和客户端生命周期
-合并到同一行，不建立事件日志。写入有短超时、无重试、无后台队列，失败不改变工具结果。
+合并到同一行，不建立事件日志。写入是旁路操作，有界失败不改变工具结果；工具执行路径不等待诊断数据库写入。
 
 `snapshot_json` 保存当前阶段的有界累计快照，`phase_times_json` 保存固定阶段时间；查询最多 400 字符，
 实际检索表达最多 1024 字符，候选最多 24 个。返回正文共最多 4000 字符，排除项预览每项最多 160 字符。

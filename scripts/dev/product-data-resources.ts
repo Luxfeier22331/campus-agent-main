@@ -123,7 +123,7 @@ export function validateProductPoint(
 	docsReferences: ProductDocsReferences,
 ): void {
 	const payload = point.payload;
-	if (payload.schema_version !== "campus_rag_point.v1") {
+	if (payload.schema_version !== "campus_rag_point.v2") {
 		throw new Error(`Unsupported RAG point: ${point.id}`);
 	}
 	if (payload.source_kind === "notice") {

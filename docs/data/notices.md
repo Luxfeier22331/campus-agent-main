@@ -36,7 +36,12 @@ internal_portal/meta.json
 
 内部通知固定使用 `is_external=false`、`external_url=null`；门户实际返回 HTTP 或 HTTPS URL 时使用
 `is_external=true` 并保留该 URL。采集器不请求外部页面，`notice_content_html` 只表示门户详情接口
-返回的正文。已有合法来源对象不再请求详情；当前合同不维护同 ID 内容版本。
+返回的正文。
+
+门户合同约定同一 `notice_id` 的通知正文不变。已有合法来源对象因此只按固定 key 复用，不重新请求
+详情、不覆盖 source，也不维护同 ID 内容版本。`notice-rescan` 只补查维护区间内遗漏的通知和资源，
+不承担内容刷新；若上游需要发布修订正文，应使用新的通知身份，或由维护者依据上游合同单独处理，
+不在采集器中隐式引入版本链。
 
 同步边界保存在：
 

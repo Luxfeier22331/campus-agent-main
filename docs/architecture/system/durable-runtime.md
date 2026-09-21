@@ -305,9 +305,9 @@ Temporal task queue 与 worker 扩缩容共同定义部署容量。缺少 Tempor
 
 产品 `completed` 与 Temporal root workflow close 是两个有意分开的观察点。Finalization CAS
 成功后，产品答案已经 canonical；随后个人记忆追加仍作为非关键 side effect 在 core activity queue
-执行。当前 workflow 会等待该 activity 的既有 timeout/retry 收敛，再返回 workflow result；append
-失败不能回滚已提交的产品答案，也不能重复追加已完成 run。当前不引入 detached child workflow、
-outbox 或第二套 memory store。该同步等待是现行合同，不表示产品客户端必须等待 memory append。
+执行。当前 workflow 只等待独立 `MemoryAppendWorkflow` 启动成功，再返回 workflow result；append
+失败不能回滚已提交的产品答案，也不能重复追加已完成 run。历史版本仍保留同步 activity
+路径用于 replay，不作为新请求路径。独立 workflow 不引入 outbox 或第二套 memory store。
 
 Workflow 的 900 秒 `WorkflowExecutionTimeout` 是硬生命周期上限。Agent operation 的 deadline、
 plan/replan 次数、activity timeout/retry、finalization 和 memory append 都受该上限约束；它们不是

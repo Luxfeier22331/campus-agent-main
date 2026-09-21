@@ -21,6 +21,8 @@ Status: implemented
 本文的根任务、完整索引树和不拆分测试集合条目已由
 [源码依赖与分组测试缓存](../testing/2026-09-19-source-and-test-cache-boundaries.md)部分取代。
 pre-commit 所有权、pre-push 退役、并发额度和失败阻断继续有效；以下保留原选择理由。
+PR 重复执行 Node typecheck 的范围由
+[PR 类型检查去重](../testing/2026-09-21-pr-typecheck-deduplication.md)部分取代。
 
 重验证由 pre-commit 拥有，沿用现有静态检查、Secret 扫描和 Node/Go 任务集合。静态检查成功后
 执行根脚本测试，再执行受影响模块任务；失败阻止提交。pre-push 的重验证与适配入口删除，安装器

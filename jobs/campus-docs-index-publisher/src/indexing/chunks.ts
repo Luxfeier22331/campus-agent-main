@@ -28,6 +28,9 @@ export function buildChunks(input: {
 	document: DocsSourceManifest["documents"][number];
 	reader: DocsReader;
 	version: DocsSourceVersion;
+	isCurrent?: boolean;
+	applicableFromAdmissionYear?: number | null;
+	applicableToAdmissionYear?: number | null;
 }): IndexChunk[] {
 	const routeSlug = buildReaderRouteSlug(input.document);
 	const canonicalUrl = `/docs/${input.document.corpus}/${input.document.collection}/${routeSlug}/v/${encodeURIComponent(input.version.versionSlug)}`;
@@ -74,6 +77,10 @@ export function buildChunks(input: {
 				sectionTitle: section.sectionTitle,
 				versionId: input.version.versionId,
 				versionSlug: input.version.versionSlug,
+				corpus: input.document.corpus,
+				isCurrent: input.isCurrent ?? true,
+				applicableFromAdmissionYear: input.applicableFromAdmissionYear ?? null,
+				applicableToAdmissionYear: input.applicableToAdmissionYear ?? null,
 			});
 		}
 	}

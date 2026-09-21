@@ -83,8 +83,12 @@ func (s *Adapter) AdvanceMemoryAppendActivity(ctx context.Context, input tempora
 			}
 		}
 		if _, err := s.AsyncMemoryExecutor.SubmitConversationTurn(ctx, request); err != nil {
-			// The acknowledgement can be lost after acceptance. Keep the durable
-			// call and retry with the same operation identity.
+			// The acknowledgement can be lost after acceptance. Query the same
+			// deterministic operation before allowing Temporal to retry; this
+			// prevents a first submission and its retry from running together.
+			if _, statusErr := s.AsyncMemoryExecutor.GetConversationTurnOperation(ctx, request); statusErr == nil {
+				return temporalruntime.AppendConversationMemoryActivityOutput{RequestID: run.RequestID, Status: "running"}, nil
+			}
 			return temporalruntime.AppendConversationMemoryActivityOutput{}, temporal.NewApplicationError("retain submission not confirmed", "memory_append_submit_unconfirmed")
 		}
 		return temporalruntime.AppendConversationMemoryActivityOutput{RequestID: run.RequestID, Status: "running"}, nil

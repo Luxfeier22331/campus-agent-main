@@ -219,7 +219,7 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	assert(taskIds.includes("agent-runtime#test"));
 	assert(taskIds.includes("app-api#test:worker"));
 	assert(taskIds.includes("status-web#test:worker"));
-	assert(taskIds.includes("ops-web#typecheck"));
+	assert(!taskIds.includes("ops-web#typecheck"));
 	assert(taskIds.includes("ops-web#build"));
 	assert(taskIds.includes("campus-web#build:worker"));
 	assert(!taskIds.includes("campus-web#build"));

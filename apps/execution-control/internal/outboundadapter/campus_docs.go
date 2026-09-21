@@ -184,7 +184,7 @@ func (client *campusDocsHTTPClient) Search(
 	observer.Phase("embedded")
 	started = time.Now()
 	stage, snapshot.FailedStage = "retrieval", "retrieval"
-	points, err := client.queryCampusDocsPoints(ctx, query, embedding, index)
+	points, err := client.queryCampusDocsPoints(ctx, query, rerankQuery, embedding, index)
 	if err != nil {
 		return nil, err
 	}
@@ -254,10 +254,22 @@ func (client *campusDocsHTTPClient) Search(
 	observer.Phase("reranked")
 	started = time.Now()
 	stage, snapshot.FailedStage = "selection", "selection"
-	rankedCandidates = groupNoticeCandidates(rankedCandidates, snapshot)
+	// Different sections of one notice can answer different parts of the question.
+	// Exclude previously returned evidence before allocating the result budget.
+	excluded := make(map[string]bool, len(queries.ExcludedResultRefs))
+	for _, ref := range queries.ExcludedResultRefs {
+		excluded[ref] = true
+	}
+	snapshot.SourceGroupedCount = len(rankedCandidates)
 	results := make([]campusdocs.SearchResultItem, 0, resultLimit)
 	characterCount := 0
 	for _, candidate := range rankedCandidates {
+		if excluded[candidate.result.ResultRef] {
+			if candidate.diagnostic != nil {
+				candidate.diagnostic.ExclusionReason = "already_returned"
+			}
+			continue
+		}
 		if len(results) >= resultLimit {
 			if candidate.diagnostic != nil {
 				candidate.diagnostic.ExclusionReason = "result_limit"
@@ -288,26 +300,6 @@ func (client *campusDocsHTTPClient) Search(
 	return results, nil
 }
 
-func groupNoticeCandidates(candidates []campusDocsCandidate, snapshot *campusdiagnostics.Snapshot) []campusDocsCandidate {
-	seen := make(map[string]struct{}, len(candidates))
-	grouped := make([]campusDocsCandidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		if candidate.result.SourceKind == "notice" {
-			if _, ok := seen[candidate.result.NoticeID]; ok {
-				if candidate.diagnostic != nil {
-					candidate.diagnostic.ExclusionReason = "source_group_limit"
-				}
-				continue
-			}
-			seen[candidate.result.NoticeID] = struct{}{}
-		}
-		grouped = append(grouped, candidate)
-	}
-	snapshot.SourceGroupedCount = len(grouped)
-	snapshot.SourceGroupedExcludedCount = len(candidates) - len(grouped)
-	return grouped
-}
-
 func (client *campusDocsHTTPClient) resolveRerankerProviderConfig(
 	ctx context.Context,
 ) (modelconfigclient.RuntimeConfig, error) {
@@ -320,6 +312,7 @@ func (client *campusDocsHTTPClient) resolveRerankerProviderConfig(
 func (client *campusDocsHTTPClient) queryCampusDocsPoints(
 	ctx context.Context,
 	query string,
+	goal string,
 	embedding []float64,
 	target campusdocs.Index,
 ) ([]qdrantPoint, error) {
@@ -338,6 +331,7 @@ func (client *campusDocsHTTPClient) queryCampusDocsPoints(
 		QueryText:        query,
 		SparseVectorName: campusdocs.SparseVectorName,
 		TopK:             campusDocsCandidateLimit,
+		Filter:           campusdocs.BuildRetrievalFilter(campusdocs.ResolveRetrievalScope(query, goal)),
 	})
 	if err != nil {
 		return nil, err
@@ -469,8 +463,13 @@ func campusDocsCandidateFromQdrantPoint(
 			return campusDocsCandidate{}, fmt.Errorf("campus docs Qdrant payload %s is required", field)
 		}
 	}
-	if required["schema_version"] != "campus_docs_point.v3" && required["schema_version"] != "campus_rag_point.v1" {
+	if required["schema_version"] != "campus_docs_point.v3" && required["schema_version"] != "campus_rag_point.v1" && required["schema_version"] != "campus_rag_point.v2" {
 		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload schema is unsupported")
+	}
+	if required["schema_version"] == "campus_rag_point.v2" {
+		if execution.FirstNonEmptyText(payload["corpus"]) == "" || payload["is_current"] == nil {
+			return campusDocsCandidate{}, errors.New("campus docs Qdrant version routing payload is required")
+		}
 	}
 	if !campusdocs.ValidVersionSlug(required["version_slug"]) ||
 		!campusdocs.ValidVersionedSectionRef(required["section_ref"], required["version_slug"]) {

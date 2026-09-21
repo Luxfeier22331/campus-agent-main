@@ -1,9 +1,8 @@
 import { z } from "zod";
 
 export const CitationIndexesSchema = z
-	.array(z.number().int().min(1).max(10))
+	.array(z.number().int().min(1))
 	.min(1)
-	.max(10)
 	.refine((values) => new Set(values).size === values.length, "citation indexes must be unique");
 const OpsCampusProductSourceSchema = z.object({
 	citationIndexes: CitationIndexesSchema,

@@ -26,7 +26,7 @@ export function assertValidChunkSet(input: {
 	selections: readonly SourceVersionSelection[];
 }): void {
 	const metadata = input.selections.map(buildSelectionMetadata);
-	const metadataByDocument = new Map(metadata.map((item) => [item.document.docId, item]));
+	const metadataByDocument = new Map(metadata.map((item) => [`${item.document.docId}/${item.version.versionId}`, item]));
 	const seenChunkIds = new Set<string>();
 
 	for (const chunk of input.chunks) {
@@ -41,7 +41,7 @@ export function assertValidChunkSet(input: {
 			throw new Error(`Campus docs chunk has no root units: ${chunk.chunkId}`);
 		}
 
-		const document = metadataByDocument.get(chunk.documentId);
+		const document = metadataByDocument.get(`${chunk.documentId}/${chunk.versionId}`);
 		if (!document) {
 			throw new Error(`Campus docs chunk references an unknown document: ${chunk.documentId}`);
 		}
@@ -141,7 +141,7 @@ function assertSourceCoverage(
 	chunks: readonly IndexChunk[],
 ): void {
 	for (const document of metadata) {
-		const documentChunks = chunks.filter((chunk) => chunk.documentId === document.document.docId);
+		const documentChunks = chunks.filter((chunk) => chunk.documentId === document.document.docId && chunk.versionId === document.version.versionId);
 		for (const section of document.sections) {
 			const sectionChunks = documentChunks.filter((chunk) =>
 				chunk.rootUnitIds.some(

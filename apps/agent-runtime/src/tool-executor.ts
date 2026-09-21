@@ -89,6 +89,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 							...(request.tool.name === "campus_search"
 								? {
 										user_goal: request.userGoal,
+										excluded_result_refs: request.excludedResultRefs ?? [],
 										citation_start: request.citationStart,
 										result_limit: request.resultLimit,
 									}
@@ -168,15 +169,17 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		await observe(request, { phase: "dispatching" });
 		try {
 			const result = await execute();
-			await observe(request, {
-				phase: result.status,
-				...(result.failure
-					? {
-							failureCode: diagnosticFailureCode ?? result.failure.code,
-							httpStatus: result.failure.httpStatus,
-						}
-					: {}),
-			});
+			if (result.status !== "completed") {
+				await observe(request, {
+					phase: result.status,
+					...(result.failure
+						? {
+								failureCode: diagnosticFailureCode ?? result.failure.code,
+								httpStatus: result.failure.httpStatus,
+							}
+						: {}),
+				});
+			}
 			return result;
 		} catch (error) {
 			await observe(request, {

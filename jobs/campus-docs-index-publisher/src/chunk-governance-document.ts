@@ -42,6 +42,7 @@ export function analyzeDocument(input: {
 	chunks: readonly StoredChunk[];
 	metadata: SelectionMetadata;
 }): DocumentAnalysis {
+	const reviewDocumentId = `${input.metadata.document.docId}@${input.metadata.version.versionSlug}`;
 	const chunks = [...input.chunks];
 	const chunkReviews = chunks.map((chunk, chunkIndex) =>
 		buildReviewChunk(chunk, chunkIndex, input.metadata),
@@ -56,7 +57,7 @@ export function analyzeDocument(input: {
 		const lengths = sectionChunks.map((chunk) => chunk.chars);
 		return {
 			chunkCount: sectionChunks.length,
-			documentId: input.metadata.document.docId,
+			documentId: reviewDocumentId,
 			headingPath: section.headingPath,
 			maxChunkChars: Math.max(...lengths),
 			minChunkChars: Math.min(...lengths),
@@ -73,7 +74,7 @@ export function analyzeDocument(input: {
 		boundaries,
 		chunks: chunkReviews,
 		collection: input.metadata.document.collection,
-		documentId: input.metadata.document.docId,
+		documentId: reviewDocumentId,
 		documentTitle: input.metadata.document.title,
 		metrics,
 		tags,

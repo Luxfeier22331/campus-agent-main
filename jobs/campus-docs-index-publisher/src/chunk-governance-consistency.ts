@@ -34,6 +34,9 @@ function sameChunkIdentityAndContent(left: StoredChunk, right: IndexChunk): bool
 			sectionTitle: left.sectionTitle,
 			versionId: left.versionId,
 			versionSlug: left.versionSlug,
+			isCurrent: left.isCurrent ?? true,
+			applicableFromAdmissionYear: left.applicableFromAdmissionYear ?? null,
+			applicableToAdmissionYear: left.applicableToAdmissionYear ?? null,
 		},
 		{
 			chunkId: right.chunkId,
@@ -47,6 +50,9 @@ function sameChunkIdentityAndContent(left: StoredChunk, right: IndexChunk): bool
 			sectionTitle: right.sectionTitle,
 			versionId: right.versionId,
 			versionSlug: right.versionSlug,
+			isCurrent: right.isCurrent ?? true,
+			applicableFromAdmissionYear: right.applicableFromAdmissionYear ?? null,
+			applicableToAdmissionYear: right.applicableToAdmissionYear ?? null,
 		},
 	);
 }

@@ -148,15 +148,15 @@ Finalization 的产品来源 `url`、`citation_href` 与 `hostname` 使用解析
 执行合同不传递 Google 搜索建议 HTML。App API 读取历史消息时按未知结构化类型丢弃旧建议，
 保留正文与来源卡。原生搜索能力和 grounding 引用不受影响。
 
-同一次 SDK run 可以多次调用 `campus_search`。每次最多返回 5 条结果，本轮累计最多 10 条；每条结果
-携带本轮全局 `citation_index` `1..10`。单次调用内 `result_ref` 唯一；不同调用允许重复召回相同
-`result_ref`，各编号到来源的映射保留至 Finalization，不能因 evidence 去重丢弃后续编号。
+同一次 SDK run 可以多次调用 `campus_search`。每次最多返回 5 条结果；每条结果携带本轮全局递增的
+`citation_index`。单次调用内 `result_ref` 唯一；后续调用会排除本轮已经返回的 `result_ref`，同时保留
+同一通知的互补章节。各编号到来源的映射保留至 Finalization，不能因 evidence 去重丢弃仍可支持答案的材料。
 成功但没有结果的调用和失败调用不占用编号。只有正文实际
 引用的结果才是 cited results；Finalization 从同一次 request 的成功工具结果中解析 `[n]` 并派生公开
 来源卡片。失败工具结果和未被正文引用的候选不贡献来源；除上述已验证 Web 支持段尾部的冗余编号外，
-未知、零或超出 `1..10` 的引用使 Finalization 失败。
+未知或零引用使 Finalization 失败。
 
-引用预算耗尽立即停止当前模型循环，并以 `retrieval_budget_exhausted` 返回失败 operation；
+检索时间、模型轮次或工具调用预算耗尽后，使用已有材料进入恢复合成；
 失败不丢弃已完成工具结果、evidence、source attempts、用量或 provider response ID。
 所有 synthesis 输入只携带目标、汇总 evidence、source attempts 和 remaining facts，不携带
 plan 或 completed steps，也不再检索。普通计划合成为 `mode=planned`；Solve 已有材料但失败时使用
@@ -169,7 +169,7 @@ plan 或 completed steps，也不再检索。普通计划合成为 `mode=planned
 保留原始失败原因，不把失效事件当作终态，也不接受其后的成功终态。
 
 查询由 execution-control 按用途拆分：dense 和 sparse 使用工具提供的 `search_query`，rerank 使用
-当前 `user_goal`；分别去除首尾空白，不再把用户目标与扩展检索词拼接为同一查询。Ops 诊断记录实际
+本次需要补足事实的 `search_goal`；旧调用未提供时使用 `user_goal`。分别去除首尾空白，Ops 诊断记录实际
 召回查询与排序目标，历史记录缺少排序目标时不回填推断值。
 
 runner 负责依据 `tool-function-schemas.v4.json` 验证模型生成的函数参数：OpenAI 由 Agents SDK 验证，
@@ -300,7 +300,8 @@ Synthesize 保留 Workflow 已分配的稳定 evidence 编号。
 检索链路统一综合回答，不携带 `answer_mode`。Replanner 使用 `task_replan.v3`，决策只有 `continue`
 和 `synthesize`。合法的 Solve answer 不因 evidence 为空而失败。计划合成接受材料、成功来源尝试
 （`matched`、`no_match`、`completed`）或明确的来源不可用结果，模型据此回答当前能确认的部分。
-记忆 recall、Campus Search 网络/超时/不可用错误是非阻断来源失败；工具参数、结果、身份和准入
+记忆 recall、Campus Search 网络、阶段超时和索引不可用错误是非阻断来源失败；Campus Search
+阶段错误使用 `campus_search_<stage>_failed` 或 `campus_search_<stage>_timeout` 保存实际阶段；工具参数、结果、身份和准入
 合同错误仍阻断。没有可用材料且模型 operation 自身失败时仍保留具体技术错误。
 原生联网搜索缺少支持段时记录 `completed` 尝试及独立诊断，不推断 `no_match`。
 

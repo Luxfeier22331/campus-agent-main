@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -242,7 +243,7 @@ func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testi
 	if result["outcome"] != "no_match" {
 		t.Fatalf("campus search result = %#v", result)
 	}
-	if searcher.query != (campusdocs.SearchQuery{RetrievalQuery: "本科生转专业申请条件", RerankQuery: "我想知道本科生转专业需要满足什么条件"}) {
+	if !reflect.DeepEqual(searcher.query, campusdocs.SearchQuery{RetrievalQuery: "本科生转专业申请条件", RerankQuery: "我想知道本科生转专业需要满足什么条件"}) {
 		t.Fatalf("search query = %#v", searcher.query)
 	}
 	if _, err := service.CampusSearch(context.Background(), CampusSearchRequest{
@@ -253,6 +254,24 @@ func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testi
 		},
 	}); !IsAgentToolConflict(err) {
 		t.Fatalf("stale attempt error = %v, want run conflict", err)
+	}
+}
+
+func TestCampusSearchFailureCodePreservesExecutionStage(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "retrieval timeout", err: campusSearchStageError{stage: "retrieval", cause: context.DeadlineExceeded}, want: "campus_search_retrieval_timeout"},
+		{name: "rerank failure", err: campusSearchStageError{stage: "rerank", cause: errors.New("provider failed")}, want: "campus_search_rerank_failed"},
+		{name: "unknown", err: errors.New("unclassified"), want: "campus_search_failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := CampusSearchFailureCode(test.err); got != test.want {
+				t.Fatalf("CampusSearchFailureCode() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
@@ -356,6 +375,7 @@ func TestCampusSearchSeparatesRetrievalExpressionAndUserGoal(t *testing.T) {
 		name        string
 		userGoal    string
 		searchQuery string
+		searchGoal  string
 	}{
 		{
 			name:        "same expression",
@@ -367,6 +387,12 @@ func TestCampusSearchSeparatesRetrievalExpressionAndUserGoal(t *testing.T) {
 			userGoal:    "我想知道本科生转专业需要满足什么条件",
 			searchQuery: "本科生转专业申请条件",
 		},
+		{
+			name:        "focused rerank goal",
+			userGoal:    "访学有哪些项目，费用和申请条件是什么",
+			searchQuery: "访学 资助 收费",
+			searchGoal:  "访学项目的费用与资助",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store, run, _ := applicationTestRunningRun(t, false)
@@ -375,11 +401,16 @@ func TestCampusSearchSeparatesRetrievalExpressionAndUserGoal(t *testing.T) {
 			_, err := service.CampusSearch(t.Context(), CampusSearchRequest{
 				AccessContext: AgentToolAccessContext{RequestID: run.RequestID, UserGoal: " " + test.userGoal + " ", ResultLimit: 5, ActivityAttempt: 1, CitationStart: 1, InvocationID: "tool-campus-search-1", WorkflowStepID: "task.step.step.lookup"},
 				SearchQuery:   " " + test.searchQuery + " ",
+				SearchGoal:    " " + test.searchGoal + " ",
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if searcher.query.RetrievalQuery != test.searchQuery || searcher.query.RerankQuery != test.userGoal {
+			wantGoal := test.searchGoal
+			if wantGoal == "" {
+				wantGoal = test.userGoal
+			}
+			if searcher.query.RetrievalQuery != test.searchQuery || searcher.query.RerankQuery != wantGoal {
 				t.Fatalf("search queries = %#v", searcher.query)
 			}
 		})

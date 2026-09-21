@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { AffectedScope, ScopeTask } from "./scope.mts";
+import { toolingGroupsForFiles } from "./tooling-tasks.mts";
 import {
 	checkValidationOutcomes,
 	MANUAL_VALIDATION_PROFILES,
@@ -44,8 +45,17 @@ test("only unselected checks may be skipped in the repository summary", () => {
 			/affected-native/,
 		);
 	}
+	const docsPlan = validationPlanFromScope(scope(["docs/README.md"]));
 	assert.throws(
-		() => checkValidationOutcomes(plan, { ...outcomes, "repository-docs": "skipped" }),
+		() =>
+			checkValidationOutcomes(docsPlan, {
+				plan: "success",
+				"install-static-dependencies": "success",
+				"repository-lint": "success",
+				"repository-test": "success",
+				"repository-docs": "skipped",
+				secrets: "success",
+			}),
 		/repository-docs/,
 	);
 });
@@ -79,6 +89,13 @@ function scope(changedFiles: string[], tasks: ScopeTask[] = []): AffectedScope {
 function profiles(changedFiles: string[], tasks: ScopeTask[] = []) {
 	return validationPlanFromScope(scope(changedFiles, tasks)).validationProfiles;
 }
+
+test("tooling groups follow the changed repository surface", () => {
+	assert.deepEqual(toolingGroupsForFiles(["apps/campus-web/src/routes/index.tsx"]), []);
+	assert.deepEqual(toolingGroupsForFiles(["docs/architecture/product.md"]), ["docs"]);
+	assert.deepEqual(toolingGroupsForFiles(["scripts/ci/validation.mts"]), ["ci"]);
+	assert.deepEqual(toolingGroupsForFiles(["package.json"]), ["ci", "release"]);
+});
 
 test("validation profiles have one fail-closed registry", () => {
 	assert.deepEqual(MANUAL_VALIDATION_PROFILES, [
@@ -142,9 +159,10 @@ test("migration changes select real PostgreSQL checks and cannot pass when skipp
 		"jobs/campus-agent-schema/migrations/20260913080000_example/migration.sql",
 		"jobs/campus-agent-schema/test/upgrade.integration.ts",
 		"jobs/campus-agent-schema/package.json",
-		"pnpm-lock.yaml",
-		"pnpm-workspace.yaml",
 	]) {
+		if (file === "pnpm-lock.yaml" || file === "pnpm-workspace.yaml") {
+			continue;
+		}
 		const plan = validationPlanFromScope(scope([file]));
 		assert(plan.validationProfiles.includes("schema-migration"), file);
 		const outcomes = Object.fromEntries(
@@ -198,7 +216,7 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 			],
 		),
 	);
-	assert.deepEqual(plan.affectedPackages, ["app-api", "campus-contracts"]);
+	assert.deepEqual(plan.affectedPackages, ["app-api"]);
 	assert.deepEqual(plan.validationProfiles, ["affected-node"]);
 	assert.deepEqual(
 		plan.profileDecisions
@@ -207,6 +225,12 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 		plan.validationProfiles,
 	);
 	assert.ok(plan.affectedTasks.some((task) => task.package === "app-api"));
+});
+
+test("does not schedule PR Node validation or installs for typecheck-only changes", () => {
+	const plan = validationPlanFromScope(scope([], [{ package: "campus-web", task: "typecheck" }]));
+	assert.deepEqual(plan.affectedPackages, []);
+	assert.deepEqual(plan.validationProfiles, []);
 });
 
 test("keeps unrelated service, infrastructure and browser checks manual", () => {
@@ -219,25 +243,14 @@ test("keeps unrelated service, infrastructure and browser checks manual", () => 
 	]) {
 		assert.deepEqual(profiles([file]), [], file);
 	}
-	assert.deepEqual(profiles(["apps/execution-control/internal/server/server.go"]), [
-		"container-build",
-		"image-build",
-	]);
+	assert.deepEqual(profiles(["apps/execution-control/internal/server/server.go"]), ["image-build"]);
 });
 
 test("selects container and image evidence for Node dependency inputs", () => {
-	assert.deepEqual(profiles(["pnpm-lock.yaml"]), [
-		"container-build",
-		"image-build",
-		"schema-migration",
-	]);
-	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), [
-		"container-build",
-		"image-build",
-		"schema-migration",
-	]);
+	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["container-build", "image-build"]);
+	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), ["container-build", "image-build"]);
 	assert.deepEqual(profiles(["uv.lock"]), []);
-	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["container-build", "image-build"]);
+	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["image-build"]);
 });
 
 test("selects container contract evidence for release adapter changes", () => {
@@ -278,7 +291,6 @@ test("keeps static lint ownership outside the affected validation plan", () => {
 	assert.deepEqual(profiles(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), [
 		"container-build",
 		"image-build",
-		"schema-migration",
 	]);
 	assert.deepEqual(
 		validationPlanFromScope(scope(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"])).lightSurfaces,

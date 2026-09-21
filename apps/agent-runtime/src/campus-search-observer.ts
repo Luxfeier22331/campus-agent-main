@@ -42,7 +42,7 @@ export function createCampusSearchReporter(options: {
 					at: new Date().toISOString(),
 				}),
 				redirect: "manual",
-				signal: AbortSignal.timeout(250),
+				signal: AbortSignal.timeout(1000),
 			});
 			await response.body?.cancel();
 		} catch {

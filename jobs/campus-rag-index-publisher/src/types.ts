@@ -38,6 +38,10 @@ export interface StoredDocsChunk {
 	sectionTitle: string;
 	versionId: string;
 	versionSlug: string;
+	isCurrent?: boolean;
+	applicableFromAdmissionYear?: number | null;
+	applicableToAdmissionYear?: number | null;
+	corpus?: string;
 }
 
 export interface StoredEmbedding {
@@ -123,6 +127,7 @@ export interface QdrantIndexClient {
 		denseDimensions: number;
 		denseVectorName: string;
 		sparseVectorName: string;
+		payloadIndexes?: string[];
 	}): Promise<void>;
 	deleteCollection(collection: string): Promise<void>;
 	upsert(input: {

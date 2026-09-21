@@ -71,6 +71,11 @@ pre-commit 先执行静态检查与 Secret 扫描，再执行根目录 `pnpm tes
 失败即停止。根测试仍在没有受影响模块时调用，但相同输入可以复用成功结果。模块任务继续复用统一
 执行器中的 Node typecheck/test/worker test 与 Go format/lint/vet/test 集合，不增加构建或集成检查。
 
+Node typecheck 由 pre-commit 和手动 verify 执行，PR 不再重复执行；PR 保留受影响测试和构建。
+仅 typecheck 受影响时不选择 PR Node 检查或安装对应 workspace。PR 不提供合并结果的独立
+Node 类型检查；rebase 后需要复验时使用所属 package 的 typecheck。取舍见
+[PR 类型检查去重](../../.agents/notes/implemented/testing/2026-09-21-pr-typecheck-deduplication.md)。
+
 提交前任务选择使用 prek 隔离未暂存修改后的工作区，以 HEAD 为 Turbo affected 基准，不能用两个
 相同提交的空差异代替暂存变更。没有暂存文件变化时跳过模块任务；首次提交没有 HEAD 时检查全量
 Node/Go 源码任务，不依赖远端引用或自动 fetch。PR 继续按真实 base/head 检查完整分支差异。

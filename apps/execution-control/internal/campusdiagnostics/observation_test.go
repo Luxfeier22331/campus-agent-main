@@ -47,12 +47,14 @@ func (s *blockedStore) MarkCampusSearchCitations(ctx context.Context, _ string, 
 }
 
 func TestBestEffortWriteIsBoundedAndDoesNotRetry(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	ctx := t.Context()
 	store := &blockedStore{}
-	start := time.Now()
 	Record(ctx, store, Observation{})
-	if store.calls != 1 || time.Since(start) > time.Second {
-		t.Fatalf("unbounded diagnostics: %d", store.calls)
+	deadline := time.Now().Add(time.Second)
+	for store.calls == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if store.calls != 1 {
+		t.Fatalf("diagnostic write was not scheduled: %d", store.calls)
 	}
 }

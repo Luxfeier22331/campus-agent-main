@@ -111,7 +111,7 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 	const sectionRef = citationHref ?? recordString(source, "section_ref", "sectionRef");
 	const versionSlug = recordString(source, "version_slug", "versionSlug");
 	const parsedRef = sectionRef ? parseSectionRef(sectionRef) : null;
-	if (!(title && citationIndex !== null) || citationIndex > 10) {
+	if (!(title && citationIndex !== null)) {
 		return null;
 	}
 
@@ -305,7 +305,12 @@ export function normalizeSourceItemsPart(input: {
 		if (!normalized) {
 			throw new Error(`Execution source item ${index} is invalid.`);
 		}
-		const key = normalized.identityKey;
+		// A page may support multiple claims through different passages.
+		const key = JSON.stringify([
+			normalized.identityKey,
+			"sectionTitle" in normalized ? normalized.sectionTitle : null,
+			normalized.snippet,
+		]);
 		const existing = sourcesByKey.get(key);
 		if (existing) {
 			existing.citationIndexes = dedupeStableNumbers([

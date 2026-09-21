@@ -147,7 +147,7 @@ func searchResultItemFromMap(value map[string]any) (SearchResultItem, error) {
 		VersionSlug:   execution.StringValue(value["version_slug"]),
 		Text:          execution.StringValue(value["text"]),
 	}
-	if item.CitationIndex < 1 || item.CitationIndex > 10 ||
+	if item.CitationIndex < 1 ||
 		!strings.HasPrefix(item.ResultRef, "result://") ||
 		!execution.ValidSHA256Ref(strings.TrimPrefix(item.ResultRef, "result://")) ||
 		item.Title == "" || item.SectionTitle == "" || item.Text == "" {
@@ -269,7 +269,7 @@ func CitedSearchResults(answer string, results []SearchResultItem) ([]SearchResu
 	seenRefs := map[string]struct{}{}
 	for _, match := range citationPattern.FindAllStringSubmatch(answer, -1) {
 		index, err := strconv.Atoi(match[1])
-		if err != nil || index < 1 || index > 10 {
+		if err != nil || index < 1 {
 			return nil, errors.New("citation index is invalid")
 		}
 		result, found := byIndex[index]

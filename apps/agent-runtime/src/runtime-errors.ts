@@ -13,6 +13,7 @@ export type AgentRuntimeErrorCode =
 	| "context_budget_exceeded"
 	| "agent_deadline_exceeded"
 	| "max_turns_exceeded"
+	| "tool_call_budget_exhausted"
 	| "retrieval_budget_exhausted"
 	| "provider_unavailable"
 	| "model_config_incompatible"

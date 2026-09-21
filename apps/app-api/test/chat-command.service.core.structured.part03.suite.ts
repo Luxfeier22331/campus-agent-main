@@ -79,16 +79,32 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 		expect(writtenSourcePart).toEqual({
 			sourceItems: [
 				expect.objectContaining({
-					citationIndexes: [1, 2],
+					citationIndexes: [1],
 					collectionLabel: "培养方案",
 					kind: "campus_document",
 					primaryAction: {
 						disabledReason: null,
 						external: false,
-						href: "/docs/curriculum/curriculum_plan/computer-science/v/2026?hl=curriculum-root-001%2Ccurriculum-root-002#graduation-requirements",
+						href: "/docs/curriculum/curriculum_plan/computer-science/v/2026?hl=curriculum-root-001#graduation-requirements",
 						label: "查看文档",
 					},
 					sectionTitle: "二、毕业要求",
+					snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+					title: "计算机类本科人才培养方案",
+					versionSlug: "2026",
+				}),
+				expect.objectContaining({
+					citationIndexes: [2],
+					collectionLabel: "培养方案",
+					kind: "campus_document",
+					primaryAction: {
+						disabledReason: null,
+						external: false,
+						href: "/docs/curriculum/curriculum_plan/computer-science/v/2026?hl=curriculum-root-002#graduation-requirements",
+						label: "查看文档",
+					},
+					sectionTitle: "二、毕业要求",
+					snippet: "重复命中不应生成第二张来源卡片。",
 					title: "计算机类本科人才培养方案",
 					versionSlug: "2026",
 				}),

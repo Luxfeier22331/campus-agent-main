@@ -4,10 +4,11 @@ import { pathToFileURL } from "node:url";
 import { containerBuildInputsChanged, imageTargetsForScope } from "../release/image-targets.mts";
 import { imageScopeBetween, successfulImageBaseline } from "./image-scope.mts";
 import { type AffectedScope, type CommandRunner, resolveAffectedScope } from "./scope.mts";
+import { type ToolingGroup, toolingGroupsForFiles } from "./tooling-tasks.mts";
 import {
 	BUILD_TASKS,
 	NATIVE_TASKS,
-	NODE_TASKS,
+	PR_NODE_TASKS,
 	VALIDATION_PROFILES,
 	type ValidationProfile,
 	validationProfileMetadata,
@@ -26,6 +27,7 @@ export type LightSurface = "config" | "contracts";
 const LIGHT_SURFACES: LightSurface[] = ["contracts", "config"];
 
 export interface ValidationPlan {
+	repositoryGroups: ToolingGroup[];
 	affectedPackages: string[];
 	images: string[];
 	imageBase?: string;
@@ -50,7 +52,7 @@ function changesPath(files: readonly string[], prefix: string): boolean {
 	return files.some((file) => file === prefix || file.startsWith(`${prefix}/`));
 }
 
-const AFFECTED_NODE_TASKS = new Set<string>([...NODE_TASKS, ...BUILD_TASKS]);
+const AFFECTED_NODE_TASKS = new Set<string>([...PR_NODE_TASKS, ...BUILD_TASKS]);
 
 function selectAffectedPackages(scope: AffectedScope): string[] {
 	return [
@@ -92,8 +94,6 @@ function selectValidationProfiles(
 			"jobs/campus-agent-schema/migrations",
 			"jobs/campus-agent-schema/test",
 			"jobs/campus-agent-schema/package.json",
-			"pnpm-lock.yaml",
-			"pnpm-workspace.yaml",
 		].some((prefix) => changesPath(files, prefix))
 	) {
 		selected.add("schema-migration");
@@ -104,7 +104,7 @@ function selectValidationProfiles(
 	if (scope.tasks.some(({ task }) => (NATIVE_TASKS as readonly string[]).includes(task))) {
 		selected.add("affected-native");
 	}
-	if (containerBuildInputsChanged(files) || images.length > 0) {
+	if (containerBuildInputsChanged(files)) {
 		selected.add("container-build");
 	}
 	if (images.length > 0) {
@@ -126,12 +126,10 @@ export function validationPlanFromScope(
 		"affected-node": ["Affected task graph contains Node tasks", "No affected Node tasks"],
 		"affected-native": ["Affected task graph contains native tasks", "No affected native tasks"],
 		"image-build": ["Affected scope selects image targets", "No affected image targets"],
-		"container-build": [
-			"Container definition inputs changed or image targets selected",
-			"No container definition changes or affected image targets",
-		],
+		"container-build": ["Container definition inputs changed", "No container definition changes"],
 	};
 	return {
+		repositoryGroups: toolingGroupsForFiles(scope.changedFiles),
 		affectedPackages: selectAffectedPackages(scope),
 		images,
 		base: scope.base,
@@ -179,14 +177,13 @@ export function checkValidationOutcomes(
 	plan: ValidationPlan,
 	outcomes: Record<string, string>,
 ): void {
-	const required = [
-		"plan",
-		"install-static-dependencies",
-		"repository-lint",
-		"repository-docs",
-		"repository-test",
-		"secrets",
-	];
+	const required = ["plan", "install-static-dependencies", "secrets"];
+	if (plan.repositoryGroups.length > 0) {
+		required.push("repository-lint", "repository-test");
+	}
+	if (plan.repositoryGroups.includes("docs")) {
+		required.push("repository-docs");
+	}
 	required.push(...plan.validationProfiles.filter((profile) => profile !== "image-build"));
 	if (plan.validationProfiles.includes("affected-node")) {
 		required.push("install-affected");

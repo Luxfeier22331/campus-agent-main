@@ -19,6 +19,7 @@ const labels: Record<string, string> = {
 	result_limit: "返回数量限制",
 	evidence_char_budget: "正文字符预算",
 	source_group_limit: "同一通知已保留更高分片段",
+	already_returned: "本轮已返回的证据片段",
 	embedding: "Embedding",
 	retrieval: "召回",
 	rerank: "重排",

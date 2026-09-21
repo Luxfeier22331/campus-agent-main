@@ -30,7 +30,6 @@ import type {
 	WorkflowOperationStreamEvent,
 	WorkflowSource,
 } from "./agent-run-contract.ts";
-import { sourceUnavailable } from "./execution-budget.ts";
 import { stripHistoricalCitations } from "./history-citations.ts";
 import { ModelOutputError, parseModelOutputJSON } from "./model-output.ts";
 import { streamWithRetrieval } from "./retrieval-status.ts";
@@ -42,7 +41,6 @@ import { buildVisibleToolDefinitions } from "./tool-catalog.ts";
 
 const stepIdPattern = /^step\.[a-z0-9][a-z0-9_-]{0,63}$/u;
 const maxEvidenceExcerptCharacters = 4_000;
-const maxEvidenceItemsPerStep = 20;
 
 const workflowSourceSchema = z.enum(["campus_search", "web_search", "personal_memory_recall"]);
 
@@ -119,6 +117,8 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"普通校园问题直接使用已开放的校内检索或原生联网搜索，取得资料后直接返回 answer，不要为单次检索制定计划。无需资料的问题直接回答。",
 		"只有目标确实需要多个依赖步骤时才返回 plan；若已经检索，后续计划只安排尚缺事实，不重复已完成工作。机构事实必须来自本轮真实资料，不能凭模型记忆补齐。",
 		"校内资料使用工具返回的 citation_index 写成 [N]；联网资料保留原生来源关联。不要编造编号或手写来源 URL。先直接回答有支持的内容，不解释内部检索范围。",
+		"每次 campus_search 用 search_goal 说明本次要确认的具体事实，补查时聚焦尚缺内容，不重复泛查。已取得的资料可继续引用；工具只返回尚未取得的新片段。",
+		"每项结论只引用直接支持它的必要资料，不重复堆叠相同结论的来源；不同年度通知明确适用范围。",
 		'需要多个相互依赖的目标、多个检索步骤或一次检索无法闭合时，输出 {"result":{"outcome":"plan","plan":{...}}}，不得包含 answer 字段。',
 		"计划必须符合 task_plan.v1 合同。",
 		"不需要检索的问题必须直接返回 answer，不要制造空计划。",
@@ -130,6 +130,7 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		...productIdentityInstructions,
 		"你负责执行当前任务步骤，并整理该步骤得到的事实。",
 		"候选与问题相关不代表它回答了问题；在 summary 中保留已确认内容，将尚未得到支持的具体事实写入 remainingFacts。",
+		"campus_search 的 search_goal 应说明本次待补事实；已取得的资料可继续使用，工具只返回新的证据片段。",
 		"只能依据当前步骤开放的工具结果作答，不能使用模型记忆补全事实。",
 		"campus_search 返回 no_match 只代表该来源没有找到证据；如果 web_search 在候选来源中，仍可继续用它寻找可信公开校园网页。",
 		"工具失败或无匹配不等于整个请求失败；保留已获得的证据，并在步骤摘要中准确反映结果。引用编号由结构化 evidence 保留，步骤摘要不需要改写成正文引用格式。",
@@ -155,6 +156,7 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"先直接回答材料支持的内容，再简短指出具体缺项；候选不能回答问题时说明暂时无法确认，不解释内部检索范围、步骤或失败原因。其他步骤失败不影响已得到支持的事实。",
 		"材料的 citationIndex 为 N 时，在对应事实后写成 [N]，例如 citationIndex=1 写成 [1]。不得输出 [citation_index:1]、[citationIndex:1] 或其他占位写法。",
 		"不要手写 URL 或内部 locator。",
+		"每项结论使用直接支持它的必要引用；多个来源只有提供互补事实时才并列，不重复罗列同类通知。",
 		"编号引用只能使用 materials 中实际提供的 citationIndex；没有可编号材料时不得输出任何 [N]，也不得为资料不足说明添加引用。",
 		"不要把暂未找到资料表述为事实不存在；不要把内部检索状态、来源覆盖范围或工具失败细节写进答案。",
 		"只输出给用户看的自然语言答案，不要输出计划、步骤状态、工具失败细节或内部标签。",
@@ -342,6 +344,9 @@ function prepareOperation(
 					...(context?.invocationId ? { invocationId: context.invocationId } : {}),
 					...(context?.citationStart === undefined ? {} : { citationStart: context.citationStart }),
 					...(context?.resultLimit === undefined ? {} : { resultLimit: context.resultLimit }),
+					...(context?.excludedResultRefs
+						? { excludedResultRefs: context.excludedResultRefs }
+						: {}),
 					...(toolName === "campus_search" ? { userGoal: currentGoal } : {}),
 					...(input.signal ? { signal: input.signal } : {}),
 				};
@@ -369,6 +374,12 @@ function prepareOperation(
 	return {
 		contextUsage: modelInput.usage,
 		runnerInput: {
+			priorEvidence: [
+				...(input.priorEvidence ?? []),
+				...(input.operation === "execute_step" || input.operation === "replan"
+					? input.operationInput.completedSteps.flatMap((step) => step.evidence)
+					: []),
+			],
 			...(input.deadlineAt ? { deadlineAt: input.deadlineAt } : {}),
 			priorSourceAttempts: [
 				...(input.priorSourceAttempts ?? []),
@@ -432,17 +443,7 @@ function toolNamesForOperation(input: WorkflowOperationInput): Set<string> {
 	const names = new Set<string>();
 	for (const source of input.operationInput.step.candidateSources) {
 		if (source === "campus_search" || source === "personal_memory_recall") {
-			const attempts = [
-				...(input.priorSourceAttempts ?? []),
-				...sourceAttemptsFromCompletedSteps(input.operationInput.completedSteps),
-			];
-			if (
-				!attempts.some(
-					(attempt) => attempt.source === source && sourceUnavailable(attempt.failureCode),
-				)
-			) {
-				names.add(source);
-			}
+			names.add(source);
 		}
 	}
 	return names;
@@ -494,7 +495,7 @@ function operationPayload(
 		case "execute_step":
 			return {
 				availableSources,
-				completedSteps: input.operationInput.completedSteps,
+				completedSteps: compactCompletedSteps(input.operationInput.completedSteps),
 				goal: input.operationInput.goal,
 				plan: input.operationInput.plan,
 				step: input.operationInput.step,
@@ -502,7 +503,7 @@ function operationPayload(
 		case "replan":
 			return {
 				availableSources,
-				completedSteps: input.operationInput.completedSteps,
+				completedSteps: compactCompletedSteps(input.operationInput.completedSteps),
 				goal: input.operationInput.goal,
 				maxRemainingSteps: input.operationInput.maxRemainingSteps,
 				plan: input.operationInput.plan,
@@ -515,6 +516,10 @@ function operationPayload(
 				operation: "workflow.operation",
 			});
 	}
+}
+
+function compactCompletedSteps(steps: CompletedTaskStep[]): unknown[] {
+	return steps.map(({ evidence: _evidence, sourceAttempts: _sourceAttempts, ...step }) => step);
 }
 
 function modelInputItems(
@@ -538,10 +543,24 @@ function modelInputItems(
 		if (context?.sessionState && modelRelevantSessionState(context.sessionState)) {
 			items.push(contextItem("session_state", context.sessionState));
 		}
+		const priorMaterials =
+			input.operation === "synthesize"
+				? []
+				: normalizeEvidence([
+						...(input.priorEvidence ?? []),
+						...(input.operation === "execute_step" || input.operation === "replan"
+							? input.operationInput.completedSteps.flatMap((step) => step.evidence)
+							: []),
+					]);
 		const operationData = JSON.stringify({
 			...operationPayload(input, availableSources),
-			priorMaterials: input.priorEvidence ?? [],
-			priorSourceAttempts: input.priorSourceAttempts ?? [],
+			priorMaterials,
+			priorSourceAttempts: [
+				...(input.priorSourceAttempts ?? []),
+				...(input.operation === "execute_step" || input.operation === "replan"
+					? sourceAttemptsFromCompletedSteps(input.operationInput.completedSteps)
+					: []),
+			],
 		});
 		items.push({
 			role: "user",
@@ -566,13 +585,8 @@ function modelInputItems(
 		items = buildItems();
 	}
 	const contextChars = modelInputCharacterCount(items);
-	if (contextChars > input.limits.contextCharLimit) {
-		throw new AgentRuntimeError(
-			"context_budget_exceeded",
-			"Required workflow model input exceeds the configured character limit.",
-			{ operation: `workflow.${input.operation}` },
-		);
-	}
+	// The character budget trims optional history, not evidence already gathered.
+	// Request byte limits and the provider's context limit still bound the operation.
 	return {
 		items,
 		usage: {
@@ -942,9 +956,6 @@ function evidenceFromRunnerResult(
 					evidence.push(item);
 					nextCitationIndex = Math.max(nextCitationIndex, (item.citationIndex ?? 0) + 1);
 				}
-				if (evidence.length >= maxEvidenceItemsPerStep) {
-					return evidence;
-				}
 			}
 			continue;
 		}
@@ -953,9 +964,6 @@ function evidenceFromRunnerResult(
 				if (!seen.has(item.id)) {
 					seen.add(item.id);
 					evidence.push(item);
-				}
-				if (evidence.length >= maxEvidenceItemsPerStep) {
-					return evidence;
 				}
 			}
 		}
@@ -967,9 +975,6 @@ function evidenceFromRunnerResult(
 			continue;
 		}
 		seen.add(id);
-		if (evidence.length >= maxEvidenceItemsPerStep) {
-			break;
-		}
 		evidence.push({
 			citationIndex: nextCitationIndex,
 			excerpt: [...excerpt].slice(0, maxEvidenceExcerptCharacters).join(""),

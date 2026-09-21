@@ -24,6 +24,7 @@ type campusSearchToolEnvelope struct {
 
 type campusSearchToolPayload struct {
 	SearchQuery string `json:"search_query"`
+	SearchGoal  string `json:"search_goal,omitempty"`
 }
 
 func (s *Server) handleCampusSearchTool(response http.ResponseWriter, request *http.Request) {
@@ -45,6 +46,7 @@ func (s *Server) handleCampusSearchTool(response http.ResponseWriter, request *h
 		executionapplication.CampusSearchRequest{
 			AccessContext: agentToolAccessContextToApplication(envelope.AccessContext),
 			SearchQuery:   envelope.Payload.SearchQuery,
+			SearchGoal:    envelope.Payload.SearchGoal,
 		},
 	)
 	if err != nil {
@@ -56,7 +58,7 @@ func (s *Server) handleCampusSearchTool(response http.ResponseWriter, request *h
 			writeError(response, http.StatusServiceUnavailable, "campus_search_unavailable", "Campus search index is not available.", true)
 			return
 		}
-		writeError(response, http.StatusServiceUnavailable, "campus_search_failed", "Campus document search failed.", true)
+		writeError(response, http.StatusServiceUnavailable, executionapplication.CampusSearchFailureCode(err), "Campus document search failed.", true)
 		return
 	}
 	writeJSON(response, http.StatusOK, result)
@@ -74,6 +76,15 @@ func decodeCampusSearchToolEnvelope(body json.RawMessage) (campusSearchToolEnvel
 		return envelope, errors.New("campus_search request has trailing JSON content")
 	}
 	envelope.Payload.SearchQuery = strings.TrimSpace(envelope.Payload.SearchQuery)
+	envelope.Payload.SearchGoal = strings.TrimSpace(envelope.Payload.SearchGoal)
+	if len([]rune(envelope.Payload.SearchGoal)) > 800 {
+		return envelope, errors.New("payload.search_goal must not exceed 800 characters")
+	}
+	for _, ref := range envelope.AccessContext.ExcludedResultRefs {
+		if !strings.HasPrefix(ref, "result://") || len(ref) != len("result://")+64 {
+			return envelope, errors.New("excluded_result_refs contains an invalid evidence reference")
+		}
+	}
 	envelope.AccessContext.RequestID = strings.TrimSpace(envelope.AccessContext.RequestID)
 	envelope.AccessContext.InvocationID = strings.TrimSpace(envelope.AccessContext.InvocationID)
 	envelope.AccessContext.WorkflowStepID = strings.TrimSpace(envelope.AccessContext.WorkflowStepID)
@@ -85,9 +96,8 @@ func decodeCampusSearchToolEnvelope(body json.RawMessage) (campusSearchToolEnvel
 		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.WorkflowStepID == "" ||
 		envelope.AccessContext.ActivityAttempt <= 0 ||
 		envelope.AccessContext.UserGoal == "" || envelope.AccessContext.CitationStart < 1 ||
-		envelope.AccessContext.CitationStart > 10 || envelope.AccessContext.ResultLimit < 1 ||
-		envelope.AccessContext.ResultLimit > campusSearchResultLimit ||
-		envelope.AccessContext.CitationStart+envelope.AccessContext.ResultLimit > 11 {
+		envelope.AccessContext.ResultLimit < 1 ||
+		envelope.AccessContext.ResultLimit > campusSearchResultLimit {
 		return envelope, errors.New("campus_search access_context is invalid")
 	}
 	return envelope, nil

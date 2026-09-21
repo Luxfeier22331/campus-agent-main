@@ -854,7 +854,13 @@ func (s *Adapter) WorkflowFinalizedResponse(
 		additionalStageTiming...,
 	)
 	if err != nil {
-		return nil, err
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if s.Logger != nil {
+			s.Logger.WarnContext(ctx, "finalization timing unavailable", "request_id", run.RequestID)
+		}
+		stageTiming = nil
 	}
 	observability := map[string]any{
 		"agent_runtime":   "agent_runtime",

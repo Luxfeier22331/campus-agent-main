@@ -187,6 +187,7 @@ describe("execution-control tool executor", () => {
 				workflow_step_id: "task.step.step.notice",
 				user_goal: "我想了解转专业需要满足什么条件？",
 				citation_start: 4,
+				excluded_result_refs: [],
 				result_limit: 5,
 				deadline_at: expect.any(String),
 			},

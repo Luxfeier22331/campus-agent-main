@@ -52,19 +52,21 @@ type AgentToolService struct {
 }
 
 type AgentToolAccessContext struct {
-	ActivityAttempt int
-	CitationStart   int
-	DeadlineAt      time.Time
-	InvocationID    string
-	RequestID       string
-	ResultLimit     int
-	UserGoal        string
-	WorkflowStepID  string
+	ExcludedResultRefs []string
+	ActivityAttempt    int
+	CitationStart      int
+	DeadlineAt         time.Time
+	InvocationID       string
+	RequestID          string
+	ResultLimit        int
+	UserGoal           string
+	WorkflowStepID     string
 }
 
 type CampusSearchRequest struct {
 	AccessContext AgentToolAccessContext
 	SearchQuery   string
+	SearchGoal    string
 }
 
 type PersonalMemoryRecallRequest struct {
@@ -73,6 +75,27 @@ type PersonalMemoryRecallRequest struct {
 }
 
 type agentToolConflictError struct{ cause error }
+
+type campusSearchStageError struct {
+	stage string
+	cause error
+}
+
+func (e campusSearchStageError) Error() string { return e.cause.Error() }
+func (e campusSearchStageError) Unwrap() error { return e.cause }
+
+// CampusSearchFailureCode returns a stable, stage-specific code for the
+// internal tool transport. It deliberately does not expose provider details.
+func CampusSearchFailureCode(err error) string {
+	var stageErr campusSearchStageError
+	if !errors.As(err, &stageErr) {
+		return "campus_search_failed"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "campus_search_" + stageErr.stage + "_timeout"
+	}
+	return "campus_search_" + stageErr.stage + "_failed"
+}
 
 func (agentToolConflictError) Error() string {
 	return "agent tool request conflicts with run state"
@@ -111,8 +134,12 @@ func (s *AgentToolService) CampusSearch(
 		defer cancel()
 	}
 	query := campusdocs.SearchQuery{
-		RetrievalQuery: strings.TrimSpace(request.SearchQuery),
-		RerankQuery:    strings.TrimSpace(access.UserGoal),
+		RetrievalQuery:     strings.TrimSpace(request.SearchQuery),
+		RerankQuery:        strings.TrimSpace(request.SearchGoal),
+		ExcludedResultRefs: access.ExcludedResultRefs,
+	}
+	if query.RerankQuery == "" {
+		query.RerankQuery = strings.TrimSpace(access.UserGoal)
 	}
 	snapshot := &campusdiagnostics.Snapshot{
 		EffectiveQuery: campusdiagnostics.Bound(query.RetrievalQuery, 1024),
@@ -137,7 +164,11 @@ func (s *AgentToolService) CampusSearch(
 			phase = "canceled"
 		}
 		observe(phase)
-		return err
+		stage := snapshot.FailedStage
+		if stage == "" {
+			stage = "unknown"
+		}
+		return campusSearchStageError{stage: stage, cause: err}
 	}
 	observe("received")
 	ctx = campusdocs.WithSearchObserver(ctx, &campusdocs.SearchObserver{Snapshot: snapshot, Phase: observe})
@@ -159,23 +190,26 @@ func (s *AgentToolService) CampusSearch(
 		return nil, finishFailure(errors.New("campus docs searcher is not configured"))
 	}
 	s.indexBindingMu.Lock()
-	defer s.indexBindingMu.Unlock()
 	// The run snapshot was loaded before acquiring the service-wide lock. Re-read
 	// it here so a concurrent first caller cannot bind against the same empty
 	// metadata snapshot.
 	run, err = s.store.GetRun(ctx, access.RequestID)
 	if err != nil {
+		s.indexBindingMu.Unlock()
 		return nil, finishFailure(err)
 	}
 	index, found, err := s.campusDocsIndexStore.CurrentIndex(ctx)
 	if err != nil {
+		s.indexBindingMu.Unlock()
 		return nil, finishFailure(err)
 	}
 	if !found {
+		s.indexBindingMu.Unlock()
 		return nil, finishFailure(ErrCampusSearchUnavailable)
 	}
 	boundCollection := execution.StringValue(run.Metadata[campusDocsIndexBindingKey])
 	if boundCollection != "" && boundCollection != index.Collection {
+		s.indexBindingMu.Unlock()
 		return nil, newAgentToolConflict(fmt.Errorf(
 			"campus docs index binding changed during run: bound=%s current=%s",
 			boundCollection,
@@ -186,9 +220,11 @@ func (s *AgentToolService) CampusSearch(
 		metadata := execution.CloneAnyMapFromValue(run.Metadata)
 		metadata[campusDocsIndexBindingKey] = index.Collection
 		if err := s.store.ReplaceRunMetadata(ctx, run.RequestID, metadata); err != nil {
+			s.indexBindingMu.Unlock()
 			return nil, err
 		}
 	}
+	s.indexBindingMu.Unlock()
 	snapshot.Retrieval = &campusdiagnostics.RetrievalMeta{Collection: index.Collection}
 	observe("index_loaded")
 	results, err := s.campusDocsSearcher.Search(
@@ -201,6 +237,7 @@ func (s *AgentToolService) CampusSearch(
 		return nil, finishFailure(err)
 	}
 	snapshot.FailedStage = ""
+	observe("completed")
 	return campusdocs.EncodeSearchResult(results, request.AccessContext.CitationStart), nil
 }
 

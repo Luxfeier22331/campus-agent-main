@@ -246,7 +246,7 @@ func ValidateWorkflowStepOutcome(step WorkflowCompletedStep) error {
 // Transport timeouts and uncertain invocation receipts are intentionally absent.
 func WorkflowFailureRecoverable(code string) bool {
 	switch code {
-	case "model_output_invalid", "agent_deadline_exceeded", "provider_timeout", "provider_connection_failed", "provider_rate_limited", "provider_http_failed":
+	case "model_output_invalid", "max_turns_exceeded", "tool_call_budget_exhausted", "agent_deadline_exceeded", "provider_timeout", "provider_connection_failed", "provider_rate_limited", "provider_http_failed":
 		return true
 	default:
 		return false
@@ -263,7 +263,11 @@ func WorkflowToolFailureRecoverable(failure *ExecutionFailure) bool {
 
 func WorkflowSourceUnavailable(code string) bool {
 	switch code {
-	case "campus_search_timeout", "campus_search_network_failed", "campus_search_unavailable", "campus_search_rate_limited", "transient_internal_query_failed",
+	case "campus_search_timeout", "campus_search_network_failed", "campus_search_unavailable", "campus_search_rate_limited",
+		"campus_search_validation_failed", "campus_search_index_failed", "campus_search_embedding_failed",
+		"campus_search_retrieval_failed", "campus_search_retrieval_timeout", "campus_search_rerank_failed",
+		"campus_search_rerank_timeout", "campus_search_selection_failed", "campus_search_unknown_failed",
+		"campus_search_deadline_exceeded", "transient_internal_query_failed",
 		"personal_memory_recall_failed", "personal_memory_recall_timeout", "personal_memory_recall_network_failed", "source_unavailable_for_request", "retrieval_budget_exhausted":
 		return true
 	default:

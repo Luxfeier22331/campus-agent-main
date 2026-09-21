@@ -20,6 +20,22 @@ const request = (): ToolExecutionRequest => ({
 });
 
 describe("Campus Search observation delivery", () => {
+	it("uses the terminal observation without changing the result contract", async () => {
+		const phases: string[] = [];
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution",
+			sharedSecret: "secret",
+			fetchImpl: async (url, init) => {
+				if (String(url).endsWith("observations")) {
+					phases.push((JSON.parse(String(init?.body)) as { phase: string }).phase);
+					return new Response(null, { status: 204 });
+				}
+				return Response.json({ outcome: "matched", results: [] });
+			},
+		});
+		expect(await executor(request())).toMatchObject({ status: "completed" });
+		expect(phases).toEqual(["dispatching"]);
+	});
 	it("does not retry or expose arguments beyond the query", async () => {
 		const observations: Record<string, unknown>[] = [];
 		const report = createCampusSearchReporter({
