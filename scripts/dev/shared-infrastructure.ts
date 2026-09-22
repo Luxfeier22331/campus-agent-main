@@ -413,7 +413,7 @@ export function objectStoreCommand(
 		"/bin/sh",
 		OBJECT_STORE_CLI_IMAGE,
 		"-ec",
-		`rc alias set local http://object-store:9000 minioadmin minioadmin >/dev/null; ${actionScript}`,
+		`rc alias set local http://object-store:9000 rustfsadmin rustfsadmin >/dev/null; ${actionScript}`,
 	];
 }
 

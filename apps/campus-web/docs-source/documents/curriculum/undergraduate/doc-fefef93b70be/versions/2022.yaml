@@ -1,0 +1,13 @@
+docId: curriculum:哲学类本科人才培养方案
+readerKey: campus-docs/readers/sha256/406c6e6522405487828c6ccee90a62195975e1ef92ebf5288f9fbe9a070c3c16/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/哲学类本科人才培养方案--哲学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0172-page-0172-block-mineru-block-0008-0008-map-01.png
+        path: course-maps/page-0172-page-0172-block-mineru-block-0008-0008-map-01.png
+      - key: curriculum/documents/curriculum_plan/哲学类本科人才培养方案--哲学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0173-page-0173-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0173-page-0173-block-mineru-block-0002-0002-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/哲学类本科人才培养方案--哲学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:哲学类本科人才培养方案:1e2413877660
+versionSlug: "2022"

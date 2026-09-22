@@ -8,8 +8,23 @@ export interface ReaderObjectStoreClient {
 	readOptionalBytesObject(input: { key: string }): Promise<Uint8Array | undefined>;
 }
 
+export interface ReaderObjectStoreObject {
+	body: Uint8Array;
+	etag: string;
+}
+
 export interface ReaderObjectStoreWriter extends ReaderObjectStoreClient {
-	writeBytesObject(input: { body: Uint8Array; contentType: string; key: string }): Promise<void>;
+	writeBytesObject(input: {
+		body: Uint8Array;
+		contentType: string;
+		ifMatch?: string;
+		ifNoneMatch?: "*";
+		key: string;
+	}): Promise<void>;
+}
+
+export interface DocsSourceObjectStore extends ReaderObjectStoreWriter {
+	readOptionalObject(input: { key: string }): Promise<ReaderObjectStoreObject | undefined>;
 }
 
 export interface PublishedReaderCollection {
@@ -99,6 +114,7 @@ export interface ReaderAssetCopy {
 export type ObjectStoreCredentialMode = "derived";
 
 export interface PublishedReaderObjectStoreEnv {
+	OBJECT_STORE_DOCS_SOURCE_KEY?: string;
 	OBJECT_STORE_BUCKET_DERIVED?: string;
 	OBJECT_STORE_DERIVED_READ_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_READ_SECRET_KEY?: string;

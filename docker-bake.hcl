@@ -17,14 +17,11 @@ group "default" {
     "campus-agent-schema",
     "campus-docs-index-publisher",
 	"campus-rag-index-publisher",
-    "campus-rag-worker",
+    "notice-pipeline-worker",
     "execution-control",
     "model-config",
-    "notice-classifier",
-    "notice-index-publisher",
-    "notice-publisher",
+    "notice-artifacts-worker",
     "ops-web",
-    "internal-portal-collection",
   ]
 }
 
@@ -43,11 +40,8 @@ group "standard" {
     "campus-agent-schema",
     "campus-docs-index-publisher",
     "campus-rag-index-publisher",
-    "campus-rag-worker",
-    "notice-classifier",
-    "notice-index-publisher",
-    "notice-publisher",
-    "internal-portal-collection",
+    "notice-pipeline-worker",
+    "notice-artifacts-worker",
   ]
 }
 
@@ -94,30 +88,9 @@ target "model-config" {
   dockerfile = "apps/model-config/Dockerfile"
 }
 
-target "notice-classifier" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/notice-classifier/Dockerfile"
-}
-
-target "notice-index-publisher" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/notice-index-publisher/Dockerfile"
-}
-
-target "notice-publisher" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/notice-publisher/Dockerfile"
-}
-
 target "ops-web" {
   inherits   = ["_common"]
   dockerfile = "apps/ops-web/Dockerfile"
-}
-
-target "internal-portal-collection" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/internal-portal-collection/Dockerfile"
-  target     = "runtime"
 }
 
 target "document-ocr" {
@@ -125,7 +98,12 @@ target "document-ocr" {
   dockerfile = "jobs/document-ocr/Dockerfile"
 }
 
-target "campus-rag-worker" {
+target "notice-pipeline-worker" {
   inherits = ["_common"]
-  dockerfile = "apps/campus-rag-worker/Dockerfile"
+  dockerfile = "apps/notice-pipeline-worker/Dockerfile"
+}
+
+target "notice-artifacts-worker" {
+  inherits = ["_common"]
+  dockerfile = "apps/notice-artifacts-worker/Dockerfile"
 }

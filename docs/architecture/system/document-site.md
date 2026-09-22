@@ -13,8 +13,8 @@ Campus Docs Chunk builder 共享已清洗的 `source.json` 和 reader 输入，�
 Campus Web 不创建或激活检索索引，统一 Campus RAG publisher 负责 Docs/Notice serving collection。
 
 ```text
-reader、课程图来源与图片
--> campus-docs/source.json
+Git 文档声明 + 对象存储中的 reader、课程图来源与图片
+-> Campus Web 来源发布器 -> 自动生成 campus-docs/source.json（并保存不可变副本）
 ├-> Campus Web 构建进程校验 reader 并生成课程图
 │  -> 构建派生目录、搜索索引、静态资产和 HTML
 │  -> Cloudflare Assets 直接交付静态文件
@@ -28,9 +28,9 @@ reader、课程图来源与图片
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| 来源整理流程 | 生成 reader、课程图来源、图片和 `campus_docs_source.v4` | 生成页面或选择 Worker version |
-| 对象存储 | 保存固定来源清单及其明确引用的来源对象 | 保存构建后的课程图或直接承担浏览器接口 |
-| Campus Web 来源更新命令 | 规范化、完整校验并更新固定来源键 | 环境流量和线上版本选择 |
+| 来源整理流程 | 上传 reader、课程图来源、图片，提交 Git 文档声明 | 生成页面或选择 Worker version |
+| 对象存储 | 保存生成的固定来源清单、不可变副本及明确引用的来源对象 | 保存构建后的课程图或直接承担浏览器接口 |
+| Campus Web 来源发布器 | 从 Git 声明和真实对象生成完整清单，校验后条件更新固定键 | 环境流量和线上版本选择 |
 | Campus Web 构建 | 再次核对来源并生成课程图、目录、搜索索引、静态资产和 HTML | 修改来源事实或重写 reader |
 | TanStack Router | 在已生成路径间切换并保持浏览器历史 | 文档登记和来源发布 |
 | FlexSearch Web Worker | 在后台线程加载并查询当前版本搜索索引 | 服务端查询、权限判断和历史版本选择 |
@@ -62,8 +62,8 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 
 ## 发布与环境
 
-`pnpm --dir apps/campus-web docs:source:update` 更新固定来源键。`dev` 和 `build` 自动读取该键，
-不接受手工文档版本参数。
+文档声明合并后，现有候选流水线先运行 `docs:source:publish`，再构建 Campus Web；手动刷新使用相同步骤。
+`dev` 和 `build` 自动读取生成的固定键，不发布来源，也不接受手工文档版本参数。完整入口见维护手册。
 
 固定来源键表达完整期望集合。静态构建与 Docs Chunk builder 分别读取它；统一检索 publisher 只消费
 显式 Docs/Notice 制品，不直接读取来源清单。两条发布链不维护跨系统事务；具体更新和手动索引步骤见
@@ -77,4 +77,5 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 - [文档来源与静态交付合同](../../contracts/document-reader-delivery.md)
 - [文档阅读器数据模型](../../data/document-reader.md)
 - [原生阅读器决策](../../../.agents/notes/implemented/feature/2026-08-01-native-reader.md)
+- [文档声明与生成发布决策](../../../.agents/notes/implemented/architecture/2026-09-22-docs-source-declarations.md)
 - [运行时发布](runtime-release.md)

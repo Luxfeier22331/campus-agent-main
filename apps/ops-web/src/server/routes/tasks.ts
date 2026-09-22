@@ -20,9 +20,7 @@ export function registerTaskRoutes(input: {
 		await next();
 		return;
 	});
-	app.post("/campus-rag-refresh/rollback", async (c) =>
-		c.json(await input.service.rollback(), 202),
-	);
+	app.post("/notice-pipeline/rollback", async (c) => c.json(await input.service.rollback(), 202));
 	app.get("/", async (c) => c.json({ tasks: await input.service.list() }));
 	app.put("/:taskId/schedule", async (c) => {
 		const id = TaskIdSchema.safeParse(c.req.param("taskId"));

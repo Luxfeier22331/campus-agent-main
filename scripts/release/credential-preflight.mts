@@ -21,6 +21,8 @@ const required: Record<WorkerCandidate, string[]> = {
 	],
 	"campus-web-staging": [
 		"CLOUDFLARE_API_TOKEN",
+		"OBJECT_STORE_DERIVED_ACCESS_KEY",
+		"OBJECT_STORE_DERIVED_SECRET_KEY",
 		"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
 		"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 	],

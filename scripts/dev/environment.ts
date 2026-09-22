@@ -16,6 +16,7 @@ import { parseEnv } from "node:util";
 
 import type { LocalQdrantConnection } from "./local-qdrant";
 import { ensureLocalDevSecrets } from "./local-secrets";
+import { readProductSnapshot } from "./product-data-state";
 import type { LocalDevProfileV2 } from "./profile";
 import { calculateLocalDevRuntimePorts } from "./profile";
 import {
@@ -80,7 +81,8 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	opsWeb: "apps/ops-web/.env.local",
 	internalPortalCollection: "jobs/internal-portal-collection/adapters/internal-portal/.env.local",
 	campusDocsIndexPublisher: "jobs/campus-docs-index-publisher/.env.local",
-	campusRagWorker: "apps/campus-rag-worker/.env.local",
+	noticePipelineWorker: "apps/notice-pipeline-worker/.env.local",
+	noticeArtifactsWorker: "apps/notice-artifacts-worker/.env.local",
 	campusRagIndexPublisher: "jobs/campus-rag-index-publisher/.env.local",
 	noticeIndexPublisher: "jobs/notice-index-publisher/.env.local",
 } as const;
@@ -107,7 +109,8 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	"notice-classifier": ["noticeClassifier"],
 	"campus-docs-index-publisher": ["campusDocsIndexPublisher"],
 	"campus-rag-index-publisher": ["campusRagIndexPublisher"],
-	"campus-rag-worker": ["campusRagWorker"],
+	"notice-pipeline-worker": ["noticePipelineWorker"],
+	"notice-artifacts-worker": ["noticeArtifactsWorker"],
 	"notice-index-publisher": ["noticeIndexPublisher"],
 };
 
@@ -296,6 +299,10 @@ export function renderLocalEnvironmentFiles(input: {
 	projections?: readonly LocalDevEnvironmentProjection[];
 }): string[] {
 	const { profile, repoRoot } = input;
+	const snapshot = readProductSnapshot(repoRoot);
+	const docsSourceEnvironment = snapshot
+		? { OBJECT_STORE_DOCS_SOURCE_KEY: snapshot.sourceKey }
+		: {};
 	const projections =
 		input.projections ??
 		(input.target
@@ -352,10 +359,10 @@ export function renderLocalEnvironmentFiles(input: {
 			AUTH_TURNSTILE_SECRET_KEY: "local-turnstile-disabled",
 			BETTER_AUTH_SECRET: localSecrets?.betterAuthSecret ?? "",
 			EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
 			OBJECT_STORE_LOCAL_BASE_URL: `http://127.0.0.1:9000/${profile.bucketName}/`,
 			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 			RESEND_API_KEY: existingSecrets.RESEND_API_KEY || "local-resend-disabled",
@@ -364,12 +371,13 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("campusWeb")) {
 		writeManagedEnv(paths.campusWeb, {
+			...docsSourceEnvironment,
 			APP_API_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			AUTH_TURNSTILE_SITE_KEY: "",
 			CAMPUS_WEB_DEV_PORT: String(profile.ports.campusWeb),
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		});
 	}
@@ -425,12 +433,12 @@ export function renderLocalEnvironmentFiles(input: {
 			OPS_WEB_CAMPUS_WEB_URL: `http://127.0.0.1:${profile.ports.campusWeb}`,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_SOURCE_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_SOURCE_SECRET_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 			OPS_WEB_DATABASE_SSLMODE: "disable",
 			OPS_WEB_DATABASE_URL: database.opsWeb,
@@ -455,12 +463,12 @@ export function renderLocalEnvironmentFiles(input: {
 			DEPLOYMENT_ENVIRONMENT: "local",
 			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.noticePublisher,
-			OPS_WEB_INTERNAL_URL: `http://127.0.0.1:${profile.ports.opsWebApi}`,
+			OPS_WEB_INTERNAL_URL: `http://127.0.0.1:${profile.ports.opsWeb}`,
 			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 			OBJECT_STORE_REGION: "us-east-1",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_SOURCE_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_SOURCE_SECRET_KEY: "rustfsadmin",
 			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 		});
 	}
@@ -480,11 +488,11 @@ export function renderLocalEnvironmentFiles(input: {
 			NOTICES_DATABASE_URL: database.owner,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_SOURCE_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_SOURCE_SECRET_KEY: "rustfsadmin",
 		});
 	}
 	if (shouldRender("noticePublisher")) {
@@ -494,26 +502,25 @@ export function renderLocalEnvironmentFiles(input: {
 			NOTICES_DATABASE_URL: database.noticePublisher,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_SOURCE_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_SOURCE_SECRET_KEY: "rustfsadmin",
 		});
 	}
 	if (shouldRender("campusDocsIndexPublisher")) {
 		writeManagedEnv(paths.campusDocsIndexPublisher, {
+			...docsSourceEnvironment,
+			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			EXECUTION_CONTROL_DATABASE_URL: database.owner,
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		});
 	}
-	if (shouldRender("campusRagWorker")) {
-		if (!input.qdrant) {
-			throw new Error("Local Qdrant connection is required for campus-rag-worker");
-		}
-		writeManagedEnv(paths.campusRagWorker, {
+	if (shouldRender("noticePipelineWorker")) {
+		writeManagedEnv(paths.noticePipelineWorker, {
 			DEPLOYMENT_ENVIRONMENT: "local",
 			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.owner,
@@ -523,8 +530,26 @@ export function renderLocalEnvironmentFiles(input: {
 			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
+		});
+	}
+	if (shouldRender("noticeArtifactsWorker")) {
+		if (!input.qdrant) {
+			throw new Error("Local Qdrant connection is required for notice-artifacts-worker");
+		}
+		writeManagedEnv(paths.noticeArtifactsWorker, {
+			DEPLOYMENT_ENVIRONMENT: "local",
+			NOTICES_DATABASE_SSLMODE: "disable",
+			NOTICES_DATABASE_URL: database.owner,
+			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
+			TEMPORAL_ADDRESS: "127.0.0.1:7233",
+			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
+			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
+			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
 			QDRANT_URL: input.qdrant.url,
 			QDRANT_API_KEY: input.qdrant.apiKey,
 		});
@@ -534,12 +559,13 @@ export function renderLocalEnvironmentFiles(input: {
 			throw new Error("Campus RAG publisher requires a resolved local Qdrant connection.");
 		}
 		writeManagedEnv(paths.campusRagIndexPublisher, {
+			...docsSourceEnvironment,
 			EXECUTION_CONTROL_DATABASE_URL: database.owner,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 			QDRANT_API_KEY: input.qdrant.apiKey,
 			QDRANT_URL: input.qdrant.url,
@@ -692,6 +718,7 @@ function writeManagedEnv(path: string, values: Record<string, string>): void {
 }
 
 function writePrivateFileAtomic(path: string, body: string): void {
+	mkdirSync(dirname(path), { recursive: true });
 	const temporaryPath = resolve(dirname(path), `.${randomBytes(8).toString("hex")}.tmp`);
 	writeFileSync(temporaryPath, body, { mode: 0o600 });
 	renameSync(temporaryPath, path);

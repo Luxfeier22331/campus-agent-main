@@ -98,13 +98,6 @@ spec:
         - protocol: TCP
           port: 5432
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: qdrant
-      ports:
-        - protocol: TCP
-          port: 6333
-    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:
@@ -123,7 +116,6 @@ spec:
         values:
           - campus-docs-chunk-builder
           - campus-docs-embedding-builder
-          - campus-rag-index-publisher
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -148,7 +140,6 @@ spec:
         values:
           - campus-docs-chunk-builder
           - campus-docs-embedding-builder
-          - campus-rag-index-publisher
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -186,20 +177,51 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: campus-docs-index-publisher-egress
+  name: notice-pipeline-worker-egress
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: campus-rag-index-publisher
-  policyTypes: ["Egress"]
+      app.kubernetes.io/name: notice-pipeline-worker
+  policyTypes:
+    - Egress
   egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: qdrant
+              app.kubernetes.io/part-of: temporal
       ports:
         - protocol: TCP
-          port: 6333
+          port: 7233
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: model-config
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ops-web
+      ports:
+        - protocol: TCP
+          port: 5178
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+      ports:
+        - protocol: TCP
+          port: 9000
     - to:
         - podSelector:
             matchLabels:
@@ -207,17 +229,22 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: campus-rag-worker-egress
+  name: notice-artifacts-worker-egress
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: campus-rag-worker
-  policyTypes:
-    - Egress
+      app.kubernetes.io/name: notice-artifacts-worker
+  policyTypes: ["Egress"]
   egress:
     - to:
         - namespaceSelector:
@@ -263,9 +290,3 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 443

@@ -11,6 +11,9 @@
 		"build:staging": "pnpm exec tsx ./scripts/build-campus-web.ts --staging",
 		"dev": "CLOUDFLARE_ENV=local WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=\"${XDG_CONFIG_HOME:-../../.wrangler-home}\" vite",
 		"docs:source:update": "pnpm exec tsx ./scripts/update-docs-source.ts",
+		"docs:source:check": "pnpm exec tsx ./scripts/check-docs-source.ts",
+		"docs:source:bootstrap": "pnpm exec tsx ./scripts/bootstrap-docs-source.ts",
+		"docs:source:publish": "pnpm exec tsx ./scripts/publish-docs-source.ts",
 		"map:normalize": "pnpm exec tsx ./scripts/campus-map/generate.ts --normalize",
 		"map:snapshot:update": "pnpm exec tsx ./scripts/campus-map/generate.ts --snapshot-update",
 		"map:validate": "pnpm exec tsx ./scripts/campus-map/generate.ts --validate",
@@ -109,7 +112,8 @@
 		"typescript": "^7.0.2",
 		"vite": "^8.3.0",
 		"vitest": "^4.1.11",
-		"wrangler": "4.131.2"
+		"wrangler": "4.131.2",
+		"yaml": "2.9.1"
 	},
 	"license": "Apache-2.0"
 }

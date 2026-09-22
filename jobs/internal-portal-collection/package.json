@@ -37,5 +37,10 @@
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.0"
 	},
-	"license": "Apache-2.0"
+	"license": "Apache-2.0",
+	"exports": {
+		"./collection-command": "./adapters/internal-portal/src/collection-command.ts",
+		"./config": "./adapters/internal-portal/src/config.ts",
+		"./ops-web-credential-resolver": "./adapters/internal-portal/src/ops-web-credential-resolver.ts"
+	}
 }

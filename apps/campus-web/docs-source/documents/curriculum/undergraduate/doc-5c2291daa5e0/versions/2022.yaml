@@ -1,0 +1,13 @@
+docId: curriculum:法学本科人才培养方案
+readerKey: campus-docs/readers/sha256/ed3fe55ee36412e7dd4adf8da96fb4bd0d2a495c66586752f8bfb3c6d88982d2/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/法学本科人才培养方案--法学本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0337-page-0337-block-mineru-block-0003-0003-map-01.png
+        path: course-maps/page-0337-page-0337-block-mineru-block-0003-0003-map-01.png
+      - key: curriculum/documents/curriculum_plan/法学本科人才培养方案--法学本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0338-page-0338-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0338-page-0338-block-mineru-block-0002-0002-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/法学本科人才培养方案--法学本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:法学本科人才培养方案:e12a522827fb
+versionSlug: "2022"

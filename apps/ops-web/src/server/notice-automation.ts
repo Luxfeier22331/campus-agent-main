@@ -1,4 +1,5 @@
 import { BatchV1Api, KubeConfig, type V1CronJob } from "@kubernetes/client-node";
+import { Client, Connection } from "@temporalio/client";
 import { validateInternalPortalNoticeSyncState } from "ingestion-contracts";
 import type {
 	NoticeAutomation,
@@ -28,6 +29,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 export function createNoticeAutomationService(input: {
 	local: boolean;
 	namespace: string;
+	env?: { TEMPORAL_ADDRESS?: string; TEMPORAL_NAMESPACE?: string };
 	source: NoticePreviewStore;
 	credentials: Pick<InternalPortalCredentialService, "list">;
 	batch?: BatchClient;
@@ -39,6 +41,39 @@ export function createNoticeAutomationService(input: {
 		const config = new KubeConfig();
 		config.loadFromCluster();
 		return config.makeApiClient(BatchV1Api);
+	};
+	const temporal = async <T>(run: (client: Client) => Promise<T>) => {
+		const connection = await Connection.connect({
+			address: input.env?.TEMPORAL_ADDRESS ?? "temporal:7233",
+		});
+		try {
+			return await run(
+				new Client({ connection, namespace: input.env?.TEMPORAL_NAMESPACE ?? "default" }),
+			);
+		} finally {
+			await connection.close();
+		}
+	};
+	const readSchedule = async () => {
+		if (input.batch) {
+			return project(
+				await client().readNamespacedCronJob({
+					namespace: input.namespace,
+					name: "notice-sync",
+				}),
+			);
+		}
+		return temporal(async (temporalClient) => {
+			const description = await temporalClient.schedule.getHandle("notice-pipeline").describe();
+			const every = description.spec.intervals?.[0]?.every;
+			return {
+				enabled: !description.state.paused,
+				intervalMinutes: every ? every / 60_000 : null,
+				timeZone: description.spec.timezone ?? null,
+				lastScheduleTime: description.info?.recentActions?.[0]?.scheduledAt?.toISOString() ?? null,
+				lastSuccessfulTime: null,
+			};
+		});
 	};
 	const project = (cron: V1CronJob) => ({
 		enabled: !cron.spec?.suspend,
@@ -68,15 +103,7 @@ export function createNoticeAutomationService(input: {
 					return;
 				}
 				try {
-					Object.assign(
-						result,
-						project(
-							await client().readNamespacedCronJob({
-								namespace: input.namespace,
-								name: "notice-sync",
-							}),
-						),
-					);
+					Object.assign(result, await readSchedule());
 				} catch (error) {
 					result.scheduleError = errorMessage(error);
 				}
@@ -126,20 +153,29 @@ export function createNoticeAutomationService(input: {
 					);
 				}
 			}
-			let cron: V1CronJob;
 			try {
-				cron = await client().patchNamespacedCronJob({
-					namespace: input.namespace,
-					name: "notice-sync",
-					body: [
-						{ op: "add", path: "/spec/suspend", value: !value.enabled },
-						{ op: "add", path: "/spec/schedule", value: schedules[value.intervalMinutes] },
-					],
+				if (input.batch) {
+					const cron = await client().patchNamespacedCronJob({
+						namespace: input.namespace,
+						name: "notice-sync",
+						body: [
+							{ op: "add", path: "/spec/suspend", value: !value.enabled },
+							{ op: "add", path: "/spec/schedule", value: schedules[value.intervalMinutes] },
+						],
+					});
+					return { ...(await get()), ...project(cron), scheduleError: null };
+				}
+				await temporal(async (temporalClient) => {
+					await temporalClient.schedule.getHandle("notice-pipeline").update((existing) => ({
+						...existing,
+						spec: { ...existing.spec, intervals: [{ every: value.intervalMinutes * 60_000 }] },
+						state: { ...existing.state, paused: !value.enabled },
+					}));
 				});
+				return { ...(await get()), scheduleError: null };
 			} catch (error) {
 				throw new NoticeAutomationError(errorMessage(error));
 			}
-			return { ...(await get()), ...project(cron), scheduleError: null };
 		},
 	};
 }

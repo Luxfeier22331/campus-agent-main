@@ -118,6 +118,11 @@ test("real workspace inputs invalidate consumers without invalidating unrelated 
 			}
 		};
 		check(
+			"apps/campus-web/docs-source/collections.yaml",
+			["campus-web#test:node:fast", "campus-web#build:worker"],
+			["app-api#build:worker", "ops-web#build", "campus-docs-index-publisher#build"],
+		);
+		check(
 			"packages/contracts/fixtures/citation-markers.v1.json",
 			["execution-control#native:test", "campus-web#test:dom:fast"],
 			[

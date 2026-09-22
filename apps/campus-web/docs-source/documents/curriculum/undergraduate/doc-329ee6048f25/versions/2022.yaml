@@ -1,0 +1,11 @@
+docId: curriculum:俄语（俄语、中亚语）本科人才培养方案
+readerKey: campus-docs/readers/sha256/d207e7a8fe80f488bb54758eccd37622b537a77f967b92f49d9eb44878399b1b/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/俄语-俄语-中亚语-本科人才培养方案--俄语-俄语-中亚语-本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0219-page-0219-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0219-page-0219-block-mineru-block-0002-0002-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/俄语-俄语-中亚语-本科人才培养方案--俄语-俄语-中亚语-本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:俄语（俄语、中亚语）本科人才培养方案:e2a2706a22b2
+versionSlug: "2022"

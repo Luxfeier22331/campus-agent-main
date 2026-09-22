@@ -27,8 +27,8 @@ function fixture(denied = false) {
 describe("fixed tasks API", () => {
 	it("looks up a specific run without reading the recent-run list", async () => {
 		const { app, service } = fixture();
-		expect((await app.request("/api/ops/tasks/campus-rag-refresh/runs/old-run")).status).toBe(404);
-		expect(service.getRun).toHaveBeenCalledWith("campus-rag-refresh", "old-run");
+		expect((await app.request("/api/ops/tasks/notice-pipeline/runs/old-run")).status).toBe(404);
+		expect(service.getRun).toHaveBeenCalledWith("notice-pipeline", "old-run");
 		expect(service.runs).not.toHaveBeenCalled();
 	});
 	it("admits before reading or mutating runtime state", async () => {

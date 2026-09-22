@@ -31,6 +31,10 @@ publisher 由检索服务维护。
 
 ## 来源清单
 
+人工编辑源位于 `apps/campus-web/docs-source/`：Git 保存集合、主题、文档、版本与重定向的 YAML 声明，
+版本只登记 reader、补充数据和图片的对象 key，不登记摘要和字节数。正文、原始文件和图片继续保存在
+RustFS。目录按既有公开路由组织，版本文件以 `versionSlug` 命名；完整 `docId`、`versionId` 保存在字段中。
+
 `campus_docs_source.v4` 是 Campus Web 构建与 Campus Docs Chunk builder 共享的文档控制清单，包含集合、
 主题、文档、版本、旧正文重定向和来源对象引用。Docs builder 只读取文档、当前版本和 reader 引用；
 它不把清单自身作为正文索引。
@@ -64,11 +68,14 @@ publisher 由检索服务维护。
 - `byteSize`：精确字节数；
 - `sha256`：带 `sha256:` 前缀的内容摘要。
 
-Campus Web 发布命令和构建都按字节数与摘要核对对象。固定来源清单位于
-`campus-docs/source.json`；reader、课程图来源和图片由该清单明确引用。
+Campus Web 来源发布命令读取声明引用的对象并计算字节数与摘要，完整编译后生成
+`campus-docs/releases/<source-digest-hex>/source.json` 不可变副本，再条件更新固定的
+`campus-docs/source.json`。固定键保存完整生成结果，所有消费者继续读取它；release 副本供重放，
+不承担默认版本选择。后续构建按生成的字节数与摘要核对对象。
 
 来源清单是完整期望状态。其全部 reader、补充对象和补充图片引用共同构成对象存储存活集合；对象是否
-存在于 bucket、上传时间或路径前缀本身不赋予消费资格。RAG 只选择每份文档的当前 reader，Campus Web
+存在于 bucket、上传时间或路径前缀本身不赋予消费资格。保留用于回退的 release 副本及其引用同样不能
+自动清理。RAG 只选择每份文档的当前 reader，Campus Web
 仍读取清单中的历史版本和补充对象。
 
 ## Reader

@@ -48,7 +48,7 @@ pnpm --dir jobs/campus-docs-index-publisher build
 
 ## 分块阶段
 
-`build-chunks` 读取对象存储固定键 `campus-docs/source.json` 及其当前 reader，执行 reader 质量检查和
+`build-chunks` 读取 Campus Web 从 Git 声明自动生成的固定键 `campus-docs/source.json` 及其当前 reader，执行 reader 质量检查和
 `campus_docs_reader_elements.v5` 分块，写入：
 
 - `campus-docs/rag/chunk-data/sha256/<digest>/chunks.ndjson`

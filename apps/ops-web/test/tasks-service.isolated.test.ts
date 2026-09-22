@@ -64,7 +64,7 @@ beforeEach(() => {
 	});
 	native.describe.mockResolvedValue({ info: { runningActions: [] } });
 	native.start.mockResolvedValue({
-		workflowId: "campus-rag-refresh-workflow",
+		workflowId: "notice-pipeline-workflow",
 		firstExecutionRunId: "run-1",
 	});
 	native.query.mockResolvedValue({
@@ -97,7 +97,7 @@ describe("native task ownership", () => {
 	});
 	it("preserves Temporal action and policies when the operator changes timing", async () => {
 		const existing = {
-			action: { workflowType: "campusRagRefresh" },
+			action: { workflowType: "noticePipelineRun" },
 			policies: { overlap: "SKIP" },
 			state: { paused: true, note: "initialized" },
 			spec: { intervals: [{ every: 3600000 }] },
@@ -109,7 +109,7 @@ describe("native task ownership", () => {
 				state: { paused: false, note: "initialized" },
 			});
 		});
-		await service().update("campus-rag-refresh", { enabled: true, intervalMinutes: 15 });
+		await service().update("notice-pipeline", { enabled: true, intervalMinutes: 15 });
 		expect(native.update).toHaveBeenCalledTimes(1);
 	});
 	it("uses atomic start conflict after pausing, without visibility admission", async () => {
@@ -122,14 +122,14 @@ describe("native task ownership", () => {
 	});
 	it("pins rollback inputs and uses the same atomic ID for manual refresh", async () => {
 		expect(await service().rollback()).toEqual({
-			workflowId: "campus-rag-refresh-workflow",
+			workflowId: "notice-pipeline-workflow",
 			runId: "run-1",
 		});
 		expect(native.start).toHaveBeenCalledWith(
-			"campusRagRollback",
+			"noticePipelineRollback",
 			expect.objectContaining({
-				taskQueue: "campus-rag",
-				workflowId: "campus-rag-refresh-workflow",
+				taskQueue: "notice-pipeline",
+				workflowId: "notice-pipeline-workflow",
 				workflowIdConflictPolicy: "FAIL",
 				workflowIdReusePolicy: "ALLOW_DUPLICATE",
 				args: [
@@ -144,11 +144,11 @@ describe("native task ownership", () => {
 			}),
 		);
 		expect(native.update).not.toHaveBeenCalled();
-		await service().run("campus-rag-refresh");
+		await service().run("notice-pipeline");
 		expect(native.start).toHaveBeenLastCalledWith(
-			"campusRagRefresh",
+			"noticePipelineRun",
 			expect.objectContaining({
-				workflowId: "campus-rag-refresh-workflow",
+				workflowId: "notice-pipeline-workflow",
 				workflowIdConflictPolicy: "FAIL",
 				args: [],
 			}),
@@ -167,9 +167,9 @@ describe("native task ownership", () => {
 			throw new Error("test fixture is missing the first run ID");
 		}
 		const execution = (runId: string) => ({
-			workflowId: "campus-rag-refresh-workflow",
+			workflowId: "notice-pipeline-workflow",
 			runId,
-			type: "campusRagRollback",
+			type: "noticePipelineRollback",
 			status: { name: "COMPLETED" },
 			startTime: new Date(),
 			closeTime: new Date(),
@@ -186,14 +186,14 @@ describe("native task ownership", () => {
 		native.getHandle.mockImplementation((_workflowId, runId) => ({
 			result: async () => ({ collection: runId, noOp: false }),
 		}));
-		expect((await service().runs("campus-rag-refresh")).map((run) => run.id)).toEqual(ids);
-		expect(await service().getRun("campus-rag-refresh", firstId)).toMatchObject({
+		expect((await service().runs("notice-pipeline")).map((run) => run.id)).toEqual(ids);
+		expect(await service().getRun("notice-pipeline", firstId)).toMatchObject({
 			id: firstId,
 			runId: firstId,
 			details: { collection: ids[0] },
 		});
 		expect(native.list).toHaveBeenLastCalledWith({ query: `RunId="${firstId}"`, pageSize: 1 });
-		expect(native.getHandle).toHaveBeenLastCalledWith("campus-rag-refresh-workflow", ids[0], {
+		expect(native.getHandle).toHaveBeenLastCalledWith("notice-pipeline-workflow", ids[0], {
 			followRuns: false,
 		});
 	});

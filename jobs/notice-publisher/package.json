@@ -29,5 +29,6 @@
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.0"
 	},
-	"license": "Apache-2.0"
+	"license": "Apache-2.0",
+	"exports": { "./publisher": "./src/publisher.ts", "./store": "./src/store.ts", "./portal": "./src/portal.ts" }
 }

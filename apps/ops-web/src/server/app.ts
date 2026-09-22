@@ -615,6 +615,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		createNoticeAutomationService({
 			local: isLocalOpsEnvironment(env),
 			namespace: env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default",
+			env,
 			source: options.noticePreviewStore ?? createNoticePreviewStore(env),
 			credentials: internalPortalCredentialService,
 		});

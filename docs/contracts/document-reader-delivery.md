@@ -28,9 +28,9 @@ status: active
 
 ```text
 来源系统生成 reader、课程图来源和图片
--> 来源系统写入对象存储并记录 key、byteSize、sha256
--> 整理流程生成 campus_docs_source.v4
--> Campus Web 来源提交入口完整校验并写入固定来源清单
+-> 来源系统先上传对象，在 Git YAML 声明中登记对象 key 与文档元数据
+-> Campus Web 发布器读取对象并计算 byteSize、sha256，生成 campus_docs_source.v4
+-> 完整校验后创建不可变 release 副本，条件更新固定来源清单
 -> Campus Web 构建读取固定来源键并再次校验
 -> 构建进程复制 reader 并生成最终课程图
 -> 构建派生站点索引、内容寻址搜索索引、静态资产和预渲染 HTML
@@ -53,8 +53,9 @@ Docs/Notice 制品；这两条链路都不属于本合同定义的静态产物�
 - 补充数据与图片使用安全相对路径，同一版本内目标路径不重复；
 - 旧路由只从已退役正文地址指向来源清单中的正文固定链接，不登记领域或集合目录。
 
-清单是完整当前期望集合，不是增量操作记录。新增和修订对象必须先写入对象存储，固定来源键最后更新；
-删除文档通过从完整清单移除对应文档和版本表达。未被清单引用的 bucket 对象不属于交付输入。
+清单是完整当前期望集合，不是增量操作记录。新增和修订对象必须先写入新对象键，不能覆盖已有 reader
+或资产；固定来源键最后更新。删除文档通过移除 Git 声明中的文档和版本表达。未被清单引用的 bucket
+对象不属于交付输入；保留的 release 及其引用仍受回退保护。
 
 公开培养方案集合固定为 `undergraduate`、`second_degree` 和 `general_education`。规章来源集合固定为
 `institutional_rules`、`scoped_rules` 和 `student_rules`，公开目录再按来源清单中的主题组织。
@@ -96,9 +97,11 @@ Campus Web 不从检索分块、HTML、文件名或其他对象重建阅读结�
 ## 来源提交
 
 固定来源清单及其引用对象的布局由
-[文档阅读器数据模型](../data/document-reader.md)维护。来源提交入口先解析 schema、规范化排序、核对关系并
-完整编译所有版本；只有全部成功后才替换固定来源清单，随后回读并逐字节核对。编译失败不得修改当前
-来源。对象存储地址和凭据不写入来源清单。具体更新操作见
+[文档阅读器数据模型](../data/document-reader.md)维护。PR 中的 `docs:source:check` 离线检查声明字段、关系、
+版本和重定向。发布器开始时读取固定键的 ETag，再读取 Git 声明及全部对象并完整编译所有版本；验证成功后
+以 `If-None-Match: *` 写入不可变副本，以开始时的 `If-Match` 更新固定键；首次创建固定键也使用
+`If-None-Match: *`。已有副本必须逐字节一致。固定键写入后回读核对，条件冲突直接失败，不自动覆盖或重试。
+编译失败不得修改当前来源。对象存储地址和凭据不写入声明或清单。具体更新操作见
 [Campus Docs 维护与索引发布](../runbooks/campus-docs.md)。
 
 来源对象引用仍按摘要核对。reader 原件保存在对象存储；最终课程图只存在于 Campus Web 的本次构建
@@ -134,10 +137,10 @@ Environment。`OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_DERIVED_READ_ACCESS_KEY` �
 命令另行使用 `OBJECT_STORE_DERIVED_ACCESS_KEY`、`OBJECT_STORE_DERIVED_SECRET_KEY` 写入身份。
 读身份不具备写入能力，所有这些变量都不传给 Vite 子进程，也不写入静态产物。
 
-PR job 不访问对象存储；Campus Web 只执行无对象存储依赖的 `build:worker` 测试构建。main/artifact
-lane 的独立 Campus Web publisher 使用 Source staging Environment 的公网对象存储端点和只读身份
-执行正式 `build:staging` 并上传 Worker version。该 publisher 不是独立文档发布 Job，不写回文档来源
-或维护第二个文档版本指针。
+PR job 不访问对象存储；Campus Web 的 Node 测试调用离线声明检查，并执行无对象存储依赖的
+`build:worker` 测试构建。main 或手动文档刷新仍复用 `staging-candidate-publish`：独立步骤用 Source staging
+写入身份执行 `docs:source:publish`，成功后构建步骤用只读身份执行 `build:staging` 并上传 Worker version。
+不建立独立文档部署服务或第二个文档版本指针，不自动触发 Docs RAG 发布。
 
 ## 构建产物
 

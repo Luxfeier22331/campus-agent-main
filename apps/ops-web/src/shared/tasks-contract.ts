@@ -3,7 +3,7 @@ export const TaskIdSchema = z.enum([
 	"notice-sync",
 	"notice-classifier",
 	"notice-publisher",
-	"campus-rag-refresh",
+	"notice-pipeline",
 	"document-ocr",
 	"internal-portal-credential-checker",
 ]);

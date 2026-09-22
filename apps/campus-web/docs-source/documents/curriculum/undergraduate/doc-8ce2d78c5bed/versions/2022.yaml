@@ -1,0 +1,17 @@
+docId: curriculum:设计学类本科人才培养方案
+readerKey: campus-docs/readers/sha256/150346467c7549b0fccb2999a972500fd156c6295c9df720dd8f77406f67d26a/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/设计学类本科人才培养方案--设计学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0601-page-0601-block-mineru-block-0007-0007-map-01.png
+        path: course-maps/page-0601-page-0601-block-mineru-block-0007-0007-map-01.png
+      - key: curriculum/documents/curriculum_plan/设计学类本科人才培养方案--设计学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0602-page-0602-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0602-page-0602-block-mineru-block-0002-0002-map-01.png
+      - key: curriculum/documents/curriculum_plan/设计学类本科人才培养方案--设计学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0602-page-0602-block-mineru-block-0004-0004-map-01.png
+        path: course-maps/page-0602-page-0602-block-mineru-block-0004-0004-map-01.png
+      - key: curriculum/documents/curriculum_plan/设计学类本科人才培养方案--设计学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0603-page-0603-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0603-page-0603-block-mineru-block-0002-0002-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/设计学类本科人才培养方案--设计学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:设计学类本科人才培养方案:78c79f9350c0
+versionSlug: "2022"

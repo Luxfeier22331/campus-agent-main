@@ -128,7 +128,7 @@ test("publishes collection image when a bundled workspace dependency changes", a
 		{ command: "tsc", package: "internal-portal-collection", task: "build" },
 	]);
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["internal-portal-collection", "ops-web"]);
+	assert.deepEqual(plan.images, ["notice-pipeline-worker", "ops-web"]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -252,24 +252,21 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
-		"campus-rag-worker",
+		"notice-pipeline-worker",
 		"document-ocr",
 		"execution-control",
-		"internal-portal-collection",
 		"model-config",
-		"notice-classifier",
-		"notice-index-publisher",
-		"notice-publisher",
+		"notice-artifacts-worker",
 		"ops-web",
 	]);
 	assert.deepEqual(plan.workers, []);
 });
 
-test("publishes the internal-portal-collection image for a Dockerfile-only change", async (t) => {
+test("publishes the notice pipeline image for a Dockerfile-only change", async (t) => {
 	const root = await fixture(t);
-	const runner = syntheticScopeRunner(changed("jobs/internal-portal-collection/Dockerfile"), []);
+	const runner = syntheticScopeRunner(changed("apps/notice-pipeline-worker/Dockerfile"), []);
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["internal-portal-collection"]);
+	assert.deepEqual(plan.images, ["notice-pipeline-worker"]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -287,25 +284,19 @@ test("publishes the unified schema image for a schema job change", async (t) => 
 	assert.deepEqual(plan.workers, []);
 });
 
-test("publishes the notice classifier image for its source or Dockerfile change", async (t) => {
+test("publishes the notice pipeline image for classifier source changes", async (t) => {
 	const root = await fixture(t);
-	const runner = syntheticScopeRunner(
-		changed("jobs/notice-classifier/src/job.ts", "jobs/notice-classifier/Dockerfile"),
-		[],
-	);
+	const runner = syntheticScopeRunner(changed("jobs/notice-classifier/src/job.ts"), []);
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["notice-classifier"]);
+	assert.deepEqual(plan.images, ["notice-pipeline-worker"]);
 	assert.deepEqual(plan.workers, []);
 });
 
-test("publishes the notice publisher image for its source or Dockerfile change", async (t) => {
+test("publishes the notice pipeline image for publisher source changes", async (t) => {
 	const root = await fixture(t);
-	const runner = syntheticScopeRunner(
-		changed("jobs/notice-publisher/src/publisher.ts", "jobs/notice-publisher/Dockerfile"),
-		[],
-	);
+	const runner = syntheticScopeRunner(changed("jobs/notice-publisher/src/publisher.ts"), []);
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["notice-publisher"]);
+	assert.deepEqual(plan.images, ["notice-pipeline-worker"]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -314,12 +305,9 @@ test("publishes all notice and transport consumers when the shared notice databa
 	const runner = syntheticScopeRunner(changed("packages/notice-database/src/index.ts"), []);
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, [
-		"campus-rag-worker",
+		"notice-pipeline-worker",
 		"document-ocr",
-		"internal-portal-collection",
-		"notice-classifier",
-		"notice-index-publisher",
-		"notice-publisher",
+		"notice-artifacts-worker",
 	]);
 	assert.deepEqual(plan.workers, []);
 });
@@ -411,8 +399,8 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 		images: [
 			"campus-docs-index-publisher",
 			"campus-rag-index-publisher",
-			"campus-rag-worker",
 			"execution-control",
+			"notice-artifacts-worker",
 		],
 		sourceBases: [],
 		topologyMigrations: [],
@@ -456,12 +444,9 @@ test("a Node lockfile change selects all active Node images but not the independ
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
-		"campus-rag-worker",
+		"notice-pipeline-worker",
 		"document-ocr",
-		"internal-portal-collection",
-		"notice-classifier",
-		"notice-index-publisher",
-		"notice-publisher",
+		"notice-artifacts-worker",
 		"ops-web",
 	]);
 });

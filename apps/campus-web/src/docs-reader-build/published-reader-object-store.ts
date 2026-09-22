@@ -1,11 +1,11 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 import type {
+	DocsSourceObjectStore,
 	PublishedReaderObjectStoreConfig,
 	PublishedReaderObjectStoreCredentials,
 	PublishedReaderObjectStoreEnv,
 	ReaderObjectStoreClient,
-	ReaderObjectStoreWriter,
 } from "./published-reader-types.ts";
 
 export function createS3ReaderObjectStore(
@@ -15,29 +15,47 @@ export function createS3ReaderObjectStore(
 		resolvePublishedReaderObjectStoreConfig(env);
 	const client = createS3Client({ accessKeyId, endpoint, region, secretAccessKey });
 	return {
-		readOptionalBytesObject: (input) => readOptionalBytesObject(client, bucket, input.key),
+		readOptionalBytesObject: (input) =>
+			readOptionalBytesObject(client, bucket, sourceKey(env, input.key)),
 	};
 }
 
 export function createS3ObjectStore(
 	env: PublishedReaderObjectStoreEnv = process.env,
-): ReaderObjectStoreWriter {
+): DocsSourceObjectStore {
 	const { accessKeyId, bucket, endpoint, region, secretAccessKey } =
 		resolvePublishedReaderObjectStoreWriterConfig(env);
 	const client = createS3Client({ accessKeyId, endpoint, region, secretAccessKey });
 	return {
-		readOptionalBytesObject: (input) => readOptionalBytesObject(client, bucket, input.key),
+		readOptionalBytesObject: (input) =>
+			readOptionalBytesObject(client, bucket, sourceKey(env, input.key)),
+		async readOptionalObject(input) {
+			const object = await readOptionalObject(client, bucket, sourceKey(env, input.key));
+			if (!object) {
+				return;
+			}
+			if (!object.etag) {
+				throw new Error(`missing ETag for docs source: ${input.key}`);
+			}
+			return { body: object.body, etag: object.etag };
+		},
 		async writeBytesObject(input) {
 			await client.send(
 				new PutObjectCommand({
 					Body: input.body,
 					Bucket: bucket,
 					ContentType: input.contentType,
-					Key: input.key,
+					IfMatch: input.ifMatch,
+					IfNoneMatch: input.ifNoneMatch,
+					Key: sourceKey(env, input.key),
 				}),
 			);
 		},
 	};
+}
+
+function sourceKey(env: PublishedReaderObjectStoreEnv, key: string): string {
+	return key === "campus-docs/source.json" ? env.OBJECT_STORE_DOCS_SOURCE_KEY?.trim() || key : key;
 }
 
 export function resolvePublishedReaderObjectStoreConfig(
@@ -115,12 +133,24 @@ async function readOptionalBytesObject(
 	bucket: string,
 	key: string,
 ): Promise<Uint8Array | undefined> {
+	const object = await readOptionalObject(client, bucket, key);
+	return object?.body;
+}
+
+async function readOptionalObject(
+	client: S3Client,
+	bucket: string,
+	key: string,
+): Promise<{ body: Uint8Array; etag?: string } | undefined> {
 	try {
 		const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
 		if (!response.Body) {
 			throw new Error(`empty object body: ${key}`);
 		}
-		return response.Body.transformToByteArray();
+		return {
+			body: await response.Body.transformToByteArray(),
+			...(response.ETag ? { etag: response.ETag } : {}),
+		};
 	} catch (error) {
 		if (isMissingObjectError(error)) {
 			return;

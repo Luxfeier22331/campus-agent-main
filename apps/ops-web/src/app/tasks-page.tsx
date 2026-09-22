@@ -57,7 +57,7 @@ function TaskCard({ task }: { task: OpsTask }) {
 		},
 	});
 	const rollback = useMutation({
-		mutationFn: () => request("/campus-rag-refresh/rollback", { method: "POST" }),
+		mutationFn: () => request("/notice-pipeline/rollback", { method: "POST" }),
 		onSuccess: () => client.invalidateQueries({ queryKey: ["ops-tasks"] }),
 	});
 	const run = useMutation({
@@ -131,7 +131,7 @@ function TaskCard({ task }: { task: OpsTask }) {
 					立即运行一次
 				</Button>
 			)}
-			{task.id === "campus-rag-refresh" && (
+			{task.id === "notice-pipeline" && (
 				<Button type="button" disabled={rollback.isPending} onClick={() => rollback.mutate()}>
 					暂停并回滚至上一版本
 				</Button>

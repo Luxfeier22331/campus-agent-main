@@ -5,6 +5,7 @@
 		"build": {
 			"cache": false,
 			"inputs": [
+				"docs-source/**",
 				"index.html",
 				"package.json",
 				"scripts/build-campus-web.ts",
@@ -75,6 +76,7 @@
 		},
 		"build:worker": {
 			"inputs": [
+				"docs-source/**",
 				"fixtures/**",
 				"index.html",
 				"package.json",
@@ -160,6 +162,7 @@
 		"test:node:fast": {
 			"dependsOn": ["^source"],
 			"inputs": [
+				"docs-source/**",
 				"package.json",
 				"src/**",
 				"scripts/**",

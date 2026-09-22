@@ -1,0 +1,11 @@
+docId: curriculum:翻译本科人才培养方案
+readerKey: campus-docs/readers/sha256/dbc566919918d9788978c105ea492f944d19384a99a76f06c8f97cd86f763cb5/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/翻译本科人才培养方案--翻译本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0237-page-0237-block-mineru-block-0009-0009-map-01.png
+        path: course-maps/page-0237-page-0237-block-mineru-block-0009-0009-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/翻译本科人才培养方案--翻译本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:翻译本科人才培养方案:fd9c9a70db0e
+versionSlug: "2022"

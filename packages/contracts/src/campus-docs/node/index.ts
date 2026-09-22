@@ -10,6 +10,7 @@ import type { DocsCourseMaps, DocsReader, DocsSourceManifest, ObjectRef } from "
 
 export { DOCS_SOURCE_KEY } from "../constants.ts";
 export {
+	assertDocsSourceRelationships,
 	buildReaderRouteSlug,
 	normalizeSourceManifest,
 	selectCurrentVersion,

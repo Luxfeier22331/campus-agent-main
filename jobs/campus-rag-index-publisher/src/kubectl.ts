@@ -90,6 +90,10 @@ export async function startKubectlPortForward(input: {
 	input.signal?.addEventListener("abort", abort, { once: true });
 	try {
 		const port = await waitForPortForward(child, input.remotePort ?? OBJECT_STORE_PORT);
+		// kubectl logs each forwarded connection. Drain both pipes after readiness,
+		// otherwise long imports can block the child on a full stdout/stderr pipe.
+		child.stdout?.resume();
+		child.stderr?.resume();
 		return {
 			close: async () => { input.signal?.removeEventListener("abort", abort); await stopChild(child); },
 			port,

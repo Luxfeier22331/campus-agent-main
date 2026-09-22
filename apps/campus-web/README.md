@@ -48,7 +48,7 @@ pnpm --dir apps/campus-web typecheck
 
 组件行为测试由 Vitest 负责；浏览器 MCP 仅用于本地人工评审，不维护 style-dev 专用 Playwright 验证入口。
 
-完整产品开发使用根 `pnpm dev`。文档来源维护使用应用现有的 `docs:source:update`；
+完整产品开发使用根 `pnpm dev`。文档来源维护使用 `docs-source/` 声明、`docs:source:check` 与 `docs:source:publish`；
 来源合同、构建输入、缓存目录和交付行为由文档站架构、合同和可执行脚本维护。
 
 ## 相关文档

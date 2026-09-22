@@ -42,12 +42,12 @@ describe("tasks page", () => {
 					tasks: [
 						{
 							...task,
-							id: "campus-rag-refresh",
+							id: "notice-pipeline",
 							runtime: "temporal",
 							runs: ["first", "second"].map((id) => ({
 								id,
 								runId: id,
-								workflowId: "campus-rag-refresh-workflow",
+								workflowId: "notice-pipeline-workflow",
 								startedAt: id,
 								status: "completed",
 								outcome: "success",

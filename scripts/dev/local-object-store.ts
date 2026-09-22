@@ -3,8 +3,8 @@ import { HeadBucketCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-
 import type { LocalResourceProbe } from "./shared-infrastructure";
 
 const LOCAL_OBJECT_STORE_ENDPOINT = "http://127.0.0.1:9000";
-const LOCAL_OBJECT_STORE_ACCESS_KEY = "minioadmin";
-const LOCAL_OBJECT_STORE_SECRET_KEY = "minioadmin";
+const LOCAL_OBJECT_STORE_ACCESS_KEY = "rustfsadmin";
+const LOCAL_OBJECT_STORE_SECRET_KEY = "rustfsadmin";
 const LOCAL_OBJECT_STORE_REGION = "us-east-1";
 
 let client: S3Client | undefined;

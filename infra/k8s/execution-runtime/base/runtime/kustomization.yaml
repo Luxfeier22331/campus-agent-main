@@ -5,8 +5,8 @@ resources:
   - database-roles.yaml
   - network-policy.yaml
   - campus-docs-index-publisher.yaml
-  - campus-rag-index-publisher.yaml
-  - campus-rag-worker.yaml
+  - notice-pipeline-worker.yaml
+  - notice-artifacts-worker.yaml
   - availability.yaml
   - agent-runtime.yaml
   - execution-control.yaml

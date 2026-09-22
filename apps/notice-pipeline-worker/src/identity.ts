@@ -1,0 +1,2 @@
+export const NOTICE_PIPELINE_WORKFLOW_ID = "notice-pipeline-workflow";
+export const RAG_MAINTENANCE_WORKFLOW_ID = NOTICE_PIPELINE_WORKFLOW_ID;

@@ -106,7 +106,7 @@ Notice Embedding Set 从对象存储中的 Chunk Run 构建，不直接消费本
 寻址，本地制品不自动晋升；Notice Embedding cache 的显式校验导入见
 [通知制品手册](../../runbooks/notice-indexing.md#导入本地-embedding-cache)。
 
-阶段之间只传递显式 `sha256:<id>`。`campus-rag-worker` 在独立 Temporal 队列串联 Notice 构建和统一发布，
+阶段之间只传递显式 `sha256:<id>`。`notice-pipeline-worker` 在独立 Temporal 队列串联 Notice 构建和统一发布，
 沿用当前 Docs Embedding Set；手动维护仍可显式执行各阶段，不维护 `latest` 制品指针。manifest 和
 NDJSON 使用规范序列化、最终换行和内容寻址对象键，不可变写入采用 create-or-verify。两个 Embedding
 Job 都从 Model Config 读取一次当前 Embedding 连接；在同空间、同 dimensions 且 retrieval text 未变时，
@@ -169,8 +169,8 @@ Agent 正文只引用实际采用的候选；当前 Campus Docs 来源由 `campu
 
 ## 自动通知索引生命周期
 
-Ops `/tasks` 直接管理 `campus-rag-refresh` Schedule，默认暂停、周期 60 分钟、重叠 SKIP。
-Schedule 入口启动固定 ID `campus-rag-refresh-workflow` 的刷新子工作流；手动刷新与回滚使用同一
+Ops `/tasks` 直接管理 `notice-pipeline` Schedule，默认暂停、周期 15 分钟、可调整为 30 或 60 分钟，重叠 SKIP。
+Schedule 入口启动固定 ID `notice-pipeline-workflow` 的刷新子工作流；手动刷新与回滚使用同一
 执行 ID，运行中冲突由 Temporal 原子拒绝。Schedule action 自身的时间戳 ID 不承担互斥。
 工作流保持制品引用和计数，活动复用 builder 与唯一 publisher；每次读取已发布通知快照。
 Chunk Run 未变化时跳过 embedding 和激活，仍执行清理。

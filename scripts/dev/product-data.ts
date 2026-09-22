@@ -26,6 +26,7 @@ import {
 } from "./product-data-resources.ts";
 import { createProductSeed } from "./product-data-seed.ts";
 import { readProductSeedIndex } from "./product-data-seed-index.ts";
+import { clearProductSyncPending, readPendingProductSync } from "./product-data-state.ts";
 import {
 	calculateLocalDevRuntimePorts,
 	type LocalDevProfileV2,
@@ -36,11 +37,41 @@ export function localProductStoreEnv(profile: LocalDevProfileV2) {
 	return {
 		OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-		OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
-		OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
-		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
-		OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+		OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
+		OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
+		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
+		OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
 	};
+}
+
+export async function repairProductSnapshot(
+	repoRoot: string,
+	profile: LocalDevProfileV2,
+	_alreadyLocked = false,
+): Promise<void> {
+	await assertProductAppsOffline(profile);
+	const repair = async () => {
+		const pending = readPendingProductSync(repoRoot);
+		if (pending) {
+			const store = createS3WriterStore(localProductStoreEnv(profile));
+			try {
+				for (const key of pending.createdKeys) {
+					await store.remove(key);
+				}
+			} finally {
+				store.close();
+			}
+		}
+		clearProductSyncPending(repoRoot);
+	};
+	if (_alreadyLocked) {
+		return repair();
+	}
+	await withLifecycleLock(
+		resolve(dirname(resolveLocalDevRegistryPath(repoRoot)), `${profile.instanceId}-data.lock`),
+		"product-repair",
+		repair,
+	);
 }
 
 export async function assertProductAppsOffline(profile: LocalDevProfileV2) {

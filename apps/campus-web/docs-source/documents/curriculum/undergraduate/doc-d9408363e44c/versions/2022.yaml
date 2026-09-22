@@ -1,0 +1,15 @@
+docId: curriculum:计算机类本科人才培养方案
+readerKey: campus-docs/readers/sha256/1747265592941c99a2601f3594cb227c92c8613b10f442a744ae67c3a747fc66/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/计算机类本科人才培养方案--计算机类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0513-page-0513-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0513-page-0513-block-mineru-block-0002-0002-map-01.png
+      - key: curriculum/documents/curriculum_plan/计算机类本科人才培养方案--计算机类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0513-page-0513-block-mineru-block-0003-0003-map-01.png
+        path: course-maps/page-0513-page-0513-block-mineru-block-0003-0003-map-01.png
+      - key: curriculum/documents/curriculum_plan/计算机类本科人才培养方案--计算机类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0514-page-0514-block-mineru-block-0001-0001-map-01.png
+        path: course-maps/page-0514-page-0514-block-mineru-block-0001-0001-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/计算机类本科人才培养方案--计算机类本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:计算机类本科人才培养方案:4ba7d3a9b6ac
+versionSlug: "2022"

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
 const OBJECT_STORE_ENV_KEYS = [
+	"OBJECT_STORE_DOCS_SOURCE_KEY",
 	"OBJECT_STORE_BUCKET_DERIVED",
 	"OBJECT_STORE_DERIVED_ACCESS_KEY",
 	"OBJECT_STORE_DERIVED_SECRET_KEY",

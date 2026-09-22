@@ -13,31 +13,40 @@ import type { NoticeAutomationService } from "./notice-automation.ts";
 import { NoticeJobConflictError, type NoticeJobService } from "./notice-jobs.ts";
 
 const schedules = { 15: "*/15 * * * *", 30: "*/30 * * * *", 60: "0 * * * *" } as const;
-const maintenanceWorkflowId = "campus-rag-refresh-workflow";
-const ragTypes = ["campusRagRefresh", "campusRagRollback", "campusRagScheduledRefresh"];
+const maintenanceWorkflowId = "notice-pipeline-workflow";
+const ragTypes = ["noticePipelineRun", "noticePipelineRollback", "noticePipelineScheduled"];
 const directory: {
 	id: TaskId;
 	label: string;
 	cron?: string;
+	legacyMode?: "sync" | "classify-one" | "publish-one";
 	operation?: "notice-sync" | "notice-classify-missing" | "notice-publish-pending";
 	stage?: string;
 }[] = [
-	{ id: "notice-sync", label: "通知采集", cron: "notice-sync", operation: "notice-sync" },
+	{
+		id: "notice-sync",
+		label: "通知采集（兼容）",
+		cron: "notice-sync",
+		legacyMode: "sync",
+		operation: "notice-sync",
+	},
 	{
 		id: "notice-classifier",
-		label: "通知分类",
+		label: "通知分类（兼容）",
 		cron: "notice-classifier",
+		legacyMode: "classify-one",
 		operation: "notice-classify-missing",
 		stage: "classification",
 	},
 	{
 		id: "notice-publisher",
-		label: "通知发布",
+		label: "通知发布（兼容）",
 		cron: "notice-publisher",
+		legacyMode: "publish-one",
 		operation: "notice-publish-pending",
 		stage: "publication",
 	},
-	{ id: "campus-rag-refresh", label: "通知索引刷新" },
+	{ id: "notice-pipeline", label: "通知采集与 RAG 流水线" },
 	{ id: "document-ocr", label: "OCR 扫描", cron: "document-ocr" },
 	{
 		id: "internal-portal-credential-checker",
@@ -85,12 +94,13 @@ export function createTaskService(input: {
 		return task;
 	};
 	const runs = async (id: TaskId): Promise<TaskRun[]> => {
-		if (id === "campus-rag-refresh") {
+		const task = definition(id);
+		if (id === "notice-pipeline") {
 			return temporal(async (client) => {
 				const result: TaskRun[] = [];
 				for await (const execution of client.workflow.list({
 					query:
-						'WorkflowType IN ("campusRagRefresh", "campusRagRollback", "campusRagScheduledRefresh")',
+						'WorkflowType IN ("noticePipelineRun", "noticePipelineRollback", "noticePipelineScheduled")',
 					pageSize: 20,
 				})) {
 					result.push(await temporalRun(client, execution));
@@ -101,7 +111,6 @@ export function createTaskService(input: {
 				return result;
 			});
 		}
-		const task = definition(id);
 		if (input.local) {
 			return [];
 		}
@@ -140,16 +149,7 @@ export function createTaskService(input: {
 					details: job.status,
 				}));
 		}
-		return (await input.jobs.list())
-			.filter((job) => {
-				if (id === "notice-sync") {
-					return ["notice-sync", "notice-rescan", "notice-backfill"].includes(job.operation);
-				}
-				return id === "notice-classifier"
-					? job.operation.startsWith("notice-classify")
-					: job.operation.startsWith("notice-publish") || job.operation === "notice-republish-one";
-			})
-			.map(noticeRun);
+		return (await input.jobs.list()).filter((job) => belongsToTask(id, job)).map(noticeRun);
 	};
 	const list = async (): Promise<OpsTask[]> =>
 		Promise.all(
@@ -158,8 +158,8 @@ export function createTaskService(input: {
 					id: task.id,
 					label: task.label,
 					runtime: task.cron ? "kubernetes" : "temporal",
-					canSchedule: !task.cron || Boolean(task.operation && !input.local),
-					canRun: !task.cron || Boolean(task.operation && !input.local),
+					canSchedule: !task.legacyMode && (!task.cron || Boolean(task.operation && !input.local)),
+					canRun: !input.local,
 					enabled: null,
 					intervalMinutes: null,
 					schedule: null,
@@ -169,7 +169,15 @@ export function createTaskService(input: {
 					error: null,
 				};
 				try {
-					if (task.cron && !input.local) {
+					if (task.legacyMode && input.local) {
+						await temporal(async (client) => {
+							const schedule = await client.schedule.getHandle("notice-pipeline").describe();
+							value.enabled = !schedule.state.paused;
+							value.intervalMinutes = (schedule.spec.intervals?.[0]?.every ?? 0) / 60_000;
+							value.schedule = `${value.intervalMinutes} min`;
+							value.running = schedule.info.runningActions.length > 0;
+						});
+					} else if (task.cron && !input.local) {
 						const cron = await batch().readNamespacedCronJob({
 							name: task.cron,
 							namespace: input.namespace,
@@ -214,7 +222,7 @@ export function createTaskService(input: {
 		runs,
 		async getRun(id: TaskId, runId: string): Promise<TaskRun | null> {
 			const task = definition(id);
-			if (id === "campus-rag-refresh") {
+			if (id === "notice-pipeline") {
 				if (!/^[a-f0-9-]{36}$/i.test(runId)) {
 					return null;
 				}
@@ -305,13 +313,16 @@ export function createTaskService(input: {
 				...(row.producer_run_id ? { producerRunId: row.producer_run_id } : {}),
 			};
 			return temporal(async (client) => {
-				const schedule = client.schedule.getHandle("campus-rag-refresh");
+				const schedule = client.schedule.getHandle("notice-pipeline");
 				await schedule.pause("Paused for index rollback");
-				return startMaintenance(client, "campusRagRollback", [args]);
+				return startMaintenance(client, "noticePipelineRollback", [args]);
 			});
 		},
 		async update(id: TaskId, value: TaskScheduleInput) {
 			const task = definition(id);
+			if (task.legacyMode && input.local) {
+				throw new TaskError("兼容任务请通过 notice-pipeline 调整统一调度", 409);
+			}
 			if (!task.cron) {
 				return temporal(async (client) => {
 					await client.schedule.getHandle(id).update((existing) => ({
@@ -324,10 +335,6 @@ export function createTaskService(input: {
 			if (!task.operation || input.local) {
 				throw new TaskError("此任务的调度设置只读", 409);
 			}
-			if (id === "notice-sync") {
-				await input.collection.update(value);
-				return;
-			}
 			await batch().patchNamespacedCronJob({
 				name: task.cron,
 				namespace: input.namespace,
@@ -339,8 +346,13 @@ export function createTaskService(input: {
 		},
 		async run(id: TaskId) {
 			const task = definition(id);
-			if (!task.cron) {
-				return temporal(async (client) => startMaintenance(client, "campusRagRefresh", []));
+			if (id === "notice-pipeline") {
+				return temporal(async (client) => startMaintenance(client, "noticePipelineRun", []));
+			}
+			if (task.legacyMode) {
+				return temporal(async (client) =>
+					startMaintenance(client, "noticePipelineRun", [{ mode: task.legacyMode }]),
+				);
 			}
 			if (!task.operation || input.local) {
 				throw new TaskError("此任务不支持从任务页运行", 409);
@@ -385,7 +397,7 @@ function belongsToTask(id: TaskId, job: NoticeJob) {
 async function startMaintenance(client: Client, type: string, args: unknown[]) {
 	try {
 		const handle = await client.workflow.start(type, {
-			taskQueue: "campus-rag",
+			taskQueue: "notice-pipeline",
 			workflowId: maintenanceWorkflowId,
 			workflowIdConflictPolicy: "FAIL",
 			workflowIdReusePolicy: "ALLOW_DUPLICATE",
@@ -444,7 +456,7 @@ async function temporalRun(client: Client, execution: WorkflowExecutionInfo): Pr
 		status: execution.status.name.toLowerCase(),
 		outcome:
 			details?.outcome ??
-			(execution.status.name === "COMPLETED" && execution.type === "campusRagRollback"
+			(execution.status.name === "COMPLETED" && execution.type === "noticePipelineRollback"
 				? details?.noOp || details?.obsolete
 					? "skipped"
 					: "success"

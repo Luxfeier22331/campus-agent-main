@@ -344,11 +344,24 @@ jobs:
           mkdir -p worker-candidates
           pnpm --dir apps/app-api upload:staging
 
+      - name: Publish generated Docs source
+        id: campus_web_docs
+        if: >-
+          !cancelled() &&
+          steps.install_workers.outcome == 'success' &&
+          contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
+        env:
+          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_ACCESS_KEY }}
+          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_SECRET_KEY }}
+          OBJECT_STORE_ENDPOINT: ${{ vars.OBJECT_STORE_ENDPOINT }}
+        run: pnpm --dir apps/campus-web docs:source:publish
+
       - name: Build Campus Web staging candidate
         id: campus_web_build
         if: >-
           !cancelled() &&
           steps.install_workers.outcome == 'success' &&
+          steps.campus_web_docs.outcome == 'success' &&
           contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
         env:
           OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}

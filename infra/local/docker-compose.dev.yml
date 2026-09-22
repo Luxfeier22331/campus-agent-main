@@ -25,10 +25,10 @@ services:
   object-store:
     image: rustfs/rustfs:1.0.0-beta.12@sha256:41fe89380f4120a337790c02af192c3fe7bb55c3edc2e6e9357b487b47c6ab21
     environment:
-      RUSTFS_ACCESS_KEY: minioadmin
+      RUSTFS_ACCESS_KEY: rustfsadmin
       RUSTFS_CONSOLE_ADDRESS: ":9001"
       RUSTFS_OBS_LOG_STDOUT_ENABLED: "true"
-      RUSTFS_SECRET_KEY: minioadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/health/ready"]
       interval: 2s

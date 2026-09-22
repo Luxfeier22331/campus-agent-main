@@ -13,10 +13,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parseUpdateDocsSourceArgs, updateDocsSource } from "../scripts/update-docs-source.ts";
 import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import type {
+	DocsSourceObjectStore,
 	ReaderObjectStoreClient,
-	ReaderObjectStoreWriter,
 } from "../src/docs-reader-build/published-reader-types.ts";
 import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
+import { docsSourceReleaseKey } from "../src/docs-reader-build/source-publisher.ts";
+import { createMemoryDocsSourceStore } from "./helpers/docs-source-store.ts";
 
 const tempRoots: string[] = [];
 
@@ -360,6 +362,7 @@ describe("Campus Web 文档来源更新", () => {
 
 		expect(result).toEqual({
 			documentCount: 1,
+			releaseKey: docsSourceReleaseKey(sha256(canonicalJsonBytes(source))),
 			sourceDigest: sha256(canonicalJsonBytes(source)),
 			versionCount: 1,
 		});
@@ -527,21 +530,12 @@ function setFixtureReaderSupplements(store: MemoryStore, source: DocsSourceManif
 	});
 }
 
-interface MemoryStore extends ReaderObjectStoreWriter {
+interface MemoryStore extends DocsSourceObjectStore {
 	objects: Map<string, Uint8Array>;
 }
 
 function memoryStore(): MemoryStore {
-	const objects = new Map<string, Uint8Array>();
-	return {
-		objects,
-		async readOptionalBytesObject({ key }) {
-			return objects.get(key);
-		},
-		async writeBytesObject({ body, key }) {
-			objects.set(key, body);
-		},
-	};
+	return createMemoryDocsSourceStore();
 }
 
 function putJson(store: MemoryStore, key: string, value: unknown): ObjectRef {

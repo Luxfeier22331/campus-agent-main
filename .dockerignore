@@ -5,8 +5,10 @@
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
 !turbo.json
-!apps/campus-rag-worker/
-!apps/campus-rag-worker/**
+!apps/notice-pipeline-worker/
+!apps/notice-pipeline-worker/**
+!apps/notice-artifacts-worker/
+!apps/notice-artifacts-worker/**
 !apps/agent-runtime/
 !apps/agent-runtime/**
 !apps/app-api/

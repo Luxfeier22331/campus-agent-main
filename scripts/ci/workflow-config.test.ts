@@ -865,7 +865,20 @@ test("Worker publication matches the candidate registry and secret boundaries", 
 		githubExpression("vars.OBJECT_STORE_VPC_SERVICE_ID"),
 	);
 
+	const docsSource = namedStep(workers, "Publish generated Docs source");
+	assert.equal(docsSource.run, "pnpm --dir apps/campus-web docs:source:publish");
+	assert(isObject(docsSource.env));
+	assert.equal(
+		docsSource.env.OBJECT_STORE_DERIVED_ACCESS_KEY,
+		githubExpression("secrets.OBJECT_STORE_DERIVED_ACCESS_KEY"),
+	);
+	assert.equal(
+		docsSource.env.OBJECT_STORE_DERIVED_SECRET_KEY,
+		githubExpression("secrets.OBJECT_STORE_DERIVED_SECRET_KEY"),
+	);
 	const campusWeb = namedStep(workers, "Build Campus Web staging candidate");
+	assert.match(String(campusWeb.if), /steps\.campus_web_docs\.outcome == 'success'/u);
+	assert(steps.indexOf(docsSource) < steps.indexOf(campusWeb));
 	assert(isObject(campusWeb.env));
 	assert.equal(
 		campusWeb.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,

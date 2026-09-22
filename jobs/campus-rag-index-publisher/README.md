@@ -28,8 +28,7 @@ publish-index
 - `CAMPUS_DOCS_EMBEDDING_SET=sha256:<id>`；
 - `CAMPUS_NOTICE_EMBEDDING_SET=sha256:<id>`。
 
-Kubernetes CronJob 模板不保存这两个输入；操作者从暂停模板创建一次性 Job 时用 `kubectl set env --local`
-注入。这样制品 ID 不进入 CronJob、ConfigMap 或 Secret。
+自动路径由 Temporal workflow 传入，人工路径由一次性 CLI/Job 显式传入。制品 ID 不写入 ConfigMap 或 Secret。
 
 本地发布验证使用独立入口，不读取共享 derived bucket：
 
@@ -130,23 +129,8 @@ pnpm dev:init -- --target campus-rag-index-publisher
 ```
 
 本地 package 环境只用于连接本地 PostgreSQL、Qdrant 和 derived object store；它不生成或上传制品。
-线上模板位于：
-
-```text
-infra/k8s/execution-runtime/base/runtime/campus-rag-index-publisher.yaml
-```
-
-模板保持 `suspend: true`，一次性执行示例：
-
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/campus-rag-index-publisher <job-name> \
-  --dry-run=client -o yaml |
-kubectl set env --local -f - \
-  CAMPUS_DOCS_EMBEDDING_SET=sha256:<docs-id> \
-  CAMPUS_NOTICE_EMBEDDING_SET=sha256:<notice-id> -o yaml |
-kubectl -n <namespace> create -f -
-```
+生产自动发布由 `notice-artifacts-worker` 调用本包完成，不再部署独立的 Publisher CronJob。
+需要人工执行时，使用本包的 CLI 或通过受控的一次性 Job 调用相同镜像，并显式传入两个 Embedding Set。
 
 Publisher 只需要 derived object-store read credentials、Qdrant 连接和 current-index 数据库连接；它不
 需要 Model Config、Notice 数据库或 embedding provider 凭据。

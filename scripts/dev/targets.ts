@@ -6,7 +6,8 @@ export type LocalDevTarget =
 	| "internal-portal-collection"
 	| "notice-classifier"
 	| "campus-docs-index-publisher"
-	| "campus-rag-worker"
+	| "notice-pipeline-worker"
+	| "notice-artifacts-worker"
 	| "campus-rag-index-publisher"
 	| "notice-index-publisher";
 
@@ -28,7 +29,8 @@ export type LocalDevEnvironmentProjection =
 	| "internal-portal-collection"
 	| "notice-classifier"
 	| "campus-docs-index-publisher"
-	| "campus-rag-worker"
+	| "notice-pipeline-worker"
+	| "notice-artifacts-worker"
 	| "campus-rag-index-publisher"
 	| "notice-index-publisher";
 
@@ -157,7 +159,25 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 		runtimeDependencies: [],
 		target: "campus-docs-index-publisher",
 	},
-	"campus-rag-worker": {
+	"notice-pipeline-worker": {
+		bootstrapSteps: [
+			"campus-agent-schema",
+			"model-config-seed",
+			"model-config-check",
+			"temporal-namespace",
+		],
+		capabilities: ["postgres", "source-bucket", "derived-bucket", "temporal"],
+		directEnvironmentProjections: [
+			"model-config",
+			"internal-portal-collection",
+			"notice-pipeline-worker",
+		],
+		environmentDependencies: [],
+		modelConfigNames: ["notice_classification", "campus_docs_embedding"],
+		runtimeDependencies: ["model-config"],
+		target: "notice-pipeline-worker",
+	},
+	"notice-artifacts-worker": {
 		bootstrapSteps: [
 			"campus-agent-schema",
 			"model-config-seed",
@@ -165,11 +185,11 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 			"temporal-namespace",
 		],
 		capabilities: ["postgres", "derived-bucket", "qdrant", "temporal"],
-		directEnvironmentProjections: ["model-config", "campus-rag-worker"],
+		directEnvironmentProjections: ["model-config", "notice-artifacts-worker"],
 		environmentDependencies: [],
 		modelConfigNames: ["campus_docs_embedding"],
 		runtimeDependencies: ["model-config"],
-		target: "campus-rag-worker",
+		target: "notice-artifacts-worker",
 	},
 	"campus-rag-index-publisher": {
 		bootstrapSteps: [],

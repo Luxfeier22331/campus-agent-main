@@ -1,0 +1,11 @@
+docId: curriculum:体育教育本科人才培养方案
+readerKey: campus-docs/readers/sha256/0ffeac9252edfea14a5b99ca5050299e4bcf19769fb80edf3fe09cbda4974c05/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/体育教育本科人才培养方案--体育教育本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0624-page-0624-block-mineru-block-0003-0003-map-01.png
+        path: course-maps/page-0624-page-0624-block-mineru-block-0003-0003-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/体育教育本科人才培养方案--体育教育本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:体育教育本科人才培养方案:dda462cf3d2c
+versionSlug: "2022"

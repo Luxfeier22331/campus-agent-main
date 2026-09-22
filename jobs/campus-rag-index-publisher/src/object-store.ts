@@ -32,9 +32,9 @@ export function createS3ReaderStore(env: ObjectStoreEnv = process.env): ReaderOb
 	};
 }
 
-export function createS3ReaderStoreFromConfig(config: S3ObjectStoreConfig): ReaderObjectStore {
+export function createS3ReaderStoreFromConfig(config: S3ObjectStoreConfig, signal?: AbortSignal): ReaderObjectStore {
 	const client = createClient(config);
-	return { read: (key) => readObject(client, config.bucket, key) };
+	return { read: (key) => readObject(client, config.bucket, key, signal) };
 }
 
 export function createS3WriterStore(env: ObjectStoreEnv = process.env): WritableObjectStore {
@@ -102,8 +102,8 @@ function createClient(config: S3ObjectStoreConfig): S3Client {
 	});
 }
 
-async function readObject(client: S3Client, bucket: string, key: string): Promise<Uint8Array> {
-	const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+async function readObject(client: S3Client, bucket: string, key: string, signal?: AbortSignal): Promise<Uint8Array> {
+	const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }), signal ? { abortSignal: signal } : {});
 	if (!response.Body) throw new Error(`object body is missing: ${key}`);
 	return response.Body.transformToByteArray();
 }

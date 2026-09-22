@@ -9,10 +9,6 @@ const manifestPath = resolve(
 	import.meta.dirname,
 	"../../infra/k8s/execution-runtime/base/runtime/campus-docs-index-publisher.yaml",
 );
-const unifiedManifestPath = resolve(
-	import.meta.dirname,
-	"../../infra/k8s/execution-runtime/base/runtime/campus-rag-index-publisher.yaml",
-);
 
 test("Campus Docs manual Job templates are complete and suspended", () => {
 	const source = readFileSync(manifestPath, "utf8");
@@ -45,29 +41,6 @@ test("Campus Docs manual Job templates are complete and suspended", () => {
 	assert.doesNotMatch(source, /CAMPUS_DOCS_(CHUNK_SET|EMBEDDING_SET|REUSE_EMBEDDING_SET)/u);
 	assert.match(source, /MODEL_CONFIG_URL/u);
 	assert.doesNotMatch(source, /sha256:0{64}/u);
-});
-
-test("the unified Campus RAG publisher is a suspended one-shot template", () => {
-	const source = readFileSync(unifiedManifestPath, "utf8");
-	const manifests = parseAllDocuments(source).map((document) =>
-		record(document.toJS(), "manifest"),
-	);
-	assert.equal(manifests.length, 1);
-	const manifest = manifests[0];
-	assert.equal(nameOf(manifest), "campus-rag-index-publisher");
-	const spec = record(manifest.spec, "unified publisher spec");
-	assert.equal(spec.suspend, true);
-	assert.equal(spec.concurrencyPolicy, "Forbid");
-	const jobTemplate = record(spec.jobTemplate, "unified publisher jobTemplate");
-	const jobSpec = record(jobTemplate.spec, "unified publisher Job spec");
-	assert.equal(jobSpec.ttlSecondsAfterFinished, 86_400);
-	assert.equal(jobSpec.backoffLimit, 0);
-	const args = container(manifest, "campus-rag-index-publisher").args;
-	assert.deepEqual(args, ["publish-index"]);
-	assert.doesNotMatch(source, /CAMPUS_(DOCS|NOTICE)_EMBEDDING_SET/u);
-	assert.match(source, /EXECUTION_CONTROL_DATABASE_URL/u);
-	assert.match(source, /QDRANT_URL/u);
-	assert.match(source, /OBJECT_STORE_DERIVED_READ_ACCESS_KEY/u);
 });
 
 function nameOf(manifest: Record<string, unknown>): string {

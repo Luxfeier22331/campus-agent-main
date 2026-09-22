@@ -1,39 +1,59 @@
 import type { DocsSourceManifest } from "campus-contracts/campus-docs";
 import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "campus-contracts/campus-docs/node";
-import { canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
-import type { ReaderObjectStoreWriter } from "./published-reader-types.ts";
+import { assertSha256, canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
+import type { DocsSourceObjectStore, ReaderObjectStoreWriter } from "./published-reader-types.ts";
 import { compileDocsSource } from "./source-compiler.ts";
 
+export const DOCS_SOURCE_RELEASE_PREFIX = "campus-docs/releases";
+
 export async function publishDocsSource(input: {
-	client: ReaderObjectStoreWriter;
+	client: DocsSourceObjectStore;
 	expectedCurrentDigest?: `sha256:${string}`;
-	source: DocsSourceManifest;
+	source: DocsSourceManifest | (() => Promise<DocsSourceManifest>);
 }): Promise<{
 	documentCount: number;
+	releaseKey: string;
 	sourceDigest: `sha256:${string}`;
 	versionCount: number;
 }> {
-	const source = normalizeSourceManifest(input.source);
+	// Capture before materializing declarations or validating assets; the final PUT must
+	// reject another publisher's update during that work.
+	const current = await input.client.readOptionalObject({ key: DOCS_SOURCE_KEY });
+	if (input.expectedCurrentDigest) {
+		assertSourceDigest(current?.body, input.expectedCurrentDigest);
+	}
+	const source = normalizeSourceManifest(
+		typeof input.source === "function" ? await input.source() : input.source,
+	);
 	const sourceBytes = canonicalJsonBytes(source);
-	if (input.expectedCurrentDigest) {
-		await assertCurrentSourceDigest(input.client, input.expectedCurrentDigest);
-	}
 	await compileDocsSource({ client: input.client, source });
-	if (input.expectedCurrentDigest) {
-		await assertCurrentSourceDigest(input.client, input.expectedCurrentDigest);
+	const sourceDigest = sha256(sourceBytes);
+	const releaseKey = docsSourceReleaseKey(sourceDigest);
+	await writeImmutableSourceRelease(input.client, releaseKey, sourceBytes);
+	try {
+		await input.client.writeBytesObject({
+			body: sourceBytes,
+			contentType: "application/json",
+			...(current?.etag ? { ifMatch: current.etag } : { ifNoneMatch: "*" as const }),
+			key: DOCS_SOURCE_KEY,
+		});
+	} catch (error) {
+		if (isPreconditionFailure(error)) {
+			throw new Error(
+				"Docs source changed during publication; review the current source and rerun",
+				{ cause: error },
+			);
+		}
+		throw error;
 	}
-	await input.client.writeBytesObject({
-		body: sourceBytes,
-		contentType: "application/json",
-		key: DOCS_SOURCE_KEY,
-	});
 	const stored = await input.client.readOptionalBytesObject({ key: DOCS_SOURCE_KEY });
 	if (!(stored && equalBytes(stored, sourceBytes))) {
 		throw new Error(`failed to verify updated campus docs source: ${DOCS_SOURCE_KEY}`);
 	}
 	return {
 		documentCount: source.documents.length,
-		sourceDigest: sha256(sourceBytes),
+		releaseKey,
+		sourceDigest,
 		versionCount: source.versions.length,
 	};
 }
@@ -43,6 +63,41 @@ export async function assertCurrentSourceDigest(
 	expectedDigest: `sha256:${string}`,
 ): Promise<Uint8Array> {
 	const bytes = await client.readOptionalBytesObject({ key: DOCS_SOURCE_KEY });
+	assertSourceDigest(bytes, expectedDigest);
+	return bytes;
+}
+
+export function docsSourceReleaseKey(sourceDigest: `sha256:${string}`): string {
+	return `${DOCS_SOURCE_RELEASE_PREFIX}/${assertSha256(sourceDigest).slice("sha256:".length)}/source.json`;
+}
+
+async function writeImmutableSourceRelease(
+	client: ReaderObjectStoreWriter,
+	key: string,
+	body: Uint8Array,
+): Promise<void> {
+	try {
+		await client.writeBytesObject({
+			body,
+			contentType: "application/json",
+			ifNoneMatch: "*",
+			key,
+		});
+	} catch (error) {
+		if (!isPreconditionFailure(error)) {
+			throw error;
+		}
+		const existing = await client.readOptionalBytesObject({ key });
+		if (!(existing && equalBytes(existing, body))) {
+			throw new Error(`immutable docs source release conflicts with existing object: ${key}`);
+		}
+	}
+}
+
+function assertSourceDigest(
+	bytes: Uint8Array | undefined,
+	expectedDigest: `sha256:${string}`,
+): asserts bytes is Uint8Array {
 	if (!bytes) {
 		throw new Error(`missing campus docs source catalog: ${DOCS_SOURCE_KEY}`);
 	}
@@ -52,7 +107,14 @@ export async function assertCurrentSourceDigest(
 			`campus docs source digest changed: expected ${expectedDigest}, received ${actualDigest}`,
 		);
 	}
-	return bytes;
+}
+
+function isPreconditionFailure(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	const record = error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+	return record.name === "PreconditionFailed" || record.$metadata?.httpStatusCode === 412;
 }
 
 function equalBytes(left: Uint8Array, right: Uint8Array): boolean {

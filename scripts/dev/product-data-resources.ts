@@ -21,20 +21,32 @@ export type ProductDocsReferences = Map<
 	{ documentId: string; versionId: string; rootUnitIds: Set<string> }
 >;
 
+export interface ProductDocsClosure {
+	sourceBytes: Uint8Array;
+	references: ProductDocsReferences;
+	manifest: ReturnType<typeof normalizeSourceManifest>;
+	objects: Map<string, { contentType: string }>;
+}
+
 export const PRODUCT_DOCS_SOURCE_KEY = "campus-docs/source.json";
 
 /** All versions, supplements and image objects reachable from the mutable source. */
-export async function copyDocsClosure(source: ReaderObjectStore, target?: WritableObjectStore) {
+export async function copyDocsClosure(
+	source: ReaderObjectStore,
+	target?: WritableObjectStore,
+): Promise<ProductDocsClosure> {
 	const sourceBytes = await source.read(PRODUCT_DOCS_SOURCE_KEY);
 	const manifest = normalizeSourceManifest(
 		parseSourceManifest(JSON.parse(Buffer.from(sourceBytes).toString("utf8"))),
 	);
 	const references: ProductDocsReferences = new Map();
+	const objects = new Map<string, { contentType: string }>();
 	const readRef = async (ref: ObjectRef, contentType = "application/json") => {
 		const bytes = await source.read(ref.key);
 		if (bytes.byteLength !== ref.byteSize || digest(bytes) !== ref.sha256) {
 			throw new Error(`Docs object does not match reference: ${ref.key}`);
 		}
+		objects.set(ref.key, { contentType });
 		await target?.writeImmutable(ref.key, bytes, contentType);
 		return bytes;
 	};
@@ -76,7 +88,17 @@ export async function copyDocsClosure(source: ReaderObjectStore, target?: Writab
 		source: manifest,
 		client: { readOptionalBytesObject: ({ key }) => source.read(key) },
 	});
-	return { sourceBytes, references, manifest };
+	return { sourceBytes, references, manifest, objects };
+}
+
+export async function writeDocsClosure(
+	closure: ProductDocsClosure,
+	source: ReaderObjectStore,
+	target: WritableObjectStore,
+): Promise<void> {
+	for (const [key, object] of closure.objects) {
+		await target.writeImmutable(key, await source.read(key), object.contentType);
+	}
 }
 
 export async function copyProductAssets(

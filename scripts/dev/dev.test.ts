@@ -569,8 +569,8 @@ describe("managed worktree environment", () => {
 		assert.equal(first.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
 		assert.equal(second.AUTH_TURNSTILE_SECRET_KEY, "local-turnstile-disabled");
 		assert.equal(second.AUTH_SHELL_ORIGIN, "http://127.0.0.1:27114");
-		assert.equal(second.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "minioadmin");
-		assert.equal(second.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "minioadmin");
+		assert.equal(second.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "rustfsadmin");
+		assert.equal(second.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "rustfsadmin");
 		assert.equal(second.EXECUTION_CONTROL_BASE_URL, "http://127.0.0.1:27151");
 		assert.equal(
 			second.OBJECT_STORE_LOCAL_BASE_URL,
@@ -615,8 +615,8 @@ describe("managed worktree environment", () => {
 		assert.equal(campusWebEnvironment.CAMPUS_WEB_DEV_PORT, String(profile.ports.campusWeb));
 		assert.equal(campusWebEnvironment.AUTH_TURNSTILE_SITE_KEY, "");
 		assert.equal(campusWebEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
-		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "minioadmin");
-		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "minioadmin");
+		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "rustfsadmin");
+		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "rustfsadmin");
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");
@@ -639,10 +639,10 @@ describe("managed worktree environment", () => {
 			internalPortalCollectionEnvironment.OBJECT_STORE_ENDPOINT,
 			"http://127.0.0.1:9000",
 		);
-		assert.equal(internalPortalCollectionEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
+		assert.equal(internalPortalCollectionEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "rustfsadmin");
 		assert.equal(
 			internalPortalCollectionEnvironment.OPS_WEB_INTERNAL_URL,
-			`http://127.0.0.1:${profile.ports.opsWebApi}`,
+			`http://127.0.0.1:${profile.ports.opsWeb}`,
 		);
 		assert.equal(internalPortalCollectionEnvironment.INTERNAL_PORTAL_SSO_TGC, "TGT-local");
 		assert.equal(internalPortalCollectionEnvironment.NOTICES_DATABASE_SSLMODE, "disable");
@@ -663,10 +663,10 @@ describe("managed worktree environment", () => {
 			internalPortalCollectionEnvironment.NOTICES_DATABASE_URL,
 			noticePublisherEnvironment.NOTICES_DATABASE_URL,
 		);
-		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
-		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_SECRET_KEY, "minioadmin");
-		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "minioadmin");
-		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, "minioadmin");
+		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "rustfsadmin");
+		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_SECRET_KEY, "rustfsadmin");
+		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "rustfsadmin");
+		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, "rustfsadmin");
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_ACCESS_KEY, undefined);
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SECRET_KEY, undefined);
 		assert.equal(noticePublisherEnvironment.DEPLOYMENT_ENVIRONMENT, "local");
@@ -824,6 +824,7 @@ describe("managed worktree environment", () => {
 		]);
 		assert.deepEqual(Object.keys(parseEnv(readFileSync(campusPaths[0] ?? "", "utf8"))).sort(), [
 			"EXECUTION_CONTROL_DATABASE_URL",
+			"OBJECT_STORE_BUCKET_DERIVED",
 			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 			"OBJECT_STORE_ENDPOINT",
@@ -1426,7 +1427,7 @@ function createRepositoryShape(): string {
 		"model-config",
 		"agent-runtime",
 		"ops-web",
-		"campus-rag-worker",
+		"notice-pipeline-worker",
 	]) {
 		mkdirSync(resolve(repoRoot, "apps", app), { recursive: true });
 	}

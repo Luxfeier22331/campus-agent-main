@@ -21,7 +21,7 @@ Docs 的共享输入是对象存储中的 `campus-docs/source.json` 及其引用
 
 `campus_docs_source.v4` 是完整当前期望集合，不是增量补丁。清单、reader、版本和补充对象的字段及
 关系以[文档来源与静态交付合同](../contracts/document-reader-delivery.md)为准；本手册只说明操作顺序。
-新增或修订对象先上传，再通过来源更新命令写入固定键；删除通过完整清单移除。RAG 只索引当前 reader，
+新增或修订对象先上传，再提交 Git 声明，由发布器自动生成固定键；删除通过移除声明表达。RAG 只索引当前 reader，
 历史 reader 只要仍被清单引用就不能清理。RAG publisher 当前只把来源清单选出的 current Docs 版本写入 serving collection；在线通过 payload 中的版本字段过滤和诊断。历史版本只有在未来被单独纳入 serving 制品后才可被历史查询消费。
 
 生命周期 owner 也按阶段区分：来源 owner 管理门户原始对象和来源清单，Campus Web/Campus Docs 数据面
@@ -39,25 +39,34 @@ Docs 的共享输入是对象存储中的 `campus-docs/source.json` 及其引用
 
 ## 更新来源
 
-1. 从当前 `campus-docs/source.json` 制作完整候选清单，不从 bucket 列表、修改时间或文件名推断内容。
-2. 上传候选清单引用的新 reader、补充数据和图片，记录每个对象的精确 `key`、`byteSize` 和
-   `sha256`。
-3. 在本地保存候选清单为 `<candidate-source.json>`，检查文档身份、版本选择、公开路径和重定向。
-4. 使用写入身份执行完整编译和固定键更新：
+1. 来源 owner 先把新 reader、补充数据和图片上传至 RustFS 的新对象键；使用条件创建，已有内容不得覆盖。
+2. 修改 `apps/campus-web/docs-source/` 中对应 YAML，填写业务字段与对象 key。字段及布局见
+   [声明目录说明](../../apps/campus-web/docs-source/README.md)；不维护 `sha256` 或 `byteSize`。
+3. 执行离线检查，提交 PR；Campus Web 的 Node 测试同样检查这份真实声明，不需要对象存储凭据：
 
-```bash
-pnpm --dir apps/campus-web docs:source:update -- \
-  --source-file <candidate-source.json>
-```
+   ```bash
+   pnpm --dir apps/campus-web docs:source:check
+   ```
 
-命令会规范化清单、读取并核对全部引用、完整编译所有版本，最后才覆盖固定来源键并回读验证。任一步
-失败都先修复候选清单或引用对象，不手工覆盖 `source.json`。
+4. 合并后候选流水线自动运行 `docs:source:publish`，计算引用摘要和大小、完整编译、写不可变副本，再
+   条件更新固定 `campus-docs/source.json`。成功输出 `documentCount`、`versionCount`、`sourceDigest`、`releaseKey`。
+   手动调试也使用该命令，连接沿用 `env/commands/campus-docs-source.env` 和进程环境，选择目标后再运行。
+
+编译或对象读取失败时固定键不变；条件冲突表示其他发布者已更新来源，检查新来源后重新发布，不手工覆盖。
+静态构建失败可直接重跑候选流程，已有相同 digest 的副本会核对内容并复用。
+
+迁移入口 `docs:source:bootstrap -- --output <empty-directory> [--source-file <source.json>]` 可从指定文件或
+只读对象存储导出声明，只写本地空目录。比较重新生成的 canonical 清单与迁移前清单，完整 digest 应相同。
+旧 `docs:source:update -- --source-file <source.json>` 仅保留一个发布周期供迁移或恢复使用，也执行条件写入；
+确认 staging 新流程、静态站、Docs builder、本地同步均通过后退役，日常编辑使用 Git 声明。
+回滚优先 revert 对应声明并重新发布；紧急恢复可用保留的 release 副本，但必须同步恢复 Git 声明，避免下一次
+候选流水线再次发布新声明。固定键与保留的 release 引用对象均不得提前删除。
 
 ## 刷新 Campus Web
 
-来源更新成功后，手动运行 `staging-candidate-publish`，选择
-`candidate_scope=campus-web-docs`。该入口重新读取当前固定来源键，构建真实静态文档并上传不可变 Campus
-Web Worker version；环境是否选择该 version 仍由环境仓决定。
+声明变更合并到 main 会选择 Campus Web 候选；手动重跑 `staging-candidate-publish` 时选择
+`candidate_scope=campus-web-docs`。两种入口都先发布生成的来源，再用只读凭据构建真实静态文档并上传
+不可变 Campus Web Worker version；环境是否选择该 version 仍由环境仓决定，不在此处触发 RAG。
 
 每个当前版本同时生成普通文档 URL 和 `/v/<versionSlug>` 固定链接。静态构建和 RAG 构建是同一来源的
 独立消费者，可以分别运行；任一消费者失败时只修复并重跑所属构建，不回滚已经写入的来源清单。
@@ -251,11 +260,11 @@ collection，并写入当前指针。Publisher 不写入新的对象存储制品
 
 ## 手动执行
 
-`CronJob/campus-docs-chunk-builder`、`campus-docs-embedding-builder`、`notice-chunk-builder`、
-`notice-embedding-builder` 和 `campus-rag-index-publisher` 各自保存一个完整阶段的 Pod 模板，必须保持
-`suspend: true`，不得通过解除暂停执行。维护者只使用 `kubectl` 从模板创建一次性 Job；Embedding 和
-Publisher 的内容寻址输入只写入本次 Job，不保存到 CronJob、ConfigMap 或 Secret。每个 Job 不等待或触发
-下一阶段。
+`CronJob/campus-docs-chunk-builder`、`campus-docs-embedding-builder`、`notice-chunk-builder` 和
+`notice-embedding-builder` 各自保存一个完整阶段的 Pod 模板，必须保持 `suspend: true`，不得通过解除暂停执行。
+维护者只使用 `kubectl` 从模板创建一次性 Job；Embedding 的内容寻址输入只写入本次 Job，不保存到 CronJob、
+ConfigMap 或 Secret。通知索引刷新由 `notice-pipeline` Temporal Schedule 触发，不再通过独立的
+`campus-rag-index-publisher` CronJob 自动或手动启动。
 
 ### 1. 构建 Docs Chunk Set
 
@@ -318,15 +327,9 @@ Publisher 显式使用日志返回的
 
 ### 5. 发布统一 Campus RAG Index
 
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/campus-rag-index-publisher <job-name> \
-  --dry-run=client -o yaml |
-kubectl set env --local -f - \
-  CAMPUS_DOCS_EMBEDDING_SET=sha256:<docs-embedding-set-id> \
-  CAMPUS_NOTICE_EMBEDDING_SET=sha256:<notice-embedding-set-id> -o yaml |
-kubectl -n <namespace> create -f -
-```
+通知流水线完成 Notice artifact 和 embedding 后，由 `notice-artifacts-worker` 调用统一 Publisher 完成
+Qdrant 发布、current pointer 激活和版本清理。维护者通过 Ops Web 的 `notice-pipeline` 任务入口触发完整
+刷新或 rollback，不再从独立 CronJob 创建 Publisher Job。
 
 统一 Publisher 只读取两个显式 Embedding Set，并从各自 manifest 解析 Docs Chunk Set 和 Notice Chunk
 Run；不读取 reader、不连接 Notices 数据库，也不调用 embedding provider。它把两套已生成向量组装为一个
@@ -401,16 +404,16 @@ collection；已发布的当前 collection 由 `campus_search` 按需消费。
 2. 确认没有正在运行的 Campus RAG Publisher Job 或仍在使用旧绑定的在线查询访问待删除 collection；
 3. 使用 Qdrant 管理凭据删除明确列出的非当前 collection，并再次确认当前 collection 可读取。
 
-自动通知刷新由 `campus-rag-worker` 管理版本目录，保留 current 与 previous，自动版本退休至少一小时
+自动通知刷新由 `notice-pipeline-worker` 管理版本目录，保留 current 与 previous，自动版本退休至少一小时
 后回收 collection 及独占的自动产物。手动产物不自动认领。人工清理前必须在 Ops `/tasks` 暂停
 索引刷新并等待运行结束，同时保护 current 与 previous。回滚使用任务页的“暂停并回滚至上一版本”，
 回滚后调度保持暂停。首次开启前以真实 Docs/Notice Embedding Set 正常发布一次，确认版本目录已登记，
 再运行一次刷新并检查结果；禁止写入空引用跳过登记。
 
 更新本次互斥与回滚合同前，先暂停 Schedule 并停止旧 Ops 接口的新触发，等待旧刷新和回滚全部结束。
-部署 worker 与 Ops 后重新初始化 Schedule action 为 `campusRagScheduledRefresh`，保留运维设置，
+部署 worker 与 Ops 后重新初始化 Schedule action 为 `noticePipelineScheduled`，保留运维设置，
 再执行一次手动刷新与回滚验收。新定时入口、手动刷新和回滚共同使用
-`campus-rag-refresh-workflow` 执行 ID；旧时间戳执行不在这条互斥边界内，不能省略排空步骤。
+`notice-pipeline-workflow` 执行 ID；旧时间戳执行不在这条互斥边界内，不能省略排空步骤。
 
 ## 相关文档
 

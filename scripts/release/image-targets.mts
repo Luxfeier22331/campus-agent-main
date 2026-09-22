@@ -7,14 +7,11 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"campus-agent-schema",
 	"campus-docs-index-publisher",
 	"campus-rag-index-publisher",
-	"campus-rag-worker",
+	"notice-pipeline-worker",
 	"document-ocr",
 	"execution-control",
-	"internal-portal-collection",
 	"model-config",
-	"notice-classifier",
-	"notice-index-publisher",
-	"notice-publisher",
+	"notice-artifacts-worker",
 	"ops-web",
 ] as const;
 export type ImageTarget = (typeof ACTIVE_IMAGE_TARGETS)[number];
@@ -30,7 +27,7 @@ export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> 
 );
 export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map(
 	ACTIVE_IMAGE_TARGETS.map((image) => [
-		`${["agent-runtime", "execution-control", "model-config", "ops-web", "campus-rag-worker"].includes(image) ? "apps" : "jobs"}/${image}/Dockerfile`,
+		`${["agent-runtime", "execution-control", "model-config", "ops-web", "notice-pipeline-worker", "notice-artifacts-worker"].includes(image) ? "apps" : "jobs"}/${image}/Dockerfile`,
 		[image],
 	]),
 );
@@ -79,8 +76,8 @@ const EXTRA_INPUTS: Partial<Record<ImageTarget, string[]>> = {
 		"scripts/release/check-ops-web-artifact.mjs",
 	],
 	"document-ocr": ["configs/sources/internal-portal.json"],
-	"internal-portal-collection": ["configs/sources/internal-portal.json"],
-	"notice-publisher": ["configs/sources/internal-portal.json"],
+	"notice-pipeline-worker": ["configs/sources/internal-portal.json"],
+	"notice-artifacts-worker": ["packages/contracts/schemas/"],
 	"campus-docs-index-publisher": ["packages/contracts/schemas/"],
 	"campus-rag-index-publisher": ["packages/contracts/schemas/"],
 };

@@ -34,8 +34,10 @@ import {
 	assertProductAppsOffline,
 	diagnoseProductData,
 	initializeProductData,
+	repairProductSnapshot,
 } from "./product-data";
 import type { ProductDataOptions } from "./product-data-options";
+import { removeProductSnapshot } from "./product-data-state";
 import {
 	ensureLocalDevProfile,
 	type LocalDevProfileV2,
@@ -92,7 +94,7 @@ export async function initializeLocalDevelopmentTarget(
 	}
 	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
 	const qdrant = projections.some((projection) =>
-		["core", "campus-rag-index-publisher", "campus-rag-worker"].includes(projection),
+		["core", "campus-rag-index-publisher", "notice-artifacts-worker"].includes(projection),
 	)
 		? await resolveLocalQdrantConnection()
 		: undefined;
@@ -100,6 +102,9 @@ export async function initializeLocalDevelopmentTarget(
 	const profile = await ensureLocalDevProfile(repoRoot);
 	if (productTarget) {
 		await assertProductAppsOffline(profile);
+		if (options.repair) {
+			await repairProductSnapshot(repoRoot, profile);
+		}
 	}
 	const shared = await inspectSharedCapabilities({
 		derivedBucketName: profile.bucketName,
@@ -143,6 +148,7 @@ export async function initializeLocalDevelopmentTarget(
 			context: options.context,
 			namespace: options.namespace,
 		});
+		renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target, projections });
 	}
 	await bootstrapLocalApplications(
 		repoRoot,
@@ -152,8 +158,8 @@ export async function initializeLocalDevelopmentTarget(
 		),
 		plan.modelConfigNames,
 	);
-	if (target === "campus-rag-worker") {
-		runCommand("pnpm", ["--filter", "campus-rag-worker", "schedule:init"], { cwd: repoRoot });
+	if (target === "notice-pipeline-worker" || target === "notice-artifacts-worker") {
+		runCommand("pnpm", ["--filter", "notice-pipeline-worker", "schedule:init"], { cwd: repoRoot });
 	}
 	console.log(formatProfileSummary(profile));
 	return profile;
@@ -265,6 +271,7 @@ export async function destroyLocalDevelopment(input: {
 	}
 	if (existsSync(profile.worktreePath)) {
 		removeLocalDevSecrets(profile.worktreePath);
+		removeProductSnapshot(profile.worktreePath);
 	}
 	releaseLocalDevProfile(input.repoRoot, input.instanceId);
 	if (cleanup.skippedUnmanaged.length > 0) {

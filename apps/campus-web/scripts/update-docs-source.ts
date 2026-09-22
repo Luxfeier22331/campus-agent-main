@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseSourceManifest } from "campus-contracts/campus-docs/node";
 import { createS3ObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
-import type { ReaderObjectStoreWriter } from "../src/docs-reader-build/published-reader-types.ts";
+import type { DocsSourceObjectStore } from "../src/docs-reader-build/published-reader-types.ts";
 import { publishDocsSource } from "../src/docs-reader-build/source-publisher.ts";
 
 export interface UpdateDocsSourceArgs {
@@ -18,11 +18,12 @@ export function parseUpdateDocsSourceArgs(argv: string[]): UpdateDocsSourceArgs 
 }
 
 export async function updateDocsSource(input: {
-	client?: ReaderObjectStoreWriter;
+	client?: DocsSourceObjectStore;
 	env?: NodeJS.ProcessEnv;
 	sourceFile: string;
 }): Promise<{
 	documentCount: number;
+	releaseKey: string;
 	sourceDigest: `sha256:${string}`;
 	versionCount: number;
 }> {
@@ -34,6 +35,7 @@ export async function updateDocsSource(input: {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+	console.error("Migration-only command: use docs:source:publish for normal updates.");
 	const args = parseUpdateDocsSourceArgs(process.argv.slice(2));
 	updateDocsSource(args)
 		.then((result) => console.log(JSON.stringify(result)))

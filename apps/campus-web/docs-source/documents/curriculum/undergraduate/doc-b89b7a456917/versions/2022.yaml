@@ -1,0 +1,13 @@
+docId: curriculum:历史学本科人才培养方案
+readerKey: campus-docs/readers/sha256/372f29e9249a1123c220c6642d00c2bc6bdf34eec8d3d4c40bf053c2ae4e9c64/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/历史学本科人才培养方案--历史学本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0146-page-0146-block-mineru-block-0005-0005-map-01.png
+        path: course-maps/page-0146-page-0146-block-mineru-block-0005-0005-map-01.png
+      - key: curriculum/documents/curriculum_plan/历史学本科人才培养方案--历史学本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0146-page-0146-block-mineru-block-0007-0007-map-01.png
+        path: course-maps/page-0146-page-0146-block-mineru-block-0007-0007-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/历史学本科人才培养方案--历史学本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:历史学本科人才培养方案:897c14c869f8
+versionSlug: "2022"

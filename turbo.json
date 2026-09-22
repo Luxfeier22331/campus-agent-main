@@ -390,11 +390,11 @@
 			"outputs": [],
 			"outputLogs": "new-only"
 		},
-		"campus-rag-worker#dev": {
+		"notice-pipeline-worker#dev": {
 			"cache": false,
 			"persistent": true
 		},
-		"campus-rag-worker#schedule:init": {
+		"notice-pipeline-worker#schedule:init": {
 			"cache": false
 		}
 	}

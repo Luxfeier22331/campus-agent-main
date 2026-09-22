@@ -48,11 +48,21 @@ export function normalizeSourceManifest(value: DocsSourceManifest): DocsSourceMa
 				`${left.docId}/${left.versionSlug}`.localeCompare(`${right.docId}/${right.versionSlug}`),
 			),
 	};
-	assertSourceRelationships(source);
+	assertDocsSourceRelationships(source);
+	for (const version of source.versions) {
+		assertObjectRef(version.reader, `reader object for ${version.versionId}`);
+		assertSupplementPaths(version);
+	}
 	return source;
 }
 
-function assertSourceRelationships(source: DocsSourceManifest): void {
+type DocsVersionMetadata = Pick<DocsSourceVersion, "docId" | "versionId" | "versionSlug">;
+
+export function assertDocsSourceRelationships(
+	source: Pick<DocsSourceManifest, "collections" | "documents" | "topics" | "redirects"> & {
+		versions: DocsVersionMetadata[];
+	},
+): void {
 	const scopes = unique(source.collections.map(scope), "collection scope");
 	for (const value of scopes) {
 		if (!ALLOWED_SCOPES.has(value)) {
@@ -88,7 +98,7 @@ function assertSourceRelationships(source: DocsSourceManifest): void {
 		source.versions.map((item) => `${item.docId}/${item.versionSlug}`),
 		"document version slug",
 	);
-	const versionsByDocument = new Map<string, DocsSourceVersion[]>();
+	const versionsByDocument = new Map<string, DocsVersionMetadata[]>();
 	for (const version of source.versions) {
 		versionsByDocument.set(version.docId, [
 			...(versionsByDocument.get(version.docId) ?? []),
@@ -128,9 +138,7 @@ function assertSourceRelationships(source: DocsSourceManifest): void {
 		if (!documentIds.has(version.docId)) {
 			throw new Error(`version references missing document: ${version.versionId}`);
 		}
-		assertObjectRef(version.reader, `reader object for ${version.versionId}`);
 		assertPathSegment(version.versionSlug, `version slug for ${version.versionId}`);
-		assertSupplementPaths(version);
 	}
 	const publishedDocumentPaths = new Set<string>();
 	for (const version of source.versions) {
@@ -204,10 +212,10 @@ function buildReaderCanonicalPath(
 	return isLatest ? base : `${base}/v/${encodeURIComponent(version.versionSlug)}`;
 }
 
-export function selectCurrentVersion(
-	versions: readonly DocsSourceVersion[],
+export function selectCurrentVersion<T extends Pick<DocsSourceVersion, "versionSlug">>(
+	versions: readonly T[],
 	docId: string,
-): DocsSourceVersion {
+): T {
 	if (versions.length === 0) {
 		throw new Error(`document has no versions: ${docId}`);
 	}

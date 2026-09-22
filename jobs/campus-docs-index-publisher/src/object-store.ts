@@ -4,6 +4,8 @@ import type { ArtifactObjectStore, ReaderObjectStore } from "./types.ts";
 
 interface ObjectStoreConnectionEnv {
 	OBJECT_STORE_ENDPOINT?: string;
+	OBJECT_STORE_BUCKET_DERIVED?: string;
+	OBJECT_STORE_DOCS_SOURCE_KEY?: string;
 }
 
 export interface ObjectStoreEnv extends ObjectStoreConnectionEnv {
@@ -17,14 +19,14 @@ export interface ObjectStoreReaderEnv extends ObjectStoreConnectionEnv {
 }
 
 export function createS3ArtifactStore(env: ObjectStoreEnv = process.env): ArtifactObjectStore {
-	const bucket = bucketFromEnv();
+	const bucket = env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-agent-derived";
 	const client = createS3Client({
 		accessKeyId: requiredEnv(env.OBJECT_STORE_DERIVED_ACCESS_KEY, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
 		endpoint: requiredEnv(env.OBJECT_STORE_ENDPOINT, "OBJECT_STORE_ENDPOINT"),
 		secretAccessKey: requiredEnv(env.OBJECT_STORE_DERIVED_SECRET_KEY, "OBJECT_STORE_DERIVED_SECRET_KEY"),
 	});
 	const read = async (key: string): Promise<Uint8Array> => {
-		return readObject(client, bucket, key);
+		return readObject(client, bucket, sourceKey(env, key));
 	};
 	return {
 		read,
@@ -35,7 +37,7 @@ export function createS3ArtifactStore(env: ObjectStoreEnv = process.env): Artifa
 					Bucket: bucket,
 					ContentType: contentTypeForKey(key),
 					IfNoneMatch: "*",
-					Key: key,
+					Key: sourceKey(env, key),
 				}));
 			} catch (error) {
 				if (!isPreconditionFailure(error)) throw error;
@@ -49,7 +51,7 @@ export function createS3ArtifactStore(env: ObjectStoreEnv = process.env): Artifa
 }
 
 export function createS3ReaderStore(env: ObjectStoreReaderEnv = process.env): ReaderObjectStore {
-	const bucket = bucketFromEnv();
+	const bucket = env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-agent-derived";
 	const client = createS3Client({
 		accessKeyId: requiredEnv(
 			env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
@@ -62,7 +64,7 @@ export function createS3ReaderStore(env: ObjectStoreReaderEnv = process.env): Re
 		),
 	});
 	return {
-		read: (key) => readObject(client, bucket, key),
+		read: (key) => readObject(client, bucket, sourceKey(env, key)),
 	};
 }
 
@@ -92,8 +94,8 @@ function contentTypeForKey(key: string): string {
 	return key.endsWith(".ndjson") ? "application/x-ndjson" : "application/json";
 }
 
-function bucketFromEnv(): string {
-	return "campus-agent-derived";
+function sourceKey(env: ObjectStoreConnectionEnv, key: string): string {
+	return key === "campus-docs/source.json" ? env.OBJECT_STORE_DOCS_SOURCE_KEY?.trim() || key : key;
 }
 
 function isPreconditionFailure(error: unknown): boolean {

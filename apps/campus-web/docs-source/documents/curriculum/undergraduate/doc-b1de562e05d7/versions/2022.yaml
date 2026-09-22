@@ -1,0 +1,11 @@
+docId: curriculum:教育学本科人才培养方案
+readerKey: campus-docs/readers/sha256/7278c6fdd48769453131968cd808f936e41f23dfb3e713a29460611bf8b9fb2b/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/教育学本科人才培养方案--教育学本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0637-page-0637-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0637-page-0637-block-mineru-block-0002-0002-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/教育学本科人才培养方案--教育学本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:教育学本科人才培养方案:053ee05a181a
+versionSlug: "2022"
