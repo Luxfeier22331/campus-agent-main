@@ -499,6 +499,9 @@ importers:
 
   apps/notice-pipeline-worker:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1132.0
+        version: 3.1132.0
       '@campus-agent/notice-database':
         specifier: workspace:*
         version: link:../../packages/notice-database
@@ -517,18 +520,39 @@ importers:
       '@temporalio/workflow':
         specifier: 1.24.0
         version: 1.24.0
+      content-disposition:
+        specifier: ^3.0.0
+        version: 3.0.0
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       internal-portal-collection:
         specifier: workspace:*
         version: link:../../jobs/internal-portal-collection
+      jsdom:
+        specifier: ^30.0.1
+        version: 30.0.1(@noble/hashes@2.4.0)
+      mime-types:
+        specifier: ^3.0.2
+        version: 3.0.2
       notice-classifier:
         specifier: workspace:*
         version: link:../../jobs/notice-classifier
       notice-publisher:
         specifier: workspace:*
         version: link:../../jobs/notice-publisher
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
+      tldts:
+        specifier: ^7.4.13
+        version: 7.4.13
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
+      undici:
+        specifier: ^8.10.2
+        version: 8.10.2
     devDependencies:
       '@types/node':
         specifier: ^24.13.4

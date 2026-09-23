@@ -15,5 +15,15 @@ await build({
 	platform: "node",
 	format: "esm",
 	target: "node24",
-	external: ["@temporalio/*", "@aws-sdk/*", "pg"],
+	external: [
+		"@temporalio/*",
+		"@aws-sdk/*",
+		"content-disposition",
+		"dotenv",
+		"jsdom",
+		"mime-types",
+		"pg",
+		"tldts",
+		"undici",
+	],
 });

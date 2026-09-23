@@ -104,7 +104,7 @@
           };
           ciGo = pkgs.mkShellNoCC {
             GOTOOLCHAIN = "local";
-            packages = corePackages ++ [ goToolchain pkgs.golangci-lint ];
+            packages = corePackages ++ [ goToolchain pkgs.golangci-lint pkgs.stdenv.cc ];
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
           };
           ciFull = pkgs.mkShellNoCC {
