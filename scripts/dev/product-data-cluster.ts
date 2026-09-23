@@ -2,9 +2,9 @@ import { execFile } from "node:child_process";
 import { request as httpsRequest } from "node:https";
 import { promisify } from "node:util";
 import { Client } from "pg";
-import { RetryableProductTransferError } from "./product-data-errors.ts";
 import { startKubectlPortForward } from "../../jobs/campus-rag-index-publisher/src/kubectl.ts";
 import { createS3ReaderStoreFromConfig } from "../../jobs/campus-rag-index-publisher/src/object-store.ts";
+import { RetryableProductTransferError } from "./product-data-errors.ts";
 
 const exec = promisify(execFile);
 
@@ -148,12 +148,13 @@ export async function connectProductCluster(
 							),
 						);
 						response.on("end", () => {
-							if (!response.complete)
+							if (!response.complete) {
 								return reject(
 									new RetryableProductTransferError(
 										`Qdrant response truncated (path=${path}, bytes=${responseBytes})`,
 									),
 								);
+							}
 							if (response.statusCode !== 200) {
 								return reject(
 									new Error(

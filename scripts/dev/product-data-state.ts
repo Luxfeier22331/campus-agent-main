@@ -16,15 +16,20 @@ export interface PendingProductSync {
 
 export function readPendingProductSync(repoRoot: string): PendingProductSync | undefined {
 	const path = productSyncPendingPath(repoRoot);
-	if (!existsSync(path)) return undefined;
+	if (!existsSync(path)) {
+		return undefined;
+	}
 	const pending = JSON.parse(readFileSync(path, "utf8")) as PendingProductSync;
 	parseSnapshot(pending.snapshot);
 	if (
-		!Array.isArray(pending.createdKeys) ||
-		!pending.createdKeys.every((key) => typeof key === "string") ||
+		!(
+			Array.isArray(pending.createdKeys) &&
+			pending.createdKeys.every((key) => typeof key === "string")
+		) ||
 		typeof pending.createdCollection !== "boolean"
-	)
+	) {
 		throw new Error("Invalid pending product sync");
+	}
 	return pending;
 }
 
@@ -37,17 +42,21 @@ export function savePendingProductSync(repoRoot: string, pending: PendingProduct
 
 export function readProductSnapshot(repoRoot: string): ProductSnapshot | undefined {
 	const path = resolve(repoRoot, "var/dev/product-snapshot.json");
-	if (!existsSync(path)) return undefined;
+	if (!existsSync(path)) {
+		return undefined;
+	}
 	return parseSnapshot(JSON.parse(readFileSync(path, "utf8")));
 }
 
 export function parseSnapshot(value: unknown): ProductSnapshot {
 	const snapshot = value as ProductSnapshot;
 	if (
-		!snapshot ||
-		!/^[a-f0-9]{64}$/.test(snapshot.id) ||
-		!/^campus_docs_[a-f0-9]{64}$/.test(snapshot.collection) ||
-		!/^sha256:[a-f0-9]{64}$/.test(snapshot.sourceDigest) ||
+		!(
+			snapshot &&
+			/^[a-f0-9]{64}$/.test(snapshot.id) &&
+			/^campus_docs_[a-f0-9]{64}$/.test(snapshot.collection) &&
+			/^sha256:[a-f0-9]{64}$/.test(snapshot.sourceDigest)
+		) ||
 		snapshot.sourceKey !== `campus-docs/snapshots/${snapshot.id}/source.json`
 	) {
 		throw new Error("Invalid local product snapshot");

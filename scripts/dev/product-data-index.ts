@@ -1,11 +1,11 @@
 import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
-import { RetryableProductTransferError } from "./product-data-errors.ts";
 import { COLLECTION_DEFINITION } from "../../jobs/campus-rag-index-publisher/src/definitions.ts";
 import type { StreamingIndexCandidate } from "../../jobs/campus-rag-index-publisher/src/publisher.ts";
 import { assertCollectionConfiguration } from "../../jobs/campus-rag-index-publisher/src/qdrant.ts";
 import type { UnifiedPoint } from "../../jobs/campus-rag-index-publisher/src/types.ts";
+import { RetryableProductTransferError } from "./product-data-errors.ts";
 
 const QDRANT_PAGE_SIZE = 64;
 const QDRANT_MAX_PAGE_RETRIES = 2;
@@ -115,9 +115,12 @@ async function readScrollPage(
 				result?: { points?: UnifiedPoint[]; next_page_offset?: string | null };
 			};
 			if (
-				!page.result ||
-				!Array.isArray(page.result.points) ||
-				!(page.result.next_page_offset === null || typeof page.result.next_page_offset === "string")
+				!(
+					page.result &&
+					Array.isArray(page.result.points) &&
+					(page.result.next_page_offset === null ||
+						typeof page.result.next_page_offset === "string")
+				)
 			) {
 				throw new Error("Qdrant scroll response has an invalid result");
 			}
@@ -149,15 +152,22 @@ export async function* readProductPoints(path: string): AsyncGenerator<UnifiedPo
 		for await (const chunk of stream) {
 			pending += chunk;
 			let start = 0;
-			let end: number;
-			while ((end = pending.indexOf("\n", start)) !== -1) {
+			for (;;) {
+				const end = pending.indexOf("\n", start);
+				if (end === -1) {
+					break;
+				}
 				const line = pending.slice(start, end);
 				start = end + 1;
-				if (line.trim()) yield JSON.parse(line) as UnifiedPoint;
+				if (line.trim()) {
+					yield JSON.parse(line) as UnifiedPoint;
+				}
 			}
 			pending = pending.slice(start);
 		}
-		if (pending.trim()) yield JSON.parse(pending) as UnifiedPoint;
+		if (pending.trim()) {
+			yield JSON.parse(pending) as UnifiedPoint;
+		}
 	} finally {
 		stream.destroy();
 	}

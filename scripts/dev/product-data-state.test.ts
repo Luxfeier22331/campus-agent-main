@@ -5,11 +5,11 @@ import { join } from "node:path";
 import test from "node:test";
 import {
 	parseSnapshot,
-	readProductSnapshot,
-	saveProductSnapshot,
-	savePendingProductSync,
 	readPendingProductSync,
+	readProductSnapshot,
 	removeProductSnapshot,
+	savePendingProductSync,
+	saveProductSnapshot,
 } from "./product-data-state.ts";
 
 test("snapshot projection and pending cleanup inventory have separate lifetimes", async () => {

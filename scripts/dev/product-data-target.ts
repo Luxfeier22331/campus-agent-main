@@ -18,7 +18,9 @@ export function createProductTarget(bucket: string, signal?: AbortSignal) {
 	});
 	const stats = { writtenObjects: 0, writtenBytes: 0, reusedObjects: 0, readBytes: 0 };
 	const confirmed = new Map<string, string>();
-	let beforeCreate: (key: string) => void = () => {};
+	let beforeCreate: (key: string) => void = () => {
+		// The hook is only active when the caller tracks created objects.
+	};
 	const options = () => ({
 		abortSignal: signal
 			? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
@@ -29,7 +31,9 @@ export function createProductTarget(bucket: string, signal?: AbortSignal) {
 			new GetObjectCommand({ Bucket: bucket, Key: key }),
 			options(),
 		);
-		if (!response.Body) throw new Error(`Empty local object: ${key}`);
+		if (!response.Body) {
+			throw new Error(`Empty local object: ${key}`);
+		}
 		const bytes = await response.Body.transformToByteArray();
 		stats.readBytes += bytes.length;
 		return bytes;
@@ -40,7 +44,9 @@ export function createProductTarget(bucket: string, signal?: AbortSignal) {
 			try {
 				return await read(key);
 			} catch (error) {
-				if (status(error) === 404) return undefined;
+				if (status(error) === 404) {
+					return;
+				}
 				throw error;
 			}
 		},
@@ -48,7 +54,9 @@ export function createProductTarget(bucket: string, signal?: AbortSignal) {
 			signal?.throwIfAborted();
 			const hash = createHash("sha256").update(body).digest("hex");
 			if (confirmed.has(key)) {
-				if (confirmed.get(key) !== hash) throw new Error(`Conflicting staged object ${key}`);
+				if (confirmed.get(key) !== hash) {
+					throw new Error(`Conflicting staged object ${key}`);
+				}
 				return "existing";
 			}
 			let exists = true;
@@ -57,15 +65,20 @@ export function createProductTarget(bucket: string, signal?: AbortSignal) {
 					new HeadObjectCommand({ Bucket: bucket, Key: key }),
 					options(),
 				);
-				if (head.ContentLength !== body.length)
+				if (head.ContentLength !== body.length) {
 					throw new Error(`Local object size conflict: ${key}`);
+				}
 				if (head.Metadata?.sha256) {
-					if (head.Metadata.sha256 !== hash)
+					if (head.Metadata.sha256 !== hash) {
 						throw new Error(`Local object checksum conflict: ${key}`);
-				} else if (!Buffer.from(await read(key)).equals(Buffer.from(body)))
+					}
+				} else if (!Buffer.from(await read(key)).equals(Buffer.from(body))) {
 					throw new Error(`Local object content conflict: ${key}`);
+				}
 			} catch (error) {
-				if (status(error) !== 404) throw error;
+				if (status(error) !== 404) {
+					throw error;
+				}
 				exists = false;
 			}
 			if (exists) {

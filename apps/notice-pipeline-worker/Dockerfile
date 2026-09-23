@@ -27,6 +27,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
   && pnpm install --ignore-scripts --frozen-lockfile --filter notice-pipeline-worker...
 COPY --from=pruner /repo/out/full/ ./
 COPY packages/contracts/schemas ./packages/contracts/schemas
+COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
 RUN pnpm --filter notice-pipeline-worker build
 
 FROM node:${NODE_VERSION}-bookworm-slim AS production-dependencies

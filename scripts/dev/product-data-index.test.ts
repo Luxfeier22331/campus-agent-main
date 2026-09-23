@@ -3,8 +3,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { downloadProductIndex, readProductPoints } from "./product-data-index.ts";
 import { RetryableProductTransferError } from "./product-data-errors.ts";
+import { downloadProductIndex, readProductPoints } from "./product-data-index.ts";
 import { readProductSeedIndex } from "./product-data-seed-index.ts";
 
 test("NDJSON preserves Unicode separators and UTF-8 across stream chunks", async () => {
@@ -23,8 +23,10 @@ test("NDJSON preserves Unicode separators and UTF-8 across stream chunks", async
 			path,
 			`${JSON.stringify(first)}\r\n\n${JSON.stringify(point)}\n${JSON.stringify(first)}`,
 		);
-		const actual = [];
-		for await (const value of readProductPoints(path)) actual.push(value);
+		const actual: typeof seed.points = [];
+		for await (const value of readProductPoints(path)) {
+			actual.push(value);
+		}
 		assert.deepEqual(actual, expected);
 		await writeFile(path, '{"payload":{"text":"truncated');
 		await assert.rejects(async () => {
@@ -46,10 +48,14 @@ test("scroll retries the failed page only and writes complete NDJSON", async () 
 		const candidate = await downloadProductIndex({
 			collection: seed.collection,
 			path: join(directory, "points"),
-			validatePoint() {},
+			validatePoint() {
+				// The source points are validated by the production path before this test.
+			},
 			async request(path, body) {
-				if (path.endsWith("/count")) return { result: { count: seed.points.length } };
-				if (!path.endsWith("/scroll"))
+				if (path.endsWith("/count")) {
+					return { result: { count: seed.points.length } };
+				}
+				if (!path.endsWith("/scroll")) {
 					return {
 						result: {
 							config: {
@@ -60,6 +66,7 @@ test("scroll retries the failed page only and writes complete NDJSON", async () 
 							},
 						},
 					};
+				}
 				const page = body as { offset?: string; limit: number };
 				assert.equal(page.limit, 64);
 				offsets.push(page.offset);
@@ -75,8 +82,10 @@ test("scroll retries the failed page only and writes complete NDJSON", async () 
 				};
 			},
 		});
-		const points = [];
-		for await (const point of candidate.points()) points.push(point);
+		const points: typeof seed.points = [];
+		for await (const point of candidate.points()) {
+			points.push(point);
+		}
 		assert.deepEqual(points, seed.points);
 		assert.deepEqual(offsets, [undefined, "next", "next"]);
 	} finally {
