@@ -32,10 +32,20 @@ const VERSION_COMPILE_CONCURRENCY = 4;
 export interface CompiledDocsSource {
 	client: ReaderObjectStoreClient;
 	manifest: PublishedReaderManifest;
+	objects: ReadonlyMap<string, PreparedDocsSourceObject>;
+	readers: ReadonlyMap<string, DocsReader>;
 }
+
+export interface PreparedDocsSourceObject {
+	bytes: Uint8Array;
+	ref: ObjectRef;
+}
+
+export type PreparedDocsSourceObjects = ReadonlyMap<string, PreparedDocsSourceObject>;
 
 export async function compileDocsSource(input: {
 	client: ReaderObjectStoreClient;
+	preparedObjects?: PreparedDocsSourceObjects;
 	source: DocsSourceManifest;
 }): Promise<CompiledDocsSource> {
 	const documents = new Map(input.source.documents.map((document) => [document.docId, document]));
@@ -49,7 +59,29 @@ export async function compileDocsSource(input: {
 	for (const document of input.source.documents) {
 		selectCurrentVersion(versionsByDocument.get(document.docId) ?? [], document.docId);
 	}
+	const objects = new Map(input.preparedObjects ?? []);
+	const objectReads = new Map<string, Promise<PreparedDocsSourceObject>>();
+	const readObject = async (ref: ObjectRef): Promise<Uint8Array> => {
+		const prepared = objects.get(ref.key);
+		if (prepared) {
+			assertSameObjectRef(prepared.ref, ref);
+			return prepared.bytes;
+		}
+		let pending = objectReads.get(ref.key);
+		if (!pending) {
+			pending = readPublishedObject({ client: input.client, ref }).then((bytes) => ({
+				bytes,
+				ref,
+			}));
+			objectReads.set(ref.key, pending);
+		}
+		const loaded = await pending;
+		assertSameObjectRef(loaded.ref, ref);
+		objects.set(ref.key, loaded);
+		return loaded.bytes;
+	};
 	const generated = new Map<string, Uint8Array>();
+	const readers = new Map<string, DocsReader>();
 	const entries = await mapWithConcurrency(
 		input.source.versions,
 		VERSION_COMPILE_CONCURRENCY,
@@ -59,22 +91,15 @@ export async function compileDocsSource(input: {
 				throw new Error(`version references missing document: ${version.versionId}`);
 			}
 			const reader = parseReader(
-				parseJson(
-					await readPublishedObject({
-						client: input.client,
-						ref: version.reader,
-					}),
-					`reader ${version.versionId}`,
-				),
+				parseJson(await readObject(version.reader), `reader ${version.versionId}`),
 			);
-			assertReaderExtractionQuality(reader);
-			assertReaderSegmentationQuality(reader);
 			assertReaderIdentity(reader, version);
 			assertReaderSupplements(reader, version);
+			readers.set(version.versionId, reader);
 			const supplements = await compileSupplements({
-				client: input.client,
 				document,
 				generated,
+				readObject,
 				reader,
 				supplements: version.supplements,
 			});
@@ -105,10 +130,27 @@ export async function compileDocsSource(input: {
 		topics: input.source.topics,
 	};
 	assertPublishedReaderAssetLayout(manifest.entries);
+	for (const entry of manifest.entries) {
+		for (const supplement of entry.supplements) {
+			const bytes = generated.get(supplement.object.key);
+			if (bytes) {
+				objects.set(supplement.object.key, { bytes, ref: supplement.object });
+			}
+		}
+	}
 	return {
 		client: overlayObjectStore(input.client, generated),
 		manifest,
+		objects,
+		readers,
 	};
+}
+
+export function assertDocsSourceQuality(compiled: CompiledDocsSource): void {
+	for (const reader of compiled.readers.values()) {
+		assertReaderExtractionQuality(reader);
+		assertReaderSegmentationQuality(reader);
+	}
 }
 
 function assertReaderSupplements(
@@ -126,21 +168,18 @@ function assertReaderSupplements(
 }
 
 async function compileSupplements(input: {
-	client: ReaderObjectStoreClient;
 	document: DocsDocument;
 	generated: Map<string, Uint8Array>;
+	readObject(ref: ObjectRef): Promise<Uint8Array>;
 	reader: DocsReader;
 	supplements: DocsSupplement[];
 }): Promise<DocsSupplement[]> {
 	const result: DocsSupplement[] = [];
 	for (const supplement of input.supplements) {
-		const sourceBytes = await readPublishedObject({ client: input.client, ref: supplement.object });
+		const sourceBytes = await input.readObject(supplement.object);
 		const assets = new Map<string, Uint8Array>();
 		for (const asset of supplement.assets) {
-			assets.set(
-				asset.path,
-				await readPublishedObject({ client: input.client, ref: asset.object }),
-			);
+			assets.set(asset.path, await input.readObject(asset.object));
 		}
 		const courseMaps = materializeDocsCourseMaps({
 			assets,
@@ -208,6 +247,12 @@ function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
 	return (
 		left.byteLength === right.byteLength && left.every((value, index) => value === right[index])
 	);
+}
+
+function assertSameObjectRef(left: ObjectRef, right: ObjectRef): void {
+	if (left.key !== right.key || left.byteSize !== right.byteSize || left.sha256 !== right.sha256) {
+		throw new Error(`docs source contains conflicting references for object: ${right.key}`);
+	}
 }
 
 async function mapWithConcurrency<T, R>(

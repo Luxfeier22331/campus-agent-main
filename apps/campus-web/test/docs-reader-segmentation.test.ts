@@ -7,7 +7,10 @@ import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "campus-contracts/campu
 import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
-import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
+import {
+	assertDocsSourceQuality,
+	compileDocsSource,
+} from "../src/docs-reader-build/source-compiler.ts";
 
 describe("文档 reader 分段清洗", () => {
 	it.each([
@@ -92,9 +95,10 @@ describe("文档 reader 分段清洗", () => {
 		const reader = readerFixture("1. 第一项\n2. 第二项");
 		fixture.store.objects.set(fixture.readerRef.key, canonicalJsonBytes(reader));
 
-		await expect(
-			compileDocsSource({ client: fixture.store, source: fixture.source }),
-		).rejects.toThrow("reader contains high-confidence folded numbered content: root-1");
+		const compiled = await compileDocsSource({ client: fixture.store, source: fixture.source });
+		expect(() => assertDocsSourceQuality(compiled)).toThrow(
+			"reader contains high-confidence folded numbered content: root-1",
+		);
 		expect(() => assertReaderSegmentationQuality(reader)).toThrow("high-confidence folded");
 	});
 });

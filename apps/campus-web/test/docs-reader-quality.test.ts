@@ -7,7 +7,10 @@ import { assertReaderExtractionQuality } from "campus-contracts/campus-docs";
 import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
 import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
-import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
+import {
+	assertDocsSourceQuality,
+	compileDocsSource,
+} from "../src/docs-reader-build/source-compiler.ts";
 
 describe("文档 reader 提取质量", () => {
 	it("拒绝遗留的迁移标题占位元素", async () => {
@@ -24,9 +27,10 @@ describe("文档 reader 提取质量", () => {
 		expect(() => assertReaderExtractionQuality(fixture.reader)).toThrow(
 			"reader contains migrated heading artifact: doc:migrated-heading-0001",
 		);
-		await expect(
-			compileDocsSource({ client: fixture.client, source: fixture.source }),
-		).rejects.toThrow("reader contains migrated heading artifact");
+		const compiled = await compileDocsSource({ client: fixture.client, source: fixture.source });
+		expect(() => assertDocsSourceQuality(compiled)).toThrow(
+			"reader contains migrated heading artifact",
+		);
 	});
 
 	it("拒绝被降级为多行 pipe 文本的表格", async () => {
@@ -41,9 +45,8 @@ describe("文档 reader 提取质量", () => {
 		expect(() => assertReaderExtractionQuality(fixture.reader)).toThrow(
 			"reader contains pipe-table paragraph: doc:table-0001",
 		);
-		await expect(
-			compileDocsSource({ client: fixture.client, source: fixture.source }),
-		).rejects.toThrow("reader contains pipe-table paragraph");
+		const compiled = await compileDocsSource({ client: fixture.client, source: fixture.source });
+		expect(() => assertDocsSourceQuality(compiled)).toThrow("reader contains pipe-table paragraph");
 	});
 
 	it("允许单行普通 pipe 文本和结构化 table", () => {

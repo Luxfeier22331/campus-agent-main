@@ -4,11 +4,7 @@ import {
 	parseReader,
 	parseSourceManifest,
 } from "campus-contracts/campus-docs/node";
-import {
-	assertReaderExtractionQuality,
-	assertReaderSegmentationQuality,
-	compareDocsVersionSlugs,
-} from "campus-contracts/campus-docs";
+import { compareDocsVersionSlugs } from "campus-contracts/campus-docs";
 import type {
 	DocsReader,
 	DocsSourceManifest,
@@ -83,8 +79,6 @@ async function loadSelections(
 	for (const item of selected) {
 		const bytes = await readVerifiedObject(input.readerStore, item.readerRef);
 		item.reader = parseReader(parseJson(bytes, `reader ${item.version.versionId}`));
-		assertReaderExtractionQuality(item.reader);
-		assertReaderSegmentationQuality(item.reader);
 		if (item.reader.docId !== item.document.docId || item.reader.versionId !== item.version.versionId) {
 			throw new Error(`reader identity does not match source version: ${item.version.versionId}`);
 		}

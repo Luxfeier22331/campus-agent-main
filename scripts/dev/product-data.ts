@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { Client } from "pg";
@@ -112,7 +112,6 @@ export async function initializeProductData(
 			const signal = controller.signal;
 			try {
 				await client.connect();
-				temp = await mkdtemp(join(tmpdir(), "campus-product-data-"));
 				const existing =
 					(await hasProductData(client)) ||
 					(await target.readIfExists(PRODUCT_DOCS_SOURCE_KEY)) !== undefined;
@@ -134,10 +133,10 @@ export async function initializeProductData(
 							});
 						}
 					}
-					const diagnosis = await diagnoseProductData(repoRoot, profile, true);
+					const diagnosis = await diagnoseProductData(repoRoot, profile);
 					if (diagnosis.state !== "ready") {
 						throw new Error(
-							`Existing product data is incomplete; preserved without seed mixing. Use --replace: ${diagnosis.reason}`,
+							`Existing product data was preserved; required entry check failed: ${diagnosis.reason}. Fix the reported cause, or use --replace to intentionally replace local data.`,
 						);
 					}
 					return;
@@ -259,30 +258,14 @@ export async function initializeProductData(
 					const remote = await connectProductCluster(options.context, options.namespace, signal);
 					try {
 						const dataset = await exportProductData(remote.database);
-						const stagingDirectory = temp;
-						const stagedFiles = new Map<string, string>();
-						const stagedSource = {
-							async read(key: string) {
-								signal.throwIfAborted();
-								const existing = stagedFiles.get(key);
-								if (existing) {
-									return readFile(existing);
-								}
-								const bytes = await remote.objectStore.read(key);
-								const path = join(stagingDirectory, `object-${stagedFiles.size}`);
-								await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
-								stagedFiles.set(key, path);
-								return bytes;
-							},
-						};
-						const docs = await copyDocsClosure(stagedSource);
+						temp = await mkdtemp(join(tmpdir(), "campus-product-data-"));
 						const candidate = await downloadProductIndex({
 							collection: dataset.collection,
 							path: join(temp, "points.ndjson"),
 							request: remote.qdrantRequest,
-							validatePoint: (point) => validateProductPoint(point, dataset.rows, docs.references),
+							signal,
 						});
-						await prepareAndApply(dataset, stagedSource, candidate);
+						await prepareAndApply(dataset, remote.objectStore, candidate);
 					} finally {
 						await remote.close();
 					}
@@ -297,10 +280,6 @@ export async function initializeProductData(
 						await rm(temp, { recursive: true, force: true });
 					}
 				}
-			}
-			const result = await diagnoseProductData(repoRoot, profile, true);
-			if (result.state !== "ready") {
-				throw new Error(`Product data initialization is incomplete: ${result.reason}`);
 			}
 		},
 	);
@@ -326,21 +305,11 @@ export async function diagnoseProductData(
 					rows: undefined,
 				};
 		if (!data.collection) {
-			throw new Error("Product data has no current index");
-		}
-		for (const table of [
-			"notices.notices",
-			"campus_groups.groups",
-			"transport.routes",
-			"dining.map_publication",
-		] as const) {
-			if ((await client.query(`select 1 from ${table} limit 1`)).rows.length === 0) {
-				throw new Error(`Missing product data: ${table}`);
-			}
+			return { state: "missing", reason: "Product data has no current index" };
 		}
 		const store = createS3WriterStore(localProductStoreEnv(profile));
-		if (!(await store.readIfExists(PRODUCT_DOCS_SOURCE_KEY))) {
-			throw new Error("Local Docs source is missing");
+		if (!(full || (await store.readIfExists(PRODUCT_DOCS_SOURCE_KEY)))) {
+			return { state: "missing", reason: "Local Docs source is missing" };
 		}
 		const qdrant = await resolveLocalQdrantConnection();
 		const request = async (path: string, body?: unknown) => {
@@ -355,7 +324,6 @@ export async function diagnoseProductData(
 			}
 			return response.json();
 		};
-		await request(`/collections/${data.collection}`);
 		if (full && data.rows) {
 			const rows = data.rows;
 			const docs = await copyDocsClosure(store);
@@ -367,6 +335,8 @@ export async function diagnoseProductData(
 				request,
 				validatePoint: (point) => validateProductPoint(point, rows, docs.references),
 			});
+		} else {
+			await request(`/collections/${data.collection}`);
 		}
 		return { state: "ready" };
 	} catch (error) {

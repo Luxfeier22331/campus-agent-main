@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { compileDocsSource } from "../../apps/campus-web/src/docs-reader-build/source-compiler.ts";
-import { materializeDocsCourseMaps } from "../../apps/campus-web/src/docs-reader-build/source-course-maps.ts";
 import type {
 	ReaderObjectStore,
 	UnifiedPoint,
@@ -9,11 +8,8 @@ import type {
 import {
 	buildReaderRouteSlug,
 	normalizeSourceManifest,
-	parseCourseMaps,
-	parseReader,
 	parseSourceManifest,
 } from "../../packages/contracts/src/campus-docs/node/index.ts";
-import type { ObjectRef } from "../../packages/contracts/src/campus-docs/types.ts";
 import type { ProductDataRows } from "./product-data-tables.ts";
 
 export type ProductDocsReferences = Map<
@@ -41,21 +37,14 @@ export async function copyDocsClosure(
 	);
 	const references: ProductDocsReferences = new Map();
 	const objects = new Map<string, { contentType: string }>();
-	const readRef = async (ref: ObjectRef, contentType = "application/json") => {
-		const bytes = await source.read(ref.key);
-		if (bytes.byteLength !== ref.byteSize || digest(bytes) !== ref.sha256) {
-			throw new Error(`Docs object does not match reference: ${ref.key}`);
-		}
-		objects.set(ref.key, { contentType });
-		await target?.writeImmutable(ref.key, bytes, contentType);
-		return bytes;
-	};
+	const compiled = await compileDocsSource({
+		source: manifest,
+		client: { readOptionalBytesObject: async ({ key }) => source.read(key) },
+	});
 	for (const version of manifest.versions) {
-		const reader = parseReader(
-			JSON.parse(Buffer.from(await readRef(version.reader)).toString("utf8")),
-		);
-		if (reader.docId !== version.docId || reader.versionId !== version.versionId) {
-			throw new Error(`Docs reader identity mismatch: ${version.versionId}`);
+		const reader = compiled.readers.get(version.versionId);
+		if (!reader) {
+			throw new Error(`Docs reader is missing: ${version.versionId}`);
 		}
 		const document = manifest.documents.find((item) => item.docId === version.docId);
 		if (!document) {
@@ -73,32 +62,22 @@ export async function copyDocsClosure(
 				references.set(`${route}#${encodeURIComponent(element.anchor)}`, reference);
 			}
 		}
+		objects.set(version.reader.key, { contentType: "application/json" });
 		for (const supplement of version.supplements) {
-			const sourceBytes = await readRef(supplement.object);
-			const assets = new Map<string, Uint8Array>();
+			objects.set(supplement.object.key, { contentType: "application/json" });
 			for (const asset of supplement.assets) {
-				assets.set(asset.path, await readRef(asset.object, "image/png"));
+				objects.set(asset.object.key, { contentType: "image/png" });
 			}
-			parseCourseMaps(
-				materializeDocsCourseMaps({ assets, documentTitle: document.title, reader, sourceBytes }),
-			);
 		}
 	}
-	await compileDocsSource({
-		source: manifest,
-		client: { readOptionalBytesObject: ({ key }) => source.read(key) },
-	});
-	return { sourceBytes, references, manifest, objects };
-}
-
-export async function writeDocsClosure(
-	closure: ProductDocsClosure,
-	source: ReaderObjectStore,
-	target: WritableObjectStore,
-): Promise<void> {
-	for (const [key, object] of closure.objects) {
-		await target.writeImmutable(key, await source.read(key), object.contentType);
+	for (const [key, object] of objects) {
+		const prepared = compiled.objects.get(key);
+		if (!prepared) {
+			throw new Error(`Docs object is missing after compilation: ${key}`);
+		}
+		await target?.writeImmutable(key, prepared.bytes, object.contentType);
 	}
+	return { sourceBytes, references, manifest, objects };
 }
 
 export async function copyProductAssets(

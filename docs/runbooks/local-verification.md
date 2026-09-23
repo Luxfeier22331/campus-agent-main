@@ -78,7 +78,8 @@ pnpm dev:doctor -- --scope data
 11 个预生成真实 Qwen3-Embedding-4B（2560 维）检索点随仓库提供，初始化不调用模型供应商。
 模型连接仍由开发者提供；数据 ready 不等于模型配置或真实查询成功。
 
-已有数据时 seed 只校验并保留，不向自定义数据混入样例；不完整时需显式 `--replace`。
+已有数据时 seed 只检查 Docs source 与当前索引入口并保留本地编辑，不遍历全部对象和索引，
+不向自定义数据混入样例。入口检查失败时修复所报告的原因；只有需要替换数据时才使用 `--replace`。
 cluster 模式在非空目标上同样要求 `--replace`。替换清除基础数据和依赖它的本地食堂评论、编辑、举报，
 保留用户、会话、模型配置。日期只在 seed 初始化时生成，重复初始化不会刷新日期。
 旧 worktree 的共享 Docs 引用闭包先复制到 profile bucket，不修改共享 source。
@@ -86,9 +87,14 @@ cluster 模式在非空目标上同样要求 `--replace`。替换清除基础数
 cluster 模式使用 `pg-product-data-ro`、`objectstore-ro`、`qdrant-ro`，复制产品与内容管理数据，包括草稿，
 不复制门户原始采集数据、远端用户/会话/评论/模型密钥。附件仅复制元数据；图片复制实际对象。
 数据库使用单个只读 repeatable-read 事务导出；Qdrant 读取当前绑定 collection 的 points 和 dense/sparse
-向量，按批暂存，保留 collection 身份。已有本地 collection 必须通过内容校验，不会被覆盖。
+向量，按批写入临时 NDJSON，保留 collection 身份。对象直接读取并交给消费者，不另建磁盘缓存；
+临时 NDJSON 在成功、失败或取消后清理。已有本地 collection 必须通过内容校验，不会被覆盖。
 数据库内容与索引绑定同事务提交；随后更新本地 Docs source 并准备阅读资源。后续失败会报 incomplete，
 修复原因后重复同一条显式 replace 命令即可。浏览器验收按需使用 MCP，不增加 smoke 命令或 PR CI。
+
+初始化成功后不再自动进行全量诊断。默认 doctor 与启动检查只核对必要入口；业务表为空不代表损坏。
+需要检查全部对象、图片及检索点引用时显式运行 `pnpm dev:doctor -- --scope data`，它会读取全部相关
+对象并分页扫描当前 collection，诊断成本随数据量增长。数据库约束和实际引用检查仍然有效。
 
 `pnpm dev` 随后只读取就绪状态，并由 Turbo 并行启动
 Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行初始化、迁移或 seed。

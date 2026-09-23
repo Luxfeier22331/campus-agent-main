@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setImmediate } from "node:timers/promises";
 import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
 import { DOCS_SOURCE_KEY, selectCurrentVersion } from "campus-contracts/campus-docs/node";
 import { afterEach, describe, expect, it } from "vitest";
@@ -124,6 +125,45 @@ describe("Campus Web 文档内容准备合同", () => {
 		).toBe(true);
 		expect(existsSync(join(content.pagesRoot, "regulations/index.html"))).toBe(false);
 		expect(existsSync(join(content.pagesRoot, "404.html"))).toBe(true);
+	});
+
+	it("compiles each source object once and reuses compiled readers and bytes", async () => {
+		const fixture = createDocsSourceSiteFixture();
+		const reads = new Map<string, number>();
+		let active = 0;
+		let peak = 0;
+		const client = {
+			readOptionalBytesObject: async ({ key }: { key: string }) => {
+				reads.set(key, (reads.get(key) ?? 0) + 1);
+				active += 1;
+				peak = Math.max(peak, active);
+				await setImmediate();
+				active -= 1;
+				return fixture.client.readOptionalBytesObject({ key });
+			},
+		};
+
+		const content = await prepareDocsContent({
+			appRoot: createAppRoot(),
+			client,
+			pages: false,
+			refresh: true,
+		});
+
+		for (const key of fixture.objects.keys()) {
+			if (key !== DOCS_SOURCE_KEY) {
+				expect(reads.get(key)).toBe(1);
+			}
+		}
+		expect(reads.get(DOCS_SOURCE_KEY)).toBe(1);
+		expect(peak).toBeGreaterThan(1);
+		expect(existsSync(join(content.root, "input/objects"))).toBe(false);
+		const imageReferences = fixture.source.versions.flatMap((version) =>
+			version.supplements.flatMap((supplement) =>
+				supplement.assets.map((asset) => asset.object.key),
+			),
+		);
+		expect(imageReferences.length).toBeGreaterThan(new Set(imageReferences).size);
 	});
 
 	it("在文档内容缓存命中时校准主题启动脚本", async () => {

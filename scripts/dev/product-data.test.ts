@@ -48,6 +48,14 @@ test("cluster import requires explicit source identity and replacement is opt-in
 
 test("committed real seed embeddings match current builders, source resources and citations", async () => {
 	const seed = createProductSeed(new Date("2026-09-18T00:00:00Z"));
+	for (const table of [
+		"notices.notices",
+		"campus_groups.groups",
+		"transport.routes",
+		"dining.map_publication",
+	] as const) {
+		assert(seed.rows[table].length > 0, `seed fixture covers ${table}`);
+	}
 	const source = {
 		async read(key: string) {
 			const object = seed.objects.get(key);
@@ -107,6 +115,41 @@ test("committed real seed embeddings match current builders, source resources an
 	assert.throws(
 		() => validateProductPoint(unpublished, seed.rows, docs.references),
 		/published local detail/u,
+	);
+});
+
+test("copies the Docs closure from the bytes already read during compilation", async () => {
+	const seed = createProductSeed(new Date("2026-09-18T00:00:00Z"));
+	const reads = new Map<string, number>();
+	const writes = new Map<string, number>();
+	const source = {
+		async read(key: string) {
+			reads.set(key, (reads.get(key) ?? 0) + 1);
+			const object = seed.objects.get(key);
+			assert(object, key);
+			return object.body;
+		},
+	};
+	await copyDocsClosure(source, {
+		async read() {
+			throw new Error("unexpected target read");
+		},
+		async readIfExists(): Promise<Uint8Array | undefined> {
+			// The closure copy path never reads from its target.
+			return;
+		},
+		async writeImmutable(key: string, bytes: Uint8Array) {
+			assert.deepEqual(bytes, seed.objects.get(key)?.body);
+			writes.set(key, (writes.get(key) ?? 0) + 1);
+			return "created";
+		},
+	});
+
+	assert([...reads.values()].every((count) => count === 1));
+	assert([...writes.values()].every((count) => count === 1));
+	assert.deepEqual(
+		[...reads.keys()].filter((key) => key !== "campus-docs/source.json").sort(),
+		[...writes.keys()].sort(),
 	);
 });
 

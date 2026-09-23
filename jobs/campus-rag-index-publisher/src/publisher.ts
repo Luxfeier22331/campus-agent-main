@@ -150,11 +150,14 @@ export function buildNoticePoints(
 	embeddings: readonly StoredEmbedding[],
 ): UnifiedPoint[] {
 	const dense = indexEmbeddings(embeddings, "Notice");
-	const expected = new Set(chunks.map((chunk) => sha256(chunk.retrievalText)));
+	const chunksWithDigest = chunks.map((chunk) => ({
+		chunk,
+		retrievalTextSha256: sha256(chunk.retrievalText),
+	}));
+	const expected = new Set(chunksWithDigest.map(({ retrievalTextSha256 }) => retrievalTextSha256));
 	assertExactEmbeddingCoverage(dense, expected, "Notice");
 	const titles = noticeTitles(chunks);
-	return chunks.map((chunk) => {
-		const retrievalTextSha256 = sha256(chunk.retrievalText);
+	return chunksWithDigest.map(({ chunk, retrievalTextSha256 }) => {
 		const vector = dense.get(retrievalTextSha256);
 		if (!vector) throw new ArtifactValidationError(`Notice embedding is missing chunk ${chunk.chunkId}`);
 		const title = titles.get(chunk.noticeId);

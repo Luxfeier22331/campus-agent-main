@@ -96,7 +96,7 @@ describe("Campus docs indexing", () => {
 			},
 			"reader contains high-confidence folded numbered content",
 		],
-	])("rejects %s artifacts before indexing", async (_label, element, message) => {
+	])("uses the published reader without repeating the publication quality gate (%s)", async (_label, element, _message) => {
 		const fixture = createDocsSourceSiteFixture();
 		const source = structuredClone(fixture.source);
 		const document = source.documents[0];
@@ -122,19 +122,18 @@ describe("Campus docs indexing", () => {
 		version.supplements = [];
 		const indexingSource = parseIndexingSource(canonicalJsonBytes(source));
 
-		await expect(
-			loadCurrentVersions({
-				readerStore: {
-					async read(key) {
-						if (key === readerKey) return readerBytes;
-						const object = fixture.objects.get(key);
-						if (!object) throw new Error(`missing fixture object: ${key}`);
-						return object.body;
-					},
+		const selections = await loadCurrentVersions({
+			readerStore: {
+				async read(key) {
+					if (key === readerKey) return readerBytes;
+					const object = fixture.objects.get(key);
+					if (!object) throw new Error(`missing fixture object: ${key}`);
+					return object.body;
 				},
-				source: indexingSource,
-			}),
-		).rejects.toThrow(message);
+			},
+			source: indexingSource,
+		});
+		expect(selections[0]?.reader.elements).toEqual([element]);
 	});
 
 	it("keeps heading paths in retrieval text and uses the canonical URL for preamble evidence", async () => {

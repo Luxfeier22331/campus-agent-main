@@ -19,6 +19,7 @@ import type {
 	ReaderSyncInput,
 	RoutedPublishedReaderManifestEntry,
 } from "./published-reader-types.ts";
+import type { CompiledDocsSource } from "./source-compiler.ts";
 
 export {
 	resolvePublishedReaderObjectStoreBucket,
@@ -36,16 +37,69 @@ export async function syncCampusPublishedReaderDocs(
 	assertPublishedReaderAssetLayout(entries);
 	const generatedRoot = resolveRequiredOutputPath(input.docsRoot, "docsRoot");
 	const publicRoot = resolveRequiredOutputPath(input.targetRoot, "targetRoot");
-	await validateReaderEntries({ client: input.client, entries, targetRoot: publicRoot });
+	const readersByVersion = await validateReaderEntries({
+		client: input.client,
+		entries,
+		targetRoot: publicRoot,
+	});
 	rmSync(generatedRoot, { force: true, recursive: true });
 	await writeNativeReaderSite({
-		client: input.client,
 		entries,
 		generatedRoot,
 		manifest,
 		publicRoot,
+		readersByVersion,
 	});
 	return { generatedDocumentCount: entries.length };
+}
+
+export async function syncCompiledCampusPublishedReader(input: {
+	compiled: CompiledDocsSource;
+	docsRoot: string;
+	targetRoot: string;
+}): Promise<{ assets: ReaderSyncAssetsResult; docs: ReaderSyncDocsResult }> {
+	const entries = routedEntries(input.compiled.manifest);
+	const targetRoot = resolveRequiredOutputPath(input.targetRoot, "targetRoot");
+	const generatedRoot = resolveRequiredOutputPath(input.docsRoot, "docsRoot");
+	const copiesByEntry = entries.map((entry) =>
+		listPublishedReaderObjects(entry).map((object) => {
+			const target = resolveSafePublishedReaderAssetTarget({
+				entry,
+				filePath: object.filePath,
+				targetRoot,
+			});
+			const prepared = input.compiled.objects.get(object.ref.key);
+			if (
+				!prepared ||
+				prepared.ref.byteSize !== object.ref.byteSize ||
+				prepared.ref.sha256 !== object.ref.sha256
+			) {
+				throw new Error(`compiled docs source is missing verified object: ${object.ref.key}`);
+			}
+			return { ...target, bytes: prepared.bytes };
+		}),
+	);
+	rmSync(resolve(targetRoot, "_docs"), { force: true, recursive: true });
+	let copiedAssetCount = 0;
+	for (const copies of copiesByEntry) {
+		for (const copy of copies) {
+			mkdirSync(dirname(copy.targetPath), { recursive: true });
+			writeFileSync(copy.targetPath, copy.bytes);
+			copiedAssetCount += 1;
+		}
+	}
+	rmSync(generatedRoot, { force: true, recursive: true });
+	await writeNativeReaderSite({
+		entries,
+		generatedRoot,
+		manifest: input.compiled.manifest,
+		publicRoot: targetRoot,
+		readersByVersion: input.compiled.readers,
+	});
+	return {
+		assets: { copiedAssetCount, copiedDocumentCount: entries.length },
+		docs: { generatedDocumentCount: entries.length },
+	};
 }
 
 export async function syncCampusPublishedReaderAssets(
@@ -103,15 +157,17 @@ async function validateReaderEntries(input: {
 	client: ReaderSyncInput["client"];
 	entries: RoutedPublishedReaderManifestEntry[];
 	targetRoot: string;
-}): Promise<void> {
+}): Promise<Map<string, ReturnType<typeof assertReaderMatchesEntry>>> {
+	const readersByVersion = new Map<string, ReturnType<typeof assertReaderMatchesEntry>>();
 	for (const entry of input.entries) {
 		const copies = await loadEntryCopies({
 			client: input.client,
 			entry,
 			targetRoot: input.targetRoot,
 		});
-		assertReaderMatchesEntry(entry, copies);
+		readersByVersion.set(entry.versionId, assertReaderMatchesEntry(entry, copies));
 	}
+	return readersByVersion;
 }
 
 function resolveRequiredOutputPath(value: string | undefined, name: string): string {
@@ -144,7 +200,7 @@ async function loadEntryCopies(input: {
 function assertReaderMatchesEntry(
 	entry: RoutedPublishedReaderManifestEntry,
 	copies: ReaderAssetCopy[],
-): void {
+): ReturnType<typeof parseDocsReaderPayload> {
 	const readerCopy = copies.find((copy) => copy.filePath === "reader.json");
 	if (!readerCopy) {
 		throw new Error(`published reader is missing reader.json: ${entry.versionId}`);
@@ -174,6 +230,7 @@ function assertReaderMatchesEntry(
 			value: JSON.parse(new TextDecoder().decode(copy.bytes)),
 		});
 	}
+	return reader;
 }
 
 function routedEntries(manifest: PublishedReaderManifest): RoutedPublishedReaderManifestEntry[] {

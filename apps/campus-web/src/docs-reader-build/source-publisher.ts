@@ -2,15 +2,27 @@ import type { DocsSourceManifest } from "campus-contracts/campus-docs";
 import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "campus-contracts/campus-docs/node";
 import { assertSha256, canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
 import type { DocsSourceObjectStore, ReaderObjectStoreWriter } from "./published-reader-types.ts";
-import { compileDocsSource } from "./source-compiler.ts";
+import type { CompiledDocsSource } from "./source-compiler.ts";
+import { assertDocsSourceQuality, compileDocsSource } from "./source-compiler.ts";
 
 export const DOCS_SOURCE_RELEASE_PREFIX = "campus-docs/releases";
 
-export async function publishDocsSource(input: {
+export interface PreparedDocsSourcePublication {
+	compiled: CompiledDocsSource;
+	source: DocsSourceManifest;
+	sourceBytes: Uint8Array;
+	sourceDigest: `sha256:${string}`;
+}
+
+type DocsSourcePublicationInput = {
 	client: DocsSourceObjectStore;
 	expectedCurrentDigest?: `sha256:${string}`;
-	source: DocsSourceManifest | (() => Promise<DocsSourceManifest>);
-}): Promise<{
+} & (
+	| { prepare: () => Promise<PreparedDocsSourcePublication>; source?: never }
+	| { source: DocsSourceManifest | (() => Promise<DocsSourceManifest>); prepare?: never }
+);
+
+export async function publishDocsSource(input: DocsSourcePublicationInput): Promise<{
 	documentCount: number;
 	releaseKey: string;
 	sourceDigest: `sha256:${string}`;
@@ -22,12 +34,17 @@ export async function publishDocsSource(input: {
 	if (input.expectedCurrentDigest) {
 		assertSourceDigest(current?.body, input.expectedCurrentDigest);
 	}
-	const source = normalizeSourceManifest(
-		typeof input.source === "function" ? await input.source() : input.source,
-	);
-	const sourceBytes = canonicalJsonBytes(source);
-	await compileDocsSource({ client: input.client, source });
-	const sourceDigest = sha256(sourceBytes);
+	if ("prepare" in input === "source" in input) {
+		throw new Error("Docs source publication requires exactly one source or prepare callback");
+	}
+	const candidate = input.prepare
+		? await input.prepare()
+		: await prepareDocsSourcePublication({
+				client: input.client,
+				source: typeof input.source === "function" ? await input.source() : input.source,
+			});
+	assertDocsSourceQuality(candidate.compiled);
+	const { source, sourceBytes, sourceDigest } = candidate;
 	const releaseKey = docsSourceReleaseKey(sourceDigest);
 	await writeImmutableSourceRelease(input.client, releaseKey, sourceBytes);
 	try {
@@ -46,16 +63,22 @@ export async function publishDocsSource(input: {
 		}
 		throw error;
 	}
-	const stored = await input.client.readOptionalBytesObject({ key: DOCS_SOURCE_KEY });
-	if (!(stored && equalBytes(stored, sourceBytes))) {
-		throw new Error(`failed to verify updated campus docs source: ${DOCS_SOURCE_KEY}`);
-	}
 	return {
 		documentCount: source.documents.length,
 		releaseKey,
 		sourceDigest,
 		versionCount: source.versions.length,
 	};
+}
+
+export async function prepareDocsSourcePublication(input: {
+	client: DocsSourceObjectStore;
+	source: DocsSourceManifest;
+}): Promise<PreparedDocsSourcePublication> {
+	const source = normalizeSourceManifest(input.source);
+	const compiled = await compileDocsSource({ client: input.client, source });
+	const sourceBytes = canonicalJsonBytes(source);
+	return { compiled, source, sourceBytes, sourceDigest: sha256(sourceBytes) };
 }
 
 export async function assertCurrentSourceDigest(

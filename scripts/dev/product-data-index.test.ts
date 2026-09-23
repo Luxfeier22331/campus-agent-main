@@ -92,3 +92,49 @@ test("scroll retries the failed page only and writes complete NDJSON", async () 
 		await rm(directory, { recursive: true, force: true });
 	}
 });
+
+for (const interruption of ["between pages", "during retry"] as const) {
+	test(`aborting ${interruption} stops scroll and releases the NDJSON file`, async () => {
+		const directory = await mkdtemp(join(tmpdir(), "index-abort-"));
+		const path = join(directory, "points.ndjson");
+		const controller = new AbortController();
+		let pages = 0;
+		try {
+			const seed = await readProductSeedIndex(resolve(import.meta.dirname, "../.."));
+			await assert.rejects(
+				downloadProductIndex({
+					collection: seed.collection,
+					path,
+					signal: controller.signal,
+					async request(url) {
+						if (url.endsWith("/count")) {
+							return { result: { count: seed.points.length } };
+						}
+						if (!url.endsWith("/scroll")) {
+							return {
+								result: {
+									config: {
+										params: {
+											vectors: { dense: { size: 2560, distance: "Cosine" } },
+											sparse_vectors: { sparse: { modifier: "idf" } },
+										},
+									},
+								},
+							};
+						}
+						pages += 1;
+						controller.abort();
+						if (interruption === "during retry") {
+							throw new RetryableProductTransferError("connection reset");
+						}
+						return { result: { points: seed.points.slice(0, 1), next_page_offset: "next" } };
+					},
+				}),
+				{ name: "AbortError" },
+			);
+			assert.equal(pages, 1);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+}

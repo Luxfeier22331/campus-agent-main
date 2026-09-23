@@ -18,6 +18,8 @@ import {
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
 import type { ReaderObjectStoreClient } from "./published-reader-types.ts";
+import type { CompiledDocsSource, PreparedDocsSourceObject } from "./source-compiler.ts";
+import { compileDocsSource } from "./source-compiler.ts";
 
 export interface DocsVersionDeclarationSupplementAsset {
 	key: string;
@@ -48,6 +50,7 @@ export interface DocsSourceDeclarations {
 }
 
 export interface CompiledDocsSourceDeclarations {
+	compiled: CompiledDocsSource;
 	declarations: DocsSourceDeclarations;
 	source: DocsSourceManifest;
 	sourceBytes: Uint8Array;
@@ -107,38 +110,63 @@ export async function compileDocsSourceDeclarations(input: {
 	root: string;
 }): Promise<CompiledDocsSourceDeclarations> {
 	const declarations = readDocsSourceDeclarations(input.root);
+	const materialized = await materializeVersions(declarations.versions, input.client);
 	const source = normalizeSourceManifest({
 		collections: declarations.collections,
 		documents: declarations.documents,
 		redirects: declarations.redirects,
 		schemaVersion: "campus_docs_source.v4",
 		topics: declarations.topics,
-		versions: await materializeVersions(declarations.versions, input.client),
+		versions: materialized.versions,
 	});
 	const sourceBytes = canonicalJsonBytes(source);
-	return { declarations, source, sourceBytes, sourceDigest: sha256(sourceBytes) };
+	const compiled = await compileDocsSource({
+		client: input.client,
+		preparedObjects: materialized.objects,
+		source,
+	});
+	return { compiled, declarations, source, sourceBytes, sourceDigest: sha256(sourceBytes) };
 }
 
 async function materializeVersions(
 	versions: DocsVersionDeclaration[],
 	client: ReaderObjectStoreClient,
-): Promise<DocsSourceVersion[]> {
+): Promise<{
+	objects: ReadonlyMap<string, PreparedDocsSourceObject>;
+	versions: DocsSourceVersion[];
+}> {
 	const result: DocsSourceVersion[] = [];
+	const objects = new Map<string, PreparedDocsSourceObject>();
+	const reads = new Map<string, Promise<PreparedDocsSourceObject>>();
+	const readRef = async (key: string): Promise<ObjectRef> => {
+		const existing = objects.get(key);
+		if (existing) {
+			return existing.ref;
+		}
+		let pending = reads.get(key);
+		if (!pending) {
+			pending = objectRef(client, key);
+			reads.set(key, pending);
+		}
+		const prepared = await pending;
+		objects.set(key, prepared);
+		return prepared.ref;
+	};
 	for (const version of versions) {
 		result.push({
 			docId: version.docId,
-			reader: await objectRef(client, version.readerKey),
+			reader: await readRef(version.readerKey),
 			supplements: await Promise.all(
 				version.supplements.map(
 					async (supplement): Promise<DocsSupplement> => ({
 						assets: await Promise.all(
 							supplement.assets.map(async (asset) => ({
-								object: await objectRef(client, asset.key),
+								object: await readRef(asset.key),
 								path: asset.path,
 							})),
 						),
 						kind: supplement.kind,
-						object: await objectRef(client, supplement.objectKey),
+						object: await readRef(supplement.objectKey),
 						path: supplement.path,
 					}),
 				),
@@ -147,7 +175,7 @@ async function materializeVersions(
 			versionSlug: version.versionSlug,
 		});
 	}
-	return result;
+	return { objects, versions: result };
 }
 
 export function writeDocsSourceDeclarations(input: {
@@ -191,12 +219,15 @@ function declarationVersion(version: DocsSourceVersion): DocsVersionDeclaration 
 	};
 }
 
-async function objectRef(client: ReaderObjectStoreClient, key: string): Promise<ObjectRef> {
+async function objectRef(
+	client: ReaderObjectStoreClient,
+	key: string,
+): Promise<PreparedDocsSourceObject> {
 	const bytes = await client.readOptionalBytesObject({ key });
 	if (!bytes) {
 		throw new Error(`missing declared docs object: ${key}`);
 	}
-	return { byteSize: bytes.byteLength, key, sha256: sha256(bytes) };
+	return { bytes, ref: { byteSize: bytes.byteLength, key, sha256: sha256(bytes) } };
 }
 
 function readArrayFile<T>(

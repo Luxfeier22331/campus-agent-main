@@ -15,7 +15,6 @@ export interface DocsContentMetadata {
 export interface DocsContentPaths {
 	generatedRoot: string;
 	metadataPath: string;
-	objectsRoot: string;
 	pagesRoot: string;
 	publicRoot: string;
 	root: string;
@@ -37,7 +36,6 @@ export function resolveDocsContentPaths(root: string): DocsContentPaths {
 	return {
 		generatedRoot: resolve(resolvedRoot, "build"),
 		metadataPath: resolve(resolvedRoot, DOCS_CONTENT_METADATA_FILE),
-		objectsRoot: resolve(resolvedRoot, "input/objects"),
 		pagesRoot: resolve(resolvedRoot, "pages/docs"),
 		publicRoot: resolve(resolvedRoot, "public"),
 		root: resolvedRoot,

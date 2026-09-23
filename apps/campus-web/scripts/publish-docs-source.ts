@@ -11,12 +11,12 @@ export async function publishDocsSourceFromDeclarations(
 	const client = input.client ?? createS3ObjectStore(input.env ?? loadCampusWebBuildEnvironment());
 	return publishDocsSource({
 		client,
-		source: async () => {
-			const compiled = await compileDocsSourceDeclarations({
+		prepare: async () => {
+			const { compiled, source, sourceBytes, sourceDigest } = await compileDocsSourceDeclarations({
 				client,
 				root: input.root ?? parseDocsSourceRootArgs([]),
 			});
-			return compiled.source;
+			return { compiled, source, sourceBytes, sourceDigest };
 		},
 	});
 }

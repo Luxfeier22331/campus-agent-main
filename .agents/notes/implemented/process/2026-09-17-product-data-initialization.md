@@ -19,16 +19,25 @@ cluster 模式显式选择 context/namespace，使用 product_data_ro、objectst
 范围包含产品与内容管理草稿，不包含原始门户采集、远端用户/会话/评论/模型秘密。
 附件只有元数据；图片、Docs 全版本引用闭包和食堂 SVG 复制实际字节。
 PostgreSQL 在单个 repeatable-read read-only 事务导出显式列；Qdrant 从 current_index 指向的真实
-collection 分批读取 dense/sparse vectors。临时文件在操作结束后清理，不增加持久同步缓存或 receipt。
+collection 分批读取 dense/sparse vectors。只有需要反复遍历的 Qdrant points 使用临时 NDJSON，
+取消信号同时传递给分页下载和重试等待，临时文件在成功或失败后清理。
+对象直接交给各消费者，Docs 编译器复用已读取字节，制品导入复用自身收集的字节；
+不再增加本地对象暂存文件或独立磁盘缓存。
 
 本地数据库和派生对象属于 profile；不可变 Qdrant collection 可共享，绑定独立。
 初始化要求当前 worktree 应用离线。统一 publisher 的 catalog 支持调用方事务，基础数据与绑定
-一起提交。资源和 collection 先验证，随后导入数据库，最后更新 Docs source；后续失败报错，
+一起提交。资源和 collection 先验证，随后导入数据库，最后更新 Docs source；Docs closure 在一次编译中读取并
+校验对象，再直接复用已读取字节写入目标对象；Qdrant 下载阶段不重复做产品语义校验，统一在写入
+前校验。后续失败报错，
 重复相同显式替换命令收敛。共享 registry lock 串行化本地 collection 写入。
 
 Docs-only 本地 current_index writer 退役；保留 Chunk、Embedding、评测与统一显式制品发布入口。
 共享 Qdrant 纳入既有 shared-reconcile，复用 project/volume/keys；新安装生成私有本地密钥。
-正常启动只做轻量数据入口检查，完整验证使用 `dev:doctor --scope data`。
+正常启动及已有数据的 seed 重复初始化只做轻量数据入口检查；初始化成功后不再隐式执行全量诊断。
+完整对象和索引引用验证使用显式 `dev:doctor --scope data`，直接复用消费链检查，不重复读取浅层入口。
+业务表为空不代表同步失败，不以通知、群组、交通或食堂发布表非空判断 ready；实际引用必须可解析，
+数据库约束继续由数据库承担。样例覆盖由 seed 测试保证，`hasProductData` 只负责防止意外覆盖。
+入口缺失与引用损坏按实际失败报告，不把所有诊断失败都引导到覆盖本地数据。
 缺少索引返回 `campus_search_unavailable`；其他检索或引用合同失败不因此变成可恢复错误。
 
 ## 未采用方案

@@ -214,6 +214,33 @@ describe("Generated Docs publication", () => {
 		expect(f.store.objects.get(DOCS_SOURCE_KEY)).toEqual(f.sourceBytes);
 	});
 
+	it("reads each declared object once and does not read back the fixed key after writing", async () => {
+		const f = fixture();
+		const originalReadBytes = f.store.readOptionalBytesObject;
+		const originalReadCurrent = f.store.readOptionalObject;
+		const reads = new Map<string, number>();
+		let currentReads = 0;
+		f.store.readOptionalBytesObject = async ({ key }) => {
+			reads.set(key, (reads.get(key) ?? 0) + 1);
+			return originalReadBytes({ key });
+		};
+		f.store.readOptionalObject = async ({ key }) => {
+			currentReads += 1;
+			return originalReadCurrent({ key });
+		};
+
+		await publishDocsSourceFromDeclarations({ client: f.store, root: f.root });
+
+		for (const key of f.objects.keys()) {
+			if (key === DOCS_SOURCE_KEY) {
+				continue;
+			}
+			expect(reads.get(key)).toBe(1);
+		}
+		expect(reads.get(DOCS_SOURCE_KEY) ?? 0).toBe(0);
+		expect(currentReads).toBe(1);
+	});
+
 	it("rejects a conflicting immutable copy", async () => {
 		const f = fixture();
 		f.store.objects.set(docsSourceReleaseKey(f.sourceDigest), new TextEncoder().encode("conflict"));
@@ -261,19 +288,40 @@ describe("Generated Docs publication", () => {
 		expect(f.store.objects.get(DOCS_SOURCE_KEY)).toEqual(f.sourceBytes);
 	});
 
-	it("rejects content changed after deriving hashes and sizes", async () => {
+	it("rejects reader quality defects at the publication boundary", async () => {
+		const f = fixture();
+		const readerBytes = f.store.objects.get(f.version.reader.key);
+		assert(readerBytes);
+		const reader = JSON.parse(new TextDecoder().decode(readerBytes));
+		reader.elements = [
+			{
+				anchor: "scope",
+				kind: "heading",
+				level: 2,
+				rootUnitId: "doc:migrated-heading-0001",
+				text: "适用范围",
+			},
+		];
+		f.store.objects.set(f.version.reader.key, canonicalJsonBytes(reader));
+
+		await expect(
+			publishDocsSourceFromDeclarations({ client: f.store, root: f.root }),
+		).rejects.toThrow("reader contains migrated heading artifact");
+		expect(f.store.objects.get(DOCS_SOURCE_KEY)).toEqual(f.sourceBytes);
+	});
+
+	it("reuses the bytes used to derive object references during compilation", async () => {
 		const f = fixture();
 		const originalRead = f.store.readOptionalBytesObject;
 		let reads = 0;
 		f.store.readOptionalBytesObject = async ({ key }) => {
-			if (key === f.version.reader.key && ++reads === 2) {
-				return new TextEncoder().encode("changed object");
+			if (key === f.version.reader.key) {
+				reads += 1;
 			}
 			return originalRead({ key });
 		};
-		await expect(
-			publishDocsSourceFromDeclarations({ client: f.store, root: f.root }),
-		).rejects.toThrow("published reader object failed integrity check");
-		expect(f.store.objects.get(DOCS_SOURCE_KEY)).toEqual(f.sourceBytes);
+		const result = await publishDocsSourceFromDeclarations({ client: f.store, root: f.root });
+		expect(result.sourceDigest).toBe(f.sourceDigest);
+		expect(reads).toBe(1);
 	});
 });

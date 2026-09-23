@@ -24,14 +24,10 @@ import {
 	resolveSourceDocsContentPaths,
 } from "../src/docs-reader-build/docs-content.ts";
 import { writeNativeDocsHtmlPages } from "../src/docs-reader-build/native-reader-prerender.tsx";
-import { createCachingReaderObjectStore } from "../src/docs-reader-build/prepared-reader-object-store.ts";
 import { createS3ReaderObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
 import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
-import {
-	syncCampusPublishedReaderAssets,
-	syncCampusPublishedReaderDocs,
-} from "../src/docs-reader-build/sync-campus-published-reader.ts";
+import { syncCompiledCampusPublishedReader } from "../src/docs-reader-build/sync-campus-published-reader.ts";
 
 function randomHex(length: number): string {
 	let value = "";
@@ -80,9 +76,7 @@ export async function prepareDocsContent(
 	input: PrepareDocsContentInput,
 ): Promise<DocsContentPaths> {
 	const appRoot = resolve(input.appRoot ?? APP_ROOT);
-	const remoteClient = memoizeReaderObjectStore(
-		input.client ?? createS3ReaderObjectStore(input.env),
-	);
+	const remoteClient = input.client ?? createS3ReaderObjectStore(input.env);
 	const sourceBytes = await readCurrentDocsSource(remoteClient);
 	const source = normalizeSourceManifest(parseSourceManifest(parseJson(sourceBytes)));
 	const canonicalSourceBytes = canonicalJsonBytes(source);
@@ -143,22 +137,10 @@ async function populateContent(input: {
 }): Promise<void> {
 	mkdirSync(dirname(input.paths.sourcePath), { recursive: true });
 	writeFileSync(input.paths.sourcePath, input.sourceBytes, { mode: 0o600 });
-	const sourceClient = memoizeReaderObjectStore(
-		createCachingReaderObjectStore({
-			client: input.client,
-			objectsRoot: input.paths.objectsRoot,
-		}),
-	);
-	const compiled = await compileDocsSource({ client: sourceClient, source: input.source });
-	await syncCampusPublishedReaderAssets({
-		client: compiled.client,
-		manifest: compiled.manifest,
-		targetRoot: input.paths.publicRoot,
-	});
-	await syncCampusPublishedReaderDocs({
-		client: compiled.client,
+	const compiled = await compileDocsSource({ client: input.client, source: input.source });
+	await syncCompiledCampusPublishedReader({
+		compiled,
 		docsRoot: input.paths.generatedRoot,
-		manifest: compiled.manifest,
 		targetRoot: input.paths.publicRoot,
 	});
 	ensureThemeBootstrap(input.paths.publicRoot);
@@ -192,20 +174,6 @@ function parseJson(bytes: Uint8Array): unknown {
 			`${DOCS_SOURCE_KEY} is not valid UTF-8 JSON: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
-}
-
-function memoizeReaderObjectStore(client: ReaderObjectStoreClient): ReaderObjectStoreClient {
-	const reads = new Map<string, Promise<Uint8Array | undefined>>();
-	return {
-		readOptionalBytesObject({ key }) {
-			let read = reads.get(key);
-			if (!read) {
-				read = client.readOptionalBytesObject({ key });
-				reads.set(key, read);
-			}
-			return read;
-		},
-	};
 }
 
 function equalBytes(left: Uint8Array, right: Uint8Array): boolean {

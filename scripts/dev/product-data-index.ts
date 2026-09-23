@@ -14,7 +14,7 @@ export async function downloadProductIndex(input: {
 	collection: string;
 	path: string;
 	request(path: string, body?: unknown): Promise<unknown>;
-	validatePoint(point: UnifiedPoint): void;
+	validatePoint?(point: UnifiedPoint): void;
 	signal?: AbortSignal;
 }): Promise<StreamingIndexCandidate> {
 	if (!/^campus_docs_[a-f0-9]{64}$/u.test(input.collection)) {
@@ -78,7 +78,7 @@ export async function downloadProductIndex(input: {
 				) {
 					throw new Error(`Invalid sparse vector: ${point.id}`);
 				}
-				input.validatePoint(point);
+				input.validatePoint?.(point);
 				kinds.add(point.payload.source_kind);
 				await file.writeFile(`${JSON.stringify(point)}\n`);
 				pointCount += 1;

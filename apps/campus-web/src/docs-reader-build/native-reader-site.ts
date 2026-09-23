@@ -6,7 +6,6 @@ import {
 	buildReaderDescription,
 	type DocsReaderElement,
 	type DocsReaderPayload,
-	parseDocsReaderPayload,
 } from "../features/docs/model.ts";
 import {
 	compareDocsCollections,
@@ -18,7 +17,7 @@ import {
 	type DocsSiteIndex,
 	type DocsSiteVersion,
 } from "../features/docs/site-index.ts";
-import { publicReaderUrl, readPublishedObject } from "./published-reader-assets.ts";
+import { publicReaderUrl } from "./published-reader-assets.ts";
 import { resolveCorpusLabel, resolveDocumentDisplayTitle } from "./published-reader-labels.ts";
 import {
 	buildReaderCanonicalUrl,
@@ -29,7 +28,6 @@ import { formatJson, writeText } from "./published-reader-text.ts";
 import type {
 	PublishedReaderCollection,
 	PublishedReaderManifest,
-	ReaderObjectStoreClient,
 	RoutedPublishedReaderManifestEntry,
 } from "./published-reader-types.ts";
 
@@ -64,30 +62,17 @@ export interface NativeDocsCatalog {
 }
 
 export async function writeNativeReaderSite(input: {
-	client: ReaderObjectStoreClient;
 	entries: RoutedPublishedReaderManifestEntry[];
 	generatedRoot: string;
 	manifest: PublishedReaderManifest;
 	publicRoot: string;
+	readersByVersion: ReadonlyMap<string, DocsReaderPayload>;
 }): Promise<void> {
 	const versionsByDocument = groupVersionsByDocument(input.entries);
+	const readersByVersion = input.readersByVersion;
 	const collectionsByScope = new Map(
 		input.manifest.collections.map((collection) => [scopeKey(collection), collection]),
 	);
-	const readersByVersion = new Map<string, DocsReaderPayload>();
-	for (const entry of input.entries) {
-		const reader = parseDocsReaderPayload(
-			JSON.parse(
-				new TextDecoder().decode(
-					await readPublishedObject({ client: input.client, ref: entry.reader }),
-				),
-			),
-		);
-		if (reader.docId !== entry.docId || reader.versionId !== entry.versionId) {
-			throw new Error(`reader identity does not match docs entry: ${entry.versionId}`);
-		}
-		readersByVersion.set(entry.versionId, reader);
-	}
 	const routes = input.entries.flatMap((entry) => {
 		const reader = readersByVersion.get(entry.versionId);
 		if (!reader) {
@@ -218,7 +203,7 @@ function buildSiteDocument(entries: RoutedPublishedReaderManifestEntry[]): DocsS
 
 function buildPublicSearchIndex(input: {
 	entries: RoutedPublishedReaderManifestEntry[];
-	readersByVersion: Map<string, DocsReaderPayload>;
+	readersByVersion: ReadonlyMap<string, DocsReaderPayload>;
 }): DocsSearchIndex {
 	const searchEntries: DocsSearchIndex["entries"] = [];
 	const latestVersionIds = new Set(

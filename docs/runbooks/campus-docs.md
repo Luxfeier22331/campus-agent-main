@@ -48,7 +48,8 @@ Docs 的共享输入是对象存储中的 `campus-docs/source.json` 及其引用
    pnpm --dir apps/campus-web docs:source:check
    ```
 
-4. 合并后候选流水线自动运行 `docs:source:publish`，计算引用摘要和大小、完整编译、写不可变副本，再
+4. 合并后候选流水线自动运行 `docs:source:publish`，计算引用摘要和大小、完整编译并执行 reader 提取与
+   分段质量门禁、写不可变副本，再
    条件更新固定 `campus-docs/source.json`。成功输出 `documentCount`、`versionCount`、`sourceDigest`、`releaseKey`。
    手动调试也使用该命令，连接沿用 `env/commands/campus-docs-source.env` 和进程环境，选择目标后再运行。
 
@@ -86,7 +87,7 @@ pnpm dev:init -- --target campus-docs-index-publisher
 pnpm --dir jobs/campus-docs-index-publisher build-chunks
 ```
 
-命令读取固定来源和当前 reader，执行与线上 Chunk Job 相同的分块及硬校验，并把制品写入当前
+命令读取固定来源和当前 reader，执行与线上 Chunk Job 相同的分块及结构合同校验，并把制品写入当前
 worktree 的 `var/campus-docs/rag/`。Chunk identity、reader 元素覆盖、section 边界、root unit 顺序、
 `retrievalText` 来源、字符上限或表格单元格覆盖不满足时，命令失败且不写 Chunk Set。该阶段不访问
 embedding provider、PostgreSQL 或 Qdrant。
