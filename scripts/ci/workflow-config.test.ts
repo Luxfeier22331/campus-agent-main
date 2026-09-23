@@ -797,6 +797,8 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.doesNotMatch(String(preflight.run), /clusters\/staging\/overlays\/data-postgres/u);
 	assert.doesNotMatch(String(preflight.run), /validate-rendered --directory/u);
 	assert.match(String(preflight.run), /validate-ops-web-promotion/u);
+	const deploymentPr = namedStep(promote, "Open GitOps deployment pull request");
+	assert.deepEqual(deploymentPr.env, { LC_ALL: "C" });
 	const installGitOpsTooling = namedStep(promote, "Install GitOps tooling");
 	assert.equal(installGitOpsTooling.run, "pnpm --dir gitops install --frozen-lockfile");
 	assert(!String(installGitOpsTooling.run).includes("--ignore-workspace"));

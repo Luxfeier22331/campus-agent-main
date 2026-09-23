@@ -732,6 +732,11 @@ jobs:
           steps.promotion.outputs.promotion_disposition == 'ready' &&
           steps.promotion.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8
+        env:
+          # create-pull-request detects whether git stash created an entry by
+          # matching git's English output. The self-hosted runner locale is
+          # Chinese, so force a stable locale to avoid a false stash-pop.
+          LC_ALL: C
         with:
           token: ${{ steps.gitops-token.outputs.token }}
           path: gitops

@@ -21,6 +21,9 @@ Source ref、镜像 digest、Worker version、发布标识、Application Source 
 Secret、权限、资源、网络、Terraform、workflow、Application 拓扑和其他环境变化不属于机器版本
 选择，继续由人员审查。Source CI 不直接写 GitOps `main`，也不直接操作集群或流量。
 
+Source workflow 使用受信任 GitHub App 创建 promotion PR；调用 PR action 的 Git 环境固定为
+`LC_ALL=C`，避免 self-hosted runner 的本地化 Git 输出导致 action 错误恢复不存在的 stash。
+
 ## 未采用方案
 
 ### 每个源码提交等待人工合并
