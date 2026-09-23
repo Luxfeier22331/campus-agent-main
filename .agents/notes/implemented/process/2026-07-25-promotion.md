@@ -24,6 +24,10 @@ Secret、权限、资源、网络、Terraform、workflow、Application 拓扑和
 Source workflow 使用受信任 GitHub App 创建 promotion PR；调用 PR action 的 Git 环境固定为
 `LC_ALL=C`，避免 self-hosted runner 的本地化 Git 输出导致 action 错误恢复不存在的 stash。
 
+当发布制品已经成功但 promotion job 失败时，workflow 提供显式 recovery 输入，按指定的 Source
+run ID 与 Source SHA 复用已上传的 image/Worker artifacts，只执行 promotion 和验证；普通 push 与
+常规手动发布仍会重新构建制品。
+
 ## 未采用方案
 
 ### 每个源码提交等待人工合并

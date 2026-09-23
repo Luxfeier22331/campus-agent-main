@@ -735,6 +735,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 
 	const publishImages = workflowJob(workflow, "publish-images");
 	assert.equal(publishImages.needs, "release-plan");
+	assert.match(String(publishImages.if), /promotion_recovery_run_id/u);
 	assert.equal(publishImages["runs-on"], runnerSelector("ubuntu-24.04-arm"));
 	assert.equal(namedStep(publishImages, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.deepEqual(publishImages.permissions, { contents: "read", packages: "write" });
@@ -752,6 +753,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 
 	const publishWorkers = workflowJob(workflow, "publish-workers");
 	assert.equal(publishWorkers.needs, "release-plan");
+	assert.match(String(publishWorkers.if), /promotion_recovery_run_id/u);
 	assert.equal(publishWorkers["runs-on"], runnerSelector("ubuntu-24.04"));
 	assert.equal(namedStep(publishWorkers, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.deepEqual(publishWorkers.environment, {
@@ -773,10 +775,17 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 		"publish-workers",
 	]);
 	assert.equal(promote["runs-on"], runnerSelector("ubuntu-24.04"));
+	assert.deepEqual(promote.permissions, { contents: "read", actions: "read" });
 	assert.equal(namedStep(promote, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.equal(promote.environment, undefined);
 	assert.match(String(promote.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
 	assert.match(String(promote.if), /github\.ref == 'refs\/heads\/main'/u);
+	assert.match(String(promote.if), /inputs\.promote/u);
+	assert(isObject(workflow.on));
+	assert(isObject(workflow.on.workflow_dispatch));
+	assert(isObject(workflow.on.workflow_dispatch.inputs));
+	assert.equal(workflow.on.workflow_dispatch.inputs.promotion_recovery_run_id.type, "string");
+	assert.equal(workflow.on.workflow_dispatch.inputs.promotion_recovery_source_sha.type, "string");
 	const plan = namedStep(releasePlan, "Select release candidates");
 	assert.match(String(plan.run), /\.sourceBases/u);
 	assert.match(String(plan.run), /\.topologyMigrations/u);
@@ -786,7 +795,20 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.match(String(promotion.run), /--topology-migration-file/u);
 	assert.match(
 		String(promotion.run),
-		/--topology-migration-path "releases\/staging-migrations\/\$\{\{ github\.sha \}\}\.json"/u,
+		/--topology-migration-path "releases\/staging-migrations\/\$\{PROMOTION_SOURCE_SHA\}\.json"/u,
+	);
+	assert.match(String(promotion.env.PROMOTION_SOURCE_SHA), /promotion_recovery_source_sha/u);
+	const recoveryImageDownload = namedStep(promote, "Download image digests");
+	assert.match(String(recoveryImageDownload.if), /promotion_recovery_run_id/u);
+	assert.equal(
+		recoveryImageDownload.with["run-id"],
+		githubExpression("inputs.promotion_recovery_run_id || github.run_id"),
+	);
+	const recoveryWorkerDownload = namedStep(promote, "Download Worker candidates");
+	assert.match(String(recoveryWorkerDownload.if), /promotion_recovery_run_id/u);
+	assert.equal(
+		recoveryWorkerDownload.with["run-id"],
+		githubExpression("inputs.promotion_recovery_run_id || github.run_id"),
 	);
 	assert.doesNotMatch(String(promotion.run), /--kubernetes/u);
 	const preflight = namedStep(promote, "Preflight GitOps promotion render");
