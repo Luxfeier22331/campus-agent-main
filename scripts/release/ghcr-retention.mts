@@ -18,8 +18,8 @@ const CACHE_TAG = "buildcache-arm64";
 const PACKAGE_PREFIX = "campus-agent/";
 const DEFAULT_OWNER = "MUC-WIKI";
 const DEFAULT_REPOSITORY = "MUC-WIKI/campus-agent";
-const DEFAULT_KEEP_RELEASES = 5;
-const DEFAULT_UNTAGGED_GRACE_DAYS = 7;
+const DEFAULT_KEEP_RELEASES = 10;
+const DEFAULT_UNTAGGED_GRACE_DAYS = 90;
 const GITOPS_SCAN_ROOT = "clusters";
 
 export const RETIRED_IMAGE_NAMES = [
@@ -264,6 +264,50 @@ export async function readPackageInventory(
 	const packageNames = ACTIVE_IMAGE_TARGETS.map(
 		(image) => `${PACKAGE_PREFIX}pr-cache-${prNumber}/${image}`,
 	).sort();
+	const inventories: PackageInventory[] = [];
+	for (const packageName of packageNames) {
+		const encoded = encodeURIComponent(packageName);
+		let metadata: unknown;
+		try {
+			const pages = await ghJson([`orgs/${owner}/packages/container/${encoded}`], runner);
+			metadata = Array.isArray(pages) ? pages[0] : pages;
+		} catch (error) {
+			if (error instanceof GitHubApiError && error.status === 404) {
+				continue;
+			}
+			throw error;
+		}
+		if (
+			!metadata ||
+			typeof metadata !== "object" ||
+			!("name" in metadata) ||
+			metadata.name !== packageName
+		) {
+			throw new Error(`Invalid package metadata for ${packageName}`);
+		}
+		const versionResponse = await ghJson(
+			[`orgs/${owner}/packages/container/${encoded}/versions?per_page=100`],
+			runner,
+		);
+		const versionValues = parsePagedJson(
+			JSON.stringify(versionResponse),
+			`GitHub versions for ${packageName}`,
+		);
+		inventories.push({
+			name: packageName,
+			versions: versionValues.map((value, index) =>
+				versionFromApi(value, `${packageName} versions[${index}]`),
+			),
+		});
+	}
+	return inventories;
+}
+
+export async function readKnownPackageInventory(
+	owner = DEFAULT_OWNER,
+	runner: CommandRunner = runCommand,
+): Promise<PackageInventory[]> {
+	const packageNames = [...new Set([...ACTIVE_PACKAGE_NAMES, ...RETIRED_PACKAGE_NAMES])].sort();
 	const inventories: PackageInventory[] = [];
 	for (const packageName of packageNames) {
 		const encoded = encodeURIComponent(packageName);
@@ -957,9 +1001,8 @@ function markdownSummary(plan: RetentionPlan): string {
 		`- Packages: ${plan.totals.packages}; versions: ${plan.totals.versions}`,
 		`- Planned package deletes: ${plan.totals.deletePackages}`,
 		`- Planned version deletes: ${plan.totals.deleteVersions}`,
-		"- Scope: selected closed PR cache packages only",
+		`- Policy: keep ${plan.policy.keepLatestReleases} releases; untagged grace ${plan.policy.untaggedGraceDays} days`,
 		`- Result: ${plan.errors.length > 0 ? "failed; planned actions may be incomplete" : "completed"}`,
-		"- Main image and cache retention is paused pending #512",
 		"",
 		"| Package | Class | Versions | Action | Delete versions | Protected roots |",
 		"| --- | --- | ---: | --- | ---: | ---: |",
@@ -988,7 +1031,12 @@ interface CliOptions {
 	output: string;
 	owner: string;
 	prCachePr: string;
+	scope: "full" | "pr";
 	repository: string;
+	gitopsRoot: string;
+	gitopsRefs: string[];
+	keepLatestReleases: number;
+	untaggedGraceDays: number;
 	summary?: string;
 }
 
@@ -996,9 +1044,14 @@ export function parseArgs(args: string[]): CliOptions {
 	const options: CliOptions = {
 		mode: "report",
 		prCachePr: "",
+		scope: "pr",
 		output: "ghcr-retention.json",
 		owner: DEFAULT_OWNER,
 		repository: DEFAULT_REPOSITORY,
+		gitopsRoot: "",
+		gitopsRefs: ["main"],
+		keepLatestReleases: DEFAULT_KEEP_RELEASES,
+		untaggedGraceDays: DEFAULT_UNTAGGED_GRACE_DAYS,
 	};
 	for (let index = 0; index < args.length; index += 1) {
 		const argument = args[index];
@@ -1029,6 +1082,51 @@ export function parseArgs(args: string[]): CliOptions {
 				index += 1;
 				break;
 			}
+			case "--scope": {
+				const value = valueAfter(args, index, argument);
+				if (value !== "full" && value !== "pr") {
+					throw new Error("--scope must be full or pr");
+				}
+				options.scope = value;
+				index += 1;
+				break;
+			}
+			case "--gitops-root":
+				options.gitopsRoot = valueAfter(args, index, argument);
+				index += 1;
+				break;
+			case "--gitops-refs": {
+				const value = valueAfter(args, index, argument);
+				const refs = value
+					.split(",")
+					.map((ref) => ref.trim())
+					.filter(Boolean);
+				if (refs.length === 0) {
+					throw new Error("--gitops-refs must contain at least one ref");
+				}
+				refs.forEach(validateGitRef);
+				options.gitopsRefs = [...new Set(refs)];
+				index += 1;
+				break;
+			}
+			case "--keep-releases": {
+				const value = valueAfter(args, index, argument);
+				if (!/^[0-9]+$/u.test(value)) {
+					throw new Error("--keep-releases must be a non-negative integer");
+				}
+				options.keepLatestReleases = Number(value);
+				index += 1;
+				break;
+			}
+			case "--untagged-grace-days": {
+				const value = valueAfter(args, index, argument);
+				if (!/^[0-9]+$/u.test(value)) {
+					throw new Error("--untagged-grace-days must be a non-negative integer");
+				}
+				options.untaggedGraceDays = Number(value);
+				index += 1;
+				break;
+			}
 			case "--repository":
 				options.repository = valueAfter(args, index, argument);
 				index += 1;
@@ -1047,15 +1145,75 @@ export function parseArgs(args: string[]): CliOptions {
 	if (!options.owner || options.owner.includes("/")) {
 		throw new Error(`Invalid owner: ${options.owner}`);
 	}
-	if (!options.prCachePr) {
-		throw new Error("--pr-cache-pr is required; full retention is paused pending #512.");
+	if (options.scope === "pr" && !options.prCachePr) {
+		throw new Error("--pr-cache-pr is required for --scope pr");
+	}
+	if (options.scope === "full" && options.prCachePr) {
+		throw new Error("--pr-cache-pr cannot be used with --scope full");
+	}
+	if (options.scope === "full" && !options.gitopsRoot) {
+		throw new Error("--gitops-root is required for --scope full");
 	}
 	return options;
 }
 
 async function main(args: string[]): Promise<void> {
 	const options = parseArgs(args);
-	await runPrCacheCleanup(options, options.prCachePr);
+	if (options.scope === "pr") {
+		await runPrCacheCleanup(options, options.prCachePr);
+		return;
+	}
+	const runner = runCommand;
+	let plan = planRetention({
+		mode: options.mode,
+		packages: [],
+		keepLatestReleases: options.keepLatestReleases,
+		untaggedGraceDays: options.untaggedGraceDays,
+	});
+	let phase = "read GHCR inventory";
+	try {
+		const packages = await readKnownPackageInventory(options.owner, runner);
+		phase = "read GitOps references";
+		const gitopsDigests = await readGitopsImageDigests(
+			options.gitopsRoot,
+			options.gitopsRefs,
+			runner,
+		);
+		phase = "inspect protected manifests";
+		const protectedRoots = protectedRootsForInventory({
+			gitopsDigests,
+			keepLatestReleases: options.keepLatestReleases,
+			packages,
+		});
+		const manifestClosure = await fetchManifestClosure(
+			protectedRoots.byPackage,
+			options.repository,
+			runner,
+		);
+		phase = "write retention plan";
+		plan = planRetention({
+			gitopsDigests,
+			manifestClosure,
+			mode: options.mode,
+			packages,
+			keepLatestReleases: options.keepLatestReleases,
+			untaggedGraceDays: options.untaggedGraceDays,
+		});
+		await writeFile(path.resolve(options.output), `${JSON.stringify(plan, null, 2)}\n`);
+		if (options.mode === "apply") {
+			phase = "apply retention plan";
+			await applyRetentionPlan(plan, options.owner, runner);
+		}
+	} catch (error) {
+		plan.errors.push(`${phase}: ${error instanceof Error ? error.message : String(error)}`);
+	}
+	await writeFile(path.resolve(options.output), `${JSON.stringify(plan, null, 2)}\n`);
+	if (options.summary) {
+		await appendFile(path.resolve(options.summary), markdownSummary(plan));
+	}
+	if (plan.errors.length > 0) {
+		throw new Error(`GHCR retention policy errors:\n${plan.errors.join("\n")}`);
+	}
 }
 
 interface CleanupRuntime {

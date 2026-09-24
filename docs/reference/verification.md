@@ -161,9 +161,13 @@ Node prune 保留冻结安装需要的全部 manifest，但只向编译层复制
 实际引用为 `<prefix>/<image>:buildcache-arm64`；省略该参数不读取外部缓存。证据入口通过
 `CI_IMAGE_CACHE_IMPORT_REGISTRIES` 传入 JSON 数组。需要导出时显式传入 `--cache-export-registry`。
 build-only 复用正式发布的 BuildKit 分段日志和 summary，不推送运行镜像。
-同仓非 Dependabot PR 的独立镜像 job 同时导入当前 PR 和主线缓存，仅将 `mode=max` 缓存导出至
+同仓 PR 的独立镜像 job 默认只导入主线 canonical cache，不写入每个 PR 的 registry cache；这避免了
+合并后 main 发布不会消费的 `mode=max` 导出。只有 reusable workflow 的 `cache_write` 显式设为 `true`
+且当前 PR 仍开放、登录成功时，才会写入
 `ghcr.io/<owner>/<repo>/pr-cache-<number>/<image>:buildcache-arm64`。fork、Dependabot 和登录失败时
-不使用认证缓存。普通校验 job 不持有 package write 权限，最终 `repo-checks` 汇总所有选中任务。
+不使用认证缓存；trusted 同仓 PR 通过独立的 `cache_read` 输入读取 canonical cache。普通校验 job 不持有
+package write 权限，最终 `repo-checks` 汇总所有选中任务。
+缓存导出是加速反馈而不是发布制品：失败保留镜像构建结果，但会在日志和 step summary 中显示 warning。
 两个 profile 只证明当前 Dockerfile、
 Turbo prune、依赖安装、编译和 runtime 入口能完成；它们不替代正式候选发布、镜像扫描或部署验收。
 

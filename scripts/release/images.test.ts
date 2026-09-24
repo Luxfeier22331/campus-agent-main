@@ -644,6 +644,8 @@ test("reads the pushed digest from Docker Bake metadata", async (t) => {
 test("publication keeps an ignored cache export failure visible without blocking the image", async (t) => {
 	const { options } = await fixture(t);
 	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const logs: string[] = [];
+	options.logger = (message) => logs.push(message);
 	const buildkit = parseBuildkit(
 		JSON.stringify({
 			vertexes: [
@@ -683,7 +685,14 @@ test("publication keeps an ignored cache export failure visible without blocking
 	const summary = await readFile(options.summaryFile, "utf8");
 	assert.match(summary, /Results: built=1/u);
 	assert.match(summary, /Cache export: \*\*warning\*\*/u);
+	assert.match(summary, /Cache export warnings: `agent-runtime`/u);
 	assert.match(summary, /403 forbidden/u);
+	assert(
+		logs.some(
+			(line) => line.includes("stage=build state=warning") && line.includes("cache_export=warning"),
+		),
+	);
+	assert(logs.some((line) => line.includes("::warning::Image agent-runtime cache export warning")));
 });
 
 test("failed builds keep completed phases and unfinished cache export in the summary", async (t) => {

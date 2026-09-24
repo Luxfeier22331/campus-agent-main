@@ -41,7 +41,12 @@ test("PR caches protect the current tag, expire history and delete only after cl
 		},
 	];
 	const planned = (pr?: { state: "open" | "closed"; closedAt: string | null }) =>
-		planRetention({ now: NOW, packages, pullRequests: pr ? { "442": pr } : {} });
+		planRetention({
+			now: NOW,
+			packages,
+			pullRequests: pr ? { "442": pr } : {},
+			untaggedGraceDays: 7,
+		});
 	const open = planned({ state: "open", closedAt: null });
 	assert.deepEqual(open.errors, []);
 	const cache = open.packages.find((pkg) => pkg.name === name);
@@ -785,17 +790,23 @@ test("scoped cleanup cancels before inventory, rechecks PR state, and report mod
 	}
 });
 
-test("CLI requires a positive PR number and rejects legacy retention arguments", () => {
+test("CLI validates PR and full retention scopes", () => {
 	for (const args of [
 		[],
 		["--mode", "apply"],
 		["--pr-cache-pr", "0"],
 		["--pr-cache-pr", "-1"],
-		["--pr-cache-pr", "1", "--keep-releases", "5"],
+		["--scope", "full"],
+		["--scope", "full", "--pr-cache-pr", "1", "--gitops-root", "."],
+		["--scope", "pr", "--gitops-root", "."],
 	]) {
 		assert.throws(() => parseArgs(args));
 	}
-	assert.equal(parseArgs(["--pr-cache-pr", "442"]).mode, "report");
+	assert.equal(parseArgs(["--scope", "pr", "--pr-cache-pr", "442"]).mode, "report");
+	assert.equal(
+		parseArgs(["--scope", "full", "--gitops-root", ".", "--keep-releases", "5"]).keepLatestReleases,
+		5,
+	);
 });
 
 test("inventory fails closed on API, transport, metadata and versions errors", async () => {

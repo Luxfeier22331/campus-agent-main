@@ -10,7 +10,12 @@ on:
         required: true
         type: string
       cache_write:
-        required: true
+        required: false
+        default: false
+        type: boolean
+      cache_read:
+        required: false
+        default: false
         type: boolean
       pull_request_number:
         required: true
@@ -84,7 +89,9 @@ jobs:
 
       - name: Login for image caches
         id: login
-        if: steps.cache-permission.outputs.allowed == 'true'
+        if: >-
+          inputs.cache_read == true ||
+          (inputs.cache_write == true && steps.cache-permission.outputs.allowed == 'true')
         continue-on-error: true
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
@@ -98,15 +105,26 @@ jobs:
           SOURCE_SHA: ${{ inputs.source_sha }}
           PR_NUMBER: ${{ inputs.pull_request_number }}
           CACHE_AUTHENTICATED: ${{ steps.login.outcome == 'success' }}
+          CACHE_READ: ${{ inputs.cache_read }}
+          CACHE_WRITE: ${{ inputs.cache_write && steps.cache-permission.outputs.allowed == 'true' }}
         run: |
           set -euo pipefail
           echo CI_BODY_STARTED
           cache_args=()
           if [[ "$CACHE_AUTHENTICATED" == true ]]; then
             image_root="ghcr.io/${GITHUB_REPOSITORY,,}"
-            pr_cache="$image_root/pr-cache-$PR_NUMBER"
-            imports="$(jq -cn --arg pr "$pr_cache" --arg main "$image_root" '[$pr, $main]')"
-            cache_args=(--cache-import-registries "$imports" --cache-export-registry "$pr_cache")
+            cache_args=()
+            if [[ "$CACHE_READ" == true ]]; then
+              imports="$(jq -cn --arg main "$image_root" '[$main]')"
+              cache_args+=(--cache-import-registries "$imports")
+            fi
+            if [[ "$CACHE_WRITE" == true ]]; then
+              pr_cache="$image_root/pr-cache-$PR_NUMBER"
+              cache_args+=(--cache-export-registry "$pr_cache")
+              echo "Image cache: exporting the explicitly enabled PR cache to $pr_cache."
+            else
+              echo "Image cache: importing canonical main cache only; PR cache export is disabled."
+            fi
           else
             echo "Image cache: no authenticated imports or exports; building without remote cache."
           fi

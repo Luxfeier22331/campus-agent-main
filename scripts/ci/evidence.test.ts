@@ -180,6 +180,7 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 						{ command: "vite build", package: "app-api", task: "build:worker" },
 						{ command: "wrangler deploy", package: "status-web", task: "build:worker" },
 						{ command: "vite build", package: "ops-web", task: "build" },
+						{ command: "tsc", package: "agent-runtime", task: "build" },
 						{ command: "vitest", package: "agent-runtime", task: "test" },
 						{ command: "vitest", package: "app-api", task: "test:worker" },
 						{ command: "vitest", package: "status-web", task: "test:worker" },
@@ -220,7 +221,8 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	assert(taskIds.includes("app-api#test:worker"));
 	assert(taskIds.includes("status-web#test:worker"));
 	assert(!taskIds.includes("ops-web#typecheck"));
-	assert(taskIds.includes("ops-web#build"));
+	assert(!taskIds.includes("ops-web#build"));
+	assert(taskIds.includes("agent-runtime#build"));
 	assert(taskIds.includes("campus-web#build:worker"));
 	assert(!taskIds.includes("campus-web#build"));
 	assert(!evidenceCommands.flat().includes("--only"));

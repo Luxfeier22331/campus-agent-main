@@ -473,13 +473,14 @@ jobs:
       github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     permissions:
       contents: read
-      packages: write
+      packages: read
       pull-requests: read
     uses: ./.github/workflows/pr-image-evidence.yml
     with:
       images: ${{ needs.repository-validation.outputs.images }}
       source_sha: ${{ needs.repository-validation.outputs.head }}
-      cache_write: true
+      cache_write: false
+      cache_read: true
       pull_request_number: ${{ github.event.pull_request.number }}
 
   image-evidence-readonly:
@@ -499,6 +500,7 @@ jobs:
       images: ${{ needs.repository-validation.outputs.images }}
       source_sha: ${{ needs.repository-validation.outputs.head }}
       cache_write: false
+      cache_read: false
       pull_request_number: ${{ github.event.pull_request.number }}
 
   repo-checks:

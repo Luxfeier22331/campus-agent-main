@@ -752,35 +752,6 @@ jobs:
             jq . promotion-result.json
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Preflight GitOps promotion render
-        if: >-
-          steps.promotion.outputs.promotion_disposition == 'ready' &&
-          steps.promotion.outputs.changed == 'true'
-        env:
-          SOURCE_TOKEN: ${{ steps.gitops-token.outputs.token }}
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
-        run: |
-          set -euo pipefail
-          gitops_base_sha="$(git -C "$GITHUB_WORKSPACE/gitops" rev-parse HEAD)"
-          scope_file="${RUNNER_TEMP}/promotion-scope.json"
-          rendered="${RUNNER_TEMP}/promotion-rendered"
-          mkdir -p "$rendered"
-          pnpm --dir gitops --silent gitops scope-working-tree \
-            --root "$GITHUB_WORKSPACE/gitops" \
-            --base "$gitops_base_sha" \
-            > "$scope_file"
-          jq -e . "$scope_file" >/dev/null
-          jq . "$scope_file"
-          if jq -e '.kustomizeRoots | length > 0' "$scope_file" >/dev/null; then
-            gitops/scripts/validate-kubernetes.sh "$scope_file" "$rendered"
-            if jq -e '.kustomizeRoots | index("clusters/staging/overlays/runtime") != null' "$scope_file" >/dev/null; then
-              pnpm --dir gitops exec tsx tools/gitops.ts validate-ops-web-promotion \
-                --directory "$rendered"
-            fi
-          else
-            echo "No Kustomize roots are affected by this promotion."
-          fi
-
       - name: Open GitOps deployment pull request
         id: deployment-pr
         if: >-
@@ -812,7 +783,6 @@ jobs:
             - [x] 发布镜像（如有）均为单一 `linux/arm64` 索引，Trivy 反馈已运行并记录
             - [x] Worker 候选通过 `versions upload` 产生，流量仍由 GitOps 选择
             - [x] `promote-source` 已校验候选身份和活跃消费者
-            - [x] 已在创建 PR 前渲染并验证最终 GitOps overlay
             - [ ] GitOps PR 的完整仓库与受影响 Kustomize、schema、策略、Terraform/Helm 检查
 
       - name: Mark staging promotion pending

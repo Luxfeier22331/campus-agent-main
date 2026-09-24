@@ -16,14 +16,14 @@ GitOps 中的不可变 digest。active image target 由
 
 ## 决策
 
-当前执行范围已由 [PR 缓存直查与暂停全量清理](./2026-09-17-ghcr-pr-cache-direct-cleanup.md)
-部分取代：以下全量入口、定时补漏及 5 个 release / 七天策略已暂停；PR 构建协调与作用域边界仍有效。
+当前执行范围保留 PR 关闭清理，并增加已登记 active/retired package 的 full report。full workflow
+默认只生成报告，正式 apply 仍需在受控环境审阅报告后执行；PR 构建协调与作用域边界仍有效。
 
 - Source 仓的 `ghcr-retention` workflow 是 `campus-agent/*` GHCR 清理 owner；外部 registry、GitOps
   变更、集群操作和业务数据库不属于它的职责。
-- active package 保护 GitOps `main` 和同仓 open promotion PR 的所有不可变 digest，最近 5 个 SHA
+- active package 保护 GitOps `main` 和可用 staging 引用的所有不可变 digest，最近 10 个 SHA
   release、当前 `buildcache-arm64` root，以及所有受保护 OCI root 的 child manifest/referrer。
-- active package 的未知 tag 不自动删除；超过 7 天的无 tag version 和 release window 之外的 SHA
+- active package 的未知 tag 不自动删除；超过 90 天的无 tag version 和 release window 之外的 SHA
   version 才进入 report/apply 计划。
 - 历史包使用显式 allowlist，直接形成整包删除候选；scheduled/manual `report` 不删除，workflow 的
   `apply` 模式是整包删除的人工确认，不为名称看似特殊的 package 建立隐式保留例外。
@@ -39,7 +39,8 @@ GitOps 中的不可变 digest。active image target 由
 - 关闭清理使用独立 per-PR concurrency group，不替换排队的发布任务；清理前后仅读取目标 PR 的
   package versions，避免不同 PR 并行删除影响全量遍历。遗漏或失败的关闭清理由定时 report 列出
   满 7 天的候选，再手动 apply；定时 report 不自动删除。
-- 清理前生成可审计 JSON report；apply 使用 package version ID 或 whole-package API；apply 后重新
+- full inventory 只读取 image target 清单中的 active/retired package，不进行组织级 package 枚举。
+  清理前生成可审计 JSON report；apply 使用 package version ID 或 whole-package API；apply 后重新
   读取 inventory 并验证 protected manifest closure。定时/手动清理和镜像发布共享 mutation
   concurrency，PR 关闭路径使用独立 per-PR 组，apply 后确认目标包消失。
 
@@ -62,12 +63,12 @@ manifest inspection 失败或删除后保护 graph 不完整时，workflow 停�
 
 ## 后果
 
-保留窗口之外的候选仍须通过 manifest graph 校验；定时/手动清理与发布共享 mutation concurrency，
+保留窗口之外的候选仍须通过 manifest graph 校验；full report/apply 与发布共享 mutation concurrency，
 PR 关闭路径使用独立 per-PR 组，apply 后确认目标包消失。清理不承担集群操作、数据库迁移或源码目录退役。
 
 ### 重新评估与删除条件
 
-以下任一条件成立时重新评估 5 个 release、7 天宽限期或退役 allowlist：发布/回滚窗口扩大，新增
+以下任一条件成立时重新评估 10 个 release、90 天宽限期或退役 allowlist：发布/回滚窗口扩大，新增
 production 或其他 GitOps 环境，BuildKit cache tag 改变，历史包重新进入 workload/GitOps，或
 GitHub Packages 删除权限/接口行为改变。PR 缓存写入 owner 或 workflow 名称变化时，也须同步调整
 取消与状态检查；停止写入 PR 缓存时移除该协调逻辑和 Actions 写权限。源码目录只有在其本地测试和合同同时移除后才可另行删除；

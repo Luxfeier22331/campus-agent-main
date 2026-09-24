@@ -208,6 +208,18 @@ function resultCounts(reports: ImageReport[]): Record<ImageResult, number> {
 	);
 }
 
+function cacheWarningDetails(buildkit?: BuildkitReport): string[] {
+	if (buildkit?.cacheExport !== "warning") {
+		return [];
+	}
+	return [
+		...buildkit.cacheWarnings,
+		...buildkit.operations
+			.filter((operation) => operation.category === "cache-export" && operation.error)
+			.map((operation) => `${operation.name}: ${operation.error}`),
+	].filter((value, index, values) => values.indexOf(value) === index);
+}
+
 interface BakeBatch {
 	name: "heavy" | "standard";
 	images: string[];
@@ -241,6 +253,12 @@ async function appendSummary(
 			...(batches.length === 0 ? ["Build and cache export: not run."] : []),
 			`- Results: built=${counts.built} reused=${counts.reused} failed=${counts.failed} unfinished=${counts.unfinished} not-started=${counts["not-started"]}`,
 			`- Trivy feedback: recorded=${scans.recorded} warnings=${scans.warnings} not-run=${scans.notRun}`,
+			`- Cache export warnings: ${
+				reports
+					.filter((report) => report.buildkit?.cacheExport === "warning")
+					.map((report) => `\`${report.image}\``)
+					.join(", ") || "none"
+			}`,
 			"",
 			"| Image | Result | Inspect | Scan feedback | Scan | Digest |",
 			"| --- | --- | ---: | --- | ---: | --- |",
@@ -522,6 +540,22 @@ async function runBatch(
 		}
 		report.result = "success";
 	} finally {
+		for (const image of selected) {
+			if (image.buildkit?.cacheExport !== "warning") {
+				continue;
+			}
+			const details = cacheWarningDetails(image.buildkit);
+			logStage(
+				logger,
+				image.image,
+				"build",
+				"warning",
+				`cache_export=warning${
+					details.length > 0 ? ` detail=${JSON.stringify(details.join(" | "))}` : ""
+				}`,
+			);
+			logger(`::warning::Image ${image.image} cache export warning; see the step summary.\n`);
+		}
 		report.durationMs = elapsed(started);
 		const cacheStates = selected
 			.filter((image) => image.buildMs !== undefined)

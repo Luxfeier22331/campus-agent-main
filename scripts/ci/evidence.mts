@@ -3,6 +3,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { imageTargetsForScope, readImageWorkspaces } from "../release/image-targets.mts";
 import { readNodeVersion } from "../toolchain/node-version.mts";
 import { imageScopeBetween } from "./image-scope.mts";
 import {
@@ -196,20 +197,30 @@ export function runTasks(
 }
 
 function runAffectedNodeEvidence(
-	input: { env: NodeJS.ProcessEnv; repositoryRoot: string; scope: AffectedScope },
+	input: {
+		env: NodeJS.ProcessEnv;
+		repositoryRoot: string;
+		scope: AffectedScope;
+		skipBuildPackages?: ReadonlySet<string>;
+	},
 	runner: EvidenceCommandRunner,
 ): void {
 	const options = { cwd: input.repositoryRoot, env: input.env };
 	runTasks("affected-node", PR_NODE_TASKS, runner, options, { scope: input.scope.tasks });
 	// Campus Web's worker task owns its fixture build; do not also run the data-backed build.
 	const builds = input.scope.tasks.filter(
-		(task) => !(task.package === "campus-web" && task.task === "build"),
+		(task) =>
+			!(
+				(task.package === "campus-web" && task.task === "build") ||
+				(task.task === "build" && input.skipBuildPackages?.has(task.package))
+			),
 	);
 	runTasks("affected-node", BUILD_TASKS, runner, options, { scope: builds });
 }
 
 function runAffectedImageEvidence(
 	input: {
+		images?: readonly string[];
 		repository: string;
 		scope: AffectedScope;
 		summaryFile?: string;
@@ -217,7 +228,9 @@ function runAffectedImageEvidence(
 	runner: EvidenceCommandRunner,
 	options: { cwd: string; env: NodeJS.ProcessEnv },
 ): void {
-	const images = imageScopeBetween(input.scope.base, input.scope.head, options.cwd, runner).images;
+	const images =
+		input.images ??
+		imageScopeBetween(input.scope.base, input.scope.head, options.cwd, runner).images;
 	if (images.length === 0) {
 		return;
 	}
@@ -367,6 +380,7 @@ export function runCandidateEvidence(
 	input: {
 		base?: string;
 		head?: string;
+		images?: readonly string[];
 		scope?: AffectedScope;
 		profiles: ValidationProfile[];
 		repository?: string;
@@ -408,6 +422,15 @@ export function runCandidateEvidence(
 			runner,
 		);
 	}
+	const imageTargets =
+		input.images ??
+		(input.profiles.includes("image-build") && scope
+			? imageTargetsForScope(
+					{ changedFiles: scope.changedFiles },
+					readImageWorkspaces(input.repositoryRoot),
+				)
+			: []);
+	const imageBuildPackages = new Set(imageTargets);
 	for (const profile of input.profiles) {
 		const start = performance.now();
 		const event: EvidenceEvent = {
@@ -436,6 +459,7 @@ export function runCandidateEvidence(
 						env,
 						repositoryRoot: input.repositoryRoot,
 						scope,
+						skipBuildPackages: imageBuildPackages,
 					},
 					runner,
 				);
@@ -451,6 +475,7 @@ export function runCandidateEvidence(
 				}
 				runAffectedImageEvidence(
 					{
+						images: input.images,
 						repository: input.repository,
 						scope,
 						summaryFile: input.summaryFile,
@@ -506,6 +531,7 @@ async function main(args: string[]): Promise<void> {
 		? (JSON.parse(readFileSync(planPath, "utf8")) as {
 				base: string;
 				head: string;
+				images?: string[];
 				changedFiles: string[];
 				affectedTasks: ScopeTask[];
 			})
@@ -516,6 +542,7 @@ async function main(args: string[]): Promise<void> {
 		head: values.get("head"),
 		...(plan
 			? {
+					images: plan.images,
 					scope: {
 						base: plan.base,
 						head: plan.head,

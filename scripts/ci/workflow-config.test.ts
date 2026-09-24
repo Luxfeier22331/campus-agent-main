@@ -51,9 +51,12 @@ test("image cache permissions are confined to mutually exclusive reusable jobs",
 	assert.equal((validation.permissions as Record<string, string>).packages, "read");
 	const trusted = workflowJob(workflow, "image-evidence-trusted");
 	const readonly = workflowJob(workflow, "image-evidence-readonly");
-	assert.equal((trusted.permissions as Record<string, string>).packages, "write");
+	assert.equal((trusted.permissions as Record<string, string>).packages, "read");
 	assert.equal((readonly.permissions as Record<string, string>).packages, "read");
 	assert.equal(trusted.uses, readonly.uses);
+	assert.equal(trusted.with.cache_write, false);
+	assert.equal(trusted.with.cache_read, true);
+	assert.equal(readonly.with.cache_read, false);
 	for (const [sameRepo, actor, author, cancelled, result, selected, expected] of [
 		[true, "developer", "developer", false, "success", true, [true, false]],
 		[false, "developer", "developer", false, "success", true, [false, true]],
@@ -81,7 +84,14 @@ test("image cache permissions are confined to mutually exclusive reusable jobs",
 		};
 		assert.deepEqual([condition(trusted.if, context), condition(readonly.if, context)], expected);
 	}
-	const build = workflowJob(await loadWorkflow("pr-image-evidence.yml"), "build");
+	const reusable = await loadWorkflow("pr-image-evidence.yml");
+	const build = workflowJob(reusable, "build");
+	const cacheWrite = reusable.on.workflow_call.inputs.cache_write;
+	const cacheRead = reusable.on.workflow_call.inputs.cache_read;
+	assert.equal(cacheWrite.required, false);
+	assert.equal(cacheWrite.default, false);
+	assert.equal(cacheRead.required, false);
+	assert.equal(cacheRead.default, false);
 	const builder = namedStep(build, "Setup Docker Buildx");
 	assert.equal((builder.with as Record<string, string>).driver, "docker-container");
 	assert.match(
@@ -811,14 +821,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 		githubExpression("inputs.promotion_recovery_run_id || github.run_id"),
 	);
 	assert.doesNotMatch(String(promotion.run), /--kubernetes/u);
-	const preflight = namedStep(promote, "Preflight GitOps promotion render");
-	assert.match(String(preflight.run), /gitops\/scripts\/validate-kubernetes\.sh/u);
-	assert.match(String(preflight.run), /scope-working-tree/u);
-	assert.match(String(preflight.run), /gitops_base_sha/u);
-	assert.match(String(preflight.run), /jq \. "\$scope_file"/u);
-	assert.doesNotMatch(String(preflight.run), /clusters\/staging\/overlays\/data-postgres/u);
-	assert.doesNotMatch(String(preflight.run), /validate-rendered --directory/u);
-	assert.match(String(preflight.run), /validate-ops-web-promotion/u);
+	assert(!jobSteps(promote).some((step) => step.name === "Preflight GitOps promotion render"));
 	const deploymentPr = namedStep(promote, "Open GitOps deployment pull request");
 	assert.deepEqual(deploymentPr.env, { LC_ALL: "C" });
 	const installGitOpsTooling = namedStep(promote, "Install GitOps tooling");
@@ -948,18 +951,24 @@ test("closed PR cleanup uses trusted code, scoped concurrency, and explicit canc
 		runInNewContext(expression, {
 			github: { event_name: event, event: { pull_request: { number } } },
 			inputs: { pr_number: "442" },
-			format: (pattern: string, value: number) => pattern.replace("{0}", String(value)),
+			format: (pattern: string, value?: number | string) =>
+				pattern.replace("{0}", value === undefined ? "" : String(value)),
 		});
 	assert.equal(evaluate("pull_request_target", 442), "campus-agent-ghcr-pr-cache-442");
 	assert.equal(evaluate("pull_request_target", 443), "campus-agent-ghcr-pr-cache-443");
-	assert.equal(evaluate("workflow_dispatch", 0), "campus-agent-ghcr-pr-cache-442");
+	assert.equal(evaluate("workflow_dispatch", 0), "campus-agent-ghcr-retention-full");
 	assert.equal(workflow.on.schedule, undefined);
 	const dispatch = workflow.on.workflow_dispatch as {
 		inputs: Record<string, { required: boolean; type: string }>;
 	};
-	assert.deepEqual(Object.keys(dispatch.inputs).sort(), ["mode", "pr_number"]);
-	assert.equal(dispatch.inputs.pr_number.required, true);
+	assert.deepEqual(Object.keys(dispatch.inputs).sort(), ["mode", "pr_number", "scope"]);
+	assert.equal(dispatch.inputs.pr_number.required, false);
 	assert.equal(dispatch.inputs.pr_number.type, "string");
+	assert.equal(dispatch.inputs.scope.required, true);
+	assert.equal(dispatch.inputs.scope.type, "choice");
+	assert.equal(dispatch.inputs.scope.default, "pr");
+	const manifestLogin = namedStep(job, "Login to GHCR for manifest inspection");
+	assert.match(String(manifestLogin.if), /inputs\.scope == 'full'/u);
 	for (const [headRepository, author, mergeable, allowed] of [
 		["MUC-WIKI/campus-agent", "developer", true, true],
 		["MUC-WIKI/campus-agent", "developer", false, true],
@@ -981,16 +990,17 @@ test("closed PR cleanup uses trusted code, scoped concurrency, and explicit canc
 		for (const name of [
 			"Create GitOps read token",
 			"Checkout GitOps",
-			"Login to GHCR",
 			"Fetch open GitOps pull request refs",
 		]) {
-			assert(!jobSteps(job).some((step) => step.name === name));
+			const step = jobSteps(job).find((candidate) => candidate.name === name);
+			assert(!step || String(step.if).includes("inputs.scope == 'full'"));
 		}
 	}
 	const generate = namedStep(job, "Generate and optionally apply GHCR retention plan");
 	assert(isObject(generate.env));
 	assert.match(String(generate.env.RETENTION_MODE), /pull_request_target/u);
 	assert.match(String(generate.run), /--pr-cache-pr/u);
+	assert.match(String(generate.run), /test "\$RETENTION_MODE" = report/u);
 	assert.match(String(generate.env.RETENTION_PR_NUMBER), /inputs.pr_number/u);
 	assert.match(String(namedStep(job, "Upload GHCR retention report").if), /hashFiles/u);
 });
@@ -1002,7 +1012,8 @@ test("cache permission queries current PR state and disables cache on closed or 
 	const check = namedStep(build, "Check PR cache write permission");
 	const login = namedStep(build, "Login for image caches");
 	assert.equal(check.if, "inputs.cache_write");
-	assert.equal(login.if, "steps.cache-permission.outputs.allowed == 'true'");
+	assert.match(String(login.if), /inputs\.cache_read == true/u);
+	assert.match(String(login.if), /inputs\.cache_write == true/u);
 	assert(jobSteps(build).indexOf(check) < jobSteps(build).indexOf(login));
 	const trusted = workflowJob(await loadWorkflow("pr.yml"), "image-evidence-trusted");
 	assert.equal((trusted.permissions as Record<string, string>)["pull-requests"], "read");

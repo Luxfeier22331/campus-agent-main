@@ -8,13 +8,14 @@ status: active
 
 ## 当前边界
 
-`ghcr-retention` 当前只清理已关闭 PR 的 `campus-agent/pr-cache-<number>/<image>` 缓存包。
-包名由 PR 编号和 `scripts/release/image-targets.mts` 的当前目标推导，直接查询 package 和分页
-versions，不依赖组织级包枚举。不会扫描历史 PR，也不操作正式镜像或主线缓存。
+`ghcr-retention` 负责 `campus-agent/*` GHCR package 的 report/apply。PR 关闭入口只清理
+`campus-agent/pr-cache-<number>/<image>`；full report/apply 读取当前 active image package、GitOps
+`main` 和可用的 `deploy/staging` 引用，并保护当前 cache、最近 10 次 release、GitOps 引用及其 OCI
+manifest closure。
 
-正式镜像定期清理已暂停，旧的最近 5 个 release 和七天宽限期不再通过 workflow 或 CLI 执行。
-正式版本、部署引用和发布恢复目标的保留依据由 #512 完善，再由 #511 接入自动清理。
-暂停期间不能把无版本号或无标签当作删除依据。
+正式镜像和 canonical cache 不能按“无 tag”直接删除。默认保留最近 10 个 SHA release，未标记版本
+保留 90 天；当前 GitOps digest、当前 `buildcache-arm64` root 及其 child/referrer 始终受保护。
+full apply 先人工审阅 report，稳定运行多个 report 后再考虑自动化。
 
 ## 自动清理
 
@@ -34,19 +35,28 @@ versions、PR 查询、删除和复查的其他错误不会被当作空库存。
 
 在 `ghcr-retention` 的 Run workflow 中填写：
 
-- `pr_number`：必填，已关闭的同仓非 Dependabot PR 编号。
-- `mode`：默认 `report`，只读计划；`apply` 执行构建协调、删除和复查。
+- `scope`：`pr`（默认）清理一个已关闭 PR；`full` 只生成已登记 package 范围的正式镜像/cache report。
+- `pr_number`：scope 为 `pr` 时填写已关闭的同仓非 Dependabot PR 编号。
+- `mode`：`report` 只读计划；`apply` 执行删除。PR apply 还会先停止该 PR 的未完成构建。
 
 手动运行使用所选 ref 的代码；日常操作选择默认分支。report 不取消构建，也不删除缓存。
-CLI 等价入口如下，省略 `--pr-cache-pr` 或使用旧全量清理参数会失败，不发起网络请求：
+CLI 等价入口如下：
 
 ```bash
+# Full report: GitOps checkout must contain main and optional deploy/staging refs.
 node --experimental-strip-types scripts/release/ghcr-retention.mts \
-  --pr-cache-pr 508 --mode report --output ghcr-retention.json
+  --scope full --gitops-root ./gitops-retention --gitops-refs main,deploy/staging \
+  --mode report --output ghcr-retention.json
+
+# Closed PR cache report.
+node --experimental-strip-types scripts/release/ghcr-retention.mts \
+  --scope pr --pr-cache-pr 508 --mode report --output ghcr-retention.json
 ```
 
-确认目标后将 mode 改为 `apply`。失败时先检查报告中的操作和错误，修复原因后使用同一 PR 编号
-重新执行；不需要组织全量扫描。未出现在当前镜像目标中的历史遗留包需按具体对象另行处理。
+full scope 当前只允许 `report`，不能通过 workflow 直接 apply；确认目标后再使用同一脚本在受控环境中执行
+`--mode apply`。失败时先检查报告中的操作和错误，修复原因后重新生成 report；
+不要复用过期的 apply 文件。未登记的 package、无法读取 GitOps 引用、manifest inspection 失败或
+保护 root 缺失都会停止 full apply。
 
 ## 结果与权限
 
@@ -54,7 +64,8 @@ node --experimental-strip-types scripts/release/ghcr-retention.mts \
 标明失败操作并返回非零退出码；删除失败可能已完成部分操作，报告中的计划不代表全部执行成功。
 脚本运行前的环境初始化失败由原步骤日志说明，不追加报告文件缺失的上传错误。
 
-workflow 使用 `contents: read`、`pull-requests: read`、`actions: write`、`packages: write`。
+workflow 使用 `contents: read`、`pull-requests: read`、`actions: write`、`packages: write`；full
+scope 额外使用 GitHub App token 读取 `campus-agent-gitops`。
 API 删除还要求 token 对目标 package 具备相应权限；失败时报告原因，不切换个人 PAT 或扩大组织权限。
 本地凭据的成功不能替代真实 workflow token 的验收。
 

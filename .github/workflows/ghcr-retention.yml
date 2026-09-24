@@ -4,16 +4,25 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Report the plan or apply it to GHCR
+        description: Report the plan or apply a reviewed plan to GHCR
         required: true
         default: report
         type: choice
         options:
           - report
           - apply
-      pr_number:
-        description: Closed same-repository PR whose caches should be cleaned
+      scope:
+        description: Clean a closed PR cache or report registered image retention
         required: true
+        default: pr
+        type: choice
+        options:
+          - full
+          - pr
+      pr_number:
+        description: Closed same-repository PR whose cache should be cleaned when scope is pr
+        required: false
+        default: ''
         type: string
   # Trusted default-branch code only; PR code and artifacts are never executed.
   pull_request_target:  # zizmor: ignore[dangerous-triggers] Closed-PR cache cleanup only.
@@ -29,10 +38,9 @@ env:
     cores = 2
 
 concurrency:
-  # Same concurrency group replaces pending runs on queue. PR-close scoped apply
-  # only deletes pr-cache-<N>/* packages (disjoint from publish writes), so it
-  # uses its own per-PR group and cannot replace pending publish/cleanup runs.
-  group: ${{ format('campus-agent-ghcr-pr-cache-{0}', github.event.pull_request.number || inputs.pr_number) }}
+  # PR-close cleanup is isolated per PR. Full retention runs share one group so
+  # report/apply cannot race while they inspect and delete the same inventory.
+  group: ${{ github.event_name == 'pull_request_target' && format('campus-agent-ghcr-pr-cache-{0}', github.event.pull_request.number) || 'campus-agent-ghcr-retention-full' }}
   cancel-in-progress: false
 
 jobs:
@@ -66,10 +74,45 @@ jobs:
         with:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
+      - name: Create GitOps read token
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          inputs.scope == 'full'
+        id: gitops-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        with:
+          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
+          owner: MUC-WIKI
+          repositories: campus-agent-gitops
+          permission-contents: read
+      - name: Checkout GitOps references
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          inputs.scope == 'full'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: MUC-WIKI/campus-agent-gitops
+          token: ${{ steps.gitops-token.outputs.token }}
+          path: gitops-retention
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Login to GHCR for manifest inspection
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          inputs.scope == 'full'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
       - name: Generate and optionally apply GHCR retention plan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RETENTION_SCOPE: >-
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.scope) || 'pr' }}
           RETENTION_MODE: >-
             ${{ (github.event_name == 'workflow_dispatch' && inputs.mode)
             || (github.event_name == 'pull_request_target' && 'apply')
@@ -78,11 +121,23 @@ jobs:
         run: |
           set -euo pipefail
           args=(
+            --scope "$RETENTION_SCOPE"
             --mode "$RETENTION_MODE"
             --output ghcr-retention.json
             --summary "$GITHUB_STEP_SUMMARY"
           )
-          args+=(--pr-cache-pr "$RETENTION_PR_NUMBER")
+          if [[ "$RETENTION_SCOPE" == pr ]]; then
+            test -n "$RETENTION_PR_NUMBER"
+            args+=(--pr-cache-pr "$RETENTION_PR_NUMBER")
+          else
+            test "$RETENTION_MODE" = report
+            args+=(--gitops-root "$GITHUB_WORKSPACE/gitops-retention")
+            refs='main'
+            if git -C "$GITHUB_WORKSPACE/gitops-retention" show-ref --verify --quiet refs/remotes/origin/deploy/staging; then
+              refs="$refs,deploy/staging"
+            fi
+            args+=(--gitops-refs "$refs")
+          fi
           node --experimental-strip-types scripts/release/ghcr-retention.mts "${args[@]}"
 
       - name: Upload GHCR retention report
@@ -92,4 +147,4 @@ jobs:
           name: ghcr-retention-report-${{ github.run_id }}
           path: ghcr-retention.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
