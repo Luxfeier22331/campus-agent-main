@@ -18,5 +18,5 @@ schema 迁移；共享处理接口提供分类/发布操作族的会话锁和当
 
 ```bash
 pnpm --dir packages/notice-database typecheck
-pnpm --dir packages/notice-database test
+pnpm test --filter=@campus-agent/notice-database
 ```

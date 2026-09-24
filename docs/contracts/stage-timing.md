@@ -71,7 +71,7 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 `stream.orchestration_overhead_ms` 与 trace correlation 排查启动延迟。
 
 每个字段都必须被 `configs/runtime/latency-budgets.v1.json` 接受。单次请求可以缺少未运行阶段，
-但版本化预算配置必须覆盖整张字段表。`pnpm --dir packages/contracts check` 负责校验字段与预算配置。
+但版本化预算配置必须覆盖整张字段表。`pnpm --dir packages/contracts contracts:check` 负责校验字段与预算配置。
 
 跨服务聚合只能发生在 execution-control 或 app-api 的有界投影边界。生产者不得读取原始
 Temporal history 或复制下游 trace 响应来补耗时字段。

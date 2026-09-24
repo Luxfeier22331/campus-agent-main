@@ -6,20 +6,20 @@
 
 ## 本地分类
 
-先从 canonical checkout 运行 `pnpm dev:shared-reconcile`，再运行
+先从 canonical checkout 运行 `pnpm dev:init -- --target core`，再运行
 `pnpm dev:init -- --target internal-portal-collection` 生成 source bucket 的本地配置。该入口只读取来源对象；
-在线数据库分类 Job 使用 `pnpm dev:init -- --target notice-classifier` 和 `pnpm notice:classify:job:local`。
+在线数据库分类 Job 使用 `pnpm dev:init -- --target notice-classifier` 和 `pnpm --dir jobs/notice-classifier classify:local`。
 
 分类全部本地通知：
 
 ```bash
-pnpm notice:classify --concurrency 2
+pnpm --dir scripts notice:classify --concurrency 2
 ```
 
 只分类指定通知时可以重复传入 `--notice-id`：
 
 ```bash
-pnpm notice:classify --concurrency 2 --notice-id 123456 --notice-id 123457
+pnpm --dir scripts notice:classify --concurrency 2 --notice-id 123456 --notice-id 123457
 ```
 
 本地分类入口的模型由以下运行时配置提供：
@@ -67,25 +67,25 @@ INTERNAL_NOTICE_CLASSIFIER_OPENAI_MODEL
 随机诊断样本只排除调用者通过 `--exclude-ids` 或 `--exclude-file` 明确提供的通知，不扫描 `var/`、regression fixture 或其他历史目录：
 
 ```bash
-pnpm notice:classify:eval sample-random \
+pnpm --dir scripts notice:classify:eval sample-random \
   --output-dir var/notices/eval/notice-category-diagnostic-2026-08-27-v1 \
   --count 60 \
   --seed notice-category-diagnostic-2026-08-27-v1 \
   --exclude-file var/notices/eval/previous-sample.jsonl \
   --concurrency 2
 
-pnpm notice:classify:eval generate-label-gold \
+pnpm --dir scripts notice:classify:eval generate-label-gold \
   --output-dir var/notices/eval/notice-category-diagnostic-2026-08-27-v1 \
   --model gpt-5.6-sol \
   --concurrency 2
 
-pnpm notice:classify:eval evaluate-candidates \
+pnpm --dir scripts notice:classify:eval evaluate-candidates \
   --output-dir var/notices/eval/notice-category-diagnostic-2026-08-27-v1 \
   --model gpt-5.6-luna \
   --model deepseek-v4-flash-0731 \
   --concurrency 2
 
-pnpm notice:classify:eval check \
+pnpm --dir scripts notice:classify:eval check \
   --kind candidate \
   --output-dir var/notices/eval/notice-category-diagnostic-2026-08-27-v1
 ```
@@ -93,7 +93,7 @@ pnpm notice:classify:eval check \
 需要观察重复一致性时，先人工确定 ID 并保存为 JSON 数组，再显式传入：
 
 ```bash
-pnpm notice:classify:eval evaluate-candidates \
+pnpm --dir scripts notice:classify:eval evaluate-candidates \
   --output-dir var/notices/eval/notice-category-diagnostic-2026-08-27-v2 \
   --model gpt-5.6-luna \
   --model deepseek-v4-flash-0731 \
@@ -104,13 +104,13 @@ pnpm notice:classify:eval evaluate-candidates \
 随机样本是默认诊断入口。只有明确研究模型共识、分歧或类别覆盖时才运行模型分层，并显式选择样本配额：
 
 ```bash
-pnpm notice:classify:eval stratify \
+pnpm --dir scripts notice:classify:eval stratify \
   --output-dir var/notices/eval/notice-category-stratified-2026-08-27-v1 \
   --model gpt-5.6-luna \
   --model deepseek-v4-flash-0731 \
   --concurrency 2
 
-pnpm notice:classify:eval sample \
+pnpm --dir scripts notice:classify:eval sample \
   --output-dir var/notices/eval/notice-category-stratified-2026-08-27-v1 \
   --random-count 60 \
   --category-count 4 \
@@ -164,13 +164,13 @@ pnpm notice:classify:eval sample \
 fixture 不保存历史 `label-gold`、候选输出或失败模式。
 
 ```bash
-pnpm notice:classify:eval evaluate-regression \
+pnpm --dir scripts notice:classify:eval evaluate-regression \
   --output-dir var/notices/eval/notice-classification-regression-2026-08-27-v1 \
   --model gpt-5.6-luna \
   --model deepseek-v4-flash-0731 \
   --concurrency 2
 
-pnpm notice:classify:eval check \
+pnpm --dir scripts notice:classify:eval check \
   --kind regression \
   --output-dir var/notices/eval/notice-classification-regression-2026-08-27-v1
 ```
@@ -181,7 +181,7 @@ pnpm notice:classify:eval check \
 
 ```bash
 pnpm exec tsx --test scripts/notices/*.test.ts
-pnpm notice:classify:typecheck
+pnpm --dir scripts typecheck:notices
 pnpm exec biome check scripts/notices package.json
 ```
 

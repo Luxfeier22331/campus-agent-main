@@ -193,10 +193,17 @@ export function localNoticeCommand(
 				env: { ...env, INTERNAL_PORTAL_NOTICE_START_DATE: input.startDate },
 			};
 		case "notice-classify-missing":
-			return { args: ["run", "notice:classify:job:local"], env };
+			return { args: ["--dir", "jobs/notice-classifier", "run", "classify:local"], env };
 		case "notice-classify-one":
 			return {
-				args: ["run", "notice:classify:job:local", "--notice-id", String(input.noticeId)],
+				args: [
+					"--dir",
+					"jobs/notice-classifier",
+					"run",
+					"classify:local",
+					"--notice-id",
+					String(input.noticeId),
+				],
 				env,
 			};
 		case "notice-publish-pending":

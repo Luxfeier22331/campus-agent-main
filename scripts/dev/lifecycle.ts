@@ -1,11 +1,11 @@
 import { existsSync } from "node:fs";
+
 import {
 	type BootstrapProbeResult,
 	bootstrapLocalApplications,
 	type LocalApplicationBootstrapStep,
 	probeLocalBootstrapStep,
 } from "./application-bootstrap";
-import { localDatabaseProbe } from "./database-roles";
 import {
 	assertLocalEnvironmentFilesAreManaged,
 	ensureLocalModelConfigEncryptionKey,
@@ -19,14 +19,19 @@ import {
 	resolveLocalModelConfigEncryptionKeyPath,
 	resolveMainCheckoutRoot,
 } from "./environment";
+import { removeLocalInfrastructureSecrets } from "./infrastructure-secrets";
 import {
 	assertDestroyConfirmation,
 	destroyLocalInstanceResources,
-	ensureLocalInstanceResources,
 	ensureLocalTemporalNamespace,
 	formatProfileSummary,
 	probeLocalTemporalNamespace,
 } from "./instance-resources";
+import {
+	ensureLocalInfrastructure,
+	inspectLocalInfrastructure,
+	type LocalCapabilityDiagnosis,
+} from "./local-infrastructure";
 import { resolveLocalQdrantConnection } from "./local-qdrant";
 import { removeLocalDevSecrets, resolveLocalDevSecretsPath } from "./local-secrets";
 import { runCommand } from "./process";
@@ -34,23 +39,17 @@ import {
 	assertProductAppsOffline,
 	diagnoseProductData,
 	initializeProductData,
-	repairProductSnapshot,
 } from "./product-data";
 import type { ProductDataOptions } from "./product-data-options";
 import { removeProductSnapshot } from "./product-data-state";
 import {
+	calculateLocalDevRuntimePorts,
 	ensureLocalDevProfile,
-	type LocalDevProfileV2,
+	type LocalDevProfile,
 	listLocalDevProfiles,
 	loadLocalDevProfile,
 	releaseLocalDevProfile,
 } from "./profile";
-import {
-	inspectSharedCapabilities,
-	inspectSharedInfrastructure,
-	localBucketProbe,
-	type SharedCapabilityDiagnosis,
-} from "./shared-infrastructure";
 import {
 	type LocalBootstrapStep,
 	type LocalDevEnvironmentProjection,
@@ -60,23 +59,19 @@ import {
 } from "./targets";
 
 export type LocalDiagnosisStatus = "ready" | "incomplete" | "unknown" | "invalid";
-export type LocalDoctorScope = "config" | "runtime" | "shared" | "data";
+export type LocalDoctorScope = "config" | "runtime" | "infra" | "data";
 
 export interface LocalTargetDiagnosis {
 	bootstrap: Partial<Record<LocalApplicationBootstrapStep | "product-data", BootstrapProbeResult>>;
-	environment: {
-		paths: Record<string, boolean>;
-		secrets: boolean;
-		modelConfigKey: boolean;
-	};
-	profile: LocalDevProfileV2;
+	environment: { paths: Record<string, boolean>; secrets: boolean; modelConfigKey: boolean };
+	profile: LocalDevProfile;
 	resources: {
 		bucket: "present" | "missing" | "not-required" | "unknown";
 		database: "present" | "missing" | "unknown";
 		namespace?: "present" | "missing" | "unknown";
 	};
 	runtime?: Record<string, "ready" | "missing" | "unknown">;
-	shared: SharedCapabilityDiagnosis;
+	infrastructure: LocalCapabilityDiagnosis;
 	status: LocalDiagnosisStatus;
 	target: LocalDevTarget;
 }
@@ -84,8 +79,8 @@ export interface LocalTargetDiagnosis {
 export async function initializeLocalDevelopmentTarget(
 	repoRoot: string,
 	target: LocalDevTarget,
-	options: { repair?: boolean } & Partial<ProductDataOptions> = {},
-): Promise<LocalDevProfileV2> {
+	options: Partial<ProductDataOptions> = {},
+): Promise<LocalDevProfile> {
 	const plan = resolveLocalDevTargetPlan(target);
 	const projections = plan.environmentProjections;
 	const productTarget = target === "core" || target === "ops-web";
@@ -93,29 +88,20 @@ export async function initializeLocalDevelopmentTarget(
 		throw new Error("Product data options require --target core or ops-web");
 	}
 	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
-	const qdrant = projections.some((projection) =>
-		["core", "campus-rag-index-publisher", "notice-artifacts-worker"].includes(projection),
-	)
-		? await resolveLocalQdrantConnection()
-		: undefined;
-
 	const profile = await ensureLocalDevProfile(repoRoot);
 	if (productTarget) {
 		await assertProductAppsOffline(profile);
-		if (options.repair) {
-			await repairProductSnapshot(repoRoot, profile);
-		}
 	}
-	const shared = await inspectSharedCapabilities({
-		derivedBucketName: profile.bucketName,
-		required: plan.capabilities,
-	});
-	assertCapabilitiesForInitialization(shared);
-	await ensureLocalInstanceResources(profile, {
-		...options,
-		ensureBucket: plan.capabilities.includes("derived-bucket"),
-	});
-
+	// Product initialization creates the Docs source object after the data plane is
+	// ready. Provision the services and buckets first, then let product-data
+	// initialization validate and publish the source/index closure.
+	const infrastructureCapabilities = productTarget
+		? plan.capabilities.filter((capability) => capability !== "docs-source")
+		: plan.capabilities;
+	await ensureLocalInfrastructure(repoRoot, profile, infrastructureCapabilities);
+	const qdrant = plan.capabilities.includes("qdrant")
+		? await resolveLocalQdrantConnection(repoRoot, profile)
+		: undefined;
 	if (projections.some((projection) => ["core", "model-config"].includes(projection))) {
 		ensureLocalModelConfigEncryptionKey(repoRoot);
 	}
@@ -125,7 +111,6 @@ export async function initializeLocalDevelopmentTarget(
 		repoRoot,
 	});
 	renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target, projections });
-
 	if (plan.bootstrapSteps.includes("temporal-namespace")) {
 		await ensureLocalTemporalNamespace(repoRoot, profile);
 	}
@@ -172,24 +157,12 @@ export async function diagnoseLocalDevelopment(
 ): Promise<LocalTargetDiagnosis> {
 	const profile = loadLocalDevProfile(repoRoot);
 	const plan = resolveLocalDevTargetPlan(target);
-	const shared =
-		scope === "shared"
-			? inspectSharedInfrastructure(repoRoot).then((diagnosis) => ({
-					...diagnosis.capabilities,
-					required: [...plan.capabilities],
-				}))
-			: inspectSharedCapabilities({
-					derivedBucketName: profile.bucketName,
-					required: plan.capabilities,
-				});
-	let sharedDiagnosis = await shared;
-	const database = localDatabaseProbe(profile.databaseName);
-	const bucket = plan.capabilities.includes("derived-bucket")
-		? await localBucketProbe(profile.bucketName)
-		: ("not-required" as const);
-	if (plan.capabilities.includes("derived-bucket") && bucket !== "not-required") {
-		sharedDiagnosis = { ...sharedDiagnosis, derivedBucket: bucket };
-	}
+	const infrastructure = await inspectLocalInfrastructure(repoRoot, profile, plan.capabilities);
+	const database = infrastructure.capabilities.postgres ?? "unknown";
+	const bucket =
+		plan.capabilities.includes("derived-bucket") || plan.capabilities.includes("docs-bucket")
+			? (infrastructure.capabilities.derivedBucket ?? "unknown")
+			: "not-required";
 	const paths = managedLocalEnvironmentPathsForProjections(repoRoot, plan.environmentProjections);
 	const environmentPaths = Object.fromEntries(
 		paths.map((path) => [path, existsSync(path) && isLocalManagedFile(path)]),
@@ -205,10 +178,9 @@ export async function diagnoseLocalDevelopment(
 		existsSync(resolveLocalDevSecretsPath(repoRoot));
 	const bootstrap: LocalTargetDiagnosis["bootstrap"] = {};
 	for (const step of plan.bootstrapSteps) {
-		if (step === "temporal-namespace") {
-			continue;
+		if (step !== "temporal-namespace") {
+			bootstrap[step] = await safeBootstrapProbe(repoRoot, profile, step, plan.modelConfigNames);
 		}
-		bootstrap[step] = await safeBootstrapProbe(repoRoot, profile, step, plan.modelConfigNames);
 	}
 	if (target === "core" || target === "ops-web") {
 		bootstrap["product-data"] = await diagnoseProductData(repoRoot, profile, scope === "data");
@@ -230,7 +202,7 @@ export async function diagnoseLocalDevelopment(
 					namespace,
 					runtime,
 					secrets,
-					shared: sharedDiagnosis,
+					infrastructure: infrastructure.capabilities,
 					bucket,
 				});
 	return {
@@ -239,7 +211,7 @@ export async function diagnoseLocalDevelopment(
 		profile,
 		resources: { bucket, database, ...(namespace ? { namespace } : {}) },
 		...(runtime ? { runtime } : {}),
-		shared: sharedDiagnosis,
+		infrastructure: infrastructure.capabilities,
 		status,
 		target,
 	};
@@ -260,7 +232,7 @@ export async function destroyLocalDevelopment(input: {
 	const resources = await destroyLocalInstanceResources(input.repoRoot, profile);
 	if (resources.unresolved.length > 0) {
 		throw new Error(
-			`Partially destroyed local development instance ${input.instanceId}; unable to inspect ${resources.unresolved.join(", ")}. The instance remains registered; retry after the missing dependency is available.`,
+			`Partially destroyed local development instance ${input.instanceId}; unable to inspect ${resources.unresolved.join(", ")}.`,
 		);
 	}
 	const cleanup = existsSync(profile.worktreePath)
@@ -271,8 +243,11 @@ export async function destroyLocalDevelopment(input: {
 	}
 	if (existsSync(profile.worktreePath)) {
 		removeLocalDevSecrets(profile.worktreePath);
+	}
+	if (existsSync(profile.worktreePath)) {
 		removeProductSnapshot(profile.worktreePath);
 	}
+	removeLocalInfrastructureSecrets(input.repoRoot, profile);
 	releaseLocalDevProfile(input.repoRoot, input.instanceId);
 	if (cleanup.skippedUnmanaged.length > 0) {
 		console.error(`Skipped unmanaged environment files: ${cleanup.skippedUnmanaged.join(", ")}`);
@@ -310,38 +285,9 @@ export async function pruneLocalDevelopment(input: {
 	});
 }
 
-function assertCapabilitiesForInitialization(diagnosis: SharedCapabilityDiagnosis): void {
-	const locallyOwned = new Set(["derived-bucket", "docs-source"]);
-	for (const capability of diagnosis.required) {
-		const state =
-			diagnosis[
-				capability === "derived-bucket"
-					? "derivedBucket"
-					: capability === "source-bucket"
-						? "sourceBucket"
-						: capability === "docs-bucket"
-							? "docsBucket"
-							: capability === "docs-source"
-								? "docsSource"
-								: capability
-			];
-		if (locallyOwned.has(capability)) {
-			if (state === "unknown") {
-				throw new Error(`Local capability ${capability} cannot be inspected.`);
-			}
-			continue;
-		}
-		if (state !== "present") {
-			throw new Error(
-				`Shared capability ${capability} is ${state ?? "unknown"}; run pnpm dev:shared-reconcile from the canonical checkout.`,
-			);
-		}
-	}
-}
-
 async function safeBootstrapProbe(
 	repoRoot: string,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 	step: Exclude<LocalBootstrapStep, "temporal-namespace">,
 	modelConfigNames: readonly LocalModelConfigName[],
 ): Promise<BootstrapProbeResult> {
@@ -360,29 +306,19 @@ function classifyDiagnosis(input: {
 	namespace?: "present" | "missing" | "unknown";
 	runtime?: Record<string, "ready" | "missing" | "unknown">;
 	secrets: boolean;
-	shared: SharedCapabilityDiagnosis;
+	infrastructure: LocalCapabilityDiagnosis;
 	bucket: "present" | "missing" | "not-required" | "unknown";
 }): LocalDiagnosisStatus {
-	const sharedStates = input.shared.required.map((capability) => {
-		const field =
-			capability === "derived-bucket"
-				? input.shared.derivedBucket
-				: capability === "source-bucket"
-					? input.shared.sourceBucket
-					: capability === "docs-bucket"
-						? input.shared.docsBucket
-						: capability === "docs-source"
-							? input.shared.docsSource
-							: input.shared[capability];
-		return field;
-	});
+	const states = Object.entries(input.infrastructure)
+		.filter(([key]) => key !== "required")
+		.map(([, value]) => value);
 	if (Object.values(input.bootstrap).some((probe) => probe?.state === "invalid")) {
 		return "invalid";
 	}
 	if (
-		sharedStates.includes("unknown") ||
+		states.includes("unknown") ||
 		input.database === "unknown" ||
-		(input.bucket !== "not-required" && input.bucket === "unknown") ||
+		input.bucket === "unknown" ||
 		input.namespace === "unknown" ||
 		Object.values(input.bootstrap).some((probe) => probe?.state === "unknown") ||
 		Object.values(input.runtime ?? {}).includes("unknown")
@@ -390,9 +326,9 @@ function classifyDiagnosis(input: {
 		return "unknown";
 	}
 	if (
-		sharedStates.includes("missing") ||
+		states.includes("missing") ||
 		input.database === "missing" ||
-		(input.bucket !== "not-required" && input.bucket === "missing") ||
+		input.bucket === "missing" ||
 		input.namespace === "missing" ||
 		!Object.values(input.environmentPaths).every(Boolean) ||
 		!input.secrets ||
@@ -407,25 +343,26 @@ function classifyDiagnosis(input: {
 
 async function diagnoseRuntime(
 	target: LocalDevTarget,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 ): Promise<Record<string, "ready" | "missing" | "unknown">> {
-	const core = [
-		["app-api", profile.ports.appApi],
-		["campus-web", profile.ports.campusWeb],
-		["execution-control", 27_051 + profile.slot * 100],
-		["model-config", 27_053 + profile.slot * 100],
-		["agent-runtime", 27_062 + profile.slot * 100],
-	] as const;
+	const runtimePorts = calculateLocalDevRuntimePorts(profile.slot);
 	const plan = resolveLocalDevTargetPlan(target);
-	const entries: readonly (readonly [string, number])[] = [
-		...(target === "core" || plan.runtimeDependencies.includes("core") ? core : []),
-		...(target === "ops-web" || plan.runtimeDependencies.includes("ops-web")
-			? [["ops-web", profile.ports.opsWebApi] as const]
-			: []),
-		...(plan.runtimeDependencies.includes("model-config")
-			? [["model-config", 27_053 + profile.slot * 100] as const]
-			: []),
-	];
+	const entries: Array<readonly [string, number]> = [];
+	if (target === "core" || plan.runtimeDependencies.includes("core")) {
+		entries.push(
+			["app-api", profile.ports.appApi],
+			["campus-web", profile.ports.campusWeb],
+			["execution-control", runtimePorts.executionControl],
+			["model-config", runtimePorts.modelConfig],
+			["agent-runtime", runtimePorts.agentRuntime],
+		);
+	}
+	if (target === "ops-web" || plan.runtimeDependencies.includes("ops-web")) {
+		entries.push(["ops-web", profile.ports.opsWebApi]);
+	}
+	if (plan.runtimeDependencies.includes("model-config")) {
+		entries.push(["model-config", runtimePorts.modelConfig]);
+	}
 	const result: Record<string, "ready" | "missing" | "unknown"> = {};
 	for (const [name, port] of entries) {
 		try {

@@ -629,16 +629,16 @@ App API 已通过 `modules/dining/lifecycle.ts` 复用 `scheduled()` 和既有�
 
 ```bash
 pnpm --dir packages/domains/dining typecheck
-pnpm --dir packages/domains/dining test
+pnpm test --filter=@campus-agent/dining
 pnpm --dir jobs/campus-agent-schema typecheck
-pnpm --dir jobs/campus-agent-schema test
+pnpm test --filter=campus-agent-schema
 pnpm --dir apps/app-api typecheck
-pnpm --dir apps/app-api test
+pnpm test --filter=app-api
 pnpm --dir apps/app-api test:worker
 pnpm --dir apps/campus-web typecheck
-pnpm --dir apps/campus-web test
+pnpm test --filter=campus-web
 pnpm --dir apps/ops-web typecheck
-pnpm --dir apps/ops-web test
+pnpm test --filter=ops-web
 pnpm --dir apps/ops-web test:database-integration
 ```
 

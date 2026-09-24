@@ -21,5 +21,5 @@
 
 ```bash
 pnpm --dir packages/notice-classifier-core typecheck
-pnpm --dir packages/notice-classifier-core test
+pnpm test --filter=notice-classifier-core
 ```

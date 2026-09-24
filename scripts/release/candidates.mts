@@ -115,7 +115,7 @@ export async function planCandidates(
 	);
 	const workers = new Set<WorkerCandidate>();
 	for (const task of scope.tasks) {
-		if (task.task === "build:worker") {
+		if (task.package === "campus-web" ? task.task === "build:fixture" : task.task === "build") {
 			for (const worker of workerCandidatesForPackage(task.package)) {
 				workers.add(worker);
 			}

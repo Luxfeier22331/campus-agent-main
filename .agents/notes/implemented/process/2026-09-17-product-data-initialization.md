@@ -24,7 +24,9 @@ collection 分批读取 dense/sparse vectors。只有需要反复遍历的 Qdran
 对象直接交给各消费者，Docs 编译器复用已读取字节，制品导入复用自身收集的字节；
 不再增加本地对象暂存文件或独立磁盘缓存。
 
-本地数据库和派生对象属于 profile；不可变 Qdrant collection 可共享，绑定独立。
+本地基础验证数据库和派生对象属于 profile；真实 Docs 对象、混合 Qdrant collection 与
+`campus_docs_serving.current_index` 的共享 owner 由[本地共享检索数据平面](../architecture/2026-09-24-independent-worktree-data-plane.md)
+定义。不可变 Qdrant collection 可共享，绑定独立。
 初始化要求当前 worktree 应用离线。统一 publisher 的 catalog 支持调用方事务，基础数据与绑定
 一起提交。资源和 collection 先验证，随后导入数据库，最后更新 Docs source；Docs closure 在一次编译中读取并
 校验对象，再直接复用已读取字节写入目标对象；Qdrant 下载阶段不重复做产品语义校验，统一在写入

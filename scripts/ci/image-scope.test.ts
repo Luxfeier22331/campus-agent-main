@@ -49,7 +49,14 @@ test("compares sibling trees and retains removed production dependency edges", (
 				? {
 						status: 0,
 						stdout: JSON.stringify({
-							tasks: [{ package: "ops-web", task: "build", command: "vite build" }],
+							tasks: [
+								{
+									package: "ops-web",
+									task: "build:check",
+									command: "<NONEXISTENT>",
+									dependencies: ["ops-web#build"],
+								},
+							],
 						}),
 					}
 				: run(command, args, options),

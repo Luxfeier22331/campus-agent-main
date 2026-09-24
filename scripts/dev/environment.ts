@@ -13,12 +13,12 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseEnv } from "node:util";
-
+import { ensureLocalInfrastructureSecrets } from "./infrastructure-secrets";
 import type { LocalQdrantConnection } from "./local-qdrant";
 import { ensureLocalDevSecrets } from "./local-secrets";
 import { readProductSnapshot } from "./product-data-state";
-import type { LocalDevProfileV2 } from "./profile";
-import { calculateLocalDevRuntimePorts } from "./profile";
+import type { LocalDevProfile } from "./profile";
+import { calculateLocalDevInfrastructurePorts, calculateLocalDevRuntimePorts } from "./profile";
 import {
 	type LocalDevEnvironmentProjection,
 	type LocalDevTarget,
@@ -114,7 +114,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	"notice-index-publisher": ["noticeIndexPublisher"],
 };
 
-const LOCAL_DATABASE_PASSWORDS = {
+export const LOCAL_DATABASE_PASSWORDS = {
 	appApi: "campus-agent-local-app-api",
 	executionControl: "campus-agent-local-execution-control",
 	modelConfig: "campus-agent-local-model-config",
@@ -152,10 +152,6 @@ export function managedLocalEnvironmentPathsForProjections(
 			projections.flatMap((target) => managedLocalEnvironmentPathsForTarget(repoRoot, target)),
 		),
 	];
-}
-
-export function allManagedLocalEnvironmentPaths(repoRoot: string): string[] {
-	return Object.values(managedLocalEnvironmentPaths(repoRoot));
 }
 
 export function resolveMainCheckoutRoot(repoRoot: string): string {
@@ -208,7 +204,7 @@ export function importMainCheckoutExternalCredentials(input: {
 	});
 }
 
-export function localDatabaseUrls(profile: LocalDevProfileV2): {
+export function localDatabaseUrls(profile: LocalDevProfile): {
 	appApi: string;
 	executionControl: string;
 	modelConfig: string;
@@ -216,8 +212,9 @@ export function localDatabaseUrls(profile: LocalDevProfileV2): {
 	noticePublisher: string;
 	owner: string;
 } {
+	const infraPorts = profile.infraPorts ?? calculateLocalDevInfrastructurePorts(profile.slot);
 	const url = (role: string, password: string) =>
-		`postgresql://${role}:${encodeURIComponent(password)}@127.0.0.1:5432/${profile.databaseName}`;
+		`postgresql://${role}:${encodeURIComponent(password)}@127.0.0.1:${infraPorts.postgres}/${profile.databaseName}`;
 	return {
 		appApi: url("app_api", LOCAL_DATABASE_PASSWORDS.appApi),
 		executionControl: url("execution_control", LOCAL_DATABASE_PASSWORDS.executionControl),
@@ -249,7 +246,7 @@ export function localModelConfigEnvironment(input: {
 export function localModelConfigCommandEnvironment(input: {
 	environment?: NodeJS.ProcessEnv;
 	names: readonly LocalModelConfigName[];
-	profile: LocalDevProfileV2;
+	profile: LocalDevProfile;
 	repoRoot: string;
 }): NodeJS.ProcessEnv {
 	const inheritedEnvironment = { ...(input.environment ?? process.env) };
@@ -292,7 +289,7 @@ function localNoProxyEnvironment(
 
 export function renderLocalEnvironmentFiles(input: {
 	environment?: NodeJS.ProcessEnv;
-	profile: LocalDevProfileV2;
+	profile: LocalDevProfile;
 	qdrant?: LocalQdrantConnection;
 	repoRoot: string;
 	target?: LocalDevTarget;
@@ -311,6 +308,19 @@ export function renderLocalEnvironmentFiles(input: {
 	const selectedPaths = managedLocalEnvironmentPathsForProjections(repoRoot, projections);
 	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
 	const database = localDatabaseUrls(profile);
+	const infrastructure = ensureLocalInfrastructureSecrets(repoRoot, profile as LocalDevProfile);
+	const infraPorts =
+		(profile as LocalDevProfile).infraPorts ?? calculateLocalDevInfrastructurePorts(profile.slot);
+	const objectStoreEndpoint = `http://127.0.0.1:${infraPorts.objectStore}`;
+	const objectStore = {
+		OBJECT_STORE_DERIVED_ACCESS_KEY: infrastructure.objectStoreAccessKey,
+		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: infrastructure.objectStoreAccessKey,
+		OBJECT_STORE_DERIVED_READ_SECRET_KEY: infrastructure.objectStoreSecretKey,
+		OBJECT_STORE_DERIVED_SECRET_KEY: infrastructure.objectStoreSecretKey,
+		OBJECT_STORE_ENDPOINT: objectStoreEndpoint,
+		OBJECT_STORE_SOURCE_ACCESS_KEY: infrastructure.objectStoreAccessKey,
+		OBJECT_STORE_SOURCE_SECRET_KEY: infrastructure.objectStoreSecretKey,
+	};
 	const paths = managedLocalEnvironmentPaths(repoRoot);
 	const noProxy = localNoProxyEnvironment(repoRoot, input.environment ?? process.env);
 	const runtimePorts = calculateLocalDevRuntimePorts(profile.slot);
@@ -359,11 +369,8 @@ export function renderLocalEnvironmentFiles(input: {
 			AUTH_TURNSTILE_SECRET_KEY: "local-turnstile-disabled",
 			BETTER_AUTH_SECRET: localSecrets?.betterAuthSecret ?? "",
 			EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_LOCAL_BASE_URL: `http://127.0.0.1:9000/${profile.bucketName}/`,
+			...objectStore,
+			OBJECT_STORE_LOCAL_BASE_URL: `${objectStoreEndpoint}/${profile.bucketName}/`,
 			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 			RESEND_API_KEY: existingSecrets.RESEND_API_KEY || "local-resend-disabled",
 			DEPLOYMENT_ENVIRONMENT: "development",
@@ -375,10 +382,8 @@ export function renderLocalEnvironmentFiles(input: {
 			APP_API_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			AUTH_TURNSTILE_SITE_KEY: "",
 			CAMPUS_WEB_DEV_PORT: String(profile.ports.campusWeb),
+			...objectStore,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		});
 	}
 	if (shouldRender("executionControl")) {
@@ -392,7 +397,7 @@ export function renderLocalEnvironmentFiles(input: {
 			EXECUTION_CONTROL_DATABASE_URL: database.executionControl,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
-			EXECUTION_CONTROL_TEMPORAL_ADDRESS: "127.0.0.1:7233",
+			EXECUTION_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			EXECUTION_CONTROL_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: `${profile.instanceId}:execution-control`,
 			HOST: "127.0.0.1",
@@ -432,14 +437,8 @@ export function renderLocalEnvironmentFiles(input: {
 			OPS_WEB_APP_API_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			OPS_WEB_CAMPUS_WEB_URL: `http://127.0.0.1:${profile.ports.campusWeb}`,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+			...objectStore,
+			OBJECT_STORE_BUCKET_SOURCE: profile.sourceBucketName,
 			OPS_WEB_DATABASE_SSLMODE: "disable",
 			OPS_WEB_DATABASE_URL: database.opsWeb,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
@@ -448,7 +447,7 @@ export function renderLocalEnvironmentFiles(input: {
 			OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
 			OPS_WEB_WEB_PORT: String(profile.ports.opsWeb),
 			PORT: String(profile.ports.opsWebApi),
-			TEMPORAL_ADDRESS: "127.0.0.1:7233",
+			TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 		});
 	}
@@ -464,11 +463,11 @@ export function renderLocalEnvironmentFiles(input: {
 			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.noticePublisher,
 			OPS_WEB_INTERNAL_URL: `http://127.0.0.1:${profile.ports.opsWeb}`,
-			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+			...objectStore,
+			OBJECT_STORE_BUCKET_SOURCE: profile.sourceBucketName,
 			OBJECT_STORE_REGION: "us-east-1",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "rustfsadmin",
+			OBJECT_STORE_SOURCE_ACCESS_KEY: infrastructure.objectStoreAccessKey,
+			OBJECT_STORE_SOURCE_SECRET_KEY: infrastructure.objectStoreSecretKey,
 			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 		});
 	}
@@ -487,12 +486,8 @@ export function renderLocalEnvironmentFiles(input: {
 			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.owner,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "rustfsadmin",
+			...objectStore,
+			OBJECT_STORE_BUCKET_SOURCE: profile.sourceBucketName,
 		});
 	}
 	if (shouldRender("noticePublisher")) {
@@ -501,22 +496,16 @@ export function renderLocalEnvironmentFiles(input: {
 			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.noticePublisher,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "rustfsadmin",
+			...objectStore,
+			OBJECT_STORE_BUCKET_SOURCE: profile.sourceBucketName,
 		});
 	}
 	if (shouldRender("campusDocsIndexPublisher")) {
 		writeManagedEnv(paths.campusDocsIndexPublisher, {
 			...docsSourceEnvironment,
-			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			EXECUTION_CONTROL_DATABASE_URL: database.owner,
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+			...objectStore,
+			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 		});
 	}
 	if (shouldRender("noticePipelineWorker")) {
@@ -526,12 +515,10 @@ export function renderLocalEnvironmentFiles(input: {
 			NOTICES_DATABASE_URL: database.owner,
 			EXECUTION_CONTROL_DATABASE_URL: database.owner,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
-			TEMPORAL_ADDRESS: "127.0.0.1:7233",
+			TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
+			...objectStore,
 		});
 	}
 	if (shouldRender("noticeArtifactsWorker")) {
@@ -544,12 +531,10 @@ export function renderLocalEnvironmentFiles(input: {
 			NOTICES_DATABASE_URL: database.owner,
 			EXECUTION_CONTROL_DATABASE_URL: database.owner,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
-			TEMPORAL_ADDRESS: "127.0.0.1:7233",
+			TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
+			...objectStore,
 			QDRANT_URL: input.qdrant.url,
 			QDRANT_API_KEY: input.qdrant.apiKey,
 		});
@@ -561,12 +546,8 @@ export function renderLocalEnvironmentFiles(input: {
 		writeManagedEnv(paths.campusRagIndexPublisher, {
 			...docsSourceEnvironment,
 			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			...objectStore,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
-			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 			QDRANT_API_KEY: input.qdrant.apiKey,
 			QDRANT_URL: input.qdrant.url,
 		});
@@ -746,5 +727,3 @@ export function isPrivateLocalFile(path: string): boolean {
 		return false;
 	}
 }
-
-export const LOCAL_DEV_DATABASE_PASSWORDS = LOCAL_DATABASE_PASSWORDS;

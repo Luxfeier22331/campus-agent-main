@@ -6,12 +6,12 @@
 	"license": "Apache-2.0",
 	"type": "module",
 	"scripts": {
-		"build": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { force: true, recursive: true })\" && esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:@aws-sdk/client-s3 --external:pg && node --input-type=module -e \"import('./dist/cli.js')\"",
+		"build": "bash scripts/build.sh",
 		"publish-index": "tsx src/cli.ts publish-index",
 		"publish-index-local": "node --env-file=.env.local --import=tsx src/local-cli.ts",
 		"import-artifacts-local": "node --env-file=.env.local --import=tsx src/import-local-cli.ts",
-		"test": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1132.0",

@@ -3,7 +3,7 @@
 	"futureFlags": {
 		"affectedUsingTaskInputs": true
 	},
-	"globalPassThroughEnv": ["WORKERS"],
+	"globalPassThroughEnv": ["GITHUB_REPOSITORY", "TURBO_SCM_BASE", "TURBO_SCM_HEAD", "WORKERS"],
 	"tasks": {
 		"build": {
 			"inputs": [
@@ -119,13 +119,6 @@
 			"outputs": [],
 			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
-		"test": {
-			"dependsOn": ["^source"],
-			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
-			"outputLogs": "new-only",
-			"outputs": [],
-			"env": ["CAMPUS_NODE_RUNTIME"]
-		},
 		"native:format": {
 			"outputLogs": "new-only",
 			"outputs": [],
@@ -174,35 +167,8 @@
 			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
 			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
 		},
-		"native:typecheck": {
-			"outputLogs": "new-only",
-			"outputs": [],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/go.work",
-				"$TURBO_ROOT$/go.work.sum",
-				"$TURBO_ROOT$/apps/*/go.mod",
-				"$TURBO_ROOT$/apps/*/go.sum",
-				"$TURBO_ROOT$/flake.lock",
-				"$TURBO_ROOT$/flake.nix",
-				"$TURBO_ROOT$/nix/**"
-			],
-			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
-			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
-		},
-		"internal-portal-collection#test": {
-			"dependsOn": ["^source"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/sources/**"
-			],
-			"outputLogs": "new-only",
-			"env": ["CAMPUS_NODE_RUNTIME"]
-		},
 		"test:eval": {
-			"dependsOn": ["^test:eval"],
+			"dependsOn": ["^source"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -245,17 +211,6 @@
 			"outputLogs": "new-only",
 			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
-		"eval-langfuse#test": {
-			"dependsOn": ["^source"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/scripts/deploy/**"
-			],
-			"outputLogs": "new-only",
-			"env": ["CAMPUS_NODE_RUNTIME"]
-		},
 		"eval-langfuse#typecheck": {
 			"dependsOn": ["^source"],
 			"inputs": [
@@ -269,19 +224,6 @@
 		"ingestion-contracts#typecheck": {
 			"dependsOn": ["^source"],
 			"inputs": ["package.json", "schemas/**", "src/**/*.ts", "test/**/*.ts", "tsconfig.json"],
-			"outputLogs": "new-only",
-			"env": ["CAMPUS_NODE_RUNTIME"]
-		},
-		"ingestion-contracts#test": {
-			"dependsOn": ["^source"],
-			"inputs": [
-				"assertions/**",
-				"package.json",
-				"schemas/**",
-				"src/**/*.ts",
-				"test/**/*.ts",
-				"tsconfig.json"
-			],
 			"outputLogs": "new-only",
 			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
@@ -396,6 +338,91 @@
 		},
 		"notice-pipeline-worker#schedule:init": {
 			"cache": false
+		},
+		"test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"native:vet": {
+			"outputLogs": "new-only",
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
+		},
+		"internal-portal-collection#test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/**"
+			],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"eval-langfuse#test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"ingestion-contracts#test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"assertions/**",
+				"package.json",
+				"schemas/**",
+				"src/**/*.ts",
+				"test/**/*.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"test": {
+			"dependsOn": [
+				"test:unit",
+				"test:generators",
+				"test:node:fast",
+				"test:node:isolated",
+				"test:dom:fast",
+				"test:dom:isolated",
+				"test:worker",
+				"native:test",
+				"test:eval"
+			],
+			"inputs": [],
+			"outputs": []
+		},
+		"test:generators": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"build:check": {
+			"dependsOn": ["build"],
+			"inputs": [],
+			"outputs": []
 		}
 	}
 }

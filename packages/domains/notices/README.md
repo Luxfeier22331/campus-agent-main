@@ -15,5 +15,5 @@
 
 ```bash
 pnpm --dir packages/domains/notices typecheck
-pnpm --dir packages/domains/notices test
+pnpm test --filter=@campus-agent/notices
 ```

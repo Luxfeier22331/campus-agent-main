@@ -39,7 +39,7 @@ import {
 	sendVerificationEmail,
 } from "./reset-mail";
 
-const AUTH_SESSION_EXPIRES_IN = 60 * 60 * 24 * 7;
+const AUTH_SESSION_EXPIRES_IN = 60 * 60 * 24 * 30;
 const AUTH_SESSION_UPDATE_AGE = 60 * 60 * 24;
 const AUTH_RATE_LIMIT_WINDOW = 60;
 const AUTH_RATE_LIMIT_MAX = 10;

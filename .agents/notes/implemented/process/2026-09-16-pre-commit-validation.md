@@ -18,6 +18,10 @@ Status: implemented
 
 ## 决策
 
+本篇的根命令命名进一步由
+[工作区脚本与验证入口治理](./2026-09-22-workspace-command-governance.md)部分取代：
+hook 调用 `test:tooling`，根 `test` 成为全仓单测入口。提交范围、资源额度与 pre-push 退役决定不变。
+
 本文的根任务、完整索引树和不拆分测试集合条目已由
 [源码依赖与分组测试缓存](../testing/2026-09-19-source-and-test-cache-boundaries.md)部分取代。
 pre-commit 所有权、pre-push 退役、并发额度和失败阻断继续有效；以下保留原选择理由。
@@ -25,12 +29,15 @@ PR 重复执行 Node typecheck 的范围由
 [PR 类型检查去重](../testing/2026-09-21-pr-typecheck-deduplication.md)部分取代。
 
 重验证由 pre-commit 拥有，沿用现有静态检查、Secret 扫描和 Node/Go 任务集合。静态检查成功后
-执行根脚本测试，再执行受影响模块任务；失败阻止提交。pre-push 的重验证与适配入口删除，安装器
-只卸载当前 worktree 的受管理 shim。PR 仍检查完整分支差异，不把一次本地提交检查作为合并证明。
+按暂存文件选择统一 registry 中的 repository checks，再执行根脚本测试和受影响模块任务；失败阻止提交。
+CI 使用同一 registry、命令和 Nix shell，只把选择范围换成 PR 分支差异。contracts 固定在 `ci-go` 中运行，
+Actions 配置固定在 `ci-light` 中运行，避免依赖开发机或 runner 的全局 PATH。pre-push 的重验证与适配入口
+删除，安装器只卸载当前 worktree 的受管理 shim。PR 仍检查完整分支差异，不把一次本地提交检查作为合并证明。
 
 提交前复用 prek 的未暂存修改隔离和 Turbo 的工作区 affected 选择，保留依赖传播与输入声明。
 首次提交运行全量模块任务；空暂存差异只运行可缓存的根测试。不创建临时提交、额外快照、验证
-凭证或第二套包依赖映射。`pnpm lint` 排除 validation group，保持原有静态检查职责。
+凭证或第二套包依赖映射。`pnpm lint` 排除 validation group，保持全仓静态检查职责；repository checks
+不在 lint hook 中复制命令。
 
 执行器内 Node 任务的 Turbo 并发以半核数（最少 2）为 CPU 上限，再受进程内存额度约束：
 每 2 GiB 允许一个任务，最少一个；运行时未报告内存限制时保留 CPU 上限。6 核、2 GiB 的 runner

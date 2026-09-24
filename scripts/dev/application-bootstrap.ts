@@ -4,7 +4,7 @@ import { NOTICE_CATEGORIES } from "@campus-agent/notices";
 
 import { localDatabaseUrls, localModelConfigCommandEnvironment } from "./environment";
 import { captureCommandResult, runCommand } from "./process";
-import type { LocalDevProfileV2 } from "./profile";
+import type { LocalDevProfile } from "./profile";
 import type { LocalBootstrapStep, LocalModelConfigName } from "./targets";
 
 export type LocalApplicationBootstrapStep = Exclude<LocalBootstrapStep, "temporal-namespace">;
@@ -25,7 +25,7 @@ export interface BootstrapProbeResult {
 
 export function localApplicationBootstrapCommands(
 	repoRoot: string,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 	steps: readonly LocalApplicationBootstrapStep[] = [
 		"campus-agent-schema",
 		"app-api-seed-local-test-user",
@@ -106,7 +106,7 @@ export function localApplicationBootstrapCommands(
 
 export async function bootstrapLocalApplications(
 	repoRoot: string,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 	steps: readonly LocalApplicationBootstrapStep[],
 	modelConfigNames: readonly LocalModelConfigName[] = [],
 ): Promise<string[]> {
@@ -140,7 +140,7 @@ export async function bootstrapLocalApplications(
 
 export async function probeLocalBootstrapStep(
 	repoRoot: string,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 	step: LocalApplicationBootstrapStep,
 	modelConfigNames: readonly LocalModelConfigName[] = [],
 ): Promise<BootstrapProbeResult> {
@@ -171,7 +171,7 @@ export async function probeLocalBootstrapStep(
 
 async function probeLocalModelConfig(
 	repoRoot: string,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 	names: readonly LocalModelConfigName[],
 ): Promise<BootstrapProbeResult> {
 	if (names.length === 0) {
@@ -222,7 +222,7 @@ async function probeLocalModelConfig(
 
 async function probeSchema(
 	repoRoot: string,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 ): Promise<BootstrapProbeResult> {
 	const database = localDatabaseUrls(profile).owner;
 	const url = new URL(database);

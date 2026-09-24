@@ -10,7 +10,7 @@ import {
 	normalizeSourceManifest,
 	parseSourceManifest,
 } from "../../packages/contracts/src/campus-docs/node/index.ts";
-import type { ProductDataRows } from "./product-data-tables.ts";
+import type { ProductDataRows, RetrievalProductDataRows } from "./product-data-tables.ts";
 
 export type ProductDocsReferences = Map<
 	string,
@@ -118,9 +118,28 @@ export async function copyProductAssets(
 	}
 }
 
+export async function copyNoticeAssets(
+	rows: RetrievalProductDataRows,
+	source: ReaderObjectStore,
+	target?: WritableObjectStore,
+) {
+	for (const asset of rows["notices.notice_assets"]) {
+		if (asset.asset_kind !== "image") {
+			continue;
+		}
+		const sha256 = `sha256:${asset.content_sha256}`;
+		const key = `notices/assets/sha256/${asset.content_sha256}`;
+		const bytes = await source.read(key);
+		if (digest(bytes) !== sha256) {
+			throw new Error(`Product asset digest mismatch: ${key}`);
+		}
+		await target?.writeImmutable(key, bytes, String(asset.content_type));
+	}
+}
+
 export function validateProductPoint(
 	point: UnifiedPoint,
-	rows: ProductDataRows,
+	rows: Pick<ProductDataRows, "notices.notices">,
 	docsReferences: ProductDocsReferences,
 ): void {
 	const payload = point.payload;

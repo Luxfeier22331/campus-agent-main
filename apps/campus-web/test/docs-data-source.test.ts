@@ -46,10 +46,11 @@ describe("native docs data source", () => {
 		expect(parseDocsSiteIndex(createSiteIndex())).toEqual(createSiteIndex());
 		expect(
 			parseDocsSearchIndex({
+				chunks: [],
 				entries: [],
-				schemaVersion: "campus_docs_search_index.v2",
+				schemaVersion: "campus_docs_search_index.v3",
 			}),
-		).toEqual({ entries: [], schemaVersion: "campus_docs_search_index.v2" });
+		).toEqual({ chunks: [], entries: [], schemaVersion: "campus_docs_search_index.v3" });
 
 		expect(() =>
 			parseDocsSiteIndex({

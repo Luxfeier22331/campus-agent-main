@@ -9,7 +9,10 @@
 		"test:docs": "tsx --test docs/*.test.ts",
 		"test:hooks": "tsx --test hooks/*.test.ts",
 		"test:notices": "tsx --test notices/*.test.ts",
-		"test:release": "tsx --test release/*.test.ts release/*.test.mjs"
+		"test:release": "tsx --test release/*.test.ts release/*.test.mjs",
+		"notice:classify": "cd .. && tsx scripts/notices/cli.ts",
+		"notice:classify:eval": "cd .. && tsx scripts/notices/eval.ts",
+		"typecheck:notices": "tsc --project notices/tsconfig.json"
 	},
 	"dependencies": {
 		"@campus-agent/dining": "workspace:*",

@@ -14,8 +14,8 @@
 		"./source": "./src/source.ts"
 	},
 	"scripts": {
-		"test": "node --test --import tsx src/*.test.ts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "node --test --import tsx src/*.test.ts"
 	},
 	"dependencies": {
 		"@campus-agent/notices": "workspace:*",

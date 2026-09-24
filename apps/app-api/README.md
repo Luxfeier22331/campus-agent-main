@@ -61,11 +61,10 @@ Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET
 
 ```bash
 pnpm install
-pnpm dev:shared-reconcile
+pnpm dev:init -- --target core
 pnpm dev:init -- --target core
 pnpm --dir apps/app-api dev
-pnpm --dir apps/app-api test
-pnpm --dir apps/app-api test:worker
+pnpm test --filter=app-api
 pnpm --dir apps/app-api test:shared-db-integration
 pnpm --dir apps/app-api typecheck
 pnpm --dir jobs/campus-agent-schema test:migration-integration

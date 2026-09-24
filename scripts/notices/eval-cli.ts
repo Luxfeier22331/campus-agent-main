@@ -86,7 +86,7 @@ export function parseEvalCliOptions(argv: readonly string[]): {
 	const command = argv[0];
 	if (!(command && EVAL_COMMANDS.has(command as EvalCommand))) {
 		throw new Error(
-			"Usage: pnpm notice:classify:eval <stratify|sample|sample-random|generate-label-gold|evaluate-candidates|evaluate-regression|check> --output-dir <path>",
+			"Usage: pnpm --dir scripts notice:classify:eval <stratify|sample|sample-random|generate-label-gold|evaluate-candidates|evaluate-regression|check> --output-dir <path>",
 		);
 	}
 	const options: EvalCliOptions = {};

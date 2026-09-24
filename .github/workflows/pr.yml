@@ -190,10 +190,12 @@ jobs:
           # Evaluate each environment once before prek starts concurrent hooks.
           nix print-dev-env .#ci-light > "$RUNNER_TEMP/ci-nix-light.sh"
           nix print-dev-env .#ci-format > "$RUNNER_TEMP/ci-nix-format.sh"
+          nix print-dev-env .#ci-go > "$RUNNER_TEMP/ci-nix-go.sh"
           bash -ec '. "$1"; uv sync --only-dev --no-install-workspace' -- "$RUNNER_TEMP/ci-nix-light.sh"
           {
             echo "CI_NIX_LIGHT_ENV=$RUNNER_TEMP/ci-nix-light.sh"
             echo "CI_NIX_FORMAT_ENV=$RUNNER_TEMP/ci-nix-format.sh"
+            echo "CI_NIX_GO_ENV=$RUNNER_TEMP/ci-nix-go.sh"
           } >> "$GITHUB_ENV"
 
       - name: Lint repository
@@ -247,7 +249,7 @@ jobs:
         run: |
           echo CI_BODY_STARTED
           mkdir -p "$RUNNER_TEMP/ci-evidence"
-          pnpm test --groups="$(jq -r 'join(",")' <<< '${{ steps.plan.outputs.repository_groups }}')"
+          pnpm test:tooling --groups="$(jq -r 'join(",")' <<< '${{ steps.plan.outputs.repository_groups }}')"
 
       - name: Check executable contracts
         id: contracts
@@ -262,7 +264,6 @@ jobs:
         id: github_actions
         if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')"
         continue-on-error: true
-        shell: nix develop .#ci-light --command bash -e {0}
         run: |
           echo CI_BODY_STARTED
           mkdir -p "$RUNNER_TEMP/ci-evidence"

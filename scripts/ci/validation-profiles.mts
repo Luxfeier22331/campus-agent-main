@@ -4,34 +4,60 @@ export const NODE_TEST_GROUPS = [
 	"test:dom:fast",
 	"test:dom:isolated",
 ] as const;
-export const PR_NODE_TASKS = ["test", "test:worker", ...NODE_TEST_GROUPS] as const;
+export const PR_NODE_TASKS = [
+	"test:unit",
+	"test:generators",
+	"test:worker",
+	...NODE_TEST_GROUPS,
+] as const;
 export const NODE_TASKS = ["typecheck", ...PR_NODE_TASKS] as const;
 
-// These packages keep `test` as a human entry point; evidence executes its leaves once.
-export function isEvidenceTask(item: { package: string; task: string }): boolean {
-	if (item.task === "test" && ["app-api", "campus-web", "ops-web"].includes(item.package)) {
-		return false;
-	}
-	return !(item.package === "status-web" && item.task === "build");
-}
-export const NATIVE_TASKS = [
-	"native:format",
-	"native:lint",
-	"native:typecheck",
-	"native:test",
-] as const;
-export const BUILD_TASKS = ["build", "build:worker"] as const;
+export const NATIVE_TASKS = ["native:format", "native:lint", "native:vet", "native:test"] as const;
+export const BUILD_TASKS = ["build:check"] as const;
 export const EVAL_TASKS = ["test:eval"] as const;
 export const DATABASE_TASKS = [
 	"test:migration-integration",
 	"test:database-integration",
 	"test:shared-db-integration",
 ] as const;
-export const CONTRACT_COMMAND = ["pnpm", "--dir", "packages/contracts", "check"] as const;
+export const CONTRACT_COMMAND = ["pnpm", "--dir", "packages/contracts", "contracts:check"] as const;
 export const ACTION_COMMANDS = [
 	["actionlint"],
 	["zizmor", "--min-severity=medium", ".github"],
 ] as const;
+
+interface RepositoryCheckDefinition {
+	paths: readonly string[];
+	shell: "ci-go" | "ci-light";
+	commands: readonly ValidationCommand[];
+}
+
+export const REPOSITORY_CHECK_REGISTRY = {
+	contracts: {
+		paths: ["packages/contracts", "configs/runtime", "docs/contracts/schemas"],
+		shell: "ci-go",
+		commands: [CONTRACT_COMMAND],
+	},
+	config: {
+		paths: [".github", "flake.nix", "flake.lock", "nix"],
+		shell: "ci-light",
+		commands: ACTION_COMMANDS,
+	},
+} as const satisfies Record<string, RepositoryCheckDefinition>;
+
+export type RepositoryCheck = keyof typeof REPOSITORY_CHECK_REGISTRY;
+
+function pathMatchesPrefix(file: string, prefix: string): boolean {
+	return file === prefix || file.startsWith(`${prefix}/`);
+}
+
+export function repositoryChecksForFiles(files: readonly string[]): RepositoryCheck[] {
+	return (Object.keys(REPOSITORY_CHECK_REGISTRY) as RepositoryCheck[]).filter((check) =>
+		REPOSITORY_CHECK_REGISTRY[check].paths.some((prefix) =>
+			files.some((file) => pathMatchesPrefix(file, prefix)),
+		),
+	);
+}
 
 export type ValidationLane = "manual" | "pull-request";
 

@@ -98,8 +98,8 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 							package: "agent-runtime",
 							task: "build",
 						},
-						{ command: "vite build", package: "app-api", task: "build:worker" },
-						{ command: "vite build", package: "campus-web", task: "build:worker" },
+						{ command: "vite build", package: "app-api", task: "build" },
+						{ command: "vite build", package: "campus-web", task: "build:fixture" },
 						{ command: "tsc", package: "internal-portal-collection", task: "build" },
 					],
 				}),
@@ -192,7 +192,7 @@ test("publishes the first product availability candidate before GitOps selects i
 		if (command === "pnpm") {
 			return result({
 				stdout: JSON.stringify({
-					tasks: [{ command: "wrangler deploy", package: "status-web", task: "build:worker" }],
+					tasks: [{ command: "wrangler deploy", package: "status-web", task: "build" }],
 				}),
 			});
 		}

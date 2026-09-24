@@ -8,6 +8,11 @@ import {
 	type DocsReaderPayload,
 } from "../features/docs/model.ts";
 import {
+	createDocsSearchFlexIndex,
+	type DocsSearchIndexedFields,
+	exportDocsSearchChunks,
+} from "../features/docs/search-index.ts";
+import {
 	compareDocsCollections,
 	DOCS_SEARCH_INDEX_SCHEMA,
 	DOCS_SITE_INDEX_SCHEMA,
@@ -111,6 +116,7 @@ export async function writeNativeReaderSite(input: {
 	const publicSearchIndex = buildPublicSearchIndex({
 		entries: input.entries,
 		readersByVersion,
+		topics: input.manifest.topics,
 	});
 	const searchIndexText = formatJson(publicSearchIndex);
 	const searchIndexDigest = createHash("sha256").update(searchIndexText).digest("hex");
@@ -204,8 +210,15 @@ function buildSiteDocument(entries: RoutedPublishedReaderManifestEntry[]): DocsS
 function buildPublicSearchIndex(input: {
 	entries: RoutedPublishedReaderManifestEntry[];
 	readersByVersion: ReadonlyMap<string, DocsReaderPayload>;
+	topics: PublishedReaderManifest["topics"];
 }): DocsSearchIndex {
-	const searchEntries: DocsSearchIndex["entries"] = [];
+	const searchRecords: Array<{
+		document: DocsSearchIndexedFields;
+		entry: DocsSearchIndex["entries"][number];
+	}> = [];
+	const topicsByKey = new Map(
+		input.topics.map((topic) => [`${topic.corpus}:${topic.topicId}`, topic.displayName]),
+	);
 	const latestVersionIds = new Set(
 		[...groupVersionsByDocument(input.entries).values()].map(
 			(entries) => latestVersionEntry(entries).versionId,
@@ -219,18 +232,42 @@ function buildPublicSearchIndex(input: {
 		if (!reader) {
 			throw new Error(`reader is missing for search: ${entry.versionId}`);
 		}
-		searchEntries.push(
-			...buildReaderSearchEntries({
-				docId: entry.docId,
-				documentTitle: resolveDocumentDisplayTitle(entry.title),
-				reader,
-			}),
-		);
+		for (const entryRecord of buildReaderSearchEntries({
+			docId: entry.docId,
+			documentTitle: resolveDocumentDisplayTitle(entry.title),
+			reader,
+		})) {
+			searchRecords.push({
+				document: {
+					documentTitle: resolveDocumentDisplayTitle(entry.title),
+					sectionTitle: entryRecord.sectionTitle,
+					searchText: entryRecord.searchText,
+					topicLabel: entry.topicId
+						? (topicsByKey.get(`${entry.corpus}:${entry.topicId}`) ?? "")
+						: "",
+				},
+				entry: entryRecord,
+			});
+		}
 	}
-	return {
-		entries: searchEntries.sort((left, right) =>
-			`${left.docId}:${left.anchor}`.localeCompare(`${right.docId}:${right.anchor}`),
+	searchRecords.sort((left, right) =>
+		`${left.entry.docId}:${left.entry.anchor}`.localeCompare(
+			`${right.entry.docId}:${right.entry.anchor}`,
 		),
+	);
+	const index = createDocsSearchFlexIndex();
+	searchRecords.forEach(({ document }, id) => {
+		index.add({
+			documentTitle: document.documentTitle,
+			id,
+			sectionTitle: document.sectionTitle,
+			searchText: document.searchText,
+			topicLabel: document.topicLabel,
+		});
+	});
+	return {
+		chunks: exportDocsSearchChunks(index),
+		entries: searchRecords.map(({ entry }) => entry),
 		schemaVersion: DOCS_SEARCH_INDEX_SCHEMA,
 	};
 }
@@ -290,7 +327,7 @@ function buildSearchEntry(input: {
 	sectionTitle: string;
 }): DocsSearchIndex["entries"][number] {
 	const elementTexts = input.elements.map(elementText).filter(Boolean);
-	const searchText = [input.sectionTitle, ...elementTexts].join(" ").trim();
+	const searchText = elementTexts.join(" ").trim();
 	const snippetSource = elementTexts.join(" ").trim() || input.sectionTitle;
 	return {
 		anchor: input.anchor,

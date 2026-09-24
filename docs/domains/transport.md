@@ -90,7 +90,7 @@ pnpm --dir apps/ops-web exec tsx test/fixtures/seed-transport-history.ts <已持
 
 ```bash
 pnpm --dir packages/domains/transport typecheck
-pnpm --dir packages/domains/transport test
+pnpm test --filter=@campus-agent/transport
 pnpm --dir apps/app-api typecheck
 pnpm --dir apps/ops-web typecheck
 pnpm --dir apps/campus-web typecheck

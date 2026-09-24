@@ -202,15 +202,32 @@ describe("account journeys PostgreSQL integration", () => {
 		}
 	}
 
-	async function signIn(email: string, password = PASSWORD): Promise<Response> {
+	async function signIn(
+		email: string,
+		password = PASSWORD,
+		rememberMe?: boolean,
+	): Promise<Response> {
 		return app.fetch(
 			authRequest({
 				authShellOrigin,
-				body: { email, password },
+				body: { email, password, ...(rememberMe === undefined ? {} : { rememberMe }) },
 				method: "POST",
 				path: "/sign-in/email",
 			}),
 		);
+	}
+
+	async function latestSessionExpiry(userId: string): Promise<Date> {
+		const result = await client.query<{ expiresAt: Date }>(
+			`select "expiresAt" from "app_auth"."session"
+			 where "userId" = $1 order by "createdAt" desc limit 1`,
+			[userId],
+		);
+		const expiresAt = result.rows[0]?.expiresAt;
+		if (!expiresAt) {
+			throw new Error(`Expected a session for ${userId}.`);
+		}
+		return new Date(expiresAt);
 	}
 
 	async function adminAction(userId: string, action: string, body: unknown, key: string) {
@@ -309,6 +326,36 @@ describe("account journeys PostgreSQL integration", () => {
 			}),
 		);
 		expect(me.status).toBe(200);
+	});
+
+	it("creates a 30-day persistent session by default", async () => {
+		const email = `journey-session-persistent-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+
+		const startedAt = Date.now();
+		const response = await signIn(email);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("set-cookie")).toMatch(/Max-Age=2592000/u);
+
+		const expiresAt = (await latestSessionExpiry(userId)).getTime();
+		expect(expiresAt).toBeGreaterThanOrEqual(startedAt + 29 * 24 * 60 * 60 * 1000);
+		expect(expiresAt).toBeLessThanOrEqual(Date.now() + 31 * 24 * 60 * 60 * 1000);
+	});
+
+	it("creates a one-day session when rememberMe is disabled", async () => {
+		const email = `journey-session-short-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+
+		const startedAt = Date.now();
+		const response = await signIn(email, PASSWORD, false);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("set-cookie")).not.toMatch(/Max-Age=/u);
+
+		const expiresAt = (await latestSessionExpiry(userId)).getTime();
+		expect(expiresAt).toBeGreaterThanOrEqual(startedAt + 23 * 60 * 60 * 1000);
+		expect(expiresAt).toBeLessThanOrEqual(Date.now() + 25 * 60 * 60 * 1000);
 	});
 
 	it("preserves a real Better Auth session across the Campus Web worker boundary", async () => {

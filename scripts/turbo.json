@@ -87,7 +87,8 @@
 				"$TURBO_ROOT$/packages/contracts/test/campus-docs/**",
 				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/contracts/schemas/**",
-				"$TURBO_ROOT$/apps/campus-web/package.json"
+				"$TURBO_ROOT$/apps/campus-web/package.json",
+				"$TURBO_ROOT$/apps/*/scripts/dev*.sh"
 			],
 			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
 			"outputs": [],
@@ -201,6 +202,30 @@
 			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME", "CAMPUS_TOOLING_TRACKED_RELEASE"],
 			"outputs": [],
 			"outputLogs": "new-only"
+		},
+		"test": {
+			"dependsOn": [
+				"test:ci",
+				"test:deploy",
+				"test:dev",
+				"test:docs",
+				"test:hooks",
+				"test:notices",
+				"test:release"
+			],
+			"inputs": [],
+			"outputs": []
+		},
+		"typecheck": {
+			"dependsOn": ["typecheck:notices"],
+			"inputs": [],
+			"outputs": []
+		},
+		"typecheck:notices": {
+			"dependsOn": ["^source"],
+			"inputs": ["package.json", "notices/**", "$TURBO_ROOT$/configs/**"],
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		}
 	}
 }

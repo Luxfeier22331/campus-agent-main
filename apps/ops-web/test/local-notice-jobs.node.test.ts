@@ -32,12 +32,21 @@ describe("local notice jobs", () => {
 			env: { EXISTING: "preserved", INTERNAL_PORTAL_NOTICE_START_DATE: "2026-08-01" },
 		});
 		expect(localNoticeCommand({ operation: "notice-classify-missing" }, {}).args).toEqual([
+			"--dir",
+			"jobs/notice-classifier",
 			"run",
-			"notice:classify:job:local",
+			"classify:local",
 		]);
 		expect(
 			localNoticeCommand({ noticeId: 354516, operation: "notice-classify-one" }, {}).args,
-		).toEqual(["run", "notice:classify:job:local", "--notice-id", "354516"]);
+		).toEqual([
+			"--dir",
+			"jobs/notice-classifier",
+			"run",
+			"classify:local",
+			"--notice-id",
+			"354516",
+		]);
 		expect(localNoticeCommand({ operation: "notice-publish-pending" }, {}).args).toEqual([
 			"--filter",
 			"notice-publisher",

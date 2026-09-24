@@ -40,7 +40,7 @@
 				"$TURBO_ROOT$/configs/sources/internal-portal.json"
 			]
 		},
-		"test": {
+		"test:unit": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",

@@ -15,6 +15,12 @@ const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
 const ENVIRONMENT_PREFIXED_CONFIG = /\b(?:STAGING|DEV|DEVELOPMENT|PROD|PRODUCTION)_[A-Z0-9_]+\b/u;
 const SELF_HOSTED_RUNNER_LABELS = ["self-hosted", "Linux", "campus-ci"];
 
+test("PR tooling uses the grouped repository entry instead of workspace tests", async () => {
+	const workflow = await readFile(path.join(REPOSITORY_ROOT, ".github/workflows/pr.yml"), "utf8");
+	assert.match(workflow, /pnpm test:tooling --groups=/u);
+	assert.doesNotMatch(workflow, /pnpm test --groups=/u);
+});
+
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

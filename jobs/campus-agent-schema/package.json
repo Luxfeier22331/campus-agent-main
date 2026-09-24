@@ -11,8 +11,8 @@
 		"new": "tsx src/cli.ts new",
 		"test:migration-integration": "tsx --test test/*.integration.ts",
 		"status": "tsx src/cli.ts status",
-		"test": "tsx --test test/*.test.ts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "tsx --test test/*.test.ts"
 	},
 	"dependencies": {
 		"drizzle-orm": "1.0.0-rc.4",

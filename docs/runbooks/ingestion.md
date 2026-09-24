@@ -18,13 +18,13 @@ run ledger 或自动索引发布；通知分类 Job 是独立的一次性阶段�
 - 通知采集、分类和发布共享 `notices.*`；本地和集群都由 `campus-agent-schema` 安装；
 - source 与 derived bucket 使用各自对象存储凭据；
 - Ops Web 与 internal-portal-collection 来自同一 source revision；
-- 使用本地命令时，已通过 `internal-portal:auth:pull` 从 Ops Web 解析当前有效 TGC；使用 Job 入口时，
+- 使用本地命令时，已通过 `pnpm --dir jobs/internal-portal-collection auth:pull` 从 Ops Web 解析当前有效 TGC；使用 Job 入口时，
   已提供 `OPS_WEB_INTERNAL_URL` 和既有内部 token。
 
 ## 数据库与本地进程
 
 ```bash
-pnpm dev:shared-reconcile
+pnpm dev:init -- --target core
 pnpm dev:init -- --target internal-portal-collection
 pnpm --filter ops-web dev:api
 ```
@@ -40,7 +40,7 @@ schema，不执行重复 DDL。`notice-classifier` target 只生成 Model Config
 本地按门户库存分页采集文件发布：
 
 ```bash
-pnpm internal-portal:collect -- --mode file-sync
+pnpm --dir jobs/internal-portal-collection collect -- --mode file-sync
 ```
 
 命令按顺序逐条处理。已有合法 `source.json` 时复用；普通单项失败继续并汇总，认证失败立即终止。结果只在
@@ -55,14 +55,14 @@ source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同�
 
 ```bash
 pnpm dev:init -- --target internal-portal-collection
-pnpm internal-portal:auth:pull
-pnpm internal-portal:auth:check
+pnpm --dir jobs/internal-portal-collection auth:pull
+pnpm --dir jobs/internal-portal-collection auth:check
 ```
 
 `internal-portal-collection` target 会准备当前 worktree 的 schema、通知分类 seed、Ops Web 和采集器环境；
 采集器环境包含 source bucket 与通知数据库连接。`notice-classifier` target 同样准备 schema、通知分类 seed，
 并生成 Model Config URL 与分类器环境。两者不维护 package-level 初始化入口，也不重复执行 DDL。
-`internal-portal:auth:pull` 按 [内部门户认证](./portal-auth.md) 使用当前 Kubernetes context 和 namespace 调用 Ops Web
+`pnpm --dir jobs/internal-portal-collection auth:pull` 按 [内部门户认证](./portal-auth.md) 使用当前 Kubernetes context 和 namespace 调用 Ops Web
 凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
 本地通知命令随后直接使用拉取到的 TGC，不需要后台编排器。
 
@@ -80,8 +80,8 @@ pnpm internal-portal:auth:check
 
 ```bash
 NOTICE_START_DATE=2025-12-01
-pnpm internal-portal:collect -- --mode notice-backfill --start-date "$NOTICE_START_DATE"
-pnpm internal-portal:collect -- --mode notice-sync
+pnpm --dir jobs/internal-portal-collection collect -- --mode notice-backfill --start-date "$NOTICE_START_DATE"
+pnpm --dir jobs/internal-portal-collection collect -- --mode notice-sync
 ```
 
 回填起点必须是本次明确选择的日期；当前首次初始化约定为 `2025-12-01`。没有完整 v3 区间时，sync
@@ -102,7 +102,7 @@ sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查
 分类脚本只读本地来源并把结果写到标准输出：
 
 ```bash
-pnpm notice:classify --concurrency 2 --notice-id "$NOTICE_ID"
+pnpm --dir scripts notice:classify --concurrency 2 --notice-id "$NOTICE_ID"
 ```
 
 该命令是 JSONL stdout 交接和离线模型比较入口，由调用进程显式提供模型连接，生成一次性的
@@ -123,7 +123,7 @@ NOTICE_CLASSIFICATIONS=/absolute/path/to/classifications.jsonl
 ```bash
 kubectl port-forward svc/model-config 18003:8000
 
-pnpm notice:classify:job:local \
+pnpm --dir jobs/notice-classifier classify:local \
   --model-config-url http://127.0.0.1:18003 \
   --notice-id "$NOTICE_ID" \
   --concurrency 2
@@ -289,18 +289,18 @@ Kubernetes 的 `BackoffLimitExceeded` 表示 Job 控制器观察到 Pod 失败�
 ## 验证
 
 ```bash
-pnpm --dir packages/contracts check
+pnpm --dir packages/contracts contracts:check
 pnpm exec turbo run typecheck test --filter=ops-web --filter=ingestion-contracts --filter=internal-portal-collection --concurrency=1 --summarize
 pnpm --dir apps/ops-web test:database-integration
-pnpm notice:classify:typecheck
+pnpm --dir scripts typecheck:notices
 pnpm exec tsx --test scripts/notices/*.test.ts
 pnpm --filter notice-classifier typecheck
-pnpm --filter notice-classifier test
+pnpm test --filter=notice-classifier
 pnpm --filter notice-classifier build
 pnpm --filter notice-publisher typecheck
-pnpm --filter notice-publisher test
-pnpm --filter app-api test
-pnpm --filter campus-web test
+pnpm test --filter=notice-publisher
+pnpm test --filter=app-api
+pnpm test --filter=campus-web
 scripts/infra/validate.sh
 ```
 

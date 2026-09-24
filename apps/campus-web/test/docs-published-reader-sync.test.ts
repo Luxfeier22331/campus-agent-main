@@ -175,7 +175,7 @@ describe("campus-web published reader sync", () => {
 		);
 		expect(JSON.parse(siteIndexText)).toEqual(catalog.siteIndex);
 		expect(siteIndexText).toContain("leave-policy");
-		expect(publicSearchText).toContain("campus_docs_search_index.v2");
+		expect(publicSearchText).toContain("campus_docs_search_index.v3");
 		expect(publicSearchText).toContain("学生应按时参加教学活动");
 		expect(publicSearchText).toContain("六、课程地图");
 		expect(publicSearchText).toContain("course-map-heading");

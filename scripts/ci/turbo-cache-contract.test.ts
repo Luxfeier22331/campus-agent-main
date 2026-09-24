@@ -74,7 +74,7 @@ test("Turbo affected selection uses task inputs and no phantom CI tasks", () => 
 	);
 	assert.equal(tasks["execution-control#build"], undefined);
 
-	for (const task of ["typecheck", "test", "test:worker"]) {
+	for (const task of ["typecheck", "test:unit", "test:worker"]) {
 		const inputs = inputsFor(tasks, task);
 		assert(inputs.includes("$TURBO_DEFAULT$"), `${task} must include package defaults`);
 	}
@@ -169,7 +169,7 @@ test("Campus Web formal build remains uncached because it reads mutable object s
 test("candidate build tasks declare their package-external artifact inputs", () => {
 	assertTaskInputs(
 		"apps/app-api/turbo.json",
-		["build:worker"],
+		["build"],
 		[
 			"$TURBO_ROOT$/configs/sources/internal-portal.json",
 			"$TURBO_ROOT$/packages/contracts/package.json",
@@ -178,7 +178,7 @@ test("candidate build tasks declare their package-external artifact inputs", () 
 	);
 	assertTaskInputs(
 		"apps/campus-web/turbo.json",
-		["build", "build:test", "build:worker"],
+		["build", "build:fixture"],
 		[
 			"$TURBO_ROOT$/configs/sources/internal-portal.json",
 			"$TURBO_ROOT$/packages/contracts/package.json",
@@ -226,7 +226,7 @@ test("candidate build tasks declare their package-external artifact inputs", () 
 	);
 	assertTaskInputs(
 		"jobs/internal-portal-collection/turbo.json",
-		["test", "typecheck"],
+		["test:unit", "typecheck"],
 		["$TURBO_ROOT$/configs/sources/internal-portal.json"],
 	);
 });
@@ -251,7 +251,7 @@ test("tasks compiling the internal portal descriptor declare it as an affected i
 	assertTaskInputs("turbo.json", ["ops-web#typecheck"], [descriptor]);
 	assertTaskInputs(
 		"jobs/notice-publisher/turbo.json",
-		["build", "test", "typecheck"],
+		["build", "test:unit", "typecheck"],
 		[descriptor],
 	);
 });

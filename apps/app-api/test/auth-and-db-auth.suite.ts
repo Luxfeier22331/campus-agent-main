@@ -51,7 +51,7 @@ export function registerAppApiAuthConfigSuite() {
 				revokeSessionsOnPasswordReset: true,
 			});
 			expect(config.session).toMatchObject({
-				expiresIn: 60 * 60 * 24 * 7,
+				expiresIn: 60 * 60 * 24 * 30,
 				storeSessionInDatabase: true,
 				updateAge: 60 * 60 * 24,
 			});

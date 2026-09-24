@@ -8,8 +8,8 @@
 		"campus-langfuse": "./src/cli.ts"
 	},
 	"scripts": {
-		"test": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
 	},
 	"dependencies": {
 		"@langfuse/client": "^5.11.1"

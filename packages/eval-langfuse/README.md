@@ -19,7 +19,7 @@ TypeScript Agent 用例、产品路径评测和 Langfuse trace/score 适配 pack
 
 ```bash
 pnpm --dir packages/eval-langfuse typecheck
-pnpm --dir packages/eval-langfuse test
+pnpm test --filter=eval-langfuse
 pnpm --dir packages/eval-langfuse exec tsx src/cli.ts <command> --json
 ```
 

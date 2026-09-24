@@ -1,11 +1,9 @@
-name: campus-agent-local
-
 services:
   postgres:
     image: postgres:16@sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
     environment:
       POSTGRES_DB: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_USER: postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
@@ -13,11 +11,9 @@ services:
       timeout: 3s
       retries: 30
     networks:
-      data-plane:
-        aliases:
-          - campus-agent-postgres
+      - data-plane
     ports:
-      - "127.0.0.1:5432:5432"
+      - "${INFRA_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -25,22 +21,20 @@ services:
   object-store:
     image: rustfs/rustfs:1.0.0-beta.12@sha256:41fe89380f4120a337790c02af192c3fe7bb55c3edc2e6e9357b487b47c6ab21
     environment:
-      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY}
       RUSTFS_CONSOLE_ADDRESS: ":9001"
       RUSTFS_OBS_LOG_STDOUT_ENABLED: "true"
-      RUSTFS_SECRET_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/health/ready"]
       interval: 2s
       timeout: 2s
       retries: 30
     networks:
-      data-plane:
-        aliases:
-          - object-store
+      - data-plane
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "${INFRA_HOST:-127.0.0.1}:${OBJECT_STORE_PORT:-9000}:9000"
+      - "${INFRA_HOST:-127.0.0.1}:${OBJECT_STORE_CONSOLE_PORT:-9001}:9001"
     restart: unless-stopped
     volumes:
       - object-store-data:/data
@@ -49,7 +43,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: temporal
-      POSTGRES_PASSWORD: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:?set TEMPORAL_POSTGRES_PASSWORD}
       POSTGRES_USER: temporal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
@@ -57,7 +51,7 @@ services:
       timeout: 3s
       retries: 60
     networks:
-      - temporal
+      - data-plane
     restart: unless-stopped
     volumes:
       - temporal-postgres-data:/var/lib/postgresql/data
@@ -72,7 +66,7 @@ services:
       DB_PORT: 5432
       POSTGRES_SEEDS: temporal-postgres
       POSTGRES_USER: temporal
-      POSTGRES_PWD: temporal
+      POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD:?set TEMPORAL_POSTGRES_PASSWORD}
       VISIBILITY_STORE: visibility
       TEMPORAL_ADDRESS: temporal:7233
     healthcheck:
@@ -83,9 +77,9 @@ services:
       timeout: 3s
       retries: 60
     networks:
-      - temporal
+      - data-plane
     ports:
-      - "127.0.0.1:7233:7233"
+      - "${INFRA_HOST:-127.0.0.1}:${TEMPORAL_PORT:-7233}:7233"
     restart: unless-stopped
 
   temporal-ui:
@@ -96,26 +90,55 @@ services:
         condition: service_healthy
     environment:
       TEMPORAL_ADDRESS: temporal:7233
-      TEMPORAL_CORS_ORIGINS: http://localhost:8233
+      TEMPORAL_CORS_ORIGINS: http://localhost:${TEMPORAL_UI_PORT:-8233}
     networks:
-      - temporal
+      - data-plane
     ports:
-      - "127.0.0.1:8233:8080"
+      - "${INFRA_HOST:-127.0.0.1}:${TEMPORAL_UI_PORT:-8233}:8080"
     restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.19.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "${INFRA_HOST:-127.0.0.1}:${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${INFRA_HOST:-127.0.0.1}:${QDRANT_GRPC_PORT:-6334}:6334"
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY}
+      QDRANT__SERVICE__READ_ONLY_API_KEY: ${QDRANT_READ_ONLY_API_KEY:?set QDRANT_READ_ONLY_API_KEY}
+      QDRANT__SERVICE__ENABLE_TLS: "false"
+      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
+    volumes:
+      - qdrant-storage:/qdrant/storage
+      - qdrant-snapshots:/qdrant/snapshots
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'bash -lc ''timeout 2 bash -c "</dev/tcp/127.0.0.1/6333"'''
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - data-plane
 
 networks:
   data-plane:
-    external: true
-    name: campus-agent-data-plane
-  temporal:
 
 volumes:
   object-store-data:
-    external: true
-    name: local_object-store-data
   postgres-data:
-    external: true
-    name: local_postgres-data
   temporal-postgres-data:
-    external: true
-    name: local_temporal-shared-postgres-data
+  qdrant-storage:
+  qdrant-snapshots:

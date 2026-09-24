@@ -9,8 +9,8 @@
 		"auth:check": "tsx adapters/internal-portal/src/auth-cli.ts check",
 		"auth:pull": "tsx adapters/internal-portal/src/auth-cli.ts pull",
 		"collect": "tsx adapters/internal-portal/src/collection-cli.ts",
-		"test": "vitest run -c vitest.fast.config.mts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run -c vitest.fast.config.mts"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1132.0",

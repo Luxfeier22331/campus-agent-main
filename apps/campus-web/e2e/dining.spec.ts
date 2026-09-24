@@ -12,10 +12,8 @@ async function openDiningPage(page: Page, expectMap = true): Promise<void> {
 }
 
 async function readFloorplanScale(page: Page): Promise<number> {
-	return page
-		.getByTestId("dining-inline-floorplan")
-		.locator(".react-transform-component")
-		.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
+	const label = await page.getByLabel("地图缩放比例").textContent();
+	return Number.parseFloat(label?.replace("%", "") ?? "NaN") / 100;
 }
 
 async function selectFirstDiningWindow(page: Page): Promise<void> {

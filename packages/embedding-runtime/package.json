@@ -8,8 +8,8 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"test": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
 	},
 	"devDependencies": {
 		"@types/node": "^24.13.4",

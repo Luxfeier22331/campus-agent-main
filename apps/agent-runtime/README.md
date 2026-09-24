@@ -117,7 +117,7 @@ evidence 身份，成功时 `sourceLink.href` 和页面标题指向原站；解�
 pnpm --filter agent-runtime dev
 pnpm --filter agent-runtime build
 pnpm --filter agent-runtime typecheck
-pnpm --filter agent-runtime test
+pnpm test --filter=agent-runtime
 ```
 
 ## 相关文档

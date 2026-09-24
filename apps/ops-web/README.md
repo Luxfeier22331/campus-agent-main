@@ -86,13 +86,14 @@ Ops Web 的内部解析接口。
 ## 本地命令
 
 ```bash
-pnpm dev:shared-reconcile
+pnpm dev:init -- --target core
 pnpm dev:init -- --target ops-web
 pnpm --filter ops-web dev:api
 pnpm --filter ops-web dev:web
 pnpm --filter ops-web dev:fixture
 pnpm --dir apps/ops-web start
-pnpm --dir apps/ops-web check
+pnpm check --filter=ops-web
+pnpm build --filter=ops-web
 pnpm --dir apps/ops-web test:browser
 pnpm --dir apps/ops-web test:database-integration
 ```
@@ -101,7 +102,7 @@ pnpm --dir apps/ops-web test:database-integration
 `campus-agent-schema` 安装统一 schema 和授权，再写入班车 baseline、通知分类与 Dining 本地 seed；
 新的本地 profile 不需要单独初始化 notice-publisher。`test:database-integration` 验证当前统一 schema 拓扑。
 
-普通 `test` 按 Node（`.test.ts`）和 DOM（`.test.tsx`）分组串行执行；有模块 mock 的文件以
+根 `pnpm test --filter=ops-web` 按 Node（`.test.ts`）和 DOM（`.test.tsx`）执行分组任务；有模块 mock 的文件以
 `.isolated.test.*` 保留隔离，其余文件共享环境并在每个测试后清理。四组分别缓存；只有 DOM 测试
 加载 jsdom 和组件清理逻辑，需要内存后端的测试显式创建 fixture。普通测试的缓存不依赖 app-api
 普通测试结果，跨应用数据库 adapter 由集成任务的输入覆盖。取舍见

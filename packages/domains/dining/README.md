@@ -14,5 +14,5 @@
 
 ```bash
 pnpm --dir packages/domains/dining typecheck
-pnpm --dir packages/domains/dining test
+pnpm test --filter=@campus-agent/dining
 ```

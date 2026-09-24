@@ -46,7 +46,7 @@ pnpm install
 pnpm check
 ```
 
-根据改动范围选择所属模块检查。使用 `pnpm verify --source` 验证全量源码，`pnpm verify` 还包含数据库集成和配置检查。
+根据改动范围选择所属模块检查。使用 `pnpm check` 验证全量源码，`pnpm verify` 还包含数据库集成和配置检查。
 完整命令和适用范围见
 [测试与验证](./docs/reference/verification.md)。需要数据库、供应商、对象存储或私有内容的命令
 必须显式提供所属环境配置。

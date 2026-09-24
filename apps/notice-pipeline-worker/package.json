@@ -9,7 +9,7 @@
 		"start": "node --import=tsx src/worker.ts",
 		"schedule:init": "node --env-file-if-exists=.env.local --import=tsx src/schedule-cli.ts",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
+		"test:unit": "vitest run",
 		"build": "node --import=tsx src/build.ts"
 	},
 	"dependencies": {

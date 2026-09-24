@@ -28,7 +28,7 @@ async function handleMessage(message: DocsSearchWorkerRequest): Promise<void> {
 			}
 			initializedKey = message.key;
 			const index = await readDocsSearchIndex(message.searchIndexUrl);
-			engine = createDocsSearchEngine([index], message.siteIndex);
+			engine = createDocsSearchEngine(index, message.siteIndex);
 			scope.postMessage({ type: "ready" });
 		} catch (error) {
 			scope.postMessage({ message: errorMessage(error), type: "error" });

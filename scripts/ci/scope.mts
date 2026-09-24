@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { BUILD_TASKS, isEvidenceTask, NATIVE_TASKS, NODE_TASKS } from "./validation-profiles.mts";
+import { BUILD_TASKS, NATIVE_TASKS, NODE_TASKS } from "./validation-profiles.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 
@@ -106,7 +106,10 @@ export function parseTurboTasks(source: string): ScopeTask[] {
 				typeof (task as { package?: unknown }).package === "string" &&
 				typeof (task as { task?: unknown }).task === "string" &&
 				typeof (task as { command?: unknown }).command === "string" &&
-				(task as { command: string }).command !== "<NONEXISTENT>"
+				((task as { command: string }).command !== "<NONEXISTENT>" ||
+					(["test", "typecheck", "build:check"].includes((task as { task: string }).task) &&
+						Array.isArray((task as { dependencies?: unknown }).dependencies) &&
+						(task as { dependencies: string[] }).dependencies.length > 0))
 			) {
 				return [
 					{
@@ -117,7 +120,6 @@ export function parseTurboTasks(source: string): ScopeTask[] {
 			}
 			return [];
 		})
-		.filter(isEvidenceTask)
 		.sort((left, right) =>
 			`${left.package}\0${left.task}`.localeCompare(`${right.package}\0${right.task}`),
 		);

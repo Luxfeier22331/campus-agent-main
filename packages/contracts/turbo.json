@@ -2,32 +2,6 @@
 	"$schema": "https://turborepo.com/schema.json",
 	"extends": ["//"],
 	"tasks": {
-		"check": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/apps/app-api/src/modules/integration/generated/tool-execution-contract.ts",
-				"$TURBO_ROOT$/apps/execution-control/internal/contracts/tool_execution_contract.go",
-				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
-				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",
-				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
-				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
-			]
-		},
-		"test": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
-				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",
-				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
-				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
-			]
-		},
 		"source": {
 			"inputs": [
 				"package.json",
@@ -41,6 +15,44 @@
 				"!**/*.test.*",
 				"!**/*.spec.*",
 				"test/campus-docs/**"
+			]
+		},
+		"test:unit": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
+			]
+		},
+		"contracts:check": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/apps/app-api/src/modules/integration/generated/tool-execution-contract.ts",
+				"$TURBO_ROOT$/apps/execution-control/internal/contracts/tool_execution_contract.go",
+				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
+			]
+		},
+		"test:generators": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
 			]
 		}
 	}

@@ -76,7 +76,7 @@ hooks；不会引用其他 checkout 的 Node 或 Python 环境。生成的 `.git
 因此只需要复制构建所需的 workspace 文件。
 
 internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的 source bucket、通知数据库和 Ops Web
-内部接口配置，以及 `internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令
+内部接口配置，以及 `pnpm --dir jobs/internal-portal-collection auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令
 保留其他托管字段、原子替换该值并设置 `0600`；失败不改文件，后续 `dev:init` 保留已有 TGC。可选门户
 代理由进程环境显式提供，且进程环境具有最高优先级。linked worktree 首次初始化时，如果 main checkout
 当前采集目录的托管 `.env.local` 已有 TGC，则将它导入该文件；之后 worktree 自己通过 `auth:pull` 更新的值
@@ -87,7 +87,7 @@ notice-classifier 的托管 `.env.local` 保存本 worktree 的通知数据库�
 Model Config 一次读取当前完整配置。
 
 Campus Docs builder 的托管 `.env.local` 保存对象存储 endpoint 和 derived bucket 写入凭据；derived bucket
-固定为共享的 `campus-agent-derived`。统一 Campus RAG publisher 的托管 `.env.local` 保存
+使用当前 profile 的 `OBJECT_STORE_BUCKET_DERIVED`。Campus Web 与其他应用共用当前 profile 的 `OBJECT_STORE_*` 配置。统一 Campus RAG publisher 的托管 `.env.local` 保存
 `EXECUTION_CONTROL_DATABASE_URL`、Qdrant endpoint/API key、对象存储 endpoint、当前 worktree 的
 `OBJECT_STORE_BUCKET_DERIVED` 和该 bucket 的读写凭据；写入凭据用于本地制品导入。Qdrant 连接由
 `scripts/dev` 在初始化时读取正在运行的本地 Compose 容器的 writer key 和 HTTP 映射端口，经认证检查后
@@ -166,7 +166,7 @@ Campus Web 的文档准备入口按以下顺序合并配置，后者覆盖前者
 命令配置只用于显式切换文档来源；普通本地构建直接使用 `dev:init` 生成的应用配置，不需要手工
 `source`。对象存储地址和派生桶凭据只服务本地或受信任的来源准备与正式构建，不投递到
 PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGET` 与
-`CAMPUS_WEB_DOCS_CONTENT_ROOT` 由构建脚本临时生成，同样不进入环境配置。`build:test` 使用固定测试
+`CAMPUS_WEB_DOCS_CONTENT_ROOT` 由构建脚本临时生成，同样不进入环境配置。`build:fixture` 使用固定测试
 输入，不读取以上对象存储配置。
 
 ## 读取与覆盖
@@ -180,21 +180,24 @@ PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGE
 
 Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次显式运行 `pnpm dev:init` 时获得独立
 profile、按 target 选择的应用文件、端口、数据库和所需的实例资源；linked worktree 同时按上述白名单从
-main checkout 补充维护者共享的 provider 连接和已有门户 TGC。PostgreSQL、RustFS 与 Temporal 容器、网络
-和数据卷由同一机器上的 worktree 共享，但普通 `dev:init` 不启动或 reconcile 它们。
+main checkout 补充维护者共享的 provider 连接和已有门户 TGC。PostgreSQL、RustFS、Qdrant 与 Temporal 容器、网络和数据卷按 worktree 独立，由当前 worktree 的 `dev:init` 启动和检查。真实检索数据由
+当前 worktree 的 `pnpm dev:init -- --target core --data cluster --context <context> --namespace <namespace>` 同步；
+每个 worktree 可显式请求集群只读 Secret，并只写自己的 Qdrant 和 current index。
 
-只有 canonical checkout 可以运行 `pnpm dev:shared-reconcile` 供应或修复共享依赖；linked worktree 只在
-readiness probe 通过时复用。execution-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享
-其他 worktree 的宿主进程。应用仍只消费 `OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入
-应用环境合同。Campus Web 文档合同固定使用共享 `campus-agent-derived`；缺少
+每个 worktree 都由自己的 profile 供应并探测本地依赖。execution-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享
+其他 worktree 的宿主进程。应用统一消费当前 profile 的 `OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入
+应用环境合同。Campus Web 文档使用当前 profile 的 derived bucket；缺少
 `campus-docs/source.json` 时由 Campus Web docs owner 写入确定性样例，不覆盖已有来源。
 
+Execution Control 通过 `EXECUTION_CONTROL_DATABASE_URL` 读取当前 profile 的
+`campus_docs_serving.current_index`；该连接使用独立的本地只读角色，运行记录仍使用当前 worktree 的
+`EXECUTION_CONTROL_DATABASE_URL`。
+
 profile 位于当前 worktree 的 `var/dev/profile.json`，机器级实例注册表位于
-`${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.json`。旧的 v1 profile/registry 会在
-首次成功初始化时原地采用为 v2，数据库、bucket 和 namespace 不会因格式迁移而删除；两者只保存资源身份，
+`${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.json`。只支持 schema v3；旧的 v1/v2 profile 或 registry 会 fail-closed，必须人工删除旧文件和旧资源后重新初始化，不会自动转换、迁移或写回；profile 只保存资源身份，
 不保存外部凭据。使用 `pnpm dev:instances` 查看 metadata-only 清单，使用
 `pnpm dev:instances -- --verify` 才探测真实资源；`pnpm dev:doctor` 检查当前 target 的配置完整性。
-`pnpm dev` 只读取 ready 状态，不执行初始化、迁移或 seed。共享依赖不可探测时结果为 `unknown`，不会据此
+`pnpm dev` 只读取 ready 状态，不执行初始化、迁移或 seed。当前 profile 依赖不可探测时结果为 `unknown`，不会据此
 自动创建或删除实例资源。
 
 stale 实例不会自动清理。先运行 `pnpm dev:prune` 列出 stale 记录，再明确指定单个实例和确认值执行清理；
@@ -202,7 +205,7 @@ stale 实例不会自动清理。先运行 `pnpm dev:prune` 列出 stale 记录�
 但实例注册会保留，待依赖恢复后重试。
 
 `pnpm dev:destroy` 默认只打印影响范围。只有同时提供同一个实例 ID 才会删除该实例的 database、按需创建的
-derived bucket、Temporal namespace、托管环境文件和注册记录；它不会启动或重建共享容器，也不会删除共享
+derived bucket、Temporal namespace、托管环境文件和注册记录；它不会启动或重建其他 worktree 的容器，也不会删除其他实例
 source/docs bucket、网络或数据卷：
 
     pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>

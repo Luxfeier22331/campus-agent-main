@@ -211,9 +211,6 @@
 			"env": ["CAMPUS_NODE_RUNTIME"],
 			"outputs": [],
 			"outputLogs": "new-only"
-		},
-		"test": {
-			"cache": false
 		}
 	}
 }

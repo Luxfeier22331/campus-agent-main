@@ -7,11 +7,16 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Client } from "pg";
+import { ensureLocalInfrastructureSecrets } from "./infrastructure-secrets.ts";
 import { diagnoseProductData, initializeProductData } from "./product-data.ts";
 import { parseProductDataOptions } from "./product-data-options.ts";
 import { createProductSeed } from "./product-data-seed.ts";
 import { readProductSeedIndex } from "./product-data-seed-index.ts";
-import { calculateLocalDevPorts, type LocalDevProfileV2 } from "./profile.ts";
+import {
+	calculateLocalDevInfrastructurePorts,
+	calculateLocalDevPorts,
+	type LocalDevProfile,
+} from "./profile.ts";
 
 async function fixture(t: TestContext) {
 	const directory = await mkdtemp(join(tmpdir(), "product-diagnosis-"));
@@ -112,7 +117,7 @@ async function fixture(t: TestContext) {
 		}
 		return Response.json({ result }, { status: path === "/collections" ? 200 : state.indexStatus });
 	});
-	const profile: LocalDevProfileV2 = {
+	const profile: LocalDevProfile = {
 		bucketName: "test",
 		createdAt: "2026-09-18",
 		databaseName: "test",
@@ -120,10 +125,14 @@ async function fixture(t: TestContext) {
 		ports: calculateLocalDevPorts(99),
 		repoKey: "test",
 		resourceKey: "test",
-		schemaVersion: 2,
+		schemaVersion: 3,
+		infraPorts: calculateLocalDevInfrastructurePorts(99),
+		infraProject: "campus-agent-test",
+		sourceBucketName: "test-source",
 		slot: 99,
 		worktreePath: directory,
 	};
+	ensureLocalInfrastructureSecrets(directory, profile);
 	return { directory, profile, seed, state, queries, reads, requests };
 }
 
@@ -191,12 +200,8 @@ test("repeated seed initialization preserves edits without object traversal or i
 	assert(f.reads.every((key) => key === "campus-docs/source.json"));
 	assert(!f.requests.some((path) => path.endsWith("/scroll")));
 	assert(!f.queries.some((sql) => sql.startsWith("select row_to_json")));
-	await assert.rejects(
-		initializeProductData(
-			f.directory,
-			f.profile,
-			parseProductDataOptions(["--data", "cluster", "--context", "test", "--namespace", "test"]),
-		),
-		/cluster pull requires --replace/u,
+	assert.throws(
+		() => parseProductDataOptions(["--data", "cluster"]),
+		/Cluster initialization requires explicit --context and --namespace/u,
 	);
 });

@@ -21,11 +21,11 @@
 		"./citation-diagnostic": "./src/citation-diagnostic.ts"
 	},
 	"scripts": {
-		"check": "pnpm exec tsx ./scripts/generate_contracts.ts --check && pnpm exec tsx ./scripts/check_contract_schemas.ts",
 		"generate": "pnpm exec tsx ./scripts/generate_contracts.ts",
-		"test": "vitest run && pnpm run test:generators",
 		"test:generators": "pnpm exec tsx ./scripts/check_contract_schemas.ts --self-test && pnpm exec tsx ./scripts/generate_contracts.ts --self-test",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run",
+		"contracts:check": "pnpm exec tsx ./scripts/generate_contracts.ts --check && pnpm exec tsx ./scripts/check_contract_schemas.ts"
 	},
 	"dependencies": {
 		"ajv": "^8.20.0",

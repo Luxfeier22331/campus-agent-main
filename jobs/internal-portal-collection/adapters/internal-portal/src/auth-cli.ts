@@ -332,7 +332,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 }
 
 function usageError(): Error {
-	return new Error("Usage: pnpm internal-portal:auth:pull | pnpm internal-portal:auth:check");
+	return new Error("Usage: pnpm --dir jobs/internal-portal-collection auth:pull | pnpm --dir jobs/internal-portal-collection auth:check");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

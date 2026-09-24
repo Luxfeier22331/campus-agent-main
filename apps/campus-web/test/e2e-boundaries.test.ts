@@ -8,7 +8,7 @@ describe("campus web browser test boundaries", () => {
 
 		expect(config).toContain('testIgnore: ["worker/**", "ui-baseline.spec.ts"]');
 		expect(config).toContain("CAMPUS_WEB_E2E_PREBUILT");
-		expect(config).toContain("pnpm run build:test");
+		expect(config).toContain("pnpm run build:fixture");
 		expect(config).toContain('trace: "retain-on-failure"');
 		expect(config).toContain("vite preview");
 		expect(config).not.toContain("vite --host");
@@ -22,7 +22,7 @@ describe("campus web browser test boundaries", () => {
 		const turboConfig = readFileSync("turbo.json", "utf8");
 
 		expect(workerConfig).toContain("CAMPUS_WEB_E2E_PREBUILT");
-		expect(workerConfig).toContain("pnpm run build:worker &&");
+		expect(workerConfig).toContain("pnpm run build:fixture &&");
 		expect(workerConfig).toContain("pnpm exec wrangler dev --config dist/campus_web/wrangler.json");
 		expect(workerConfig).toContain("CAMPUS_WEB_E2E_APP_API_PORT");
 		expect(workerConfig).toMatch(/--var APP_API_BASE_URL:\$\{appApiURL\}/u);
@@ -30,7 +30,7 @@ describe("campus web browser test boundaries", () => {
 		expect(workerConfig.match(/reuseExistingServer: false/gu)).toHaveLength(2);
 		expect(workerConfig).not.toContain("globalSetup");
 		expect(workerConfig).not.toContain("pnpm exec vite --host");
-		expect(turboConfig).toContain('"build:test"');
+		expect(turboConfig).toContain('"build:fixture"');
 		expect(turboConfig).toContain('".generated/docs-content/sources/**"');
 		expect(turboConfig).toContain('".wrangler/deploy/**"');
 		expect(turboConfig).not.toContain("_docs-static");

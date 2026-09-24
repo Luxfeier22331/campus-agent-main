@@ -30,14 +30,14 @@
 				"CAMPUS_NODE_RUNTIME"
 			]
 		},
-		"test": {
+		"typecheck": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md"
 			]
 		},
-		"typecheck": {
+		"test:unit": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",

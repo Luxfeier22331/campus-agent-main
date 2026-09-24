@@ -9,6 +9,8 @@ import {
 	BUILD_TASKS,
 	NATIVE_TASKS,
 	PR_NODE_TASKS,
+	type RepositoryCheck,
+	repositoryChecksForFiles,
 	VALIDATION_PROFILES,
 	type ValidationProfile,
 	validationProfileMetadata,
@@ -22,10 +24,6 @@ export {
 	validationProfileMetadata,
 } from "./validation-profiles.mts";
 
-export type LightSurface = "config" | "contracts";
-
-const LIGHT_SURFACES: LightSurface[] = ["contracts", "config"];
-
 export interface ValidationPlan {
 	repositoryGroups: ToolingGroup[];
 	affectedPackages: string[];
@@ -34,7 +32,7 @@ export interface ValidationPlan {
 	imageBaselineRunId?: number;
 	base: string;
 	head: string;
-	lightSurfaces: LightSurface[];
+	lightSurfaces: RepositoryCheck[];
 	validationProfiles: ValidationProfile[];
 	profileDecisions: Array<{ profile: ValidationProfile; selected: boolean; reason: string }>;
 	affectedTasks: AffectedScope["tasks"];
@@ -62,24 +60,6 @@ function selectAffectedPackages(scope: AffectedScope): string[] {
 				.map(({ package: packageName }) => packageName),
 		),
 	].sort((left, right) => left.localeCompare(right));
-}
-
-function selectLightSurfaces(files: readonly string[]): LightSurface[] {
-	const selected = new Set<LightSurface>();
-	if (
-		changesPath(files, "packages/contracts") ||
-		changesPath(files, "configs/runtime") ||
-		changesPath(files, "docs/contracts/schemas")
-	) {
-		selected.add("contracts");
-	}
-	if (
-		changesPath(files, ".github") ||
-		files.some((file) => file === "flake.nix" || file === "flake.lock" || file.startsWith("nix/"))
-	) {
-		selected.add("config");
-	}
-	return LIGHT_SURFACES.filter((surface) => selected.has(surface));
 }
 
 function selectValidationProfiles(
@@ -134,7 +114,7 @@ export function validationPlanFromScope(
 		images,
 		base: scope.base,
 		head: scope.head,
-		lightSurfaces: selectLightSurfaces(scope.changedFiles),
+		lightSurfaces: repositoryChecksForFiles(scope.changedFiles),
 		validationProfiles,
 		affectedTasks: scope.tasks,
 		changedFiles: scope.changedFiles,

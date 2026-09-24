@@ -38,7 +38,7 @@ export function SignInForm(props: SharedAuthFormProps) {
 	const rememberMeId = useId();
 	const retryAfter = useAuthRetryAfter();
 	const form = useForm<SignInValues>({
-		defaultValues: { email: "", password: "", rememberMe: false },
+		defaultValues: { email: "", password: "", rememberMe: true },
 		resolver: zodResolver(signInSchema),
 	});
 

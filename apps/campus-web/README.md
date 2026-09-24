@@ -28,15 +28,17 @@ Conversation coordinator 对已受理请求的传输断线自动恢复一次，�
 ## 本地命令
 
 ```bash
-pnpm dev:shared-reconcile
+pnpm dev:init -- --target core
 pnpm dev:init -- --target core
 pnpm --dir apps/campus-web dev
-pnpm --dir apps/campus-web test
+pnpm test --filter=campus-web
 pnpm --dir apps/campus-web build
-pnpm --dir apps/campus-web typecheck
+pnpm typecheck --filter=campus-web
 ```
 
-`test` 串行运行 Node/DOM 的普通组与隔离组；CI 分别缓存四个叶任务，不重复执行聚合入口。
+根 `pnpm test --filter=campus-web` 运行 Node/DOM 普通组、隔离组和本地 Worker 测试，分别缓存叶任务。
+`pnpm build:check --filter=campus-web` 使用本地环境和合成文档内容；生产 `build` 仍读取发布文档，
+需要配置文档对象存储。完整 E2E 构建一次 fixture，独立套件自行准备构建。
 只有需要模块 mock 的测试使用 `.isolated.test.*`；公共 setup 在每个测试后恢复环境和清理 DOM。
 
 `style-dev.html` 是独立的本地组件展示入口。运行 `pnpm dev:init -- --target core` 后访问 `/style-dev.html#overview`，

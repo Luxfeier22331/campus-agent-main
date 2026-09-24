@@ -14,7 +14,7 @@
 				"wrangler*.toml"
 			]
 		},
-		"build:worker": {
+		"build": {
 			"inputs": [
 				"package.json",
 				"public/**",

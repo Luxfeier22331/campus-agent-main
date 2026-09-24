@@ -9,8 +9,8 @@
 		"build": "esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:@aws-sdk/client-s3 --external:jsdom --external:pg && node --input-type=module -e \"import('./dist/cli.js')\"",
 		"publish": "tsx src/cli.ts publish",
 		"republish": "tsx src/cli.ts republish",
-		"test": "vitest run --exclude 'test/**/*.integration.test.ts'",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run --exclude 'test/**/*.integration.test.ts'"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1132.0",

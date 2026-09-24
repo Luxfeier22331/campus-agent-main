@@ -22,9 +22,9 @@ Cron、域名和 Worker 变量由 Wrangler 配置、发布适配器和环境仓�
 
 ```bash
 pnpm --dir apps/status-web typecheck
-pnpm --dir apps/status-web test:node
+pnpm --dir apps/status-web test:unit
 pnpm --dir apps/status-web test:worker
-pnpm --dir apps/status-web build:worker
+pnpm --dir apps/status-web build
 pnpm --dir apps/status-web test:browser
 ```
 

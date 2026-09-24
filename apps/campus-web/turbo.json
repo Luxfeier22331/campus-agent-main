@@ -26,7 +26,9 @@
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
 				"$TURBO_ROOT$/packages/ui/package.json",
 				"$TURBO_ROOT$/packages/ui/src/**",
-				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
+				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts",
+				"config/**",
+				"scripts/build-process-env.ts"
 			],
 			"outputLogs": "new-only",
 			"outputs": [
@@ -36,84 +38,14 @@
 				".tanstack/**"
 			],
 			"dependsOn": ["^source"],
-			"env": ["CAMPUS_NODE_RUNTIME"]
-		},
-		"build:test": {
-			"inputs": [
-				"fixtures/**",
-				"index.html",
-				"package.json",
-				"scripts/build-campus-web.ts",
-				"scripts/check-client-bundle-budget.ts",
-				"scripts/campus-map/**",
-				"scripts/prepare-docs-content.ts",
-				"src/**",
-				"assets/campus-map/**",
-				"test/build-browser-test-content.ts",
-				"tsconfig.json",
-				"vite.config.ts",
-				"wrangler*.toml",
-				"assets/favicon.ico",
-				"$TURBO_ROOT$/configs/sources/internal-portal.json",
-				"$TURBO_ROOT$/packages/contracts/package.json",
-				"$TURBO_ROOT$/packages/contracts/schemas/**",
-				"$TURBO_ROOT$/packages/contracts/src/**",
-				"$TURBO_ROOT$/packages/domains/dining/package.json",
-				"$TURBO_ROOT$/packages/domains/dining/src/**",
-				"$TURBO_ROOT$/packages/ui/package.json",
-				"$TURBO_ROOT$/packages/ui/src/**",
-				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
-			],
-			"outputLogs": "new-only",
-			"outputs": [
-				".generated/bundle-graph.json",
-				".generated/docs-content/sources/**",
-				"dist/**",
-				".tanstack/**"
-			],
-			"dependsOn": ["^source"],
-			"env": ["CAMPUS_NODE_RUNTIME"]
-		},
-		"build:worker": {
-			"inputs": [
-				"docs-source/**",
-				"fixtures/**",
-				"index.html",
-				"package.json",
-				"scripts/build-campus-web.ts",
-				"scripts/check-client-bundle-budget.ts",
-				"scripts/campus-map/**",
-				"scripts/prepare-docs-content.ts",
-				"src/**",
-				"assets/campus-map/**",
-				"test/build-browser-test-content.ts",
-				"tsconfig.json",
-				"vite.config.ts",
-				"wrangler*.toml",
-				"assets/favicon.ico",
-				"$TURBO_ROOT$/configs/sources/internal-portal.json",
-				"$TURBO_ROOT$/packages/contracts/package.json",
-				"$TURBO_ROOT$/packages/contracts/schemas/**",
-				"$TURBO_ROOT$/packages/contracts/src/**",
-				"$TURBO_ROOT$/packages/domains/dining/package.json",
-				"$TURBO_ROOT$/packages/domains/dining/src/**",
-				"$TURBO_ROOT$/packages/ui/package.json",
-				"$TURBO_ROOT$/packages/ui/src/**",
-				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
-			],
-			"outputLogs": "new-only",
-			"outputs": [
-				".generated/bundle-graph.json",
-				".generated/docs-content/sources/**",
-				".wrangler/deploy/**",
-				"dist/**",
-				".tanstack/**"
-			],
-			"dependsOn": ["^source"],
-			"env": ["CAMPUS_NODE_RUNTIME"]
-		},
-		"test": {
-			"cache": false
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"passThroughEnv": [
+				"OBJECT_STORE_*",
+				"CLOUDFLARE_ENV",
+				"CAMPUS_WEB_DOCS_SHARD_TOTAL",
+				"VITE_*",
+				"XDG_CONFIG_HOME"
+			]
 		},
 		"test:e2e:full": {
 			"inputs": [
@@ -151,12 +83,24 @@
 		},
 		"typecheck": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
+				"package.json",
+				"tsconfig*.json",
+				"src/**/*.ts",
+				"src/**/*.tsx",
+				"src/**/*.json",
+				"test/**/*.ts",
+				"test/**/*.tsx",
+				"test/**/*.json",
+				"test-support/**/*.ts",
+				"scripts/**/*.ts",
+				"scripts/**/*.json",
+				"*.config.ts",
+				"*.config.mts",
+				"fixtures/**/*.json",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/packages/contracts/fixtures/citation-markers.v1.json"
+				"$TURBO_ROOT$/packages/contracts/fixtures/citation-markers.v1.json",
+				"config/**/*.ts"
 			]
 		},
 		"test:node:fast": {
@@ -300,6 +244,51 @@
 			"env": ["CAMPUS_NODE_RUNTIME"],
 			"outputs": [],
 			"outputLogs": "new-only"
+		},
+		"build:fixture": {
+			"inputs": [
+				"docs-source/**",
+				"fixtures/**",
+				"index.html",
+				"package.json",
+				"scripts/build-campus-web.ts",
+				"scripts/check-client-bundle-budget.ts",
+				"scripts/campus-map/**",
+				"scripts/prepare-docs-content.ts",
+				"src/**",
+				"assets/campus-map/**",
+				"test/build-browser-test-content.ts",
+				"tsconfig.json",
+				"vite.config.ts",
+				"wrangler*.toml",
+				"assets/favicon.ico",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/**",
+				"$TURBO_ROOT$/packages/contracts/src/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/packages/ui/package.json",
+				"$TURBO_ROOT$/packages/ui/src/**",
+				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts",
+				"config/**",
+				"scripts/build-process-env.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": [
+				".generated/bundle-graph.json",
+				".generated/docs-content/sources/**",
+				".wrangler/deploy/**",
+				"dist/**",
+				".tanstack/**"
+			],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"build:check": {
+			"dependsOn": ["build:fixture"],
+			"inputs": [],
+			"outputs": []
 		}
 	}
 }

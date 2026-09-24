@@ -29,7 +29,7 @@ pnpm --filter document-ocr ocr cleanup-page-objects
 ```
 
 路径参数相对于 Job 包目录，建议使用绝对路径。数据库和 derived bucket 使用当前 worktree 的
-隔离资源，source bucket 沿用现有本地采集共享桶；导入不改写共享来源。历史导入复用
+隔离资源，source bucket 使用当前 worktree 的独立实例；导入不改写来源对象。历史导入复用
 `ocr/manifest.json` 的 42 份完成记录，下载必要图片但不重新提交识别；缺图会明确报告。
 已完成任务再次导入直接跳过。导出目录按任务 ID 分隔，包含原始 JSONL、数据库中的 Markdown 正文和图片。
 

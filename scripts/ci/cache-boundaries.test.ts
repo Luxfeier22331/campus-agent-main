@@ -119,70 +119,81 @@ test("real workspace inputs invalidate consumers without invalidating unrelated 
 		};
 		check(
 			"apps/campus-web/docs-source/collections.yaml",
-			["campus-web#test:node:fast", "campus-web#build:worker"],
-			["app-api#build:worker", "ops-web#build", "campus-docs-index-publisher#build"],
+			["campus-web#test:node:fast", "campus-web#build:fixture", "campus-web#build:check"],
+			["app-api#build:check", "ops-web#build", "campus-docs-index-publisher#build"],
 		);
 		check(
 			"packages/contracts/fixtures/citation-markers.v1.json",
 			["execution-control#native:test", "campus-web#test:dom:fast"],
 			[
-				"ingestion-contracts#test",
-				"@campus-agent/embedding-runtime#test",
+				"ingestion-contracts#test:unit",
+				"@campus-agent/embedding-runtime#test:unit",
 				"model-config#native:test",
 				"ops-web#test:dom:fast",
 				"campus-web#test:node:fast",
-				"campus-web#build:worker",
+				"campus-web#build:fixture",
 			],
 		);
 		check(
 			"packages/contracts/fixtures/citation-diagnostic.v1.json",
-			["execution-control#native:test", "campus-contracts#test"],
-			["ingestion-contracts#test"],
+			["execution-control#native:test", "campus-contracts#test:unit"],
+			["ingestion-contracts#test:unit"],
 		);
 		check(
 			"packages/ui/test/confirm-dialog.test.tsx",
-			["@campus-agent/ui#test", "@campus-agent/ui#typecheck"],
+			["@campus-agent/ui#test:unit", "@campus-agent/ui#typecheck"],
 			["campus-web#test:dom:fast", "ops-web#test:dom:fast", "ops-web#build"],
 		);
 		check(
 			"packages/ui/src/confirm-dialog.tsx",
 			[
-				"@campus-agent/ui#test",
+				"@campus-agent/ui#test:unit",
 				"campus-web#test:dom:fast",
 				"ops-web#test:dom:fast",
 				"ops-web#build",
 			],
 			[
-				"ingestion-contracts#test",
+				"ingestion-contracts#test:unit",
 				"@campus-agent/tooling#test:hooks",
 				"@campus-agent/tooling#test:docs",
 			],
 		);
 		check(
 			"packages/contracts/schemas/campus-docs-reader.v3.schema.json",
-			["campus-web#test:node:fast", "campus-web#build:worker"],
-			["ingestion-contracts#test"],
+			["campus-web#test:node:fast", "campus-web#build:fixture"],
+			["ingestion-contracts#test:unit"],
 		);
 		check(
 			"apps/app-api/test/worker.test.ts",
 			["app-api#test:worker"],
-			["app-api#test:node:fast", "campus-web#test:dom:fast", "app-api#build:worker"],
+			["app-api#test:node:fast", "campus-web#test:dom:fast", "app-api#build"],
 		);
 		check(
 			"apps/campus-web/test/date-picker.test.tsx",
 			["campus-web#test:dom:fast", "campus-web#typecheck"],
-			["campus-web#test:node:fast", "app-api#test:worker", "campus-web#build:worker"],
+			["campus-web#test:node:fast", "app-api#test:worker", "campus-web#build:fixture"],
 		);
 		check(
 			"apps/agent-runtime/test/tool-catalog.test.ts",
-			["agent-runtime#test"],
+			["agent-runtime#test:unit"],
 			["agent-runtime#build", "@campus-agent/tooling#test:hooks"],
 		);
+		check(
+			"apps/campus-web/assets/campus-map/manifest.json",
+			["campus-web#build:fixture"],
+			["campus-web#typecheck"],
+		);
+		check(
+			"apps/campus-web/config/docs-shard.ts",
+			["campus-web#typecheck", "campus-web#build:fixture"],
+			["app-api#test:worker"],
+		);
+
 		const worker = baseline.tasks.find((t) => t.taskId === "app-api#test:worker");
 		check(
 			"apps/campus-web/src/app/routes/dining-page.tsx",
-			["campus-web#test:dom:fast", "campus-web#build:worker"],
-			["app-api#test:worker", "app-api#build:worker", "ops-web#build"],
+			["campus-web#test:dom:fast", "campus-web#build:fixture"],
+			["app-api#test:worker", "app-api#build", "ops-web#build"],
 		);
 		assert(worker && !worker.dependencies.some((id) => id.startsWith("campus-web#")));
 		const selected = parseTurboTasks(JSON.stringify(baseline));
@@ -191,29 +202,25 @@ test("real workspace inputs invalidate consumers without invalidating unrelated 
 				(t) => t.task === "test" && ["app-api", "campus-web", "ops-web"].includes(t.package),
 			),
 		);
-		assert(
-			!selected.some(
-				(t) => t.task === "source" || (t.package === "status-web" && t.task === "build"),
-			),
-		);
-		assert(selected.some((t) => t.package === "status-web" && t.task === "build:worker"));
+		assert(!selected.some((t) => t.task === "source"));
+		assert(selected.some((t) => t.package === "status-web" && t.task === "build"));
 
 		const runtimeBefore = env.CAMPUS_NODE_RUNTIME;
 		env.CAMPUS_NODE_RUNTIME = "different-runtime";
 		assert.notEqual(
-			hashes(dry()).get("ingestion-contracts#test"),
-			before.get("ingestion-contracts#test"),
+			hashes(dry()).get("ingestion-contracts#test:unit"),
+			before.get("ingestion-contracts#test:unit"),
 		);
 		env.CAMPUS_NODE_RUNTIME = runtimeBefore;
 
 		// Exercise actual cache execution without running a real integration service in the fixture.
 		const manifestFile = "packages/ingestion-contracts/package.json";
 		const manifest = JSON.parse(readFileSync(path.join(fixture, manifestFile), "utf8"));
-		manifest.scripts.test =
+		manifest.scripts["test:unit"] =
 			"node -e \"console.log('cache probe'); if (require('node:fs').readFileSync('src/raw-error.ts','utf8').includes('CACHE_PROBE_FAIL')) process.exit(17)\"";
 		write(manifestFile, JSON.stringify(manifest));
 		const run = () =>
-			spawnSync("pnpm", ["exec", "turbo", "run", "ingestion-contracts#test", "--summarize"], {
+			spawnSync("pnpm", ["exec", "turbo", "run", "ingestion-contracts#test:unit", "--summarize"], {
 				cwd: fixture,
 				env,
 				encoding: "utf8",

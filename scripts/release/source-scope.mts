@@ -17,9 +17,9 @@ const SHA_PATTERN = /^[0-9a-f]{40}$/;
 // Validation deliberately uses the real revisions instead.
 const RELEASE_TASKS = [
 	"build",
-	"build:worker",
+	"build:fixture",
 	"native:test",
-	"native:typecheck",
+	"native:vet",
 	"test",
 	"test:worker",
 	"typecheck",

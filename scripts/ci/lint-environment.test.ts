@@ -85,7 +85,7 @@ console.log(JSON.stringify({tool: ${JSON.stringify(tool)}, args: process.argv.sl
 	}
 });
 
-test("CI prepares both Nix environments before exposing them to hooks", (t) => {
+test("CI prepares Nix environments before exposing them to hooks and repository checks", (t) => {
 	const directory = mkdtempSync(path.join(os.tmpdir(), "lint-prepare-"));
 	t.after(() => rmSync(directory, { recursive: true, force: true }));
 	const workflow = parse(readFileSync(path.join(root, ".github/workflows/pr.yml"), "utf8"));
@@ -114,7 +114,7 @@ if (process.env.FAIL_ENV === 'uv') process.exit(18);
 `,
 		{ mode: 0o755 },
 	);
-	for (const fail of ["", ".#ci-light", ".#ci-format", "uv"]) {
+	for (const fail of ["", ".#ci-light", ".#ci-format", ".#ci-go", "uv"]) {
 		const calls = path.join(directory, "calls.jsonl");
 		const githubEnv = path.join(directory, "github-env");
 		writeFileSync(calls, "");
@@ -146,15 +146,36 @@ if (process.env.FAIL_ENV === 'uv') process.exit(18);
 				[
 					["print-dev-env", ".#ci-light"],
 					["print-dev-env", ".#ci-format"],
+					["print-dev-env", ".#ci-go"],
 					["uv", "sync", "--only-dev", "--no-install-workspace"],
 				],
 			);
 			assert.equal(
 				readFileSync(githubEnv, "utf8"),
-				`CI_NIX_LIGHT_ENV=${directory}/ci-nix-light.sh\nCI_NIX_FORMAT_ENV=${directory}/ci-nix-format.sh\n`,
+				`CI_NIX_LIGHT_ENV=${directory}/ci-nix-light.sh\nCI_NIX_FORMAT_ENV=${directory}/ci-nix-format.sh\nCI_NIX_GO_ENV=${directory}/ci-nix-go.sh\n`,
 			);
 		}
 	}
+});
+
+test("CI contracts step and registry use the Go environment while lint stays file-based", () => {
+	const workflow = parse(readFileSync(path.join(root, ".github/workflows/pr.yml"), "utf8"));
+	const step = workflow.jobs["repository-validation"].steps.find(
+		(item: { id: string }) => item.id === "contracts",
+	);
+	assert.equal(step.shell, undefined);
+	assert.match(step.run, /evidence\.mts --check contracts/u);
+	const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+	assert.equal(
+		manifest.scripts.lint,
+		"pnpm exec prek run --all-files --stage pre-commit --skip staged-secrets --no-group validation",
+	);
+	const biome = hooks.find((hook) => hook.id === "biome");
+	assert(biome);
+	assert.equal(
+		biome.entry,
+		"pnpm --config.verify-deps-before-run=false exec biome check --no-errors-on-unmatched",
+	);
 });
 
 test("SQL hook excludes match SQLFluff ignores while later handwritten migrations remain selected", () => {

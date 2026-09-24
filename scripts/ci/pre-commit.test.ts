@@ -4,11 +4,12 @@ import { nodeTaskConcurrency, runPreCommitEvidence } from "./evidence.mts";
 import { runRepositoryTests } from "./repository-test.mts";
 import { type CommandRunner, resolveStagedTasks } from "./scope.mts";
 import { TOOLING_GROUPS, toolingTask } from "./tooling-tasks.mts";
+import { validationPlanFromScope } from "./validation.mts";
 
 const head = "a".repeat(40);
 const plan = JSON.stringify({
 	tasks: [
-		{ package: "web", task: "test", command: "node test.cjs" },
+		{ package: "web", task: "test:unit", command: "node test.cjs" },
 		{ package: "web", task: "typecheck", command: "tsc --noEmit" },
 		{ package: "model-config", task: "native:test", command: "go test" },
 	],
@@ -50,7 +51,7 @@ test("commit verification runs root tests before staged Node/Go tasks without ne
 	};
 	runPreCommitEvidence({ repositoryRoot: "/repo", env }, stagedRunner(calls));
 	assert.equal(calls[0], "git diff --cached --name-status -z --diff-filter=ACDMRT");
-	assert(calls.some((c) => c.includes("web#test")));
+	assert(calls.some((c) => c.includes("web#test:unit")));
 	assert(calls.some((c) => c.includes("web#typecheck")));
 	assert(calls.some((c) => c.includes("model-config#native:test")));
 	assert(!calls.some((c) => /fetch|origin|merge-base/u.test(c)));
@@ -74,13 +75,30 @@ test("root failure prevents task selection and module failures stop subsequent p
 		() =>
 			runPreCommitEvidence({ repositoryRoot: "/repo", env: {} }, (command, args, options) => {
 				const result = runner(command, args, options);
-				return args.includes("web#test") && !args.includes("--dry-run=json")
+				return args.includes("web#test:unit") && !args.includes("--dry-run=json")
 					? { status: 9 }
 					: result;
 			}),
 		/pre-commit failed.*9/u,
 	);
 	assert(!calls.some((c) => c.includes(".#ci-go")));
+});
+
+test("commit verification runs only selected tooling groups before package tasks", () => {
+	const calls: string[] = [];
+	const runner = stagedRunner(calls);
+	runPreCommitEvidence({ repositoryRoot: "/repo", env: {} }, (command, args, options) => {
+		const result = runner(command, args, options);
+		return command === "git" && args[0] === "diff"
+			? { status: 0, stdout: "M\0scripts/dev/environment.ts\0" }
+			: result;
+	});
+	const tooling = "nix develop .#ci-core --command pnpm test:tooling --groups=dev";
+	assert.deepEqual(
+		calls.filter((call) => call.includes("pnpm test")),
+		[tooling],
+	);
+	assert(calls.indexOf(tooling) < calls.findIndex((call) => call.includes("web#test:unit")));
 });
 
 test("an empty index diff skips module tasks; an unborn HEAD selects the complete set", () => {
@@ -104,6 +122,68 @@ test("an empty index diff skips module tasks; an unborn HEAD selects the complet
 			})),
 		/broken repository/u,
 	);
+});
+
+test("staged and PR scopes select the same contracts and Actions checks before tooling", () => {
+	for (const [files, expected] of [
+		[["packages/contracts/schemas/example.json"], ["contracts"]],
+		[["configs/runtime/tools.json"], ["contracts"]],
+		[["docs/contracts/schemas/example.yaml"], ["contracts"]],
+		[[".github/workflows/pr.yml"], ["config"]],
+		[["flake.nix", "flake.lock", "nix/tools.nix"], ["config"]],
+		[
+			["packages/contracts/README.md", ".github/workflows/pr.yml"],
+			["contracts", "config"],
+		],
+		[["apps/web/src.ts", "packages/contracts-other/src.ts"], []],
+	]) {
+		const calls: string[] = [];
+		const runner = stagedRunner(calls);
+		runPreCommitEvidence({ repositoryRoot: "/repo", env: {} }, (command, args, options) => {
+			const result = runner(command, args, options);
+			return command === "git" && args[0] === "diff"
+				? { status: 0, stdout: files.map((file) => `M\0${file}\0`).join("") }
+				: result;
+		});
+		const checks = calls.filter((call) => /contracts:check|actionlint|zizmor/u.test(call));
+		assert.deepEqual(checks, [
+			...(expected.includes("contracts")
+				? ["nix develop .#ci-go --command pnpm --dir packages/contracts contracts:check"]
+				: []),
+			...(expected.includes("config")
+				? [
+						"nix develop .#ci-light --command actionlint",
+						"nix develop .#ci-light --command zizmor --min-severity=medium .github",
+					]
+				: []),
+		]);
+		assert.deepEqual(
+			validationPlanFromScope({ base: head, head, changedFiles: [...files], tasks: [] })
+				.lightSurfaces,
+			expected,
+		);
+		const toolingIndex = calls.findIndex((call) => call.includes("test:tooling"));
+		if (toolingIndex >= 0) {
+			assert(checks.every((check) => calls.indexOf(check) < toolingIndex));
+		}
+	}
+});
+
+test("contract failure stops pre-commit before tooling or package selection", () => {
+	const calls: string[] = [];
+	const runner = stagedRunner(calls);
+	assert.throws(
+		() =>
+			runPreCommitEvidence({ repositoryRoot: "/repo", env: {} }, (command, args, options) => {
+				const result = runner(command, args, options);
+				if (command === "git" && args[0] === "diff") {
+					return { status: 0, stdout: "M\0docs/contracts/schemas/example.yaml\0" };
+				}
+				return args.includes("contracts:check") ? { status: 19 } : result;
+			}),
+		/pre-commit failed with exit code 19/u,
+	);
+	assert(!calls.some((call) => /test:tooling|dry-run/u.test(call)));
 });
 
 test("root cache context records the index before cleaning Git variables and preserves exit status", () => {
@@ -146,7 +226,7 @@ test("root cache context records the index before cleaning Git variables and pre
 test("Node turbo tasks respect CPU and cgroup memory limits while native tasks stay serial", () => {
 	const calls: string[] = [];
 	runPreCommitEvidence({ repositoryRoot: "/repo", env: {} }, stagedRunner(calls));
-	const nodeCommand = calls.find((call) => call.includes("web#test"));
+	const nodeCommand = calls.find((call) => call.includes("web#test:unit"));
 	const nativeCommand = calls.find((call) => call.includes("model-config#native:test"));
 	assert(nodeCommand?.includes(`--concurrency=${nodeTaskConcurrency()}`));
 	assert.equal(

@@ -38,8 +38,8 @@ agent-runtime 不直接读取 Embedding 连接、Qdrant 或 `campus_docs_serving
 
 通知分类 Job 在启动分类阶段后读取一次 `notice_classification` runtime config，直接调用其中的
 protocol。模型名、provider、Base URL 和 API key 由 Ops Web 通过 Model Config 的具名配置维护；
-本地 `pnpm notice:classify:job:local` 通过端口转发读取同一份 Model Config，不保存模型连接。
-保留的 `pnpm notice:classify` JSONL/评测命令可以由调用进程显式提供连接，用于离线模型比较，不是在线
+本地 `pnpm --dir jobs/notice-classifier classify:local` 通过端口转发读取同一份 Model Config，不保存模型连接。
+保留的 `pnpm --dir scripts notice:classify` JSONL/评测命令可以由调用进程显式提供连接，用于离线模型比较，不是在线
 Job 的配置来源。
 
 ## 数据服务
@@ -105,7 +105,7 @@ staging candidate 上传检查该 binding 及对象存储 Secret 是否随版本
 | --- | --- | --- |
 | 身份与安全验证 | App API、Campus Web | 账号、session、邮件验证和反滥用 |
 | 邮件服务 | App API | 密码重置和账号通知 |
-| 内部门户认证 | Ops Web、开发者程序、internal-portal-collection | Ops Web 在 `internal_portal` schema 管理多条 TGC、真实验证、检查和采集解析；采集任务不读取凭据表，本地通过 `internal-portal:auth:pull` 写入当前 worktree，Job 入口只在内存中消费解析结果 |
+| 内部门户认证 | Ops Web、开发者程序、internal-portal-collection | Ops Web 在 `internal_portal` schema 管理多条 TGC、真实验证、检查和采集解析；采集任务不读取凭据表，本地通过 `pnpm --dir jobs/internal-portal-collection auth:pull` 写入当前 worktree，Job 入口只在内存中消费解析结果 |
 | Cloudflare Worker 平台 | App API、Campus Web、status-web | Worker 运行、公开配置和平台绑定 |
 
 来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能
@@ -127,7 +127,7 @@ Worker source map 由 Wrangler 在 Worker 发布链路中上传给 Cloudflare，
 
 ## 交付规则
 
-- 本地 Secret 进入所属模块的忽略文件或开发者密钥管理器；`internal-portal:auth:pull` 使用当前
+- 本地 Secret 进入所属模块的忽略文件或开发者密钥管理器；`pnpm --dir jobs/internal-portal-collection auth:pull` 使用当前
   Kubernetes 权限读取既有 `OPS_WEB_INTERNAL_TOKEN`，通过临时 port-forward Ops Web
   取得 TGC，只写入内部门户采集任务受 `dev:init` 管理的 `.env.local`，不创建机器级缓存或 TGC
   Secret；linked worktree 初始化时可从 main checkout 的同一受管文件首次导入已有 TGC，后续本地值

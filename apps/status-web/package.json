@@ -5,15 +5,13 @@
 	"type": "module",
 	"description": "Public product availability status page for campus-agent.",
 	"scripts": {
-		"build": "pnpm run build:worker",
-		"build:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home pnpm exec wrangler deploy --dry-run --outdir dist/worker --env local",
+		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home pnpm exec wrangler deploy --dry-run --outdir dist/worker --env local",
 		"dev": "pnpm exec wrangler dev --local --env local",
 		"upload:staging": "pnpm exec tsx ./scripts/upload-staging-version.ts",
-		"test": "pnpm run test:node",
 		"test:browser": "playwright test --config browser.config.ts",
-		"test:node": "vitest run -c vitest.node.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run -c vitest.node.config.mts"
 	},
 	"dependencies": {
 		"campus-contracts": "workspace:*"

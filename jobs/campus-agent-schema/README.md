@@ -50,7 +50,7 @@ pnpm --dir jobs/campus-agent-schema new add_example_column
 ```bash
 pnpm --dir jobs/campus-agent-schema migrate
 pnpm --dir jobs/campus-agent-schema status
-pnpm --dir jobs/campus-agent-schema test
+pnpm test --filter=campus-agent-schema
 pnpm --dir jobs/campus-agent-schema test:migration-integration
 ```
 

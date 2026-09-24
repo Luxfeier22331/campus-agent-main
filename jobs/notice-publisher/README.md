@@ -14,7 +14,6 @@
 - `src/publisher.ts`：来源校验、清洗与发布流程；
 
 ```bash
-pnpm dev:shared-reconcile
 pnpm dev:init -- --target notice-publisher
 pnpm --filter notice-publisher publish
 pnpm --filter notice-publisher publish -- --notice-id 123456

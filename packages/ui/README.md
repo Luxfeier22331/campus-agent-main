@@ -80,7 +80,7 @@ export function AppEntry() {
 
 ```bash
 pnpm --dir packages/ui typecheck
-pnpm --dir packages/ui test
+pnpm test --filter=@campus-agent/ui
 ```
 
 ## 页面组合

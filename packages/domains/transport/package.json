@@ -12,8 +12,8 @@
 		"./schema": "./src/schema.ts"
 	},
 	"scripts": {
-		"test": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
 	},
 	"dependencies": {
 		"drizzle-orm": "1.0.0-rc.4",

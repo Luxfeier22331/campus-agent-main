@@ -29,39 +29,26 @@ import {
 	resolveLocalModelConfigEncryptionKeyPath,
 	resolveMainCheckoutRoot,
 } from "./environment";
-import {
-	assertDestroyConfirmation,
-	classifyIsolatedResourceState,
-	classifyLocalDevInstanceStatus,
-	diagnoseLocalDevInstances,
-	resolveIsolatedResourceAction,
-	resolveLocalInstanceResourceCleanup,
-} from "./instance-resources";
+import { diagnoseLocalDevInstances } from "./instance-resources";
 import * as lifecycle from "./lifecycle";
 import { captureCommandResult } from "./process";
 import {
 	allocateAvailableSlot,
 	allocateLocalDevSlot,
+	calculateLocalDevInfrastructurePorts,
 	calculateLocalDevPorts,
 	calculateLocalDevRuntimePorts,
 	ensureLocalDevProfile,
 	isMainWorktree,
-	type LocalDevProfileV2,
+	type LocalDevProfile,
 	listLocalDevProfiles,
+	loadLocalDevProfile,
 	normalizeResourceLabel,
 	releaseLocalDevProfile,
 	resolveLegacyLocalDevProfilePath,
 	resolveLocalDevProfilePath,
 	resolveLocalDevRegistryPath,
 } from "./profile";
-import {
-	classifySharedInfrastructureStatus,
-	derivedBucketPublicReadPolicy,
-	isSharedDataInfrastructureReady,
-	objectStoreCommand,
-	resolveSharedInfrastructureAction,
-	sharedComposeUpCommand,
-} from "./shared-infrastructure";
 import { resolveLocalDevTargetPlan } from "./targets";
 
 const temporaryDirectories: string[] = [];
@@ -119,6 +106,7 @@ describe("local development profiles", () => {
 				[
 					...Object.values(calculateLocalDevPorts(firstSlot)),
 					...Object.values(calculateLocalDevRuntimePorts(firstSlot)),
+					...Object.values(calculateLocalDevInfrastructurePorts(firstSlot)),
 				],
 			]);
 		}
@@ -139,6 +127,7 @@ describe("local development profiles", () => {
 			[0, 2].map((value) => [
 				...Object.values(calculateLocalDevPorts(value)),
 				...Object.values(calculateLocalDevRuntimePorts(value)),
+				...Object.values(calculateLocalDevInfrastructurePorts(value)),
 			]),
 		);
 	});
@@ -192,7 +181,7 @@ describe("local development profiles", () => {
 		}
 	});
 
-	it("adopts a v1 profile and registry into the canonical v2 files", async () => {
+	it("rejects legacy profiles and registry without rewriting them", async () => {
 		const repository = createGitRepository();
 		const stateDirectory = resolve(repository, "state");
 		const previousStateHome = process.env.XDG_STATE_HOME;
@@ -221,14 +210,47 @@ describe("local development profiles", () => {
 			writeFileSync(legacyProfilePath, `${JSON.stringify(legacyProfile)}\n`);
 			writeFileSync(legacyRegistryPath, `${JSON.stringify(legacyRegistry)}\n`);
 
-			const adopted = await ensureLocalDevProfile(repository);
-			assert.equal(adopted.schemaVersion, 2);
-			assert.equal(adopted.resourceKey, original.resourceKey);
-			assert.equal(adopted.databaseName, original.databaseName);
-			assert.equal(existsSync(currentProfilePath), true);
-			assert.equal(existsSync(currentRegistryPath), true);
-			assert.equal(existsSync(legacyProfilePath), false);
-			assert.equal(existsSync(legacyRegistryPath), false);
+			await assert.rejects(
+				ensureLocalDevProfile(repository),
+				/Legacy local development registry found/u,
+			);
+			assert.equal(existsSync(currentProfilePath), false);
+			assert.equal(existsSync(currentRegistryPath), false);
+			assert.equal(existsSync(legacyProfilePath), true);
+			assert.equal(existsSync(legacyRegistryPath), true);
+		} finally {
+			if (previousStateHome === undefined) {
+				delete process.env.XDG_STATE_HOME;
+			} else {
+				process.env.XDG_STATE_HOME = previousStateHome;
+			}
+		}
+	});
+
+	it("rejects a legacy registry even when a v3 registry also exists", async () => {
+		const repository = createGitRepository();
+		const stateDirectory = resolve(repository, "state");
+		const previousStateHome = process.env.XDG_STATE_HOME;
+		process.env.XDG_STATE_HOME = stateDirectory;
+		try {
+			const profile = await ensureLocalDevProfile(repository);
+			const registryPath = resolveLocalDevRegistryPath(repository);
+			const legacyRegistryPath = resolve(
+				stateDirectory,
+				"campus-agent",
+				profile.repoKey,
+				"instances.v1.json",
+			);
+			writeFileSync(legacyRegistryPath, JSON.stringify({ schemaVersion: 1, instances: [] }));
+			assert.throws(
+				() => listLocalDevProfiles(repository),
+				/Legacy local development registry found/u,
+			);
+			assert.throws(
+				() => loadLocalDevProfile(repository),
+				/Legacy local development registry found/u,
+			);
+			assert.equal(existsSync(registryPath), true);
 		} finally {
 			if (previousStateHome === undefined) {
 				delete process.env.XDG_STATE_HOME;
@@ -396,7 +418,7 @@ describe("managed worktree environment", () => {
 		assert.equal(commandEnvironment.RERANK_API_KEY, undefined);
 		assert.equal(
 			commandEnvironment.MODEL_CONFIG_DATABASE_URL,
-			"postgresql://model_config:campus-agent-local-model-config@127.0.0.1:5432/campus_agent_wt_1_deadbeef",
+			`postgresql://model_config:campus-agent-local-model-config@127.0.0.1:${createProfile("/repo").infraPorts.postgres}/campus_agent_wt_1_deadbeef`,
 		);
 	});
 
@@ -569,12 +591,18 @@ describe("managed worktree environment", () => {
 		assert.equal(first.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
 		assert.equal(second.AUTH_TURNSTILE_SECRET_KEY, "local-turnstile-disabled");
 		assert.equal(second.AUTH_SHELL_ORIGIN, "http://127.0.0.1:27114");
-		assert.equal(second.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "rustfsadmin");
-		assert.equal(second.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "rustfsadmin");
+		assert.equal(
+			second.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
+			second.OBJECT_STORE_DERIVED_ACCESS_KEY,
+		);
+		assert.equal(
+			second.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
+			second.OBJECT_STORE_DERIVED_SECRET_KEY,
+		);
 		assert.equal(second.EXECUTION_CONTROL_BASE_URL, "http://127.0.0.1:27151");
 		assert.equal(
 			second.OBJECT_STORE_LOCAL_BASE_URL,
-			"http://127.0.0.1:9000/campus-agent-derived-wt-1-deadbeef/",
+			`http://127.0.0.1:${profile.infraPorts.objectStore}/${profile.bucketName}/`,
 		);
 		assert.match(
 			readFileSync(resolve(repoRoot, "apps/ops-web/.env.local"), "utf8"),
@@ -614,11 +642,28 @@ describe("managed worktree environment", () => {
 		assert.equal(appApiEnvironment.PORT, String(profile.ports.appApi));
 		assert.equal(campusWebEnvironment.CAMPUS_WEB_DEV_PORT, String(profile.ports.campusWeb));
 		assert.equal(campusWebEnvironment.AUTH_TURNSTILE_SITE_KEY, "");
-		assert.equal(campusWebEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
-		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "rustfsadmin");
-		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "rustfsadmin");
-		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
-		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
+		assert.equal(
+			campusWebEnvironment.OBJECT_STORE_ENDPOINT,
+			`http://127.0.0.1:${profile.infraPorts.objectStore}`,
+		);
+		assert.equal(
+			campusWebEnvironment.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
+			campusWebEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY,
+		);
+		assert.equal(
+			campusWebEnvironment.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
+			campusWebEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY,
+		);
+		assert.equal(
+			campusWebEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY,
+			campusWebEnvironment.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
+		);
+		assert.equal(
+			campusWebEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY,
+			campusWebEnvironment.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
+		);
+		assert.equal(campusWebEnvironment.OBJECT_STORE_BUCKET_DERIVED, profile.bucketName);
+		assert.equal(executionControlEnvironment.CAMPUS_DOCS_SERVING_DATABASE_URL, undefined);
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");
 		assert.equal(modelConfigEnvironment.MODEL_CONFIG_HOST, "127.0.0.1");
 		assert.equal(
@@ -633,13 +678,16 @@ describe("managed worktree environment", () => {
 		]);
 		assert.equal(
 			internalPortalCollectionEnvironment.OBJECT_STORE_BUCKET_SOURCE,
-			"campus-agent-source",
+			profile.sourceBucketName,
 		);
 		assert.equal(
 			internalPortalCollectionEnvironment.OBJECT_STORE_ENDPOINT,
-			"http://127.0.0.1:9000",
+			`http://127.0.0.1:${profile.infraPorts.objectStore}`,
 		);
-		assert.equal(internalPortalCollectionEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "rustfsadmin");
+		assert.equal(
+			internalPortalCollectionEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY,
+			internalPortalCollectionEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY,
+		);
 		assert.equal(
 			internalPortalCollectionEnvironment.OPS_WEB_INTERNAL_URL,
 			`http://127.0.0.1:${profile.ports.opsWeb}`,
@@ -663,10 +711,16 @@ describe("managed worktree environment", () => {
 			internalPortalCollectionEnvironment.NOTICES_DATABASE_URL,
 			noticePublisherEnvironment.NOTICES_DATABASE_URL,
 		);
-		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "rustfsadmin");
-		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_SECRET_KEY, "rustfsadmin");
-		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "rustfsadmin");
-		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, "rustfsadmin");
+		assert.equal(
+			noticePublisherEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY,
+			noticePublisherEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY,
+		);
+		assert.equal(
+			noticePublisherEnvironment.OBJECT_STORE_SOURCE_SECRET_KEY,
+			noticePublisherEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY,
+		);
+		assert.ok(noticePublisherEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY);
+		assert.ok(noticePublisherEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY);
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_ACCESS_KEY, undefined);
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SECRET_KEY, undefined);
 		assert.equal(noticePublisherEnvironment.DEPLOYMENT_ENVIRONMENT, "local");
@@ -810,6 +864,33 @@ describe("managed worktree environment", () => {
 		assert.equal(existsSync(resolve(repoRoot, "apps/app-api/.env.local")), false);
 	});
 
+	it("renders new notice workers against the current worktree infrastructure", () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+		for (const target of ["notice-pipeline-worker", "notice-artifacts-worker"] as const) {
+			renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target });
+			const values = parseEnv(
+				readFileSync(resolve(repoRoot, "apps", target, ".env.local"), "utf8"),
+			);
+			assert.equal(
+				values.OBJECT_STORE_ENDPOINT,
+				`http://127.0.0.1:${profile.infraPorts.objectStore}`,
+			);
+			assert.equal(values.OBJECT_STORE_BUCKET_DERIVED, profile.bucketName);
+			assert.equal(
+				new URL(values.NOTICES_DATABASE_URL ?? "").port,
+				String(profile.infraPorts.postgres),
+			);
+			assert.equal(values.TEMPORAL_ADDRESS, `127.0.0.1:${profile.infraPorts.temporal}`);
+			assert.equal(values.TEMPORAL_NAMESPACE, `campus-agent-local-${profile.instanceId}`);
+			assert.ok(values.OBJECT_STORE_DERIVED_ACCESS_KEY);
+			if (target === "notice-artifacts-worker") {
+				assert.equal(values.QDRANT_URL, qdrant.url);
+				assert.equal(values.QDRANT_API_KEY, qdrant.apiKey);
+			}
+		}
+	});
+
 	it("renders index publisher environments with only their owned fields", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
@@ -825,13 +906,17 @@ describe("managed worktree environment", () => {
 		assert.deepEqual(Object.keys(parseEnv(readFileSync(campusPaths[0] ?? "", "utf8"))).sort(), [
 			"EXECUTION_CONTROL_DATABASE_URL",
 			"OBJECT_STORE_BUCKET_DERIVED",
+			"OBJECT_STORE_DERIVED_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
+			"OBJECT_STORE_DERIVED_SECRET_KEY",
 			"OBJECT_STORE_ENDPOINT",
+			"OBJECT_STORE_SOURCE_ACCESS_KEY",
+			"OBJECT_STORE_SOURCE_SECRET_KEY",
 		]);
 		assert.equal(
 			parseEnv(readFileSync(campusPaths[0] ?? "", "utf8")).OBJECT_STORE_ENDPOINT,
-			"http://127.0.0.1:9000",
+			`http://127.0.0.1:${profile.infraPorts.objectStore}`,
 		);
 
 		const noticePaths = renderLocalEnvironmentFiles({
@@ -865,6 +950,8 @@ describe("managed worktree environment", () => {
 			"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 			"OBJECT_STORE_DERIVED_SECRET_KEY",
 			"OBJECT_STORE_ENDPOINT",
+			"OBJECT_STORE_SOURCE_ACCESS_KEY",
+			"OBJECT_STORE_SOURCE_SECRET_KEY",
 			"QDRANT_API_KEY",
 			"QDRANT_URL",
 		]);
@@ -1017,249 +1104,6 @@ describe("local development lifecycle guards", () => {
 		]);
 	});
 
-	it("only exposes immutable Dining floorplans from the derived bucket", () => {
-		assert.deepEqual(
-			JSON.parse(derivedBucketPublicReadPolicy("campus-agent-derived-wt-1-deadbeef")),
-			{
-				Statement: [
-					{
-						Action: ["s3:GetObject"],
-						Effect: "Allow",
-						Principal: { AWS: ["*"] },
-						Resource: ["arn:aws:s3:::campus-agent-derived-wt-1-deadbeef/dining/floorplans/*"],
-					},
-				],
-				Version: "2012-10-17",
-			},
-		);
-		assert.throws(() => derivedBucketPublicReadPolicy("invalid/bucket"));
-	});
-
-	it("classifies only matching database and bucket state as complete", () => {
-		assert.equal(
-			classifyIsolatedResourceState({ bucketExists: false, databaseExists: false }),
-			"absent",
-		);
-		assert.equal(
-			classifyIsolatedResourceState({ bucketExists: true, databaseExists: true }),
-			"complete",
-		);
-		assert.equal(
-			classifyIsolatedResourceState({ bucketExists: false, databaseExists: true }),
-			"partial",
-		);
-	});
-
-	it("repairs either side of a partial isolated instance", () => {
-		assert.equal(
-			resolveIsolatedResourceAction({ bucketExists: false, databaseExists: false }),
-			"create",
-		);
-		assert.equal(
-			resolveIsolatedResourceAction({ bucketExists: false, databaseExists: true }),
-			"repair-bucket",
-		);
-		assert.equal(
-			resolveIsolatedResourceAction({ bucketExists: true, databaseExists: true }),
-			"ready",
-		);
-		assert.equal(
-			resolveIsolatedResourceAction({ bucketExists: true, databaseExists: false }),
-			"repair-database",
-		);
-	});
-
-	it("reuses ready shared infrastructure and only lets main reconcile it", () => {
-		assert.equal(
-			resolveSharedInfrastructureAction({ isMainWorktree: true, status: "ready" }),
-			"reuse",
-		);
-		assert.equal(
-			resolveSharedInfrastructureAction({ isMainWorktree: false, status: "ready" }),
-			"reuse",
-		);
-		assert.equal(
-			resolveSharedInfrastructureAction({ isMainWorktree: true, status: "missing" }),
-			"reconcile",
-		);
-		assert.equal(
-			resolveSharedInfrastructureAction({ isMainWorktree: false, status: "missing" }),
-			"reject",
-		);
-		assert.equal(
-			resolveSharedInfrastructureAction({ isMainWorktree: true, status: "unhealthy" }),
-			"reconcile",
-		);
-		assert.equal(
-			resolveSharedInfrastructureAction({ isMainWorktree: false, status: "drifted" }),
-			"reject",
-		);
-		assert.equal(
-			resolveSharedInfrastructureAction({ isMainWorktree: true, status: "unknown" }),
-			"reject",
-		);
-		assert.deepEqual(sharedComposeUpCommand().slice(-3), ["up", "-d", "--wait"]);
-		assert.doesNotMatch(sharedComposeUpCommand().join(" "), /remove-orphans/u);
-	});
-
-	it("requires healthy containers, matching Compose labels and hashes", () => {
-		const healthy = createSharedStatusInput();
-		assert.equal(classifySharedInfrastructureStatus(healthy), "ready");
-		assert.equal(
-			classifySharedInfrastructureStatus({
-				...healthy,
-				containers: {
-					...healthy.containers,
-					postgres: { ...healthy.containers.postgres, healthy: false },
-				},
-			}),
-			"unhealthy",
-		);
-		assert.equal(
-			classifySharedInfrastructureStatus({
-				...healthy,
-				containers: {
-					...healthy.containers,
-					objectStore: { ...healthy.containers.objectStore, configHash: "changed" },
-				},
-			}),
-			"drifted",
-		);
-		assert.equal(
-			classifySharedInfrastructureStatus({
-				...healthy,
-				containers: {
-					...healthy.containers,
-					postgres: { ...healthy.containers.postgres, service: undefined },
-				},
-			}),
-			"drifted",
-		);
-		assert.equal(
-			classifySharedInfrastructureStatus({
-				...healthy,
-				containers: {
-					...healthy.containers,
-					postgres: { ...healthy.containers.postgres, probe: "unknown" },
-				},
-			}),
-			"unknown",
-		);
-		assert.equal(
-			classifySharedInfrastructureStatus({
-				...healthy,
-				containers: {
-					...healthy.containers,
-					postgres: { ...healthy.containers.postgres, probe: "missing" },
-				},
-			}),
-			"missing",
-		);
-		assert.equal(
-			classifySharedInfrastructureStatus({
-				...healthy,
-				buckets: { docs: "missing", source: "present" },
-			}),
-			"missing",
-		);
-		assert.equal(
-			isSharedDataInfrastructureReady({
-				...healthy,
-				status: "ready",
-				capabilities: {
-					derivedBucket: "present",
-					docsBucket: "present",
-					docsSource: "present",
-					objectStore: "present",
-					postgres: "present",
-					required: [],
-					sourceBucket: "present",
-					temporal: "present",
-				},
-				containers: {
-					...healthy.containers,
-					temporal: { ...healthy.containers.temporal, healthy: false },
-				},
-			}),
-			true,
-		);
-	});
-
-	it("classifies instance records without hiding stale or partial resources", () => {
-		assert.equal(
-			classifyLocalDevInstanceStatus({
-				bucket: "present",
-				database: "present",
-				namespace: "present",
-				worktree: "present",
-			}),
-			"ready",
-		);
-		assert.equal(
-			classifyLocalDevInstanceStatus({
-				bucket: "present",
-				database: "present",
-				namespace: "present",
-				worktree: "missing",
-			}),
-			"stale",
-		);
-		assert.equal(
-			classifyLocalDevInstanceStatus({
-				bucket: "present",
-				database: "missing",
-				namespace: "missing",
-				worktree: "present",
-			}),
-			"partial",
-		);
-		assert.equal(
-			classifyLocalDevInstanceStatus({
-				bucket: "missing",
-				database: "missing",
-				namespace: "missing",
-				worktree: "present",
-			}),
-			"unprovisioned",
-		);
-		assert.equal(
-			classifyLocalDevInstanceStatus({
-				bucket: "unknown",
-				database: "unknown",
-				namespace: "unknown",
-				worktree: "missing",
-			}),
-			"unknown",
-		);
-	});
-
-	it("checks bucket existence with the rc bucket listing operation", () => {
-		const command = objectStoreCommand("campus-agent-source", "inspect");
-		assert.match(command.at(-1) ?? "", /rc ls "local\/\$BUCKET"/u);
-		assert.doesNotMatch(command.at(-1) ?? "", /rc stat/u);
-	});
-
-	it("requires exact instance confirmation before destruction", () => {
-		assert.doesNotThrow(() => assertDestroyConfirmation("dining-a1b2", "dining-a1b2"));
-		assert.throws(() => assertDestroyConfirmation("dining-a1b2", "dining-other"));
-	});
-
-	it("deletes confirmed resources while retaining unresolved cleanup state", () => {
-		assert.deepEqual(
-			resolveLocalInstanceResourceCleanup({
-				bucket: "present",
-				database: "present",
-				namespace: "unknown",
-			}),
-			{
-				deleteBucket: true,
-				deleteDatabase: true,
-				deleteNamespace: false,
-				unresolved: ["namespace"],
-			},
-		);
-	});
-
 	it("runs application bootstrap in explicit dependency order", () => {
 		const commands = localApplicationBootstrapCommands("/repo", createProfile("/repo"));
 		assert.deepEqual(
@@ -1308,7 +1152,7 @@ describe("local development lifecycle guards", () => {
 		]);
 		assert.equal(
 			coreCommands[1]?.options.env?.MODEL_CONFIG_DATABASE_URL,
-			"postgresql://model_config:campus-agent-local-model-config@127.0.0.1:5432/campus_agent_wt_1_deadbeef",
+			`postgresql://model_config:campus-agent-local-model-config@127.0.0.1:${createProfile("/repo").infraPorts.postgres}/campus_agent_wt_1_deadbeef`,
 		);
 		assert.match(
 			coreCommands[1]?.options.env?.MODEL_CONFIG_ENCRYPTION_KEY_FILE ?? "",
@@ -1386,14 +1230,23 @@ describe("local development lifecycle guards", () => {
 		);
 		const noticeIndexPublisherPackage = readPackageJson("jobs/notice-index-publisher/package.json");
 		assert.match(schemaPackage.scripts?.status ?? "", /tsx src\/cli\.ts status/u);
-		assert.match(appApiPackage.scripts?.dev ?? "", /exec wrangler dev/u);
-		assert.match(appApiPackage.scripts?.dev ?? "", /\. \.\/\.dev\.vars\.local/u);
-		assert.match(
-			appApiPackage.scripts?.dev ?? "",
-			/--var "EXECUTION_CONTROL_BASE_URL:\$EXECUTION_CONTROL_BASE_URL"/u,
+		assert.equal(appApiPackage.scripts?.dev, "bash scripts/dev.sh");
+		const appApiDev = readFileSync(
+			resolve(import.meta.dirname, "../../apps/app-api/scripts/dev.sh"),
+			"utf8",
 		);
+		assert.match(appApiDev, /exec wrangler dev/u);
+		assert.match(appApiDev, /\. \.\/\.dev\.vars\.local/u);
+		assert.match(appApiDev, /--var "EXECUTION_CONTROL_BASE_URL:\$EXECUTION_CONTROL_BASE_URL"/u);
 		assert.match(campusWebPackage.scripts?.dev ?? "", /\bvite\b/u);
-		assert.match(executionPackage.scripts?.dev ?? "", /exec go run/u);
+		assert.equal(executionPackage.scripts?.dev, "bash scripts/dev.sh");
+		assert.match(
+			readFileSync(
+				resolve(import.meta.dirname, "../../apps/execution-control/scripts/dev.sh"),
+				"utf8",
+			),
+			/exec go run/u,
+		);
 		assert.match(agentPackage.scripts?.dev ?? "", /(?:^|\s)--experimental-strip-types(?:\s|$)/u);
 		assert.match(agentPackage.scripts?.dev ?? "", /(?:^|\s)src\/server\.ts$/u);
 		assert.equal(opsWebPackage.scripts?.dev, undefined);
@@ -1469,45 +1322,20 @@ function createGitRepository(): string {
 	return repository;
 }
 
-function createProfile(worktreePath: string): LocalDevProfileV2 {
+function createProfile(worktreePath: string): LocalDevProfile {
 	return {
 		bucketName: "campus-agent-derived-wt-1-deadbeef",
 		createdAt: "2026-07-20T00:00:00.000Z",
 		databaseName: "campus_agent_wt_1_deadbeef",
 		instanceId: "dining-production-deadbeef",
+		infraPorts: calculateLocalDevInfrastructurePorts(1),
+		infraProject: "campus-agent-wt-deadbeef",
 		ports: calculateLocalDevPorts(1),
 		repoKey: "repo-key",
 		resourceKey: "deadbeef",
-		schemaVersion: 2,
+		schemaVersion: 3,
 		slot: 1,
+		sourceBucketName: "campus-agent-source-wt-1-deadbeef",
 		worktreePath,
-	};
-}
-
-function createSharedStatusInput(): Parameters<typeof classifySharedInfrastructureStatus>[0] {
-	const container = {
-		configHash: "hash",
-		healthy: true,
-		probe: "present" as const,
-		project: "campus-agent-local",
-		running: true,
-		service: "postgres",
-	};
-	return {
-		buckets: { docs: "present", source: "present" },
-		containers: {
-			objectStore: { ...container, service: "object-store" },
-			postgres: container,
-			temporalPostgres: { ...container, service: "temporal-postgres" },
-			temporal: { ...container, service: "temporal" },
-		},
-		expectedHashes: {
-			objectStore: "hash",
-			postgres: "hash",
-			temporalPostgres: "hash",
-			temporal: "hash",
-		},
-		network: "present",
-		volumes: { objectStore: "present", postgres: "present", temporal: "present" },
 	};
 }

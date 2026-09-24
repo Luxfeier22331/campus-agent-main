@@ -11,7 +11,7 @@ import {
 import { createTransactionalIndexCatalog } from "../../jobs/campus-rag-index-publisher/src/catalog.ts";
 import { writeStoredChunkRun } from "../../jobs/notice-index-publisher/src/artifacts.ts";
 import { buildNoticeChunkRun } from "../../jobs/notice-index-publisher/src/command.ts";
-import { importProductData } from "./product-data-database.ts";
+import { importProductData, importRetrievalData } from "./product-data-database.ts";
 import { parseProductDataOptions } from "./product-data-options.ts";
 import {
 	copyDocsClosure,
@@ -23,7 +23,7 @@ import { readProductSeedIndex } from "./product-data-seed-index.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
 
-test("cluster import requires explicit source identity and replacement is opt-in", () => {
+test("cluster import requires explicit source identity", () => {
 	assert.deepEqual(parseProductDataOptions([]), {
 		data: "seed",
 		replace: false,
@@ -187,4 +187,69 @@ test("failed foundation import rolls back and never activates the index", async 
 	);
 	assert.equal(statements.at(-1), "ROLLBACK");
 	assert(!statements.some((sql) => sql.includes("insert into campus_docs_serving")));
+});
+
+test("retrieval import registers and validates the candidate before activation", async () => {
+	const statements: string[] = [];
+	const docsEmbeddingSet = `sha256:${"a".repeat(64)}` as const;
+	const noticeEmbeddingSet = `sha256:${"b".repeat(64)}` as const;
+	const collection = `campus_docs_${"c".repeat(64)}`;
+	const seed = createProductSeed(new Date());
+	const query = async (sql: string) => {
+		statements.push(sql);
+		if (sql.includes("SELECT v.*, EXISTS")) {
+			return {
+				rows: [
+					{
+						collection,
+						docs_embedding_set: docsEmbeddingSet,
+						notice_embedding_set: noticeEmbeddingSet,
+						producer: "manual",
+						validated: false,
+						activated_at: null,
+						protected: false,
+					},
+				],
+				rowCount: 1,
+			};
+		}
+		if (sql.startsWith("SELECT validated")) {
+			return { rows: [{ validated: true }], rowCount: 1 };
+		}
+		if (sql.includes("current_index") && sql.includes("FOR UPDATE")) {
+			return { rows: [], rowCount: 0 };
+		}
+		return { rows: [], rowCount: 1 };
+	};
+	await importRetrievalData({ query } as never, {
+		rows: {
+			"notices.categories": seed.rows["notices.categories"],
+			"notices.notice_types": seed.rows["notices.notice_types"],
+			"notices.organizations": seed.rows["notices.organizations"],
+			"notices.notices": seed.rows["notices.notices"],
+			"notices.notice_assets": seed.rows["notices.notice_assets"],
+		},
+		collection,
+		docsEmbeddingSet,
+		noticeEmbeddingSet,
+	});
+	assert(statements.some((sql) => sql.includes("SET validated=true")));
+	assert(statements.some((sql) => sql.includes("insert into campus_docs_serving.current_index")));
+	assert(
+		statements.some(
+			(sql) =>
+				sql.includes("transport.schedule_period_notices") &&
+				sql.includes("notices.processing_failures"),
+		),
+	);
+	assert(
+		statements.some(
+			(sql) =>
+				sql.includes("delete from notices.notices") &&
+				sql.includes("where link.notice_id = notice.notice_id") &&
+				sql.includes("where failure.notice_id = notice.notice_id"),
+		),
+	);
+	assert(statements.some((sql) => sql.includes('on conflict ("notice_id") do update')));
+	assert.equal(statements.at(-1), "COMMIT");
 });

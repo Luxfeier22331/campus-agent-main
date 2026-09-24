@@ -8,7 +8,7 @@ status: active
 
 ## 边界
 
-本地开发使用 `infra/local/docker-compose.dev.yml` 提供共享 PostgreSQL、RustFS 和 Temporal；仓库不在
+本地开发使用 `infra/local/docker-compose.dev.yml` 提供每个 worktree 独立的 PostgreSQL、RustFS、Qdrant 和 Temporal；仓库不在
 Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.execution-runtime.yml` 只用于按需
 启动 Hindsight 与 OTel 诊断依赖。
 
@@ -23,7 +23,8 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.e
 默认诊断 compose 使用 debug OTel Collector。只有验证本地 Agent trace 到 Langfuse 的转发时加入
 `docker-compose.execution-runtime.langfuse.yml`。
 
-初始化决策见[协作开发产品数据初始化](../../.agents/notes/implemented/process/2026-09-17-product-data-initialization.md)。
+独立数据平面决策见[每个 worktree 的独立本地数据平面](../../.agents/notes/implemented/architecture/2026-09-24-independent-worktree-data-plane.md)；seed 与基础
+验证仍见[协作开发产品数据初始化](../../.agents/notes/implemented/process/2026-09-17-product-data-initialization.md)。
 
 ## Node 工具链
 
@@ -54,43 +55,26 @@ pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 ```bash
 pnpm --dir apps/campus-web test:node:fast
 pnpm --dir apps/campus-web test:dom:fast
-pnpm --dir apps/campus-web build:test
-pnpm dev:shared-reconcile
+pnpm --dir apps/campus-web build:fixture
 pnpm dev:init -- --target core
 pnpm dev
 ```
 
-`build:test` 只供浏览器回归使用确定性测试内容。Campus Web 的正常开发和构建读取对象存储固定键
-`campus-docs/source.json`。共享依赖只由 canonical checkout 的 `pnpm dev:shared-reconcile` 供应；
-`pnpm dev:init -- --target core` 为当前 worktree 安装 schema、完整产品 seed、真实混合检索索引和
-Temporal namespace。Qdrant 也由 shared-reconcile 供应，保留现有数据卷和密钥。
+`build:fixture` 只供浏览器回归使用确定性测试内容。Campus Web 的正常开发和构建读取当前 worktree 对象存储中的 `campus-docs/source.json`。
+`pnpm dev:init -- --target core` 为当前 worktree 供应 PostgreSQL、RustFS、Qdrant、Temporal，安装 schema、测试账号和 namespace。
 
-初始化前停止当前 worktree 的应用，保留共享基础设施。`core` 与 `ops-web` 使用相同完整数据集：
+初始化前停止当前 worktree 的应用。`core` 先初始化自己的运行数据库，再同步当前 worktree 的检索数据：
 
 ```bash
-pnpm dev:init -- --target core --data seed
-pnpm dev:init -- --target core --data cluster --context <协作者-context> --namespace <namespace>
-pnpm dev:init -- --target core --data cluster --context <协作者-context> --namespace <namespace> --replace
+pnpm dev:init -- --target core
+pnpm dev:init -- --target core --data cluster --context <context> --namespace <namespace>
 pnpm dev:doctor -- --scope data
 ```
 
-默认 seed 包含通知、Docs 全版本和图片、食堂地图与菜单/评论、交通时段及通知关联、校园群组。
-11 个预生成真实 Qwen3-Embedding-4B（2560 维）检索点随仓库提供，初始化不调用模型供应商。
-模型连接仍由开发者提供；数据 ready 不等于模型配置或真实查询成功。
+`dev:init --data cluster` 不复制集群的完整业务数据库，只同步 Docs source 引用闭包、当前混合 Qdrant collection、检索所需通知表和当前 profile 的 `current_index`，不复制用户、session、Dining、Transport、Groups 或 reviews。基础 UI 验证仍可使用 seed 和 fixture；seed 是本地完整基础数据路径。模型连接仍由开发者提供；数据 ready 不等于模型配置或真实查询成功。
 
-已有数据时 seed 只检查 Docs source 与当前索引入口并保留本地编辑，不遍历全部对象和索引，
-不向自定义数据混入样例。入口检查失败时修复所报告的原因；只有需要替换数据时才使用 `--replace`。
-cluster 模式在非空目标上同样要求 `--replace`。替换清除基础数据和依赖它的本地食堂评论、编辑、举报，
-保留用户、会话、模型配置。日期只在 seed 初始化时生成，重复初始化不会刷新日期。
-旧 worktree 的共享 Docs 引用闭包先复制到 profile bucket，不修改共享 source。
-
-cluster 模式使用 `pg-product-data-ro`、`objectstore-ro`、`qdrant-ro`，复制产品与内容管理数据，包括草稿，
-不复制门户原始采集数据、远端用户/会话/评论/模型密钥。附件仅复制元数据；图片复制实际对象。
-数据库使用单个只读 repeatable-read 事务导出；Qdrant 读取当前绑定 collection 的 points 和 dense/sparse
-向量，按批写入临时 NDJSON，保留 collection 身份。对象直接读取并交给消费者，不另建磁盘缓存；
-临时 NDJSON 在成功、失败或取消后清理。已有本地 collection 必须通过内容校验，不会被覆盖。
-数据库内容与索引绑定同事务提交；随后更新本地 Docs source 并准备阅读资源。后续失败会报 incomplete，
-修复原因后重复同一条显式 replace 命令即可。浏览器验收按需使用 MCP，不增加 smoke 命令或 PR CI。
+同步失败时当前 profile 的 current pointer 不会激活候选 collection；修复集群连接或对象后重试同一条同步命令。
+浏览器验收按需使用 MCP，不增加 smoke 命令或 PR CI。
 
 初始化成功后不再自动进行全量诊断。默认 doctor 与启动检查只核对必要入口；业务表为空不代表损坏。
 需要检查全部对象、图片及检索点引用时显式运行 `pnpm dev:doctor -- --scope data`，它会读取全部相关
@@ -102,7 +86,7 @@ Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行�
 存储时才通过 `env/commands/campus-docs-source.env` 或进程环境覆盖，进程环境优先级最高。
 
 文档准备进程读取对象存储配置并生成按来源摘要命名的本地目录；随后启动的 Vite 进程只接收该目录、
-构建目标和页面运行所需配置，不接收对象存储凭据。没有对象存储访问时，应使用 `build:test` 和
+构建目标和页面运行所需配置，不接收对象存储凭据。没有对象存储访问时，应使用 `build:fixture` 和
 Worker fixture 检查，不要把测试环境改成读取远端文档。
 
 真实流式验收先确认进程已加载当前源码：Agent Runtime 的本地 Node 进程和 Execution Control 的
@@ -139,10 +123,8 @@ pnpm dev:instances
 ```
 
 `pnpm dev:doctor` 默认检查当前 target 的配置、实例资源和 owner readiness；使用
-`pnpm dev:doctor -- --scope shared` 才检查共享容器运行状态、健康检查、Compose 配置 hash、网络、数据
-卷和共享 bucket，`--scope runtime` 还检查当前 target 的 HTTP health endpoint。无法探测时显示 `unknown`，
-不会把连接失败当成资源不存在。主 checkout 负责首次启动或重新协调共享容器，linked worktree 只复用
-ready 状态的共享依赖。Temporal namespace 按 profile 创建；实例的 derived bucket 只在 target 声明需要时
+`pnpm dev:doctor -- --scope infra` 检查当前 profile 的容器运行状态、健康检查、网络、数据卷和 bucket，
+`--scope runtime` 还检查当前 target 的 HTTP health endpoint。无法探测时显示 `unknown`，不会把连接失败当成资源不存在。Temporal namespace 按 profile 创建；实例的 derived bucket 只在 target 声明需要时
 供应，notice-classifier 等 database-only target 不会无条件创建它。
 
 `pnpm dev:instances` 是 metadata-only 清单，只读取注册表，不访问 PostgreSQL、RustFS 或 Temporal；
@@ -155,8 +137,10 @@ ready 状态的共享依赖。Temporal namespace 按 profile 创建；实例的 
 pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
 ```
 
-删除 linked worktree 前，先运行上述销毁命令；不要在任一 worktree 执行共享 compose 的 `down` 或
-`down -v`。source bucket 与 Campus Web 文档 bucket 是共享资源，不能作为单个实例销毁目标。
+删除 linked worktree 前，先运行上述销毁命令；不要在任一 worktree 执行旧 shared compose 的 `down` 或
+`down -v`。旧 shared compose project、网络、卷和 bucket 不由代码自动删除，确认无其他消费者后由开发者人工清理。
+
+人工清理旧 shared 资源时先核对 owner，再查看 Compose project、卷和 RustFS bucket 的实际名称；确认没有其他 worktree 使用后，手动停止并删除旧 Compose project 和卷，再删除旧 bucket。V3 CLI 不会替你执行这些删除。
 单独启动核心应用要求当前 worktree 已执行 `pnpm dev:init -- --target core`；可选应用统一使用根入口，
 例如 `pnpm dev:init -- --target ops-web`。target 会生成真实依赖的环境投影；
 internal-portal-collection 和 notice-classifier 不需要再单独运行 notice-publisher 初始化。
@@ -227,9 +211,9 @@ pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
 
 运行上述命令前，先用 `import-artifacts-local` 从集群 derived object store 导入两个 Embedding Set 的 serving
 引用闭包。导入使用临时 object-store port-forward，并写入当前 worktree 的隔离本地 bucket；不会复制整个
-bucket，也不会写入共享 bucket。发布验证使用本地 PostgreSQL/Qdrant 和本地 S3，不调用 embedding provider，
+bucket，也不会写入当前 profile bucket。发布验证使用本地 PostgreSQL/Qdrant 和本地 S3，不调用 embedding provider，
 也不形成线上前置状态。`dev:init -- --target campus-rag-index-publisher` 从正在运行的本地 Qdrant Compose
-容器读取 writer key 和 HTTP 映射端口，经认证检查后写入本 worktree 的托管环境文件。容器由主 checkout 的 `pnpm dev:shared-reconcile` 启动；连接或认证失败时初始化报错，凭据变化后重跑初始化即可更新。
+容器读取 writer key 和 HTTP 映射端口，经认证检查后写入本 worktree 的托管环境文件。容器由当前 worktree 的 `pnpm dev:init -- --target core` 启动；连接或认证失败时初始化报错，凭据变化后重跑初始化即可更新。
 
 ## Ops Web API
 
@@ -353,8 +337,7 @@ SHA-256，并在产品回调成功后发布终结事件；它不会连接 stagin
 测试覆盖本地登录、普通回答、重新生成、记忆设置路由和 `GET /api/me/profile-memory`。
 
 这是本地用户行为和依赖协议证据，不代表 staging、production、部署控制器或真实 execution-control 已经
-健康。命令结束后 Playwright 会停止本次启动的 fixture 和两个 Wrangler 进程；共享本地 Postgres、RustFS
-和 worktree profile 不由该命令销毁。
+健康。命令结束后 Playwright 会停止本次启动的 fixture 和两个 Wrangler 进程；当前 worktree 的 Postgres、RustFS、Qdrant、Temporal 和 profile 不由该命令销毁。
 
 Temporal 集成测试按需在本地执行。测试会启动 Temporal Dev Server，不连接 staging 或其他部署环境：
 

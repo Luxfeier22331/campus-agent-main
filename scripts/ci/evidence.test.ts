@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -10,8 +11,110 @@ import {
 	parseValidationProfiles,
 	runCandidateEvidence,
 	runCommand,
+	runRepositoryChecks,
 	runVerification,
+	runWorkspaceCommand,
 } from "./evidence.mts";
+
+test("repository checks select locked environments, deduplicate requests and reject unknown names", () => {
+	const calls: string[][] = [];
+	const runner: EvidenceCommandRunner = (command, args) => {
+		calls.push([command, ...args]);
+		return { status: 0 };
+	};
+	const input = { repositoryRoot: REPOSITORY_ROOT, env: {} };
+	runRepositoryChecks(input, runner);
+	assert.deepEqual(calls, [
+		[
+			"nix",
+			"develop",
+			".#ci-go",
+			"--command",
+			"pnpm",
+			"--dir",
+			"packages/contracts",
+			"contracts:check",
+		],
+		["nix", "develop", ".#ci-light", "--command", "actionlint"],
+		["nix", "develop", ".#ci-light", "--command", "zizmor", "--min-severity=medium", ".github"],
+	]);
+	calls.length = 0;
+	runRepositoryChecks({ ...input, checks: ["contracts", "contracts"] }, runner);
+	assert.equal(calls.length, 1);
+	calls.length = 0;
+	assert.throws(
+		() => runRepositoryChecks({ ...input, checks: ["contracts", "unknown"] }, runner),
+		/Unsupported repository check/u,
+	);
+	assert.equal(calls.length, 0);
+	assert.throws(
+		() =>
+			runRepositoryChecks({ ...input, checks: ["config"] }, (command, args) => {
+				calls.push([command, ...args]);
+				return { status: 29 };
+			}),
+		/exit code 29/u,
+	);
+	assert.equal(calls.length, 1);
+});
+
+test("prepared environments execute repository commands safely and propagate failures", (t) => {
+	const directory = mkdtempSync(path.join(os.tmpdir(), "repository-env-"));
+	t.after(() => rmSync(directory, { recursive: true, force: true }));
+	const output: Array<{ tool: string; args: string[]; marker: string }> = [];
+	for (const tool of ["pnpm", "actionlint", "zizmor"]) {
+		writeFileSync(
+			path.join(directory, tool),
+			`#!${process.execPath}
+console.log(JSON.stringify({tool: ${JSON.stringify(tool)}, args: process.argv.slice(2), marker: process.env.MARKER}));
+process.exit(Number(process.env.FIXTURE_EXIT || 0));
+`,
+			{ mode: 0o755 },
+		);
+	}
+	// These are shell metacharacters in a filename, never shell code.
+	const prepared = path.join(directory, "prepared ' $(false) environment.sh");
+	writeFileSync(prepared, 'export PATH="$FIXTURE_BIN:$PATH"\nexport MARKER=prepared\n');
+	const env = {
+		...process.env,
+		FIXTURE_BIN: directory,
+		CI_NIX_GO_ENV: prepared,
+		CI_NIX_LIGHT_ENV: prepared,
+	};
+	const runner: EvidenceCommandRunner = (command, args, options) => {
+		assert.equal(command, "bash");
+		const result = spawnSync(command, args, { ...options, encoding: "utf8" });
+		if (result.stdout?.trim()) {
+			output.push(JSON.parse(result.stdout));
+		}
+		return result;
+	};
+	runRepositoryChecks({ repositoryRoot: REPOSITORY_ROOT, env }, runner);
+	assert.deepEqual(output, [
+		{ tool: "pnpm", args: ["--dir", "packages/contracts", "contracts:check"], marker: "prepared" },
+		{ tool: "actionlint", args: [], marker: "prepared" },
+		{ tool: "zizmor", args: ["--min-severity=medium", ".github"], marker: "prepared" },
+	]);
+	assert.throws(
+		() =>
+			runRepositoryChecks(
+				{ repositoryRoot: REPOSITORY_ROOT, env: { ...env, FIXTURE_EXIT: "23" } },
+				runner,
+			),
+		/exit code 23/u,
+	);
+	assert.throws(
+		() =>
+			runRepositoryChecks(
+				{
+					repositoryRoot: REPOSITORY_ROOT,
+					env: { ...env, CI_NIX_GO_ENV: path.join(directory, "missing.sh") },
+				},
+				runner,
+			),
+		/exit code 1/u,
+	);
+});
 
 test("complete and source verification share checks without losing database coverage", () => {
 	const capture = (sourceOnly: boolean) => {
@@ -175,13 +278,12 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 				status: 0,
 				stdout: JSON.stringify({
 					tasks: [
-						{ command: "vite build", package: "campus-web", task: "build" },
-						{ command: "pnpm build:test", package: "campus-web", task: "build:worker" },
-						{ command: "vite build", package: "app-api", task: "build:worker" },
-						{ command: "wrangler deploy", package: "status-web", task: "build:worker" },
-						{ command: "vite build", package: "ops-web", task: "build" },
-						{ command: "tsc", package: "agent-runtime", task: "build" },
-						{ command: "vitest", package: "agent-runtime", task: "test" },
+						{ command: "pnpm build:fixture", package: "campus-web", task: "build:check" },
+						{ command: "vite build", package: "app-api", task: "build:check" },
+						{ command: "wrangler deploy", package: "status-web", task: "build:check" },
+						{ command: "vite build", package: "ops-web", task: "build:check" },
+						{ command: "tsc", package: "agent-runtime", task: "build:check" },
+						{ command: "vitest", package: "agent-runtime", task: "test:unit" },
 						{ command: "vitest", package: "app-api", task: "test:worker" },
 						{ command: "vitest", package: "status-web", task: "test:worker" },
 						{ command: "tsc", package: "ops-web", task: "typecheck" },
@@ -217,13 +319,13 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	const evidenceCommands = commands.filter((command) => !command.includes("--dry-run=json"));
 	assert(!evidenceCommands.some((command) => command.includes("--affected")));
 	const taskIds = evidenceCommands.flat().filter((arg) => arg.includes("#"));
-	assert(taskIds.includes("agent-runtime#test"));
+	assert(taskIds.includes("agent-runtime#test:unit"));
 	assert(taskIds.includes("app-api#test:worker"));
 	assert(taskIds.includes("status-web#test:worker"));
 	assert(!taskIds.includes("ops-web#typecheck"));
-	assert(!taskIds.includes("ops-web#build"));
-	assert(taskIds.includes("agent-runtime#build"));
-	assert(taskIds.includes("campus-web#build:worker"));
+	assert(!taskIds.includes("ops-web#build:check"));
+	assert(taskIds.includes("agent-runtime#build:check"));
+	assert(taskIds.includes("campus-web#build:check"));
 	assert(!taskIds.includes("campus-web#build"));
 	assert(!evidenceCommands.flat().includes("--only"));
 	assert(
@@ -280,7 +382,7 @@ test("requires an explicit repository for image evidence", () => {
 						return {
 							status: 0,
 							stdout: JSON.stringify({
-								tasks: [{ command: "tsc", package: "agent-runtime", task: "build" }],
+								tasks: [{ command: "tsc", package: "agent-runtime", task: "build:check" }],
 							}),
 						};
 					}
@@ -309,8 +411,8 @@ test("runs fixed profiles without consulting Git", () => {
 		},
 	);
 	assert.deepEqual(calls, [
-		"pnpm exec turbo run native:format native:lint native:typecheck native:test --dry-run=json",
-		"node --experimental-strip-types scripts/ci/turbo.mts fixture#native:format fixture#native:lint fixture#native:test fixture#native:typecheck --concurrency=1 --summarize",
+		"pnpm exec turbo run native:format native:lint native:vet native:test --dry-run=json",
+		"node --experimental-strip-types scripts/ci/turbo.mts fixture#native:format fixture#native:lint fixture#native:test fixture#native:vet --concurrency=1 --summarize",
 		"node --experimental-strip-types scripts/ci/turbo.mts typecheck test --filter=eval-langfuse --summarize",
 		"node --experimental-strip-types scripts/ci/turbo.mts test:eval --filter=ragas-runner --concurrency=1 --summarize",
 		"node --experimental-strip-types scripts/ci/turbo.mts test:database-integration --filter=ops-web --summarize",
@@ -338,4 +440,153 @@ test("stops on the first failed profile command", () => {
 			),
 		/infra failed with exit code 2/u,
 	);
+});
+
+test("workspace tests select each leaf once and preserve resource/tooling context", () => {
+	const calls: string[][] = [];
+	const tasks = [
+		{ package: "web", task: "test", command: "<NONEXISTENT>", dependencies: ["web#test:unit"] },
+		{ package: "web", task: "test:unit", command: "vitest" },
+		{ package: "web", task: "test:worker", command: "vitest" },
+		{ package: "web", task: "source", command: "<NONEXISTENT>" },
+		{ package: "execution-control", task: "native:test", command: "go test" },
+		{ package: "ragas-runner", task: "test:eval", command: "uv run" },
+		{ package: "@campus-agent/tooling", task: "test:ci", command: "tsx" },
+	];
+	runWorkspaceCommand(
+		"test",
+		["--filter=web", "--affected"],
+		REPOSITORY_ROOT,
+		(command, args, options) => {
+			calls.push([command, ...args]);
+			if (args.includes("--dry-run=json")) {
+				assert(args.includes("--filter=web"));
+				assert(args.includes("--affected"));
+				assert(!args.includes("--filter=web..."));
+				return { status: 0, stdout: JSON.stringify({ tasks }) };
+			}
+			if (args.includes("@campus-agent/tooling#test:ci")) {
+				assert(options.env.CAMPUS_REPO_TEST_RUNTIME);
+				assert(options.env.CAMPUS_TOOLING_TRACKED_CI);
+				assert(args.includes("--concurrency=1"));
+			}
+			if (args.includes("execution-control#native:test")) {
+				assert(args.includes("--concurrency=1"));
+				assert.equal(options.env.GOTOOLCHAIN, "local");
+			}
+			return { status: 0, stdout: "" };
+		},
+	);
+	const executed = calls.flat().filter((arg) => arg.includes("#") && !arg.startsWith(".#"));
+	assert.deepEqual(executed.sort(), [
+		"@campus-agent/tooling#test:ci",
+		"execution-control#native:test",
+		"ragas-runner#test:eval",
+		"web#test:unit",
+		"web#test:worker",
+	]);
+});
+
+test("filtered check keeps repository checks and verify profiles do not recurse", () => {
+	const calls: string[][] = [];
+	const runner: EvidenceCommandRunner = (command, args) => {
+		calls.push([command, ...args]);
+		return {
+			status: 0,
+			stdout: JSON.stringify({ tasks: [{ package: "web", task: "typecheck", command: "tsc" }] }),
+		};
+	};
+	runWorkspaceCommand("check", ["--filter", "web"], REPOSITORY_ROOT, runner);
+	assert(calls.some((args) => args.join(" ") === "pnpm lint"));
+	assert(calls.some((args) => args.join(" ") === "pnpm docs:check"));
+	assert(calls.some((args) => args.join(" ") === "pnpm test:tooling"));
+	assert(calls.some((args) => args.includes("contracts:check")));
+	assert(calls.some((args) => args.includes("actionlint")));
+	assert(!calls.some((args) => args.join(" ") === "pnpm check"));
+	calls.length = 0;
+	runWorkspaceCommand("verify", ["--profile=infra", "--profile=otel"], REPOSITORY_ROOT, runner);
+	assert.deepEqual(
+		calls.map((args) => args[0]),
+		["scripts/infra/validate.sh", "scripts/otel/validate-config.sh"],
+	);
+	assert.throws(
+		() => runWorkspaceCommand("verify", ["--source"], REPOSITORY_ROOT, runner),
+		/Unsupported workspace option/u,
+	);
+	assert.throws(
+		() => runWorkspaceCommand("test", ["--run"], REPOSITORY_ROOT, runner),
+		/child leaf script/u,
+	);
+});
+
+test("workspace failures stop later task families", () => {
+	const calls: string[][] = [];
+	assert.throws(
+		() =>
+			runWorkspaceCommand("test", [], REPOSITORY_ROOT, (command, args) => {
+				calls.push([command, ...args]);
+				if (args.includes("--dry-run=json")) {
+					return {
+						status: 0,
+						stdout: JSON.stringify({
+							tasks: [
+								{ package: "web", task: "test:unit", command: "vitest" },
+								{ package: "execution-control", task: "native:test", command: "go test" },
+							],
+						}),
+					};
+				}
+				return { status: args.includes("web#test:unit") ? 23 : 0, stdout: "" };
+			}),
+		/exit code 23/u,
+	);
+	assert(!calls.some((args) => args.includes("execution-control#native:test")));
+});
+
+test("the full Campus E2E flow builds once, marks suites prebuilt, and stops on build failure", () => {
+	const directory = mkdtempSync(path.join(os.tmpdir(), "campus-e2e-command-"));
+	try {
+		const bin = path.join(directory, "pnpm");
+		writeFileSync(
+			bin,
+			`#!${process.execPath}\nconst fs = require('node:fs'); fs.appendFileSync(process.env.CALLS, JSON.stringify({ args: process.argv.slice(2), prebuilt: process.env.CAMPUS_WEB_E2E_PREBUILT }) + '\\n'); if (process.env.FAIL_BUILD === '1' && process.argv.includes('build:fixture')) process.exit(17);\n`,
+			{ mode: 0o755 },
+		);
+		const log = path.join(directory, "calls.jsonl");
+		const execute = (fail: boolean) =>
+			spawnSync(
+				"bash",
+				[
+					path.join(REPOSITORY_ROOT, "apps/campus-web/scripts/test-e2e-full.sh"),
+					"file with spaces",
+				],
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						PATH: `${directory}:${process.env.PATH}`,
+						CALLS: log,
+						FAIL_BUILD: fail ? "1" : "0",
+					},
+					encoding: "utf8",
+				},
+			);
+		const read = () =>
+			readFileSync(log, "utf8")
+				.trim()
+				.split("\n")
+				.map((line) => JSON.parse(line));
+		assert.equal(execute(false).status, 0);
+		assert.deepEqual(read(), [
+			{ args: ["run", "build:fixture"] },
+			{ args: ["run", "test:e2e"], prebuilt: "1" },
+			{ args: ["run", "test:e2e:worker"], prebuilt: "1" },
+			{ args: ["run", "test:e2e:ui-baseline", "file with spaces"], prebuilt: "1" },
+		]);
+		writeFileSync(log, "");
+		assert.equal(execute(true).status, 17);
+		assert.deepEqual(read(), [{ args: ["run", "build:fixture"] }]);
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
 });

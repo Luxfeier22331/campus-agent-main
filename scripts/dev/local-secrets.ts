@@ -7,7 +7,7 @@ export interface LocalDevSecretsV1 {
 	betterAuthSecret: string;
 	executionSharedSecret: string;
 	opsWebInternalToken: string;
-	schemaVersion: 1;
+	schemaVersion: 2;
 }
 
 const LOCAL_SECRETS_RELATIVE_PATH = "var/dev/local-secrets.json";
@@ -41,19 +41,11 @@ export function ensureLocalDevSecrets(
 		}
 		values[name] = [...unique][0] ?? randomSecret();
 	}
-	const next: LocalDevSecretsV1 = { ...values, schemaVersion: 1 };
+	const next: LocalDevSecretsV1 = { ...values, schemaVersion: 2 };
 	if (!existing || JSON.stringify(existing) !== JSON.stringify(next)) {
 		writeJsonAtomic(path, next);
 	}
 	return next;
-}
-
-export function loadLocalDevSecrets(repoRoot: string): LocalDevSecretsV1 {
-	const value = readLocalDevSecrets(resolveLocalDevSecretsPath(repoRoot));
-	if (!value) {
-		throw new Error("Local development secrets are missing. Run pnpm dev:init first.");
-	}
-	return value;
 }
 
 export function removeLocalDevSecrets(repoRoot: string): void {
@@ -66,7 +58,7 @@ function readLocalDevSecrets(path: string): LocalDevSecretsV1 | null {
 	}
 	const value = JSON.parse(readFileSync(path, "utf8")) as Partial<LocalDevSecretsV1>;
 	if (
-		value.schemaVersion !== 1 ||
+		(value.schemaVersion !== 1 && value.schemaVersion !== 2) ||
 		!nonEmpty(value.appApiSafetyIdentifierHmacSecret) ||
 		!nonEmpty(value.betterAuthSecret) ||
 		!nonEmpty(value.executionSharedSecret) ||
@@ -74,7 +66,10 @@ function readLocalDevSecrets(path: string): LocalDevSecretsV1 | null {
 	) {
 		throw new Error(`Invalid local development secrets: ${path}`);
 	}
-	return value as LocalDevSecretsV1;
+	return {
+		...value,
+		schemaVersion: 2,
+	} as LocalDevSecretsV1;
 }
 
 function writeJsonAtomic(path: string, value: unknown): void {

@@ -19,7 +19,7 @@ score 适配。`packages/ragas-runner` 负责把 native Ragas 样本交给 Ragas
 
 ```bash
 pnpm --dir packages/eval-langfuse typecheck
-pnpm --dir packages/eval-langfuse test
+pnpm test --filter=eval-langfuse
 pnpm --dir packages/ragas-runner test:eval
 ```
 

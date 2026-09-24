@@ -113,8 +113,20 @@ export const PRODUCT_DATA_TABLES = {
 	],
 } as const;
 
+export const PRODUCT_RETRIEVAL_TABLES = [
+	"notices.categories",
+	"notices.notice_types",
+	"notices.organizations",
+	"notices.notices",
+	"notices.notice_assets",
+] as const;
+
 export type ProductDataTable = keyof typeof PRODUCT_DATA_TABLES;
 export type ProductDataRows = Record<ProductDataTable, Record<string, unknown>[]>;
+export type RetrievalProductDataRows = Pick<
+	ProductDataRows,
+	(typeof PRODUCT_RETRIEVAL_TABLES)[number]
+>;
 
 export function productDataProjection(table: ProductDataTable): string {
 	return PRODUCT_DATA_TABLES[table].map((column) => `"${column}"`).join(", ");

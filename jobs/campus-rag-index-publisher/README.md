@@ -13,7 +13,7 @@ collection，并原子替换 `campus_docs_serving.current_index`。
 
 ```bash
 pnpm --dir jobs/campus-rag-index-publisher typecheck
-pnpm --dir jobs/campus-rag-index-publisher test -- --run
+pnpm test --filter=campus-rag-index-publisher
 pnpm --dir jobs/campus-rag-index-publisher build
 ```
 

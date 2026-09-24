@@ -8,8 +8,8 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"test": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
 	},
 	"dependencies": {
 		"fetch-cookie": "^3.2.0",

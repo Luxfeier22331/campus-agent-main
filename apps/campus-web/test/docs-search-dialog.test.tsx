@@ -10,9 +10,10 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DocsSearchPanel } from "../src/components/docs/docs-search-dialog";
-import { type DocsSearchResult, searchDocsIndexes } from "../src/features/docs/search";
+import { type DocsSearchResult, searchDocsIndex } from "../src/features/docs/search";
 import type { DocsSearchDocumentGroup } from "../src/features/docs/search-client";
 import type { DocsSearchIndex } from "../src/features/docs/site-index";
+import { createDocsSearchIndex } from "./helpers/docs-search-index-fixture";
 import { createLargeDocsSiteIndex } from "./helpers/docs-site-index-fixture";
 
 const searchClientMock = vi.hoisted(() => ({
@@ -50,20 +51,18 @@ describe("docs search dialog", () => {
 			...largeIndex,
 			collections: [{ ...collection, documents: collection.documents.slice(0, 10) }],
 		};
-		const searchIndex: DocsSearchIndex = {
-			entries:
-				siteIndex.collections[0]?.documents.flatMap((document) =>
-					Array.from({ length: 4 }, (_, index) => ({
-						anchor: `section-${index + 1}`,
-						docId: document.docId,
-						highlightRootUnitIds: [`${document.docId}-root-${index + 1}`],
-						searchText: `共同关键词 第 ${index + 1} 节正文`,
-						sectionTitle: `第 ${index + 1} 节`,
-						snippet: `共同关键词对应的第 ${index + 1} 节正文`,
-					})),
-				) ?? [],
-			schemaVersion: "campus_docs_search_index.v2",
-		};
+		const searchEntries =
+			siteIndex.collections[0]?.documents.flatMap((document) =>
+				Array.from({ length: 4 }, (_, index) => ({
+					anchor: `section-${index + 1}`,
+					docId: document.docId,
+					highlightRootUnitIds: [`${document.docId}-root-${index + 1}`],
+					searchText: `共同关键词 第 ${index + 1} 节正文`,
+					sectionTitle: `第 ${index + 1} 节`,
+					snippet: `共同关键词对应的第 ${index + 1} 节正文`,
+				})),
+			) ?? [];
+		const searchIndex = createDocsSearchIndex(searchEntries, siteIndex);
 		mockSearchResults(siteIndex, searchIndex);
 
 		await renderSearchPanel(siteIndex);
@@ -150,7 +149,7 @@ describe("docs search dialog", () => {
 		await waitFor(() => expect(responses.has("共同关键词")).toBe(true));
 
 		responses.get("共同关键词")?.(
-			toSearchPage(searchDocsIndexes("共同关键词", [searchIndex], siteIndex), 0, 8),
+			toSearchPage(searchDocsIndex("共同关键词", searchIndex, siteIndex), 0, 8),
 		);
 		await screen.findByText("2 篇文档");
 		responses.get("旧查询")?.({
@@ -166,7 +165,7 @@ describe("docs search dialog", () => {
 	it("keeps existing results while a new query is pending or fails", async () => {
 		const siteIndex = createLargeDocsSiteIndex();
 		const searchIndex = createSearchIndex(siteIndex, 2);
-		const firstPage = toSearchPage(searchDocsIndexes("共同关键词", [searchIndex], siteIndex), 0, 8);
+		const firstPage = toSearchPage(searchDocsIndex("共同关键词", searchIndex, siteIndex), 0, 8);
 		searchClientMock.search
 			.mockResolvedValueOnce(firstPage)
 			.mockRejectedValueOnce(new Error("search unavailable"));
@@ -273,14 +272,10 @@ function mockSearchResults(
 			documentOffset: number;
 			query: string;
 		}) =>
-			toSearchPage(
-				searchDocsIndexes(query, [searchIndex], siteIndex),
-				documentOffset,
-				documentLimit,
-			),
+			toSearchPage(searchDocsIndex(query, searchIndex, siteIndex), documentOffset, documentLimit),
 	);
 	searchClientMock.expand.mockImplementation(async (query: string, docId: string) => {
-		const group = groupSearchResults(searchDocsIndexes(query, [searchIndex], siteIndex)).find(
+		const group = groupSearchResults(searchDocsIndex(query, searchIndex, siteIndex)).find(
 			(candidate) => candidate.document.docId === docId,
 		);
 		if (!group) {
@@ -355,22 +350,19 @@ function createSearchIndex(
 	siteIndex: ReturnType<typeof createLargeDocsSiteIndex>,
 	documentCount: number,
 ) {
-	return {
-		entries:
-			siteIndex.collections[0]?.documents.slice(0, documentCount).flatMap((document) =>
-				Array.from({ length: 2 }, (_, index) => ({
-					anchor: `section-${index + 1}`,
-					docId: document.docId,
-					highlightRootUnitIds: [`${document.docId}-root-${index + 1}`],
-					searchText: `共同关键词 第 ${index + 1} 节正文`,
-					sectionTitle: `第 ${index + 1} 节`,
-					snippet: `共同关键词对应的第 ${index + 1} 节正文`,
-				})),
-			) ?? [],
-		schemaVersion: "campus_docs_search_index.v2" as const,
-	};
+	const entries =
+		siteIndex.collections[0]?.documents.slice(0, documentCount).flatMap((document) =>
+			Array.from({ length: 2 }, (_, index) => ({
+				anchor: `section-${index + 1}`,
+				docId: document.docId,
+				highlightRootUnitIds: [`${document.docId}-root-${index + 1}`],
+				searchText: `共同关键词 第 ${index + 1} 节正文`,
+				sectionTitle: `第 ${index + 1} 节`,
+				snippet: `共同关键词对应的第 ${index + 1} 节正文`,
+			})),
+		) ?? [];
+	return createDocsSearchIndex(entries, siteIndex);
 }
-
 function readOptionHref(option: HTMLElement | undefined): string {
 	const href = option?.getAttribute("href") ?? option?.querySelector("a")?.getAttribute("href");
 	if (!href) {

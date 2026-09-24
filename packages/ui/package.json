@@ -14,8 +14,8 @@
 		"./tokens.css": "./src/tokens.css"
 	},
 	"scripts": {
-		"test": "vitest run --environment jsdom --no-file-parallelism",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run --environment jsdom --no-file-parallelism"
 	},
 	"dependencies": {
 		"@radix-ui/react-alert-dialog": "^1.1.23",

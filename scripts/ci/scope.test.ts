@@ -34,12 +34,13 @@ function writeTurboFixture(root: string, outputLogs?: string): void {
 	const tasks = Object.fromEntries(
 		[
 			"build",
-			"build:worker",
+			"build:check",
+			"test:generators",
 			"native:format",
 			"native:lint",
 			"native:test",
-			"native:typecheck",
-			"test",
+			"native:vet",
+			"test:unit",
 			"test:worker",
 			"test:node:fast",
 			"test:node:isolated",
@@ -51,7 +52,7 @@ function writeTurboFixture(root: string, outputLogs?: string): void {
 			{
 				inputs: ["$TURBO_DEFAULT$"],
 				outputs: [],
-				...(taskName === "test" && outputLogs ? { outputLogs } : {}),
+				...(taskName === "test:unit" && outputLogs ? { outputLogs } : {}),
 			},
 		]),
 	);
@@ -168,7 +169,7 @@ test("validates ancestry, reads the diff once, and uses the lockfile Turbo", () 
 	const turbo = calls.find(({ command }) => command === "pnpm");
 	assert.deepEqual(turbo?.args.slice(0, 3), ["exec", "turbo", "run"]);
 	assert(turbo?.args.includes("native:test"));
-	assert(turbo?.args.includes("native:typecheck"));
+	assert(turbo?.args.includes("native:vet"));
 	assert(!turbo?.args.includes("dlx"));
 	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
 });
@@ -195,7 +196,7 @@ test("real Turbo validates config-only and mixed source changes", (t) => {
 	);
 	writeFileSync(
 		path.join(root, "apps/web/package.json"),
-		`${JSON.stringify({ name: "scope-web", scripts: { test: "node --test" } })}\n`,
+		`${JSON.stringify({ name: "scope-web", scripts: { "test:unit": "node --test" } })}\n`,
 	);
 	writeFileSync(path.join(root, "apps/web/src/app.ts"), "export const value = 1;\n");
 	writeTurboFixture(root);
@@ -213,7 +214,7 @@ test("real Turbo validates config-only and mixed source changes", (t) => {
 	const configOnly = git(root, "rev-parse", "HEAD");
 	assert(
 		resolveAffectedScope({ base, head: configOnly, repositoryRoot: root }).tasks.some(
-			(task) => task.package === "scope-web" && task.task === "test",
+			(task) => task.package === "scope-web" && task.task === "test:unit",
 		),
 	);
 
@@ -225,7 +226,7 @@ test("real Turbo validates config-only and mixed source changes", (t) => {
 	const mixed = git(root, "rev-parse", "HEAD");
 	const scope = resolveAffectedScope({ base, head: mixed, repositoryRoot: root });
 	assert.deepEqual(scope.changedFiles, ["apps/web/src/app.ts", "turbo.json"]);
-	assert(scope.tasks.some((task) => task.package === "scope-web" && task.task === "test"));
+	assert(scope.tasks.some((task) => task.package === "scope-web" && task.task === "test:unit"));
 });
 
 test("base equals head validates commits without diffing or running Turbo", () => {
@@ -251,5 +252,45 @@ test("rejects a base that is not an ancestor of head", () => {
 				(_command, args) => (args[0] === "merge-base" ? result({ status: 1 }) : result()),
 			),
 		/merge-base/u,
+	);
+});
+
+test("retains commandless public aggregates without retaining source transit nodes", () => {
+	assert.deepEqual(
+		parseTurboTasks(
+			JSON.stringify({
+				tasks: [
+					{
+						package: "web",
+						task: "test",
+						command: "<NONEXISTENT>",
+						dependencies: ["web#test:unit"],
+					},
+					{
+						package: "web",
+						task: "build:check",
+						command: "<NONEXISTENT>",
+						dependencies: ["web#build:fixture"],
+					},
+					{
+						package: "tooling",
+						task: "typecheck",
+						command: "<NONEXISTENT>",
+						dependencies: ["tooling#typecheck:notices"],
+					},
+					{
+						package: "web",
+						task: "source",
+						command: "<NONEXISTENT>",
+						dependencies: ["shared#source"],
+					},
+				],
+			}),
+		),
+		[
+			{ package: "tooling", task: "typecheck" },
+			{ package: "web", task: "build:check" },
+			{ package: "web", task: "test" },
+		],
 	);
 });

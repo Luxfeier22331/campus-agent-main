@@ -2,35 +2,6 @@
 	"$schema": "https://turborepo.com/schema.json",
 	"extends": ["//"],
 	"tasks": {
-		"build:worker": {
-			"inputs": [
-				"package.json",
-				"scripts/**",
-				"src/**",
-				"tsconfig.json",
-				"wrangler*.toml",
-				"$TURBO_ROOT$/configs/sources/internal-portal.json",
-				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
-				"$TURBO_ROOT$/packages/contracts/package.json",
-				"$TURBO_ROOT$/packages/contracts/src/**",
-				"$TURBO_ROOT$/packages/domains/dining/package.json",
-				"$TURBO_ROOT$/packages/domains/dining/src/**",
-				"$TURBO_ROOT$/scripts/deploy/run-wrangler-command.ts",
-				"$TURBO_ROOT$/scripts/deploy/staging-release.mts",
-				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
-			],
-			"outputLogs": "new-only",
-			"outputs": ["dist/worker/**"],
-			"dependsOn": [
-				"@campus-agent/dining#source",
-				"@campus-agent/transport#source",
-				"campus-contracts#source"
-			],
-			"env": ["CAMPUS_NODE_RUNTIME"]
-		},
-		"test": {
-			"cache": false
-		},
 		"test:shared-db-integration": {
 			"inputs": [
 				"$TURBO_ROOT$/jobs/campus-agent-schema/**",
@@ -151,6 +122,32 @@
 			"env": ["CAMPUS_NODE_RUNTIME"],
 			"outputs": [],
 			"outputLogs": "new-only"
+		},
+		"build": {
+			"inputs": [
+				"package.json",
+				"scripts/**",
+				"src/**",
+				"tsconfig.json",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/scripts/deploy/run-wrangler-command.ts",
+				"$TURBO_ROOT$/scripts/deploy/staging-release.mts",
+				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": ["dist/worker/**"],
+			"dependsOn": [
+				"@campus-agent/dining#source",
+				"@campus-agent/transport#source",
+				"campus-contracts#source"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME"]
 		}
 	}
 }

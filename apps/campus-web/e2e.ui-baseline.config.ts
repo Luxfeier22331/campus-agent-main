@@ -67,7 +67,7 @@ export default defineConfig({
 		trace: isCI ? "on-first-retry" : "retain-on-failure",
 	},
 	webServer: {
-		command: `${usePrebuiltApp ? "" : "pnpm run build:test && "}WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec vite preview --host 127.0.0.1 --port ${port} --strictPort`,
+		command: `${usePrebuiltApp ? "" : "pnpm run build:fixture && "}WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec vite preview --host 127.0.0.1 --port ${port} --strictPort`,
 		reuseExistingServer: false,
 		timeout: 120_000,
 		url: baseURL,

@@ -2,7 +2,7 @@ import { parseDocsVersionOrder } from "campus-contracts/campus-docs";
 import { isDocsDocumentPath } from "./docs-redirects";
 
 export const DOCS_SITE_INDEX_SCHEMA = "campus_docs_site_index.v5" as const;
-export const DOCS_SEARCH_INDEX_SCHEMA = "campus_docs_search_index.v2" as const;
+export const DOCS_SEARCH_INDEX_SCHEMA = "campus_docs_search_index.v3" as const;
 
 const DOCS_COLLECTION_ORDER = new Map<string, number>([
 	["curriculum/undergraduate", 10],
@@ -80,6 +80,10 @@ export interface DocsSearchEntry {
 }
 
 export interface DocsSearchIndex {
+	chunks: Array<{
+		data: string;
+		key: string;
+	}>;
 	entries: DocsSearchEntry[];
 	schemaVersion: typeof DOCS_SEARCH_INDEX_SCHEMA;
 }
@@ -211,12 +215,25 @@ function assertDocumentRedirects(siteIndex: DocsSiteIndex): void {
 
 export function parseDocsSearchIndex(value: unknown): DocsSearchIndex {
 	const record = requiredRecord(value, "docs search index");
-	if (record.schemaVersion !== DOCS_SEARCH_INDEX_SCHEMA || !Array.isArray(record.entries)) {
+	if (
+		record.schemaVersion !== DOCS_SEARCH_INDEX_SCHEMA ||
+		!Array.isArray(record.entries) ||
+		!Array.isArray(record.chunks)
+	) {
 		throw new Error("docs search index schema is invalid");
 	}
 	return {
+		chunks: record.chunks.map(parseSearchIndexChunk),
 		entries: record.entries.map(parseSearchEntry),
 		schemaVersion: DOCS_SEARCH_INDEX_SCHEMA,
+	};
+}
+
+function parseSearchIndexChunk(value: unknown): { data: string; key: string } {
+	const record = requiredRecord(value, "docs search index chunk");
+	return {
+		data: requiredString(record.data, "search index chunk data"),
+		key: requiredString(record.key, "search index chunk key"),
 	};
 }
 
@@ -272,7 +289,7 @@ function parseSearchEntry(value: unknown): DocsSearchEntry {
 		anchor: requiredString(record.anchor, "anchor"),
 		docId: requiredString(record.docId, "docId"),
 		highlightRootUnitIds: requiredStringArray(record.highlightRootUnitIds, "highlightRootUnitIds"),
-		searchText: requiredString(record.searchText, "searchText"),
+		searchText: requiredText(record.searchText, "searchText"),
 		sectionTitle: requiredString(record.sectionTitle, "sectionTitle"),
 		snippet: requiredString(record.snippet, "snippet"),
 	};
@@ -311,6 +328,13 @@ function requiredString(value: unknown, field: string): string {
 		throw new Error(`${field} must be a non-empty string`);
 	}
 	return normalized;
+}
+
+function requiredText(value: unknown, field: string): string {
+	if (typeof value !== "string") {
+		throw new Error(`${field} must be a string`);
+	}
+	return value;
 }
 
 function optionalString(value: unknown): string | undefined {

@@ -2,7 +2,7 @@
 	"$schema": "https://turborepo.com/schema.json",
 	"extends": ["//"],
 	"tasks": {
-		"test": {
+		"test:unit": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",

@@ -205,7 +205,7 @@ pnpm --dir jobs/campus-docs-index-publisher compare-chunks-local -- \
 derived object store 导入两个 Embedding Set 的 serving 引用闭包到当前 worktree 的隔离本地 bucket。它只验证
 发布阶段，不运行 Chunk、Embedding、provider 或在线查询。
 
-先在主 checkout 执行 `pnpm dev:shared-reconcile`，再初始化当前 worktree 的 publisher 环境和本地 schema。
+先在当前 worktree 执行 `pnpm dev:init -- --target core`，再初始化当前 worktree 的 publisher 环境和本地 schema。
 publisher 初始化从运行中的容器取得 writer key 和 HTTP 映射端口，完成认证检查后生成环境文件：
 
 ```bash

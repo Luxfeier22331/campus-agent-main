@@ -55,8 +55,8 @@ Campus Docs 的 object-store digest、canonical JSON、对象键和 immutable wr
 
 ```bash
 pnpm --dir packages/contracts generate
-pnpm --dir packages/contracts check
-pnpm --dir packages/contracts test
+pnpm --dir packages/contracts contracts:check
+pnpm test --filter=campus-contracts
 ```
 
 `packages/contracts/fixtures` 包含跨语言 valid/invalid fixture，其行为必须与正式 JSON

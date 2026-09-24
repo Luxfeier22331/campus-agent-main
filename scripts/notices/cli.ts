@@ -38,7 +38,7 @@ export function parseNoticeOptions(argv: readonly string[]): NoticeClassificatio
 		}
 		if (argument !== "--notice-id" || index + 1 >= argv.length) {
 			throw new Error(
-				"Usage: pnpm notice:classify [--concurrency <positive-integer>] [--notice-id <positive-integer> ...]",
+				"Usage: pnpm --dir scripts notice:classify [--concurrency <positive-integer>] [--notice-id <positive-integer> ...]",
 			);
 		}
 		const raw = argv[index + 1] ?? "";

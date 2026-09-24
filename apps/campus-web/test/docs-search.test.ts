@@ -5,13 +5,15 @@ import {
 	normalizeDocsSearchQuery,
 	readDocsSearchIndex,
 	searchDocsEngine,
-	searchDocsIndexes,
+	searchDocsIndex,
 } from "../src/features/docs/search";
-import type {
-	DocsSearchEntry,
-	DocsSearchIndex,
-	DocsSiteIndex,
+import {
+	type DocsSearchEntry,
+	type DocsSearchIndex,
+	type DocsSiteIndex,
+	parseDocsSearchIndex,
 } from "../src/features/docs/site-index";
+import { createDocsSearchIndex } from "./helpers/docs-search-index-fixture";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -37,7 +39,7 @@ describe("native docs search", () => {
 		});
 
 		expect(
-			searchDocsIndexes("请假。", [createSearchIndex([publicEntry, leaveEntry])], siteIndex),
+			searchDocsIndex("请假。", createSearchIndex([publicEntry, leaveEntry], siteIndex), siteIndex),
 		).toEqual([
 			{
 				document: {
@@ -55,41 +57,27 @@ describe("native docs search", () => {
 			},
 		]);
 		expect(
-			searchDocsIndexes("缺勤", [createSearchIndex([publicEntry, leaveEntry])], siteIndex),
+			searchDocsIndex("缺勤", createSearchIndex([publicEntry, leaveEntry], siteIndex), siteIndex),
 		).toEqual([]);
 	});
 
-	it("deduplicates repeated document anchors across loaded indexes", () => {
-		const entry = createSearchEntry();
-		const results = searchDocsIndexes(
-			"考勤",
-			[createSearchIndex([entry]), createSearchIndex([entry])],
-			createSiteIndex(),
+	it("reuses one imported FlexSearch index for repeated queries", () => {
+		const siteIndex = createSiteIndex();
+		const searchIndex = createSearchIndex(
+			[createSearchEntry(), createSearchEntry({ docId: "doc-leave", searchText: "请假流程" })],
+			siteIndex,
 		);
-
-		expect(results).toHaveLength(1);
-	});
-
-	it("reuses one prepared index and ranks title matches before body matches", () => {
-		const attendance = createSearchEntry();
-		const leave = createSearchEntry({
-			docId: "doc-leave",
-			searchText: "考勤说明",
-			sectionTitle: "请假流程",
-		});
-		const engine = createDocsSearchEngine(
-			[createSearchIndex([leave, attendance])],
-			createSiteIndex(),
-		);
+		const engine = createDocsSearchEngine(searchIndex, siteIndex);
 		const preparedIndex = engine.index;
 
-		expect(searchDocsEngine("考勤", engine)[0]?.entry).toBe(attendance);
-		expect(searchDocsEngine("请假", engine)[0]?.entry).toBe(leave);
+		expect(searchDocsEngine("考勤", engine)[0]?.entry.docId).toBe("doc-public");
+		expect(searchDocsEngine("请假", engine)[0]?.entry.docId).toBe("doc-leave");
 		expect(engine.index).toBe(preparedIndex);
 	});
 
-	it("ranks a compact exact title before section and body matches", () => {
-		const exactTitle = createSearchEntry({
+	it("uses FlexSearch field priority for title, section, and body matches", () => {
+		const siteIndex = createSiteIndex();
+		const titleMatch = createSearchEntry({
 			docId: "doc-course-map",
 			searchText: "培养方案中的图示",
 			sectionTitle: "课程关系",
@@ -99,37 +87,17 @@ describe("native docs search", () => {
 			searchText: "课程地图用于说明选课关系",
 			sectionTitle: "课程地图",
 		});
-		const engine = createDocsSearchEngine(
-			[createSearchIndex([sectionMatch, exactTitle])],
-			createSiteIndex(),
+		const results = searchDocsIndex(
+			"课程 地图",
+			createSearchIndex([sectionMatch, titleMatch], siteIndex),
+			siteIndex,
 		);
 
-		expect(searchDocsEngine("课程 地图", engine).map(({ entry }) => entry.docId)).toEqual([
-			"doc-course-map",
-			"doc-leave",
-		]);
+		expect(results.map(({ entry }) => entry.docId)).toEqual(["doc-course-map", "doc-leave"]);
 	});
 
-	it("ranks an exact section heading before generic body matches", () => {
-		const directSection = createSearchEntry({
-			docId: "doc-course-map",
-			searchText: "本办法适用于相关学生",
-			sectionTitle: "转专业",
-		});
-		const genericBody = createSearchEntry({
-			docId: "doc-leave",
-			searchText: "学生专业调整应按规定办理",
-			sectionTitle: "总则",
-		});
-		const engine = createDocsSearchEngine(
-			[createSearchIndex([genericBody, directSection])],
-			createSiteIndex(),
-		);
-
-		expect(searchDocsEngine("转专业", engine)[0]?.entry).toBe(directSection);
-	});
-
-	it("ranks entries covering every query term before partial matches", () => {
+	it("combines multiple terms across fields and prefers complete matches", () => {
+		const siteIndex = createSiteIndex();
 		const fullMatch = createSearchEntry({
 			docId: "doc-scholarship",
 			searchText: "奖学金申请与管理办法",
@@ -140,39 +108,42 @@ describe("native docs search", () => {
 			searchText: "学生日常管理",
 			sectionTitle: "管理要求",
 		});
-		const engine = createDocsSearchEngine(
-			[createSearchIndex([partialMatch, fullMatch])],
-			createSiteIndex(),
+		const results = searchDocsIndex(
+			"奖学金 管理",
+			createSearchIndex([partialMatch, fullMatch], siteIndex),
+			siteIndex,
 		);
 
-		expect(searchDocsEngine("奖学金 管理", engine).map(({ entry }) => entry.docId)).toEqual([
-			"doc-scholarship",
-			"doc-leave",
-		]);
+		expect(results.map(({ entry }) => entry.docId)).toEqual(["doc-scholarship", "doc-leave"]);
 	});
 
-	it("returns a stable order for equal field matches", () => {
-		const first = createSearchEntry({ anchor: "b", docId: "doc-leave", searchText: "共同内容" });
-		const second = createSearchEntry({ anchor: "a", docId: "doc-leave", searchText: "共同内容" });
-		const engine = createDocsSearchEngine([createSearchIndex([first, second])], createSiteIndex());
+	it("keeps canonical entry order independent of source order", () => {
+		const siteIndex = createSiteIndex();
+		const first = createSearchEntry({ anchor: "b", searchText: "共同内容" });
+		const second = createSearchEntry({ anchor: "a", searchText: "共同内容" });
+		const firstIndex = createSearchIndex([first, second], siteIndex);
+		const secondIndex = createSearchIndex([second, first], siteIndex);
 
-		const firstSearch = searchDocsEngine("共同", engine).map(({ entry }) => entry.anchor);
-		const secondSearch = searchDocsEngine("共同", engine).map(({ entry }) => entry.anchor);
-		expect(firstSearch).toEqual(["b", "a"]);
-		expect(secondSearch).toEqual(firstSearch);
+		expect(searchDocsIndex("共同", firstIndex, siteIndex).map(({ entry }) => entry.anchor)).toEqual(
+			["a", "b"],
+		);
+		expect(
+			searchDocsIndex("共同", secondIndex, siteIndex).map(({ entry }) => entry.anchor),
+		).toEqual(["a", "b"]);
 	});
 
 	it("fails when a search entry references a document absent from the site index", () => {
+		const siteIndex = createSiteIndex();
 		expect(() =>
 			createDocsSearchEngine(
-				[createSearchIndex([createSearchEntry({ docId: "missing" })])],
-				createSiteIndex(),
+				createSearchIndex([createSearchEntry({ docId: "missing" })], siteIndex),
+				siteIndex,
 			),
 		).toThrow("docs search entry references missing document: missing");
 	});
 
 	it("reads only typed JSON search indexes", async () => {
-		const payload = createSearchIndex([createSearchEntry()]);
+		const payload = createSearchIndex([createSearchEntry()], createSiteIndex());
 		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			new Response(JSON.stringify(payload), {
 				headers: { "content-type": "application/json; charset=utf-8" },
@@ -193,13 +164,23 @@ describe("native docs search", () => {
 		);
 		await expect(readDocsSearchIndex(url)).rejects.toThrow("docs search index request failed");
 	});
+
+	it("rejects legacy and malformed serialized search indexes", () => {
+		expect(() =>
+			parseDocsSearchIndex({ entries: [], schemaVersion: "campus_docs_search_index.v2" }),
+		).toThrow("docs search index schema is invalid");
+		expect(() =>
+			parseDocsSearchIndex({
+				chunks: [{ data: 1, key: "map" }],
+				entries: [],
+				schemaVersion: "campus_docs_search_index.v3",
+			}),
+		).toThrow("search index chunk data must be a non-empty string");
+	});
 });
 
-function createSearchIndex(entries: DocsSearchEntry[]): DocsSearchIndex {
-	return {
-		entries,
-		schemaVersion: "campus_docs_search_index.v2",
-	};
+function createSearchIndex(entries: DocsSearchEntry[], siteIndex: DocsSiteIndex): DocsSearchIndex {
+	return createDocsSearchIndex(entries, siteIndex);
 }
 
 function createSearchEntry(overrides: Partial<DocsSearchEntry> = {}): DocsSearchEntry {

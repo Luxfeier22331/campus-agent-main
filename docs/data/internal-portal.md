@@ -60,7 +60,7 @@ Campus Docs 的 normalized reader、chunk、embedding 或 Qdrant collection 负�
 ## 认证生命周期
 
 Service Ticket、`JSESSIONID` 和 `nginx` Cookie 只存在于当前 HTTP 会话。采集器建立业务会话时得到的新
-TGC 只在本次会话使用，不回写凭据池。本地 `internal-portal:auth:pull` 把解析结果写入受管理的
+TGC 只在本次会话使用，不回写凭据池。本地 `pnpm --dir jobs/internal-portal-collection auth:pull` 把解析结果写入受管理的
 `.env.local`；集群 Job 只在进程内使用响应，不创建 TGC Secret。
 
 ## 相关文档

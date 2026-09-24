@@ -21,9 +21,9 @@ W3C `traceparent`，不从 `requestId` 派生 trace；若环境启用 Agent trac
 
 ```bash
 pnpm --dir apps/app-api test:worker
-pnpm --dir apps/app-api build:worker
+pnpm --dir apps/app-api build
 pnpm --dir apps/campus-web test:worker
-pnpm --dir apps/campus-web build:worker
+pnpm --dir apps/campus-web build:fixture
 ```
 
 各 Worker 的 staging preflight 直接校验 Wrangler Secret 和所属构建配置；发布命令负责上传 Worker

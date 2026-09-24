@@ -17,5 +17,5 @@ TGC 管理见 `docs/runbooks/portal-auth.md`。
 
 ```bash
 pnpm --dir packages/internal-portal-client typecheck
-pnpm --dir packages/internal-portal-client test
+pnpm test --filter=@campus-agent/internal-portal-client
 ```

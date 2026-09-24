@@ -49,27 +49,52 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 | `pre-commit` | 暂存文件的静态检查与 Secret 扫描、根脚本测试，以及受影响 Node/Go 源码检查 | build、integration、浏览器 E2E 或 runtime |
 | `pre-push` | 不再安装仓库重验证 hook | 源码或运行时验证 |
 | `pnpm verify` | 全量源码检查、Ragas 单测、数据库集成、Infra、OTel 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
-| `pnpm verify --source` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Ragas 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
-| `pnpm check` | 本地仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
+| `pnpm check` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Ragas 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
 | `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描与 validation group | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、笔记树与格式、归档、入口预算、链接和语言合同 | 代码或部署状态 |
-| `pnpm test` | 可复用 Turbo 缓存的仓库开发、验证和发布脚本测试 | package test、镜像构建或外部服务 |
-| `pnpm --dir packages/contracts check` | JSON Schema/OpenAPI 同步和合同不变量 | consumer runtime 行为 |
+| `pnpm typecheck` | 全仓声明的 TypeScript 检查，包括 tooling notices | Go vet、测试或构建 |
+| `pnpm test` | tooling、Node/DOM、本地 Worker、Go 和 Ragas 单测 | 数据库集成、浏览器 E2E 或外部服务 |
+| `pnpm test:tooling` | 七组仓库开发、验证和发布脚本测试 | package 行为或构建 |
+| `pnpm build` | 选中包的生产构建，保留所需环境输入 | 部署状态 |
+| `pnpm build:check` | 验证构建；Campus 使用本地合成内容 fixture | 生产文档内容或部署状态 |
+| `pnpm verify --profile=go --profile=ragas` | 仅运行指定的现有 validation profiles，可重复指定 | 未选中的检查 |
+| `pnpm --dir packages/contracts contracts:check` | JSON Schema/OpenAPI 同步和合同不变量 | consumer runtime 行为 |
 | `scripts/dependencies/scan.sh` | 已锁定依赖的漏洞扫描 | 应用行为或镜像漏洞 |
 | `scripts/infra/validate.sh` | Kustomize render 与基础设施 policy | 集群已应用或 workload 健康 |
 | `scripts/otel/validate-config.sh` | Collector 配置校验 | 后端已经收到真实信号 |
 | PR `container-build` profile | Docker Bake target、变量和构建定义可解析 | 镜像源码、依赖闭包或运行时入口 |
 | PR `image-build` profile | 受影响镜像可在 `linux/arm64` 以 `cacheonly` 完成 BuildKit 构建 | 推送、漏洞扫描或环境部署 |
 
+根 `check`、`test`、`typecheck` 默认全仓；子包脚本直接执行具体任务，Turbo 的 `test` 是无命令聚合。
+根 `typecheck`、`test`、`build`、`build:check` 和 `check` 接受 `--filter=<selector>`、`--affected`、
+`--dry-run=json`。filter 使用 Turbo 原生语义，不自动追加 `...`；依赖通过 `^source` 传播，
+不强制运行依赖测试。`check` 的筛选只作用于包任务，lint、docs、tooling、contracts 和 Actions
+始终保持仓库范围。dry-run 输出包任务图和缓存信息，不执行准备、检查或构建。
+
+```bash
+pnpm typecheck --filter=campus-web
+pnpm test --filter=campus-web
+pnpm build:check --filter=campus-web --dry-run=json
+TURBO_SCM_BASE=main pnpm test --affected
+pnpm --dir apps/campus-web test:dom:isolated test/campus-captcha.isolated.test.tsx
+```
+
+框架文件名和测试名称参数传给所属子包叶任务，不经根入口广播。affected 复用 Turbo 的 SCM 环境；
+`check`、`verify` 和 `test` 使用仓库 Nix 全量工具链，运行时缓存键在该工具链中计算。
+Campus TypeScript 使用单 checker，保持文件覆盖与 strict 配置；缓存仍由 Turbo 管理，不另开 TS incremental。
+入口及迁移理由见[工作区脚本与验证入口治理](../../.agents/notes/implemented/process/2026-09-22-workspace-command-governance.md)。
+
 跨语言静态检查由 `.pre-commit-config.yaml` 拥有，包级任务由所属 manifest 拥有。
 公共验证执行器统一 Node、Go、构建和数据库任务集合；全量与 affected 只改变选择范围。
-Node 任务的 Turbo 并发以半核数（最少 2）为上限，native 任务串行，避免全量 affected 在共享
-runner 上把任务内进程池与任务级并行相乘造成超时饥饿。
+Node 任务的 Turbo 并发以半核数（最少 2）为 CPU 上限，再按进程内存额度每 2 GiB 一个任务
+收紧，最低一个任务；native 任务串行，避免任务内进程池与任务级并行相乘。
 本地和 CI 使用仓库锁定的 Nix 工具链，Go 检查不依赖用户 PATH 中的全局 lint 版本。
 
-pre-commit 先执行静态检查与 Secret 扫描，再执行根目录 `pnpm test` 和受影响模块检查；任一阶段
-失败即停止。根测试仍在没有受影响模块时调用，但相同输入可以复用成功结果。模块任务继续复用统一
-执行器中的 Node typecheck/test/worker test 与 Go format/lint/vet/test 集合，不增加构建或集成检查。
+pre-commit 先执行静态检查与 Secret 扫描，再按暂存文件选择 repository checks、
+`pnpm test:tooling --groups=...` 和受影响模块检查；任一阶段失败即停止。repository checks 与 CI
+共用同一 registry、命令和 Nix 环境，只有文件选择范围不同：contracts 使用 `ci-go`，Actions 配置使用
+`ci-light`。没有选中 tooling 组时不运行根测试；相同输入复用成功结果。模块任务继续复用统一执行器中的
+Node typecheck/test/worker test 与 Go format/lint/vet/test 集合，不增加构建或集成检查。
 
 Node typecheck 由 pre-commit 和手动 verify 执行，PR 不再重复执行；PR 保留受影响测试和构建。
 仅 typecheck 受影响时不选择 PR Node 检查或安装对应 workspace。PR 不提供合并结果的独立
@@ -79,9 +104,10 @@ Node 类型检查；rebase 后需要复验时使用所属 package 的 typecheck�
 提交前任务选择使用 prek 隔离未暂存修改后的工作区，以 HEAD 为 Turbo affected 基准，不能用两个
 相同提交的空差异代替暂存变更。没有暂存文件变化时跳过模块任务；首次提交没有 HEAD 时检查全量
 Node/Go 源码任务，不依赖远端引用或自动 fetch。PR 继续按真实 base/head 检查完整分支差异。
-`pnpm lint` 通过排除 validation group 保持静态检查语义，不因 hook 迁移而重复调用测试。
+`pnpm lint` 通过排除 validation group 保持全仓静态检查语义；动态 repository checks 由统一 evidence
+executor 负责，不在 lint hook 中复制一套命令。
 
-`pnpm test` 串行执行 `scripts` tooling workspace 的 CI、deploy、dev、docs、hooks、notices 和
+`pnpm test:tooling` 串行执行 `scripts` tooling workspace 的 CI、deploy、dev、docs、hooks、notices 和
 release 测试组，各组独立缓存。脚本的业务依赖属于 tooling workspace，不进入根包的全局依赖 hash。
 各组声明实际读取的源码、工作流、文档、配置和工具链；CI 组检查全仓合同，保留广泛输入。
 读取 Git 文件清单的组额外使用对应范围的跟踪路径摘要，文件内容仍由 Turbo 输入负责；实际
@@ -112,7 +138,7 @@ CI 保留现有命令输出、失败诊断和只读耗时报告。工具版本�
 配置为准，不在本文复制。Go 任务的输入包含 workspace 和工具链；缓存目录只透传，不当作源码输入。
 缓存服务不可用不改变任务正确性，检查成功也不等于所有缓存层均命中。
 
-package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护。Turbo 只负责声明
+package 的具体 `test:unit`、分组测试、`typecheck` 和 `build` 由所属 manifest 与 README 维护。Turbo 只负责声明
 任务图、输入和缓存边界；integration test 与有副作用任务不得依赖缓存，远端缓存是否命中不影响
 正确性。
 
@@ -125,7 +151,7 @@ package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README �
 | 一般 TypeScript app/package/job | 所属 package 的 typecheck 与 test；跨 package 时使用明确 filter |
 | Worker route、binding 或 Wrangler 配置 | 所属 Worker 的 worker test、build 和模块测试 |
 | Campus Web 用户可见运行时 | 模块检查和制品完整性；按风险运行本地浏览器路径 |
-| execution-control / model-config Go | 所属 native format、lint、typecheck 和 test |
+| execution-control / model-config Go | 所属 native format、lint、vet 和 test |
 | migration 或数据库权限 | `pnpm --dir jobs/campus-agent-schema test:migration-integration`，以及受影响所有者的数据库集成测试 |
 | eval package、Ragas adapter 或评测合同 | 所属 package test；跨语言时运行对应 adapter |
 | GitHub Actions | `pnpm check`、Actionlint 与 Zizmor |

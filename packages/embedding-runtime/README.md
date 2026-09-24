@@ -16,5 +16,5 @@
 
 ```bash
 pnpm --dir packages/embedding-runtime typecheck
-pnpm --dir packages/embedding-runtime test
+pnpm test --filter=@campus-agent/embedding-runtime
 ```

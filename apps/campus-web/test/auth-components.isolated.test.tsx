@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { type Ref, useImperativeHandle } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authClient = vi.hoisted(() => ({
@@ -10,6 +11,13 @@ const authClient = vi.hoisted(() => ({
 	signInEmail: vi.fn(),
 	signOut: vi.fn(),
 	signUpEmail: vi.fn(),
+}));
+
+const turnstile = vi.hoisted(() => ({
+	execute: vi.fn(),
+	getResponse: vi.fn<() => string | undefined>(),
+	getResponsePromise: vi.fn<(timeout?: number) => Promise<string>>(),
+	reset: vi.fn(),
 }));
 
 const sessionState = vi.hoisted(() => ({
@@ -58,7 +66,10 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 vi.mock("@marsidev/react-turnstile", () => ({
-	Turnstile: () => <fieldset aria-label="安全验证" />,
+	Turnstile: ({ ref }: { ref: Ref<typeof turnstile> }) => {
+		useImperativeHandle(ref, () => turnstile, []);
+		return <fieldset aria-label="安全验证" />;
+	},
 }));
 
 import { AccountDeletionPage } from "../src/app/routes/account-deletion-page";
@@ -74,6 +85,7 @@ import {
 import { SignInForm, SignUpForm } from "../src/components/auth/auth-forms";
 import { AccountEntry } from "../src/components/auth/user/account-entry";
 import { AuthenticatedAccountMenu } from "../src/components/auth/user/authenticated-account-menu";
+import { AUTH_RUNTIME_CONFIG_SCRIPT_ID } from "../src/platform/auth/turnstile-runtime-config";
 
 const sharedFormProps = {
 	onAuthenticated: vi.fn(),
@@ -92,6 +104,9 @@ describe("campus-owned authentication journeys", () => {
 		sessionState.status = "anonymous";
 		sessionState.refresh.mockClear();
 		for (const mock of Object.values(authClient)) {
+			mock.mockReset();
+		}
+		for (const mock of Object.values(turnstile)) {
 			mock.mockReset();
 		}
 		authClient.signUpEmail.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
@@ -197,7 +212,7 @@ describe("campus-owned authentication journeys", () => {
 	it("keeps password disclosure keyboard-accessible without submitting the form", async () => {
 		const user = userEvent.setup();
 		render(<SignInForm {...sharedFormProps} />);
-		expect(screen.getByRole("checkbox", { name: "仅在此设备保持登录" })).not.toBeChecked();
+		expect(screen.getByRole("checkbox", { name: "仅在此设备保持登录" })).toBeChecked();
 		const password = screen.getByLabelText("密码");
 		const disclosure = screen.getByRole("button", { name: "显示密码" });
 
@@ -209,6 +224,63 @@ describe("campus-owned authentication journeys", () => {
 		expect(password).toHaveAttribute("type", "text");
 		expect(screen.getByRole("button", { name: "隐藏密码" })).toHaveFocus();
 		expect(authClient.signInEmail).not.toHaveBeenCalled();
+	});
+
+	it("waits for automatic verification when credentials are filled and submitted immediately", async () => {
+		let resolveToken!: (token: string) => void;
+		turnstile.getResponsePromise.mockReturnValue(
+			new Promise<string>((resolve) => {
+				resolveToken = resolve;
+			}),
+		);
+		const onAuthenticated = vi.fn();
+		render(
+			<>
+				<script id={AUTH_RUNTIME_CONFIG_SCRIPT_ID} type="application/json">
+					{JSON.stringify({ turnstileSiteKey: "test-site-key" })}
+				</script>
+				<SignInForm {...sharedFormProps} onAuthenticated={onAuthenticated} />
+			</>,
+		);
+
+		fireEvent.change(screen.getByLabelText("邮箱"), { target: { value: "student@muc.edu.cn" } });
+		fireEvent.change(screen.getByLabelText("密码"), { target: { value: "validpassword123" } });
+		fireEvent.click(screen.getByRole("button", { name: "登录" }));
+
+		expect(await screen.findByRole("button", { name: "正在登录" })).toBeDisabled();
+		await waitFor(() => expect(turnstile.getResponsePromise).toHaveBeenCalledWith(30_000));
+		expect(authClient.signInEmail).not.toHaveBeenCalled();
+		expect(screen.queryByText("安全验证还没有完成，请稍后再试。")).not.toBeInTheDocument();
+
+		await act(async () => resolveToken("automatic-token"));
+
+		await waitFor(() => expect(onAuthenticated).toHaveBeenCalledOnce());
+		expect(authClient.signInEmail).toHaveBeenCalledExactlyOnceWith({
+			callbackURL: "/map",
+			email: "student@muc.edu.cn",
+			fetchOptions: { headers: { "x-captcha-response": "automatic-token" }, throw: true },
+			password: "validpassword123",
+			rememberMe: true,
+		});
+		expect(turnstile.execute).not.toHaveBeenCalled();
+		expect(turnstile.reset).toHaveBeenCalledOnce();
+		expect(screen.getByRole("button", { name: "登录" })).toBeEnabled();
+	});
+
+	it("sends a short session when the persistent-session option is cleared", async () => {
+		const user = userEvent.setup();
+		authClient.signInEmail.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+		render(<SignInForm {...sharedFormProps} />);
+
+		await user.type(screen.getByLabelText("邮箱"), "student@muc.edu.cn");
+		await user.type(screen.getByLabelText("密码"), "validpassword123");
+		await user.click(screen.getByRole("checkbox", { name: "仅在此设备保持登录" }));
+		await user.click(screen.getByRole("button", { name: "登录" }));
+
+		await waitFor(() => expect(authClient.signInEmail).toHaveBeenCalledOnce());
+		expect(authClient.signInEmail).toHaveBeenCalledWith(
+			expect.objectContaining({ rememberMe: false }),
+		);
 	});
 
 	it("sends verification explicitly after sign-up and starts the resend cooldown", async () => {

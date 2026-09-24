@@ -31,7 +31,7 @@ HTTP 请求和响应正文限时 60 秒，单任务等待窗口 10 分钟。窗�
 ## 验证
 
 ```bash
-pnpm --filter @campus-agent/document-ocr test
+pnpm test --filter=@campus-agent/document-ocr
 pnpm --filter @campus-agent/document-ocr typecheck
 # 当前 worktree 完成 document-ocr 的 dev:init 后执行，只操作测试创建的任务
 pnpm --filter @campus-agent/document-ocr test:database-integration

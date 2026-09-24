@@ -10,71 +10,54 @@ import { createS3WriterStore } from "../../jobs/campus-rag-index-publisher/src/o
 import { materializeCollection } from "../../jobs/campus-rag-index-publisher/src/publisher.ts";
 import { createQdrantClient } from "../../jobs/campus-rag-index-publisher/src/qdrant.ts";
 import { localDatabaseUrls } from "./environment.ts";
+import { loadLocalInfrastructureSecrets } from "./infrastructure-secrets.ts";
 import { resolveLocalQdrantConnection } from "./local-qdrant.ts";
 import { withLifecycleLock } from "./locks.ts";
 import { probeLocalPorts } from "./ports.ts";
 import { runCommand } from "./process.ts";
 import { connectProductCluster } from "./product-data-cluster.ts";
-import { exportProductData, hasProductData, importProductData } from "./product-data-database.ts";
+import {
+	exportProductData,
+	exportRetrievalData,
+	hasProductData,
+	hasRetrievalData,
+	importProductData,
+	importRetrievalData,
+} from "./product-data-database.ts";
 import { downloadProductIndex } from "./product-data-index.ts";
 import type { ProductDataOptions } from "./product-data-options.ts";
 import {
 	copyDocsClosure,
+	copyNoticeAssets,
 	copyProductAssets,
 	PRODUCT_DOCS_SOURCE_KEY,
 	validateProductPoint,
 } from "./product-data-resources.ts";
 import { createProductSeed } from "./product-data-seed.ts";
 import { readProductSeedIndex } from "./product-data-seed-index.ts";
-import { clearProductSyncPending, readPendingProductSync } from "./product-data-state.ts";
 import {
+	calculateLocalDevInfrastructurePorts,
 	calculateLocalDevRuntimePorts,
-	type LocalDevProfileV2,
+	type LocalDevProfile,
 	resolveLocalDevRegistryPath,
 } from "./profile.ts";
 
-export function localProductStoreEnv(profile: LocalDevProfileV2) {
+export function localProductStoreEnv(repoRoot: string, profile: LocalDevProfile) {
+	const ports = profile.infraPorts ?? calculateLocalDevInfrastructurePorts(profile.slot);
+	const secrets = loadLocalInfrastructureSecrets(repoRoot, profile);
+	const accessKey = secrets.objectStoreAccessKey;
+	const secretKey = secrets.objectStoreSecretKey;
 	return {
 		OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-		OBJECT_STORE_DERIVED_ACCESS_KEY: "rustfsadmin",
-		OBJECT_STORE_DERIVED_SECRET_KEY: "rustfsadmin",
-		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "rustfsadmin",
-		OBJECT_STORE_DERIVED_READ_SECRET_KEY: "rustfsadmin",
+		OBJECT_STORE_ENDPOINT: `http://127.0.0.1:${ports.objectStore}`,
+		OBJECT_STORE_DERIVED_ACCESS_KEY: accessKey,
+		OBJECT_STORE_DERIVED_SECRET_KEY: secretKey,
+		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: accessKey,
+		OBJECT_STORE_DERIVED_READ_SECRET_KEY: secretKey,
 	};
 }
 
-export async function repairProductSnapshot(
-	repoRoot: string,
-	profile: LocalDevProfileV2,
-	_alreadyLocked = false,
-): Promise<void> {
-	await assertProductAppsOffline(profile);
-	const repair = async () => {
-		const pending = readPendingProductSync(repoRoot);
-		if (pending) {
-			const store = createS3WriterStore(localProductStoreEnv(profile));
-			try {
-				for (const key of pending.createdKeys) {
-					await store.remove(key);
-				}
-			} finally {
-				store.close();
-			}
-		}
-		clearProductSyncPending(repoRoot);
-	};
-	if (_alreadyLocked) {
-		return repair();
-	}
-	await withLifecycleLock(
-		resolve(dirname(resolveLocalDevRegistryPath(repoRoot)), `${profile.instanceId}-data.lock`),
-		"product-repair",
-		repair,
-	);
-}
-
-export async function assertProductAppsOffline(profile: LocalDevProfileV2) {
+export async function assertProductAppsOffline(profile: LocalDevProfile) {
 	const ports = [
 		...Object.values(profile.ports),
 		...Object.values(calculateLocalDevRuntimePorts(profile.slot)),
@@ -82,14 +65,14 @@ export async function assertProductAppsOffline(profile: LocalDevProfileV2) {
 	const result = await probeLocalPorts(ports);
 	if (result.occupied.length > 0 || result.unknown.length > 0) {
 		throw new Error(
-			`Stop current worktree applications before initializing data; ports: ${[...result.occupied, ...result.unknown].join(", ")}. Shared infrastructure stays running.`,
+			`Stop current worktree applications before initializing data; ports: ${[...result.occupied, ...result.unknown].join(", ")}. Current worktree infrastructure stays running.`,
 		);
 	}
 }
 
 export async function initializeProductData(
 	repoRoot: string,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 	options: ProductDataOptions,
 ) {
 	await assertProductAppsOffline(profile);
@@ -99,7 +82,7 @@ export async function initializeProductData(
 		"product-data",
 		async () => {
 			const client = new Client({ connectionString: localDatabaseUrls(profile).owner });
-			const env = localProductStoreEnv(profile);
+			const env = localProductStoreEnv(repoRoot, profile);
 			const target = createS3WriterStore(env);
 			let temp: string | undefined;
 			const controller = new AbortController();
@@ -113,26 +96,11 @@ export async function initializeProductData(
 			try {
 				await client.connect();
 				const existing =
-					(await hasProductData(client)) ||
+					(options.data === "cluster"
+						? await hasRetrievalData(client)
+						: await hasProductData(client)) ||
 					(await target.readIfExists(PRODUCT_DOCS_SOURCE_KEY)) !== undefined;
-				if (existing && !options.replace) {
-					if (options.data === "cluster") {
-						throw new Error("Local product data exists; cluster pull requires --replace");
-					}
-					if (!(await target.readIfExists(PRODUCT_DOCS_SOURCE_KEY))) {
-						const legacy = createS3WriterStore({
-							...env,
-							OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
-						});
-						if (await legacy.readIfExists(PRODUCT_DOCS_SOURCE_KEY)) {
-							const copied = await copyDocsClosure(legacy, target);
-							await createS3ObjectStore(env).writeBytesObject({
-								key: PRODUCT_DOCS_SOURCE_KEY,
-								body: copied.sourceBytes,
-								contentType: "application/json",
-							});
-						}
-					}
+				if (existing && !options.replace && options.data !== "cluster") {
 					const diagnosis = await diagnoseProductData(repoRoot, profile);
 					if (diagnosis.state !== "ready") {
 						throw new Error(
@@ -141,7 +109,7 @@ export async function initializeProductData(
 					}
 					return;
 				}
-				const qdrant = await resolveLocalQdrantConnection();
+				const qdrant = await resolveLocalQdrantConnection(repoRoot, profile);
 				const prepareAndApply = async (
 					dataset: Awaited<ReturnType<typeof exportProductData>>,
 					source: Parameters<typeof copyDocsClosure>[0],
@@ -225,6 +193,88 @@ export async function initializeProductData(
 						timeout: 120_000,
 					});
 				};
+				const prepareAndApplyRetrieval = async (
+					dataset: Awaited<ReturnType<typeof exportRetrievalData>>,
+					source: Parameters<typeof copyDocsClosure>[0],
+					candidate: Parameters<typeof materializeCollection>[1],
+				) => {
+					await importCampusRagArtifacts({
+						docsEmbeddingSet: dataset.docsEmbeddingSet,
+						noticeEmbeddingSet: dataset.noticeEmbeddingSet,
+						sourceStore: source,
+						targetStore: target,
+					});
+					const docs = await copyDocsClosure(source, target);
+					await copyNoticeAssets(dataset.rows, source, target);
+					const points =
+						typeof candidate.points === "function" ? candidate.points() : candidate.points;
+					for await (const point of points) {
+						validateProductPoint(point, dataset.rows, docs.references);
+					}
+					await withLifecycleLock(
+						resolve(registry, "qdrant-materialize.lock"),
+						"product-data-index",
+						async () => {
+							const catalog = createPostgresIndexCatalog({
+								EXECUTION_CONTROL_DATABASE_URL: localDatabaseUrls(profile).owner,
+							});
+							try {
+								await catalog.acquirePublisherLock();
+								const publishSignal = AbortSignal.any([signal, catalog.signal]);
+								const registration = await catalog.register({
+									collection: dataset.collection,
+									docsEmbeddingSet: dataset.docsEmbeddingSet,
+									noticeEmbeddingSet: dataset.noticeEmbeddingSet,
+									producer: "manual",
+								});
+								const qdrantClient = createQdrantClient({
+									QDRANT_URL: qdrant.url,
+									QDRANT_API_KEY: qdrant.apiKey,
+								});
+								if (
+									registration.rebuildIncomplete &&
+									(await qdrantClient.collectionExists(dataset.collection))
+								) {
+									await qdrantClient.deleteCollection(dataset.collection);
+								}
+								await materializeCollection(
+									createQdrantClient(
+										{ QDRANT_URL: qdrant.url, QDRANT_API_KEY: qdrant.apiKey },
+										async (url, init) => {
+											if (init?.method !== "DELETE") {
+												signal.throwIfAborted();
+											}
+											return fetch(url, {
+												...init,
+												signal: AbortSignal.any([publishSignal, AbortSignal.timeout(30_000)]),
+											});
+										},
+									),
+									candidate,
+									publishSignal,
+								);
+								publishSignal.throwIfAborted();
+								await createS3ObjectStore(env).writeBytesObject({
+									key: PRODUCT_DOCS_SOURCE_KEY,
+									body: docs.sourceBytes,
+									contentType: "application/json",
+								});
+								runCommand(
+									"pnpm",
+									["exec", "tsx", "scripts/prepare-docs-content.ts", "--refresh"],
+									{
+										cwd: resolve(repoRoot, "apps/campus-web"),
+										env: { ...process.env, ...env },
+										timeout: 120_000,
+									},
+								);
+								await importRetrievalData(client, dataset);
+							} finally {
+								await catalog.close();
+							}
+						},
+					);
+				};
 				if (options.data === "seed") {
 					const seed = createProductSeed(new Date());
 					const source = {
@@ -257,7 +307,7 @@ export async function initializeProductData(
 					}
 					const remote = await connectProductCluster(options.context, options.namespace, signal);
 					try {
-						const dataset = await exportProductData(remote.database);
+						const dataset = await exportRetrievalData(remote.database);
 						temp = await mkdtemp(join(tmpdir(), "campus-product-data-"));
 						const candidate = await downloadProductIndex({
 							collection: dataset.collection,
@@ -265,7 +315,7 @@ export async function initializeProductData(
 							request: remote.qdrantRequest,
 							signal,
 						});
-						await prepareAndApply(dataset, remote.objectStore, candidate);
+						await prepareAndApplyRetrieval(dataset, remote.objectStore, candidate);
 					} finally {
 						await remote.close();
 					}
@@ -287,7 +337,7 @@ export async function initializeProductData(
 
 export async function diagnoseProductData(
 	_repoRoot: string,
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 	full = false,
 ): Promise<{ state: "ready" | "missing" | "invalid"; reason?: string }> {
 	const client = new Client({ connectionString: localDatabaseUrls(profile).owner });
@@ -307,11 +357,11 @@ export async function diagnoseProductData(
 		if (!data.collection) {
 			return { state: "missing", reason: "Product data has no current index" };
 		}
-		const store = createS3WriterStore(localProductStoreEnv(profile));
+		const store = createS3WriterStore(localProductStoreEnv(_repoRoot, profile));
 		if (!(full || (await store.readIfExists(PRODUCT_DOCS_SOURCE_KEY)))) {
 			return { state: "missing", reason: "Local Docs source is missing" };
 		}
-		const qdrant = await resolveLocalQdrantConnection();
+		const qdrant = await resolveLocalQdrantConnection(_repoRoot, profile);
 		const request = async (path: string, body?: unknown) => {
 			const response = await fetch(`${qdrant.url}${path}`, {
 				method: body === undefined ? "GET" : "POST",

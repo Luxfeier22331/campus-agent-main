@@ -26,15 +26,10 @@ const run: CommandRunner = (command, args, options) => {
 	};
 };
 
-export function runRepositoryTests(
-	input: {
-		repositoryRoot: string;
-		env?: NodeJS.ProcessEnv;
-		args?: string[];
-		groups?: readonly ToolingGroup[];
-	},
+export function repositoryTestEnvironment(
+	input: { repositoryRoot: string; env?: NodeJS.ProcessEnv },
 	runner: CommandRunner = run,
-): number {
+): NodeJS.ProcessEnv {
 	const options = { cwd: input.repositoryRoot, env: nodeRuntimeEnvironment(input.env) };
 	const read = (command: string, args: string[]) =>
 		requireSuccess(command, args, runner(command, args, options)).stdout?.trim() ?? "";
@@ -55,12 +50,24 @@ export function runRepositoryTests(
 	for (const name of read("git", ["rev-parse", "--local-env-vars"]).split(/\s+/u).filter(Boolean)) {
 		delete options.env[name];
 	}
-	const groups = input.groups?.length ? input.groups : TOOLING_GROUPS;
+	return options.env;
+}
+
+export function runRepositoryTests(
+	input: {
+		repositoryRoot: string;
+		env?: NodeJS.ProcessEnv;
+		args?: string[];
+		groups?: readonly ToolingGroup[];
+	},
+	runner: CommandRunner = run,
+): number {
+	const options = { cwd: input.repositoryRoot, env: repositoryTestEnvironment(input, runner) };
 	const args = [
 		"exec",
 		"turbo",
 		"run",
-		...groups.map(toolingTask),
+		...(input.groups?.length ? input.groups : TOOLING_GROUPS).map(toolingTask),
 		"--concurrency=1",
 		"--summarize",
 	];

@@ -16,8 +16,8 @@ Temporal、数据库、对象存储客户端或供应商实现。
 
 ```bash
 pnpm --filter ingestion-contracts typecheck
-pnpm --filter ingestion-contracts test
-pnpm --dir packages/contracts check
+pnpm test --filter=ingestion-contracts
+pnpm --dir packages/contracts contracts:check
 ```
 
 ## 相关文档

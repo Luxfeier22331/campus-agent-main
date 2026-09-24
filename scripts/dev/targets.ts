@@ -85,7 +85,7 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 			"model-config-check",
 			"temporal-namespace",
 		],
-		capabilities: ["postgres", "derived-bucket", "temporal", "qdrant"],
+		capabilities: ["postgres", "docs-bucket", "docs-source", "temporal", "qdrant"],
 		directEnvironmentProjections: ["core"],
 		environmentDependencies: [],
 		modelConfigNames: ["primary_agent", "campus_docs_embedding", "campus_docs_reranker"],

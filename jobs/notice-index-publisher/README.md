@@ -215,6 +215,6 @@ Embedding Job 使用 derived bucket 写入身份和 `MODEL_CONFIG_URL`。
 
 ```bash
 pnpm --dir jobs/notice-index-publisher typecheck
-pnpm --dir jobs/notice-index-publisher test
+pnpm test --filter=notice-index-publisher
 pnpm --dir jobs/notice-index-publisher build
 ```

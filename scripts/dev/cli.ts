@@ -14,7 +14,6 @@ import {
 	pruneLocalDevelopment,
 } from "./lifecycle";
 import { parseProductDataOptions } from "./product-data-options";
-import { reconcileSharedInfrastructure } from "./shared-infrastructure";
 import { LOCAL_DEV_TARGETS, type LocalDevTarget } from "./targets";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -26,7 +25,6 @@ async function main(): Promise<void> {
 		switch (command) {
 			case "init":
 				await initializeLocalDevelopmentTarget(repoRoot, readTarget(args), {
-					repair: args.includes("--repair"),
 					...parseProductDataOptions(args),
 				});
 				return;
@@ -53,9 +51,6 @@ async function main(): Promise<void> {
 				);
 				return;
 			}
-			case "shared-reconcile":
-				await reconcileSharedInfrastructure(repoRoot);
-				return;
 			case "destroy": {
 				const instanceId = readFlag(args, "--instance");
 				const confirmation = readFlag(args, "--confirm");
@@ -74,7 +69,7 @@ async function main(): Promise<void> {
 				});
 				return;
 			default:
-				throw new Error("Usage: dev CLI <init|doctor|instances|shared-reconcile|destroy|prune>.");
+				throw new Error("Usage: dev CLI <init|doctor|instances|destroy|prune>.");
 		}
 	} catch (error) {
 		throw error instanceof Error ? error : new Error(String(error));
@@ -103,8 +98,8 @@ function readTarget(values: string[]): LocalDevTarget {
 
 function readScope(values: string[]): LocalDoctorScope {
 	const value = readFlag(values, "--scope") ?? "config";
-	if (value !== "config" && value !== "runtime" && value !== "shared" && value !== "data") {
-		throw new Error("Invalid doctor scope. Expected config, runtime, shared, or data.");
+	if (value !== "config" && value !== "runtime" && value !== "infra" && value !== "data") {
+		throw new Error("Invalid doctor scope. Expected config, runtime, infra, or data.");
 	}
 	return value;
 }

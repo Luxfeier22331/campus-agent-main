@@ -19,7 +19,7 @@ status: active
 - `campus-docs-reader.v3.schema.json`：Campus Web 唯一接受的正文格式；
 - `campus-docs-course-maps.v1.schema.json`：Campus Web 构建生成的课程图公开格式；
 - `campus-docs-site-index.v5.schema.json`：构建派生的公开主题、集合、版本、搜索入口和旧正文路由；
-- `campus-docs-search-index.v2.schema.json`：构建从当前版本正文派生的搜索索引。
+- `campus-docs-search-index.v3.schema.json`：构建从当前版本正文派生的 FlexSearch 序列化搜索索引和结果元数据。
 
 字段和校验规则以 schema 与实现为准。旧发布清单、当前版本指针、数据库投影和旧站点索引不是兼容
 输入。
@@ -143,7 +143,7 @@ Environment。`OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_DERIVED_READ_ACCESS_KEY` �
 读身份不具备写入能力，所有这些变量都不传给 Vite 子进程，也不写入静态产物。
 
 PR job 不访问对象存储；Campus Web 的 Node 测试调用离线声明检查，并执行无对象存储依赖的
-`build:worker` 测试构建。main 或手动文档刷新仍复用 `staging-candidate-publish`：独立步骤用 Source staging
+`build:fixture` 测试构建。main 或手动文档刷新仍复用 `staging-candidate-publish`：独立步骤用 Source staging
 写入身份执行 `docs:source:publish`，成功后构建步骤用只读身份执行 `build:staging` 并上传 Worker version。
 不建立独立文档部署服务或第二个文档版本指针，不自动触发 Docs RAG 发布。
 

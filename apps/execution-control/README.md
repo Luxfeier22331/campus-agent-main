@@ -75,12 +75,12 @@ poller，最后关闭运行投影、个人记忆状态和 Temporal starter。超
 
 Go workspace 和工具链版本由根 `go.work` 拥有，模块的语言版本保留在 `go.mod`。
 `flake.nix` 使用锁定 Nix 工具并核对版本，Dockerfile 保留构建所需的版本投影。
-以下包级命令在仓库 `ci-go` 环境执行；全量源码检查使用 `pnpm verify --source`。
+以下包级命令在仓库 `ci-go` 环境执行；全量源码检查使用 `pnpm check`。
 
 ```bash
 pnpm --dir apps/execution-control native:format
 pnpm --dir apps/execution-control native:lint
-pnpm --dir apps/execution-control native:typecheck
+pnpm --dir apps/execution-control native:vet
 pnpm --dir apps/execution-control native:test
 pnpm check
 ```
@@ -115,7 +115,7 @@ Temporal fixture 按包管理 Dev Server，按测试管理 worker 和唯一 work
 包超时前预留 worker、client 和 server 的关闭时间。子进程测试会验证失败和超时后的监听端口已关闭。
 受保护 history 的用途和更新命令见 [replay fixtures](./integration/temporal/testdata/replay/README.md)。
 
-PR 对受影响的 Go 包（包括 execution-control 与 model-config）运行 `native:format`、`native:lint`、`native:typecheck`、`native:test`。
+PR 对受影响的 Go 包（包括 execution-control 与 model-config）运行 `native:format`、`native:lint`、`native:vet`、`native:test`。
 Temporal、stream、replay 和 PostgreSQL 在 GitHub 手动 validation profile 中分别选择，暂不作为 PR
 required service checks。本地 Dev Server fixture 不用于部署验证。
 

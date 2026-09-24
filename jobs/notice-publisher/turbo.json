@@ -33,16 +33,16 @@
 				"CAMPUS_NODE_RUNTIME"
 			]
 		},
-		"test": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"$TURBO_ROOT$/configs/sources/internal-portal.json"
-			]
-		},
 		"typecheck": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json"
+			]
+		},
+		"test:unit": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json"
 			]
 		}

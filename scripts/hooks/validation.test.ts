@@ -68,7 +68,7 @@ function fixture() {
 		private: true,
 		packageManager: manifest.packageManager,
 		scripts: {
-			test: `node --experimental-strip-types ${source}/scripts/ci/repository-test.mts`,
+			"test:tooling": `node --experimental-strip-types ${source}/scripts/ci/repository-test.mts`,
 		},
 	});
 	write("pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n  - "scripts"\n');
@@ -94,6 +94,8 @@ function fixture() {
 				]),
 			),
 			typecheck: { outputs: [] },
+			source: { dependsOn: ["^source"], outputs: [] },
+			"test:generators": { outputs: [] },
 			"test:worker": { outputs: [] },
 			"test:node:fast": { outputs: [] },
 			"test:node:isolated": { outputs: [] },
@@ -101,8 +103,12 @@ function fixture() {
 			"test:dom:isolated": { outputs: [] },
 			"native:format": { outputs: [] },
 			"native:lint": { outputs: [] },
-			"native:typecheck": { outputs: [] },
-			test: { dependsOn: ["^test"], inputs: ["$TURBO_DEFAULT$", "!README.md"], outputs: [] },
+			"native:vet": { outputs: [] },
+			"test:unit": {
+				dependsOn: ["^source"],
+				inputs: ["$TURBO_DEFAULT$", "!README.md"],
+				outputs: [],
+			},
 			"native:test": { inputs: ["$TURBO_DEFAULT$"], outputs: [] },
 		},
 	});
@@ -115,7 +121,7 @@ function fixture() {
 		write(`apps/${app}/package.json`, {
 			name: app,
 			...(app === "web" ? { dependencies: { shared: "workspace:*" } } : {}),
-			scripts: { [app === "native" ? "native:test" : "test"]: "node ../../package-check.cjs" },
+			scripts: { [app === "native" ? "native:test" : "test:unit"]: "node ../../package-check.cjs" },
 		});
 		write(`apps/${app}/src.txt`, "good\n");
 	}
@@ -176,6 +182,66 @@ function fixture() {
 	git("commit", "-qm", "fixture");
 	return { root, write, run, git, counts, env };
 }
+
+test("root test cache hits before/after commit, invalidates real inputs/index, and never caches failures", {
+	timeout: 90000,
+}, () => {
+	const f = fixture();
+	try {
+		const check = (expected = 0) => f.run("pnpm", ["test:tooling"], expected);
+		check();
+		assert.equal(f.counts().length, 1);
+		assert.match(check(), /1 cached, 1 total/u);
+		assert.equal(f.counts().length, 1);
+		f.git("commit", "--amend", "-qm", "changed message");
+		check();
+		assert.equal(f.counts().length, 1);
+		for (const file of ["apps/web/src.txt", ".github/workflows/pr.yml", "flake.lock"]) {
+			f.write(file, "changed\n");
+			check();
+		}
+		assert.equal(f.counts().length, 4);
+		// Same filesystem content, newly tracked path: only the index context changes.
+		f.git("add", "flake.lock");
+		check();
+		assert.equal(f.counts().length, 5);
+		f.git("commit", "-qm", "track file");
+		check();
+		assert.equal(f.counts().length, 5);
+		f.write("root.txt", "bad\n");
+		check(1);
+		check(1);
+		assert.equal(f.counts().length, 7);
+		f.write("root.txt", "good\n");
+		check();
+		assert.equal(f.counts().length, 7);
+		// Environment-only changes must also invalidate the root task's result.
+		const baseline = f.run("pnpm", [
+			"exec",
+			"turbo",
+			"run",
+			"@campus-agent/tooling#test:ci",
+			"--dry-run=json",
+		]);
+		const baseHash = JSON.parse(
+			baseline.slice(baseline.indexOf("{"), baseline.lastIndexOf("}") + 1),
+		).tasks[0].hash;
+		f.env.CAMPUS_REPO_TEST_RUNTIME = "different-toolchain";
+		const changed = f.run("pnpm", [
+			"exec",
+			"turbo",
+			"run",
+			"@campus-agent/tooling#test:ci",
+			"--dry-run=json",
+		]);
+		assert.notEqual(
+			JSON.parse(changed.slice(changed.indexOf("{"), changed.lastIndexOf("}") + 1)).tasks[0].hash,
+			baseHash,
+		);
+	} finally {
+		rmSync(f.root, { recursive: true, force: true });
+	}
+});
 
 test("installed hook validates staged content and dependencies, restores partial edits, and retires push checks", {
 	timeout: 120000,

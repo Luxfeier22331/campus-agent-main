@@ -14,7 +14,7 @@ Campus Web 只消费该接口。班次乘车点按“班次明细 → 时间段�
 
 ```bash
 pnpm --dir packages/domains/transport typecheck
-pnpm --dir packages/domains/transport test
+pnpm test --filter=@campus-agent/transport
 ```
 
 领域边界见 [`docs/domains/transport.md`](../../../docs/domains/transport.md)。

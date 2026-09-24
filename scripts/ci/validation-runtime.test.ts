@@ -60,7 +60,7 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 	for (const task of NATIVE_TASKS) {
 		tasks[task] = { ...rootTurbo.tasks[task], outputs: ["result.txt"] };
 	}
-	tasks.test = { dependsOn: ["^test"], outputs: ["result.txt"] };
+	tasks["test:unit"] = { dependsOn: ["^test:unit"], outputs: ["result.txt"] };
 	json("turbo.json", { futureFlags: { affectedUsingTaskInputs: true }, tasks });
 	write("go.work", "go 1.26\nuse (\n ./apps/execution-control\n ./apps/model-config\n)\n");
 	write("go.work.sum", "");
@@ -78,12 +78,12 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 		write(`apps/${owner}/go.mod`, `module fixture/${owner}\ngo 1.26\n`);
 		write(`apps/${owner}/go.sum`, "");
 	}
-	json("apps/shared/package.json", { name: "shared", scripts: { test: "node task.cjs" } });
+	json("apps/shared/package.json", { name: "shared", scripts: { "test:unit": "node task.cjs" } });
 	write("apps/shared/task.cjs", 'require("node:fs").writeFileSync("result.txt", "dependency");');
 	json("apps/web/package.json", {
 		name: "web",
 		dependencies: { shared: "workspace:*" },
-		scripts: { test: "node task.cjs" },
+		scripts: { "test:unit": "node task.cjs" },
 	});
 	write(
 		"apps/web/task.cjs",
@@ -152,7 +152,7 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 		NODE_TASKS,
 		execute,
 		{ cwd: root, env },
-		{ scope: [{ package: "web", task: "test" }] },
+		{ scope: [{ package: "web", task: "test:unit" }] },
 	);
 	assert.equal(readFileSync(path.join(root, "apps/web/result.txt"), "utf8"), "consumer");
 	write("apps/web/task.cjs", "process.exit(17);");
@@ -163,7 +163,7 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 				NODE_TASKS,
 				execute,
 				{ cwd: root, env },
-				{ scope: [{ package: "web", task: "test" }] },
+				{ scope: [{ package: "web", task: "test:unit" }] },
 			),
 		/failed with exit code/,
 	);

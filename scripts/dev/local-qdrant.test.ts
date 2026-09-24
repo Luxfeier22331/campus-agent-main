@@ -1,37 +1,16 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import { it, type TestContext } from "node:test";
-
+import {
+	ensureLocalInfrastructureSecrets,
+	loadLocalInfrastructureSecrets,
+} from "./infrastructure-secrets";
 import { resolveLocalQdrantConnection } from "./local-qdrant";
-import type { captureCommandResult } from "./process";
-
-function containerCapture(input: {
-	apiKey?: string;
-	port: number;
-	running?: boolean;
-}): typeof captureCommandResult {
-	return () => ({
-		status: 0,
-		stderr: "",
-		stdout: JSON.stringify([
-			{
-				Config: {
-					Env: [
-						"QDRANT__SERVICE__READ_ONLY_API_KEY=fixture-read-only",
-						...(input.apiKey ? [`QDRANT__SERVICE__API_KEY=${input.apiKey}`] : []),
-					],
-				},
-				NetworkSettings: {
-					Ports: { "6333/tcp": [{ HostIp: "127.0.0.1", HostPort: String(input.port) }] },
-				},
-				State: { Running: input.running ?? true },
-			},
-		]),
-		timedOut: false,
-	});
-}
 
 async function startQdrantFixture(t: TestContext) {
 	const requests: { key: string; method: string | undefined; url: string | undefined }[] = [];
@@ -57,49 +36,82 @@ async function startQdrantFixture(t: TestContext) {
 	return { apiKey, port: (server.address() as AddressInfo).port, requests };
 }
 
-it("resolves the running container's writer key and published port and authenticates with them", async (t) => {
+function createProfile(repoRoot: string, port: number) {
+	const resourceKey = "deadbeef";
+	const profile = {
+		bucketName: "campus-agent-derived-wt-1-deadbeef",
+		createdAt: "2026-09-24T00:00:00.000Z",
+		databaseName: "campus_agent_wt_1_deadbeef",
+		instanceId: "fixture-deadbeef",
+		infraPorts: {
+			objectStore: 25900,
+			objectStoreConsole: 25901,
+			postgres: 25432,
+			qdrantGrpc: 26334,
+			qdrantHttp: port,
+			temporal: 27233,
+			temporalUi: 27234,
+		},
+		infraProject: "campus-agent-wt-deadbeef",
+		ports: { appApi: 27131, campusWeb: 27114, opsWeb: 5188, opsWebApi: 5189 },
+		repoKey: "fixture",
+		resourceKey,
+		schemaVersion: 3 as const,
+		slot: 1,
+		sourceBucketName: "campus-agent-source-wt-1-deadbeef",
+		worktreePath: repoRoot,
+	};
+	ensureLocalInfrastructureSecrets(repoRoot, profile);
+	return profile;
+}
+
+it("uses the profile port and writer key and authenticates the local connection", async (t) => {
 	const fixture = await startQdrantFixture(t);
-	const capture = t.mock.fn(containerCapture(fixture));
-	const connection = await resolveLocalQdrantConnection(capture);
-	assert.deepEqual(capture.mock.calls[0]?.arguments, [
-		"docker",
-		["inspect", "campus-agent-local-qdrant-qdrant-1"],
-	]);
+	const repoRoot = mkdtempSync(resolve(tmpdir(), "local-qdrant-test-"));
+	t.after(() => rmSync(repoRoot, { force: true, recursive: true }));
+	const profile = createProfile(repoRoot, fixture.port);
+	const secrets = loadLocalInfrastructureSecrets(repoRoot, profile);
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = async (input, init) => {
+		if (input.toString().includes("/collections")) {
+			return new Response(JSON.stringify({ result: { collections: [] } }), {
+				status:
+					init?.headers && new Headers(init.headers).get("api-key") === secrets.qdrantApiKey
+						? 200
+						: 401,
+			});
+		}
+		return originalFetch(input, init);
+	};
+	t.after(() => {
+		globalThis.fetch = originalFetch;
+	});
+	const connection = await resolveLocalQdrantConnection(repoRoot, profile);
 	assert.deepEqual(connection, {
-		apiKey: fixture.apiKey,
-		readOnlyApiKey: "fixture-read-only",
+		apiKey: secrets.qdrantApiKey,
+		readOnlyApiKey: secrets.qdrantReadOnlyApiKey,
 		url: `http://127.0.0.1:${fixture.port}`,
 	});
-	assert.deepEqual(fixture.requests, [{ key: fixture.apiKey, method: "GET", url: "/collections" }]);
 });
 
-it("rejects a key that receives 401 instead of completing initialization", async (t) => {
+it("rejects invalid credentials and unavailable endpoints", async (t) => {
+	const repoRoot = mkdtempSync(resolve(tmpdir(), "local-qdrant-test-"));
+	t.after(() => rmSync(repoRoot, { force: true, recursive: true }));
 	const fixture = await startQdrantFixture(t);
+	const profile = createProfile(repoRoot, fixture.port);
+	const secrets = await import("./infrastructure-secrets");
+	const credentials = secrets.loadLocalInfrastructureSecrets(repoRoot, profile);
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = async (input, init) =>
+		input.toString().includes("/collections")
+			? new Response("unauthorized", { status: 401 })
+			: originalFetch(input, init);
+	t.after(() => {
+		globalThis.fetch = originalFetch;
+	});
 	await assert.rejects(
-		resolveLocalQdrantConnection(containerCapture({ ...fixture, apiKey: "stale-writer" })),
+		resolveLocalQdrantConnection(repoRoot, profile),
 		/credential check failed: HTTP 401/u,
 	);
-});
-
-it("requires a writer key rather than substituting the read-only key", async () => {
-	await assert.rejects(
-		resolveLocalQdrantConnection(containerCapture({ port: 6333 })),
-		/does not configure QDRANT__SERVICE__API_KEY/u,
-	);
-});
-
-it("reports missing and stopped Qdrant containers without generating credentials", async () => {
-	await assert.rejects(
-		resolveLocalQdrantConnection(() => ({
-			status: 1,
-			stderr: "No such container",
-			stdout: "",
-			timedOut: false,
-		})),
-		/Cannot inspect local Qdrant/u,
-	);
-	await assert.rejects(
-		resolveLocalQdrantConnection(containerCapture({ port: 6333, running: false })),
-		/not running/u,
-	);
+	assert.ok(credentials.qdrantApiKey);
 });

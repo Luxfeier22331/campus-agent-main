@@ -11,6 +11,8 @@ status: active
 - Better Auth 处理登录、注册、退出、会话、密码重置和账号关联子路由。
 - `campus-web` 以同源路由形式向浏览器提供这些接口。
 - Ops Web 使用 Cloudflare Access 应用策略准入人员，不复用终端用户登录流程。
+- 默认登录使用持久会话：服务端会话有效期为 30 天，达到 24 小时更新阈值后按访问时间滑动续期；
+  登录请求显式传入 `rememberMe: false` 时保留 Better Auth 的短会话语义。
 - `POST /api/auth/sign-up/email` 必须携带
   `x-campus-legal-accepted: terms-and-privacy`；否则返回 `legal_consent_required`。
 - 注册标记只用于当次准入，不保存为协议版本、IP、时间或账号级记录。

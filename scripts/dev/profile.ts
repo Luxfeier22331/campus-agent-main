@@ -28,24 +28,35 @@ export interface LocalDevRuntimePorts {
 	modelConfig: number;
 }
 
-export interface LocalDevProfileV2 {
+export interface LocalDevInfrastructurePorts {
+	objectStore: number;
+	objectStoreConsole: number;
+	postgres: number;
+	qdrantGrpc: number;
+	qdrantHttp: number;
+	temporal: number;
+	temporalUi: number;
+}
+
+export interface LocalDevProfile {
 	bucketName: string;
 	createdAt: string;
 	databaseName: string;
 	instanceId: string;
+	infraPorts: LocalDevInfrastructurePorts;
+	infraProject: string;
 	ports: LocalDevPorts;
 	repoKey: string;
 	resourceKey: string;
-	schemaVersion: 2;
+	schemaVersion: 3;
 	slot: number;
+	sourceBucketName: string;
 	worktreePath: string;
 }
 
-export type LocalDevProfile = LocalDevProfileV2;
-
-interface LocalDevRegistryV2 {
-	instances: LocalDevProfileV2[];
-	schemaVersion: 2;
+interface LocalDevRegistryV3 {
+	instances: LocalDevProfile[];
+	schemaVersion: 3;
 }
 
 const MAX_SLOT = 99;
@@ -82,7 +93,20 @@ export function calculateLocalDevRuntimePorts(slot: number): LocalDevRuntimePort
 	};
 }
 
-export async function ensureLocalDevProfile(repoRoot: string): Promise<LocalDevProfileV2> {
+export function calculateLocalDevInfrastructurePorts(slot: number): LocalDevInfrastructurePorts {
+	assertSlot(slot);
+	return {
+		objectStore: 25_900 + slot * 100,
+		objectStoreConsole: 25_901 + slot * 100,
+		postgres: 25_432 + slot * 100,
+		qdrantGrpc: 26_334 + slot * 100,
+		qdrantHttp: 26_333 + slot * 100,
+		temporal: 27_233 + slot * 100,
+		temporalUi: 27_233 + slot * 100 + 1,
+	};
+}
+
+export async function ensureLocalDevProfile(repoRoot: string): Promise<LocalDevProfile> {
 	const resolvedRoot = realpathSync(repoRoot);
 	const paths = resolveRegistryPaths(resolvedRoot);
 	return await withLifecycleLock(paths.lockPath, "profile", async () => {
@@ -90,25 +114,28 @@ export async function ensureLocalDevProfile(repoRoot: string): Promise<LocalDevP
 		assertRegistry(registry.instances, paths.repoKey);
 		const profilePath = resolveLocalDevProfilePath(resolvedRoot);
 		const legacyProfilePath = resolveLegacyLocalDevProfilePath(resolvedRoot);
-		const existingRaw = readJsonIfExists(profilePath) ?? readJsonIfExists(legacyProfilePath);
+		if (existsSync(legacyProfilePath)) {
+			throw new Error(
+				`Legacy local development profile found at ${legacyProfilePath}; remove it manually and run pnpm dev:init again.`,
+			);
+		}
+		const existingRaw = readJsonIfExists(profilePath);
 		if (existingRaw !== null) {
-			const profile = upgradeProfile(existingRaw);
-			if (!profile) {
-				throw new Error("Invalid local development profile.");
-			}
+			const profile = parseProfile(existingRaw);
 			assertProfile(profile, resolvedRoot, paths.repoKey);
-			if (existsSync(legacyProfilePath) && !existsSync(profilePath)) {
-				writeJsonAtomic(profilePath, profile);
-				rmSync(legacyProfilePath, { force: true });
-			}
 			const registered = registry.instances.find(
 				(instance) => instance.instanceId === profile.instanceId,
 			);
 			if (registered) {
 				assertProfileRegistration(registered, profile);
-				if (!existsSync(paths.registryPath) || existsSync(paths.legacyRegistryPath)) {
-					writeRegistry(paths.registryPath, registry, paths.legacyRegistryPath);
-				}
+				const upgradedInstances = registry.instances.map((item) =>
+					item.instanceId === profile.instanceId ? profile : item,
+				);
+				writeRegistry(
+					paths.registryPath,
+					{ instances: upgradedInstances, schemaVersion: 3 },
+					paths.legacyRegistryPath,
+				);
 				return profile;
 			}
 			assertNoRegistrationConflict(registry.instances, profile);
@@ -116,7 +143,7 @@ export async function ensureLocalDevProfile(repoRoot: string): Promise<LocalDevP
 				paths.registryPath,
 				{
 					instances: [...registry.instances, profile].sort((left, right) => left.slot - right.slot),
-					schemaVersion: 2,
+					schemaVersion: 3,
 				},
 				paths.legacyRegistryPath,
 			);
@@ -127,16 +154,20 @@ export async function ensureLocalDevProfile(repoRoot: string): Promise<LocalDevP
 		const slot = await allocateAvailableSlot(registry.instances, firstSlot);
 		const resourceKey = randomBytes(4).toString("hex");
 		const label = normalizeResourceLabel(basename(resolvedRoot));
-		const profile: LocalDevProfileV2 = {
+		const infraPorts = calculateLocalDevInfrastructurePorts(slot);
+		const profile: LocalDevProfile = {
 			bucketName: `campus-agent-derived-wt-${slot}-${resourceKey}`,
 			createdAt: new Date().toISOString(),
 			databaseName: `campus_agent_wt_${slot}_${resourceKey}`,
 			instanceId: `${label}-${resourceKey}`,
+			infraPorts,
+			infraProject: `campus-agent-wt-${resourceKey}`,
 			ports: calculateLocalDevPorts(slot),
 			repoKey: paths.repoKey,
 			resourceKey,
-			schemaVersion: 2,
+			schemaVersion: 3,
 			slot,
+			sourceBucketName: `campus-agent-source-wt-${slot}-${resourceKey}`,
 			worktreePath: resolvedRoot,
 		};
 		assertNoRegistrationConflict(registry.instances, profile);
@@ -145,7 +176,7 @@ export async function ensureLocalDevProfile(repoRoot: string): Promise<LocalDevP
 			paths.registryPath,
 			{
 				instances: [...registry.instances, profile].sort((left, right) => left.slot - right.slot),
-				schemaVersion: 2,
+				schemaVersion: 3,
 			},
 			paths.legacyRegistryPath,
 		);
@@ -153,21 +184,29 @@ export async function ensureLocalDevProfile(repoRoot: string): Promise<LocalDevP
 	});
 }
 
-export function loadLocalDevProfile(repoRoot: string): LocalDevProfileV2 {
+export function loadLocalDevProfile(repoRoot: string): LocalDevProfile {
 	const resolvedRoot = realpathSync(repoRoot);
-	const raw =
-		readJsonIfExists(resolveLocalDevProfilePath(resolvedRoot)) ??
-		readJsonIfExists(resolveLegacyLocalDevProfilePath(resolvedRoot));
-	const profile = upgradeProfile(raw);
-	if (!profile) {
+	const paths = resolveRegistryPaths(resolvedRoot);
+	if (existsSync(paths.legacyRegistryPath)) {
+		throw new Error(
+			`Legacy local development registry found at ${paths.legacyRegistryPath}; remove it manually and run pnpm dev:init again.`,
+		);
+	}
+	const raw = readJsonIfExists(resolveLocalDevProfilePath(resolvedRoot));
+	if (existsSync(resolveLegacyLocalDevProfilePath(resolvedRoot))) {
+		throw new Error(
+			`Legacy local development profile found at ${resolveLegacyLocalDevProfilePath(resolvedRoot)}; remove it manually and run pnpm dev:init again.`,
+		);
+	}
+	if (raw === null) {
 		throw new Error("Local development is not initialized. Run pnpm dev:init first.");
 	}
-	assertProfile(profile, resolvedRoot, resolveRegistryPaths(resolvedRoot).repoKey);
+	const profile = parseProfile(raw);
+	assertProfile(profile, resolvedRoot, paths.repoKey);
 	return profile;
 }
 
-/** Read-only: legacy state is upgraded in memory but never written. */
-export function listLocalDevProfiles(repoRoot: string): LocalDevProfileV2[] {
+export function listLocalDevProfiles(repoRoot: string): LocalDevProfile[] {
 	const paths = resolveRegistryPaths(realpathSync(repoRoot));
 	const registry = readRegistry(paths.registryPath, paths.legacyRegistryPath);
 	assertRegistry(registry.instances, paths.repoKey);
@@ -178,7 +217,7 @@ export function resolveLocalDevRegistryPath(repoRoot: string): string {
 	return resolveRegistryPaths(realpathSync(repoRoot)).registryPath;
 }
 
-export function releaseLocalDevProfile(repoRoot: string, instanceId: string): LocalDevProfileV2 {
+export function releaseLocalDevProfile(repoRoot: string, instanceId: string): LocalDevProfile {
 	const resolvedRoot = realpathSync(repoRoot);
 	const paths = resolveRegistryPaths(resolvedRoot);
 	return withLifecycleLockSync(paths.lockPath, "profile", () => {
@@ -192,7 +231,7 @@ export function releaseLocalDevProfile(repoRoot: string, instanceId: string): Lo
 			paths.registryPath,
 			{
 				instances: registry.instances.filter((profile) => profile.instanceId !== instanceId),
-				schemaVersion: 2,
+				schemaVersion: 3,
 			},
 			paths.legacyRegistryPath,
 		);
@@ -227,7 +266,7 @@ export function isMainWorktree(repoRoot: string): boolean {
 }
 
 export function allocateLocalDevSlot(
-	instances: Pick<LocalDevProfileV2, "slot">[],
+	instances: Pick<LocalDevProfile, "slot">[],
 	firstSlot: number,
 ): number {
 	const occupied = new Set(instances.map(({ slot }) => slot));
@@ -240,14 +279,16 @@ export function allocateLocalDevSlot(
 }
 
 export function expectedLocalDevResourceNames(
-	profile: Pick<LocalDevProfileV2, "resourceKey" | "slot">,
+	profile: Pick<LocalDevProfile, "resourceKey" | "slot">,
 ): {
 	bucketName: string;
 	databaseName: string;
+	sourceBucketName: string;
 } {
 	return {
 		bucketName: `campus-agent-derived-wt-${profile.slot}-${profile.resourceKey}`,
 		databaseName: `campus_agent_wt_${profile.slot}_${profile.resourceKey}`,
+		sourceBucketName: `campus-agent-source-wt-${profile.slot}-${profile.resourceKey}`,
 	};
 }
 
@@ -279,7 +320,7 @@ function resolveRegistryPaths(repoRoot: string): {
 }
 
 export async function allocateAvailableSlot(
-	instances: Pick<LocalDevProfileV2, "slot">[],
+	instances: Pick<LocalDevProfile, "slot">[],
 	firstSlot: number,
 	probe: typeof probeLocalPorts = probeLocalPorts,
 ): Promise<number> {
@@ -290,6 +331,7 @@ export async function allocateAvailableSlot(
 		const ports = [
 			...Object.values(calculateLocalDevPorts(slot)),
 			...Object.values(calculateLocalDevRuntimePorts(slot)),
+			...Object.values(calculateLocalDevInfrastructurePorts(slot)),
 		];
 		const result = await probe(ports);
 		if (result.unknown.length > 0) {
@@ -303,80 +345,52 @@ export async function allocateAvailableSlot(
 	throw new Error(`No local development slots remain between ${firstSlot} and ${MAX_SLOT}.`);
 }
 
-function readRegistry(registryPath: string, legacyRegistryPath: string): LocalDevRegistryV2 {
+function readRegistry(registryPath: string, legacyRegistryPath: string): LocalDevRegistryV3 {
+	if (existsSync(legacyRegistryPath)) {
+		throw new Error(
+			`Legacy local development registry found at ${legacyRegistryPath}; remove it manually and run pnpm dev:init again.`,
+		);
+	}
 	const current = readJsonIfExists(registryPath);
 	if (current !== null) {
-		return upgradeRegistry(current);
+		return parseRegistry(current);
 	}
-	const legacy = readJsonIfExists(legacyRegistryPath);
-	return legacy === null ? { instances: [], schemaVersion: 2 } : upgradeRegistry(legacy);
+	return { instances: [], schemaVersion: 3 };
 }
 
-function upgradeRegistry(value: unknown): LocalDevRegistryV2 {
-	if (!(isRecord(value) && Array.isArray(value.instances))) {
+function parseRegistry(value: unknown): LocalDevRegistryV3 {
+	if (!(isRecord(value) && value.schemaVersion === 3 && Array.isArray(value.instances))) {
 		throw new Error("Unsupported local development registry.");
 	}
-	const instances = value.instances.map((instance) => upgradeProfile(instance));
-	if (instances.some((instance) => instance === null)) {
-		throw new Error("Invalid local development registry entry.");
-	}
-	return { instances: instances as LocalDevProfileV2[], schemaVersion: 2 };
+	return { instances: value.instances.map(parseProfile), schemaVersion: 3 };
 }
 
-function upgradeProfile(value: unknown): LocalDevProfileV2 | null {
-	if (value === null) {
-		return null;
+function parseProfile(value: unknown): LocalDevProfile {
+	if (!(isRecord(value) && value.schemaVersion === 3)) {
+		throw new Error(
+			"Unsupported local development profile version; remove the old profile manually and run pnpm dev:init.",
+		);
 	}
-	if (!isRecord(value)) {
-		throw new Error("Invalid local development profile.");
-	}
-	if (value.schemaVersion === 2) {
-		return {
-			bucketName: stringField(value, "bucketName"),
-			createdAt: stringField(value, "createdAt"),
-			databaseName: stringField(value, "databaseName"),
-			instanceId: stringField(value, "instanceId"),
-			ports: portsField(value.ports),
-			repoKey: stringField(value, "repoKey"),
-			resourceKey: stringField(value, "resourceKey"),
-			schemaVersion: 2,
-			slot: numberField(value, "slot"),
-			worktreePath: stringField(value, "worktreePath"),
-		};
-	}
-	if (value.schemaVersion !== 1) {
-		throw new Error("Unsupported local development profile version.");
-	}
-	const resourceKey = deriveResourceKey(value);
+	const slot = numberField(value, "slot");
 	return {
 		bucketName: stringField(value, "bucketName"),
 		createdAt: stringField(value, "createdAt"),
 		databaseName: stringField(value, "databaseName"),
 		instanceId: stringField(value, "instanceId"),
+		infraPorts: infrastructurePortsField(value.infraPorts),
+		infraProject: stringField(value, "infraProject"),
 		ports: portsField(value.ports),
 		repoKey: stringField(value, "repoKey"),
-		resourceKey,
-		schemaVersion: 2,
-		slot: numberField(value, "slot"),
+		resourceKey: stringField(value, "resourceKey"),
+		schemaVersion: 3,
+		slot,
+		sourceBucketName: stringField(value, "sourceBucketName"),
 		worktreePath: stringField(value, "worktreePath"),
 	};
 }
 
-function deriveResourceKey(value: Record<string, unknown>): string {
-	const candidates = [
-		stringField(value, "databaseName").match(/^campus_agent_wt_[0-9]+_([a-f0-9]{8})$/u)?.[1],
-		stringField(value, "bucketName").match(/^[a-z0-9][a-z0-9.-]*-[0-9]+-([a-f0-9]{8})$/u)?.[1],
-		stringField(value, "instanceId").match(/-([a-f0-9]{8})$/u)?.[1],
-	].filter((candidate): candidate is string => candidate !== undefined);
-	const resourceKey = candidates[0];
-	if (!resourceKey || candidates.some((candidate) => candidate !== resourceKey)) {
-		throw new Error("Legacy local development profile has inconsistent resource identities.");
-	}
-	return resourceKey;
-}
-
 function assertProfile(
-	profile: LocalDevProfileV2,
+	profile: LocalDevProfile,
 	repoRoot: string,
 	repoKey?: string,
 	allowMissingWorktree = false,
@@ -387,9 +401,9 @@ function assertProfile(
 	}
 }
 
-function assertProfileIdentity(profile: LocalDevProfileV2, repoKey?: string): void {
+function assertProfileIdentity(profile: LocalDevProfile, repoKey?: string): void {
 	if (
-		profile.schemaVersion !== 2 ||
+		profile.schemaVersion !== 3 ||
 		!isAbsolute(profile.worktreePath) ||
 		(repoKey !== undefined && profile.repoKey !== repoKey) ||
 		!/^[a-f0-9]{8}$/u.test(profile.resourceKey) ||
@@ -401,7 +415,9 @@ function assertProfileIdentity(profile: LocalDevProfileV2, repoKey?: string): vo
 	const expected = expectedLocalDevResourceNames(profile);
 	if (
 		profile.databaseName !== expected.databaseName ||
-		!profile.bucketName.endsWith(`-${profile.slot}-${profile.resourceKey}`)
+		profile.bucketName !== expected.bucketName ||
+		profile.sourceBucketName !== expected.sourceBucketName ||
+		profile.infraProject !== `campus-agent-wt-${profile.resourceKey}`
 	) {
 		throw new Error(
 			`Local development profile resource identity does not match ${profile.instanceId}.`,
@@ -410,28 +426,35 @@ function assertProfileIdentity(profile: LocalDevProfileV2, repoKey?: string): vo
 	if (JSON.stringify(profile.ports) !== JSON.stringify(calculateLocalDevPorts(profile.slot))) {
 		throw new Error(`Local development profile ports do not match slot ${profile.slot}.`);
 	}
+	if (
+		JSON.stringify(profile.infraPorts) !==
+		JSON.stringify(calculateLocalDevInfrastructurePorts(profile.slot))
+	) {
+		throw new Error(`Local infrastructure ports do not match slot ${profile.slot}.`);
+	}
 }
 
-function assertRegistry(instances: LocalDevProfileV2[], repoKey: string): void {
+function assertRegistry(instances: LocalDevProfile[], repoKey: string): void {
 	for (const profile of instances) {
 		assertProfile(profile, profile.worktreePath, repoKey, true);
 	}
 }
 
-function assertProfileRegistration(left: LocalDevProfileV2, right: LocalDevProfileV2): void {
+function assertProfileRegistration(left: LocalDevProfile, right: LocalDevProfile): void {
 	if (
 		left.worktreePath !== right.worktreePath ||
 		left.slot !== right.slot ||
 		left.databaseName !== right.databaseName ||
-		left.bucketName !== right.bucketName
+		left.bucketName !== right.bucketName ||
+		left.sourceBucketName !== right.sourceBucketName
 	) {
 		throw new Error(`Conflicting local development registration: ${right.instanceId}`);
 	}
 }
 
 function assertNoRegistrationConflict(
-	instances: LocalDevProfileV2[],
-	profile: LocalDevProfileV2,
+	instances: LocalDevProfile[],
+	profile: LocalDevProfile,
 ): void {
 	if (
 		instances.some(
@@ -440,7 +463,8 @@ function assertNoRegistrationConflict(
 				instance.slot === profile.slot ||
 				instance.worktreePath === profile.worktreePath ||
 				instance.databaseName === profile.databaseName ||
-				instance.bucketName === profile.bucketName,
+				instance.bucketName === profile.bucketName ||
+				instance.sourceBucketName === profile.sourceBucketName,
 		)
 	) {
 		throw new Error(`Conflicting local development registration: ${profile.instanceId}`);
@@ -453,7 +477,7 @@ function assertSlot(slot: number): void {
 	}
 }
 
-function writeRegistry(path: string, registry: LocalDevRegistryV2, legacyPath?: string): void {
+function writeRegistry(path: string, registry: LocalDevRegistryV3, legacyPath?: string): void {
 	writeJsonAtomic(path, registry);
 	if (legacyPath && legacyPath !== path) {
 		retireLegacyRegistry(legacyPath);
@@ -487,8 +511,7 @@ function removeProfileIfMatches(path: string, instanceId: string): void {
 	if (raw === null) {
 		return;
 	}
-	const profile = upgradeProfile(raw);
-	if (profile?.instanceId === instanceId) {
+	if (isRecord(raw) && raw.schemaVersion === 3 && raw.instanceId === instanceId) {
 		rmSync(path, { force: true });
 	}
 }
@@ -522,5 +545,20 @@ function portsField(value: unknown): LocalDevPorts {
 		campusWeb: numberField(value, "campusWeb"),
 		opsWeb: numberField(value, "opsWeb"),
 		opsWebApi: numberField(value, "opsWebApi"),
+	};
+}
+
+function infrastructurePortsField(value: unknown): LocalDevInfrastructurePorts {
+	if (!isRecord(value)) {
+		throw new Error("Invalid local development infrastructure ports.");
+	}
+	return {
+		objectStore: numberField(value, "objectStore"),
+		objectStoreConsole: numberField(value, "objectStoreConsole"),
+		postgres: numberField(value, "postgres"),
+		qdrantGrpc: numberField(value, "qdrantGrpc"),
+		qdrantHttp: numberField(value, "qdrantHttp"),
+		temporal: numberField(value, "temporal"),
+		temporalUi: numberField(value, "temporalUi"),
 	};
 }

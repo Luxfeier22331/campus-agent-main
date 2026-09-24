@@ -13,7 +13,7 @@ import {
 
 test("both Go owners select the same native checks, including lint-only scope", () => {
 	for (const owner of ["execution-control", "model-config"]) {
-		for (const task of ["native:format", "native:lint", "native:typecheck", "native:test"]) {
+		for (const task of ["native:format", "native:lint", "native:vet", "native:test"]) {
 			assert(
 				profiles([`apps/${owner}/main.go`], [{ package: owner, task }]).includes("affected-native"),
 			);
@@ -191,7 +191,7 @@ test("execution-control native checks are automatic while service integrations s
 		["apps/execution-control/internal/temporalruntime/workflow.go"],
 		[
 			{ package: "execution-control", task: "native:test" },
-			{ package: "execution-control", task: "native:typecheck" },
+			{ package: "execution-control", task: "native:vet" },
 		],
 	);
 	assert.ok(selected.includes("affected-native"));

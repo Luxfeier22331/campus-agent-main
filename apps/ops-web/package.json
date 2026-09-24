@@ -9,13 +9,11 @@
 		"dist-server"
 	],
 	"scripts": {
-		"build": "vite build && vite build --ssr src/server/node.ts --outDir dist-server && vite build --config vite.ops.config.ts",
-		"check": "pnpm typecheck && pnpm test && pnpm build",
+		"build": "bash scripts/build.sh",
 		"dev:api": "node --env-file-if-exists=.env.local --experimental-strip-types src/server/node.ts",
-		"dev:fixture": "set -a && . ./.env.local && set +a && exec node --experimental-strip-types test/fixtures/internal-portal-automation-server.ts --port \"$PORT\"",
-		"dev:web": "set -a && . ./.env.local && set +a && exec vite --host 127.0.0.1 --port \"$OPS_WEB_WEB_PORT\" --strictPort",
+		"dev:fixture": "bash scripts/dev-fixture.sh",
+		"dev:web": "bash scripts/dev-web.sh",
 		"start": "node --env-file-if-exists=.env dist-server/node.js",
-		"test": "vitest run -c vitest.config.mts",
 		"test:browser": "pnpm build && playwright test --config browser.config.ts",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
 		"typecheck": "tsc --noEmit",

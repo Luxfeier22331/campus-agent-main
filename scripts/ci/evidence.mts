@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { imageTargetsForScope, readImageWorkspaces } from "../release/image-targets.mts";
 import { readNodeVersion } from "../toolchain/node-version.mts";
 import { imageScopeBetween } from "./image-scope.mts";
+import { repositoryTestEnvironment } from "./repository-test.mts";
 import {
 	type AffectedScope,
 	type CommandResult,
@@ -17,18 +18,19 @@ import {
 	resolveStagedTasks,
 	type ScopeTask,
 } from "./scope.mts";
-import { toolingGroupsForFiles } from "./tooling-tasks.mts";
+import { TOOLING_GROUPS, toolingGroupsForFiles } from "./tooling-tasks.mts";
+import { nodeRuntimeEnvironment } from "./turbo.mts";
 import {
-	ACTION_COMMANDS,
 	BUILD_TASKS,
-	CONTRACT_COMMAND,
 	DATABASE_TASKS,
 	EVAL_TASKS,
-	isEvidenceTask,
 	isValidationProfile,
 	NATIVE_TASKS,
 	NODE_TASKS,
 	PR_NODE_TASKS,
+	REPOSITORY_CHECK_REGISTRY,
+	type RepositoryCheck,
+	repositoryChecksForFiles,
 	VALIDATION_PROFILE_REGISTRY,
 	type ValidationProfile,
 } from "./validation-profiles.mts";
@@ -71,7 +73,8 @@ export function runCommand(
 	args: string[],
 	options: { cwd: string; env: NodeJS.ProcessEnv },
 ): CommandResult {
-	const captureOutput = command === "git" || args.includes("--dry-run=json");
+	const captureOutput =
+		command === "git" || args.includes("--dry-run=json") || args.includes("--version");
 	const result = spawnSync(command, args, {
 		cwd: options.cwd,
 		env: options.env,
@@ -150,7 +153,7 @@ export function runTasks(
 	tasks: readonly string[],
 	runner: EvidenceCommandRunner,
 	options: { cwd: string; env: NodeJS.ProcessEnv },
-	input: { scope?: readonly ScopeTask[]; native?: boolean; shell?: string } = {},
+	input: { scope?: readonly ScopeTask[]; native?: boolean; shell?: string; serial?: boolean } = {},
 ): void {
 	let scope = input.scope;
 	if (!scope) {
@@ -162,7 +165,6 @@ export function runTasks(
 	const selected = [
 		...new Set(
 			scope
-				.filter(isEvidenceTask)
 				.filter((item) => tasks.includes(item.task))
 				.map((item) => `${item.package}#${item.task}`),
 		),
@@ -174,7 +176,9 @@ export function runTasks(
 		"--experimental-strip-types",
 		"scripts/ci/turbo.mts",
 		...selected,
-		...(input.native ? ["--concurrency=1"] : [`--concurrency=${nodeTaskConcurrency()}`]),
+		...(input.native || input.serial
+			? ["--concurrency=1"]
+			: [`--concurrency=${nodeTaskConcurrency()}`]),
 		"--summarize",
 	];
 	const taskOptions = input.native
@@ -207,13 +211,9 @@ function runAffectedNodeEvidence(
 ): void {
 	const options = { cwd: input.repositoryRoot, env: input.env };
 	runTasks("affected-node", PR_NODE_TASKS, runner, options, { scope: input.scope.tasks });
-	// Campus Web's worker task owns its fixture build; do not also run the data-backed build.
+	// Image evidence already compiles these packages; run the other verification builds once.
 	const builds = input.scope.tasks.filter(
-		(task) =>
-			!(
-				(task.package === "campus-web" && task.task === "build") ||
-				(task.task === "build" && input.skipBuildPackages?.has(task.package))
-			),
+		(task) => !(task.task === "build:check" && input.skipBuildPackages?.has(task.package)),
 	);
 	runTasks("affected-node", BUILD_TASKS, runner, options, { scope: builds });
 }
@@ -268,12 +268,29 @@ export function runPreCommitEvidence(
 		["diff", "--cached", "--name-status", "-z", "--diff-filter=ACDMRT"],
 		runner("git", ["diff", "--cached", "--name-status", "-z", "--diff-filter=ACDMRT"], options),
 	);
-	const toolingGroups = toolingGroupsForFiles(parseChangedFiles(stagedDiff.stdout ?? ""));
+	const changedFiles = parseChangedFiles(stagedDiff.stdout ?? "");
+	runRepositoryChecks(
+		{
+			repositoryRoot: input.repositoryRoot,
+			checks: repositoryChecksForFiles(changedFiles),
+			env: options.env,
+			profile: "pre-commit",
+		},
+		runner,
+	);
+	const toolingGroups = toolingGroupsForFiles(changedFiles);
 	if (toolingGroups.length > 0) {
 		runProfileCommand(
 			"pre-commit",
 			"nix",
-			["develop", ".#ci-core", "--command", "pnpm", "test", `--groups=${toolingGroups.join(",")}`],
+			[
+				"develop",
+				".#ci-core",
+				"--command",
+				"pnpm",
+				"test:tooling",
+				`--groups=${toolingGroups.join(",")}`,
+			],
 			runner,
 			options,
 		);
@@ -297,19 +314,20 @@ export function runPreCommitEvidence(
 }
 
 export function runVerification(
-	input: { sourceOnly: boolean; repositoryRoot: string },
+	input: { sourceOnly: boolean; repositoryRoot: string; scope?: readonly ScopeTask[] },
 	runner: EvidenceCommandRunner = runCommand,
 ): void {
 	const options = { cwd: input.repositoryRoot, env: { ...process.env } };
 	const command = (args: readonly [string, ...string[]]) =>
 		runProfileCommand("verify", args[0], [...args.slice(1)], runner, options);
 	command(["uv", "sync", "--locked", "--all-packages", "--dev"]);
-	command(["pnpm", "check"]);
-	runRepositoryCheck("contracts", input.repositoryRoot, runner);
-	runRepositoryCheck("config", input.repositoryRoot, runner);
-	runTasks("verify", NODE_TASKS, runner, options);
-	runTasks("verify", NATIVE_TASKS, runner, options, { native: true });
-	runTasks("verify", EVAL_TASKS, runner, options);
+	command(["pnpm", "lint"]);
+	command(["pnpm", "docs:check"]);
+	command(["pnpm", "test:tooling"]);
+	runRepositoryChecks({ repositoryRoot: input.repositoryRoot, env: options.env }, runner);
+	runTasks("verify", NODE_TASKS, runner, options, { scope: input.scope });
+	runTasks("verify", NATIVE_TASKS, runner, options, { native: true, scope: input.scope });
+	runTasks("verify", EVAL_TASKS, runner, options, { scope: input.scope, serial: true });
 	if (input.sourceOnly) {
 		return;
 	}
@@ -320,21 +338,37 @@ export function runVerification(
 	);
 }
 
-export function runRepositoryCheck(
-	check: string,
-	repositoryRoot: string,
+export function runRepositoryChecks(
+	input: {
+		repositoryRoot: string;
+		checks?: readonly string[];
+		env?: NodeJS.ProcessEnv;
+		profile?: "pre-commit" | "verify";
+	},
 	runner: EvidenceCommandRunner = runCommand,
 ): void {
-	const commands =
-		check === "contracts" ? [CONTRACT_COMMAND] : check === "config" ? ACTION_COMMANDS : undefined;
-	if (!commands) {
-		throw new Error(`Unsupported repository check: ${check}`);
+	const checks = input.checks ?? Object.keys(REPOSITORY_CHECK_REGISTRY);
+	for (const check of checks) {
+		if (!Object.hasOwn(REPOSITORY_CHECK_REGISTRY, check)) {
+			throw new Error(`Unsupported repository check: ${check}`);
+		}
 	}
-	for (const [command, ...args] of commands) {
-		runProfileCommand("verify", command, [...args], runner, {
-			cwd: repositoryRoot,
-			env: process.env,
-		});
+	const options = { cwd: input.repositoryRoot, env: { ...(input.env ?? process.env) } };
+	for (const check of new Set(checks)) {
+		const definition = REPOSITORY_CHECK_REGISTRY[check as RepositoryCheck];
+		const preparedEnv = definition.shell === "ci-go" ? "CI_NIX_GO_ENV" : "CI_NIX_LIGHT_ENV";
+		const prepared = options.env[preparedEnv];
+		for (const command of definition.commands) {
+			runProfileCommand(
+				input.profile ?? "verify",
+				prepared ? "bash" : "nix",
+				prepared
+					? ["-ec", '. "$1"; shift; exec "$@"', "--", prepared, ...command]
+					: ["develop", `.#${definition.shell}`, "--command", ...command],
+				runner,
+				options,
+			);
+		}
 	}
 }
 
@@ -506,22 +540,120 @@ export function runCandidateEvidence(
 	}
 }
 
-async function main(args: string[]): Promise<void> {
-	const values = argumentsMap(args);
-	if (values.has("check")) {
-		runRepositoryCheck(
-			required(values, "check"),
-			path.resolve(values.get("root") ?? process.cwd()),
+/** Public workspace commands share the CI executor and Turbo's selection semantics. */
+export function runWorkspaceCommand(
+	command: string,
+	args: string[],
+	repositoryRoot: string,
+	runner: EvidenceCommandRunner = runCommand,
+): void {
+	if (!["typecheck", "test", "build", "build:check", "check", "verify"].includes(command)) {
+		throw new Error(`Unsupported workspace command: ${command}`);
+	}
+	if (args.includes("--help")) {
+		process.stdout.write(
+			`pnpm ${command} [--filter=<selector>] [--affected] [--dry-run=json]\n` +
+				"Defaults to all packages. Filters use native Turbo semantics without adding dependencies.\n" +
+				"check always runs repository lint, docs, tooling, contracts and Actions checks.\n" +
+				"Use child leaf scripts for framework/file arguments. verify --profile=<name> runs only selected profiles.\n",
 		);
 		return;
 	}
-	const verification = values.get("verify");
-	if (verification !== undefined) {
-		if (verification !== "full" && verification !== "source") {
-			throw new Error("--verify must be full or source");
+	const profiles = args.filter((arg) => arg.startsWith("--profile=")).map((arg) => arg.slice(10));
+	if (profiles.length > 0) {
+		if (command !== "verify" || profiles.length !== args.length) {
+			throw new Error(
+				"--profile is only supported by verify and cannot be combined with task selectors",
+			);
 		}
-		runVerification({
-			sourceOnly: verification === "source",
+		runCandidateEvidence(
+			{
+				profiles: parseValidationProfiles(JSON.stringify(profiles)),
+				repositoryRoot,
+				base: process.env.TURBO_SCM_BASE,
+				head: process.env.TURBO_SCM_HEAD,
+				repository: process.env.GITHUB_REPOSITORY,
+			},
+			runner,
+		);
+		return;
+	}
+	const selectors: string[] = [];
+	const argumentsIterator = args.values();
+	for (const arg of argumentsIterator) {
+		if (arg === "--filter") {
+			const value = argumentsIterator.next().value;
+			if (!value || value.startsWith("--")) {
+				throw new Error("--filter requires a selector");
+			}
+			selectors.push(`--filter=${value}`);
+		} else if (arg.startsWith("--filter=") || arg === "--affected") {
+			selectors.push(arg);
+		} else if (arg !== "--dry-run=json") {
+			throw new Error(
+				`Unsupported workspace option: ${arg}; use a child leaf script for test arguments`,
+			);
+		}
+	}
+	const tasks =
+		command === "check" || command === "verify"
+			? [...NODE_TASKS, ...NATIVE_TASKS, ...EVAL_TASKS]
+			: [command];
+	const options = { cwd: repositoryRoot, env: nodeRuntimeEnvironment() };
+	if (command === "test") {
+		options.env = repositoryTestEnvironment({ repositoryRoot, env: options.env }, runner);
+	}
+	options.env.GOTOOLCHAIN = "local";
+	options.env.CAMPUS_NATIVE_PLATFORM = `${process.platform}-${process.arch}`;
+	const planArgs = ["exec", "turbo", "run", ...tasks, ...selectors, "--dry-run=json"];
+	const plan = requireSuccess("pnpm", planArgs, runner("pnpm", planArgs, options));
+	if (args.includes("--dry-run=json")) {
+		process.stdout.write(plan.stdout ?? "");
+		return;
+	}
+	const scope = parseTurboTasks(plan.stdout ?? "");
+	if (command === "check" || command === "verify") {
+		runVerification({ sourceOnly: command === "check", repositoryRoot, scope }, runner);
+	} else if (command === "test") {
+		runTasks(
+			"verify",
+			TOOLING_GROUPS.map((group) => `test:${group}`),
+			runner,
+			options,
+			{ scope, serial: true },
+		);
+		runTasks(
+			"verify",
+			NODE_TASKS.filter((task) => task !== "typecheck"),
+			runner,
+			options,
+			{ scope },
+		);
+		runTasks("verify", ["native:test"], runner, options, { scope, native: true });
+		if (scope.some((task) => task.task === "test:eval")) {
+			runProfileCommand(
+				"verify",
+				"uv",
+				["sync", "--locked", "--all-packages", "--dev"],
+				runner,
+				options,
+			);
+			runTasks("verify", EVAL_TASKS, runner, options, { scope, serial: true });
+		}
+	} else {
+		runTasks("verify", tasks, runner, options, { scope });
+	}
+}
+
+async function main(args: string[]): Promise<void> {
+	if (args[0] === "--workspace") {
+		runWorkspaceCommand(args[1] ?? "", args.slice(2), process.cwd());
+		return;
+	}
+	const values = argumentsMap(args);
+	if (values.has("check")) {
+		runRepositoryChecks({
+			checks: [required(values, "check")],
 			repositoryRoot: path.resolve(values.get("root") ?? process.cwd()),
 		});
 		return;

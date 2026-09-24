@@ -2,19 +2,19 @@
 	"name": "campus-docs-index-publisher",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Campus Web 文档当前版本的不可变 Qdrant 索引发布任务。",
+	"description": "Campus Web \u6587\u6863\u5f53\u524d\u7248\u672c\u7684\u4e0d\u53ef\u53d8 Qdrant \u7d22\u5f15\u53d1\u5e03\u4efb\u52a1\u3002",
 	"license": "Apache-2.0",
 	"type": "module",
 	"scripts": {
-		"build": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { force: true, recursive: true })\" && esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:@aws-sdk/client-s3 && node --input-type=module -e \"import('./dist/cli.js')\"",
+		"build": "bash scripts/build.sh",
 		"build-chunks": "node --env-file=.env.local --import=tsx src/local-chunk-cli.ts",
 		"build-embeddings": "node --env-file=../../.env --import=tsx src/local-embedding-cli.ts",
 		"review-chunks-local": "node --env-file=.env.local --import=tsx src/local-chunk-governance-cli.ts",
 		"summarize-chunk-review-labels-local": "tsx src/local-chunk-review-labels-cli.ts",
 		"compare-chunks-local": "tsx src/local-chunk-comparison-cli.ts",
 		"evaluate-chunks-local": "node --env-file=../../.env --import=tsx src/local-chunk-embedding-evaluation-cli.ts",
-		"test": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1132.0",

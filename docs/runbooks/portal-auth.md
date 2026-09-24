@@ -50,11 +50,11 @@ ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或
 
 ```bash
 pnpm dev:init -- --target internal-portal-collection
-pnpm internal-portal:auth:pull
-pnpm internal-portal:auth:check
+pnpm --dir jobs/internal-portal-collection auth:pull
+pnpm --dir jobs/internal-portal-collection auth:check
 ```
 
-`internal-portal:auth:pull` 使用当前 kubectl context 和 namespace，从 `ops-web-internal-secrets` 读取既有
+`pnpm --dir jobs/internal-portal-collection auth:pull` 使用当前 kubectl context 和 namespace，从 `ops-web-internal-secrets` 读取既有
 `OPS_WEB_INTERNAL_TOKEN`，只为本次命令建立 `service/ops-web:5178` 的临时 port-forward。
 解析成功后原子更新 internal-portal-collection 本地托管环境中的 `INTERNAL_PORTAL_SSO_TGC`，权限为
 `0600`；失败不改文件，命令不输出 token 或 TGC。
