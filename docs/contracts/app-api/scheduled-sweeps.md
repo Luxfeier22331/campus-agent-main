@@ -14,7 +14,7 @@ App API 的 `scheduled()` 是持久化恢复入口，仅派发所属模块任务
 | `account-admin` | 部署环境；将超时的账号管理命令标记为结果不明 |
 | `email-access` | 部署环境或显式注入服务；处理到期邮箱授权 |
 | `dining` | 独立执行；处理到期内容、未引用媒体和已受理的账号注销 |
-| `memory` | execution-control runtime 已配置；派发个人记忆任务 |
+| `memory` | execution-control runtime 已配置；派发个人记忆任务并自动重试失败的生命周期命令 |
 | `account-lifecycle` | execution-control runtime 已配置；续接账号注销任务 |
 
 各任务的服务初始化和执行位于独立 Promise 边界，使用 `Promise.allSettled` 等待全部结果。

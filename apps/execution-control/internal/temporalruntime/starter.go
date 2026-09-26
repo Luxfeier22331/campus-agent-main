@@ -214,6 +214,84 @@ func (s *Starter) StartPersonalMemoryCommandWorkflow(
 	return err
 }
 
+// DescribeMemoryAppendWorkflow reports the current execution of the durable
+// append workflow for one request. A missing run is reported as not found
+// rather than an error.
+func (s *Starter) DescribeMemoryAppendWorkflow(ctx context.Context, requestID string) (execution.WorkflowExecutionInfo, error) {
+	if s == nil || s.client == nil {
+		return execution.WorkflowExecutionInfo{}, ErrTemporalStarterNotConfigured
+	}
+	workflowID := "memory.append/" + strings.TrimSpace(requestID)
+	describeCtx, cancel := context.WithTimeout(ctx, s.startTimeout)
+	defer cancel()
+	description, err := s.client.DescribeWorkflowExecution(describeCtx, workflowID, "")
+	if err != nil {
+		var notFound *serviceerror.NotFound
+		if errors.As(err, &notFound) {
+			return execution.WorkflowExecutionInfo{Found: false}, nil
+		}
+		return execution.WorkflowExecutionInfo{}, err
+	}
+	details := description.GetWorkflowExecutionInfo()
+	workflowExecution := details.GetExecution()
+	if details == nil || workflowExecution == nil || strings.TrimSpace(workflowExecution.WorkflowId) == "" {
+		return execution.WorkflowExecutionInfo{}, errors.New("temporal workflow description is incomplete")
+	}
+	return execution.WorkflowExecutionInfo{
+		Found:      true,
+		WorkflowID: strings.TrimSpace(workflowExecution.WorkflowId),
+		RunID:      strings.TrimSpace(workflowExecution.RunId),
+		FirstRunID: strings.TrimSpace(details.FirstRunId),
+		Status:     workflowExecutionStatus(details.Status),
+	}, nil
+}
+
+// RunningMemoryAppendWorkflows reports which of the given durable append
+// workflows currently have a running execution. Requests without an execution
+// are reported as not running rather than as errors.
+func (s *Starter) RunningMemoryAppendWorkflows(ctx context.Context, requestIDs []string) (map[string]bool, error) {
+	running := make(map[string]bool, len(requestIDs))
+	if s == nil || s.client == nil {
+		return running, ErrTemporalStarterNotConfigured
+	}
+	for _, requestID := range requestIDs {
+		info, err := s.DescribeMemoryAppendWorkflow(ctx, requestID)
+		if err != nil {
+			return running, err
+		}
+		running[requestID] = info.Found && info.Status == execution.WorkflowExecutionStatusRunning
+	}
+	return running, nil
+}
+
+// RestartMemoryAppendWorkflow starts the durable append workflow for one
+// request under its canonical ID. An already running execution is left alone;
+// a closed prior run is replaced so the admitted append can finish.
+func (s *Starter) RestartMemoryAppendWorkflow(ctx context.Context, requestID string) error {
+	if s == nil || s.client == nil {
+		return ErrTemporalStarterNotConfigured
+	}
+	workflowID := "memory.append/" + strings.TrimSpace(requestID)
+	startCtx, cancel := context.WithTimeout(ctx, s.startTimeout)
+	defer cancel()
+	_, err := s.client.ExecuteWorkflow(
+		startCtx,
+		client.StartWorkflowOptions{
+			ID:                       workflowID,
+			TaskQueue:                s.taskQueue,
+			WorkflowIDReusePolicy:    enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+			WorkflowIDConflictPolicy: enumspb.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING,
+		},
+		MemoryAppendWorkflow,
+		MemoryAppendWorkflowInput{RequestID: strings.TrimSpace(requestID)},
+	)
+	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
+	if errors.As(err, &alreadyStarted) {
+		return nil
+	}
+	return err
+}
+
 func (s *Starter) CancelToolExecutionWorkflow(
 	ctx context.Context,
 	input ToolExecutionWorkflowCancelInput,

@@ -52,12 +52,11 @@ Hindsight 使用隔离的本地 PostgreSQL 和 bank salt；provider 端点/密�
 Hindsight 数据库。端口取当前 dev profile。按本手册配置启动后访问
 `/account/settings/memory`：
 
-1. 添加一段自然语言偏好，等待管理命令完成，确认列表读到 Hindsight 实际事实，而非本地输入镜像。
-2. 编辑、停用、恢复该事实；活动/停用筛选分别显示真实状态。派生观察只读，从支持事实进入详情管理。
-3. 新建会话陈述个人偏好，等回答与后台追加完成，再新建会话询问该偏好；检查实际 recall 和回答。
-4. 删除原会话或裁剪消息，确认已有记忆仍在，不产生来源删除命令。
-5. 暂停 Hindsight 时，设置仍可读，内容区显示依赖错误；无关普通回答可完成。恢复后使用显式重试。
-6. 确认清除全部记忆，等待 erased，检查 bank 不存在且开关保持关闭；原聊天记录仍在，
+1. 提交一段自然语言纠正，等待命令完成与画像刷新，确认画像内容来自 Hindsight 实际合成，而非本地输入镜像。
+2. 新建会话陈述个人偏好，等回答与后台追加完成，再新建会话询问该偏好；检查实际 recall 和回答。
+3. 删除原会话或裁剪消息，确认已有记忆仍在，不产生来源删除命令。
+4. 暂停 Hindsight 时，设置仍可读，画像区显示依赖错误；无关普通回答可完成。恢复后使用显式重试。
+5. 确认清除全部记忆，等待 erased，检查 bank 不存在且开关保持关闭；原聊天记录仍在，
    再次启用不会重新导入历史会话。
 
 Ops 请求页观察 memory.append 从 pending/running 到 completed、skipped 或 failed。
@@ -65,11 +64,9 @@ Ops 请求页观察 memory.append 从 pending/running 到 completed、skipped �
 
 ## 原生内容适配
 
-列表接口返回 `fact_type`，详情及支持事实返回 `type`。不要用只有空列表的测试验证适配。
-支持事实摘要不一定带有 state/metadata；页面进入该事实详情后再展示和操作当前状态。
-
-手工记忆与会话追加都明确标记为当前用户的陈述，第一人称不能解释成助手自身。
-修改事实后派生观察由 Hindsight 原生 consolidation 更新，不由应用手工改写。
+手工纠正与会话追加都明确标记为当前用户的陈述，第一人称不能解释成助手自身。画像内容由
+Hindsight `user-profile` mental model 原生合成；派生内容由 Hindsight consolidation 更新，不由应用
+手工改写。逐条 item list/get wire 适配已随 staging 清理删除。
 
 ## 个人记忆硬切
 
@@ -107,9 +104,9 @@ Ops 请求页观察 memory.append 从 pending/running 到 completed、skipped �
 | `/version` 或 health 失败 | 服务地址、tenant API secret、网络和实际镜像版本 |
 | bank bootstrap 失败 | observations、consolidation、Memory Defense 配置和 provider 可用性 |
 | recall/append timeout | recall 对应 Agent Activity 与 SDK tool attempt；append 对应 core Activity；同时检查 Hindsight provider latency 和 worker backlog |
-| 普通管理命令长期 pending/admitted | app-api profile-memory command outbox、execution-control command admission 和 receipt callback |
-| 账号长期 `erasing` | 代次租约、retired bank 删除和 receipt callback |
-| 已停用事实仍被 recall | 原生 state、派生观察及其支持事实；不把“停用”解释成物理删除 |
+| 记忆命令长期 pending/admitted | app-api profile-memory command outbox、execution-control command admission 和 receipt callback |
+| 清除长期未完成 | 代次租约、retired bank 删除和 receipt callback |
+| 画像与用户纠正不符 | 纠正命令 receipt、`user-profile` mental model 刷新（`refresh_after_consolidation`）和 consolidation 进度 |
 | 外部观测平台出现记忆正文 | 立即停止对应 producer，并按 Langfuse 字段合同检查清理边界 |
 
 Hindsight 后台 operation 使用其原生诊断能力排查；不要在 campus-agent 增加 operation

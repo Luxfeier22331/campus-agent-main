@@ -16,9 +16,13 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+// owner_erase waits for the previous generation to drain. A receipt whose
+// drain wait already exceeded this bound terminates instead of retrying so the
+// erase gate can fail visibly and the owner can issue a successor command.
+const personalMemoryEraseDrainTimeout = 24 * time.Hour
+
 func PersonalMemoryResultFingerprint(commandID string, status string, errorCode string) string {
-	sum := sha256.Sum256([]byte(strings.TrimSpace(commandID) + "\x00" + strings.TrimSpace(status) + "\x00" + strings.TrimSpace(errorCode)))
-	return hex.EncodeToString(sum[:])
+	return memoryruntime.CommandResultFingerprint(commandID, status, errorCode)
 }
 
 func PersonalMemoryOwnerScopeHash(ownerSalt string, tenantID string, userID string) string {
@@ -66,14 +70,6 @@ func (s *Adapter) ExecutePersonalMemoryCommand(
 			false,
 		)
 	}
-	if s.PersonalMemoryExecutor == nil || s.PersonalMemoryErr != nil {
-		return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
-			"personal_memory_not_configured",
-			s.PersonalMemoryErr,
-			false,
-		)
-	}
-
 	ownerHash := PersonalMemoryOwnerScopeHash(s.Config.PersonalMemoryOwnerSalt, command.TenantID, command.UserID)
 	command.SubjectScopeHash = PersonalMemorySubjectScopeHash(ownerHash, command.SubjectID)
 	leaseTTL := time.Duration(s.Config.PersonalMemoryTimeoutSeconds*float64(time.Second)) + 15*time.Second
@@ -109,6 +105,21 @@ func (s *Adapter) ExecutePersonalMemoryCommand(
 	}
 	if command.CommandKind == "owner_erase" {
 		drained, drainErr := s.PersonalMemoryStateStore.GenerationDrained(ctx, ownerHash, command.OwnerGeneration-1)
+		if drainErr == nil && !drained {
+			// A receipt whose workflow is gone would hold the old generation
+			// open forever. Abandon receipts untouched beyond the stale
+			// margin, then re-check the drain before waiting or reviving.
+			staleCutoff := time.Now().Add(-memoryruntime.CommandReceiptStaleAfter)
+			if _, err := s.PersonalMemoryStateStore.AbandonStaleGenerationReceipts(ctx, ownerHash, command.OwnerGeneration-1, staleCutoff); err == nil {
+				drained, drainErr = s.PersonalMemoryStateStore.GenerationDrained(ctx, ownerHash, command.OwnerGeneration-1)
+			}
+		}
+		if drainErr == nil && !drained && !receipt.CreatedAt.IsZero() && time.Since(receipt.CreatedAt) > personalMemoryEraseDrainTimeout {
+			return PersonalMemoryActivityOutput(command.CommandID, "failed", "memory_generation_drain_timeout"), nil
+		}
+		if drainErr == nil && !drained {
+			s.reviveLostAppendWorkflows(ctx, ownerHash, command.OwnerGeneration-1)
+		}
 		if drainErr != nil || !drained {
 			_ = s.PersonalMemoryStateStore.MarkCommandRetryable(ctx, command.CommandID, ownerHash)
 			return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
@@ -118,15 +129,22 @@ func (s *Adapter) ExecutePersonalMemoryCommand(
 			)
 		}
 	}
-	activityprojection.RecordTemporalActivityHeartbeat(ctx, "memory.command.provider")
-	result, err := s.PersonalMemoryExecutor.ExecuteCommand(ctx, command)
+	if command.CommandKind != "owner_transition" && (s.PersonalMemoryExecutor == nil || s.PersonalMemoryErr != nil) {
+		_ = s.PersonalMemoryStateStore.MarkCommandRetryable(ctx, command.CommandID, ownerHash)
+		return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
+			"personal_memory_not_configured",
+			s.PersonalMemoryErr,
+			false,
+		)
+	}
+	var result memoryruntime.PersonalMemoryCommandResult
+	if command.CommandKind == "owner_transition" {
+		result = memoryruntime.PersonalMemoryCommandResult{CommandID: command.CommandID, Status: "succeeded"}
+	} else {
+		activityprojection.RecordTemporalActivityHeartbeat(ctx, "memory.command.provider")
+		result, err = s.PersonalMemoryExecutor.ExecuteCommand(ctx, command)
+	}
 	if err != nil {
-		if errors.Is(err, memoryruntime.ErrMemoryNotFound) {
-			return PersonalMemoryActivityOutput(command.CommandID, "failed", "profile_memory_item_not_found"), nil
-		}
-		if errors.Is(err, memoryruntime.ErrMemoryEditRejected) {
-			return PersonalMemoryActivityOutput(command.CommandID, "failed", "memory_edit_rejected"), nil
-		}
 		_ = s.PersonalMemoryStateStore.MarkCommandRetryable(ctx, command.CommandID, ownerHash)
 		return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
 			"hindsight_command_failed",
@@ -140,6 +158,40 @@ func (s *Adapter) ExecutePersonalMemoryCommand(
 	}
 	activityprojection.RecordTemporalActivityHeartbeat(ctx, "memory.command.completed")
 	return PersonalMemoryActivityOutput(command.CommandID, "succeeded", ""), nil
+}
+
+// reviveLostAppendWorkflows reconnects the durable append leases of an older
+// generation to their workflows. A lease only clears when its append workflow
+// runs to a terminal projection, so an erase waiting on the drain restarts any
+// workflow that is no longer running. Revival is best effort: the drain wait
+// keeps retrying and the erase drain timeout bounds the total wait.
+func (s *Adapter) reviveLostAppendWorkflows(ctx context.Context, ownerHash string, generation int64) {
+	if s.AppendWorkflowReviver == nil {
+		return
+	}
+	callIDs, err := s.PersonalMemoryStateStore.ListGenerationAppendCallIDs(ctx, ownerHash, generation)
+	if err != nil {
+		return
+	}
+	requestIDs := make([]string, 0, len(callIDs))
+	for _, callID := range callIDs {
+		if requestID, ok := strings.CutSuffix(callID, ":append"); ok {
+			requestIDs = append(requestIDs, requestID)
+		}
+	}
+	if len(requestIDs) == 0 {
+		return
+	}
+	running, err := s.AppendWorkflowReviver.RunningMemoryAppendWorkflows(ctx, requestIDs)
+	if err != nil {
+		return
+	}
+	for _, requestID := range requestIDs {
+		if running[requestID] {
+			continue
+		}
+		_ = s.AppendWorkflowReviver.RestartMemoryAppendWorkflow(ctx, requestID)
+	}
 }
 
 func (s *Adapter) FinalizePersonalMemoryCommandReceipt(
@@ -179,29 +231,6 @@ func (s *Adapter) FinalizePersonalMemoryCommandReceipt(
 	result.ErrorCode = PersonalMemoryCommandErrorCodeForStatus(result.Status, result.ErrorCode)
 	result.ResultFingerprint = PersonalMemoryResultFingerprint(result.CommandID, result.Status, result.ErrorCode)
 	ownerHash := PersonalMemoryOwnerScopeHash(s.Config.PersonalMemoryOwnerSalt, input.Command.TenantID, input.Command.UserID)
-	input.Command.SubjectScopeHash = PersonalMemorySubjectScopeHash(ownerHash, input.Command.SubjectID)
-	leaseTTL := time.Duration(s.Config.PersonalMemoryTimeoutSeconds*float64(time.Second)) + 15*time.Second
-	if _, _, err := s.PersonalMemoryStateStore.BeginCommand(ctx, ownerHash, workflowcontract.MemoryCommandToDomain(input.Command), leaseTTL); err != nil {
-		if errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
-			return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
-				"memory_command_receipt_conflict",
-				err,
-				true,
-			)
-		}
-		if errors.Is(err, memoryruntime.ErrMemoryReceiptBlocked) {
-			return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
-				"memory_command_owner_blocked",
-				err,
-				false,
-			)
-		}
-		return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
-			"memory_command_state_unavailable",
-			err,
-			false,
-		)
-	}
 	lifecycle := ""
 	switch input.Command.CommandKind {
 	case "owner_transition":
@@ -209,7 +238,15 @@ func (s *Adapter) FinalizePersonalMemoryCommandReceipt(
 	case "owner_erase":
 		lifecycle = "erased"
 	}
+	// The finalizer only transitions a receipt the provider already created.
+	// It must not create or gate receipts itself: a command that never got a
+	// receipt (for example after the bounded owner-gate wait timed out) has
+	// nothing to persist here, and its result flows to the product callback so
+	// admission can retry the command from scratch.
 	if _, err := s.PersonalMemoryStateStore.FinalizeCommand(ctx, result.CommandID, ownerHash, result.Status, result.ErrorCode, result.ResultFingerprint, lifecycle); err != nil {
+		if errors.Is(err, memoryruntime.ErrMemoryCommandNotFound) {
+			return result, nil
+		}
 		if errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
 			return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
 				"memory_command_receipt_conflict",
@@ -228,7 +265,7 @@ func (s *Adapter) FinalizePersonalMemoryCommandReceipt(
 
 func PersonalMemoryCommandErrorCode(errorCode string) string {
 	switch strings.TrimSpace(errorCode) {
-	case "hindsight_command_failed", "personal_memory_command_failed", "profile_memory_item_not_found", "memory_edit_rejected":
+	case "hindsight_command_failed", "personal_memory_command_failed", "memory_generation_drain_timeout", "memory_command_wait_timeout", "memory_receipt_abandoned":
 		return strings.TrimSpace(errorCode)
 	default:
 		return "personal_memory_command_failed"

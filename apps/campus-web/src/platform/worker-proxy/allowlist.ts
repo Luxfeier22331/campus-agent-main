@@ -3,7 +3,8 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/.well-known/oauth-authorization-server",
 	"/api/me",
 	"/api/me/profile-memory",
-	"/api/me/profile-memory/items",
+	"/api/me/profile-memory/profile",
+	"/api/me/profile-memory/corrections",
 	"/api/me/profile-memory/settings",
 	"/api/account/delete",
 	"/api/auth/sign-in/email",
@@ -62,7 +63,6 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/chat\/requests\/[^/]+\/steps$/.test(pathname) ||
 		/^\/api\/chat\/requests\/[^/]+\/cancel$/.test(pathname) ||
 		/^\/api\/chat\/requests\/[^/]+\/client-timing$/.test(pathname) ||
-		/^\/api\/me\/profile-memory\/items\/[^/]+$/.test(pathname) ||
 		/^\/api\/me\/profile-memory\/operations\/[^/]+\/retry$/.test(pathname) ||
 		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname) ||
 		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||

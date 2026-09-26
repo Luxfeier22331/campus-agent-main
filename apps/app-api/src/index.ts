@@ -62,7 +62,17 @@ export function createWorkerRuntime(
 			if (isExecutionControlRuntimeConfigured(env)) {
 				jobs.push({
 					name: "memory",
-					run: () => scope.resolveProfileMemoryService().dispatchPending(),
+					run: async () => {
+						const service = scope.resolveProfileMemoryService();
+						const dispatch = await service.dispatchPending();
+						const reconcile = service.reconcileAdmitted
+							? await service.reconcileAdmitted()
+							: { reconciled: 0, failed: 0, processed: 0 };
+						const retry = service.retryFailedLifecycleCommands
+							? await service.retryFailedLifecycleCommands()
+							: { retried: 0, failed: 0, processed: 0 };
+						return { dispatch, reconcile, retry };
+					},
 				});
 				jobs.push({
 					name: "account-lifecycle",

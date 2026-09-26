@@ -40,6 +40,55 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 		require.NoError(t, err)
 		require.True(t, drained)
 	})
+	t.Run("finalize reports missing receipts and abandon terminals stale ones", func(t *testing.T) {
+		ctx := t.Context()
+		_, err := store.FinalizeCommand(ctx, "cmd-unknown-postgres", "owner-abandon", "failed", "personal_memory_command_failed", resultFingerprint, "")
+		require.ErrorIs(t, err, memoryruntime.ErrMemoryCommandNotFound)
+		orphan := memoryruntime.PersonalMemoryCommandRequest{
+			CommandID:         "cmd-orphan-postgres",
+			CommandKind:       "memory_add",
+			Item:              &memoryruntime.PersonalMemoryCommandItem{Text: "孤儿单据"},
+			OwnerGeneration:   1,
+			OwnerSequence:     1,
+			SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
+			SourceUpdatedAt:   "2026-07-16T00:00:00Z",
+			SubjectID:         "memory-orphan",
+			SupersessionScope: "memory:memory-orphan",
+		}
+		_, execute, err := store.BeginCommand(ctx, "owner-abandon", orphan, time.Minute)
+		require.NoError(t, err)
+		require.True(t, execute)
+		fresh := memoryruntime.PersonalMemoryCommandRequest{
+			CommandID:         "cmd-fresh-postgres",
+			CommandKind:       "owner_transition",
+			LifecycleState:    "paused",
+			OwnerGeneration:   1,
+			OwnerSequence:     2,
+			SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
+			SourceUpdatedAt:   "2026-07-16T00:00:01Z",
+			SupersessionScope: "owner:lifecycle",
+		}
+		_, _, err = store.BeginCommand(ctx, "owner-fresh-postgres", fresh, time.Minute)
+		require.NoError(t, err)
+		// Postgres receipts carry real touch times, so an age the margin
+		// cannot cover requires an explicit backdated cutoff.
+		abandoned, err := store.AbandonStaleGenerationReceipts(ctx, "owner-abandon", 1, time.Now().Add(time.Hour))
+		require.NoError(t, err)
+		require.Equal(t, 1, abandoned)
+		receipt, err := store.GetCommand(ctx, "owner-abandon", orphan.CommandID)
+		require.NoError(t, err)
+		require.Equal(t, "failed", receipt.Status)
+		require.Equal(t, "memory_receipt_abandoned", receipt.ErrorCode)
+		require.Equal(t, memoryruntime.CommandResultFingerprint(orphan.CommandID, "failed", "memory_receipt_abandoned"), receipt.ResultFingerprint)
+		require.False(t, memoryruntime.CommandReceiptStale(receipt, time.Now()))
+		abandoned, err = store.AbandonStaleGenerationReceipts(ctx, "owner-fresh-postgres", 1, time.Now().Add(-time.Hour))
+		require.NoError(t, err)
+		require.Equal(t, 0, abandoned)
+		freshReceipt, err := store.GetCommand(ctx, "owner-fresh-postgres", fresh.CommandID)
+		require.NoError(t, err)
+		require.Equal(t, "processing", freshReceipt.Status)
+		require.False(t, freshReceipt.UpdatedAt.IsZero())
+	})
 	first := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-memory-first",
 		CommandKind:       "memory_add",
@@ -103,7 +152,7 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 		t.Fatalf("finalize coalesced gap: %v", err)
 	}
 	stale := memoryruntime.PersonalMemoryCommandRequest{
-		CommandID: "cmd-stale", CommandKind: "memory_update", OwnerGeneration: 1, OwnerSequence: 1,
+		CommandID: "cmd-stale", CommandKind: "memory_add", OwnerGeneration: 1, OwnerSequence: 1,
 		SchemaVersion: memoryruntime.PersonalMemoryCommandSchemaVersion, SourceUpdatedAt: "2026-07-16T00:00:01Z",
 		SubjectID: "memory-stale", SupersessionScope: "memory:memory-stale",
 	}
@@ -129,7 +178,7 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 		t.Fatalf("begin call after owner deletion error=%v", err)
 	}
 	afterDeletion := memoryruntime.PersonalMemoryCommandRequest{
-		CommandID: "cmd-after-owner-deletion", CommandKind: "memory_update",
+		CommandID: "cmd-after-owner-deletion", CommandKind: "memory_add",
 		OwnerGeneration: 1, OwnerSequence: 1, SchemaVersion: memoryruntime.PersonalMemoryCommandSchemaVersion,
 		SubjectID: "memory-after-deletion", SubjectScopeHash: "subject-after-deletion",
 		SupersessionScope: "memory:memory-after-deletion",

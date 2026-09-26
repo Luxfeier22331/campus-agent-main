@@ -52,7 +52,6 @@ export function createProfileMemoryReadStore({
 					.map((command) => ({
 						commandId: command.commandId,
 						commandKind: command.commandKind as ProfileMemoryOperation["commandKind"],
-						memoryId: command.commandKind === "memory_update" ? command.subjectId : null,
 						status: command.status as ProfileMemoryOperation["status"],
 						errorCode: command.lastErrorCode,
 					})),

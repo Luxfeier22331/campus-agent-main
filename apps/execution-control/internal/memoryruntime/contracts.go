@@ -43,8 +43,7 @@ type AppendConversationTurnResult struct {
 }
 
 type PersonalMemoryCommandItem struct {
-	Text  string `json:"text,omitempty"`
-	State string `json:"state,omitempty"`
+	Text string `json:"text,omitempty"`
 }
 
 type PersonalMemoryCommandRequest struct {
@@ -102,18 +101,12 @@ func ValidatePersonalMemoryCommandRequest(request PersonalMemoryCommandRequest) 
 		if request.SupersessionScope != "owner:erase:"+strconv.FormatInt(request.OwnerGeneration, 10) {
 			return fmt.Errorf("%w: owner erase supersession_scope is invalid", ErrInvalidMemoryProjection)
 		}
-	case "memory_add", "memory_update":
+	case "memory_add":
 		if request.Item == nil || strings.TrimSpace(request.SubjectID) == "" {
 			return fmt.Errorf("%w: memory payload and subject_id are required", ErrInvalidMemoryProjection)
 		}
-		if request.CommandKind == "memory_add" && strings.TrimSpace(request.Item.Text) == "" {
+		if strings.TrimSpace(request.Item.Text) == "" {
 			return fmt.Errorf("%w: memory text is required", ErrInvalidMemoryProjection)
-		}
-		if request.Item.State != "" && request.Item.State != "active" && request.Item.State != "inactive" {
-			return fmt.Errorf("%w: invalid memory state", ErrInvalidMemoryProjection)
-		}
-		if request.CommandKind == "memory_update" && strings.TrimSpace(request.Item.Text) == "" && request.Item.State == "" {
-			return fmt.Errorf("%w: memory edit is empty", ErrInvalidMemoryProjection)
 		}
 		if request.SupersessionScope != "memory:"+strings.TrimSpace(request.SubjectID) {
 			return fmt.Errorf("%w: memory scope is invalid", ErrInvalidMemoryProjection)

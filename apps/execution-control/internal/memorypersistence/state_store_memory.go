@@ -2,6 +2,8 @@ package memorypersistence
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,7 +42,9 @@ func (s *InMemoryStateStore) BeginCall(_ context.Context, ownerHash string, call
 		fence = memoryruntime.FenceState{Generation: 1, Lifecycle: "active", Sequence: 0}
 		s.fences[ownerHash] = fence
 	}
-	if fence.Generation != generation || fence.Lifecycle != "active" {
+	managementRead := strings.HasPrefix(kind, "management_")
+	lifecycleAllowed := fence.Lifecycle == "active" || (managementRead && fence.Lifecycle == "paused")
+	if fence.Generation != generation || !lifecycleAllowed {
 		return memoryruntime.ErrMemoryFenceConflict
 	}
 	if existing, ok := s.leases[callID]; ok && (existing.ExpiresAt.IsZero() || time.Now().Before(existing.ExpiresAt)) {
@@ -63,6 +67,16 @@ func (s *InMemoryStateStore) EndCall(_ context.Context, ownerHash string, callID
 	return nil
 }
 
+func (s *InMemoryStateStore) GetCommand(_ context.Context, ownerHash string, commandID string) (memoryruntime.CommandReceipt, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	receipt, ok := s.receipts[commandID]
+	if !ok || receipt.OwnerScopeHash != ownerHash {
+		return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryCommandNotFound
+	}
+	return receipt, nil
+}
+
 func (s *InMemoryStateStore) GenerationDrained(_ context.Context, ownerHash string, generation int64) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -82,6 +96,19 @@ func (s *InMemoryStateStore) GenerationDrained(_ context.Context, ownerHash stri
 		}
 	}
 	return true, nil
+}
+
+func (s *InMemoryStateStore) ListGenerationAppendCallIDs(_ context.Context, ownerHash string, generation int64) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	callIDs := make([]string, 0)
+	for callID, lease := range s.leases {
+		if lease.OwnerScopeHash == ownerHash && lease.Generation == generation && lease.Kind == "append" && lease.ExpiresAt.IsZero() {
+			callIDs = append(callIDs, callID)
+		}
+	}
+	sort.Strings(callIDs)
+	return callIDs, nil
 }
 
 func (s *InMemoryStateStore) MarkOwnerDeleted(_ context.Context, ownerHash string) error {
@@ -130,18 +157,19 @@ func (s *InMemoryStateStore) BeginCommand(_ context.Context, ownerHash string, c
 			return memoryruntime.CommandReceipt{}, false, err
 		}
 		if receipt.Status == "retryable" || (receipt.Status == "processing" && (receipt.ProcessingUntil == nil || time.Now().After(*receipt.ProcessingUntil))) {
-			if s.ownerCommandBlocked(ownerHash, command.OwnerSequence, command.CommandID) {
+			if command.CommandKind != "owner_erase" && s.ownerCommandBlocked(ownerHash, command.OwnerSequence, command.CommandID) {
 				return memoryruntime.CommandReceipt{}, false, memoryruntime.ErrMemoryReceiptBlocked
 			}
 			receipt.Status = "processing"
 			receipt.ProcessingUntil = memoryruntime.CommandLeaseDeadline(leaseTTL)
 			receipt.ResultFingerprint = ""
+			receipt.UpdatedAt = time.Now()
 			s.receipts[command.CommandID] = receipt
 			return receipt, true, nil
 		}
 		return receipt, false, nil
 	}
-	if s.ownerCommandBlocked(ownerHash, command.OwnerSequence, command.CommandID) {
+	if command.CommandKind != "owner_erase" && s.ownerCommandBlocked(ownerHash, command.OwnerSequence, command.CommandID) {
 		return memoryruntime.CommandReceipt{}, false, memoryruntime.ErrMemoryReceiptBlocked
 	}
 	fence, ok := s.fences[ownerHash]
@@ -151,10 +179,49 @@ func (s *InMemoryStateStore) BeginCommand(_ context.Context, ownerHash string, c
 	if err := memoryruntime.ApplyFenceCommand(&fence, command); err != nil {
 		return memoryruntime.CommandReceipt{}, false, err
 	}
-	receipt := memoryruntime.CommandReceipt{CommandID: command.CommandID, Generation: command.OwnerGeneration, Kind: command.CommandKind, OwnerScopeHash: ownerHash, ProcessingUntil: memoryruntime.CommandLeaseDeadline(leaseTTL), Sequence: command.OwnerSequence, Status: "processing", SubjectScopeHash: command.SubjectScopeHash, SupersessionScope: command.SupersessionScope}
+	receipt := memoryruntime.CommandReceipt{CommandID: command.CommandID, CreatedAt: time.Now(), Generation: command.OwnerGeneration, Kind: command.CommandKind, OwnerScopeHash: ownerHash, ProcessingUntil: memoryruntime.CommandLeaseDeadline(leaseTTL), Sequence: command.OwnerSequence, Status: "processing", SubjectScopeHash: command.SubjectScopeHash, SupersessionScope: command.SupersessionScope, UpdatedAt: time.Now()}
 	s.fences[ownerHash] = fence
 	s.receipts[command.CommandID] = receipt
 	return receipt, true, nil
+}
+
+// ShiftReceiptClockForTest moves a receipt's creation and touch time without
+// changing its lifecycle, so callers can exercise elapsed-time bounds
+// deterministically.
+func (s *InMemoryStateStore) ShiftReceiptClockForTest(commandID string, delta time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if receipt, ok := s.receipts[commandID]; ok {
+		receipt.CreatedAt = receipt.CreatedAt.Add(delta)
+		receipt.UpdatedAt = receipt.UpdatedAt.Add(delta)
+		s.receipts[commandID] = receipt
+	}
+}
+
+func (s *InMemoryStateStore) AbandonStaleGenerationReceipts(_ context.Context, ownerHash string, generation int64, staleBefore time.Time) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	abandoned := 0
+	for commandID, receipt := range s.receipts {
+		if receipt.OwnerScopeHash != ownerHash || receipt.Generation != generation {
+			continue
+		}
+		touchedAt := receipt.UpdatedAt
+		if touchedAt.IsZero() {
+			touchedAt = receipt.CreatedAt
+		}
+		if memoryruntime.CommandReceiptTerminal(receipt.Status) || touchedAt.IsZero() || !staleBefore.After(touchedAt) {
+			continue
+		}
+		receipt.Status = "failed"
+		receipt.ErrorCode = "memory_receipt_abandoned"
+		receipt.ProcessingUntil = nil
+		receipt.ResultFingerprint = memoryruntime.CommandResultFingerprint(receipt.CommandID, "failed", "memory_receipt_abandoned")
+		receipt.UpdatedAt = time.Now()
+		s.receipts[commandID] = receipt
+		abandoned++
+	}
+	return abandoned, nil
 }
 
 func (s *InMemoryStateStore) FinalizeCommand(_ context.Context, commandID string, ownerHash string, status string, errorCode string, resultFingerprint string, lifecycle string) (memoryruntime.CommandReceipt, error) {
@@ -162,7 +229,7 @@ func (s *InMemoryStateStore) FinalizeCommand(_ context.Context, commandID string
 	defer s.mu.Unlock()
 	receipt, ok := s.receipts[commandID]
 	if !ok || receipt.OwnerScopeHash != ownerHash {
-		return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryFenceConflict
+		return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryCommandNotFound
 	}
 	status, errorCode, resultFingerprint, err := memoryruntime.ValidateCommandTerminalResult(status, errorCode, resultFingerprint)
 	if err != nil {
@@ -178,6 +245,7 @@ func (s *InMemoryStateStore) FinalizeCommand(_ context.Context, commandID string
 	receipt.ErrorCode = errorCode
 	receipt.ProcessingUntil = nil
 	receipt.ResultFingerprint = resultFingerprint
+	receipt.UpdatedAt = time.Now()
 	s.receipts[commandID] = receipt
 	if status == "succeeded" && lifecycle != "" {
 		fence := s.fences[ownerHash]
@@ -200,6 +268,7 @@ func (s *InMemoryStateStore) MarkCommandRetryable(_ context.Context, commandID s
 	receipt.Status = "retryable"
 	receipt.ProcessingUntil = nil
 	receipt.ResultFingerprint = ""
+	receipt.UpdatedAt = time.Now()
 	s.receipts[commandID] = receipt
 	return nil
 }

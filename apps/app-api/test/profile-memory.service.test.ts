@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AppApiRouteError } from "../src/http";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
+import { ExecutionControlTransportError } from "../src/modules/integration/execution-control-transport";
 import {
 	buildProfileMemoryService,
 	type ProfileMemoryCommandAdmitter,
@@ -13,6 +14,7 @@ import {
 } from "../src/modules/profile-memory";
 import { deriveProfileMemorySyncStatus } from "../src/modules/profile-memory/command-state";
 import { isProfileMemoryRuntimeEnabled } from "../src/modules/profile-memory/model";
+import { ProfileMemoryStoreConflict } from "../src/modules/profile-memory/store-contract";
 
 function createPrincipal(chat = true): ResolvedAppPrincipal {
 	return {
@@ -41,9 +43,17 @@ function pendingResult() {
 		syncStatus: "synced" as const,
 	};
 }
-type TestProfileMemoryStore = ProfileMemoryCommandStore &
+type TestProfileMemoryStore = Omit<
+	ProfileMemoryCommandStore,
+	"listAdmittedCommands" | "listFailedLifecycleCommands"
+> &
 	ProfileMemoryMutationStore &
-	ProfileMemoryReadStore;
+	ProfileMemoryReadStore & {
+		listAdmittedCommands: NonNullable<ProfileMemoryCommandStore["listAdmittedCommands"]>;
+		listFailedLifecycleCommands: NonNullable<
+			ProfileMemoryCommandStore["listFailedLifecycleCommands"]
+		>;
+	};
 
 function serviceStores(store: TestProfileMemoryStore) {
 	return {
@@ -56,16 +66,17 @@ function serviceStores(store: TestProfileMemoryStore) {
 function createStore(): TestProfileMemoryStore {
 	return {
 		applyCommandResult: vi.fn(async () => "applied" as const),
-		createItem: vi.fn(async () => pendingResult()),
+		submitCorrection: vi.fn(async () => pendingResult()),
 		retryCommand: vi.fn(async () => pendingResult()),
-		updateItem: vi.fn(async () => pendingResult()),
 		erase: vi.fn(async () => ({
 			...pendingResult(),
-			lifecycleState: "erasing" as const,
+			lifecycleState: "erased" as const,
 			syncStatus: "pending" as const,
 		})),
 		findCommandByIdempotency: vi.fn(async () => null),
 		listPendingAdmissions: vi.fn(async () => []),
+		listAdmittedCommands: vi.fn(async () => []),
+		listFailedLifecycleCommands: vi.fn(async () => []),
 		markCommandAdmitted: vi.fn(async () => true),
 		markAdmissionFailed: vi.fn(async () => undefined),
 		generationByOwner: vi.fn(async () => 1),
@@ -94,7 +105,7 @@ describe("profile memory service", () => {
 
 	it.each([
 		["active", "synced", true],
-		["active", "failed", true],
+		["active", "failed", false],
 		["active", "pending", false],
 		["paused", "failed", false],
 	] as const)("derives runtime availability for %s/%s", (lifecycleState, syncStatus, expected) => {
@@ -107,12 +118,12 @@ describe("profile memory service", () => {
 			...serviceStores(store),
 			generateId: () => "memcmd_01HQ",
 		});
-		const result = await service.createItem({
+		const result = await service.submitCorrection({
 			principal: createPrincipal(),
 			idempotencyKey: "idem-create-0001",
 			text: "  先给   结论  ",
 		});
-		expect(store.createItem).toHaveBeenCalledWith(
+		expect(store.submitCorrection).toHaveBeenCalledWith(
 			expect.objectContaining({
 				commandId: "memcmd_01HQ",
 				ownerUserId: "user_01HQ",
@@ -125,83 +136,118 @@ describe("profile memory service", () => {
 		const store = createStore();
 		const service = buildProfileMemoryService(serviceStores(store));
 		await expect(
-			service.createItem({
+			service.submitCorrection({
 				principal: createPrincipal(),
 				idempotencyKey: "idem-empty-0001",
 				text: "  ",
 			}),
 		).rejects.toMatchObject({ status: 400 });
-		expect(store.createItem).not.toHaveBeenCalled();
+		expect(store.submitCorrection).not.toHaveBeenCalled();
 	});
-	it("reads and curates native facts within the owner's generation", async () => {
+	it("reads the synthesized profile within the owner's generation", async () => {
 		const store = createStore();
-		const memoryId = "a6d4624b-6db8-4dc8-a1c4-7db9c4231d0e";
-		const fact = {
-			memoryId,
-			text: "先给结论",
-			kind: "fact" as const,
-			state: "active" as const,
-			origin: "conversation" as const,
-			mentionedAt: null,
-			editedAt: null,
+		const profile = {
+			content: "偏好简洁回复",
+			generating: false,
+			isStale: false,
+			lastRefreshedAt: "2026-09-24T00:00:00Z",
 		};
 		const memoryReader = {
-			getItem: vi.fn(async () => fact),
-			listItems: vi.fn(async () => ({ items: [fact], total: 1, limit: 20, offset: 0 })),
+			getProfile: vi.fn(async () => profile),
 		};
 		const service = buildProfileMemoryService({ ...serviceStores(store), memoryReader });
-		await service.updateItem({
-			principal: createPrincipal(),
-			idempotencyKey: "idem-curate-0001",
-			memoryId,
-			state: "inactive",
-		});
-		expect(memoryReader.getItem).toHaveBeenCalledWith({
+		await expect(service.getProfile({ principal: createPrincipal() })).resolves.toMatchObject(
+			profile,
+		);
+		expect(memoryReader.getProfile).toHaveBeenCalledWith({
 			ownerUserId: "user_01HQ",
 			ownerGeneration: 1,
-			memoryId,
 		});
-		expect(store.updateItem).toHaveBeenCalledWith(
-			expect.objectContaining({ memoryId, state: "inactive" }),
-		);
-		await expect(
-			service.listItems({ principal: createPrincipal(), limit: 20, offset: 0 }),
-		).resolves.toMatchObject({ items: [fact] });
 	});
-	it("keeps derived memories read-only and does not mask provider read failure with an empty bank", async () => {
+	it("returns a local empty profile when erased without reading the provider", async () => {
 		const store = createStore();
-		const memoryId = "a6d4624b-6db8-4dc8-a1c4-7db9c4231d0e";
+		vi.mocked(store.listByOwner).mockResolvedValue({
+			operations: [],
+			lifecycleState: "erased",
+			syncStatus: "synced",
+		});
+		const memoryReader = {
+			getProfile: vi.fn(async () => {
+				throw new Error("provider must not be read");
+			}),
+		};
+		const service = buildProfileMemoryService({ ...serviceStores(store), memoryReader });
+		await expect(service.getProfile({ principal: createPrincipal() })).resolves.toEqual({
+			content: "",
+			generating: false,
+			isStale: false,
+			lastRefreshedAt: "",
+		});
+		expect(memoryReader.getProfile).not.toHaveBeenCalled();
+	});
+	it("surfaces provider read failure without masking it", async () => {
+		const store = createStore();
+		vi.mocked(store.listByOwner).mockResolvedValue({
+			operations: [],
+			lifecycleState: "active",
+			syncStatus: "synced",
+		});
 		const service = buildProfileMemoryService({
 			...serviceStores(store),
 			memoryReader: {
-				getItem: async () => ({
-					memoryId,
-					text: "summary",
-					kind: "summary",
-					state: "active",
-					origin: "derived",
-					mentionedAt: null,
-					editedAt: null,
-				}),
-				listItems: async () => {
+				getProfile: async () => {
 					throw new Error("provider unavailable");
 				},
 			},
 		});
-		await expect(
-			service.updateItem({
-				principal: createPrincipal(),
-				idempotencyKey: "idem-summary-0001",
-				memoryId,
-				text: "changed",
-			}),
-		).rejects.toMatchObject({ code: "memory_derived_read_only" });
-		expect(store.updateItem).not.toHaveBeenCalled();
-		await expect(
-			service.listItems({ principal: createPrincipal(), limit: 20, offset: 0 }),
-		).rejects.toThrow("provider unavailable");
-		await expect(service.list({ principal: createPrincipal() })).resolves.toMatchObject({
-			lifecycleState: "active",
+		await expect(service.getProfile({ principal: createPrincipal() })).rejects.toThrow(
+			"provider unavailable",
+		);
+	});
+	it("re-enqueues failed lifecycle commands for the scheduled retry sweep", async () => {
+		const store = createStore();
+		vi.mocked(store.listFailedLifecycleCommands).mockResolvedValue([
+			{ commandId: "memcmd_failed_erase", ownerUserId: "user_01HQ" },
+			{ commandId: "memcmd_failed_transition", ownerUserId: "user_02HQ" },
+		]);
+		const service = buildProfileMemoryService({
+			...serviceStores(store),
+			generateId: (prefix) => `${prefix}_retry`,
+		});
+
+		await expect(service.retryFailedLifecycleCommands?.()).resolves.toEqual({
+			retried: 2,
+			failed: 0,
+			processed: 2,
+		});
+
+		expect(store.retryCommand).toHaveBeenCalledTimes(2);
+		expect(vi.mocked(store.retryCommand).mock.calls[0]?.[0]).toMatchObject({
+			commandId: "memcmd_retry",
+			ownerUserId: "user_01HQ",
+			failedCommandId: "memcmd_failed_erase",
+		});
+		expect(vi.mocked(store.retryCommand).mock.calls[1]?.[0]).toMatchObject({
+			commandId: "memcmd_retry",
+			ownerUserId: "user_02HQ",
+			failedCommandId: "memcmd_failed_transition",
+		});
+	});
+	it("counts conflicts as failures without aborting the retry sweep", async () => {
+		const store = createStore();
+		vi.mocked(store.listFailedLifecycleCommands).mockResolvedValue([
+			{ commandId: "memcmd_stuck", ownerUserId: "user_01HQ" },
+			{ commandId: "memcmd_retriable", ownerUserId: "user_02HQ" },
+		]);
+		vi.mocked(store.retryCommand)
+			.mockRejectedValueOnce(new ProfileMemoryStoreConflict("profile_memory_not_ready"))
+			.mockResolvedValueOnce({ ...pendingResult(), syncStatus: "pending" as const });
+		const service = buildProfileMemoryService(serviceStores(store));
+
+		await expect(service.retryFailedLifecycleCommands?.()).resolves.toEqual({
+			retried: 1,
+			failed: 1,
+			processed: 2,
 		});
 	});
 	it("creates a successor erase command after an account-deletion erase failed", async () => {
@@ -285,6 +331,187 @@ describe("profile memory service", () => {
 			admittedAt: "2026-04-27T08:00:00.000Z",
 			commandId: "memcmd_01HQ",
 		});
+	});
+
+	it("reconciles admitted commands from the execution-control receipt", async () => {
+		const store = createStore();
+		vi.mocked(store.listAdmittedCommands).mockResolvedValueOnce([
+			{
+				commandId: "memcmd_01HR",
+				commandKind: "memory_add",
+				item: { text: "新的偏好" },
+				lifecycleState: "active",
+				ownerGeneration: 1,
+				ownerSequence: 2,
+				ownerUserId: "user_01HQ",
+				status: "admitted",
+				subjectId: "mem_01HR",
+				supersessionScope: "memory:mem_01HR",
+				schemaVersion: "personal_memory_command.v3",
+				sourceUpdatedAt: "2026-09-24T00:00:00.000Z",
+			},
+		]);
+		const commandStatusReader = {
+			getCommandStatus: vi.fn(async () => ({
+				commandId: "memcmd_01HR",
+				status: "succeeded",
+				errorCode: "",
+				resultFingerprint: "a".repeat(64),
+				stale: false,
+			})),
+		};
+		const service = buildProfileMemoryService({
+			...serviceStores(store),
+			commandStatusReader,
+		});
+
+		await expect(service.reconcileAdmitted?.()).resolves.toEqual({
+			reconciled: 1,
+			failed: 0,
+			processed: 1,
+		});
+		expect(store.applyCommandResult).toHaveBeenCalledWith(
+			expect.objectContaining({
+				commandId: "memcmd_01HR",
+				resultFingerprint: "a".repeat(64),
+				status: "succeeded",
+			}),
+		);
+	});
+
+	it("re-admits an admitted command with a missing execution-control receipt", async () => {
+		const store = createStore();
+		const command = {
+			commandId: "memcmd_01HS",
+			commandKind: "memory_add" as const,
+			item: { text: "重新准入" },
+			lifecycleState: "active" as const,
+			ownerGeneration: 1,
+			ownerSequence: 3,
+			ownerUserId: "user_01HQ",
+			status: "admitted" as const,
+			subjectId: "mem_01HS",
+			supersessionScope: "memory:mem_01HS",
+			schemaVersion: "personal_memory_command.v3" as const,
+			sourceUpdatedAt: "2026-09-24T00:00:00.000Z",
+		};
+		vi.mocked(store.listAdmittedCommands).mockResolvedValueOnce([command]);
+		const commandAdmitter: ProfileMemoryCommandAdmitter = {
+			admit: vi.fn(async () => undefined),
+		};
+		const commandStatusReader = {
+			getCommandStatus: vi.fn(async () => {
+				throw new ExecutionControlTransportError({
+					code: "command_not_found",
+					message: "missing",
+					retryable: false,
+					status: 404,
+				});
+			}),
+		};
+		const service = buildProfileMemoryService({
+			...serviceStores(store),
+			commandAdmitter,
+			commandStatusReader,
+		});
+
+		await expect(service.reconcileAdmitted?.()).resolves.toEqual({
+			reconciled: 0,
+			failed: 0,
+			processed: 1,
+		});
+		expect(commandAdmitter.admit).toHaveBeenCalledTimes(1);
+		expect(commandAdmitter.admit).toHaveBeenCalledWith(command);
+		expect(store.applyCommandResult).not.toHaveBeenCalled();
+	});
+
+	it("re-admits an admitted command whose receipt went stale without a terminal result", async () => {
+		const store = createStore();
+		const command = {
+			commandId: "memcmd_01HT",
+			commandKind: "memory_add" as const,
+			item: { text: "过期单据" },
+			lifecycleState: "active" as const,
+			ownerGeneration: 1,
+			ownerSequence: 4,
+			ownerUserId: "user_01HQ",
+			status: "admitted" as const,
+			subjectId: "mem_01HT",
+			supersessionScope: "memory:mem_01HT",
+			schemaVersion: "personal_memory_command.v3" as const,
+			sourceUpdatedAt: "2026-09-24T00:00:00.000Z",
+		};
+		vi.mocked(store.listAdmittedCommands).mockResolvedValueOnce([command]);
+		const commandAdmitter: ProfileMemoryCommandAdmitter = {
+			admit: vi.fn(async () => undefined),
+		};
+		const commandStatusReader = {
+			getCommandStatus: vi.fn(async () => ({
+				commandId: "memcmd_01HT",
+				status: "processing",
+				errorCode: "",
+				resultFingerprint: "",
+				stale: true,
+			})),
+		};
+		const service = buildProfileMemoryService({
+			...serviceStores(store),
+			commandAdmitter,
+			commandStatusReader,
+		});
+
+		await expect(service.reconcileAdmitted?.()).resolves.toEqual({
+			reconciled: 0,
+			failed: 0,
+			processed: 1,
+		});
+		expect(commandAdmitter.admit).toHaveBeenCalledTimes(1);
+		expect(commandAdmitter.admit).toHaveBeenCalledWith(command);
+		expect(store.applyCommandResult).not.toHaveBeenCalled();
+	});
+
+	it("keeps waiting on a fresh non-terminal receipt", async () => {
+		const store = createStore();
+		const command = {
+			commandId: "memcmd_01HU",
+			commandKind: "memory_add" as const,
+			item: { text: "进行中" },
+			lifecycleState: "active" as const,
+			ownerGeneration: 1,
+			ownerSequence: 5,
+			ownerUserId: "user_01HQ",
+			status: "admitted" as const,
+			subjectId: "mem_01HU",
+			supersessionScope: "memory:mem_01HU",
+			schemaVersion: "personal_memory_command.v3" as const,
+			sourceUpdatedAt: "2026-09-24T00:00:00.000Z",
+		};
+		vi.mocked(store.listAdmittedCommands).mockResolvedValueOnce([command]);
+		const commandAdmitter: ProfileMemoryCommandAdmitter = {
+			admit: vi.fn(async () => undefined),
+		};
+		const commandStatusReader = {
+			getCommandStatus: vi.fn(async () => ({
+				commandId: "memcmd_01HU",
+				status: "processing",
+				errorCode: "",
+				resultFingerprint: "",
+				stale: false,
+			})),
+		};
+		const service = buildProfileMemoryService({
+			...serviceStores(store),
+			commandAdmitter,
+			commandStatusReader,
+		});
+
+		await expect(service.reconcileAdmitted?.()).resolves.toEqual({
+			reconciled: 0,
+			failed: 0,
+			processed: 1,
+		});
+		expect(commandAdmitter.admit).not.toHaveBeenCalled();
+		expect(store.applyCommandResult).not.toHaveBeenCalled();
 	});
 
 	it("rejects a missing or weak idempotency key before writing", async () => {

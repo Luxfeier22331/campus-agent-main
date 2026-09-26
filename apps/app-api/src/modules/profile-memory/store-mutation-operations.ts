@@ -95,15 +95,16 @@ export function createProfileMemoryMutationStore({
 					)
 					.orderBy(desc(profileMemoryCommands.ownerSequence))
 					.limit(1);
-				if (
-					(settings.lifecycleState === "erasing" || settings.lifecycleState === "erased") &&
-					existing &&
-					existing.status !== "failed"
-				) {
+				// Erase takes product effect immediately: the row flips to erased at
+				// enqueue time and the data-plane deletion finishes asynchronously.
+				// A failed erase already consumed the generation bump, so a
+				// re-enqueue replays the same generation instead of leaking a second
+				// retired bank.
+				if (settings.lifecycleState === "erased" && existing && existing.status !== "failed") {
 					return mutationResult(settings, existing.commandId);
 				}
 				const generation =
-					settings.lifecycleState === "erasing" ? settings.generation : settings.generation + 1;
+					existing?.status === "failed" ? settings.generation : settings.generation + 1;
 				await tx
 					.update(profileMemoryCommands)
 					.set({ status: "superseded", payload: null, updatedAt: now })
@@ -117,12 +118,15 @@ export function createProfileMemoryMutationStore({
 					.update(profileMemoryCommands)
 					.set({ payload: null })
 					.where(eq(profileMemoryCommands.ownerUserId, input.ownerUserId));
-				settings = { ...settings, generation, lifecycleState: "erasing", eraseRequestedAt: now };
+				settings = {
+					...settings,
+					generation,
+					lifecycleState: "erased",
+					eraseRequestedAt: now,
+					erasedAt: now,
+				};
 			} else {
-				if (
-					settings.lifecycleState === "erasing" ||
-					(settings.lifecycleState === "erased" && targetLifecycle !== "active")
-				) {
+				if (settings.lifecycleState === "erased" && targetLifecycle !== "active") {
 					throw new ProfileMemoryStoreConflict("profile_memory_not_ready");
 				}
 				if (kind === "owner_transition") {
@@ -170,6 +174,7 @@ export function createProfileMemoryMutationStore({
 					generation: settings.generation,
 					lifecycleState: settings.lifecycleState,
 					eraseRequestedAt: settings.eraseRequestedAt,
+					...(settings.lifecycleState === "erased" ? { erasedAt: settings.erasedAt ?? now } : {}),
 					updatedAt: now,
 				})
 				.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId));
@@ -184,17 +189,8 @@ export function createProfileMemoryMutationStore({
 	return {
 		retryCommand: (input) =>
 			enqueue(input, "memory_add", null, null, undefined, input.failedCommandId),
-		createItem: (input) => enqueue(input, "memory_add", { text: input.text }, input.commandId),
-		updateItem: (input) =>
-			enqueue(
-				input,
-				"memory_update",
-				{
-					...(input.text === undefined ? {} : { text: input.text }),
-					...(input.state === undefined ? {} : { state: input.state }),
-				},
-				input.memoryId,
-			),
+		submitCorrection: (input) =>
+			enqueue(input, "memory_add", { text: input.text }, input.commandId),
 		erase: (input) => enqueue(input, "owner_erase", null, null),
 		setLifecycle: (input) => enqueue(input, "owner_transition", null, null, input.lifecycleState),
 		async findCommandByIdempotency(input) {

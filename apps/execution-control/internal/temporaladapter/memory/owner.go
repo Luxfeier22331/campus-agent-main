@@ -9,6 +9,14 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+// MemoryAppendWorkflowReviver reconnects durable append leases whose workflow
+// is no longer running, so an erase waiting on generation drain can recover
+// lost background work instead of timing out on it.
+type MemoryAppendWorkflowReviver interface {
+	RestartMemoryAppendWorkflow(ctx context.Context, requestID string) error
+	RunningMemoryAppendWorkflows(ctx context.Context, requestIDs []string) (map[string]bool, error)
+}
+
 type Adapter struct {
 	*activityprojection.Writer
 	PersonalMemoryExecutor   executionapplication.MemoryExecutor
@@ -16,6 +24,7 @@ type Adapter struct {
 	PersonalMemoryErr        error
 	PersonalMemoryStateStore executionapplication.MemoryStore
 	PersonalMemoryStateErr   error
+	AppendWorkflowReviver    MemoryAppendWorkflowReviver
 }
 
 func New(adapter Adapter) *Adapter { return &adapter }

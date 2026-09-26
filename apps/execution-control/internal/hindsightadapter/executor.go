@@ -11,6 +11,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	hindsight "github.com/vectorize-io/hindsight/hindsight-clients/go"
 )
 
 type Options struct {
@@ -27,10 +28,9 @@ type hindsightClient interface {
 	GetOperation(context.Context, string, string) (memoryruntime.AppendOperation, error)
 	BankExists(context.Context, string) (bool, error)
 	EnsureBank(context.Context, string, hindsightBankConfig) error
+	CreateMentalModel(context.Context, string, hindsight.CreateMentalModelRequest) error
 	DeleteBank(context.Context, string) error
-	ListMemories(context.Context, string, memoryruntime.MemoryQuery) (memoryruntime.MemoryPage, error)
-	GetMemory(context.Context, string, string) (memoryruntime.MemoryRecord, error)
-	UpdateMemory(context.Context, string, string, memoryruntime.PersonalMemoryCommandItem) error
+	GetMentalModel(context.Context, string, string) (hindsightProfileModelSnapshot, bool, error)
 	RecallMemories(context.Context, string, hindsightRecallRequest) (hindsightRecallResponse, error)
 	RetainMemories(context.Context, string, hindsightRetainRequest) (hindsightRetainResponse, error)
 }
@@ -126,10 +126,6 @@ func (e hindsightExecutor) ExecuteCommand(
 			return memoryruntime.PersonalMemoryCommandResult{}, err
 		}
 		if err := requireHindsightRetainAccepted(result, bankID, 1, false); err != nil {
-			return memoryruntime.PersonalMemoryCommandResult{}, err
-		}
-	case "memory_update":
-		if err := e.client.UpdateMemory(ctx, bankID, request.SubjectID, *request.Item); err != nil {
 			return memoryruntime.PersonalMemoryCommandResult{}, err
 		}
 	default:

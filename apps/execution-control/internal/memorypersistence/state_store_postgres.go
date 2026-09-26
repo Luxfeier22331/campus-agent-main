@@ -40,17 +40,15 @@ func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, ca
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	// Bootstrap the fence row before reading it: a concurrent creator (another
+	// instance admitting the first call or deleting the owner) must not turn
+	// this insert into a duplicate key error. The transaction rolls the
+	// bootstrap back when the fence check rejects the call.
+	if _, err := tx.Exec(ctx, `insert into execution_control.personal_memory_owner_fences (owner_scope_hash,generation,lifecycle_state,last_owner_sequence,updated_at) values ($1,1,'active',0,now()) on conflict do nothing`, ownerHash); err != nil {
+		return err
+	}
 	var fence memoryruntime.FenceState
-	err = tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from execution_control.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence)
-	if errors.Is(err, pgx.ErrNoRows) {
-		if generation != 1 {
-			return memoryruntime.ErrMemoryFenceConflict
-		}
-		fence = memoryruntime.FenceState{Generation: 1, Lifecycle: "active", Sequence: 0}
-		if _, err := tx.Exec(ctx, `insert into execution_control.personal_memory_owner_fences (owner_scope_hash,generation,lifecycle_state,last_owner_sequence,updated_at) values ($1,1,'active',0,now())`, ownerHash); err != nil {
-			return err
-		}
-	} else if err != nil {
+	if err := tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from execution_control.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence); err != nil {
 		return err
 	}
 	// A durable append may resume after an owner transition. Only the exact
@@ -64,7 +62,9 @@ func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, ca
 			return tx.Commit(ctx)
 		}
 	}
-	if fence.Generation != generation || fence.Lifecycle != "active" {
+	managementRead := strings.HasPrefix(kind, "management_")
+	lifecycleAllowed := fence.Lifecycle == "active" || (managementRead && fence.Lifecycle == "paused")
+	if fence.Generation != generation || !lifecycleAllowed {
 		return memoryruntime.ErrMemoryFenceConflict
 	}
 	if _, err := tx.Exec(ctx, `delete from execution_control.personal_memory_call_leases where call_id=$1 and expires_at <= now()`, callID); err != nil {
@@ -89,12 +89,75 @@ func (s *PostgresStateStore) EndCall(ctx context.Context, ownerHash string, call
 	return err
 }
 
+func (s *PostgresStateStore) GetCommand(ctx context.Context, ownerHash string, commandID string) (memoryruntime.CommandReceipt, error) {
+	var receipt memoryruntime.CommandReceipt
+	err := s.pool.QueryRow(ctx, `
+	select command_id, owner_scope_hash, generation, sequence, kind, status, error_code,
+		lease_expires_at, result_fingerprint, subject_scope_hash, supersession_scope, updated_at
+	from execution_control.personal_memory_command_receipts
+	where command_id=$1 and owner_scope_hash=$2`, commandID, ownerHash).Scan(
+		&receipt.CommandID,
+		&receipt.OwnerScopeHash,
+		&receipt.Generation,
+		&receipt.Sequence,
+		&receipt.Kind,
+		&receipt.Status,
+		&receipt.ErrorCode,
+		&receipt.ProcessingUntil,
+		&receipt.ResultFingerprint,
+		&receipt.SubjectScopeHash,
+		&receipt.SupersessionScope,
+		&receipt.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryCommandNotFound
+	}
+	if err != nil {
+		return memoryruntime.CommandReceipt{}, err
+	}
+	return receipt, nil
+}
+
 func (s *PostgresStateStore) GenerationDrained(ctx context.Context, ownerHash string, generation int64) (bool, error) {
 	var active bool
 	err := s.pool.QueryRow(ctx, `select
 		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and (expires_at is null or expires_at > now()))
 		or exists(select 1 from execution_control.personal_memory_command_receipts where owner_scope_hash=$1 and generation=$2 and status not in ('succeeded','failed'))`, ownerHash, generation).Scan(&active)
 	return !active, err
+}
+
+// ListGenerationAppendCallIDs returns the durable append leases (no expiry)
+// still admitted by an older generation. Those leases only clear when their
+// append workflow finishes, so an erase waiting on the generation uses them to
+// find lost workflows.
+func (s *PostgresStateStore) ListGenerationAppendCallIDs(ctx context.Context, ownerHash string, generation int64) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `select call_id from execution_control.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and operation_kind='append' and expires_at is null order by call_id`, ownerHash, generation)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	callIDs := make([]string, 0)
+	for rows.Next() {
+		var callID string
+		if err := rows.Scan(&callID); err != nil {
+			return nil, err
+		}
+		callIDs = append(callIDs, callID)
+	}
+	return callIDs, rows.Err()
+}
+
+func (s *PostgresStateStore) AbandonStaleGenerationReceipts(ctx context.Context, ownerHash string, generation int64, staleBefore time.Time) (int, error) {
+	command, err := s.pool.Exec(ctx, `update execution_control.personal_memory_command_receipts
+		set status='failed', error_code='memory_receipt_abandoned',
+			result_fingerprint=encode(sha256(convert_to(command_id, 'UTF8') || '\x00'::bytea || convert_to('failed', 'UTF8') || '\x00'::bytea || convert_to('memory_receipt_abandoned', 'UTF8')), 'hex'),
+			lease_expires_at=null, updated_at=now(), terminal_at=now()
+		where owner_scope_hash=$1 and generation=$2 and status not in ('succeeded','failed') and updated_at < $3`,
+		ownerHash, generation, staleBefore)
+	if err != nil {
+		return 0, err
+	}
+	return int(command.RowsAffected()), nil
 }
 
 func (s *PostgresStateStore) MarkOwnerDeleted(ctx context.Context, ownerHash string) error {
@@ -160,19 +223,22 @@ func (s *PostgresStateStore) BeginCommand(ctx context.Context, ownerHash string,
 		return memoryruntime.CommandReceipt{}, false, err
 	}
 	var receipt memoryruntime.CommandReceipt
-	err = tx.QueryRow(ctx, `select command_id, owner_scope_hash, generation, sequence, kind, status, error_code, lease_expires_at, result_fingerprint, subject_scope_hash, supersession_scope from execution_control.personal_memory_command_receipts where command_id=$1 for update`, command.CommandID).Scan(&receipt.CommandID, &receipt.OwnerScopeHash, &receipt.Generation, &receipt.Sequence, &receipt.Kind, &receipt.Status, &receipt.ErrorCode, &receipt.ProcessingUntil, &receipt.ResultFingerprint, &receipt.SubjectScopeHash, &receipt.SupersessionScope)
+	err = tx.QueryRow(ctx, `select command_id, owner_scope_hash, generation, sequence, kind, status, error_code, lease_expires_at, result_fingerprint, subject_scope_hash, supersession_scope, created_at from execution_control.personal_memory_command_receipts where command_id=$1 for update`, command.CommandID).Scan(&receipt.CommandID, &receipt.OwnerScopeHash, &receipt.Generation, &receipt.Sequence, &receipt.Kind, &receipt.Status, &receipt.ErrorCode, &receipt.ProcessingUntil, &receipt.ResultFingerprint, &receipt.SubjectScopeHash, &receipt.SupersessionScope, &receipt.CreatedAt)
 	if err == nil {
 		if err := memoryruntime.ValidateReceiptIdentity(receipt, ownerHash, command); err != nil {
 			return memoryruntime.CommandReceipt{}, false, err
 		}
 		shouldExecute := receipt.Status == "retryable" || (receipt.Status == "processing" && (receipt.ProcessingUntil == nil || time.Now().After(*receipt.ProcessingUntil)))
 		if shouldExecute {
-			if err := postgresOwnerCommandGate(ctx, tx, ownerHash, command.OwnerSequence, command.CommandID); err != nil {
-				return memoryruntime.CommandReceipt{}, false, err
+			if command.CommandKind != "owner_erase" {
+				if err := postgresOwnerCommandGate(ctx, tx, ownerHash, command.OwnerSequence, command.CommandID); err != nil {
+					return memoryruntime.CommandReceipt{}, false, err
+				}
 			}
 			receipt.Status = "processing"
 			receipt.ProcessingUntil = memoryruntime.CommandLeaseDeadline(leaseTTL)
 			receipt.ResultFingerprint = ""
+			receipt.UpdatedAt = time.Now().UTC()
 			if _, err := tx.Exec(ctx, `update execution_control.personal_memory_command_receipts set status='processing', error_code='', result_fingerprint='', lease_expires_at=$2, updated_at=now(), terminal_at=null where command_id=$1 and status not in ('succeeded','failed')`, receipt.CommandID, receipt.ProcessingUntil); err != nil {
 				return memoryruntime.CommandReceipt{}, false, err
 			}
@@ -185,8 +251,10 @@ func (s *PostgresStateStore) BeginCommand(ctx context.Context, ownerHash string,
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return memoryruntime.CommandReceipt{}, false, err
 	}
-	if err := postgresOwnerCommandGate(ctx, tx, ownerHash, command.OwnerSequence, command.CommandID); err != nil {
-		return memoryruntime.CommandReceipt{}, false, err
+	if command.CommandKind != "owner_erase" {
+		if err := postgresOwnerCommandGate(ctx, tx, ownerHash, command.OwnerSequence, command.CommandID); err != nil {
+			return memoryruntime.CommandReceipt{}, false, err
+		}
 	}
 	if err := memoryruntime.ApplyFenceCommand(&fence, command); err != nil {
 		return memoryruntime.CommandReceipt{}, false, err
@@ -195,7 +263,7 @@ func (s *PostgresStateStore) BeginCommand(ctx context.Context, ownerHash string,
 	if err != nil {
 		return memoryruntime.CommandReceipt{}, false, err
 	}
-	receipt = memoryruntime.CommandReceipt{CommandID: command.CommandID, OwnerScopeHash: ownerHash, Generation: command.OwnerGeneration, Sequence: command.OwnerSequence, Kind: command.CommandKind, ProcessingUntil: memoryruntime.CommandLeaseDeadline(leaseTTL), Status: "processing", SubjectScopeHash: command.SubjectScopeHash, SupersessionScope: command.SupersessionScope}
+	receipt = memoryruntime.CommandReceipt{CommandID: command.CommandID, CreatedAt: time.Now().UTC(), OwnerScopeHash: ownerHash, Generation: command.OwnerGeneration, Sequence: command.OwnerSequence, Kind: command.CommandKind, ProcessingUntil: memoryruntime.CommandLeaseDeadline(leaseTTL), Status: "processing", SubjectScopeHash: command.SubjectScopeHash, SupersessionScope: command.SupersessionScope, UpdatedAt: time.Now().UTC()}
 	_, err = tx.Exec(ctx, `insert into execution_control.personal_memory_command_receipts (command_id,owner_scope_hash,generation,sequence,kind,status,lease_expires_at,subject_scope_hash,supersession_scope,created_at,updated_at) values ($1,$2,$3,$4,$5,'processing',$6,$7,$8,now(),now())`, receipt.CommandID, receipt.OwnerScopeHash, receipt.Generation, receipt.Sequence, receipt.Kind, receipt.ProcessingUntil, receipt.SubjectScopeHash, receipt.SupersessionScope)
 	if err != nil {
 		return memoryruntime.CommandReceipt{}, false, err
@@ -218,12 +286,15 @@ func (s *PostgresStateStore) FinalizeCommand(ctx context.Context, commandID stri
 	defer func() { _ = tx.Rollback(ctx) }()
 	var fence memoryruntime.FenceState
 	if err := tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from execution_control.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryCommandNotFound
+		}
 		return memoryruntime.CommandReceipt{}, err
 	}
 	var receipt memoryruntime.CommandReceipt
 	if err := tx.QueryRow(ctx, `select command_id, owner_scope_hash, generation, sequence, kind, status, error_code, lease_expires_at, result_fingerprint, subject_scope_hash, supersession_scope from execution_control.personal_memory_command_receipts where command_id=$1 and owner_scope_hash=$2 for update`, commandID, ownerHash).Scan(&receipt.CommandID, &receipt.OwnerScopeHash, &receipt.Generation, &receipt.Sequence, &receipt.Kind, &receipt.Status, &receipt.ErrorCode, &receipt.ProcessingUntil, &receipt.ResultFingerprint, &receipt.SubjectScopeHash, &receipt.SupersessionScope); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryFenceConflict
+			return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryCommandNotFound
 		}
 		return memoryruntime.CommandReceipt{}, err
 	}

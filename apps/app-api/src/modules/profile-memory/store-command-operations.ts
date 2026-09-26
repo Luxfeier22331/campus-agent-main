@@ -72,13 +72,60 @@ export function createProfileMemoryCommandStore({
 				.where(
 					and(
 						eq(profileMemoryCommands.status, "pending_admission"),
-						sql`not exists (select 1 from profile.memory_commands earlier
+						sql`${profileMemoryCommands.commandKind} = 'owner_erase' or not exists (select 1 from profile.memory_commands earlier
           where earlier.owner_user_id = ${profileMemoryCommands.ownerUserId}
           and earlier.owner_sequence < ${profileMemoryCommands.ownerSequence}
           and earlier.status in ('pending_admission','admitted'))`,
 					),
 				)
 				.orderBy(asc(profileMemoryCommands.createdAt), asc(profileMemoryCommands.commandId))
+				.limit(Math.max(1, limit));
+			return rows.map((row) => ({
+				...toCommand(row),
+				item: row.payload as ProfileMemoryEdit | null,
+				lifecycleState: row.acceptedLifecycleState as ProfileMemoryLifecycleState,
+				schemaVersion: "personal_memory_command.v3" as const,
+				sourceUpdatedAt: row.sourceUpdatedAt.toISOString(),
+			}));
+		},
+		async listFailedLifecycleCommands({ limit }) {
+			const db = await getDb();
+			// Failed lifecycle heads only: the failed command is still the newest
+			// row of its supersession scope at the current generation, and the
+			// settings row agrees it is the blocking head.
+			const rows = await db
+				.select({
+					commandId: profileMemoryCommands.commandId,
+					ownerUserId: profileMemoryCommands.ownerUserId,
+				})
+				.from(profileMemoryCommands)
+				.innerJoin(
+					profileMemorySettings,
+					eq(profileMemorySettings.ownerUserId, profileMemoryCommands.ownerUserId),
+				)
+				.where(
+					and(
+						eq(profileMemoryCommands.status, "failed"),
+						sql`${profileMemoryCommands.commandKind} in ('owner_erase', 'owner_transition')`,
+						eq(profileMemoryCommands.ownerGeneration, profileMemorySettings.generation),
+						eq(profileMemorySettings.syncStatus, "failed"),
+						sql`not exists (select 1 from profile.memory_commands later
+          where later.owner_user_id = ${profileMemoryCommands.ownerUserId}
+          and later.owner_sequence > ${profileMemoryCommands.ownerSequence}
+          and later.supersession_scope = ${profileMemoryCommands.supersessionScope})`,
+					),
+				)
+				.orderBy(asc(profileMemoryCommands.createdAt), asc(profileMemoryCommands.commandId))
+				.limit(Math.max(1, limit));
+			return rows;
+		},
+		async listAdmittedCommands({ limit }) {
+			const db = await getDb();
+			const rows = await db
+				.select()
+				.from(profileMemoryCommands)
+				.where(eq(profileMemoryCommands.status, "admitted"))
+				.orderBy(asc(profileMemoryCommands.updatedAt), asc(profileMemoryCommands.commandId))
 				.limit(Math.max(1, limit));
 			return rows.map((row) => ({
 				...toCommand(row),

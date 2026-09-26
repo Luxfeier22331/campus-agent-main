@@ -143,19 +143,30 @@ export function createExecutionControlPersonalMemoryClient(
 	});
 
 	return {
-		async listItems(input) {
-			return (await requestExecutionControl("/internal/memory/personal/items/list", {
-				body: { ...input, tenantId: DEFAULT_PERSONAL_MEMORY_TENANT_ID },
+		async getProfile(input) {
+			const payload = (await requestExecutionControl("/internal/memory/personal/profile/get", {
+				body: {
+					tenant_id: DEFAULT_PERSONAL_MEMORY_TENANT_ID,
+					owner_user_id: input.ownerUserId,
+					owner_generation: input.ownerGeneration,
+				},
 				expectedStatus: 200,
 				method: "POST",
-			})) as unknown as import("../profile-memory").ProfileMemoryPage;
-		},
-		async getItem(input) {
-			return (await requestExecutionControl("/internal/memory/personal/items/get", {
-				body: { ...input, tenantId: DEFAULT_PERSONAL_MEMORY_TENANT_ID },
-				expectedStatus: 200,
-				method: "POST",
-			})) as unknown as import("../profile-memory").ProfileMemoryItem;
+			})) as Record<string, unknown>;
+			if (
+				typeof payload.content !== "string" ||
+				typeof payload.generating !== "boolean" ||
+				typeof payload.is_stale !== "boolean" ||
+				typeof payload.last_refreshed_at !== "string"
+			) {
+				throw new Error("execution control returned an invalid memory profile");
+			}
+			return {
+				content: payload.content,
+				generating: payload.generating,
+				isStale: payload.is_stale,
+				lastRefreshedAt: payload.last_refreshed_at,
+			};
 		},
 		async admit(command) {
 			await requestExecutionControl("/internal/memory/personal/commands", {
@@ -177,6 +188,34 @@ export function createExecutionControlPersonalMemoryClient(
 				method: "POST",
 				timeoutMs: PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
 			});
+		},
+		async getCommandStatus(input) {
+			const payload = (await requestExecutionControl("/internal/memory/personal/commands/status", {
+				body: {
+					command_id: input.commandId,
+					tenant_id: DEFAULT_PERSONAL_MEMORY_TENANT_ID,
+					user_id: input.ownerUserId,
+				},
+				expectedStatus: 200,
+				method: "POST",
+				timeoutMs: PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
+			})) as Record<string, unknown>;
+			if (
+				typeof payload.command_id !== "string" ||
+				typeof payload.status !== "string" ||
+				typeof payload.error_code !== "string" ||
+				typeof payload.result_fingerprint !== "string" ||
+				typeof payload.stale !== "boolean"
+			) {
+				throw new Error("execution control returned an invalid memory command status");
+			}
+			return {
+				commandId: payload.command_id,
+				errorCode: payload.error_code,
+				resultFingerprint: payload.result_fingerprint,
+				stale: payload.stale,
+				status: payload.status,
+			};
 		},
 	};
 }

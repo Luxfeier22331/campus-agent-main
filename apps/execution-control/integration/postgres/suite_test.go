@@ -70,6 +70,9 @@ func TestPostgresIntegration(t *testing.T) {
 	t.Run("personal memory state store", func(t *testing.T) {
 		testPersonalMemoryStateStore(t, harness)
 	})
+	t.Run("personal memory concurrent state store", func(t *testing.T) {
+		testPersonalMemoryConcurrentStateStore(t, harness)
+	})
 	t.Run("agent invocation receipt", func(t *testing.T) {
 		testAgentInvocationReceipt(t, harness)
 	})

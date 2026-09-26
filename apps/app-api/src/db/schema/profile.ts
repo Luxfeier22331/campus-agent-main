@@ -74,7 +74,7 @@ export const profileMemoryCommands = profile.table(
 		commandKind: text("command_kind").notNull(),
 		supersessionScope: text("supersession_scope").notNull(),
 		subjectId: text("subject_id"),
-		payload: jsonb("payload").$type<{ text?: string; state?: "active" | "inactive" }>(),
+		payload: jsonb("payload").$type<{ text?: string }>(),
 		acceptedLifecycleState: text("accepted_lifecycle_state").notNull(),
 		sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }).notNull(),
 		status: text("status").notNull().default("pending_admission"),

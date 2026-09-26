@@ -96,4 +96,11 @@ export interface ExecutionControlOwnerDeletionClient {
 
 export interface ExecutionControlPersonalMemoryClient extends ProfileMemoryReader {
 	admit(input: import("../profile-memory").ProfileMemoryCommandPayload): Promise<void>;
+	getCommandStatus(input: { commandId: string; ownerUserId: string }): Promise<{
+		commandId: string;
+		status: string;
+		errorCode: string;
+		resultFingerprint: string;
+		stale: boolean;
+	}>;
 }

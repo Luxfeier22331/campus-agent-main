@@ -245,6 +245,11 @@ func (s *AgentToolService) PersonalMemoryRecall(
 	ctx context.Context,
 	request PersonalMemoryRecallRequest,
 ) (map[string]any, error) {
+	if !request.AccessContext.DeadlineAt.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, request.AccessContext.DeadlineAt)
+		defer cancel()
+	}
 	run, err := s.validateRun(ctx, request.AccessContext, PersonalMemoryRecallToolName)
 	if err != nil {
 		return nil, err

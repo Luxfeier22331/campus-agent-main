@@ -2,14 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import { ExecutionControlTransportError } from "../integration/execution-control-transport";
-import type {
-	ProfileMemoryEdit,
-	ProfileMemoryItem,
-	ProfileMemoryList,
-	ProfileMemoryMutationResult,
-	ProfileMemoryPage,
-	ProfileMemoryQuery,
-} from "./model";
+import type { ProfileMemoryList, ProfileMemoryMutationResult, ProfileMemoryProfile } from "./model";
 import type {
 	ProfileMemoryCommandPayload,
 	ProfileMemoryCommandStore,
@@ -23,32 +16,30 @@ interface PrincipalInput {
 }
 type MutationInput = PrincipalInput & { idempotencyKey: string };
 export interface ProfileMemoryReader {
-	listItems(
-		input: ProfileMemoryQuery & { ownerUserId: string; ownerGeneration: number },
-	): Promise<ProfileMemoryPage>;
-	getItem(input: {
+	getProfile(input: {
 		ownerUserId: string;
 		ownerGeneration: number;
-		memoryId: string;
-	}): Promise<ProfileMemoryItem>;
+	}): Promise<ProfileMemoryProfile>;
 }
 export interface ProfileMemoryService {
 	retryCommand(input: MutationInput & { commandId: string }): Promise<ProfileMemoryMutationResult>;
-	createItem(input: MutationInput & { text: string }): Promise<ProfileMemoryMutationResult>;
-	updateItem(
-		input: MutationInput & ProfileMemoryEdit & { memoryId: string },
-	): Promise<ProfileMemoryMutationResult>;
+	submitCorrection(input: MutationInput & { text: string }): Promise<ProfileMemoryMutationResult>;
 	applyResult(
 		input: ProfileMemoryCommandResultInput,
 	): Promise<ProfileMemoryCommandResultApplyOutcome>;
 	dispatchPending(): Promise<{ admitted: number; failed: number; processed: number }>;
+	reconcileAdmitted?: () => Promise<{ reconciled: number; failed: number; processed: number }>;
+	retryFailedLifecycleCommands?: () => Promise<{
+		retried: number;
+		failed: number;
+		processed: number;
+	}>;
 	erase(input: MutationInput): Promise<ProfileMemoryMutationResult>;
 	eraseForAccountDeletion(
 		input: PrincipalInput & { requestId: string },
 	): Promise<ProfileMemoryMutationResult>;
 	list(input: PrincipalInput): Promise<ProfileMemoryList>;
-	listItems(input: PrincipalInput & ProfileMemoryQuery): Promise<ProfileMemoryPage>;
-	getItem(input: PrincipalInput & { memoryId: string }): Promise<ProfileMemoryItem>;
+	getProfile(input: PrincipalInput): Promise<ProfileMemoryProfile>;
 	setLifecycle(
 		input: MutationInput & { state: "active" | "paused" },
 	): Promise<ProfileMemoryMutationResult>;
@@ -56,8 +47,18 @@ export interface ProfileMemoryService {
 export interface ProfileMemoryCommandAdmitter {
 	admit(command: ProfileMemoryCommandPayload): Promise<void>;
 }
+export interface ProfileMemoryCommandStatusReader {
+	getCommandStatus(input: { commandId: string; ownerUserId: string }): Promise<{
+		commandId: string;
+		status: string;
+		errorCode: string;
+		resultFingerprint: string;
+		stale: boolean;
+	}>;
+}
 export interface ProfileMemoryServiceDependencies {
 	commandAdmitter?: ProfileMemoryCommandAdmitter;
+	commandStatusReader?: ProfileMemoryCommandStatusReader;
 	memoryReader?: ProfileMemoryReader;
 	commandStore: ProfileMemoryCommandStore;
 	generateId?: (prefix: string) => string;
@@ -99,15 +100,9 @@ function identity(key: string, value: unknown) {
 }
 function normalizeText(text: string): string {
 	if (typeof text !== "string" || !text.trim()) {
-		throw error("invalid_profile_memory_item", "Memory text must not be empty.");
+		throw error("invalid_profile_memory_text", "Memory text must not be empty.");
 	}
 	return text.trim();
-}
-function normalizeMemoryId(id: string): string {
-	if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-		throw error("invalid_profile_memory_item", "Memory ID is invalid.");
-	}
-	return id;
 }
 async function mapFailure<T>(operation: () => Promise<T>): Promise<T> {
 	try {
@@ -160,42 +155,12 @@ export function buildProfileMemoryService(
 					failedCommandId: input.commandId,
 				}),
 			),
-		createItem: (input) =>
+		submitCorrection: (input) =>
 			mapFailure(() => {
 				const text = normalizeText(input.text);
-				return dependencies.mutationStore.createItem({
-					...mutationBase(input, { action: "add", text }),
+				return dependencies.mutationStore.submitCorrection({
+					...mutationBase(input, { action: "correction", text }),
 					text,
-				});
-			}),
-		updateItem: (input) =>
-			mapFailure(async () => {
-				const memoryId = normalizeMemoryId(input.memoryId);
-				const edit: ProfileMemoryEdit = {};
-				if (input.text !== undefined) {
-					edit.text = normalizeText(input.text);
-				}
-				if (input.state !== undefined) {
-					if (input.state !== "active" && input.state !== "inactive") {
-						throw error("invalid_profile_memory_item", "Memory state is invalid.");
-					}
-					edit.state = input.state;
-				}
-				if (edit.text === undefined && edit.state === undefined) {
-					throw error("invalid_profile_memory_item", "Provide text or state.");
-				}
-				const memory = await reader().getItem({ ...(await readScope(input.principal)), memoryId });
-				if (memory.kind === "summary") {
-					throw error(
-						"memory_derived_read_only",
-						"Edit the supporting facts instead of a derived memory.",
-						409,
-					);
-				}
-				return dependencies.mutationStore.updateItem({
-					...mutationBase(input, { action: "update", memoryId, ...edit }),
-					memoryId,
-					...edit,
 				});
 			}),
 		erase: (input) =>
@@ -220,29 +185,20 @@ export function buildProfileMemoryService(
 			}
 		},
 		list: async (input) => dependencies.readStore.listByOwner(owner(input.principal)),
-		listItems: (input) =>
+		getProfile: (input) =>
 			mapFailure(async () => {
 				const scope = await readScope(input.principal);
 				const state = await dependencies.readStore.listByOwner(scope.ownerUserId);
-				if (state.lifecycleState === "erasing" || state.lifecycleState === "erased") {
-					return { items: [], total: 0, limit: input.limit, offset: input.offset };
+				if (state.lifecycleState === "erased") {
+					return {
+						content: "",
+						generating: false,
+						isStale: false,
+						lastRefreshedAt: "",
+					};
 				}
-				return reader().listItems({
-					...scope,
-					limit: input.limit,
-					offset: input.offset,
-					...(input.q ? { q: input.q } : {}),
-					...(input.kind ? { kind: input.kind } : {}),
-					...(input.state ? { state: input.state } : {}),
-				});
+				return reader().getProfile(scope);
 			}),
-		getItem: (input) =>
-			mapFailure(async () =>
-				reader().getItem({
-					...(await readScope(input.principal)),
-					memoryId: normalizeMemoryId(input.memoryId),
-				}),
-			),
 		setLifecycle: (input) =>
 			mapFailure(() =>
 				dependencies.mutationStore.setLifecycle({
@@ -302,6 +258,92 @@ export function buildProfileMemoryService(
 				}
 			}
 			return { admitted, failed, processed: commands.length };
+		},
+		async reconcileAdmitted() {
+			if (!(dependencies.commandStatusReader && dependencies.commandStore.listAdmittedCommands)) {
+				return { reconciled: 0, failed: 0, processed: 0 };
+			}
+			const commands = await dependencies.commandStore.listAdmittedCommands({ limit: 20 });
+			let reconciled = 0;
+			let failed = 0;
+			for (const command of commands) {
+				try {
+					const status = await dependencies.commandStatusReader.getCommandStatus({
+						commandId: command.commandId,
+						ownerUserId: command.ownerUserId,
+					});
+					if (status.status !== "succeeded" && status.status !== "failed") {
+						// A non-terminal receipt that went stale has a dead workflow.
+						// Re-admission restarts it under the same workflow id,
+						// which either resumes the command or is a no-op.
+						if (status.stale && dependencies.commandAdmitter) {
+							await dependencies.commandAdmitter.admit(command);
+						}
+						continue;
+					}
+					await service.applyResult({
+						commandId: command.commandId,
+						...(status.errorCode ? { errorCode: status.errorCode } : {}),
+						resultFingerprint: status.resultFingerprint,
+						status: status.status,
+					});
+					reconciled++;
+				} catch (cause) {
+					let failure: unknown = cause;
+					if (
+						cause instanceof ExecutionControlTransportError &&
+						cause.code === "command_not_found" &&
+						dependencies.commandAdmitter
+					) {
+						try {
+							await dependencies.commandAdmitter.admit(command);
+							continue;
+						} catch (admissionCause) {
+							failure = admissionCause;
+						}
+					}
+					failed++;
+					console.error({
+						source: "app-api.memory-reconciler",
+						commandId: command.commandId,
+						error: failure instanceof Error ? failure.message : String(failure),
+					});
+				}
+			}
+			return { reconciled, failed, processed: commands.length };
+		},
+		async retryFailedLifecycleCommands() {
+			if (!dependencies.commandStore.listFailedLifecycleCommands) {
+				return { retried: 0, failed: 0, processed: 0 };
+			}
+			const commands = await dependencies.commandStore.listFailedLifecycleCommands({ limit: 20 });
+			let retried = 0;
+			let failed = 0;
+			for (const command of commands) {
+				try {
+					const value = { action: "retry", commandId: command.commandId };
+					const hash = (text: string) => createHash("sha256").update(text).digest("hex");
+					await mapFailure(() =>
+						dependencies.mutationStore.retryCommand({
+							commandId: generateId("memcmd"),
+							idempotencyKeyHash: hash(`retry:${command.commandId}:${randomUUID()}`),
+							ownerUserId: command.ownerUserId,
+							requestFingerprint: hash(JSON.stringify(value)),
+							updatedAt: now().toISOString(),
+							failedCommandId: command.commandId,
+						}),
+					);
+					retried++;
+				} catch (cause) {
+					failed++;
+					console.error({
+						source: "app-api.memory-retry",
+						commandId: command.commandId,
+						error: cause instanceof Error ? cause.message : String(cause),
+					});
+				}
+			}
+			return { retried, failed, processed: commands.length };
 		},
 	};
 	return service;

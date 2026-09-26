@@ -1025,3 +1025,55 @@ func TestMemoryAppendExhaustionClosesOnlyBackgroundStep(t *testing.T) {
 		})
 	}
 }
+
+func TestPersonalMemoryCommandWorkflowFailsAfterBoundedOwnerGateWait(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	command := PersonalMemoryCommandRequest{
+		CommandID:         "cmd-wait-timeout",
+		CommandKind:       "owner_transition",
+		LifecycleState:    "paused",
+		OwnerGeneration:   1,
+		OwnerSequence:     2,
+		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
+		SourceUpdatedAt:   "2026-07-16T00:00:00Z",
+		SupersessionScope: "owner:lifecycle",
+		TenantID:          "tenant-main",
+		UserID:            "user-1",
+	}
+	// The predecessor receipt never resolves, so the gate stays blocked.
+	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
+		Return(PersonalMemoryCommandActivityOutput{}, temporal.NewApplicationError("waiting", "memory_command_owner_blocked"))
+	timeoutResult := PersonalMemoryCommandActivityOutput{
+		CommandID:         command.CommandID,
+		ErrorCode:         "memory_command_wait_timeout",
+		ResultFingerprint: "fingerprint-timeout",
+		Status:            "failed",
+	}
+	env.OnActivity(
+		FinalizePersonalMemoryCommandReceiptActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input FinalizePersonalMemoryCommandReceiptActivityInput) bool {
+			return input.Command.CommandID == command.CommandID &&
+				input.Result.Status == "failed" &&
+				input.Result.ErrorCode == "memory_command_wait_timeout"
+		}),
+	).Return(timeoutResult, nil).Once()
+	env.OnActivity(WritePersonalMemoryCommandResultActivityName, mock.Anything, timeoutResult).
+		Return(nil).
+		Once()
+
+	env.ExecuteWorkflow(PersonalMemoryCommandWorkflow, PersonalMemoryCommandWorkflowInput{Command: command})
+
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	var result PersonalMemoryCommandWorkflowResult
+	if err := env.GetWorkflowResult(&result); err != nil {
+		t.Fatalf("workflow result: %v", err)
+	}
+	if result.Status != "failed" || result.ErrorCode != "memory_command_wait_timeout" {
+		t.Fatalf("result=%#v, want failed memory_command_wait_timeout", result)
+	}
+}

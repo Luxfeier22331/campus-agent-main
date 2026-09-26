@@ -179,12 +179,12 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		} else {
 			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/items/list":
-		s.handlePersonalMemoryRead(response, request, false)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/items/get":
-		s.handlePersonalMemoryRead(response, request, true)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/profile/get":
+		s.handlePersonalMemoryProfileGet(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/commands":
 		s.handlePersonalMemoryCommand(response, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/commands/status":
+		s.handlePersonalMemoryCommandStatus(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/recall":
 		s.handlePersonalMemoryRecallTool(response, request)
 	case request.Method == http.MethodPost && path == "/internal/campus/search":

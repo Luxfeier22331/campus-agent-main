@@ -6,61 +6,119 @@ status: active
 
 # App API 个人记忆接口
 
-所有接口面向当前会话用户。app-api 持有生命周期和持久命令；记忆内容由 execution-control 从用户当前
-generation 的 Hindsight bank 读取，不维护第二份手工条目投影。供应商不可用时内容查询返回错误，
-不伪装为空列表；生命周期查询仍可用。
+接口面向当前会话用户。app-api 拥有用户意图、命令 outbox 和产品读取投影；execution-control
+拥有已准入命令的运行时 receipt、generation、profile 合成和访问屏障；Hindsight 拥有个人记忆
+内容和整篇画像。app-api 不直连 Hindsight，也不解析 Temporal history。
+
+产品模型是整篇画像：助手把全部已准入记忆合成为一份自然语言 profile，用户提交自然语言
+纠正，而不是逐条增删改。逐条 CRUD 不在产品合同中。
 
 ## 查询
 
-- `GET /api/me/profile-memory` 返回
-  `{profileMemory:{lifecycleState,syncStatus,operations}}`。
-- `GET /api/me/profile-memory/items?q=...&kind=fact&state=active&limit=20&offset=0` 返回
-  `{items,total,limit,offset}`。limit 为 1–100，offset 非负；kind 可选 fact/experience/summary，
-  state 可选 active/inactive（默认 active）。q 是原生记忆文本搜索，不调用联网搜索。
-- `GET /api/me/profile-memory/items/:memoryId` 返回 `{item}`。memoryId 是原生记忆 UUID，必须在
-  当前用户 bank 中解析；不能凭 UUID 跨账号访问。
+`GET /api/me/profile-memory` 返回：
 
-条目字段：memoryId、text、kind、state、origin、mentionedAt、editedAt。origin 为
-manual/conversation/derived/unknown，不推测缺失来源。summary 详情还包含 sourceMemories。
-列表覆盖手工添加及会话自动提取内容，不仅显示手工条目。
+```json
+{
+  "profileMemory": {
+    "lifecycleState": "active",
+    "syncStatus": "synced",
+    "operations": []
+  }
+}
+```
 
-lifecycleState 为 active/paused/erasing/erased。syncStatus 为 synced/pending/failed，
-**仅描述生命周期命令**，不因普通增改而禁用所有记忆。operations 返回尚未完成或当前失败的命令，
-包含 commandId、commandKind、memoryId（新增或生命周期操作为 null）、status 和 errorCode。
+`lifecycleState` 是产品侧当前生命周期投影：`active`、`paused` 或 `erased`。清除请求
+接受后立即投影为 `erased`（画像读取返回空），数据面删除由 execution-control 异步完成。
+`syncStatus` 只描述生命周期命令：`synced`、`pending` 或 `failed`，不代表记忆写入命令的完成状态。
+execution-control 的 receipt 可通过受内部 worker 鉴权保护的
+`POST /internal/memory/personal/commands/status` 查询；产品侧尚未把运行时状态字段直接
+暴露为新的公开生命周期字段。响应包含 `stale` 布尔值：非终态 receipt 超过既定触碰
+间隔（execution-control 定义的 margin）未被触碰时为 true，表示其 workflow 已死。
+
+`operations` 返回当前用户尚未完成或当前失败的产品命令，每项包含：
+
+```text
+commandId
+commandKind
+status: pending_admission | admitted | failed
+errorCode: string | null
+```
+
+`admitted` 表示 execution-control 已接收命令，不表示 Hindsight 已完成。app-api 的定时任务会对
+admitted 命令按 command ID 查询 execution-control；已知 succeeded/failed 的 receipt 会重新写入
+产品投影。查询不到的命令重新准入（同 workflow ID 幂等）；运行时仍未终态但已 `stale` 的命令
+同样重新准入以重启死掉的 workflow；新鲜的未终态命令继续保持 admitted，不能伪装成成功或失败。
+
+`GET /api/me/profile-memory/profile` 返回：
+
+```json
+{
+  "profile": {
+    "content": "偏好简洁的回答……",
+    "generating": false,
+    "isStale": false,
+    "lastRefreshedAt": "2026-09-20T10:00:00Z"
+  }
+}
+```
+
+profile 由 execution-control 通过当前用户 generation 的 Hindsight bank 合成，不建立产品侧
+条目镜像。`generating` 表示首次合成仍在进行；`isStale` 表示新记忆已准入但画像尚未重刷。
+`content` 为空串且 `generating` 为 true 表示还没有足够记忆生成画像。
+
+生命周期约束：
+
+- `erased` 返回本地终态空画像（`content` 为空串、其余字段为默认值），不调用 execution-control；
+- 清除即时生效：请求返回 202 时 `lifecycleState` 已是 `erased`，`syncStatus` 为 `pending`，
+  数据面删除完成后收敛为 `synced`；
+- 供应商不可用等运行时错误按原错误语义透传，不伪装为空画像。
 
 ## 修改
 
-修改要求 8–200 字符的 `Idempotency-Key`，返回 HTTP 202：
-`{profileMemory:{commandId,lifecycleState,syncStatus}}`。202 表示命令已接受，不是 Hindsight 完成。
+除重试外的修改要求 8–200 字符的 `Idempotency-Key`，返回 HTTP 202。响应包含 command ID 和当前
+产品投影；202 只表示命令已接受，不表示 Hindsight 已完成。
 
 | 操作 | 请求 |
 | --- | --- |
-| 添加自然语言记忆 | POST items，`{text}` |
-| 编辑事实或经历 | PATCH items/:memoryId，`{text}` |
-| 停用 / 恢复事实或经历 | PATCH items/:memoryId，`{state:"inactive"}` / `{state:"active"}` |
-| 暂停 / 启用 | PATCH settings，`{enabled:false}` / `{enabled:true}` |
-| 重试当前失败命令 | POST operations/:commandId/retry |
-| 清除全部记忆 | DELETE /api/me/profile-memory |
+| 提交自然语言纠正 | `POST /api/me/profile-memory/corrections`，`{text}` |
+| 暂停 / 启用 | `PATCH /api/me/profile-memory/settings`，`{enabled:false}` / `{enabled:true}` |
+| 重试当前失败命令 | `POST /api/me/profile-memory/operations/:commandId/retry` |
+| 清除全部记忆 | `DELETE /api/me/profile-memory` |
 
-text 去首尾空白、不得为空，保留正文内部格式。text 与 state 可以一起修改。summary 不可直接编辑；
-界面展示支持事实，用户修改事实，由 Hindsight 更新派生观察。单条 DELETE 路由已移除。
+纠正文本去首尾空白且不得为空，保留正文内部格式；纠正与普通对话记忆一起参与下次画像合成，
+不直接改写已有条目。暂停拒绝新的 recall/append，但允许读取画像和提交纠正；清除即时把投影
+置为 `erased` 并触发异步删除，完成后保持关闭。清除不能与旧代次的 Hindsight 访问并发。
 
-停用映射 Hindsight invalidated，排除后续召回，但归档仍保存，可恢复；它不是物理删除。
-暂停关闭后续 recall/append，允许管理已有内容。完整清除进入 erasing，隔离旧代次并等待在途调用、
-删除旧 bank（包括来源、派生内容和停用归档），成功后保持 erased/关闭；不自动重新导入聊天历史。
+重试只接受当前用户、当前 generation、尚未被后续同目标操作替代的失败命令，并创建新的 command ID。
+运行时 receipt 仍在 processing/retryable 时，产品命令保持 admitted；只有 execution-control 确认
+终态后，app-api 才写入 succeeded/failed。provider operation 的未知状态不能被当作安全失败来重试。
 
-重试只接受本账号当前代次、尚未被后续同目标操作替代的失败命令，创建新命令并保留原目标。
-成功命令不保留正文；失败正文只供重试，完整清除时移除。命令回调唤醒下一条，
-定时派发是补偿，不依赖用户打开页面。
+## 投递和失败语义
 
-## 生命周期与边界
+命令写入 app-api outbox 后由 execution-control 接纳。callback 仍用于及时更新投影，定时任务按
+command ID 查询 receipt 作为补偿。callback 传输失败属于投影延迟，不改变已准入命令的运行事实。
 
-- 删除或裁剪会话仅修改聊天数据，不触发记忆清理，也不承诺同步删除已提取记忆。
-- 普通修改使用命令级状态，不拿命令序号作为聊天调用的版本条件。
-- 全量清除与账号注销保留 generation fence、在途排空和终态处理。
-- 个人记忆不能改变身份、授权或工具准入；默认 tenant 由服务端传递 tenant-main。
-- 页面只有待处理命令时轮询状态；命令完成、提交成功、重新打开或回到页面时刷新内容。
-  查询按用户和筛选条件隔离，切换账号清除旧缓存。
+运行时状态与产品投递状态分开处理：
 
-实现：`apps/app-api/src/modules/profile-memory/`、`apps/execution-control/internal/hindsightadapter/`、
-`apps/campus-web/src/features/profile-memory/`。
+- `pending_admission`：命令仍在 app-api outbox，尚未被 execution-control 接纳；
+- `admitted`：execution-control 已接纳，运行时可能仍在处理；
+- `failed`：运行时已确定失败，错误码可供用户重试；
+- `succeeded`：内部终态，成功命令不会继续保留在公开 operations 列表中。
+
+普通 memory 写入失败不关闭画像读取。生命周期命令失败时，即使产品投影已置为 `erased`，运行时
+fence 仍会阻止该代次的 Hindsight 访问，直到生命周期命令成功重试，避免产品状态和 runtime
+fence 分叉后继续调用 provider。清除命令失败后由 memory 定时任务自动重新入队重试；用户侧
+重试接口语义不变。
+
+## 内容和安全边界
+
+管理读取、profile 合成、recall、append 和 erase 都由 execution-control 按当前用户、tenant-main
+和 generation 执行。bank、租约、workflow 和 provider operation 标识不作为浏览器授权凭证，不进入
+模型可见工具。个人记忆不能改变身份、授权、工具准入或机构知识证据要求。
+
+删除或裁剪会话只修改聊天数据，不触发记忆清理；完整清除和账号注销才承诺删除长期记忆。暂停
+保留 bank，恢复不重新导入历史消息。
+
+实现所有者：`apps/app-api/src/modules/profile-memory/`、`apps/execution-control/internal/` 和
+`apps/campus-web/src/features/profile-memory/`。运行时所有权与生命周期屏障见
+[个人记忆架构](../../architecture/system/memory-plane.md)。

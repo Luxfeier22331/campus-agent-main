@@ -30,10 +30,7 @@ export interface ProfileMemoryMutationStore {
 	retryCommand(
 		input: MutationBase & { failedCommandId: string },
 	): Promise<ProfileMemoryMutationResult>;
-	createItem(input: MutationBase & { text: string }): Promise<ProfileMemoryMutationResult>;
-	updateItem(
-		input: MutationBase & ProfileMemoryEdit & { memoryId: string },
-	): Promise<ProfileMemoryMutationResult>;
+	submitCorrection(input: MutationBase & { text: string }): Promise<ProfileMemoryMutationResult>;
 	erase(input: MutationBase): Promise<ProfileMemoryMutationResult>;
 	setLifecycle(
 		input: MutationBase & { lifecycleState: "active" | "paused" },
@@ -53,6 +50,10 @@ export interface ProfileMemoryCommandStore {
 		updatedAt: string;
 	}): Promise<"applied" | "conflict" | "not_found" | "replayed" | "superseded">;
 	listPendingAdmissions(input: { limit: number }): Promise<ProfileMemoryCommandPayload[]>;
+	listAdmittedCommands?(input: { limit: number }): Promise<ProfileMemoryCommandPayload[]>;
+	listFailedLifecycleCommands?(input: {
+		limit: number;
+	}): Promise<Pick<ProfileMemoryCommand, "commandId" | "ownerUserId">[]>;
 	markCommandAdmitted(input: { admittedAt: string; commandId: string }): Promise<boolean>;
 	markAdmissionFailed(input: {
 		commandId: string;
@@ -71,7 +72,7 @@ export interface ProfileMemoryPersistence {
 }
 export type {
 	ProfileMemoryCommand,
-	ProfileMemoryItem,
+	ProfileMemoryEdit,
 	ProfileMemoryLifecycleState,
 	ProfileMemoryMutationResult,
 	ProfileMemorySyncStatus,

@@ -3,14 +3,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
-	createProfileMemoryItem: vi.fn(),
+	createProfileMemoryCorrection: vi.fn(),
 	eraseProfileMemory: vi.fn(),
 	getProfileMemory: vi.fn(),
-	getProfileMemoryItem: vi.fn(),
-	listProfileMemories: vi.fn(),
+	getProfileMemoryProfile: vi.fn(),
 	retryProfileMemoryOperation: vi.fn(),
 	setProfileMemoryEnabled: vi.fn(),
-	updateProfileMemoryItem: vi.fn(),
 }));
 const auth = vi.hoisted(() => ({ userId: "user_1" }));
 vi.mock("@/features/profile-memory/api", () => api);
@@ -20,17 +18,13 @@ vi.mock("@/platform/auth/session", () => ({
 
 import { ProfileMemorySettings } from "@/features/profile-memory/profile-memory-settings";
 
-const fact = {
-	memoryId: "fact1",
-	text: "先给结论",
-	kind: "fact",
-	state: "active",
-	origin: "conversation",
-	mentionedAt: null,
-	editedAt: null,
-};
 const state = { lifecycleState: "active", syncStatus: "synced", operations: [] };
-const page = { items: [fact], total: 1, limit: 20, offset: 0 };
+const profile = {
+	content: "偏好简洁的回答，先用中文交流。",
+	generating: false,
+	isStale: false,
+	lastRefreshedAt: "2026-09-20T10:00:00Z",
+};
 function setup() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	return {
@@ -47,11 +41,9 @@ describe("native memory management", () => {
 		vi.resetAllMocks();
 		auth.userId = "user_1";
 		api.getProfileMemory.mockResolvedValue(state);
-		api.listProfileMemories.mockResolvedValue(page);
-		api.getProfileMemoryItem.mockResolvedValue(fact);
+		api.getProfileMemoryProfile.mockResolvedValue(profile);
 		for (const name of [
-			"createProfileMemoryItem",
-			"updateProfileMemoryItem",
+			"createProfileMemoryCorrection",
 			"setProfileMemoryEnabled",
 			"eraseProfileMemory",
 			"retryProfileMemoryOperation",
@@ -59,79 +51,61 @@ describe("native memory management", () => {
 			api[name].mockResolvedValue({ commandId: "cmd", ...state });
 		}
 	});
-	it("shows automatically retained memories and pauses without optimistic success", async () => {
+	it("shows the synthesized profile and pauses without optimistic success", async () => {
 		setup();
-		expect(await screen.findByText("先给结论")).toBeInTheDocument();
+		expect(await screen.findByText("偏好简洁的回答，先用中文交流。")).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("switch", { name: "启用个性化记忆" }));
 		await waitFor(() =>
 			expect(api.setProfileMemoryEnabled).toHaveBeenCalledWith(false, expect.anything()),
 		);
 		expect(screen.getByText("已启用")).toBeInTheDocument();
 	});
-	it("saves the edited natural-language text", async () => {
+	it("submits a natural-language correction", async () => {
 		setup();
-		await screen.findByText("先给结论");
-		fireEvent.click(screen.getByRole("button", { name: "编辑记忆" }));
-		fireEvent.change(screen.getByLabelText("内容"), { target: { value: "请先列出步骤" } });
-		fireEvent.click(screen.getByRole("button", { name: "保存" }));
+		await screen.findByText("偏好简洁的回答，先用中文交流。");
+		fireEvent.change(screen.getByLabelText("纠正画像"), {
+			target: { value: "我更偏好先看到结论" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "提交纠正" }));
 		await waitFor(() =>
-			expect(api.updateProfileMemoryItem.mock.calls[0]?.[0]).toEqual({
-				memoryId: "fact1",
-				text: "请先列出步骤",
+			expect(api.createProfileMemoryCorrection.mock.calls[0]?.[0]).toEqual({
+				text: "我更偏好先看到结论",
 			}),
 		);
+		expect(screen.getByLabelText("纠正画像")).toHaveValue("");
 	});
-	it("deactivates and offers restoration through the inactive filter", async () => {
+	it("shows the generating state before the first profile exists", async () => {
+		api.getProfileMemoryProfile.mockResolvedValue({
+			content: "",
+			generating: true,
+			isStale: false,
+			lastRefreshedAt: "",
+		});
 		setup();
-		await screen.findByText("先给结论");
-		fireEvent.click(screen.getByRole("button", { name: "停用" }));
-		await waitFor(() =>
-			expect(api.updateProfileMemoryItem.mock.calls[0]?.[0]).toEqual({
-				memoryId: "fact1",
-				state: "inactive",
-			}),
-		);
-		api.listProfileMemories.mockResolvedValue({ ...page, items: [{ ...fact, state: "inactive" }] });
-		fireEvent.change(screen.getByLabelText("记忆状态"), { target: { value: "inactive" } });
-		fireEvent.click(await screen.findByRole("button", { name: "恢复" }));
-		await waitFor(() =>
-			expect(api.updateProfileMemoryItem.mock.calls.at(-1)?.[0]).toEqual({
-				memoryId: "fact1",
-				state: "active",
-			}),
-		);
+		expect(
+			await screen.findByText("助手还没有足够记忆生成画像，可以先在对话中告诉它你的偏好。"),
+		).toBeInTheDocument();
 	});
-	it("shows derived memories as read-only and loads supporting facts on demand", async () => {
-		const summary = {
-			...fact,
-			memoryId: "summary1",
-			kind: "summary",
-			origin: "derived",
-			text: "喜欢简洁回答",
-		};
-		api.listProfileMemories.mockResolvedValue({ ...page, items: [summary] });
-		api.getProfileMemoryItem.mockResolvedValue({ ...summary, sourceMemories: [fact] });
+	it("keeps lifecycle controls usable when profile reads fail", async () => {
+		api.getProfileMemoryProfile.mockRejectedValue(new Error("provider offline"));
 		setup();
-		await screen.findByText("喜欢简洁回答");
-		expect(screen.queryByRole("button", { name: "编辑记忆" })).not.toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "查看支持事实" }));
-		expect(await screen.findByText("先给结论")).toBeInTheDocument();
-		expect(api.getProfileMemoryItem.mock.calls[0]?.[0]).toBe("summary1");
-	});
-	it("keeps lifecycle controls usable when bank reads fail", async () => {
-		api.listProfileMemories.mockRejectedValue(new Error("provider offline"));
-		setup();
-		expect(await screen.findByText("无法读取记忆内容")).toBeInTheDocument();
+		expect(await screen.findByText("无法读取画像")).toBeInTheDocument();
 		expect(screen.getByRole("switch", { name: "启用个性化记忆" })).toBeEnabled();
+	});
+	it("shows the erased state without reading the profile", async () => {
+		api.getProfileMemory.mockResolvedValue({ ...state, lifecycleState: "erased" });
+		setup();
+		expect(await screen.findByText("记忆已清除，画像为空。")).toBeInTheDocument();
+		expect(api.getProfileMemoryProfile).not.toHaveBeenCalled();
 	});
 	it("requires confirmation and can retry a failed erase", async () => {
 		api.getProfileMemory.mockResolvedValue({
 			...state,
-			lifecycleState: "erasing",
+			lifecycleState: "erased",
 			syncStatus: "failed",
 		});
 		setup();
-		await screen.findByText("先给结论");
+		await screen.findByText("记忆已清除，画像为空。");
 		fireEvent.click(screen.getByRole("button", { name: "清除全部记忆" }));
 		expect(api.eraseProfileMemory).not.toHaveBeenCalled();
 		fireEvent.click(screen.getByRole("button", { name: "确认清除" }));
@@ -139,16 +113,16 @@ describe("native memory management", () => {
 	});
 	it("clears previous-user content and cache when the account changes", async () => {
 		const view = setup();
-		await screen.findByText("先给结论");
-		api.listProfileMemories.mockResolvedValue({ ...page, items: [], total: 0 });
+		await screen.findByText("偏好简洁的回答，先用中文交流。");
 		auth.userId = "user_2";
 		view.rerender(
 			<QueryClientProvider client={view.client}>
 				<ProfileMemorySettings />
 			</QueryClientProvider>,
 		);
-		await screen.findByText("没有匹配的记忆");
-		expect(screen.queryByText("先给结论")).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(api.getProfileMemoryProfile.mock.calls.at(-1)?.length).toBeDefined(),
+		);
 		expect(view.client.getQueriesData({ queryKey: ["profile-memory", "user_1"] })).toEqual([]);
 	});
 });

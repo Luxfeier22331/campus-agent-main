@@ -83,9 +83,9 @@ func NewOwner(cfg config.Config, logger *slog.Logger) (*Owner, error) {
 		RecallMaxTokens:   cfg.PersonalMemoryRecallMaxTokens,
 		Timeout:           time.Duration(cfg.PersonalMemoryTimeoutSeconds * float64(time.Second)),
 	})
-	personalMemoryReader, _ := personalMemoryExecutor.(executionapplication.MemoryReader)
-	asyncMemoryExecutor, _ := personalMemoryExecutor.(executionapplication.AsyncMemoryExecutor)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(ctx, cfg)
+	var asyncMemoryExecutor executionapplication.AsyncMemoryExecutor
+	var personalMemoryReader executionapplication.MemoryReader
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
 		personalMemoryExecutor = executionapplication.NewFencedExecutor(
 			personalMemoryExecutor,
@@ -93,6 +93,14 @@ func NewOwner(cfg config.Config, logger *slog.Logger) (*Owner, error) {
 			cfg.PersonalMemoryOwnerSalt,
 			time.Duration(cfg.PersonalMemoryTimeoutSeconds*float64(time.Second)),
 		)
+		asyncMemoryExecutor, _ = personalMemoryExecutor.(executionapplication.AsyncMemoryExecutor)
+		personalMemoryReader, _ = personalMemoryExecutor.(executionapplication.MemoryReader)
+	} else {
+		// A provider without the lifecycle state store is not a usable memory
+		// runtime. Keep the provider error for activities, but never expose the
+		// raw executor to an online caller that would bypass the fence.
+		personalMemoryExecutor = nil
+		asyncMemoryExecutor = nil
 	}
 
 	executionInputLoader, executionInputErr := executioninput.NewInputLoader(cfg)
@@ -106,7 +114,7 @@ func NewOwner(cfg config.Config, logger *slog.Logger) (*Owner, error) {
 
 	writer := projection.New(projection.Writer{Config: cfg, ExecutionInputLoader: executionInputLoader, ExecutionInputErr: executionInputErr, ProductCallbackClient: productCallbackClient, RunProjectionStore: runProjectionStore})
 	executionAdapter := executionactivities.New(executionactivities.Adapter{Writer: writer, AgentRuntimeClient: agentRuntimeClient, Receipts: executionapplication.NewReceiptService(receiptOwner)})
-	memoryAdapter := memoryactivities.New(memoryactivities.Adapter{Writer: writer, PersonalMemoryExecutor: personalMemoryExecutor, AsyncMemoryExecutor: asyncMemoryExecutor, PersonalMemoryErr: personalMemoryErr, PersonalMemoryStateStore: personalMemoryStateStore, PersonalMemoryStateErr: personalMemoryStateErr})
+	memoryAdapter := memoryactivities.New(memoryactivities.Adapter{Writer: writer, PersonalMemoryExecutor: personalMemoryExecutor, AsyncMemoryExecutor: asyncMemoryExecutor, PersonalMemoryErr: personalMemoryErr, PersonalMemoryStateStore: personalMemoryStateStore, PersonalMemoryStateErr: personalMemoryStateErr, AppendWorkflowReviver: temporalStarter})
 	finalizationAdapter := finalizationactivities.New(finalizationactivities.Adapter{Writer: writer, AdmissionService: admissionService, Logger: logger})
 	reconciler := executionreconciler.New(executionreconciler.Options{
 		Finalizer:        control.NewFinalizer(finalizationAdapter),

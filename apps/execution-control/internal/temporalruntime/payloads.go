@@ -40,8 +40,7 @@ type AgentRuntimeLimitsSnapshot struct {
 }
 
 type PersonalMemoryCommandItem struct {
-	Text  string `json:"text,omitempty"`
-	State string `json:"state,omitempty"`
+	Text string `json:"text,omitempty"`
 }
 
 type PersonalMemoryCommandRequest struct {

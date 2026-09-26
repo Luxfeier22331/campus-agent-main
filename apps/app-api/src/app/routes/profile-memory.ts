@@ -131,83 +131,21 @@ export function registerProfileMemoryRoutes(input: {
 			jsonResponse({ profileMemory: await service.list({ principal }) }),
 		),
 	);
-	input.app.get("/api/me/profile-memory/items", (c) =>
-		handle(c, async (service, principal) => {
-			const limit = Number(c.req.query("limit") ?? 20);
-			const offset = Number(c.req.query("offset") ?? 0);
-			const kind = c.req.query("kind");
-			const state = c.req.query("state");
-			const q = c.req.query("q")?.trim();
-			if (
-				!Number.isInteger(limit) ||
-				limit < 1 ||
-				limit > 100 ||
-				!Number.isInteger(offset) ||
-				offset < 0 ||
-				(kind !== undefined && kind !== "fact" && kind !== "experience" && kind !== "summary") ||
-				(state !== undefined && state !== "active" && state !== "inactive")
-			) {
-				throw new AppApiRouteError({
-					code: "invalid_request",
-					message: "Invalid memory list query.",
-					status: 400,
-					retryable: false,
-				});
-			}
-			return jsonResponse(
-				await service.listItems({
-					principal,
-					limit,
-					offset,
-					...(q ? { q } : {}),
-					...(kind ? { kind } : {}),
-					...(state ? { state } : {}),
-				}),
-			);
-		}),
-	);
-	input.app.get("/api/me/profile-memory/items/:memoryId", (c) =>
+	input.app.get("/api/me/profile-memory/profile", (c) =>
 		handle(c, async (service, principal) =>
-			jsonResponse({
-				item: await service.getItem({ principal, memoryId: c.req.param("memoryId") }),
-			}),
+			jsonResponse({ profile: await service.getProfile({ principal }) }),
 		),
 	);
-	input.app.post("/api/me/profile-memory/items", (c) =>
+	input.app.post("/api/me/profile-memory/corrections", (c) =>
 		handle(c, async (service, principal) => {
 			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
 			return mutationResponse(
 				c,
 				service,
-				await service.createItem({
+				await service.submitCorrection({
 					principal,
 					idempotencyKey: requireIdempotencyKey(c.req.raw),
 					text: requireStringField(body, "text"),
-				}),
-			);
-		}),
-	);
-	input.app.patch("/api/me/profile-memory/items/:memoryId", (c) =>
-		handle(c, async (service, principal) => {
-			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
-			const state = body.state;
-			if (state !== undefined && state !== "active" && state !== "inactive") {
-				throw new AppApiRouteError({
-					code: "invalid_request",
-					message: "Invalid memory state.",
-					status: 400,
-					retryable: false,
-				});
-			}
-			return mutationResponse(
-				c,
-				service,
-				await service.updateItem({
-					principal,
-					idempotencyKey: requireIdempotencyKey(c.req.raw),
-					memoryId: c.req.param("memoryId"),
-					...(body.text === undefined ? {} : { text: requireStringField(body, "text") }),
-					...(state === undefined ? {} : { state }),
 				}),
 			);
 		}),

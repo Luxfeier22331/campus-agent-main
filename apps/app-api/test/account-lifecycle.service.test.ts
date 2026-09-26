@@ -165,7 +165,7 @@ describe("account lifecycle service", () => {
 	it("deletes product data and the Better Auth user only after memory erasure converges", async () => {
 		const eraseForAccountDeletion = vi
 			.fn()
-			.mockResolvedValue({ lifecycleState: "erasing", syncStatus: "pending" });
+			.mockResolvedValue({ lifecycleState: "erased", syncStatus: "pending" });
 		const dispatchPending = vi.fn().mockResolvedValue({ admitted: 1, failed: 0, processed: 1 });
 		const completeDeletion = vi.fn();
 		const deleteOwnedData = vi.fn();

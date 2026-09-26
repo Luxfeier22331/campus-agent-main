@@ -8,11 +8,14 @@ import (
 )
 
 type MemoryStore interface {
+	AbandonStaleGenerationReceipts(context.Context, string, int64, time.Time) (int, error)
 	BeginCall(context.Context, string, string, int64, string, time.Duration) error
 	BeginCommand(context.Context, string, memoryruntime.PersonalMemoryCommandRequest, time.Duration) (memoryruntime.CommandReceipt, bool, error)
 	EndCall(context.Context, string, string) error
 	FinalizeCommand(context.Context, string, string, string, string, string, string) (memoryruntime.CommandReceipt, error)
+	GetCommand(context.Context, string, string) (memoryruntime.CommandReceipt, error)
 	GenerationDrained(context.Context, string, int64) (bool, error)
+	ListGenerationAppendCallIDs(context.Context, string, int64) ([]string, error)
 	MarkOwnerDeleted(context.Context, string) error
 	MarkCommandRetryable(context.Context, string, string) error
 }
@@ -24,8 +27,7 @@ type MemoryExecutor interface {
 }
 
 type MemoryReader interface {
-	ListMemories(context.Context, memoryruntime.MemoryQuery) (memoryruntime.MemoryPage, error)
-	GetMemory(context.Context, memoryruntime.MemoryQuery) (memoryruntime.MemoryRecord, error)
+	GetProfile(context.Context, memoryruntime.ProfileQuery) (memoryruntime.ProfileRecord, error)
 }
 
 type AsyncMemoryExecutor interface {

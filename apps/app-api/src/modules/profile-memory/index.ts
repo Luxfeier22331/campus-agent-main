@@ -1,13 +1,9 @@
 export type {
 	ProfileMemoryEdit,
-	ProfileMemoryItem,
-	ProfileMemoryItemState,
-	ProfileMemoryKind,
 	ProfileMemoryLifecycleState,
 	ProfileMemoryList,
 	ProfileMemoryMutationResult,
-	ProfileMemoryPage,
-	ProfileMemoryQuery,
+	ProfileMemoryProfile,
 	ProfileMemorySyncStatus,
 } from "./model";
 export type {

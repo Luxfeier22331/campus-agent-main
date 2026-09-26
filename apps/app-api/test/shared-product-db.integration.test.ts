@@ -714,8 +714,12 @@ describe("app-api shared product DB integration", () => {
 			updatedAt: "2026-09-12T01:00:00Z",
 		});
 		const [accepted, replayed] = await Promise.all([
-			first.createItem({ ...base("add"), text: "先给结论" }),
-			second.createItem({ ...base("add"), commandId: `alternative-${suffix}`, text: "先给结论" }),
+			first.submitCorrection({ ...base("add"), text: "先给结论" }),
+			second.submitCorrection({
+				...base("add"),
+				commandId: `alternative-${suffix}`,
+				text: "先给结论",
+			}),
 		]);
 		expect(accepted.commandId).toBe(replayed.commandId);
 		expect(accepted.syncStatus).toBe("synced");
@@ -727,7 +731,7 @@ describe("app-api shared product DB integration", () => {
 				resultFingerprint: (status === "failed" ? "b" : "a").repeat(64),
 				updatedAt: "2026-09-12T01:01:00Z",
 			});
-		await first.updateItem({ ...base("edit"), memoryId: "fact-1", text: "先给一句结论" });
+		await first.submitCorrection({ ...base("edit"), text: "先给一句结论" });
 		expect(
 			(await first.listPendingAdmissions({ limit: 100 })).filter(
 				(c) => c.ownerUserId === ownerUserId,
@@ -773,11 +777,10 @@ describe("app-api shared product DB integration", () => {
 			expect.objectContaining({
 				commandId: retry.commandId,
 				item: { text: "先给一句结论" },
-				subjectId: "fact-1",
 			}),
 		]);
 		await complete(retry.commandId, "succeeded");
-		await first.updateItem({ ...base("disable"), memoryId: "fact-1", state: "inactive" });
+		await first.submitCorrection({ ...base("disable"), text: "不再需要结论" });
 		await first.erase(base("erase"));
 		const db = requireClient(client);
 		const payloads = await db.query(
@@ -791,7 +794,9 @@ describe("app-api shared product DB integration", () => {
 			syncStatus: "synced",
 			operations: [],
 		});
-		await expect(first.createItem({ ...base("after"), text: "blocked" })).rejects.toMatchObject({
+		await expect(
+			first.submitCorrection({ ...base("after"), text: "blocked" }),
+		).rejects.toMatchObject({
 			code: "profile_memory_not_ready",
 		});
 		await first.setLifecycle({ ...base("enable"), lifecycleState: "active" });
@@ -815,7 +820,7 @@ describe("app-api shared product DB integration", () => {
 				requestFingerprint: `erase-request-first-${suffix}`,
 				updatedAt: "2026-07-16T05:00:00.000Z",
 			}),
-		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+		).resolves.toMatchObject({ lifecycleState: "erased", syncStatus: "pending" });
 
 		await expect(
 			store.erase({
@@ -825,7 +830,7 @@ describe("app-api shared product DB integration", () => {
 				requestFingerprint: `erase-request-pending-${suffix}`,
 				updatedAt: "2026-07-16T05:00:01.000Z",
 			}),
-		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+		).resolves.toMatchObject({ lifecycleState: "erased", syncStatus: "pending" });
 
 		let commandRows = await dbClient.query<{
 			command_id: string;
@@ -862,7 +867,7 @@ describe("app-api shared product DB integration", () => {
 				requestFingerprint: `erase-request-admitted-${suffix}`,
 				updatedAt: "2026-07-16T05:00:03.000Z",
 			}),
-		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+		).resolves.toMatchObject({ lifecycleState: "erased", syncStatus: "pending" });
 
 		await expect(
 			store.applyCommandResult({
@@ -882,7 +887,7 @@ describe("app-api shared product DB integration", () => {
 				requestFingerprint: `erase-request-retry-${suffix}`,
 				updatedAt: "2026-07-16T05:00:05.000Z",
 			}),
-		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+		).resolves.toMatchObject({ lifecycleState: "erased", syncStatus: "pending" });
 
 		commandRows = await dbClient.query<{
 			command_id: string;

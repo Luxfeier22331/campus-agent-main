@@ -114,11 +114,14 @@ export function createPgAccountLifecycleStore(input: {
 		async isMemoryErased(ownerUserId) {
 			const db = await getDb();
 			const rows = await db
-				.select({ lifecycleState: profileMemorySettings.lifecycleState })
+				.select({
+					lifecycleState: profileMemorySettings.lifecycleState,
+					syncStatus: profileMemorySettings.syncStatus,
+				})
 				.from(profileMemorySettings)
 				.where(eq(profileMemorySettings.ownerUserId, ownerUserId))
 				.limit(1);
-			return rows[0]?.lifecycleState === "erased";
+			return rows[0]?.lifecycleState === "erased" && rows[0]?.syncStatus === "synced";
 		},
 
 		async recordFailure(failure) {

@@ -7,6 +7,9 @@ Status: implemented
 个人记忆同时包含原始事实、派生观察和用户管理操作。产品侧的手工内容投影与来源删除路径会
 形成第二个内容所有者；完整清除仍需要用户生命周期、generation fence 和在途排空。
 
+命令运行时和生命周期恢复的 owner 另见[个人记忆协调器与生命周期合同](./2026-09-24-agent-memory-coordinator.md)。本文继续约束 Hindsight
+内容所有权、用户管理语义和清除范围。
+
 ## 决策
 
 保持 Hindsight 作为内容和派生记忆的唯一 owner。产品数据库只拥有用户生命周期与待执行命令，
@@ -47,3 +50,7 @@ Status: implemented
 
 具体 API、状态和失败行为由 [记忆接口](../../../../docs/contracts/app-api/memory.md) 与
 [记忆架构](../../../../docs/architecture/system/memory-plane.md) 维护。
+
+命令 receipt、运行时终态、callback 丢失恢复和 `BeginErase`/`DrainAndDelete` 的新 owner 合同由
+[个人记忆协调器与生命周期合同](./2026-09-24-agent-memory-coordinator.md)
+部分取代本文中关于 app-api 命令推进和回调恢复的表述。

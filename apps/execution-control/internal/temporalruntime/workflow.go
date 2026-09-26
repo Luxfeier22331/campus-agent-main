@@ -651,6 +651,20 @@ func failWorkflowStage(
 	return ToolExecutionWorkflowResult{}, cause
 }
 
+// personalMemoryCommandBlockedWaitTimeout bounds how long a command workflow
+// waits behind an unresolved earlier receipt. The wait outlives every live
+// retry chain; a receipt still blocking after this bound has a dead workflow,
+// and the command fails with memory_command_wait_timeout so admission can
+// retry it after the blocker's owner reconciles the stale receipt.
+const personalMemoryCommandBlockedWaitTimeout = 30 * time.Minute
+
+// errPersonalMemoryCommandWaitTimeout marks a command that gave up waiting at
+// the owner receipt gate.
+var errPersonalMemoryCommandWaitTimeout = temporal.NewApplicationError(
+	"personal memory command wait timed out",
+	"memory_command_wait_timeout",
+)
+
 func PersonalMemoryCommandWorkflow(
 	ctx workflow.Context,
 	input PersonalMemoryCommandWorkflowInput,
@@ -658,9 +672,13 @@ func PersonalMemoryCommandWorkflow(
 	providerOptions := personalMemoryCommandProviderActivityOptions(input.Command.CommandKind)
 	var result PersonalMemoryCommandActivityOutput
 	if err := executePersonalMemoryCommandProvider(ctx, providerOptions, input.Command, &result); err != nil {
+		errorCode := "personal_memory_command_failed"
+		if errors.Is(err, errPersonalMemoryCommandWaitTimeout) {
+			errorCode = "memory_command_wait_timeout"
+		}
 		result = PersonalMemoryCommandActivityOutput{
 			CommandID: input.Command.CommandID,
-			ErrorCode: "personal_memory_command_failed",
+			ErrorCode: errorCode,
 			Status:    "failed",
 		}
 	}
@@ -691,6 +709,8 @@ func executePersonalMemoryCommandProvider(
 	command PersonalMemoryCommandRequest,
 	result *PersonalMemoryCommandActivityOutput,
 ) error {
+	deadline := workflow.Now(ctx).Add(personalMemoryCommandBlockedWaitTimeout)
+	waitInterval := time.Second
 	for {
 		providerCtx := workflow.WithActivityOptions(ctx, options)
 		err := executeBoundedActivity(
@@ -703,8 +723,17 @@ func executePersonalMemoryCommandProvider(
 		}
 		switch workflowFailureKind(err, "personal_memory_command_failed") {
 		case "memory_command_owner_blocked", "memory_command_receipt_active":
-			if sleepErr := workflow.Sleep(ctx, time.Second); sleepErr != nil {
+			if !workflow.Now(ctx).Before(deadline) {
+				return errPersonalMemoryCommandWaitTimeout
+			}
+			if sleepErr := workflow.Sleep(ctx, waitInterval); sleepErr != nil {
 				return sleepErr
+			}
+			if waitInterval < 10*time.Second {
+				waitInterval *= 2
+				if waitInterval > 10*time.Second {
+					waitInterval = 10 * time.Second
+				}
 			}
 		default:
 			return err

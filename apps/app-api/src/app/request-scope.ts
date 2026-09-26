@@ -91,6 +91,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				if (!memory) {
 					memory = buildProfileMemoryService({
 						commandAdmitter: createExecutionControlPersonalMemoryClient(input.env),
+						commandStatusReader: createExecutionControlPersonalMemoryClient(input.env),
 						memoryReader: createExecutionControlPersonalMemoryClient(input.env),
 						commandStore: persistence.commands,
 						mutationStore: persistence.mutations,

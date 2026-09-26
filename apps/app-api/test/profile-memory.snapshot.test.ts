@@ -44,4 +44,21 @@ describe("profile memory accepted-request snapshot", () => {
 			recallEnabled: false,
 		});
 	});
+
+	it("does not expose runtime memory while an active lifecycle command failed", async () => {
+		const { transaction } = createTransaction([
+			{
+				commandSequence: 8,
+				generation: 3,
+				lifecycleState: "active",
+				syncStatus: "failed",
+			},
+		]);
+
+		await expect(captureProfileMemorySnapshotForUpdate(transaction, "user_01HQ")).resolves.toEqual({
+			appendEnabled: false,
+			ownerGeneration: 3,
+			recallEnabled: false,
+		});
+	});
 });

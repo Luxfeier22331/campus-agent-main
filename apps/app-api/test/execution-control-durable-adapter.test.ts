@@ -420,8 +420,8 @@ describe("execution control runtime adapter", () => {
 
 		await client.admit({
 			commandId: "memcmd_01HQ",
-			commandKind: "memory_update",
-			item: { state: "inactive" },
+			commandKind: "memory_add",
+			item: { text: "新的偏好" },
 			lifecycleState: "active",
 			ownerGeneration: 2,
 			ownerSequence: 7,
@@ -441,8 +441,8 @@ describe("execution control runtime adapter", () => {
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
 			command_id: "memcmd_01HQ",
-			command_kind: "memory_update",
-			item: { state: "inactive" },
+			command_kind: "memory_add",
+			item: { text: "新的偏好" },
 			lifecycle_state: "active",
 			owner_generation: 2,
 			owner_sequence: 7,
@@ -450,6 +450,45 @@ describe("execution control runtime adapter", () => {
 			source_updated_at: "2026-06-10T08:00:00.000Z",
 			subject_id: "fact_01",
 			supersession_scope: "memory:fact_01",
+			tenant_id: "tenant-main",
+			user_id: "user_01HQ",
+		});
+	});
+
+	it("reads native memory command receipts for admitted-command recovery", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					command_id: "memcmd_01HQ",
+					error_code: "",
+					generation: 2,
+					kind: "memory_add",
+					result_fingerprint: "a".repeat(64),
+					sequence: 7,
+					stale: false,
+					status: "succeeded",
+				}),
+				{ status: 200 },
+			),
+		);
+		const client = createExecutionControlPersonalMemoryClient(
+			{
+				DEPLOYMENT_ENVIRONMENT: "test",
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		await expect(
+			client.getCommandStatus({ commandId: "memcmd_01HQ", ownerUserId: "user_01HQ" }),
+		).resolves.toMatchObject({ commandId: "memcmd_01HQ", status: "succeeded" });
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"https://execution-control.internal/internal/memory/personal/commands/status",
+			expect.objectContaining({ method: "POST" }),
+		);
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
+			command_id: "memcmd_01HQ",
 			tenant_id: "tenant-main",
 			user_id: "user_01HQ",
 		});

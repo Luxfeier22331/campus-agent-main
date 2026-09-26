@@ -83,7 +83,7 @@ func TestPersonalMemoryCommandRetryPolicySeparatesFullEraseFromOrdinaryEdits(t *
 			t.Fatalf("%s maximum attempts = %#v, want unlimited", commandKind, options.RetryPolicy)
 		}
 	}
-	for _, commandKind := range []string{"memory_add", "memory_update", "owner_transition"} {
+	for _, commandKind := range []string{"memory_add", "owner_transition"} {
 		options := personalMemoryCommandProviderActivityOptions(commandKind)
 		if options.RetryPolicy == nil || options.RetryPolicy.MaximumAttempts != 5 {
 			t.Fatalf("%s maximum attempts = %#v, want 5", commandKind, options.RetryPolicy)

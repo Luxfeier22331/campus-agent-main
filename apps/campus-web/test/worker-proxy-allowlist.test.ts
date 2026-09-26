@@ -52,9 +52,11 @@ describe("campus worker app-api proxy allowlist", () => {
 
 	it("allows profile memory routes used by the student account surface", () => {
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/items")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/profile")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/corrections")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/settings")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/items/mem_01HQ")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/items")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/items/mem_01HQ")).toBe(false);
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/export")).toBe(false);
 		expect(isAllowedCampusAppApiRequest("/api/me/security/sessions")).toBe(false);
 		expect(isAllowedCampusAppApiRequest("/api/me/authorized-apps")).toBe(false);

@@ -43,18 +43,17 @@ function service(): ProfileMemoryService {
 	};
 	return {
 		applyResult: vi.fn(async () => "applied" as const),
-		createItem: vi.fn(async () => pending),
-		updateItem: vi.fn(async () => pending),
+		submitCorrection: vi.fn(async () => pending),
 		retryCommand: vi.fn(async () => pending),
 		dispatchPending: vi.fn(async () => ({ admitted: 0, failed: 0, processed: 0 })),
 		erase: vi.fn(async () => ({
 			...pending,
-			lifecycleState: "erasing" as const,
+			lifecycleState: "erased" as const,
 			syncStatus: "pending" as const,
 		})),
 		eraseForAccountDeletion: vi.fn(async () => ({
 			...pending,
-			lifecycleState: "erasing" as const,
+			lifecycleState: "erased" as const,
 			syncStatus: "pending" as const,
 		})),
 		list: vi.fn(async () => ({
@@ -62,15 +61,11 @@ function service(): ProfileMemoryService {
 			lifecycleState: "active" as const,
 			syncStatus: "synced" as const,
 		})),
-		listItems: vi.fn(async () => ({ items: [], total: 0, limit: 20, offset: 0 })),
-		getItem: vi.fn(async () => ({
-			memoryId: "fact",
-			text: "先给结论",
-			kind: "fact" as const,
-			state: "active" as const,
-			origin: "manual" as const,
-			mentionedAt: null,
-			editedAt: null,
+		getProfile: vi.fn(async () => ({
+			content: "偏好简洁回复",
+			generating: false,
+			isStale: false,
+			lastRefreshedAt: "2026-09-24T00:00:00Z",
 		})),
 		setLifecycle: vi.fn(async () => ({
 			...pending,
@@ -94,10 +89,8 @@ describe("profile memory routes", () => {
 	});
 
 	it.each([
-		["POST", "/api/me/profile-memory/items", { text: "先给结论" }],
-		["PATCH", "/api/me/profile-memory/items/mem_01", { text: "简洁回答" }],
+		["POST", "/api/me/profile-memory/corrections", { text: "先给结论" }],
 		["PATCH", "/api/me/profile-memory/settings", { enabled: false }],
-		["PATCH", "/api/me/profile-memory/items/mem_01", { state: "inactive" }],
 		["DELETE", "/api/me/profile-memory", undefined],
 	] as const)("requires idempotency and returns 202 for %s %s", async (method, path, body) => {
 		const profileMemoryService = service();
@@ -119,42 +112,52 @@ describe("profile memory routes", () => {
 		expect(profileMemoryService.dispatchPending).toHaveBeenCalledTimes(1);
 	});
 
-	it("retires per-item deletion", async () => {
+	it("retires per-item CRUD routes", async () => {
 		const app = createApp(env, {
 			getPrincipal: vi.fn().mockResolvedValue(principal()),
 			profileMemoryService: service(),
 		});
-		expect(
-			(
-				await app.fetch(
-					new Request("https://app-api.internal/api/me/profile-memory/items/fact", {
-						method: "DELETE",
+		for (const path of [
+			"/api/me/profile-memory/items",
+			"/api/me/profile-memory/items/fact",
+		] as const) {
+			for (const method of ["GET", "POST", "PATCH", "DELETE"] as const) {
+				const response = await app.fetch(
+					new Request(`https://app-api.internal${path}`, {
+						...(method === "GET" || method === "DELETE"
+							? {}
+							: {
+									body: JSON.stringify({ text: "先给结论" }),
+									headers: {
+										"content-type": "application/json",
+										"idempotency-key": "idem-retired-0001",
+									},
+								}),
+						method,
 					}),
-				)
-			).status,
-		).toBe(404);
+				);
+				expect(response.status, `${method} ${path}`).toBe(404);
+			}
+		}
 	});
-	it("passes the search, type, state and pagination to the reader", async () => {
+	it("returns the synthesized profile", async () => {
 		const memory = service();
 		const app = createApp(env, {
 			getPrincipal: vi.fn().mockResolvedValue(principal()),
 			profileMemoryService: memory,
 		});
 		const response = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/me/profile-memory/items?q=偏好&kind=fact&state=inactive&limit=10&offset=20",
-			),
+			new Request("https://app-api.internal/api/me/profile-memory/profile"),
 		);
 		expect(response.status).toBe(200);
-		expect(memory.listItems).toHaveBeenCalledWith(
-			expect.objectContaining({
-				q: "偏好",
-				kind: "fact",
-				state: "inactive",
-				limit: 10,
-				offset: 20,
-			}),
-		);
+		await expect(response.json()).resolves.toEqual({
+			profile: {
+				content: "偏好简洁回复",
+				generating: false,
+				isStale: false,
+				lastRefreshedAt: "2026-09-24T00:00:00Z",
+			},
+		});
 	});
 	it("rejects mutations without Idempotency-Key", async () => {
 		const app = createApp(env, {

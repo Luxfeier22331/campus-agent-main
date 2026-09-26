@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	hindsight "github.com/vectorize-io/hindsight/hindsight-clients/go"
 )
 
 func TestHindsightAppendRetainsOneSynchronousUserMessageDocument(t *testing.T) {
@@ -53,26 +54,10 @@ func TestHindsightAppendUsesExistingBankWithoutReconfiguringIt(t *testing.T) {
 	}
 }
 
-func TestHindsightMemoryUpdateUsesNativeCuration(t *testing.T) {
-	client := &fakeHindsightClient{}
-	executor := hindsightExecutor{client: client, ownerSalt: "test-salt"}
-	result, err := executor.ExecuteCommand(context.Background(), memoryruntime.PersonalMemoryCommandRequest{
-		CommandID: "curate", CommandKind: "memory_update", OwnerGeneration: 1, OwnerSequence: 1,
-		SubjectID: "fact-1", Item: &memoryruntime.PersonalMemoryCommandItem{State: "inactive"},
-		SchemaVersion: memoryruntime.PersonalMemoryCommandSchemaVersion, SupersessionScope: "memory:fact-1",
-		SourceUpdatedAt: "2026-07-16T00:00:00Z", TenantID: "tenant-main", UserID: "user-executor",
-	})
-	if err != nil || result.Status != "succeeded" || client.updatedMemoryID != "fact-1" || client.updatedMemory.State != "inactive" {
-		t.Fatalf("result=%#v client=%#v err=%v", result, client, err)
-	}
-}
-
 type fakeHindsightClient struct {
 	bankExists        bool
 	bankExistsCalls   int
 	deletedBankID     string
-	updatedMemoryID   string
-	updatedMemory     memoryruntime.PersonalMemoryCommandItem
 	ensuredBankConfig hindsightBankConfig
 	ensuredBankID     string
 	ensureBankCalls   int
@@ -81,6 +66,13 @@ type fakeHindsightClient struct {
 	retainedAsync     bool
 	retainedBankID    string
 	retainedItems     []hindsightMemoryItem
+
+	mentalModel            hindsightProfileModelSnapshot
+	mentalModelFound       bool
+	getMentalModelCalls    int
+	createdMentalModelBank string
+	createdMentalModelReq  hindsight.CreateMentalModelRequest
+	createMentalModelCalls int
 }
 
 func (c *fakeHindsightClient) GetOperation(_ context.Context, _, operationID string) (memoryruntime.AppendOperation, error) {
@@ -115,14 +107,14 @@ func (f *fakeHindsightClient) DeleteBank(_ context.Context, bankID string) error
 
 func boolPtr(value bool) *bool { return &value }
 
-func (f *fakeHindsightClient) ListMemories(context.Context, string, memoryruntime.MemoryQuery) (memoryruntime.MemoryPage, error) {
-	return memoryruntime.MemoryPage{Items: []memoryruntime.MemoryRecord{}}, nil
+func (f *fakeHindsightClient) GetMentalModel(_ context.Context, _ string, _ string) (hindsightProfileModelSnapshot, bool, error) {
+	f.getMentalModelCalls++
+	return f.mentalModel, f.mentalModelFound, nil
 }
-func (f *fakeHindsightClient) GetMemory(context.Context, string, string) (memoryruntime.MemoryRecord, error) {
-	return memoryruntime.MemoryRecord{}, memoryruntime.ErrMemoryNotFound
-}
-func (f *fakeHindsightClient) UpdateMemory(_ context.Context, _ string, id string, edit memoryruntime.PersonalMemoryCommandItem) error {
-	f.updatedMemoryID = id
-	f.updatedMemory = edit
+
+func (f *fakeHindsightClient) CreateMentalModel(_ context.Context, bankID string, request hindsight.CreateMentalModelRequest) error {
+	f.createMentalModelCalls++
+	f.createdMentalModelBank = bankID
+	f.createdMentalModelReq = request
 	return nil
 }
