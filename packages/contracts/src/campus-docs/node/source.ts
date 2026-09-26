@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { compareCanonicalStrings } from "../../canonical-order.ts";
 import type {
 	DocsCollection,
 	DocsDocument,
@@ -24,20 +25,23 @@ export function normalizeSourceManifest(value: DocsSourceManifest): DocsSourceMa
 	}
 	const source: DocsSourceManifest = {
 		collections: [...value.collections].sort((left, right) =>
-			scope(left).localeCompare(scope(right)),
+			compareCanonicalStrings(scope(left), scope(right)),
 		),
 		documents: [...value.documents].sort((left, right) =>
-			`${scope(left)}/${left.documentSlug}`.localeCompare(`${scope(right)}/${right.documentSlug}`),
+			compareCanonicalStrings(
+				`${scope(left)}/${left.documentSlug}`,
+				`${scope(right)}/${right.documentSlug}`,
+			),
 		),
 		redirects: [...value.redirects].sort((left, right) =>
-			left.fromPath.localeCompare(right.fromPath),
+			compareCanonicalStrings(left.fromPath, right.fromPath),
 		),
 		schemaVersion: "campus_docs_source.v4",
 		topics: [...value.topics].sort(
 			(left, right) =>
-				left.corpus.localeCompare(right.corpus) ||
+				compareCanonicalStrings(left.corpus, right.corpus) ||
 				left.order - right.order ||
-				left.topicId.localeCompare(right.topicId),
+				compareCanonicalStrings(left.topicId, right.topicId),
 		),
 		versions: [...value.versions]
 			.map((version) => ({
@@ -45,7 +49,10 @@ export function normalizeSourceManifest(value: DocsSourceManifest): DocsSourceMa
 				supplements: normalizeSupplements(version.supplements),
 			}))
 			.sort((left, right) =>
-				`${left.docId}/${left.versionSlug}`.localeCompare(`${right.docId}/${right.versionSlug}`),
+				compareCanonicalStrings(
+					`${left.docId}/${left.versionSlug}`,
+					`${right.docId}/${right.versionSlug}`,
+				),
 			),
 	};
 	assertDocsSourceRelationships(source);
@@ -277,10 +284,12 @@ function normalizeSupplements(supplements: DocsSupplement[]): DocsSupplement[] {
 	return supplements
 		.map((supplement) => ({
 			...supplement,
-			assets: [...supplement.assets].sort((left, right) => left.path.localeCompare(right.path)),
+			assets: [...supplement.assets].sort((left, right) =>
+				compareCanonicalStrings(left.path, right.path),
+			),
 		}))
 		.sort((left, right) =>
-			`${left.kind}/${left.path}`.localeCompare(`${right.kind}/${right.path}`),
+			compareCanonicalStrings(`${left.kind}/${left.path}`, `${right.kind}/${right.path}`),
 		);
 }
 

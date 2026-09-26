@@ -1,10 +1,14 @@
 import { existsSync } from "node:fs";
 
 import { localDatabaseProbe } from "./database-roles";
-import { loadLocalInfrastructureSecrets } from "./infrastructure-secrets";
+import {
+	loadLocalInfrastructureSecrets,
+	resolveLocalInfrastructureSecretsPath,
+} from "./infrastructure-secrets";
 import {
 	inspectLocalInfrastructure,
 	type LocalResourceProbe,
+	localBucketProbe,
 	localComposeArgs,
 	removeLocalInfrastructure,
 } from "./local-infrastructure";
@@ -20,6 +24,7 @@ import {
 import type { LocalDevCapability } from "./targets";
 
 const TEMPORAL_NAMESPACE_TIMEOUT_MS = 10_000;
+const TEMPORAL_NAMESPACE_PROBE_ATTEMPTS = 5;
 
 export type LocalDevInstanceStatus =
 	| "ready"
@@ -79,35 +84,65 @@ export function localTemporalNamespace(profile: LocalDevProfile): string {
 	return `campus-agent-local-${profile.instanceId}`;
 }
 
+function localTemporalAddress(repoRoot: string, profile: LocalDevProfile): string {
+	const containerId = captureCommandResult(
+		"docker",
+		[...localComposeArgs(repoRoot, profile), "ps", "-q", "temporal"],
+		{ cwd: repoRoot, timeout: TEMPORAL_NAMESPACE_TIMEOUT_MS },
+	).stdout.trim();
+	if (!containerId) {
+		return "temporal:7233";
+	}
+	const ipAddress = captureCommandResult(
+		"docker",
+		[
+			"inspect",
+			containerId,
+			"--format",
+			"{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+		],
+		{ cwd: repoRoot, timeout: TEMPORAL_NAMESPACE_TIMEOUT_MS },
+	).stdout.trim();
+	return ipAddress ? `${ipAddress}:7233` : "temporal:7233";
+}
+
 export async function probeLocalTemporalNamespace(
 	repoRoot: string,
 	profile: LocalDevProfile,
 ): Promise<"present" | "missing" | "unknown"> {
-	const result = captureCommandResult(
-		"docker",
-		[
-			...localComposeArgs(repoRoot, profile),
-			"exec",
-			"-T",
-			"temporal",
-			"temporal",
-			"operator",
-			"namespace",
-			"describe",
-			"--address",
-			"temporal:7233",
-			"--namespace",
-			localTemporalNamespace(profile),
-		],
-		{ cwd: repoRoot, timeout: TEMPORAL_NAMESPACE_TIMEOUT_MS },
-	);
-	if (result.status === 0 && !result.error && !result.timedOut) {
-		return "present";
+	const address = localTemporalAddress(repoRoot, profile);
+	const args = [
+		...localComposeArgs(repoRoot, profile),
+		"exec",
+		"-T",
+		"temporal",
+		"temporal",
+		"operator",
+		"namespace",
+		"describe",
+		"--address",
+		address,
+		"--namespace",
+		localTemporalNamespace(profile),
+	];
+	for (let attempt = 1; ; attempt++) {
+		const result = captureCommandResult("docker", args, {
+			cwd: repoRoot,
+			timeout: TEMPORAL_NAMESPACE_TIMEOUT_MS,
+		});
+		if (result.status === 0 && !result.error && !result.timedOut) {
+			return "present";
+		}
+		if (/Namespace .* not found|namespace .* not found|not found/u.test(result.stderr)) {
+			return "missing";
+		}
+		if (attempt >= TEMPORAL_NAMESPACE_PROBE_ATTEMPTS) {
+			return "unknown";
+		}
+		await new Promise((resolve) => {
+			setTimeout(resolve, 1_000);
+		});
 	}
-	if (/Namespace .* not found|namespace .* not found|not found/u.test(result.stderr)) {
-		return "missing";
-	}
-	return "unknown";
 }
 
 export async function ensureLocalTemporalNamespace(
@@ -133,7 +168,7 @@ export async function ensureLocalTemporalNamespace(
 			"namespace",
 			"create",
 			"--address",
-			"temporal:7233",
+			localTemporalAddress(repoRoot, profile),
 			"--namespace",
 			localTemporalNamespace(profile),
 			"--retention",
@@ -143,10 +178,52 @@ export async function ensureLocalTemporalNamespace(
 	);
 }
 
+export function resolveUnmanagedInstanceCleanup(input: {
+	infraProject: string;
+	instanceId: string;
+	remainingResources: readonly string[];
+}): LocalInstanceResourceCleanup {
+	if (input.remainingResources.length > 0) {
+		throw new Error(
+			`Local infrastructure credentials are missing for ${input.instanceId}, and Compose resources remain (${input.remainingResources.join(", ")}). Remove them with docker compose --project-name ${input.infraProject} down --volumes --remove-orphans, then re-run pnpm dev:destroy.`,
+		);
+	}
+	return { bucket: "missing", database: "missing", namespace: "missing", unresolved: [] };
+}
+
+async function listLocalComposeResources(profile: LocalDevProfile): Promise<string[]> {
+	if (!profile.infraProject) {
+		return [];
+	}
+	const label = `com.docker.compose.project=${profile.infraProject}`;
+	const resources: string[] = [];
+	for (const args of [
+		["ps", "-a", "--filter", `label=${label}`, "--format", "{{.Names}}"],
+		["volume", "ls", "--filter", `label=${label}`, "--format", "{{.Name}}"],
+		["network", "ls", "--filter", `label=${label}`, "--format", "{{.Name}}"],
+	] as string[][]) {
+		const result = captureCommandResult("docker", args);
+		if (result.error || result.status !== 0) {
+			throw new Error(
+				`Unable to inspect remaining Compose resources for project ${profile.infraProject}: ${result.error?.message ?? result.stderr.trim()}`,
+			);
+		}
+		resources.push(...result.stdout.split("\n").filter((value) => value !== ""));
+	}
+	return resources;
+}
+
 export async function destroyLocalInstanceResources(
 	repoRoot: string,
 	profile: LocalDevProfile,
 ): Promise<LocalInstanceResourceCleanup> {
+	if (!existsSync(resolveLocalInfrastructureSecretsPath(repoRoot, profile))) {
+		return resolveUnmanagedInstanceCleanup({
+			infraProject: profile.infraProject,
+			instanceId: profile.instanceId,
+			remainingResources: await listLocalComposeResources(profile),
+		});
+	}
 	const secrets = loadLocalInfrastructureSecrets(repoRoot, profile);
 	const database = localDatabaseProbe(profile, secrets.postgresPassword);
 	const bucket = await localBucketProbe(repoRoot, profile, profile.bucketName);

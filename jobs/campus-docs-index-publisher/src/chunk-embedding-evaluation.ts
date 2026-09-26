@@ -2,6 +2,8 @@ import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
+
 import {
 	artifactHex,
 	CAMPUS_DOCS_CHUNK_GOVERNANCE_ROOT,
@@ -242,7 +244,8 @@ export function evaluateCampusDocsDenseRetrieval(input: {
 			}))
 			.sort(
 				(left, right) =>
-					right.score - left.score || left.chunk.chunkId.localeCompare(right.chunk.chunkId),
+					right.score - left.score ||
+					compareCanonicalStrings(left.chunk.chunkId, right.chunk.chunkId),
 			);
 		const targetEvidence = question.evidence.map((evidence) =>
 			bestRankedChunk(
@@ -383,7 +386,9 @@ async function resolveEmbeddingVectors(input: {
 	const cachedNames = new Set(await readdir(cacheDirectory));
 	const vectorsByTextSha256 = new Map<Sha256Ref, number[]>();
 	const missing: Array<[Sha256Ref, string]> = [];
-	const sortedInputs = [...input.textBySha256].sort(([left], [right]) => left.localeCompare(right));
+	const sortedInputs = [...input.textBySha256].sort(([left], [right]) =>
+		compareCanonicalStrings(left, right),
+	);
 	for (const [textSha256, text] of sortedInputs) {
 		const fileName = `${artifactHex(textSha256)}.json`;
 		if (!cachedNames.has(fileName)) {

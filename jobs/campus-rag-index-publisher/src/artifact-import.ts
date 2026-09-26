@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { assembleCandidate } from "./publisher.ts";
 import type { ReaderObjectStore, Sha256Ref, WritableObjectStore } from "./types.ts";
 
@@ -76,7 +77,7 @@ export async function collectValidatedArtifactClosure(input: {
 	};
 	await input.validate(recordingStore);
 	const objects = [...recorded.entries()]
-		.sort(([left], [right]) => left.localeCompare(right))
+		.sort(([left], [right]) => compareCanonicalStrings(left, right))
 		.map(([key, body]) => ({ body, key }));
 	if (objects.length === 0) {
 		throw new Error("validated Campus RAG artifact closure is empty");

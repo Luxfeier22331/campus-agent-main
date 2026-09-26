@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import {
 	NOTICE_EMBEDDING_EVALUATION_DEFINITION,
 	type NoticeEmbeddingEvaluationMetrics,
@@ -37,7 +38,8 @@ export function evaluateDenseRetrieval(input: {
 			}))
 			.sort(
 				(left, right) =>
-					right.score - left.score || left.chunk.chunkId.localeCompare(right.chunk.chunkId),
+					right.score - left.score ||
+					compareCanonicalStrings(left.chunk.chunkId, right.chunk.chunkId),
 			);
 		const targetEvidence = question.evidence.map((evidence) =>
 			bestRankedChunk(

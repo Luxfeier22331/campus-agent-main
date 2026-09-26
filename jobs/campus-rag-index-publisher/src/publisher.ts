@@ -2,6 +2,7 @@ import { ArtifactValidationError } from "@campus-agent/embedding-runtime";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 
 import {
@@ -307,7 +308,7 @@ function sortJson(value: unknown): unknown {
 	if (!value || typeof value !== "object") return value;
 	return Object.fromEntries(
 		Object.entries(value as Record<string, unknown>)
-			.sort(([left], [right]) => left.localeCompare(right))
+			.sort(([left], [right]) => compareCanonicalStrings(left, right))
 			.map(([key, child]) => [key, sortJson(child)]),
 	);
 }

@@ -3,7 +3,7 @@ import type { SparseVector } from "../types.ts";
 export function buildSparseVector(text: string): SparseVector {
 	const counts = new Map<number, number>();
 	for (const token of tokenize(text)) {
-		const normalized = token.text.toLocaleLowerCase("und");
+		const normalized = token.text.toLowerCase();
 		if (!/[\p{L}\p{N}\p{Script=Han}]/u.test(normalized)) {
 			continue;
 		}

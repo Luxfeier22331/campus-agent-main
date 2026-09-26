@@ -171,6 +171,9 @@ export function checkValidationOutcomes(
 	if (plan.lightSurfaces.includes("contracts")) {
 		required.push("contracts");
 	}
+	if (plan.lightSurfaces.includes("canonical-order")) {
+		required.push("canonical-order");
+	}
 	if (plan.lightSurfaces.includes("config")) {
 		required.push("github-actions");
 	}

@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { sha256, unicodeLength } from "../encoding.ts";
 import {
 	NOTICE_EMBEDDING_SAMPLE_DEFINITION,
@@ -222,7 +223,8 @@ function buildBoundaries(
 	for (const boundaries of result.values()) {
 		boundaries.sort(
 			(left, right) =>
-				left.boundaryIndex - right.boundaryIndex || left.direction.localeCompare(right.direction),
+				left.boundaryIndex - right.boundaryIndex ||
+				compareCanonicalStrings(left.direction, right.direction),
 		);
 	}
 	return result;
@@ -234,18 +236,20 @@ function stableChunkSort(
 ): NoticeChunk[] {
 	return [...chunks].sort(
 		(left, right) =>
-			stableSampleRank(stratum, left.chunkId).localeCompare(
+			compareCanonicalStrings(
+				stableSampleRank(stratum, left.chunkId),
 				stableSampleRank(stratum, right.chunkId),
-			) || left.chunkId.localeCompare(right.chunkId),
+			) || compareCanonicalStrings(left.chunkId, right.chunkId),
 	);
 }
 
 function stableBoundarySort(pairs: readonly BoundaryPair[]): BoundaryPair[] {
 	return [...pairs].sort(
 		(left, right) =>
-			stableSampleRank("boundary", left.key).localeCompare(
+			compareCanonicalStrings(
+				stableSampleRank("boundary", left.key),
 				stableSampleRank("boundary", right.key),
-			) || left.key.localeCompare(right.key),
+			) || compareCanonicalStrings(left.key, right.key),
 	);
 }
 
@@ -257,7 +261,7 @@ function compareChunks(left: NoticeChunk, right: NoticeChunk): number {
 	return (
 		compareNoticeIds(left.noticeId, right.noticeId) ||
 		left.chunkIndex - right.chunkIndex ||
-		left.chunkId.localeCompare(right.chunkId)
+		compareCanonicalStrings(left.chunkId, right.chunkId)
 	);
 }
 

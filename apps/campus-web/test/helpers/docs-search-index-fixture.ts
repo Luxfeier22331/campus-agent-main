@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import {
 	createDocsSearchFlexIndex,
 	exportDocsSearchChunks,
@@ -28,7 +29,7 @@ export function createDocsSearchIndex(
 		),
 	);
 	const orderedEntries = [...entries].sort((left, right) =>
-		`${left.docId}:${left.anchor}`.localeCompare(`${right.docId}:${right.anchor}`),
+		compareCanonicalStrings(`${left.docId}:${left.anchor}`, `${right.docId}:${right.anchor}`),
 	);
 	const index = createDocsSearchFlexIndex();
 	orderedEntries.forEach((entry, id) => {

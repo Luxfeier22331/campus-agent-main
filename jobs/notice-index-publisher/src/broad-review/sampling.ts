@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { sha256, unicodeLength } from "../encoding.ts";
 import {
 	NOTICE_BROAD_REVIEW_DEFINITION,
@@ -80,7 +81,8 @@ export function selectBroadReviewSample(
 		.filter((notice) => !selected.has(notice.noticeId))
 		.sort(
 			(left, right) =>
-				stableNoticeRank("coverage-fill", left.noticeId).localeCompare(
+				compareCanonicalStrings(
+					stableNoticeRank("coverage-fill", left.noticeId),
 					stableNoticeRank("coverage-fill", right.noticeId),
 				) || compareNoticeIds(left, right),
 		)
@@ -102,7 +104,7 @@ export function selectBroadReviewSample(
 	});
 	const sample = [...selected.values()].sort(
 		(left, right) =>
-			(left.primaryStratum ?? "").localeCompare(right.primaryStratum ?? "") ||
+			compareCanonicalStrings(left.primaryStratum ?? "", right.primaryStratum ?? "") ||
 			compareNoticeIds(left, right),
 	);
 	const census = buildBroadReviewCensus(notices, `sha256:${"0".repeat(64)}` as Sha256Ref);
@@ -137,7 +139,8 @@ function stableNoticeSort(
 ): BroadReviewNotice[] {
 	return [...notices].sort(
 		(left, right) =>
-			stableNoticeRank(stratum, left.noticeId).localeCompare(
+			compareCanonicalStrings(
+				stableNoticeRank(stratum, left.noticeId),
 				stableNoticeRank(stratum, right.noticeId),
 			) || compareNoticeIds(left, right),
 	);

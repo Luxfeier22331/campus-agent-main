@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import type {
 	PublishedReaderManifestEntry,
 	RoutedPublishedReaderManifestEntry,
@@ -30,7 +31,8 @@ export function compareEntryRoute(
 	left: RoutedPublishedReaderManifestEntry,
 	right: RoutedPublishedReaderManifestEntry,
 ): number {
-	return `${left.corpus}/${left.collection}/${left.documentSlug}/${left.versionSlug}`.localeCompare(
+	return compareCanonicalStrings(
+		`${left.corpus}/${left.collection}/${left.documentSlug}/${left.versionSlug}`,
 		`${right.corpus}/${right.collection}/${right.documentSlug}/${right.versionSlug}`,
 	);
 }

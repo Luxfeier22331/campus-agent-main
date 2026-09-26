@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import type { Sha256Ref } from "./types.ts";
 
 const encoder = new TextEncoder();
@@ -34,7 +35,7 @@ function sortJson(value: unknown): unknown {
 	}
 	return Object.fromEntries(
 		Object.entries(value)
-			.sort(([left], [right]) => left.localeCompare(right))
+			.sort(([left], [right]) => compareCanonicalStrings(left, right))
 			.map(([key, item]) => [key, sortJson(item)]),
 	);
 }

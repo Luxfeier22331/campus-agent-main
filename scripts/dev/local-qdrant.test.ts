@@ -47,7 +47,7 @@ function createProfile(repoRoot: string, port: number) {
 			objectStore: 25900,
 			objectStoreConsole: 25901,
 			postgres: 25432,
-			qdrantGrpc: 26334,
+			qdrantGrpc: 26344,
 			qdrantHttp: port,
 			temporal: 27233,
 			temporalUi: 27234,

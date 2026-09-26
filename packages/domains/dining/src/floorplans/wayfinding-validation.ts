@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import {
 	collectWindowClearanceDiagnostics,
 	polygonSelfIntersects,
@@ -226,7 +227,7 @@ function assertWindowCollection(value: unknown, canvas: DiningWayfindingCanvas):
 		if (seen.has(item.anchorId)) {
 			throw new Error(`Duplicate dining wayfinding window: ${item.anchorId}`);
 		}
-		if (previousAnchorId && item.anchorId.localeCompare(previousAnchorId) <= 0) {
+		if (previousAnchorId && compareCanonicalStrings(item.anchorId, previousAnchorId) <= 0) {
 			throw new Error("Dining wayfinding windows must be ordered by anchorId.");
 		}
 		seen.add(item.anchorId);

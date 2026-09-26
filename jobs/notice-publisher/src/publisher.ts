@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { extname } from "node:path";
 
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import {
 	normalizeNoticeContent,
 	parsePortalReleaseTime,
@@ -579,7 +580,10 @@ async function insertOrVerifyAssets(client: PoolClient, record: PublishedNotice)
 }
 
 function compareAssetRows(left: unknown[], right: unknown[]): number {
-	return String(left[0]).localeCompare(String(right[0])) || Number(left[1]) - Number(right[1]);
+	return (
+		compareCanonicalStrings(String(left[0]), String(right[0])) ||
+		Number(left[1]) - Number(right[1])
+	);
 }
 
 export function resolveAssetContentType(

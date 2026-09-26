@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { NOTICE_BROAD_REVIEW_ARTIFACT_DIRECTORY } from "../broad-review/index.ts";
 import { artifactHex } from "../run-reader.ts";
 import type { NoticeChunk, Sha256Ref } from "../types.ts";
@@ -181,6 +182,6 @@ function compareNoticeIds(left: string, right: string): number {
 		const rightNumber = BigInt(right);
 		return leftNumber < rightNumber ? -1 : leftNumber > rightNumber ? 1 : 0;
 	} catch {
-		return left.localeCompare(right);
+		return compareCanonicalStrings(left, right);
 	}
 }

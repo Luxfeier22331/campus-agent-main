@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 import { describe, expect, it, vi } from "vitest";
 
@@ -152,7 +153,7 @@ describe("cluster notice artifacts", () => {
 		const chunkRun = await writeStoredChunkRun({ artifactStore: store, ...prepared });
 		const modelTargetSha256 = "d".repeat(64);
 		const inputTexts = [...collectNoticeEmbeddingInputs(prepared.chunks)].sort(([left], [right]) =>
-			left.localeCompare(right),
+			compareCanonicalStrings(left, right),
 		);
 		for (const [textSha256] of inputTexts) {
 			await store.writeImmutable(

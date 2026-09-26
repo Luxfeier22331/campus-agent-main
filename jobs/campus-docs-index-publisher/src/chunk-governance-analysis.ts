@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { buildCampusDocsReviewItemSample } from "./chunk-review-sampling.ts";
 import {
 	buildCensus,
@@ -44,7 +45,7 @@ export function analyzeCorpus(input: {
 		throw new Error("Campus docs chunk set contains an unknown document");
 	}
 	const documents = analyses.sort((left, right) =>
-		left.document.docId.localeCompare(right.document.docId),
+		compareCanonicalStrings(left.document.docId, right.document.docId),
 	);
 	const sampleSelection = selectReviewSample(documents, input.sourceProjectionSha256);
 	const sample: CampusDocsReviewDocument[] = sampleSelection.documents.map((analysis) => ({

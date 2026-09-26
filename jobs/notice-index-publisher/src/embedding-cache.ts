@@ -3,6 +3,8 @@ import { mkdir, readFile, readdir } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
 import { join } from "node:path";
 
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
+
 import {
 	EMBEDDING_SPACE,
 	embedTextBatches,
@@ -243,7 +245,7 @@ export function collectNoticeEmbeddingInputs(
 export function sortNoticeEmbeddingInputs(
 	textBySha256: ReadonlyMap<Sha256Ref, string>,
 ): Array<[Sha256Ref, string]> {
-	return [...textBySha256].sort(([left], [right]) => left.localeCompare(right));
+	return [...textBySha256].sort(([left], [right]) => compareCanonicalStrings(left, right));
 }
 
 export function noticeEmbeddingCachePrefix(modelTargetSha256: string): string {

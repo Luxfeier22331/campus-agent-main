@@ -270,6 +270,12 @@ spec:
         - protocol: TCP
           port: 8000
     - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: object-store

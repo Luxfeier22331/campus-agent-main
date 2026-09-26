@@ -18,6 +18,8 @@ Status: implemented
 
 ## 后果
 
-两个 Worker 镜像和 Kubernetes active consumer 必须一起发布，GitOps 拓扑需要包含该 consumer 才能通过 promote。旧任务 ID 仅作为类型兼容保留，自动调度和 Ops 控制面使用 `notice-pipeline`；兼容任务运行会转发到统一 Workflow，调度设置只在统一入口修改。当前验证覆盖 Worker、采集、分类、发布和 Ops Web 的 TypeScript 合同；真实 Temporal、门户和外部存储联调仍依赖部署环境。
+两个 Worker 镜像和 Kubernetes active consumer 必须一起发布，GitOps 拓扑需要包含该 consumer 才能通过 promote。旧任务 ID 仅作为类型兼容保留，自动调度和 Ops 控制面使用 `notice-pipeline`；兼容任务运行会转发到统一 Workflow，调度设置只在统一入口修改，任何环境下直接修改兼容任务调度都返回 409。`notice-artifacts-worker` 的 Embedding 阶段直接调用外部模型 provider，其 Egress NetworkPolicy 必须保留集群外 443 出口（与 `campus-docs-embedding-builder-egress` 同边界）；2026-09 复核时补回了拆分时丢失的该规则。当前验证覆盖 Worker、采集、分类、发布和 Ops Web 的 TypeScript 合同；真实 Temporal、门户和外部存储联调仍依赖部署环境。
+
+2026-09 复核补齐了 notice-publisher 通知资产 `createOrVerifyDerived` 的并发收敛：`IfNoneMatch` 写入遇到 412 时重读对象并比对 digest，同内容视为成功、不同内容才报冲突，与其余三个 index publisher 的 immutable 写入模式一致；此前该路径会把并发同内容写入的 412 裸抛为发布失败。
 
 本决定部分取代 [定时任务治理](2026-09-20-scheduled-task-governance.md) 中关于通知 CronJob 作为自动执行入口的内容；其中关于通知状态权威、处理锁、CAS、版本保护、清理和 rollback 的约束继续有效。

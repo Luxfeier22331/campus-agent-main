@@ -8,6 +8,7 @@ import {
 } from "./artifacts.ts";
 import { canonicalJsonBytes, sha256 } from "./indexing/content-digest.ts";
 import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { EMBEDDING_SPACE, embedTexts } from "@campus-agent/embedding-runtime";
 import {
 	CHUNK_SET_DEFINITION,
@@ -124,7 +125,7 @@ export async function buildCampusDocsEmbeddingSet(
 	const reusedEmbeddingInputCount = denseByRetrievalText.size;
 	const missing = [...uniqueChunks]
 		.filter(([digest]) => !denseByRetrievalText.has(digest))
-		.sort(([left], [right]) => left.localeCompare(right));
+		.sort(([left], [right]) => compareCanonicalStrings(left, right));
 	const generated = await embedTexts(
 		input.embedding,
 		missing.map(([, chunk]) => chunk.retrievalText),
@@ -136,7 +137,7 @@ export async function buildCampusDocsEmbeddingSet(
 		denseByRetrievalText.set(digest, vector);
 	}
 	const embeddings = [...denseByRetrievalText]
-		.sort(([left], [right]) => left.localeCompare(right))
+		.sort(([left], [right]) => compareCanonicalStrings(left, right))
 		.map<StoredEmbedding>(([retrievalTextSha256, dense]) => ({ dense, retrievalTextSha256 }));
 	if (embeddings.length !== uniqueChunks.size) {
 		throw new Error("embedding set does not cover every unique chunk retrieval text");

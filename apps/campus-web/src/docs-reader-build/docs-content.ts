@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
+
 import { assertSha256 } from "./artifact-digest.ts";
 
 export const DOCS_CONTENT_SCHEMA = "campus_web_docs_content.v4" as const;
@@ -114,7 +116,7 @@ function listContentFiles(paths: DocsContentPaths): string[] {
 			? [relative(paths.root, paths.sourcePath).replaceAll(sep, "/")]
 			: []),
 	];
-	return [...new Set(files)].sort((left, right) => left.localeCompare(right));
+	return [...new Set(files)].sort(compareCanonicalStrings);
 }
 
 function listFiles(root: string, contentRoot: string): string[] {

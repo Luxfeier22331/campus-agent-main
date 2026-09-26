@@ -1,14 +1,14 @@
 {
-  "chunkSet": "sha256:52ea8c5054608c1450336661e6e70f9c8b919a58e2dfda3013e90c21004f4925",
+  "chunkSet": "sha256:6034688d8b9b14592c1303afd301a40edf4b1752d33d77863f2928833f02d207",
   "embeddingCount": 8,
+  "embeddingSpace": {
+    "dimensions": 2560,
+    "spaceId": "qwen3-embedding-4b@2560-v1"
+  },
   "embeddings": {
     "byteSize": 400248,
     "key": "campus-docs/rag/embedding-data/sha256/844d8b88ca798477da14d361460d1aa13d1e8a5eb829cd86f7aea03dc4beb961/embeddings.ndjson",
     "sha256": "sha256:844d8b88ca798477da14d361460d1aa13d1e8a5eb829cd86f7aea03dc4beb961"
-  },
-  "embeddingSpace": {
-    "dimensions": 2560,
-    "spaceId": "qwen3-embedding-4b@2560-v1"
   },
   "modelTargetSha256": "651ca4ec3d467184c4d151db1181c49a0d59ba227068b3c50bf62e5439d35f1b",
   "schemaVersion": "campus_docs_embedding_set.v3"

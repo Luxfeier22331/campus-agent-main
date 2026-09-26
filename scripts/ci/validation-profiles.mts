@@ -1,9 +1,12 @@
+import { CANONICAL_ORDER_PATHS } from "./check-canonical-order.mts";
+
 export const NODE_TEST_GROUPS = [
 	"test:node:fast",
 	"test:node:isolated",
 	"test:dom:fast",
 	"test:dom:isolated",
 ] as const;
+
 export const PR_NODE_TASKS = [
 	"test:unit",
 	"test:generators",
@@ -21,6 +24,11 @@ export const DATABASE_TASKS = [
 	"test:shared-db-integration",
 ] as const;
 export const CONTRACT_COMMAND = ["pnpm", "--dir", "packages/contracts", "contracts:check"] as const;
+export const CANONICAL_ORDER_COMMAND = [
+	"node",
+	"--experimental-strip-types",
+	"scripts/ci/check-canonical-order.mts",
+] as const;
 export const ACTION_COMMANDS = [
 	["actionlint"],
 	["zizmor", "--min-severity=medium", ".github"],
@@ -33,6 +41,11 @@ interface RepositoryCheckDefinition {
 }
 
 export const REPOSITORY_CHECK_REGISTRY = {
+	"canonical-order": {
+		paths: CANONICAL_ORDER_PATHS,
+		shell: "ci-light",
+		commands: [CANONICAL_ORDER_COMMAND],
+	},
 	contracts: {
 		paths: ["packages/contracts", "configs/runtime", "docs/contracts/schemas"],
 		shell: "ci-go",

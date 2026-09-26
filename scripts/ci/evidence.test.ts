@@ -28,6 +28,15 @@ test("repository checks select locked environments, deduplicate requests and rej
 		[
 			"nix",
 			"develop",
+			".#ci-light",
+			"--command",
+			"node",
+			"--experimental-strip-types",
+			"scripts/ci/check-canonical-order.mts",
+		],
+		[
+			"nix",
+			"develop",
 			".#ci-go",
 			"--command",
 			"pnpm",
@@ -62,7 +71,7 @@ test("prepared environments execute repository commands safely and propagate fai
 	const directory = mkdtempSync(path.join(os.tmpdir(), "repository-env-"));
 	t.after(() => rmSync(directory, { recursive: true, force: true }));
 	const output: Array<{ tool: string; args: string[]; marker: string }> = [];
-	for (const tool of ["pnpm", "actionlint", "zizmor"]) {
+	for (const tool of ["node", "pnpm", "actionlint", "zizmor"]) {
 		writeFileSync(
 			path.join(directory, tool),
 			`#!${process.execPath}
@@ -91,6 +100,11 @@ process.exit(Number(process.env.FIXTURE_EXIT || 0));
 	};
 	runRepositoryChecks({ repositoryRoot: REPOSITORY_ROOT, env }, runner);
 	assert.deepEqual(output, [
+		{
+			tool: "node",
+			args: ["--experimental-strip-types", "scripts/ci/check-canonical-order.mts"],
+			marker: "prepared",
+		},
 		{ tool: "pnpm", args: ["--dir", "packages/contracts", "contracts:check"], marker: "prepared" },
 		{ tool: "actionlint", args: [], marker: "prepared" },
 		{ tool: "zizmor", args: ["--min-severity=medium", ".github"], marker: "prepared" },

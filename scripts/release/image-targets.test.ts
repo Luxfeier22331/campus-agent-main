@@ -121,8 +121,10 @@ test("maps the docs publisher's shared contract sources to its image", () => {
 	assert.deepEqual(targets(["packages/contracts/src/campus-docs/node/index.ts"]), [
 		"agent-runtime",
 		"campus-docs-index-publisher",
+		"campus-rag-index-publisher",
 		"notice-pipeline-worker",
 		"document-ocr",
+		"notice-artifacts-worker",
 		"ops-web",
 	]);
 	assert.deepEqual(targets(["packages/contracts/schemas/campus-docs-course-maps.v1.schema.json"]), [

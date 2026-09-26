@@ -63,17 +63,28 @@ export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): Publi
 					throw error;
 				}
 			}
-			await derivedClient.send(
-				new PutObjectCommand({
-					Body: input.body,
-					Bucket: derivedBucket,
-					ContentLength: input.body.byteLength,
-					ContentType: input.contentType,
-					IfNoneMatch: "*",
-					Key: key,
-					Metadata: { "content-sha256": input.digest },
-				}),
-			);
+			try {
+				await derivedClient.send(
+					new PutObjectCommand({
+						Body: input.body,
+						Bucket: derivedBucket,
+						ContentLength: input.body.byteLength,
+						ContentType: input.contentType,
+						IfNoneMatch: "*",
+						Key: key,
+						Metadata: { "content-sha256": input.digest },
+					}),
+				);
+				return;
+			} catch (error) {
+				if (!isPreconditionFailure(error)) {
+					throw error;
+				}
+			}
+			const concurrent = await getBytes(derivedClient, derivedBucket, key);
+			if (sha256(concurrent) !== input.digest) {
+				throw new Error(`derived object conflicts: ${key}`);
+			}
 		},
 		async getSource(key) {
 			return getObject(sourceClient, sourceBucket, key);
@@ -125,4 +136,12 @@ function isNotFound(error: unknown): boolean {
 		value?.name === "NotFound" ||
 		value?.$metadata?.httpStatusCode === 404
 	);
+}
+function isPreconditionFailure(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	const status =
+		"$metadata" in error && error.$metadata && typeof error.$metadata === "object"
+			? (error.$metadata as { httpStatusCode?: unknown }).httpStatusCode
+			: undefined;
+	return status === 412 || ("name" in error && error.name === "PreconditionFailed");
 }

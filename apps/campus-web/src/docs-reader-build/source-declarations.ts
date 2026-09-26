@@ -15,6 +15,7 @@ import {
 	normalizeSourceManifest,
 	parseSourceManifest,
 } from "campus-contracts/campus-docs/node";
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
 import type { ReaderObjectStoreClient } from "./published-reader-types.ts";
@@ -426,14 +427,14 @@ function sortedDirectories(root: string): string[] {
 	return readdirSync(root, { withFileTypes: true })
 		.filter((entry) => entry.isDirectory())
 		.map((entry) => entry.name)
-		.sort((left, right) => left.localeCompare(right));
+		.sort(compareCanonicalStrings);
 }
 
 function sortedFiles(root: string, extension: string): string[] {
 	return readdirSync(root, { withFileTypes: true })
 		.filter((entry) => entry.isFile() && entry.name.endsWith(extension))
 		.map((entry) => entry.name)
-		.sort((left, right) => left.localeCompare(right));
+		.sort(compareCanonicalStrings);
 }
 
 function writeYaml(path: string, value: unknown): void {

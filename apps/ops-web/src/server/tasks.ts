@@ -320,28 +320,18 @@ export function createTaskService(input: {
 		},
 		async update(id: TaskId, value: TaskScheduleInput) {
 			const task = definition(id);
-			if (task.legacyMode && input.local) {
+			if (task.legacyMode) {
 				throw new TaskError("兼容任务请通过 notice-pipeline 调整统一调度", 409);
 			}
-			if (!task.cron) {
-				return temporal(async (client) => {
-					await client.schedule.getHandle(id).update((existing) => ({
-						...existing,
-						spec: { intervals: [{ every: value.intervalMinutes * 60_000 }] },
-						state: { ...existing.state, paused: !value.enabled },
-					}));
-				});
-			}
-			if (!task.operation || input.local) {
+			if (task.cron) {
 				throw new TaskError("此任务的调度设置只读", 409);
 			}
-			await batch().patchNamespacedCronJob({
-				name: task.cron,
-				namespace: input.namespace,
-				body: [
-					{ op: "add", path: "/spec/suspend", value: !value.enabled },
-					{ op: "add", path: "/spec/schedule", value: schedules[value.intervalMinutes] },
-				],
+			return temporal(async (client) => {
+				await client.schedule.getHandle(id).update((existing) => ({
+					...existing,
+					spec: { intervals: [{ every: value.intervalMinutes * 60_000 }] },
+					state: { ...existing.state, paused: !value.enabled },
+				}));
 			});
 		},
 		async run(id: TaskId) {

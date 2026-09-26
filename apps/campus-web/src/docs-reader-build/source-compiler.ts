@@ -15,6 +15,7 @@ import {
 	parseReader,
 	selectCurrentVersion,
 } from "campus-contracts/campus-docs/node";
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
 import {
 	assertPublishedReaderAssetLayout,
@@ -122,7 +123,8 @@ export async function compileDocsSource(input: {
 	const manifest: PublishedReaderManifest = {
 		collections: input.source.collections,
 		entries: entries.sort((left, right) =>
-			`${left.corpus}/${left.collection}/${left.routeSlug}/${left.versionSlug}`.localeCompare(
+			compareCanonicalStrings(
+				`${left.corpus}/${left.collection}/${left.routeSlug}/${left.versionSlug}`,
 				`${right.corpus}/${right.collection}/${right.routeSlug}/${right.versionSlug}`,
 			),
 		),

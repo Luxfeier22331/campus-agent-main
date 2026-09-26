@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { canonicalizeDiningWayfindingLayout } from "./wayfinding-canonical.ts";
 import type { DiningWayfindingLayout } from "./wayfinding-types.ts";
 
@@ -64,7 +65,7 @@ export function canonicalizeDiningFloorplanBundle(value: unknown): DiningFloorpl
 			assertNoUnsupportedFields(layout, canonical, "layout");
 			return canonical;
 		})
-		.sort((left, right) => left.floorplanId.localeCompare(right.floorplanId));
+		.sort((left, right) => compareCanonicalStrings(left.floorplanId, right.floorplanId));
 	const floorplanIds = new Set<string>();
 	const floorIds = new Set<string>();
 	const hallIds = new Set<string>();

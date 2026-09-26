@@ -71,11 +71,16 @@ jobs:
         shell: bash -e {0}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RECOVERY_RUN_ID: ${{ inputs.promotion_recovery_run_id || '' }}
           RECOVERY_SOURCE_SHA: ${{ inputs.promotion_recovery_source_sha || '' }}
         run: |
           set -euo pipefail
           current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           candidate_sha="$GITHUB_SHA"
+          if [[ -n "$RECOVERY_SOURCE_SHA" && -z "$RECOVERY_RUN_ID" ]]; then
+            echo "promotion_recovery_run_id is required with promotion_recovery_source_sha." >&2
+            exit 1
+          fi
           if [[ -n "$RECOVERY_SOURCE_SHA" ]]; then
             [[ "$RECOVERY_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
               echo "promotion_recovery_source_sha must be a complete lowercase Source SHA." >&2
@@ -267,7 +272,7 @@ jobs:
           path: image-digests.json
           if-no-files-found: error
           overwrite: true
-          retention-days: 1
+          retention-days: 7
 
   publish-workers:
     needs: release-plan
@@ -451,7 +456,7 @@ jobs:
           path: worker-candidates/*.json
           if-no-files-found: error
           overwrite: true
-          retention-days: 1
+          retention-days: 7
 
       - name: Finalize Worker publication
         if: >-
@@ -562,14 +567,19 @@ jobs:
       needs.candidate-status.result == 'success' &&
       needs.candidate-status.outputs.approved == 'true' &&
       github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' || inputs.promote) &&
+      (
+        github.event_name == 'push' ||
+        inputs.promote ||
+        (github.event_name == 'workflow_dispatch' && inputs.promotion_recovery_run_id != '')
+      ) &&
       contains(fromJSON('["success","skipped"]'), needs.publish-images.result) &&
       contains(fromJSON('["success","skipped"]'), needs.publish-workers.result) &&
       (
         needs.publish-images.result == 'success' ||
         needs.publish-workers.result == 'success' ||
         needs.release-plan.outputs.source_bases != '[]' ||
-        needs.release-plan.outputs.topology_migrations != '[]'
+        needs.release-plan.outputs.topology_migrations != '[]' ||
+        (github.event_name == 'workflow_dispatch' && inputs.promotion_recovery_run_id != '')
       )
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
     timeout-minutes: 15
@@ -603,6 +613,10 @@ jobs:
           fi
           if [[ -n "$RECOVERY_RUN_ID" && -z "$RECOVERY_SOURCE_SHA" ]]; then
             echo "promotion_recovery_source_sha is required with promotion_recovery_run_id." >&2
+            exit 1
+          fi
+          if [[ -n "$RECOVERY_SOURCE_SHA" && -z "$RECOVERY_RUN_ID" ]]; then
+            echo "promotion_recovery_run_id is required with promotion_recovery_source_sha." >&2
             exit 1
           fi
 

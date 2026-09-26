@@ -26,7 +26,10 @@ Source workflow 使用受信任 GitHub App 创建 promotion PR；调用 PR actio
 
 当发布制品已经成功但 promotion job 失败时，workflow 提供显式 recovery 输入，按指定的 Source
 run ID 与 Source SHA 复用已上传的 image/Worker artifacts，只执行 promotion 和验证；普通 push 与
-常规手动发布仍会重新构建制品。
+常规手动发布仍会重新构建制品。两个 recovery 输入必须成对提供：只给 Source SHA 会造成镜像内容与
+GitOps 溯源注记错位，只给 run ID 则无法验证制品归属，release-plan 与 promote 都会对不成对的输入
+fail-fast。提供 recovery run ID 即视为确认 promotion，无需再单独打开 promote 开关；发布 run 的
+image/Worker artifacts 保留 7 天，维持可实际使用的恢复窗口。
 
 ## 未采用方案
 

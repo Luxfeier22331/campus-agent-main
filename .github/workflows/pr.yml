@@ -260,6 +260,15 @@ jobs:
           mkdir -p "$RUNNER_TEMP/ci-evidence"
           node --experimental-strip-types scripts/ci/evidence.mts --check contracts
 
+      - name: Check canonical ordering
+        id: canonical_order
+        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order')"
+        continue-on-error: true
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --check canonical-order
+
       - name: Lint GitHub Actions
         id: github_actions
         if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')"
@@ -292,6 +301,7 @@ jobs:
           (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
         continue-on-error: true
         env:
@@ -330,6 +340,7 @@ jobs:
           (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
         continue-on-error: true
         env:
@@ -351,6 +362,7 @@ jobs:
           steps.repository_test.outcome == 'success' &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success')
         continue-on-error: true
@@ -369,6 +381,7 @@ jobs:
           steps.repository_test.outcome == 'success' &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'container-build') || steps.container_build.outcome == 'success')
@@ -408,6 +421,7 @@ jobs:
           steps.repository_test.outcome == 'success' &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'container-build') || steps.container_build.outcome == 'success') &&
@@ -429,6 +443,7 @@ jobs:
               "schema-migration":"${{ steps.schema_migration.outcome }}",
               "container-build":"${{ steps.container_build.outcome }}",
               "contracts":"${{ steps.contracts.outcome }}",
+              "canonical-order":"${{ steps.canonical_order.outcome }}",
               "affected-native":"${{ steps.native_evidence.outcome }}",
               "github-actions":"${{ steps.github_actions.outcome }}",
               "install-affected":"${{ steps.install_affected.outcome }}",

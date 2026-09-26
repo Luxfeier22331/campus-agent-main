@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
+
 export function canonicalJsonBytes(value: unknown): Uint8Array {
 	return new TextEncoder().encode(`${JSON.stringify(sortJson(value), undefined, 2)}\n`);
 }
@@ -22,7 +24,7 @@ function sortJson(value: unknown): unknown {
 	if (value && typeof value === "object") {
 		return Object.fromEntries(
 			Object.entries(value as Record<string, unknown>)
-				.sort(([left], [right]) => left.localeCompare(right))
+				.sort(([left], [right]) => compareCanonicalStrings(left, right))
 				.map(([key, child]) => [key, sortJson(child)]),
 		);
 	}

@@ -300,10 +300,11 @@ async function upsertRetrievalRows(
 		.filter((column) => !keys.includes(column))
 		.map((column) => `"${column}" = excluded."${column}"`)
 		.join(", ");
+	const conflictAction = updates ? `do update set ${updates}` : "do nothing";
 	await client.query(
 		`insert into ${table} (${productDataProjection(table)})
 		 select ${productDataProjection(table)} from json_populate_recordset(null::${table}, $1::json)
-		 on conflict (${keys.map((key) => `"${key}"`).join(", ")}) do update set ${updates}`,
+		 on conflict (${keys.map((key) => `"${key}"`).join(", ")}) ${conflictAction}`,
 		[json],
 	);
 }

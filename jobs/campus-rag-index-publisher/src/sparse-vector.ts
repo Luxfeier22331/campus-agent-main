@@ -6,7 +6,7 @@ export interface SparseVector {
 export function buildSparseVector(text: string): SparseVector {
 	const counts = new Map<number, number>();
 	for (const token of tokenize(text)) {
-		const normalized = token.toLocaleLowerCase("und");
+		const normalized = token.toLowerCase();
 		if (!/[\p{L}\p{N}\p{Script=Han}]/u.test(normalized)) continue;
 		const index = fnv1a(normalized);
 		counts.set(index, (counts.get(index) ?? 0) + 1);

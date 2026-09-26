@@ -29,7 +29,7 @@ import {
 	resolveLocalModelConfigEncryptionKeyPath,
 	resolveMainCheckoutRoot,
 } from "./environment";
-import { diagnoseLocalDevInstances } from "./instance-resources";
+import { diagnoseLocalDevInstances, resolveUnmanagedInstanceCleanup } from "./instance-resources";
 import * as lifecycle from "./lifecycle";
 import { captureCommandResult } from "./process";
 import {
@@ -83,6 +83,25 @@ describe("local development profiles", () => {
 			executionControl: 27251,
 			modelConfig: 27253,
 		});
+	});
+
+	it("keeps every host port unique across the full slot range", () => {
+		const seen = new Map<number, string>();
+		for (let slot = 0; slot <= 99; slot += 1) {
+			const families = [
+				calculateLocalDevPorts(slot),
+				calculateLocalDevRuntimePorts(slot),
+				calculateLocalDevInfrastructurePorts(slot),
+			];
+			for (const family of families) {
+				for (const [name, port] of Object.entries(family)) {
+					const owner = `${name}@${slot}`;
+					const existing = seen.get(port);
+					assert.equal(existing, undefined, `${owner} reuses ${port} reserved by ${existing}`);
+					seen.set(port, owner);
+				}
+			}
+		}
 	});
 
 	it("normalizes resource labels and allocates the first available slot", () => {
@@ -292,6 +311,66 @@ describe("local development profiles", () => {
 		}
 	});
 
+	it("keeps the current worktree fail-closed when stored ports drift from the derivation", async () => {
+		const repository = createGitRepository();
+		const stateDirectory = resolve(repository, "state");
+		const previousStateHome = process.env.XDG_STATE_HOME;
+		process.env.XDG_STATE_HOME = stateDirectory;
+		try {
+			const profile = await ensureLocalDevProfile(repository);
+			const drifted = {
+				...JSON.parse(readFileSync(resolveLocalDevProfilePath(repository), "utf8")),
+				infraPorts: { ...profile.infraPorts, qdrantHttp: profile.infraPorts.qdrantHttp - 10 },
+			};
+			writeFileSync(resolveLocalDevProfilePath(repository), `${JSON.stringify(drifted)}\n`);
+
+			assert.throws(() => loadLocalDevProfile(repository), /do not match slot/u);
+			await assert.rejects(ensureLocalDevProfile(repository), /do not match slot/u);
+		} finally {
+			if (previousStateHome === undefined) {
+				delete process.env.XDG_STATE_HOME;
+			} else {
+				process.env.XDG_STATE_HOME = previousStateHome;
+			}
+		}
+	});
+
+	it("lists and releases instances whose stored ports drift from the derivation", async () => {
+		const repository = createGitRepository();
+		const stateDirectory = resolve(repository, "state");
+		const previousStateHome = process.env.XDG_STATE_HOME;
+		process.env.XDG_STATE_HOME = stateDirectory;
+		try {
+			await ensureLocalDevProfile(repository);
+			const registryPath = resolveLocalDevRegistryPath(repository);
+			const registry = JSON.parse(readFileSync(registryPath, "utf8")) as {
+				instances: Array<LocalDevProfile & { infraPorts: Record<string, number> }>;
+			};
+			const [instance] = registry.instances;
+			assert.ok(instance);
+			const drifted = {
+				...instance,
+				infraPorts: { ...instance.infraPorts, qdrantHttp: instance.infraPorts.qdrantHttp - 10 },
+			};
+			writeFileSync(
+				registryPath,
+				`${JSON.stringify({ instances: [drifted], schemaVersion: 3 })}\n`,
+			);
+
+			assert.equal(listLocalDevProfiles(repository).length, 1);
+
+			releaseLocalDevProfile(repository, drifted.instanceId);
+
+			assert.equal(listLocalDevProfiles(repository).length, 0);
+		} finally {
+			if (previousStateHome === undefined) {
+				delete process.env.XDG_STATE_HOME;
+			} else {
+				process.env.XDG_STATE_HOME = previousStateHome;
+			}
+		}
+	});
+
 	it("lists registered instances without probing mutable resources by default", async () => {
 		const repository = createGitRepository();
 		const previousStateHome = process.env.XDG_STATE_HOME;
@@ -311,6 +390,35 @@ describe("local development profiles", () => {
 				process.env.XDG_STATE_HOME = previousStateHome;
 			}
 		}
+	});
+
+	it("releases stale instances whose Compose resources are already gone", () => {
+		const cleanup = resolveUnmanagedInstanceCleanup({
+			infraProject: "campus-agent-wt-2c4679e6",
+			instanceId: "notice-pipeline-governance-2c4679e6",
+			remainingResources: [],
+		});
+		assert.deepEqual(cleanup, {
+			bucket: "missing",
+			database: "missing",
+			namespace: "missing",
+			unresolved: [],
+		});
+	});
+
+	it("fails closed when credentials are gone but Compose resources remain", () => {
+		assert.throws(
+			() =>
+				resolveUnmanagedInstanceCleanup({
+					infraProject: "campus-agent-wt-2c4679e6",
+					instanceId: "notice-pipeline-governance-2c4679e6",
+					remainingResources: [
+						"campus-agent-wt-2c4679e6_postgres-1",
+						"campus-agent-wt-2c4679e6_postgres-data",
+					],
+				}),
+			/docker compose --project-name campus-agent-wt-2c4679e6 down --volumes --remove-orphans/u,
+		);
 	});
 });
 

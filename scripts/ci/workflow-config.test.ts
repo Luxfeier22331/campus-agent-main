@@ -359,6 +359,7 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 			"repository_test",
 			"secrets",
 			"contracts",
+			"canonical_order",
 			"github_actions",
 			"install_affected",
 			"node_evidence",
@@ -376,12 +377,19 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 				"affected-native",
 				"schema-migration",
 			]),
-			light_surfaces: JSON.stringify(["contracts", "config"]),
+			light_surfaces: JSON.stringify(["contracts", "canonical-order", "config"]),
 			node_evidence_profiles: '["affected-node"]',
 			has_container_build: "true",
 		},
 	};
-	for (const failed of [undefined, "repository_test", "secrets", "contracts", "github_actions"]) {
+	for (const failed of [
+		undefined,
+		"repository_test",
+		"secrets",
+		"contracts",
+		"canonical_order",
+		"github_actions",
+	]) {
 		const steps = { ...successful, plan, ...(failed ? { [failed]: { outcome: "failure" } } : {}) };
 		for (const name of heavy) {
 			assert.equal(
@@ -401,7 +409,7 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 	for (const name of heavy) {
 		assert.equal(condition(namedStep(job, name).if, { steps: lintFailure }), false);
 	}
-	for (const skipped of ["contracts", "github_actions"]) {
+	for (const skipped of ["contracts", "canonical_order", "github_actions"]) {
 		const steps = { ...successful, plan, [skipped]: { outcome: "skipped" } };
 		for (const name of heavy) {
 			assert.equal(condition(namedStep(job, name).if, { steps }), false);
@@ -429,6 +437,7 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 			},
 		},
 		contracts: { outcome: "skipped" },
+		canonical_order: { outcome: "skipped" },
 		github_actions: { outcome: "skipped" },
 		install_affected: { outcome: "skipped" },
 		node_evidence: { outcome: "skipped" },
@@ -797,6 +806,14 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.match(String(promote.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
 	assert.match(String(promote.if), /github\.ref == 'refs\/heads\/main'/u);
 	assert.match(String(promote.if), /inputs\.promote/u);
+	assert.match(String(promote.if), /inputs\.promotion_recovery_run_id != ''/u);
+	const releaseRevision = namedStep(releasePlan, "Verify current main revision");
+	assert.match(String(releaseRevision.env.RECOVERY_RUN_ID), /promotion_recovery_run_id/u);
+	assert.match(String(releaseRevision.run), /promotion_recovery_run_id is required/u);
+	const promoteRevision = namedStep(promote, "Verify current main revision before promotion");
+	assert.match(String(promoteRevision.run), /promotion_recovery_run_id is required/u);
+	assert.equal(namedStep(publishImages, "Upload image digests").with["retention-days"], 7);
+	assert.equal(namedStep(publishWorkers, "Upload Worker candidates").with["retention-days"], 7);
 	assert(isObject(workflow.on));
 	assert(isObject(workflow.on.workflow_dispatch));
 	assert(isObject(workflow.on.workflow_dispatch.inputs));

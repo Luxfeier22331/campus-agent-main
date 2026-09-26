@@ -69,6 +69,16 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["scripts/ci/check-canonical-order.test.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noTemplateCurlyInString": "off"
+					}
+				}
+			}
 		}
 	],
 	"linter": {

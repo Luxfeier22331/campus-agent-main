@@ -80,20 +80,14 @@ beforeEach(() => {
 	});
 });
 describe("native task ownership", () => {
-	it("patches only schedule and suspend on the selected CronJob", async () => {
-		await service().update("notice-classifier", { enabled: true, intervalMinutes: 15 });
-		expect(native.patch).toHaveBeenCalledWith({
-			name: "notice-classifier",
-			namespace: "staging",
-			body: [
-				{ op: "add", path: "/spec/suspend", value: false },
-				{ op: "add", path: "/spec/schedule", value: "*/15 * * * *" },
-			],
-		});
+	it("keeps legacy and read-only CronJob scheduling immutable", async () => {
+		await expect(
+			service().update("notice-classifier", { enabled: true, intervalMinutes: 15 }),
+		).rejects.toMatchObject({ status: 409 });
 		await expect(
 			service().update("document-ocr", { enabled: true, intervalMinutes: 15 }),
 		).rejects.toMatchObject({ status: 409 });
-		expect(native.patch).toHaveBeenCalledTimes(1);
+		expect(native.patch).not.toHaveBeenCalled();
 	});
 	it("preserves Temporal action and policies when the operator changes timing", async () => {
 		const existing = {

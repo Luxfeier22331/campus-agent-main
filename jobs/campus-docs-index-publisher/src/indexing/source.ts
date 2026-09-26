@@ -5,6 +5,7 @@ import {
 	parseSourceManifest,
 } from "campus-contracts/campus-docs/node";
 import { compareDocsVersionSlugs } from "campus-contracts/campus-docs";
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import type {
 	DocsReader,
 	DocsSourceManifest,
@@ -105,7 +106,7 @@ export function buildCurrentSourceProjection(
 			version_id: item.version.versionId,
 			version_slug: item.version.versionSlug,
 		}))
-		.sort((left, right) => String(left.doc_id).localeCompare(String(right.doc_id)));
+		.sort((left, right) => compareCanonicalStrings(String(left.doc_id), String(right.doc_id)));
 }
 
 export function buildIndexedSourceProjection(
@@ -119,7 +120,7 @@ export function buildIndexedSourceProjection(
 		is_current: item.isCurrent,
 		applicable_from_admission_year: item.applicableFromAdmissionYear,
 		applicable_to_admission_year: item.applicableToAdmissionYear,
-	})).sort((left, right) => `${left.doc_id}/${left.version_slug}`.localeCompare(`${right.doc_id}/${right.version_slug}`));
+	})).sort((left, right) => compareCanonicalStrings(`${left.doc_id}/${left.version_slug}`, `${right.doc_id}/${right.version_slug}`));
 }
 
 export function indexedSourceProjectionSha256(selections: readonly IndexedVersionSelection[]): Sha256Ref {

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { compareDocsVersionSlugs } from "campus-contracts/campus-docs";
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import {
 	buildReaderDescription,
 	type DocsReaderElement,
@@ -129,7 +130,9 @@ export async function writeNativeReaderSite(input: {
 		topics: input.manifest.topics,
 	});
 	const catalog: NativeDocsCatalog = {
-		routes: routes.sort((left, right) => left.canonicalUrl.localeCompare(right.canonicalUrl)),
+		routes: routes.sort((left, right) =>
+			compareCanonicalStrings(left.canonicalUrl, right.canonicalUrl),
+		),
 		schemaVersion: NATIVE_DOCS_CATALOG_SCHEMA,
 		siteIndex,
 	};
@@ -180,7 +183,8 @@ function buildSiteIndex(input: {
 		searchIndexUrl: input.searchIndexUrl,
 		schemaVersion: DOCS_SITE_INDEX_SCHEMA,
 		topics: [...input.topics].sort(
-			(left, right) => left.corpus.localeCompare(right.corpus) || left.order - right.order,
+			(left, right) =>
+				compareCanonicalStrings(left.corpus, right.corpus) || left.order - right.order,
 		),
 	};
 }
@@ -251,7 +255,8 @@ function buildPublicSearchIndex(input: {
 		}
 	}
 	searchRecords.sort((left, right) =>
-		`${left.entry.docId}:${left.entry.anchor}`.localeCompare(
+		compareCanonicalStrings(
+			`${left.entry.docId}:${left.entry.anchor}`,
 			`${right.entry.docId}:${right.entry.anchor}`,
 		),
 	);

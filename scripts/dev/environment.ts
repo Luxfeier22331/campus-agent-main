@@ -16,7 +16,6 @@ import { parseEnv } from "node:util";
 import { ensureLocalInfrastructureSecrets } from "./infrastructure-secrets";
 import type { LocalQdrantConnection } from "./local-qdrant";
 import { ensureLocalDevSecrets } from "./local-secrets";
-import { readProductSnapshot } from "./product-data-state";
 import type { LocalDevProfile } from "./profile";
 import { calculateLocalDevInfrastructurePorts, calculateLocalDevRuntimePorts } from "./profile";
 import {
@@ -296,10 +295,6 @@ export function renderLocalEnvironmentFiles(input: {
 	projections?: readonly LocalDevEnvironmentProjection[];
 }): string[] {
 	const { profile, repoRoot } = input;
-	const snapshot = readProductSnapshot(repoRoot);
-	const docsSourceEnvironment = snapshot
-		? { OBJECT_STORE_DOCS_SOURCE_KEY: snapshot.sourceKey }
-		: {};
 	const projections =
 		input.projections ??
 		(input.target
@@ -378,7 +373,6 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("campusWeb")) {
 		writeManagedEnv(paths.campusWeb, {
-			...docsSourceEnvironment,
 			APP_API_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			AUTH_TURNSTILE_SITE_KEY: "",
 			CAMPUS_WEB_DEV_PORT: String(profile.ports.campusWeb),
@@ -502,7 +496,6 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("campusDocsIndexPublisher")) {
 		writeManagedEnv(paths.campusDocsIndexPublisher, {
-			...docsSourceEnvironment,
 			EXECUTION_CONTROL_DATABASE_URL: database.owner,
 			...objectStore,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
@@ -544,7 +537,6 @@ export function renderLocalEnvironmentFiles(input: {
 			throw new Error("Campus RAG publisher requires a resolved local Qdrant connection.");
 		}
 		writeManagedEnv(paths.campusRagIndexPublisher, {
-			...docsSourceEnvironment,
 			EXECUTION_CONTROL_DATABASE_URL: database.owner,
 			...objectStore,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,

@@ -1,5 +1,6 @@
 import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
 import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { createS3ObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
 import type { ReaderObjectStoreWriter } from "../src/docs-reader-build/published-reader-types.ts";
 
@@ -22,7 +23,7 @@ export async function seedLocalDocsSource(
 	}
 	const referencedObjects = [...fixture.objects.entries()]
 		.filter(([key]) => key !== DOCS_SOURCE_KEY)
-		.sort(([left], [right]) => left.localeCompare(right));
+		.sort(([left], [right]) => compareCanonicalStrings(left, right));
 	for (let offset = 0; offset < referencedObjects.length; offset += 4) {
 		const writes = await Promise.allSettled(
 			referencedObjects

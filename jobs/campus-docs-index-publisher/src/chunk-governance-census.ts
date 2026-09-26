@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { sha256 } from "./indexing/content-digest.ts";
 import {
 	CAMPUS_DOCS_CHUNK_CENSUS_SCHEMA_VERSION,
@@ -48,7 +49,7 @@ export function buildCensus(input: {
 		documentChunkCounts: distribution(documentMetrics.map((document) => document.chunkCount)),
 		documentCount: documentMetrics.length,
 		documents: [...documentMetrics].sort((left, right) =>
-			left.documentId.localeCompare(right.documentId),
+			compareCanonicalStrings(left.documentId, right.documentId),
 		),
 		elementCounts,
 		maxHeadingLevel: Math.max(...documentMetrics.map((document) => document.maxHeadingLevel)),
@@ -67,7 +68,7 @@ export function buildCensus(input: {
 		sectionChunkCounts: distribution(sectionMetrics.map((section) => section.chunkCount)),
 		sectionCount: sectionMetrics.length,
 		sections: sectionMetrics.sort((left, right) =>
-			left.sectionId.localeCompare(right.sectionId),
+			compareCanonicalStrings(left.sectionId, right.sectionId),
 		),
 		shortChunkCount: chunks.filter((chunk) => chunk.chars < SHORT_CHARS).length,
 		shortSectionCount: sectionMetrics.filter((section) => section.minChunkChars < SHORT_CHARS).length,
@@ -113,7 +114,7 @@ function buildDimensionCensus(
 		result[key] = current;
 	}
 	return Object.fromEntries(
-		Object.entries(result).sort(([left], [right]) => left.localeCompare(right)),
+		Object.entries(result).sort(([left], [right]) => compareCanonicalStrings(left, right)),
 	);
 }
 
@@ -148,7 +149,8 @@ export function selectReviewSample(
 		const candidates = documents
 			.filter((document) => stratum.select(document) && !used.has(document.document.docId))
 			.sort((left, right) =>
-				sampleKey(sourceProjectionSha256, stratum.name, left.document.docId).localeCompare(
+				compareCanonicalStrings(
+					sampleKey(sourceProjectionSha256, stratum.name, left.document.docId),
 					sampleKey(sourceProjectionSha256, stratum.name, right.document.docId),
 				),
 			)
@@ -163,7 +165,8 @@ export function selectReviewSample(
 		for (const document of documents
 			.filter((candidate) => !used.has(candidate.document.docId))
 			.sort((left, right) =>
-				sampleKey(sourceProjectionSha256, "coverage-fill", left.document.docId).localeCompare(
+				compareCanonicalStrings(
+					sampleKey(sourceProjectionSha256, "coverage-fill", left.document.docId),
 					sampleKey(sourceProjectionSha256, "coverage-fill", right.document.docId),
 				),
 			)) {
@@ -205,10 +208,10 @@ export function buildSampleSummary(
 			0,
 		),
 		strata: Object.fromEntries(
-			Object.entries(stratumCounts).sort(([left], [right]) => left.localeCompare(right)),
+			Object.entries(stratumCounts).sort(([left], [right]) => compareCanonicalStrings(left, right)),
 		),
 		tags: Object.fromEntries(
-			Object.entries(tagCounts).sort(([left], [right]) => left.localeCompare(right)),
+			Object.entries(tagCounts).sort(([left], [right]) => compareCanonicalStrings(left, right)),
 		),
 	};
 }

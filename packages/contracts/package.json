@@ -5,6 +5,7 @@
 	"type": "module",
 	"exports": {
 		"./ops-time": "./src/ops-time.ts",
+		"./canonical-order": "./src/canonical-order.ts",
 		"./chat-feedback": "./src/chat-feedback.ts",
 		"./account-admin": "./src/account-admin.ts",
 		"./auth": "./src/auth.ts",

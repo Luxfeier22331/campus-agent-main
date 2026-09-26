@@ -164,7 +164,7 @@ export async function initializeProductData(
 											}
 											return fetch(url, {
 												...init,
-												signal: AbortSignal.any([publishSignal, AbortSignal.timeout(30_000)]),
+												signal: AbortSignal.any([publishSignal, AbortSignal.timeout(120_000)]),
 											});
 										},
 									),
@@ -246,7 +246,7 @@ export async function initializeProductData(
 											}
 											return fetch(url, {
 												...init,
-												signal: AbortSignal.any([publishSignal, AbortSignal.timeout(30_000)]),
+												signal: AbortSignal.any([publishSignal, AbortSignal.timeout(120_000)]),
 											});
 										},
 									),

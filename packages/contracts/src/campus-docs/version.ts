@@ -1,3 +1,5 @@
+import { compareCanonicalStrings } from "../canonical-order.ts";
+
 export interface DocsVersionOrder {
 	kind: "ordinal" | "year";
 	value: number;
@@ -22,7 +24,7 @@ export function compareDocsVersionSlugs(left: string, right: string): number {
 	if (leftOrder.kind !== rightOrder.kind) {
 		throw new Error(`document versions mix year and ordinal slugs: ${left}, ${right}`);
 	}
-	return leftOrder.value - rightOrder.value || left.localeCompare(right);
+	return leftOrder.value - rightOrder.value || compareCanonicalStrings(left, right);
 }
 
 export function formatDocsVersionLabel(versionSlug: string): string {

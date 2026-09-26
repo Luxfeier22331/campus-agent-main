@@ -280,6 +280,21 @@ test("CI control files stay in hosted checks while image inputs select image evi
 	}
 });
 
+test("artifact identity paths select the canonical order check", () => {
+	for (const [file, lightSurfaces] of [
+		["packages/contracts/src/campus-docs/node/source.ts", ["canonical-order", "contracts"]],
+		["packages/contracts/test/campus-docs/index.ts", ["canonical-order", "contracts"]],
+		["packages/domains/dining/src/floorplans/bundle.ts", ["canonical-order"]],
+		["apps/campus-web/src/docs-reader-build/native-reader-site.ts", ["canonical-order"]],
+		["apps/campus-web/scripts/seed-local-docs-source.ts", ["canonical-order"]],
+		["jobs/notice-publisher/src/publisher.ts", ["canonical-order"]],
+		["jobs/notice-index-publisher/src/encoding.ts", ["canonical-order"]],
+	] as const) {
+		const plan = validationPlanFromScope(scope([file]));
+		assert.deepEqual(plan.lightSurfaces, [...lightSurfaces], file);
+	}
+});
+
 test("keeps only separately owned config checks in the validation plan", () => {
 	const plan = validationPlanFromScope(
 		scope([".github/workflows/old.yml", "config/new.yaml", "removed/check.sh", "schema.sql"]),

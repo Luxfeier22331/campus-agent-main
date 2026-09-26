@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-
 import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "../../src/campus-docs/node/index.ts";
 import type {
 	DocsDocument,
@@ -7,6 +6,7 @@ import type {
 	DocsSourceVersion,
 	ObjectRef,
 } from "../../src/campus-docs/types.ts";
+import { compareCanonicalStrings } from "../../src/canonical-order.ts";
 
 import { COURSE_MAP_IMAGE } from "./course-map-image.ts";
 
@@ -481,7 +481,7 @@ function sortJson(value: unknown): unknown {
 	if (value && typeof value === "object") {
 		return Object.fromEntries(
 			Object.entries(value as Record<string, unknown>)
-				.sort(([left], [right]) => left.localeCompare(right))
+				.sort(([left], [right]) => compareCanonicalStrings(left, right))
 				.map(([key, child]) => [key, sortJson(child)]),
 		);
 	}

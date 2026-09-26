@@ -7,7 +7,7 @@ import {
 	loadLocalInfrastructureSecrets,
 	resolveLocalInfrastructureSecretsPath,
 } from "./infrastructure-secrets";
-import { type LocalResourceProbe, probeLocalBucket } from "./local-object-store";
+import { type LocalResourceProbe, probeLocalBucket, probeLocalObject } from "./local-object-store";
 import { resolveLocalQdrantConnection } from "./local-qdrant";
 import { withLifecycleLock } from "./locks";
 import { captureCommandResult, runCommand } from "./process";
@@ -266,7 +266,7 @@ function inspectService(repoRoot: string, profile: LocalDevProfile, service: str
 			State?: { Health?: { Status?: string }; Status?: string };
 		};
 		return {
-			healthy: value.State?.Health?.Status === "healthy" || service === "postgres",
+			healthy: value.State?.Health?.Status === "healthy",
 			probe: "present" as const,
 			running: value.State?.Status === "running",
 		};

@@ -864,6 +864,9 @@ importers:
       '@campus-agent/embedding-runtime':
         specifier: workspace:*
         version: link:../../packages/embedding-runtime
+      campus-contracts:
+        specifier: workspace:*
+        version: link:../../packages/contracts
       pg:
         specifier: ^8.23.0
         version: 8.23.0
@@ -1048,6 +1051,9 @@ importers:
       '@campus-agent/notice-database':
         specifier: workspace:*
         version: link:../../packages/notice-database
+      campus-contracts:
+        specifier: workspace:*
+        version: link:../../packages/contracts
       pg:
         specifier: ^8.23.0
         version: 8.23.0
@@ -1175,6 +1181,9 @@ importers:
 
   packages/domains/dining:
     dependencies:
+      campus-contracts:
+        specifier: workspace:*
+        version: link:../../contracts
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)(zod@4.6.5)

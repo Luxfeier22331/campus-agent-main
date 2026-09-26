@@ -20,6 +20,7 @@
 		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy",
 		"dev:prune": "pnpm exec tsx scripts/dev/cli.ts prune",
 		"test:tooling": "node --experimental-strip-types scripts/ci/repository-test.mts",
+		"canonical-order:check": "node --experimental-strip-types scripts/ci/check-canonical-order.mts",
 		"typecheck": "node --experimental-strip-types scripts/ci/evidence.mts --workspace typecheck",
 		"build": "node --experimental-strip-types scripts/ci/evidence.mts --workspace build",
 		"build:check": "node --experimental-strip-types scripts/ci/evidence.mts --workspace build:check"

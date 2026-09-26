@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import {
 	CAMPUS_DOCS_CHUNK_GOVERNANCE_DEFINITION,
 } from "./chunk-governance-definitions.ts";
@@ -134,15 +135,16 @@ function buildReviewChunkRecords(input: {
 		document.chunks.map((chunk, chunkIndex) => {
 			knownChunkIds.add(chunk.chunkId);
 			return {
-				anchors: [...(anchorsByChunkId.get(chunk.chunkId) ?? [])].sort((left, right) =>
-					left.questionId.localeCompare(right.questionId),
+			anchors: [...(anchorsByChunkId.get(chunk.chunkId) ?? [])].sort((left, right) =>
+				compareCanonicalStrings(left.questionId, right.questionId),
+			),
+			chunkIndex,
+			document,
+			signals: [...(signalsByChunkKey.get(chunkKey(document.documentId, chunkIndex)) ?? [])]
+				.sort((left, right) =>
+					compareCanonicalStrings(left.signal, right.signal) ||
+					compareCanonicalStrings(left.detail, right.detail),
 				),
-				chunkIndex,
-				document,
-				signals: [...(signalsByChunkKey.get(chunkKey(document.documentId, chunkIndex)) ?? [])]
-					.sort((left, right) =>
-						left.signal.localeCompare(right.signal) || left.detail.localeCompare(right.detail),
-					),
 			} satisfies ReviewChunkRecord;
 		}),
 	);
@@ -256,7 +258,8 @@ function sortForStratum(
 	stratum: CampusDocsReviewItemStratum,
 ): ReviewChunkRecord[] {
 	return [...records].sort((left, right) =>
-		sampleKey(sourceProjectionSha256, stratum, left).localeCompare(
+		compareCanonicalStrings(
+			sampleKey(sourceProjectionSha256, stratum, left),
 			sampleKey(sourceProjectionSha256, stratum, right),
 		),
 	);

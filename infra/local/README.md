@@ -10,7 +10,6 @@
 - `docker-compose.dev.yml`：每个 worktree 的 PostgreSQL、RustFS、Qdrant 与 Temporal；
 - `docker-compose.execution-runtime.yml`：按需启动本地 Hindsight 与 OTel 诊断依赖；
 - `docker-compose.execution-runtime.langfuse.yml`：将本地 Agent trace 转发至 Langfuse 的可选 OTel overlay；
-- `docker-compose.qdrant.yml`：本地非 TLS Qdrant；
 - `docker-compose.qdrant-tls.yml`：只用于 TLS 检查的 Qdrant 环境。
 
 ## 规则
@@ -35,6 +34,5 @@ core 与 ops-web target 使用同一完整产品 seed，或通过显式协作者
 数据库、Docs/图片对象、Qdrant collection 和 current index 按 profile 隔离。已有业务数据需要
 显式 `--replace`；初始化前停止该 worktree 的应用。notice-publisher target 仍只初始化通知分类。seed 不创建表，也不维护 migration ledger。internal-portal-collection 和 notice-classifier
 只在各自 target 需要时生成运行环境，采集任务不由 Compose 常驻启动。
-`pnpm dev:destroy` 只删除确认的 worktree database、derived bucket、
-托管环境文件和注册记录，不会为了清理而启动或重建共享容器。依赖 compose 不负责启动 app-api、
+`pnpm dev:destroy` 只删除确认的当前 Compose project、全部数据卷、托管环境文件和注册记录。依赖 compose 不负责启动 app-api、
 Campus Web、Ops Web、execution-control、agent-runtime 或同步任务，也不在容器启动时写入业务 seed。

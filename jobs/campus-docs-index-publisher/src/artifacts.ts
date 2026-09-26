@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import { canonicalJsonBytes, sha256 } from "./indexing/content-digest.ts";
 import type { ObjectRef } from "campus-contracts/campus-docs";
+import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 import { CHUNK_SET_DEFINITION } from "./definitions.ts";
 import {
@@ -270,7 +271,7 @@ function sortJSON(value: unknown): unknown {
 	if (!isRecord(value)) return value;
 	return Object.fromEntries(
 		Object.entries(value)
-			.sort(([left], [right]) => left.localeCompare(right))
+			.sort(([left], [right]) => compareCanonicalStrings(left, right))
 			.map(([key, item]) => [key, sortJSON(item)]),
 	);
 }

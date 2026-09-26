@@ -99,8 +99,8 @@ export function calculateLocalDevInfrastructurePorts(slot: number): LocalDevInfr
 		objectStore: 25_900 + slot * 100,
 		objectStoreConsole: 25_901 + slot * 100,
 		postgres: 25_432 + slot * 100,
-		qdrantGrpc: 26_334 + slot * 100,
-		qdrantHttp: 26_333 + slot * 100,
+		qdrantGrpc: 26_344 + slot * 100,
+		qdrantHttp: 26_343 + slot * 100,
 		temporal: 27_233 + slot * 100,
 		temporalUi: 27_233 + slot * 100 + 1,
 	};
@@ -399,6 +399,7 @@ function assertProfile(
 	if (!allowMissingWorktree && profile.worktreePath !== repoRoot) {
 		throw new Error("Invalid local development profile identity.");
 	}
+	assertProfilePortDerivation(profile);
 }
 
 function assertProfileIdentity(profile: LocalDevProfile, repoKey?: string): void {
@@ -423,6 +424,9 @@ function assertProfileIdentity(profile: LocalDevProfile, repoKey?: string): void
 			`Local development profile resource identity does not match ${profile.instanceId}.`,
 		);
 	}
+}
+
+function assertProfilePortDerivation(profile: LocalDevProfile): void {
 	if (JSON.stringify(profile.ports) !== JSON.stringify(calculateLocalDevPorts(profile.slot))) {
 		throw new Error(`Local development profile ports do not match slot ${profile.slot}.`);
 	}
@@ -430,13 +434,15 @@ function assertProfileIdentity(profile: LocalDevProfile, repoKey?: string): void
 		JSON.stringify(profile.infraPorts) !==
 		JSON.stringify(calculateLocalDevInfrastructurePorts(profile.slot))
 	) {
-		throw new Error(`Local infrastructure ports do not match slot ${profile.slot}.`);
+		throw new Error(
+			`Local infrastructure ports do not match slot ${profile.slot}; destroy the instance with pnpm dev:destroy and run pnpm dev:init again.`,
+		);
 	}
 }
 
 function assertRegistry(instances: LocalDevProfile[], repoKey: string): void {
 	for (const profile of instances) {
-		assertProfile(profile, profile.worktreePath, repoKey, true);
+		assertProfileIdentity(profile, repoKey);
 	}
 }
 
