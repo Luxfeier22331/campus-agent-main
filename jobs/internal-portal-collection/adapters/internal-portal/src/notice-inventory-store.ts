@@ -2,6 +2,8 @@ import { parsePortalReleaseTime } from "@campus-agent/notices";
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
 import type { Pool } from "pg";
 
+import { NoticeIngestionDataError } from "./notice-ingestion-errors.js";
+
 export interface NoticeInventoryMappings {
 	noticeTypes: Record<string, string>;
 	organizations: Record<string, string>;
@@ -29,10 +31,20 @@ export function createNoticeInventoryStore(pool: Pick<Pool, "query">): NoticeInv
 			}
 		},
 		async register(source) {
-			const releasedAt = parsePortalReleaseTime(
-				source.notice_release_time,
-				`internal_portal/notices/${source.notice_id}.json`,
-			);
+			let releasedAt: string;
+			try {
+				releasedAt = parsePortalReleaseTime(
+					source.notice_release_time,
+					`internal_portal/notices/${source.notice_id}.json`,
+				);
+			} catch (error) {
+				throw new NoticeIngestionDataError({
+					cause: error,
+					message: `notice ${source.notice_id} has an invalid release time`,
+					noticeId: source.notice_id,
+					operation: "inventory",
+				});
+			}
 			const inserted = await pool.query(
 				`INSERT INTO notices.notices(
 					notice_id, notice_type, organization_id, title, released_at,
@@ -78,7 +90,11 @@ export function createNoticeInventoryStore(pool: Pick<Pool, "query">): NoticeInv
 				source.external_url,
 			];
 			if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-				throw new Error(`registered notice conflicts with source: ${source.notice_id}`);
+				throw new NoticeIngestionDataError({
+					message: `registered notice conflicts with source: ${source.notice_id}`,
+					noticeId: source.notice_id,
+					operation: "inventory",
+				});
 			}
 			return "reused";
 		},

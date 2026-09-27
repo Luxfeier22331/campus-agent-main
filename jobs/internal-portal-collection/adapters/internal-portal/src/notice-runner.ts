@@ -3,7 +3,13 @@ import type { InternalPortalNoticeSource } from "ingestion-contracts";
 import { formatRawError } from "ingestion-contracts/raw-error";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
+import {
+	PortalCredentialExpiredError,
+	PortalCredentialUnavailableError,
+	PortalSessionExpiredError,
+} from "./auth-errors.js";
 import type { InternalPortalNoticeMetaStore } from "./notice-meta-store.js";
+import { NoticeIngestionDataError, type NoticeIngestionOperation } from "./notice-ingestion-errors.js";
 import type { NoticeInventoryStore } from "./notice-inventory-store.js";
 import {
 	ensureNoticeResources,
@@ -78,9 +84,9 @@ export interface NoticeRunnerResourceCounts {
 export interface NoticeRunnerFailure {
 	error: string;
 	noticeId: number;
-	operation: "download";
-	resourceKind: NoticeResourceKind;
-	resourceOrdinal: number;
+	operation: NoticeIngestionOperation | "download";
+	resourceKind?: NoticeResourceKind;
+	resourceOrdinal?: number;
 }
 
 export interface NoticeRunnerResult {
@@ -111,6 +117,7 @@ interface NoticeMappings {
 
 interface NoticeScan {
 	candidates: NoticeCandidate[];
+	failures: NoticeRunnerFailure[];
 	pagesFetched: number;
 }
 
@@ -135,6 +142,7 @@ export async function syncInternalPortalNotices(
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
 	const counts = await writeCandidates(input, scan.candidates, processedRange);
+	counts.failures = [...scan.failures, ...counts.failures];
 	const updatedAt = now(input);
 	emitProgress(input, {
 		phase: "finalizing",
@@ -180,6 +188,7 @@ export async function rescanInternalPortalNotices(
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
 	const counts = await writeCandidates(input, scan.candidates, range);
+	counts.failures = [...scan.failures, ...counts.failures];
 	if (counts.failures.length === 0) {
 		await saveMappings(input, completeMappings, now(input));
 	}
@@ -219,6 +228,7 @@ export async function backfillInternalPortalNotices(
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
 	const counts = await writeCandidates(input, scan.candidates, processedRange);
+	counts.failures = [...scan.failures, ...counts.failures];
 	const updatedAt = now(input);
 	emitProgress(input, {
 		phase: "finalizing",
@@ -280,14 +290,16 @@ async function scanNotices(
 	allowedTypes: Set<number>,
 ): Promise<NoticeScan> {
 	const candidates: NoticeCandidate[] = [];
+	const failures: NoticeRunnerFailure[] = [];
 	let pagesFetched = 0;
 	let scanned = 0;
 	const seenIds = new Set<number>();
+	const failedIds = new Set<number>();
 	let totalPages: number | null = null;
 	let totalItems: number | null = null;
 	if (range.from === range.to) {
 		emitProgress(input, { phase: "scanning", processed: 0, processedRange: range, total: 0 });
-		return { candidates, pagesFetched };
+		return { candidates, failures, pagesFetched };
 	}
 
 	for (let currentPage = 1; totalPages === null || currentPage <= totalPages; currentPage += 1) {
@@ -297,7 +309,23 @@ async function scanNotices(
 		totalPages ??= pagination.totalPages;
 		totalItems ??= pagination.totalItems;
 		for (const item of page.datas?.tables ?? []) {
-			const candidate = parseNoticeItem(item);
+			let candidate: NoticeCandidate;
+			try {
+				candidate = parseNoticeItem(item);
+			} catch (error) {
+				if (!(error instanceof NoticeIngestionDataError)) {
+					throw error;
+				}
+				if (!failedIds.has(error.noticeId)) {
+					failedIds.add(error.noticeId);
+					failures.push({
+						error: formatRawError(error),
+						noticeId: error.noticeId,
+						operation: error.operation,
+					});
+				}
+				continue;
+			}
 			if (seenIds.has(candidate.noticeId)) {
 				continue;
 			}
@@ -315,15 +343,32 @@ async function scanNotices(
 		});
 	}
 
-	return { candidates, pagesFetched };
+	return { candidates, failures, pagesFetched };
 }
 
 function parseNoticeItem(item: NoticeItem): NoticeCandidate {
+	const noticeId = parsePositiveInteger(item.notice_id, "notice_id");
 	return {
 		item,
-		noticeId: parsePositiveInteger(item.notice_id, "notice_id"),
-		noticeType: parsePositiveInteger(item.notice_type, "notice_type"),
+		noticeId,
+		noticeType: parseNoticeType(item.notice_type, noticeId),
 	};
+}
+
+function parseNoticeType(
+	value: number | string | null | undefined,
+	noticeId: number,
+): number {
+	try {
+		return parsePositiveInteger(value, "notice_type");
+	} catch (error) {
+		throw new NoticeIngestionDataError({
+			cause: error,
+			message: `notice ${noticeId} item has an invalid notice_type`,
+			noticeId,
+			operation: "item",
+		});
+	}
 }
 
 async function fetchPage(
@@ -375,11 +420,30 @@ async function fetchMappings(input: NoticeRunnerInput): Promise<NoticeMappings> 
 	}
 	const organizations: Record<string, string> = {};
 	for (const item of response.datas?.org ?? []) {
-		const id = requireText(item.organization_id, "organization_id");
-		const name = requireText(item.organization_name, "organization_name");
-		assertNewMapping(organizations, id, name, "organization");
+		const id = normalizeOptionalText(item.organization_id);
+		const name = normalizeOptionalText(item.organization_name);
+		if (!id || !name) {
+			emitMetadataDiagnostic(id, "invalid_entry");
+			continue;
+		}
+		if (Object.hasOwn(organizations, id)) {
+			if (organizations[id] !== name) {
+				emitMetadataDiagnostic(id, "duplicate_id");
+			}
+			continue;
+		}
+		organizations[id] = name;
 	}
 	return { noticeTypes, organizations };
+}
+
+function emitMetadataDiagnostic(organizationId: string | null, reason: string): void {
+	console.log(
+		JSON.stringify({
+			noticeMetadata: { organizationId, reason },
+			status: "running",
+		}),
+	);
 }
 
 function assertNewMapping(
@@ -436,79 +500,59 @@ async function writeCandidates(
 		total: candidates.length,
 	});
 	for (const candidate of candidates) {
-		const existing = await input.sourceStore.get(candidate.noticeId);
-		let source: InternalPortalNoticeSource;
-		if (existing) {
-			source = existing;
-		} else {
-			const detail = await input.fetchNoticeDetail({
-				apiContext: input.apiContext,
-				noticeId: candidate.noticeId,
-			});
-			const detailInfo = detail.datas?.notice_info;
-			if (!detailInfo) {
-				throw new Error(`notice ${candidate.noticeId} detail is missing notice_info`);
+		try {
+			const existing = await input.sourceStore.get(candidate.noticeId);
+			let source: InternalPortalNoticeSource;
+			if (existing) {
+				source = existing;
+			} else {
+				source = await buildNoticeSource(input, candidate);
 			}
-			source = buildInternalPortalNoticeSource({
-				detailInfo,
-				listItem: candidate.item,
-				noticeId: candidate.noticeId,
-				noticeType: candidate.noticeType,
+			candidatesProcessed += 1;
+			emitProgress(input, {
+				phase: "processing",
+				processed: candidatesProcessed,
+				processedRange: range,
+				total: candidates.length,
 			});
-		}
-		candidatesProcessed += 1;
-		emitProgress(input, {
-			phase: "processing",
-			processed: candidatesProcessed,
-			processedRange: range,
-			total: candidates.length,
-		});
-		if (!isSourceInRange(source, range)) {
-			candidatesWritten += 1;
+			if (!isSourceInRange(source, range)) {
+				candidatesWritten += 1;
+				emitProgress(input, {
+					phase: "writing",
+					processed: candidatesWritten,
+					processedRange: range,
+					total: candidates.length,
+				});
+				continue;
+			}
+			if (existing) {
+				objectsReused += 1;
+			} else {
+				const outcome = await input.sourceStore.put(source);
+				if (outcome === "reused") {
+					objectsReused += 1;
+				} else {
+					objectsWritten += 1;
+				}
+			}
 			emitProgress(input, {
 				phase: "writing",
 				processed: candidatesWritten,
 				processedRange: range,
 				total: candidates.length,
 			});
-			continue;
-		}
-		if (existing) {
-			objectsReused += 1;
-		} else {
-			const outcome = await input.sourceStore.put(source);
-			if (outcome === "reused") {
-				objectsReused += 1;
-			} else {
-				objectsWritten += 1;
-			}
-		}
-		emitProgress(input, {
-			phase: "writing",
-			processed: candidatesWritten,
-			processedRange: range,
-			total: candidates.length,
-		});
-		let resourceResult: NoticeResourceEnsureResult;
-		try {
-			resourceResult = await ensureNoticeResources({
+			const resourceResult = await ensureNoticeResources({
 				apiContext: input.apiContext,
 				dryRun: false,
 				notices: [source],
 				objectStore: input.objectStore,
 				portalHost: input.portalHost,
 			});
-		} catch (error) {
-			if (!(error instanceof NoticeResourceTransferError)) {
-				throw error;
+			if (await input.inventoryStore.register(source) === "written") {
+				noticesAdded += 1;
 			}
-			failures.push({
-				error: formatRawError(error),
-				noticeId: error.noticeId,
-				operation: error.operation,
-				resourceKind: error.resourceKind,
-				resourceOrdinal: error.resourceOrdinal,
-			});
+			noticesProcessed += 1;
+			addResourceCounts(resources, resourceResult);
 			candidatesWritten += 1;
 			emitProgress(input, {
 				phase: "writing",
@@ -516,22 +560,99 @@ async function writeCandidates(
 				processedRange: range,
 				total: candidates.length,
 			});
-			continue;
+		} catch (error) {
+			const failure = isolateNoticeCandidateFailure(error);
+			if (!failure) {
+				throw error;
+			}
+			failures.push(failure);
+			candidatesWritten += 1;
+			emitProgress(input, {
+				phase: "writing",
+				processed: candidatesWritten,
+				processedRange: range,
+				total: candidates.length,
+			});
 		}
-		if (await input.inventoryStore.register(source) === "written") {
-			noticesAdded += 1;
-		}
-		noticesProcessed += 1;
-		addResourceCounts(resources, resourceResult);
-		candidatesWritten += 1;
-		emitProgress(input, {
-			phase: "writing",
-			processed: candidatesWritten,
-			processedRange: range,
-			total: candidates.length,
-		});
 	}
 	return { failures, noticesAdded, noticesProcessed, objectsReused, objectsWritten, resources };
+}
+
+async function buildNoticeSource(
+	input: NoticeRunnerInput,
+	candidate: NoticeCandidate,
+): Promise<InternalPortalNoticeSource> {
+	let detail: NoticeDetailResponse;
+	try {
+		detail = await input.fetchNoticeDetail({
+			apiContext: input.apiContext,
+			noticeId: candidate.noticeId,
+		});
+	} catch (error) {
+		if (isPortalAuthenticationError(error)) {
+			throw error;
+		}
+		throw new NoticeIngestionDataError({
+			cause: error,
+			message: `notice ${candidate.noticeId} detail fetch failed`,
+			noticeId: candidate.noticeId,
+			operation: "detail",
+		});
+	}
+	const detailInfo = detail.datas?.notice_info;
+	if (!detailInfo) {
+		throw new NoticeIngestionDataError({
+			message: `notice ${candidate.noticeId} detail is missing notice_info`,
+			noticeId: candidate.noticeId,
+			operation: "detail",
+		});
+	}
+	try {
+		return buildInternalPortalNoticeSource({
+			detailInfo,
+			listItem: candidate.item,
+			noticeId: candidate.noticeId,
+			noticeType: candidate.noticeType,
+		});
+	} catch (error) {
+		if (error instanceof NoticeIngestionDataError) {
+			throw error;
+		}
+		throw new NoticeIngestionDataError({
+			cause: error,
+			message: `notice ${candidate.noticeId} source construction failed`,
+			noticeId: candidate.noticeId,
+			operation: "source",
+		});
+	}
+}
+
+function isolateNoticeCandidateFailure(error: unknown): NoticeRunnerFailure | null {
+	if (error instanceof NoticeResourceTransferError) {
+		return {
+			error: formatRawError(error),
+			noticeId: error.noticeId,
+			operation: error.operation,
+			resourceKind: error.resourceKind,
+			resourceOrdinal: error.resourceOrdinal,
+		};
+	}
+	if (error instanceof NoticeIngestionDataError) {
+		return {
+			error: formatRawError(error),
+			noticeId: error.noticeId,
+			operation: error.operation,
+		};
+	}
+	return null;
+}
+
+function isPortalAuthenticationError(error: unknown): boolean {
+	return (
+		error instanceof PortalCredentialExpiredError ||
+		error instanceof PortalCredentialUnavailableError ||
+		error instanceof PortalSessionExpiredError
+	);
 }
 
 async function saveMappings(

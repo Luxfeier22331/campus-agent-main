@@ -6,7 +6,7 @@ status: active
 
 # 通知维护接口
 
-Ops Web 提供通知摘要、已采集正文预览、分类维护和自动采集配置，并复用 CronJob 模板启动固定任务。浏览器不能
+Ops Web 提供通知摘要、已采集正文预览、分类维护和一次性维护任务，并复用 CronJob 模板启动固定任务。浏览器不能
 提交任意 Kubernetes 命令、镜像、环境变量或 namespace。
 
 ## 通知
@@ -60,17 +60,14 @@ Ops Web 提供通知摘要、已采集正文预览、分类维护和自动采集
 理由和重新评估条件见 [通知维护状态收敛](../../../.agents/notes/implemented/architecture/2026-08-25-notice-maintenance-state.md)。已发布通知的分类保存后立即
 影响学生端。
 
-## 自动采集
+## 自动化调度
 
-- `GET /api/ops/notices/automation` 返回 CronJob 实际开关、频率、时区、最近调度与自动成功时间，
-  以及来源维护范围和门户凭据状态；各依赖读取失败分别返回错误，不把未知当作暂停或成功。
-- `PUT /api/ops/notices/automation` 仅接受 `{ enabled, intervalMinutes }`，频率为 15、30 或 60 分钟。
-  Ops 只 patch `notice-sync.spec.suspend` 和 `.schedule`；开启前须存在完整维护范围和可用凭据，暂停不依赖两者。
-- CronJob 是配置唯一事实来源，不增加数据库调度状态。GitOps 精确忽略这两个字段并使用
-  `RespectIgnoreDifferences=true`；其他模板字段保持 GitOps 所有权。默认暂停，时区 `Asia/Shanghai`。
-- 本地不运行定时器，返回 `supported: false`，仍可运行一次性任务。设置写入失败保留草稿，不更新已保存状态。
-- 活动任务每 3 秒刷新；开启自动采集且空闲时每 30 秒刷新，暂停且无活动任务时不轮询；后台标签页不轮询，
-  回到页面重新读取。新发现的已完成自动任务也会刷新通知库存，不能只依赖曾看到运行中状态。
+- 自动化链路是 Temporal Schedule `notice-pipeline`，由 `notice-pipeline-worker` 部署时创建，默认
+  暂停、周期 15 分钟，可调整为 30 或 60 分钟；启停与周期通过任务页 `/api/ops/tasks` 修改，通知维护页
+  不再提供自动采集配置。
+- 历史 `GET/PUT /api/ops/notices/automation` 入口已随统一流水线迁移移除；CronJob 不再承载自动调度，
+  保持 GitOps 管理的暂停模板，仅作为一次性 Job 的模板来源，运行时也不 patch 其 `suspend`/`schedule`。
+- 任务列表在活动任务期间每 3 秒、空闲时每 30 秒刷新；后台标签页不轮询，回到页面重新读取。
 
 ## 任务操作
 
@@ -84,10 +81,12 @@ Ops Web 提供通知摘要、已采集正文预览、分类维护和自动采集
 `campus-agent.muc.wiki/notice-id` label 持久表达通知归属，任务响应通过 `noticeId` 返回该值；批量任务
 以及部署前创建且没有该 label 的单条任务返回 `noticeId: null`。
 
-列表合并手动和 CronJob 自动产生的任务，以 `trigger: manual|scheduled` 区分；只返回最近 50 条，
+列表包含 Ops 创建与手动恢复的任务，以 `trigger: manual|scheduled` 区分（CronJob 模板保持暂停，
+正常不产生 `scheduled` 任务）；只返回最近 50 条，
 互斥检查覆盖全部仍保留的任务，不受展示数量限制。`notice-rescan` 接受 `{ from, to }` 半开区间，
 复用采集模板和数据库锁；仅补已有维护范围内缺少的通知，不刷新旧详情、不推进维护边界。
-页面日期结束值包含当天，提交时转换成次日排他上界。分类、发布、OCR 不随自动采集开启。
+页面日期结束值包含当天，提交时转换成次日排他上界。分类与发布的自动执行由 `notice-pipeline` 统一
+编排，OCR 不参与自动调度。
 
 部署环境从固定 CronJob 模板创建 Kubernetes Job。`local/development` 使用相同接口和任务状态启动
 当前 worktree 的固定采集、分类或发布 CLI（采集使用其本地 adapter 入口加载自身环境）；本地任务只保存在 Ops Web 进程内，服务重启后消失。两种

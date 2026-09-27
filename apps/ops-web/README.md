@@ -48,8 +48,8 @@ Node 构建内联通知 workspace 源码，但外部加载生产依赖 `jsdom`�
 同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能
 提交任意 command、image、environment、namespace 或 Secret。每个采集、分类和发布操作族同时只允许
 一个待运行或运行中的 Job。分类与发布执行入口另用数据库会话锁防止跨入口重叠，忙时报告 skipped。
-GitOps 创建暂停的 CronJob；Ops 拥有采集、分类、发布的 schedule 与 suspend，其他字段由 GitOps 管理。动态
-Job 引用来源 CronJob 作为 owner，固定零重试，并在完成 24 小时后回收。
+GitOps 创建并拥有暂停的 CronJob 模板；定时调度统一由 Temporal `notice-pipeline` Schedule 承担，在
+`/tasks` 调整。动态 Job 引用来源 CronJob 作为 owner，固定零重试，并在完成 24 小时后回收。
 
 Job 的 stdout 使用结构化 JSON。Ops Web 读取运行中、成功和失败 Job 的 Pod 输出，返回 Kubernetes
 状态、本次处理区间、完成后维护区间、最近阶段/进度、原始应用错误、controller condition、严格业务摘要和单条任务的通知 ID label；

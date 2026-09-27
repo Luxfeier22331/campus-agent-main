@@ -126,6 +126,18 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 模型输出或来源数据错误隔离到单条，基础设施错误终止本轮，Ops `/tasks` 展示问题数量并链接通知维护。
 分类、发布的手动与定时入口共用各自数据库会话锁；锁忙返回 skipped，锁失效停止接新工作。
 
+采集（ingestion）阶段没有 `processing_failures` 记录：detail 缺失或 source 构造失败时通知行尚不存在，
+无法按 `(notice_id, stage)` 落库。采集失败只进入任务摘要（`noticesFailed`、`outcome: partial`）与
+stderr JSON（`operation` 为 `download`、`detail`、`item`、`source` 或 `inventory`），状态不推进直到重跑
+成功；通知行在库存登记成功后才存在。单条通知的数据性失败（含列表项 `notice_type` 非法）不阻断同批
+其余通知，认证错误、列表项 `notice_id` 非法、分页不一致与 notice type 映射错误仍终止整批；
+organization 映射异常仅记诊断日志，不阻断批次。
+
+重新发布与发布共用 publication 失败记录：单条数据性失败按通知隔离、跳过并继续，基础设施错误终止
+本轮；自动 republish 批次不排除已有失败记录的通知，成功重物化在同一事务中清除记录。重新发布不触发
+chunk/embedding 制品，正文变化在下一次完整检索刷新进入 AI 搜索，收敛窗口见
+[通知索引 runbook](../runbooks/notice-indexing.md#与-republish-的一致性)。
+
 ## 规范化投影
 
 ### PostgreSQL

@@ -107,7 +107,9 @@ export async function publishNotices(input: {
 
 export interface NoticeRepublishResult {
 	assets: number;
+	failed: number;
 	notices: number;
+	outcome: "success" | "partial";
 	skipped: number;
 	unchanged: number;
 	updated: number;
@@ -122,68 +124,63 @@ export async function republishNotices(input: {
 	portalHost: string;
 }): Promise<NoticeRepublishResult> {
 	const candidates = await loadCandidates(input.client, input.noticeIds, "republish");
+	const result: NoticeRepublishResult = {
+		assets: 0,
+		failed: 0,
+		notices: 0,
+		outcome: "success",
+		skipped: 0,
+		unchanged: 0,
+		updated: 0,
+	};
 	if (candidates.length === 0) {
-		input.onProgress?.({ phase: "finalizing", processed: 0, total: 0 });
-		return { assets: 0, notices: 0, skipped: 0, unchanged: 0, updated: 0 };
-	}
-	const meta = await loadMeta(input.objectStore);
-	const records: PublishedNotice[] = [];
-	let skipped = 0;
-	input.onProgress?.({ phase: "processing", processed: 0, total: candidates.length });
-	for (const candidate of candidates) {
-		input.signal?.throwIfAborted();
-		const record = await loadRecord(input.objectStore, meta, candidate, input.portalHost, {
-			skipAssetsWhenNoText: true,
-		});
-		if (record.contentText === null) {
-			if (input.noticeIds?.length) {
-				throw new Error(`notice ${record.noticeId} has no source body to republish`);
-			}
-			skipped += 1;
-		} else {
-			records.push(record);
-		}
-		input.onProgress?.({
-			phase: "processing",
-			processed: records.length + skipped,
-			total: candidates.length,
-		});
-	}
-	if (records.length === 0) {
-		const result = { assets: 0, notices: 0, skipped, unchanged: 0, updated: 0 };
 		input.onProgress?.({ phase: "finalizing", processed: 0, total: 0 });
 		return result;
 	}
-
-	let updated = 0;
-	let unchanged = 0;
-	await input.client.query("BEGIN");
-	try {
-		for (const [index, record] of records.entries()) {
-			input.signal?.throwIfAborted();
-			input.onProgress?.({ phase: "writing", processed: index, total: records.length });
-			if (await updatePublishedContent(input.client, record)) {
-				updated += 1;
+	const meta = await loadMeta(input.objectStore);
+	for (const [index, candidate] of candidates.entries()) {
+		input.signal?.throwIfAborted();
+		input.onProgress?.({ phase: "processing", processed: index, total: candidates.length });
+		try {
+			const record = await loadRecord(input.objectStore, meta, candidate, input.portalHost, {
+				skipAssetsWhenNoText: true,
+			});
+			if (record.contentText === null) {
+				if (input.noticeIds?.length) {
+					throw new Error(`notice ${record.noticeId} has no source body to republish`);
+				}
+				result.skipped += 1;
 			} else {
-				unchanged += 1;
+				await input.client.query("BEGIN");
+				try {
+					if (await updatePublishedContent(input.client, record)) {
+						result.updated += 1;
+					} else {
+						result.unchanged += 1;
+					}
+					await insertOrVerifyAssets(input.client, record);
+					await input.client.query(
+						"DELETE FROM notices.processing_failures WHERE notice_id=$1 AND stage='publication'",
+						[record.noticeId],
+					);
+					await input.client.query("COMMIT");
+				} catch (error) {
+					await input.client.query("ROLLBACK");
+					throw error;
+				}
+				result.assets += record.assets.length;
+				result.notices += 1;
 			}
-			await insertOrVerifyAssets(input.client, record);
-			await input.client.query("DELETE FROM notices.processing_failures WHERE notice_id=$1 AND stage='publication'", [record.noticeId]);
-			input.onProgress?.({ phase: "writing", processed: index + 1, total: records.length });
+		} catch (error) {
+			if (!(error instanceof NoticePublicationDataError)) throw error;
+			input.signal?.throwIfAborted();
+			await recordNoticeProcessingFailure(input.client, candidate.noticeId, "publication", error);
+			result.failed += 1;
+			result.outcome = "partial";
 		}
-		await input.client.query("COMMIT");
-	} catch (error) {
-		await input.client.query("ROLLBACK");
-		throw error;
+		input.onProgress?.({ phase: "writing", processed: index + 1, total: candidates.length });
 	}
-	const result = {
-		assets: records.reduce((sum, item) => sum + item.assets.length, 0),
-		notices: records.length,
-		skipped,
-		unchanged,
-		updated,
-	};
-	input.onProgress?.({ phase: "finalizing", processed: result.notices, total: result.notices });
+	input.onProgress?.({ phase: "finalizing", processed: candidates.length, total: candidates.length });
 	return result;
 }
 

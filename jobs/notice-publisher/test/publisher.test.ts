@@ -132,7 +132,15 @@ describe("notice publisher", () => {
 				objectStore: fakeStore(),
 				portalHost: "my.muc.edu.cn",
 			}),
-		).resolves.toEqual({ assets: 0, notices: 1, skipped: 0, unchanged: 0, updated: 1 });
+		).resolves.toEqual({
+			assets: 0,
+			failed: 0,
+			notices: 1,
+			outcome: "success",
+			skipped: 0,
+			unchanged: 0,
+			updated: 1,
+		});
 
 		const update = queries.find((text) => text.includes("UPDATE notices.notices"));
 		expect(update).toContain("SET content_html=$2, content_text=$3");
@@ -176,7 +184,7 @@ describe("notice publisher", () => {
 			objectStore: store,
 			portalHost: "my.muc.edu.cn",
 		}),
-		).resolves.toMatchObject({ assets: 0, notices: 0, skipped: 1, unchanged: 0, updated: 0 });
+		).resolves.toMatchObject({ assets: 0, notices: 0, skipped: 1, unchanged: 0, updated: 0, failed: 0 });
 		expect(client.query).not.toHaveBeenCalledWith("BEGIN");
 	});
 
@@ -190,6 +198,153 @@ describe("notice publisher", () => {
 				portalHost: "my.muc.edu.cn",
 			}),
 		).rejects.toThrow("notice 358159 is not published");
+	});
+
+	it("isolates republish data errors, commits the rest, and retries without residue", async () => {
+		const queries: string[] = [];
+		const client = {
+			query: vi.fn(async (text: string, values?: unknown[]) => {
+				queries.push(text);
+				if (text.includes("SELECT notice_id::text")) {
+					return {
+						rowCount: 2,
+						rows: [candidate({ notice_id: "1", is_published: true }), candidate({ is_published: true })],
+					};
+				}
+				if (text.includes("SELECT content_html")) {
+					return {
+						rowCount: 1,
+						rows: [{ content_html: "<p>旧正文</p>", content_text: "旧正文", is_published: true }],
+					};
+				}
+				if (text.includes("UPDATE notices.notices")) return { rowCount: 1, rows: [] };
+				if (text.includes("SELECT asset_kind")) return { rowCount: 0, rows: [] };
+				return { rowCount: 0, rows: [] };
+			}),
+		} as unknown as PoolClient;
+		const store = fakeStore();
+		const getSource = store.getSource;
+		let broken = true;
+		store.getSource = async (key: string) => {
+			const stored = await getSource(key);
+			if (key.endsWith("/1.json")) {
+				if (broken) {
+					return { body: Buffer.from("broken json"), contentType: "application/json" };
+				}
+				const source = JSON.parse(Buffer.from(stored.body).toString("utf8")) as {
+					notice_id: number;
+				};
+				source.notice_id = 1;
+				return { body: Buffer.from(JSON.stringify(source)), contentType: "application/json" };
+			}
+			return stored;
+		};
+
+		await expect(
+			republishNotices({ client, objectStore: store, portalHost: "my.muc.edu.cn" }),
+		).resolves.toEqual({
+			assets: 0,
+			failed: 1,
+			notices: 1,
+			outcome: "partial",
+			skipped: 0,
+			unchanged: 0,
+			updated: 1,
+		});
+		expect(client.query).toHaveBeenCalledWith(
+			expect.stringContaining("INSERT INTO notices.processing_failures"),
+			expect.arrayContaining([1, "publication", "NoticePublicationDataError"]),
+		);
+		expect(queries.filter((text) => text === "COMMIT")).toHaveLength(1);
+
+		queries.length = 0;
+		broken = false;
+		await expect(
+			republishNotices({ client, objectStore: store, portalHost: "my.muc.edu.cn" }),
+		).resolves.toEqual({
+			assets: 0,
+			failed: 0,
+			notices: 2,
+			outcome: "success",
+			skipped: 0,
+			unchanged: 0,
+			updated: 2,
+		});
+		expect(client.query).toHaveBeenCalledWith(
+			expect.stringContaining("DELETE FROM notices.processing_failures"),
+			expect.arrayContaining([1]),
+		);
+		expect(queries).toContain("COMMIT");
+	});
+
+	it("stops republish on a database outage without recording item failures", async () => {
+		const client = {
+			query: vi.fn(async (text: string) => {
+				if (text.includes("SELECT notice_id::text")) {
+					return { rowCount: 1, rows: [candidate({ is_published: true })] };
+				}
+				if (text.includes("SELECT content_html")) throw new Error("database unavailable");
+				return { rowCount: 0, rows: [] };
+			}),
+		} as unknown as PoolClient;
+		await expect(
+			republishNotices({ client, objectStore: fakeStore(), portalHost: "my.muc.edu.cn" }),
+		).rejects.toThrow("database unavailable");
+		expect(client.query).toHaveBeenCalledWith("ROLLBACK");
+		expect(client.query).not.toHaveBeenCalledWith(
+			expect.stringContaining("INSERT INTO notices.processing_failures"),
+			expect.anything(),
+		);
+	});
+
+	it("counts an unchanged republish and still clears publication failures", async () => {
+		const queries: string[] = [];
+		const normalized = normalizePublishedNoticeContent({
+			html: "<p>正文</p>",
+			isExternal: false,
+			portalHost: "my.muc.edu.cn",
+			title: "测试通知",
+		});
+		const client = {
+			query: vi.fn(async (text: string, values?: unknown[]) => {
+				queries.push(text);
+				if (text.includes("SELECT notice_id::text")) {
+					return { rowCount: 1, rows: [candidate({ is_published: true })] };
+				}
+				if (text.includes("SELECT content_html")) {
+					return {
+						rowCount: 1,
+						rows: [
+							{
+								content_html: normalized.contentHtml,
+								content_text: normalized.contentText,
+								is_published: true,
+							},
+						],
+					};
+				}
+				if (text.includes("SELECT asset_kind")) return { rowCount: 0, rows: [] };
+				return { rowCount: 0, rows: [] };
+			}),
+		} as unknown as PoolClient;
+
+		await expect(
+			republishNotices({ client, objectStore: fakeStore(), portalHost: "my.muc.edu.cn" }),
+		).resolves.toEqual({
+			assets: 0,
+			failed: 0,
+			notices: 1,
+			outcome: "success",
+			skipped: 0,
+			unchanged: 1,
+			updated: 0,
+		});
+		expect(queries.find((text) => text.includes("UPDATE notices.notices"))).toBeUndefined();
+		expect(client.query).toHaveBeenCalledWith(
+			expect.stringContaining("DELETE FROM notices.processing_failures"),
+			expect.arrayContaining([358159]),
+		);
+		expect(queries).toContain("COMMIT");
 	});
 
 	it("omits missing attachment objects while preserving the remaining source ordinals", async () => {

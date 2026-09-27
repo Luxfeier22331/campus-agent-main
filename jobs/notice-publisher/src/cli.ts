@@ -49,7 +49,7 @@ async function main(): Promise<void> {
 					objectStore: store,
 					portalHost: internalPortalHost(),
 				});
-				console.log(JSON.stringify({ summary: { outcome: "success", ...result } }));
+				console.log(JSON.stringify({ summary: result }));
 			} finally {
 				store.close();
 			}

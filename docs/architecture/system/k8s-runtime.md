@@ -28,7 +28,7 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；数据库结构由 data-postgres
   Application 中的统一 `campus-agent-schema` Job 安装；
 - `agent-runtime`：一个独立 Deployment；
-- `ops-web`：一个运维 API Deployment，直接管理允许的 CronJob 和 Temporal Schedule 启停、周期；
+- `ops-web`：一个运维 API Deployment，管理 `notice-pipeline` Temporal Schedule 启停与周期，并从暂停的 CronJob 模板创建一次性 Job；
 - `notice-pipeline-worker`：独立离线流水线 Deployment，在 `notice-pipeline` 队列执行通知采集、分类、发布和 RAG 刷新编排；
 - `notice-artifacts-worker`：独立离线流水线 Deployment，在 `notice-artifacts` 队列执行通知制品、Embedding、Qdrant 发布、清理和 rollback；
 - `ops-web-internal-portal-check`：使用 Ops Web 凭据 store 顺序检查凭据池的 CronJob；

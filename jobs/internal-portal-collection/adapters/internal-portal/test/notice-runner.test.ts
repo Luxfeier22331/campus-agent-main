@@ -2,7 +2,9 @@ import type { InternalPortalNoticeSource } from "ingestion-contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
+import { PortalSessionExpiredError } from "@campus-agent/internal-portal-client";
 import type { InternalPortalNoticeMetaStore } from "../src/notice-meta-store.js";
+import { NoticeIngestionDataError } from "../src/notice-ingestion-errors.js";
 import type {
 	NoticeInventoryMappings,
 	NoticeInventoryStore,
@@ -283,6 +285,389 @@ describe("notice runner maintenance ranges", () => {
 			"internal_portal/notices/1/attachments/0",
 			"internal_portal/notices/2/attachments/0",
 		]);
+	});
+
+	it("isolates a notice whose detail is missing notice_info and keeps processing later notices", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) => {
+			if (noticeId === 2) {
+				const broken = detail(noticeId, "2026-08-10 10:00");
+				if (!broken.datas) {
+					throw new Error("test detail is missing datas");
+				}
+				broken.datas.notice_info = null;
+				return broken;
+			}
+			return detail(noticeId, `2026-08-10 ${noticeId === 1 ? "09:00" : "11:00"}`);
+		});
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[
+							notice(1, 5, "2026-08-10 09:00"),
+							notice(2, 5, "2026-08-10 10:00"),
+							notice(3, 5, "2026-08-10 11:00"),
+						],
+						3,
+					),
+		);
+
+		const failed = await syncInternalPortalNotices(
+			runnerInput({
+				fetchNoticeDetail,
+				fetchNoticePage,
+				inventoryStore,
+				stateStore,
+			}),
+		);
+
+		expect(failed.failures).toHaveLength(1);
+		expect(failed.failures[0]).toMatchObject({
+			noticeId: 2,
+			operation: "detail",
+		});
+		expect(failed.failures[0]?.error).toContain("detail is missing notice_info");
+		expect(failed.noticesProcessed).toBe(2);
+		expect(inventoryStore.registered).toEqual([1, 3]);
+		expect(failed.maintenanceRange).toBeNull();
+		expect(stateStore.saveCalls).toBe(0);
+
+		fetchNoticeDetail.mockImplementation(async ({ noticeId }: { noticeId: number }) =>
+			detail(noticeId, `2026-08-10 ${noticeId === 1 ? "09:00" : "10:00"}`),
+		);
+		const succeeded = await syncInternalPortalNotices(
+			runnerInput({
+				fetchNoticeDetail,
+				fetchNoticePage,
+				inventoryStore,
+				stateStore,
+			}),
+		);
+
+		expect(succeeded.failures).toEqual([]);
+		expect(succeeded.maintenanceRange).toEqual({ from: "2026-08-01", to: "2026-08-12" });
+		expect(stateStore.saveCalls).toBe(1);
+	});
+
+	it("isolates a notice whose source construction fails and keeps processing later notices", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) =>
+			noticeId === 2
+				? detailWithoutTitle(noticeId, "2026-08-10 10:00")
+				: detail(noticeId, `2026-08-10 ${noticeId === 1 ? "09:00" : "11:00"}`),
+		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[
+							notice(1, 5, "2026-08-10 09:00"),
+							notice(2, 5, "2026-08-10 10:00"),
+							notice(3, 5, "2026-08-10 11:00"),
+						],
+						3,
+					),
+		);
+
+		const failed = await syncInternalPortalNotices(
+			runnerInput({
+				fetchNoticeDetail,
+				fetchNoticePage,
+				inventoryStore,
+				stateStore,
+			}),
+		);
+
+		expect(failed.failures).toHaveLength(1);
+		expect(failed.failures[0]).toMatchObject({
+			noticeId: 2,
+			operation: "source",
+		});
+		expect(failed.failures[0]?.error).toContain("source construction failed");
+		expect(failed.failures[0]?.error).toContain("notice_title");
+		expect(failed.noticesProcessed).toBe(2);
+		expect(inventoryStore.registered).toEqual([1, 3]);
+		expect(stateStore.saveCalls).toBe(0);
+	});
+
+	it("isolates a notice whose inventory registration reports conflicting data", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const inventoryStore = new ConflictingInventoryStore();
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[
+							notice(1, 5, "2026-08-10 09:00"),
+							notice(2, 5, "2026-08-10 10:00"),
+							notice(3, 5, "2026-08-10 11:00"),
+						],
+						3,
+					),
+		);
+
+		const failed = await syncInternalPortalNotices(
+			runnerInput({
+				fetchNoticePage,
+				inventoryStore,
+				stateStore,
+			}),
+		);
+
+		expect(failed.failures).toHaveLength(1);
+		expect(failed.failures[0]).toMatchObject({
+			noticeId: 2,
+			operation: "inventory",
+		});
+		expect(failed.failures[0]?.error).toContain("registered notice conflicts with source: 2");
+		expect(failed.noticesProcessed).toBe(2);
+		expect(stateStore.saveCalls).toBe(0);
+	});
+
+	it("stops the batch when notice detail authentication fails", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[
+							notice(1, 5, "2026-08-10 09:00"),
+							notice(2, 5, "2026-08-10 10:00"),
+						],
+						2,
+					),
+		);
+
+		await expect(
+			syncInternalPortalNotices(
+				runnerInput({
+					fetchNoticeDetail: async ({ noticeId }: { noticeId: number }) => {
+						if (noticeId === 1) {
+							throw new PortalSessionExpiredError("session invalid");
+						}
+						return detail(noticeId, "2026-08-10 10:00");
+					},
+					fetchNoticePage,
+					stateStore,
+				}),
+			),
+		).rejects.toThrow("session invalid");
+		expect(stateStore.saveCalls).toBe(0);
+	});
+
+	it("isolates an item with an invalid notice_type and blocks state until a clean rerun", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[
+							notice(1, 5, "2026-08-10 09:00"),
+							{ ...notice(2, 0, "2026-08-10 10:00"), notice_type: 0 },
+							notice(3, 5, "2026-08-10 11:00"),
+						],
+						3,
+					),
+		);
+
+		const failed = await syncInternalPortalNotices(
+			runnerInput({
+				fetchNoticePage,
+				inventoryStore,
+				stateStore,
+			}),
+		);
+
+		expect(failed.failures).toHaveLength(1);
+		expect(failed.failures[0]).toMatchObject({
+			noticeId: 2,
+			operation: "item",
+		});
+		expect(failed.failures[0]?.error).toContain("invalid notice_type");
+		expect(failed.noticesProcessed).toBe(2);
+		expect(inventoryStore.registered).toEqual([1, 3]);
+		expect(failed.maintenanceRange).toBeNull();
+		expect(stateStore.saveCalls).toBe(0);
+
+		fetchNoticePage.mockImplementation(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[
+							notice(1, 5, "2026-08-10 09:00"),
+							notice(2, 5, "2026-08-10 10:00"),
+							notice(3, 5, "2026-08-10 11:00"),
+						],
+						3,
+					),
+		);
+		const succeeded = await syncInternalPortalNotices(
+			runnerInput({
+				fetchNoticePage,
+				inventoryStore,
+				stateStore,
+			}),
+		);
+
+		expect(succeeded.failures).toEqual([]);
+		expect(succeeded.maintenanceRange).toEqual({ from: "2026-08-01", to: "2026-08-12" });
+		expect(stateStore.saveCalls).toBe(1);
+	});
+
+	it("stops the scan when an item has an invalid notice_id", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[
+							notice(1, 5, "2026-08-10 09:00"),
+							{ ...notice(2, 5, "2026-08-10 10:00"), notice_id: "abc" },
+						],
+						2,
+					),
+		);
+
+		await expect(
+			syncInternalPortalNotices(
+				runnerInput({
+					fetchNoticePage,
+					stateStore,
+				}),
+			),
+		).rejects.toThrow("invalid notice_id");
+		expect(stateStore.saveCalls).toBe(0);
+	});
+
+	it("stops the scan when pagination metadata is inconsistent", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const brokenPage: NoticeListResponse = {
+			datas: { page: { pageSize: 20, total: 41, totalCounts: 2 }, tables: [] },
+			state: true,
+		};
+
+		await expect(
+			syncInternalPortalNotices(
+				runnerInput({
+					fetchNoticePage: async (input: { startDate: string }) =>
+						input.startDate === "" ? page([notice(300, 5, "2026-08-11 09:00")], 1) : brokenPage,
+					stateStore,
+				}),
+			),
+		).rejects.toThrow("invalid pagination metadata");
+		expect(stateStore.saveCalls).toBe(0);
+	});
+
+	it("skips malformed organization metadata with diagnostics and still advances state", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const metaStore = new MemoryMetaStore();
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		let result!: Awaited<ReturnType<typeof syncInternalPortalNotices>>;
+		let metadataDiagnostics: unknown[] = [];
+		try {
+			result = await syncInternalPortalNotices(
+				runnerInput({
+					fetchNoticeMetadata: async () => ({
+						datas: {
+							org: [
+								{ organization_id: null, organization_name: "无编号部门" },
+								{ organization_id: "00007", organization_name: "党委保卫部、保卫处" },
+								{ organization_id: "00007", organization_name: "冲突部门" },
+								{ organization_id: "00008", organization_name: null },
+							],
+							type: [{ notice_type_id: 5, notice_type_name: "办公通知" }],
+						},
+						state: true,
+					}),
+					fetchNoticePage: async (input: { startDate: string }) =>
+						input.startDate === ""
+							? page([notice(300, 5, "2026-08-11 09:00")], 1)
+							: page([], 0),
+					metaStore,
+					stateStore,
+				}),
+			);
+			metadataDiagnostics = log.mock.calls
+				.map(([value]) => JSON.parse(String(value)))
+				.filter((value) => value.noticeMetadata);
+		} finally {
+			log.mockRestore();
+		}
+
+		expect(result.failures).toEqual([]);
+		expect(result.maintenanceRange).toEqual({ from: "2026-08-01", to: "2026-08-12" });
+		expect(stateStore.saveCalls).toBe(1);
+		expect(metadataDiagnostics).toEqual([
+			{ noticeMetadata: { organizationId: null, reason: "invalid_entry" }, status: "running" },
+			{ noticeMetadata: { organizationId: "00007", reason: "duplicate_id" }, status: "running" },
+			{ noticeMetadata: { organizationId: "00008", reason: "invalid_entry" }, status: "running" },
+		]);
+		expect(metaStore.mappingsSaved).toHaveLength(1);
+		expect(metaStore.mappingsSaved[0]?.organizations).toEqual({
+			"00007": "党委保卫部、保卫处",
+		});
+	});
+
+	it.each([
+		{
+			metadata: () => ({
+				datas: {
+					type: [
+						{ notice_type_id: 5, notice_type_name: "办公通知" },
+						{ notice_type_id: 5, notice_type_name: "重复通知" },
+					],
+				},
+				state: true,
+			}),
+			name: "duplicate notice type ids",
+		},
+		{
+			metadata: () => ({ datas: { type: [] }, state: true }),
+			name: "no notice types",
+		},
+		{
+			metadata: () => ({
+				datas: { type: [{ notice_type_id: 5, notice_type_name: null }] },
+				state: true,
+			}),
+			name: "invalid notice type name",
+		},
+	])("stops the batch when notice type metadata has $name", async ({ metadata }) => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+
+		await expect(
+			syncInternalPortalNotices(
+				runnerInput({
+					fetchNoticeMetadata: async () => metadata(),
+					fetchNoticePage: async (input: { startDate: string }) =>
+						input.startDate === "" ? page([notice(300, 5, "2026-08-11 09:00")], 1) : page([], 0),
+					stateStore,
+				}),
+			),
+		).rejects.toThrow();
+		expect(stateStore.saveCalls).toBe(0);
 	});
 
 	it("registers a notice and advances state when one declared attachment returns HTTP 404", async () => {
@@ -614,7 +999,18 @@ class MemoryStateStore implements InternalPortalNoticeSyncStateStore {
 }
 
 class MemoryMetaStore implements InternalPortalNoticeMetaStore {
-	async putMappings(): Promise<"written"> {
+	readonly mappingsSaved: Array<{
+		noticeTypes: Record<string, string>;
+		organizations: Record<string, string>;
+		updatedAt: string;
+	}> = [];
+
+	async putMappings(input: {
+		noticeTypes: Record<string, string>;
+		organizations: Record<string, string>;
+		updatedAt: string;
+	}): Promise<"reused" | "written"> {
+		this.mappingsSaved.push(structuredClone(input));
 		return "written";
 	}
 }
@@ -659,6 +1055,19 @@ class MemorySourceStore implements InternalPortalNoticeSourceStore {
 class FailingInventoryStore extends MemoryInventoryStore {
 	override async register(): Promise<"written"> {
 		throw new Error("inventory write failed");
+	}
+}
+
+class ConflictingInventoryStore extends MemoryInventoryStore {
+	override async register(source: InternalPortalNoticeSource): Promise<"written" | "reused"> {
+		if (source.notice_id === 2) {
+			throw new NoticeIngestionDataError({
+				message: `registered notice conflicts with source: ${source.notice_id}`,
+				noticeId: source.notice_id,
+				operation: "inventory",
+			});
+		}
+		return super.register(source);
 	}
 }
 
@@ -789,6 +1198,16 @@ function detailWithTwoAttachments(noticeId: number, releaseTime: string): Notice
 		suffix: "pdf",
 		type: "application/pdf",
 	}));
+	return value;
+}
+
+function detailWithoutTitle(noticeId: number, releaseTime: string): NoticeDetailResponse {
+	const value = detail(noticeId, releaseTime);
+	const info = value.datas?.notice_info;
+	if (!info) {
+		throw new Error("test detail is missing notice_info");
+	}
+	info.notice_title = null;
 	return value;
 }
 

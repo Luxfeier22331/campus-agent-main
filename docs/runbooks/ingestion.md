@@ -8,8 +8,9 @@ status: active
 
 ## 范围
 
-本文说明内部门户通知与文件发布采集、分类交接和通知发布。系统没有通用采集任务控制面、来源 callback、独立
-run ledger 或自动索引发布；通知分类 Job 是独立的一次性阶段，不由采集自动触发。
+本文说明内部门户通知与文件发布采集、分类交接和通知发布。集群环境由 `notice-pipeline-worker` 在
+Temporal 上按采集、分类、发布、RAG 刷新的固定顺序自动串联；系统没有通用采集任务控制面、来源 callback
+或独立 run ledger。通知分类、发布等既有 Job 保留为单阶段入口，供 Ops 一次性任务和手动恢复使用。
 
 ## 前置条件
 
@@ -49,7 +50,8 @@ source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同�
 
 ## 本地通知流程
 
-通知流程由独立、显式的步骤组成。采集不会自动分类或发布，publisher 也不会触发后续领域处理。
+通知流程由独立、显式的步骤组成：本地采集不会自动分类或发布，publisher 也不会触发后续领域处理；
+集群的自动串联见下文 Kubernetes 段。
 
 ### 初始化与认证
 
@@ -93,7 +95,15 @@ sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查
 `notices.notices`。来源对象必须通过版本化 schema，内部通知与外链字段必须成对合法；source、metadata、库存登记或
 非永久缺失的资源传输失败时状态不能推进。通知附件明确返回 HTTP 404 时保留 source metadata、跳过附件资源对象，
 继续登记通知并允许状态推进；发布时该附件不进入 `notice_assets`。图片 404、附件的其他 HTTP 错误、超时、流中断
-和对象存储失败仍然阻止推进。附件
+和对象存储失败仍然阻止推进。单条通知的详情缺失 `notice_info`、source 构造失败（如 `notice_title` 缺失）、
+详情接口非认证性报错、列表项 `notice_type` 非法或库存登记数据冲突时，该通知计入失败（stderr 中的
+`detail`/`source`/`item`/`inventory` operation），其余通知继续处理，但状态不能推进直到失败清除；
+认证失败（TGC 过期等）与列表项 `notice_id` 非法（通知身份不可识别）仍立即终止整批。
+输入合同分层：分页完整性（`total`、`totalCounts`、固定 `pageSize` 与 `Math.ceil` 关系）与
+notice type 映射（`notice_type_id`/`notice_type_name`、重复项、非空）是被引用的阻断性检查——空 type
+映射会让全量通知被过滤、分页不一致意味着漏采，二者必须阻止水位推进；organization 映射当前不被采集
+正确性引用（通知行的组织字段直接来自列表/详情，映射仅作展示查询），其缺字段、重复或冲突项只记
+`noticeMetadata` 诊断日志并跳过，不阻断批次。附件
 请求按门户附件 ID 和通知 ID 构造，单个图片或附件上限为 100 MiB；外链通知不会触发外部正文或图片
 抓取。仓库不提供独立的资源维护或状态查看命令。通知数据结构见 [通知数据](../data/notices.md)。
 
@@ -186,10 +196,17 @@ pnpm --filter notice-publisher run republish
 ```
 
 离线模型比较产生的 JSONL 不进入发布链路。publisher 在数据库事务前完成来源读取、正文清洗和资源
-摘要计算；图片立即写入 derived 内容寻址对象，附件只读取校验并留在 source bucket。随后用单一事务写
-正文、资源 metadata 和发布状态；重新发布只更新正文投影并保持已发布状态。任一来源缺失、合同无效或
-资源投影冲突都会以非零状态停止；
-数据库不留部分批次，已验证的内容寻址图片可在重跑时复用。相同输入必须幂等。
+摘要计算；图片立即写入 derived 内容寻址对象，附件只读取校验并留在 source bucket。发布与重新发布都
+按通知独立 BEGIN/COMMIT：单条来源缺失、合同无效或资源投影冲突记入
+`notices.processing_failures`（stage `publication`）后跳过，同批其余通知照常提交，摘要标记
+`outcome: partial` 与 `failed` 数量；数据库或对象存储等基础设施错误仍以非零状态停止当前批次。
+数据库不留部分通知，已验证的内容寻址图片可在重跑时复用，成功提交在同一事务中清除该通知的失败
+记录。相同输入必须幂等。
+
+重新发布只更新 `content_html`/`content_text` 投影，不构建 chunk、embedding 或检索 collection；
+正文变化在下一次 `notice-pipeline` 完整刷新（prepare/embed/activate）时进入 AI 检索，收敛窗口与
+失败语义见[通知索引](./notice-indexing.md#与-republish-的一致性)。自动 republish 批次不排除已有
+publication 失败记录的通知：republish 本身就是重试入口，幂等写入保证重复尝试无副作用。
 
 ### 产品验收
 
@@ -219,10 +236,24 @@ publisher；已发布内容与新清洗结果冲突时，由引入清洗合同�
 
 `infra/k8s/ops-web/base` 提供 Ops Web API、数据库授权 Job 和 `ops-web-internal-portal-check` CronJob；
 `infra/k8s/ingestion-runtime/base/runtime` 包含默认暂停的内部门户采集、通知分类和通知发布 CronJob 模板。
-其中 `notice-sync` 默认为暂停的每 15 分钟调度，时区 `Asia/Shanghai`，补调度时限 300 秒。
-运营可在 Ops 通知维护页修改自动采集开关和 15/30/60 分钟频率；分类、发布、OCR 不会联动开启。
-上线时先部署 GitOps 对该 CronJob 的 `suspend`/`schedule` 精确忽略规则，确保 Argo 同步保留运营设置，
-再部署采集器与 Ops，完成一次遗漏补查及一次手动同步后开启，观察两次真实自动任务。
+
+### 自动化与调度所有权
+
+定时采集、分类、发布和索引刷新由 Temporal Schedule `notice-pipeline` 编排，不再由任何 CronJob 承担。
+该 Schedule 由 `notice-pipeline-worker` 的 init 容器在部署时创建，默认暂停、周期 15 分钟、重叠 SKIP、
+补调度时限 5 分钟；刷新与版本目录合同见[Campus Docs](./campus-docs.md)。运营在 Ops `/tasks` 任务页统一
+启停和调整 15/30/60 分钟周期，通知维护页不再修改任何调度设置。
+
+启用顺序：先完成一次遗漏补查（回填或 rescan）和一次成功的 `/tasks` 手动运行，确认流水线产物与发布
+结果，再开启 Schedule。手动运行使用固定执行 ID `notice-pipeline-workflow`，与正在进行的流水线或回滚
+重叠时返回 409，单次执行上限 4 小时；定时触发发现已在运行时跳过该轮。
+
+通知 CronJob 模板全部保持 `suspend: true`，不设置自动调度，GitOps 无需忽略 `suspend`/`schedule`
+字段。它们当前只充当一次性 Job 和手动恢复的模板来源：现有调用方为 Ops 通知维护页任务中心与详情页（经
+`/api/ops/notices/jobs` 从 `spec.jobTemplate` 创建一次性 Job，按采集、分类、发布操作族互斥）和本文
+的手动 kubectl 入口。兼容任务在 `/tasks` 中仍可查看与手动运行，运行时转发到统一 Workflow，但其调度
+设置只读（直接修改返回 409）。
+
 internal-portal-collection 镜像的 Job 入口消费
 `OPS_WEB_INTERNAL_URL`、既有
 `OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还使用既有数据库 owner 连接登记通知
@@ -274,7 +305,8 @@ kubectl -n <namespace> create -f -
 
 ## 排查
 
-文件发布先检查分页响应、逐项错误摘要、门户响应及两个固定 source 对象。通知先查看命令错误、
+流水线失败先在 Ops `/tasks` 查看 `notice-pipeline` 的最近执行、当前问题数量与索引状态，再进入 Temporal
+执行历史定位失败阶段。文件发布先检查分页响应、逐项错误摘要、门户响应及两个固定 source 对象。通知先查看命令错误、
 Job 的 `processedRange`、`maintenanceRange`、`progress`、原始应用错误、`controllerError`、通知对象和
 `_state.json`，不要手工推进边界来伪装成功。`processedRange` 只说明本次尝试的处理范围；失败时必须以
 `_state.json` 中仍然存在的维护区间为准，不能把它当作已提交边界。

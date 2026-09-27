@@ -190,4 +190,51 @@ describe("collection command", () => {
 		error.mockRestore();
 		log.mockRestore();
 	});
+
+	it("prints ingestion failures without resource fields and returns a non-zero notice status", async () => {
+		mocks.runNoticeCommand.mockResolvedValueOnce({
+			failures: [
+				{
+					error: "NoticeIngestionDataError: notice 7 detail is missing notice_info",
+					noticeId: 7,
+					operation: "detail",
+				},
+			],
+			maintenanceRange: null,
+			mode: "backfill",
+			noticesProcessed: 0,
+			noticesAdded: 0,
+			objectsReused: 0,
+			objectsWritten: 0,
+			pagesFetched: 1,
+			processedRange: { from: "2025-12-01", to: "2026-08-01" },
+			resources: {
+				attachmentsDownloaded: 0,
+				attachmentsMissing: 0,
+				attachmentsReused: 0,
+				imagesDownloaded: 0,
+				imagesReused: 0,
+			},
+			state: null,
+			upToDate: false,
+		});
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+		await expect(
+			runCollectionCommand({ mode: "notice-backfill", startDate: "2025-12-01" }),
+		).resolves.toBe(1);
+
+		const failureLine = JSON.parse(String(error.mock.calls[0]?.[0]));
+		expect(failureLine).toEqual({
+			error: "NoticeIngestionDataError: notice 7 detail is missing notice_info",
+			failure: {
+				noticeId: 7,
+				operation: "detail",
+			},
+			status: "failed",
+		});
+		error.mockRestore();
+		log.mockRestore();
+	});
 });

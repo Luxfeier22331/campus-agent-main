@@ -6,13 +6,15 @@ status: active
 
 # 通知 Chunk 与 Embedding 制品
 
-本文运行两个默认暂停的集群模板，生成通知 Chunk Run 和 Embedding Set。它们不直接写入 Qdrant、不修改
-通知数据库，也不自动触发下一阶段；完成的 Notice Embedding Set 由统一 Campus RAG publisher 与 Docs
-Embedding Set 组装为当前 serving collection。
+通知 Chunk Run 与 Embedding Set 在自动链路中由 `notice-pipeline` 流水线的
+`notice-artifacts-worker` 阶段生成并发布；本文保留两个默认暂停的集群模板，用于单独构建或恢复。
+它们不直接写入 Qdrant、不修改通知数据库；手动完成的 Notice Embedding Set 不自动进入 serving，
+由统一 Campus RAG publisher 运维命令与 Docs Embedding Set 组装为当前 serving collection。
 
 ## 前置条件
 
 从仓库根目录执行，先选择正确的 Kubernetes context，并替换 `<namespace>`、`<job-name>` 和制品 ID。
+自动刷新优先使用 Ops `/tasks` 的 `notice-pipeline`；只有需要单独构建或恢复时才使用本文手动入口。
 目标环境须已部署两个暂停模板、通知 schema、已发布正文及 derived bucket 写入身份；Embedding 阶段
 还须能访问配置完成的 Model Config 与对应 Provider。每个阶段使用不同的 Job 名称。
 
@@ -94,6 +96,15 @@ pnpm --dir jobs/notice-index-publisher import-embedding-cache-local -- \
 命令会拒绝缺失、额外或内容不符合 `notice_embedding_cache.v1` 的文件；校验失败时不会上传任何 cache，且
 不会调用 Provider。导入后照常运行 `build-embeddings`；最终数据对象和 manifest 仍使用原有的
 `notice_embedding_set.v1` 合同。
+
+## 与 republish 的一致性
+
+notice-publisher 的重新发布只改写 `notices.notices` 正文投影，不构建本 runbook 的任何制品。在线
+serving collection 与正文的一致性由 `notice-pipeline` 完整刷新维护：`prepareRefresh` 从已发布正文
+重建 Chunk Run 并与当前激活的 Embedding Set 比对，正文变化会使 `chunk_run` 改变并触发 embed 与
+统一发布；正文未变化时刷新跳过。因此 republish 后的收敛窗口是下一次成功完成的 `noticePipelineRun`
+（Temporal Schedule `notice-pipeline`，默认暂停，可经 Ops `/tasks` 手动触发）。刷新执行失败时收敛
+推迟到下一次成功运行，失败在 Temporal 执行历史与 Ops 任务页可见；不提供单通知检索刷新入口。
 
 ## 完成与失败处理
 

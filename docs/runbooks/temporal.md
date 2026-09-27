@@ -15,7 +15,8 @@ value、namespace、endpoint 和资源尺寸由环境仓库拥有，不在本文
 
 execution-control 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
 poller。副本数与滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套
-自动扩缩状态。采集链路不使用 Temporal，见[采集与离线数据运维](./ingestion.md)。
+自动扩缩状态。通知采集到 RAG 刷新的编排由 `notice-pipeline-worker` 在独立的 `notice-pipeline` 与
+`notice-artifacts` 队列执行，不占用 execution-control 的 poller，见[采集与离线数据运维](./ingestion.md)。
 
 本地 Temporal 测试属于 integration 验证，不是完整产品 E2E。它使用 Temporal Dev Server、测试 worker
 和测试 projection，不连接 staging、真实 Agent Runtime 或 PostgreSQL。运行入口由 execution-control

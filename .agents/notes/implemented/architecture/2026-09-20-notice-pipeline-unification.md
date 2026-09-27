@@ -22,4 +22,6 @@ Status: implemented
 
 2026-09 复核补齐了 notice-publisher 通知资产 `createOrVerifyDerived` 的并发收敛：`IfNoneMatch` 写入遇到 412 时重读对象并比对 digest，同内容视为成功、不同内容才报冲突，与其余三个 index publisher 的 immutable 写入模式一致；此前该路径会把并发同内容写入的 412 裸抛为发布失败。
 
+2026-09-27 复核（#553）：`createNoticeAutomationService`（`apps/ops-web/src/server/notice-automation.ts`）自统一迁移移除 `tasks.ts` 的 `notice-sync` 调度分支后已无生产调用方，仅测试注入可达，其 CronJob patch 分支对应的 `GET/PUT /api/ops/notices/automation` 路由更早已删除。runbook 与合同文档已按 `notice-pipeline` Schedule 所有权改写（ingestion、notice-indexing、temporal、k8s-runtime、ops-web notices 合同与 README），删除 GitOps 忽略 `suspend`/`schedule` 的上线流程；同批修正 ops-web 合同 README 班车清单——其自 #429 起登记的 `schedule-sets`/`point-periods`/`exceptions`/`claims` 端点从未实现，实际存在的只有 `routes`、`schedule-periods` 及通知关联端点。退役计划：删除该 service、`apps/ops-web/src/shared/notice-automation-contract.ts`、`app.ts` 注入与 `createTaskService` 的 `collection` 参数（均为无行为影响的死代码）；`/tasks` 的兼容任务条目在一次性 Job 历史可从通知维护页完整查看后移除，不新增替代门控。CronJob 模板保持暂停并继续作为一次性 Job 模板来源；未观察到 stuck Job，不引入额外锁、reconciler 或重试机制。
+
 本决定部分取代 [定时任务治理](2026-09-20-scheduled-task-governance.md) 中关于通知 CronJob 作为自动执行入口的内容；其中关于通知状态权威、处理锁、CAS、版本保护、清理和 rollback 的约束继续有效。
