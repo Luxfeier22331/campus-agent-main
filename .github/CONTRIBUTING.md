@@ -26,12 +26,12 @@ Pull Request 的说明性正文使用简体中文；模板标题、代码、命�
 已经部署或健康。
 
 非平凡改动在同一个 Pull Request 中新增或更新决策笔记，优先维护已有所有者，并在说明中链接该笔记。
-适用范围与机械性改动豁免见[笔记规则](./.agents/notes/README.md#何时写与清理)；纯排版、错别字等无需新建笔记。
-文档修改遵循[文档写作规范](./docs/AGENTS.md)；长期决策理由由笔记维护，PR 概述本次影响并链接。
+适用范围与机械性改动豁免见[笔记规则](../.agents/notes/README.md#何时写与清理)；纯排版、错别字等无需新建笔记。
+文档修改遵循[文档写作规范](../docs/AGENTS.md)；长期决策理由由笔记维护，PR 概述本次影响并链接。
 
 ## 验证
 
-根据改动边界选择检查，详见[测试与验证](./docs/reference/verification.md)。模块命令由所属 manifest、README
+根据改动边界选择检查，详见[测试与验证](../docs/reference/verification.md)。模块命令由所属 manifest、README
 和可执行脚本维护；数据库、浏览器、真实供应商或部署环境只在改动确实涉及对应边界时验证。
 
 改变公开行为、接口合同、schema 或数据所有权时，更新对应所有者文档；不要在本文件复制模块事实或动态命令。
@@ -39,9 +39,9 @@ Pull Request 的说明性正文使用简体中文；模板标题、代码、命�
 ## 数据与安全
 
 不要向仓库提交 Secret、凭据、私有运行时状态、受限来源正文、内部日志或本地生成产物。公开数据和可再分发
-内容的边界见[公开仓库数据策略](./docs/policies/public-source-data.md)。
+内容的边界见[公开仓库数据策略](../docs/policies/public-source-data.md)。
 
 疑似安全问题通过[安全策略](./SECURITY.md)中的私下渠道报告，不在公开 Issue 或 Pull Request 中披露敏感证据。
 
-本地开发入口见 [README.md](./README.md)；第三方来源和许可证信息见 [NOTICE](./NOTICE)、
-[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) 和 [LICENSE](./LICENSE)。
+本地开发入口见 [README.md](../README.md)；第三方来源和许可证信息见 [NOTICE](../NOTICE)、
+[第三方来源声明](../docs/policies/public-source-data.md#第三方来源声明) 和 [LICENSE](../LICENSE)。

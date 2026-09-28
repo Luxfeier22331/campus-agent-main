@@ -130,9 +130,9 @@ test("delegates standard prek installation to independent checkout hook paths", 
 		installs.map(({ args }) => args),
 		[
 			["exec", "prek", "uninstall", "--hook-type", "pre-push"],
-			["exec", "prek", "install", "--force"],
+			["exec", "prek", "install", "--force", "--config", ".config/.pre-commit-config.yaml"],
 			["exec", "prek", "uninstall", "--hook-type", "pre-push"],
-			["exec", "prek", "install", "--force"],
+			["exec", "prek", "install", "--force", "--config", ".config/.pre-commit-config.yaml"],
 		],
 	);
 	assert.equal(

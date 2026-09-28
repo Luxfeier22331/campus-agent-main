@@ -3,7 +3,7 @@
 <!--
 Thanks for sending a pull request. Before review:
 
-1. Read the contributor guide: CONTRIBUTING.md
+1. Read the contributor guide: .github/CONTRIBUTING.md
 2. For agent-authored changes, also follow AGENTS.md
 3. Run the appropriate checks for your change:
    docs/reference/verification.md

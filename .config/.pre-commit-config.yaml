@@ -37,18 +37,10 @@ repos:
       - id: markdownlint
         name: Markdownlint
         groups: [language]
-        entry: pnpm --config.verify-deps-before-run=false exec markdownlint-cli2 --no-globs --
+        entry: pnpm --config.verify-deps-before-run=false exec markdownlint-cli2 --config .config/.markdownlint-cli2.jsonc --no-globs --
         language: system
         files: '\.md$'
         exclude: '^(apps/campus-web/\.generated/|\.agents/notes/archived/)'
-
-      - id: editorconfig
-        name: EditorConfig
-        groups: [fast]
-        # CI sources Nix's prepared environment; local hooks retain their flake entrypoint.
-        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- editorconfig-checker -no-color -disable-indentation -disable-indent-size
-        language: system
-        exclude: '(^|/)(dist|node_modules|\.tmp)(/|$)|^\.agents/notes/archived/'
 
       - id: ruff-check
         name: Ruff lint
@@ -67,20 +59,14 @@ repos:
       - id: sqlfluff
         name: SQLFluff
         groups: [language]
-        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- sqlfluff lint --config .sqlfluff
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- sqlfluff lint
         language: system
         files: '\.sql$'
-        # Match .sqlfluffignore before passing explicit filenames to SQLFluff.
-        exclude: >-
-          (?x)^(
-            jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration\.sql$
-            |jobs/campus-agent-schema/migrations/20260914000000_0016_dining_submissions/migration\.sql$
-          )
 
       - id: yamllint
         name: Yamllint
         groups: [fast]
-        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- yamllint -c .yamllint.yml
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- yamllint -c .config/.yamllint.yml
         language: system
         files: '\.ya?ml$'
         exclude: '^pnpm-lock\.yaml$'

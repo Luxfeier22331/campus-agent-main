@@ -17,7 +17,7 @@ import { installHooks } from "./install.mts";
 
 const source = path.resolve(import.meta.dirname, "../..");
 const manifest = JSON.parse(readFileSync(path.join(source, "package.json"), "utf8"));
-const config = parse(readFileSync(path.join(source, ".pre-commit-config.yaml"), "utf8"));
+const config = parse(readFileSync(path.join(source, ".config/.pre-commit-config.yaml"), "utf8"));
 const rootTask = JSON.parse(readFileSync(path.join(source, "scripts/turbo.json"), "utf8")).tasks[
 	"test:ci"
 ];
@@ -150,7 +150,7 @@ function fixture() {
 	assert(hook);
 	hook.entry = `node --experimental-strip-types ${source}/scripts/ci/pre-commit.mts`;
 	write(
-		".pre-commit-config.yaml",
+		".config/.pre-commit-config.yaml",
 		stringify({
 			minimum_prek_version: config.minimum_prek_version,
 			default_install_hook_types: config.default_install_hook_types,
@@ -308,6 +308,8 @@ test("installed hook validates staged content and dependencies, restores partial
 			"exec",
 			"prek",
 			"run",
+			"--config",
+			".config/.pre-commit-config.yaml",
 			"--all-files",
 			"--stage",
 			"pre-commit",

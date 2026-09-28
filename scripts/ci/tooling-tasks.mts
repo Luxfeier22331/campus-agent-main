@@ -11,7 +11,7 @@ export const TOOLING_GROUPS = [
 // Only these groups inspect which paths are tracked. File contents belong to Turbo inputs.
 export const TOOLING_TRACKED_PATHS = {
 	ci: ["."],
-	docs: ["docs", ".agents", "README.md", ".markdownlint-cli2.jsonc", ".gitignore"],
+	docs: ["docs", ".agents", "README.md", ".config/.markdownlint-cli2.jsonc", ".gitignore"],
 	release: ["."],
 } as const;
 
@@ -43,7 +43,7 @@ export function toolingGroupsForFiles(files: readonly string[]): ToolingGroup[] 
 			file === ".agents" ||
 			file.startsWith(".agents/") ||
 			file === "README.md" ||
-			file === ".markdownlint-cli2.jsonc"
+			file === ".config/.markdownlint-cli2.jsonc"
 		) {
 			selected.add("docs");
 		}
@@ -51,7 +51,7 @@ export function toolingGroupsForFiles(files: readonly string[]): ToolingGroup[] 
 			file === "hooks" ||
 			file.startsWith("hooks/") ||
 			file.startsWith("scripts/hooks/") ||
-			file === ".pre-commit-config.yaml"
+			file === ".config/.pre-commit-config.yaml"
 		) {
 			selected.add("hooks");
 		}

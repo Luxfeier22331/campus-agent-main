@@ -5,12 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { compareHistory, readHistory } from "../src/history.ts";
 
-import {
-	assertLegacyObjectsAbsent,
-	legacyObjects,
-	readDatabaseConfig,
-	withSchemaMigrationLock,
-} from "../src/migrate.ts";
+import { readDatabaseConfig, withSchemaMigrationLock } from "../src/migrate.ts";
 
 const jobRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -21,9 +16,6 @@ test("the baseline is a schema-only unified migration", async () => {
 	);
 	assert.doesNotMatch(baseline, /\\(?:restrict|unrestrict)/u);
 	assert.doesNotMatch(baseline, /CREATE SCHEMA drizzle/u);
-	for (const legacyObject of legacyObjects) {
-		assert.doesNotMatch(baseline, new RegExp(escapeRegExp(legacyObject), "u"));
-	}
 	assert.match(baseline, /CREATE SCHEMA app_auth/u);
 	assert.match(baseline, /CREATE TABLE campus_docs_serving\.current_index/u);
 	assert.match(baseline, /CREATE TABLE notices\.categories/u);
@@ -67,16 +59,15 @@ test("the Ops Web step timing migration grants only the required read columns", 
 	assert.doesNotMatch(migration, /GRANT SELECT ON TABLE|INSERT|UPDATE|DELETE|REVOKE/u);
 });
 
-test("released v0 history maps uniquely and leaves unpublished Dining pending", async () => {
+test("released history maps uniquely and leaves unpublished migrations pending", async () => {
 	const history = readHistory(resolve(jobRoot, "migrations"));
 	const fixture = JSON.parse(
-		await readFile(new URL("fixtures/v0-history.json", import.meta.url), "utf8"),
+		await readFile(new URL("fixtures/released-history.json", import.meta.url), "utf8"),
 	).filter((row: { name: string }) => row.name !== "20260914000000_0016_dining_submissions");
 	assert.deepEqual(
 		compareHistory(
 			history,
 			fixture.map((row: object, index: number) => ({ ...row, id: index + 1 })),
-			false,
 		),
 		history
 			.filter(
@@ -127,22 +118,3 @@ test("schema migration lock is released after success and failure", async () => 
 	);
 	assert.equal(queries.length, 2);
 });
-
-test("legacy object check reports only objects returned by PostgreSQL", async () => {
-	const client = {
-		async query<T extends object>(
-			_query: string,
-			_values?: readonly unknown[],
-		): Promise<{ rows: T[] }> {
-			return { rows: [{ object_name: "execution_config" } as T] };
-		},
-	};
-	await assert.rejects(
-		assertLegacyObjectsAbsent(client),
-		/legacy database objects are still present: execution_config/u,
-	);
-});
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}

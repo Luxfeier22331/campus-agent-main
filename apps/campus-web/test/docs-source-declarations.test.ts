@@ -6,10 +6,6 @@ import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixtur
 import { buildReaderRouteSlug, DOCS_SOURCE_KEY } from "campus-contracts/campus-docs/node";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
-import {
-	bootstrapDocsSource,
-	parseBootstrapDocsSourceArgs,
-} from "../scripts/bootstrap-docs-source.ts";
 import { checkDocsSource, parseDocsSourceRootArgs } from "../scripts/check-docs-source.ts";
 import { publishDocsSourceFromDeclarations } from "../scripts/publish-docs-source.ts";
 import { canonicalJsonBytes } from "../src/docs-reader-build/artifact-digest.ts";
@@ -181,18 +177,10 @@ describe("Docs Git declarations", () => {
 		expect(() => checkDocsSource(f.root)).toThrow(error);
 	});
 
-	it("bootstraps from a read-only store and refuses to overwrite existing declarations", async () => {
-		const f = fixture();
-		const root = join(f.root, "bootstrap");
-		const result = await bootstrapDocsSource({ client: f.client, outputRoot: root });
-		expect(result.sourceDigest).toBe(f.sourceDigest);
-		await expect(bootstrapDocsSource({ client: f.client, outputRoot: root })).rejects.toThrow(
-			"destination must be empty",
-		);
-		expect(parseBootstrapDocsSourceArgs(["--output", root]).outputRoot).toBe(root);
+	it("parses the offline check source-root argument", () => {
+		const root = join(tmpdir(), "docs-check-root");
 		expect(parseDocsSourceRootArgs(["--", "--source-root", root])).toBe(resolve(root));
 		expect(() => parseDocsSourceRootArgs(["--source-root"])).toThrow("usage:");
-		expect(() => parseBootstrapDocsSourceArgs([])).toThrow("usage:");
 	});
 });
 

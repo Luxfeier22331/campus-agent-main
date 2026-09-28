@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
-import { createMigration, readHistory } from "../src/history.ts";
+import { readHistory } from "../src/history.ts";
 import {
 	inspectCampusAgentSchema,
 	MIGRATIONS_FOLDER,
@@ -15,15 +15,9 @@ import {
 
 const image =
 	"postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15";
-const fixture = JSON.parse(
-	await readFile(new URL("fixtures/v0-history.json", import.meta.url), "utf8"),
-) as Array<{ name: string; hash: string; created_at: string }>;
-const releasedFixture = fixture.filter(
-	(entry) => entry.name !== "20260914000000_0016_dining_submissions",
-);
 const authMigrationName = "20260914073252_better_auth_provider_account_key";
 
-test("unified schema: real PostgreSQL installation, v0 upgrades and failure recovery", {
+test("unified schema: real PostgreSQL installation and failure recovery", {
 	timeout: 240_000,
 }, async (t) => {
 	process.env.RYUK_CONTAINER_IMAGE ??=
@@ -79,39 +73,6 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		await client.connect();
 		clients.push(client);
 		return { config, client };
-	}
-	async function legacy(client: Client, withMemory: boolean, withDining = false) {
-		await client.query("begin");
-		await client.query(
-			"create schema drizzle; create table drizzle.campus_agent_migrations(id serial primary key, hash text not null, created_at bigint)",
-		);
-		for (const entry of releasedFixture) {
-			if (!withMemory && entry.name.endsWith("personal_memory_management")) {
-				continue;
-			}
-			const migration = local.find((item) => item.name === entry.name);
-			assert(migration);
-			assert.equal(migration.hash, entry.hash, `Released SQL changed: ${entry.name}`);
-			for (const sql of migration.sql) {
-				await client.query(sql);
-			}
-			await client.query(
-				"insert into drizzle.campus_agent_migrations(hash,created_at) values($1,$2)",
-				[entry.hash, entry.created_at],
-			);
-		}
-		if (withDining) {
-			const dining = local.find((item) => item.name === "20260914000000_0016_dining_submissions");
-			assert(dining);
-			for (const sql of dining.sql) {
-				await client.query(sql);
-			}
-			await client.query(
-				"insert into drizzle.campus_agent_migrations(hash,created_at) values($1,$2)",
-				[dining.hash, String(dining.folderMillis)],
-			);
-		}
-		await client.query("commit");
 	}
 	async function ready(client: Client) {
 		await assertAuthShape(client, true);
@@ -266,86 +227,11 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 		);
 		await assertAuthShape(client, false);
 	});
-	for (const withMemory of [false, true]) {
-		await t.test(
-			withMemory
-				? "v0 complete: does not rerun destructive migrations"
-				: "staging v0: applies the skipped memory and new auth migrations",
-			async () => {
-				const { config, client } = await database();
-				await legacy(client, withMemory);
-				await assertAuthShape(client, false);
-				const retainedAuth = await seedRetainedAuth(client);
-				await client.query(
-					"insert into profile.memory_settings(owner_user_id,lifecycle_state,updated_at) values('retained','active',now())",
-				);
-				await client.query(
-					"insert into chat.conversations(id,owner_user_id,title,created_at,updated_at) values('retained-chat','retained','Migration smoke',now(),now())",
-				);
-				await client.query(
-					"insert into chat.messages(id,conversation_id,role,text,created_at) values('retained-message','retained-chat','user','Keep my conversation',now())",
-				);
-				await client.query(
-					"insert into campus_docs_serving.current_index(singleton,collection) values(true,$1)",
-					[`campus_docs_${"a".repeat(64)}`],
-				);
-				const before = await client.query(
-					"select id,hash,created_at::text from drizzle.campus_agent_migrations order by id",
-				);
-				const status = await inspectCampusAgentSchema(config);
-				assert.equal(status.status, "pending");
-				const appliedNames = new Set(
-					releasedFixture
-						.filter((entry) => withMemory || !entry.name.endsWith("personal_memory_management"))
-						.map((entry) => entry.name),
-				);
-				assert.deepEqual(
-					status.pendingMigrations,
-					local.filter((entry) => !appliedNames.has(entry.name)).map((entry) => entry.name),
-				);
-				await migrateCampusAgentSchema(config);
-				await ready(client);
-				assert.deepEqual(await readRetainedAuth(client), retainedAuth);
-				const after = await client.query(
-					"select id,hash,created_at::text from drizzle.campus_agent_migrations order by id",
-				);
-				assert.deepEqual(after.rows.slice(0, before.rows.length), before.rows);
-				assert.equal(after.rows.length, local.length);
-				const retained = await client.query(
-					"select lifecycle_state from profile.memory_settings where owner_user_id='retained'",
-				);
-				assert.equal(retained.rows[0].lifecycle_state, withMemory ? "active" : "erased");
-				assert.equal(
-					(await client.query("select id from app_auth.\"user\" where id='retained'")).rowCount,
-					1,
-				);
-				assert.equal(
-					(await client.query("select text from chat.messages where id='retained-message'")).rows[0]
-						.text,
-					"Keep my conversation",
-				);
-				assert.equal(
-					(await client.query("select collection from campus_docs_serving.current_index")).rows[0]
-						.collection,
-					`campus_docs_${"a".repeat(64)}`,
-				);
-				assert.equal((await migrateCampusAgentSchema(config)).result, "current");
-			},
-		);
-	}
 	await t.test("unknown history and changed SQL fail before applying new DDL", async () => {
 		const { config, client } = await database();
-		await legacy(client, false);
-		await client.query("update drizzle.campus_agent_migrations set hash='changed' where id=1");
-		await assert.rejects(
-			migrateCampusAgentSchema(config),
-			/Unknown or ambiguous applied migration/u,
-		);
-		await client.query("update drizzle.campus_agent_migrations set hash=$1 where id=1", [
-			fixture[0]?.hash,
-		]);
 		await migrateCampusAgentSchema(config);
 		await client.query("update drizzle.campus_agent_migrations set hash='changed' where id=1");
+		await assert.rejects(migrateCampusAgentSchema(config), /Applied migration SQL changed/u);
 		await assert.rejects(inspectCampusAgentSchema(config), /Applied migration SQL changed/u);
 	});
 	await t.test(
@@ -376,52 +262,8 @@ test("unified schema: real PostgreSQL installation, v0 upgrades and failure reco
 			await client.query("select id from public.upgrade_probe");
 		},
 	);
-	await t.test("v0 ledger conversion survives a rolled-back SQL batch and retry", async () => {
-		const { config, client } = await database();
-		await legacy(client, false);
-		const folder = await mkdtemp(join(tmpdir(), "campus-schema-v0-retry-"));
-		t.after(() => rm(folder, { recursive: true, force: true }));
-		await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
-		const path = createMigration(
-			folder,
-			"retry_probe",
-			new Date(authMigration.folderMillis + 1000),
-		);
-		await writeFile(path, "select missing_column from profile.memory_settings;");
-		await assert.rejects(migrateCampusAgentSchema(config, folder));
-		const converted = await client.query(
-			"select name from drizzle.campus_agent_migrations order by id",
-		);
-		assert.deepEqual(
-			converted.rows.map((row) => row.name),
-			releasedFixture
-				.filter((entry) => !entry.name.endsWith("personal_memory_management"))
-				.map((entry) => entry.name),
-		);
-		await assert.rejects(client.query("select payload from profile.memory_commands limit 1"));
-		await assertAuthShape(client, false);
-		const appliedNames = new Set(
-			releasedFixture
-				.filter((entry) => !entry.name.endsWith("personal_memory_management"))
-				.map((entry) => entry.name),
-		);
-		assert.deepEqual(
-			(await inspectCampusAgentSchema(config, folder)).pendingMigrations,
-			readHistory(folder)
-				.filter((entry) => !appliedNames.has(entry.name))
-				.map((entry) => entry.name),
-		);
-		await writeFile(path, "select 1;");
-		await migrateCampusAgentSchema(config, folder);
-		await ready(client);
-		assert.equal((await inspectCampusAgentSchema(config, folder)).status, "current");
-		assert.equal((await migrateCampusAgentSchema(config, folder)).result, "current");
-	});
-	await t.test("legacy runner objects and non-owner execution are rejected", async () => {
-		const { config, client } = await database();
-		await client.query("create schema execution_config");
-		assert.equal((await inspectCampusAgentSchema(config)).status, "legacy");
-		await assert.rejects(migrateCampusAgentSchema(config), /legacy database objects/u);
+	await t.test("non-owner execution is rejected", async () => {
+		const { config } = await database();
 		await assert.rejects(
 			migrateCampusAgentSchema({
 				...config,

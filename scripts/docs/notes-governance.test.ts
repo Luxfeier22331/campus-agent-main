@@ -297,7 +297,7 @@ test("Markdownlint 跳过冻结归档，仍拒绝活动笔记的重复标题", (
 	try {
 		writeFileSync(
 			join(root, ".markdownlint-cli2.jsonc"),
-			readFileSync(join(repositoryRoot, ".markdownlint-cli2.jsonc")),
+			readFileSync(join(repositoryRoot, ".config/.markdownlint-cli2.jsonc")),
 		);
 		const active = ".agents/notes/implemented/process/2026-09-16-example.md";
 		const archived = ".agents/notes/archived/process/2026-09-16-example.md";

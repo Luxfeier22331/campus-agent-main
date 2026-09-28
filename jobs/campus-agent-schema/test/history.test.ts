@@ -30,18 +30,10 @@ test("malformed history fails before a database is used", async (t) => {
 	assert.throws(() => readHistory(folder), /Missing SQL/u);
 });
 
-test("duplicate records and conflicting legacy timestamp mappings are rejected", () => {
+test("duplicate applied records are rejected", () => {
 	const history = readHistory(MIGRATIONS_FOLDER);
 	const first = history[0];
-	const second = history[1];
-	assert(first && second);
+	assert(first);
 	const row = { id: 1, name: first.name, hash: first.hash, created_at: String(first.folderMillis) };
-	assert.throws(
-		() => compareHistory(history, [row, { ...row, id: 2 }], true),
-		/Duplicate applied/u,
-	);
-	assert.throws(
-		() => compareHistory(history, [{ ...row, created_at: String(second.folderMillis) }], false),
-		/mapping conflict/u,
-	);
+	assert.throws(() => compareHistory(history, [row, { ...row, id: 2 }]), /Duplicate applied/u);
 });

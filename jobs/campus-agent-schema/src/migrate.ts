@@ -11,14 +11,6 @@ export const MIGRATIONS_FOLDER = resolve(fileURLToPath(new URL("../migrations", 
 const MIGRATIONS_SCHEMA = "drizzle";
 const MIGRATIONS_TABLE = "campus_agent_migrations";
 const ADVISORY_LOCK_KEY = "campus-agent-schema-migrations";
-const LEGACY_OBJECTS = [
-	"drizzle.app_api_migrations",
-	"drizzle.ops_web_dining_migrations",
-	"public.execution_control_migrations",
-	"model_config.schema_migrations",
-	"notices.schema_migrations",
-	"execution_config",
-] as const;
 
 interface QueryClient {
 	query<T extends object = object>(
@@ -37,9 +29,8 @@ export interface CampusAgentSchemaResult {
 export interface CampusAgentSchemaStatus {
 	appliedMigrations: number;
 	expectedMigrations: number;
-	legacyObjects: string[];
 	pendingMigrations: string[];
-	status: "current" | "missing" | "pending" | "legacy";
+	status: "current" | "missing" | "pending";
 }
 
 export function readDatabaseConfig(env: NodeJS.ProcessEnv = process.env): ClientConfig {
@@ -70,7 +61,6 @@ export async function migrateCampusAgentSchema(
 	try {
 		await assertMigrationOwner(client);
 		const result = await withSchemaMigrationLock(client, async () => {
-			await assertLegacyObjectsAbsent(client);
 			const before = await readStatus(client, history);
 			await migrate(drizzle({ client }), {
 				migrationsFolder,
@@ -100,16 +90,6 @@ export async function inspectCampusAgentSchema(
 	const client = new Client(readDatabaseConfig(env));
 	await client.connect();
 	try {
-		const legacyObjects = await readLegacyObjects(client);
-		if (legacyObjects.length > 0) {
-			return {
-				appliedMigrations: 0,
-				expectedMigrations: history.length,
-				legacyObjects,
-				pendingMigrations: history.map((migration) => migration.name),
-				status: "legacy",
-			};
-		}
 		return await readStatus(client, history);
 	} finally {
 		await client.end();
@@ -132,28 +112,6 @@ export async function withSchemaMigrationLock<T>(
 	}
 }
 
-export async function assertLegacyObjectsAbsent(client: QueryClient): Promise<void> {
-	const legacyObjects = await readLegacyObjects(client);
-	if (legacyObjects.length > 0) {
-		throw new Error(`legacy database objects are still present: ${legacyObjects.join(", ")}`);
-	}
-}
-
-async function readLegacyObjects(client: QueryClient): Promise<string[]> {
-	const result = await client.query<{ object_name: string }>(
-		`select object_name
-		 from unnest($1::text[]) as legacy(object_name)
-		 where case
-			when object_name = 'execution_config' then to_regnamespace(object_name) is not null
-			else to_regclass(object_name) is not null
-			end`,
-		[LEGACY_OBJECTS],
-	);
-	return result.rows.map((row) => row.object_name);
-}
-
-export const legacyObjects = LEGACY_OBJECTS;
-
 async function assertMigrationOwner(client: QueryClient): Promise<void> {
 	const result = await client.query<{ current_user: string }>("select current_user");
 	if (result.rows[0]?.current_user !== "campus_agent") {
@@ -175,26 +133,19 @@ async function readStatus(
 		return {
 			appliedMigrations: 0,
 			expectedMigrations: history.length,
-			legacyObjects: [],
 			pendingMigrations: history.map((migration) => migration.name),
 			status: "missing",
 		};
 	}
-	const columns = await client.query<{ column_name: string }>(
-		"select column_name from information_schema.columns where table_schema=$1 and table_name=$2",
-		[MIGRATIONS_SCHEMA, MIGRATIONS_TABLE],
-	);
-	const named = columns.rows.some((column) => column.column_name === "name");
 	const applied = await client.query<AppliedMigration>(
-		`select id, hash, created_at::text${named ? ", name" : ""} from ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE} order by id`,
+		`select id, hash, created_at::text, name from ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE} order by id`,
 	);
-	const pendingMigrations = compareHistory(history, applied.rows, named);
+	const pendingMigrations = compareHistory(history, applied.rows);
 	return {
 		appliedMigrations: applied.rows.length,
 		expectedMigrations: history.length,
-		legacyObjects: [],
 		pendingMigrations,
-		status: named && pendingMigrations.length === 0 ? "current" : "pending",
+		status: pendingMigrations.length === 0 ? "current" : "pending",
 	};
 }
 

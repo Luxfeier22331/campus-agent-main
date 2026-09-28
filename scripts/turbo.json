@@ -19,7 +19,7 @@
 				"$TURBO_ROOT$/.github/**",
 				"$TURBO_ROOT$/scripts/ci/**",
 				"$TURBO_ROOT$/scripts/package.json",
-				"$TURBO_ROOT$/.pre-commit-config.yaml"
+				"$TURBO_ROOT$/.config/.pre-commit-config.yaml"
 			],
 			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME", "CAMPUS_TOOLING_TRACKED_CI"],
 			"outputs": [],
@@ -137,7 +137,7 @@
 				"ci/scope.mts",
 				"ci/repository-test.mts",
 				"ci/tooling-tasks.mts",
-				"$TURBO_ROOT$/.pre-commit-config.yaml"
+				"$TURBO_ROOT$/.config/.pre-commit-config.yaml"
 			],
 			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
 			"outputs": [],

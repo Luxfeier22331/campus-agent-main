@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { DocsSourceManifest, ObjectRef } from "campus-contracts/campus-docs";
 import { formatDocsVersionLabel } from "campus-contracts/campus-docs";
 import { COURSE_MAP_IMAGE } from "campus-contracts/campus-docs/fixture";
@@ -9,24 +6,18 @@ import {
 	normalizeSourceManifest,
 	selectCurrentVersion,
 } from "campus-contracts/campus-docs/node";
-import { afterEach, describe, expect, it } from "vitest";
-import { parseUpdateDocsSourceArgs, updateDocsSource } from "../scripts/update-docs-source.ts";
+import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import type {
 	DocsSourceObjectStore,
 	ReaderObjectStoreClient,
 } from "../src/docs-reader-build/published-reader-types.ts";
 import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
-import { docsSourceReleaseKey } from "../src/docs-reader-build/source-publisher.ts";
+import {
+	docsSourceReleaseKey,
+	publishDocsSource,
+} from "../src/docs-reader-build/source-publisher.ts";
 import { createMemoryDocsSourceStore } from "./helpers/docs-source-store.ts";
-
-const tempRoots: string[] = [];
-
-afterEach(() => {
-	for (const root of tempRoots.splice(0)) {
-		rmSync(root, { force: true, recursive: true });
-	}
-});
 
 describe("Campus Web 文档来源编译", () => {
 	it("为等价来源生成稳定的发布清单", async () => {
@@ -352,13 +343,12 @@ describe("Campus Web 文档来源编译", () => {
 	});
 });
 
-describe("Campus Web 文档来源更新", () => {
+describe("Campus Web 文档来源发布", () => {
 	it("校验完整来源后写入并回读固定来源键", async () => {
 		const store = memoryStore();
 		const source = await sourceFixture(store);
-		const sourceFile = writeSourceFile(source);
 
-		const result = await updateDocsSource({ client: store, sourceFile });
+		const result = await publishDocsSource({ client: store, source });
 
 		expect(result).toEqual({
 			documentCount: 1,
@@ -388,17 +378,10 @@ describe("Campus Web 文档来源更新", () => {
 		];
 		setFixtureReaderSupplements(store, source);
 
-		await expect(
-			updateDocsSource({ client: store, sourceFile: writeSourceFile(source) }),
-		).rejects.toThrow("must contain at least one map");
-		expect(store.objects.get(DOCS_SOURCE_KEY)).toEqual(existing);
-	});
-
-	it("只接受明确的来源文件参数", () => {
-		expect(parseUpdateDocsSourceArgs(["--source-file", "source.json"]).sourceFile).toBe(
-			join(process.cwd(), "source.json"),
+		await expect(publishDocsSource({ client: store, source })).rejects.toThrow(
+			"must contain at least one map",
 		);
-		expect(() => parseUpdateDocsSourceArgs([])).toThrow("usage: update-docs-source --source-file");
+		expect(store.objects.get(DOCS_SOURCE_KEY)).toEqual(existing);
 	});
 });
 
@@ -590,12 +573,4 @@ function observeReadConcurrency(client: ReaderObjectStoreClient): {
 		},
 		maxActive: () => maximum,
 	};
-}
-
-function writeSourceFile(source: DocsSourceManifest): string {
-	const root = mkdtempSync(join(tmpdir(), "campus-docs-source-update-"));
-	tempRoots.push(root);
-	const path = join(root, "source.json");
-	writeFileSync(path, `${JSON.stringify(source, null, 2)}\n`, "utf8");
-	return path;
 }

@@ -4,10 +4,7 @@
 
 # Repository governance and automation
 /.github/ @Linear27
-/CONTRIBUTING.md @Linear27
 /README.md @Linear27
-/SECURITY.md @Linear27
-/SUPPORT.md @Linear27
 
 # Durable architecture, runtime and verification surfaces
 /docs/ @Linear27

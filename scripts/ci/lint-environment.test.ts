@@ -7,7 +7,7 @@ import test from "node:test";
 import { parse } from "yaml";
 
 const root = path.resolve(import.meta.dirname, "../..");
-const config = parse(readFileSync(path.join(root, ".pre-commit-config.yaml"), "utf8"));
+const config = parse(readFileSync(path.join(root, ".config/.pre-commit-config.yaml"), "utf8"));
 const hooks = config.repos.flatMap((repo: { hooks: Hook[] }) => repo.hooks) as Hook[];
 interface Hook {
 	id: string;
@@ -19,21 +19,10 @@ test("Nix hooks reuse prepared environments and preserve the local flake command
 	const directory = mkdtempSync(path.join(os.tmpdir(), "lint-environment-"));
 	t.after(() => rmSync(directory, { recursive: true, force: true }));
 	const selected = [
-		[
-			"editorconfig",
-			"ci-light",
-			"editorconfig-checker",
-			["-no-color", "-disable-indentation", "-disable-indent-size"],
-		],
 		["ruff-check", "ci-light", "uv", ["run", "--no-sync", "ruff", "check"]],
 		["ruff-format", "ci-light", "uv", ["run", "--no-sync", "ruff", "format", "--check"]],
-		[
-			"sqlfluff",
-			"ci-light",
-			"uv",
-			["run", "--no-sync", "sqlfluff", "lint", "--config", ".sqlfluff"],
-		],
-		["yamllint", "ci-light", "uv", ["run", "--no-sync", "yamllint", "-c", ".yamllint.yml"]],
+		["sqlfluff", "ci-light", "uv", ["run", "--no-sync", "sqlfluff", "lint"]],
+		["yamllint", "ci-light", "uv", ["run", "--no-sync", "yamllint", "-c", ".config/.yamllint.yml"]],
 		["shellcheck", "ci-light", "shellcheck", ["-x", "-s", "bash"]],
 		["go-format", "ci-format", "golangci-lint", ["fmt", "--diff"]],
 		["staged-secrets", "ci-light", "gitleaks", ["git", "--pre-commit", "--redact", "--staged"]],
@@ -168,7 +157,7 @@ test("CI contracts step and registry use the Go environment while lint stays fil
 	const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 	assert.equal(
 		manifest.scripts.lint,
-		"pnpm exec prek run --all-files --stage pre-commit --skip staged-secrets --no-group validation",
+		"pnpm exec prek run --config .config/.pre-commit-config.yaml --all-files --stage pre-commit --skip staged-secrets --no-group validation",
 	);
 	const biome = hooks.find((hook) => hook.id === "biome");
 	assert(biome);
@@ -178,30 +167,24 @@ test("CI contracts step and registry use the Go environment while lint stays fil
 	);
 });
 
-test("SQL hook excludes match SQLFluff ignores while later handwritten migrations remain selected", () => {
+test("SQL hook relies on .sqlfluffignore while handwritten migrations remain selected", () => {
 	const sql = hooks.find((hook) => hook.id === "sqlfluff");
-	assert(sql?.exclude);
-	const exclude = new RegExp(sql.exclude.replace("(?x)", "").replace(/\s+/gu, ""), "u");
+	assert(sql);
+	assert.equal(sql.exclude, undefined);
 	const ignored = readFileSync(path.join(root, ".sqlfluffignore"), "utf8")
 		.split("\n")
 		.map((line) => line.trim())
 		.filter((line) => line && !line.startsWith("#"));
+	assert.deepEqual(ignored, [
+		"jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration.sql",
+		"jobs/campus-agent-schema/migrations/20260914000000_0016_dining_submissions/migration.sql",
+	]);
 	const files = execFileSync("git", ["ls-files", "*.sql"], { cwd: root, encoding: "utf8" })
 		.trim()
 		.split("\n");
-	for (const file of files) {
-		assert.equal(
-			exclude.test(file),
-			ignored.some((pattern) =>
-				pattern.endsWith("/") ? file.startsWith(pattern) : file === pattern,
-			),
-			file,
-		);
-	}
 	assert(
-		exclude.test(
-			"jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration.sql",
+		files.includes(
+			"jobs/campus-agent-schema/migrations/20260830104000_0001_model_config_optional_validation/migration.sql",
 		),
 	);
-	assert(!exclude.test("jobs/campus-agent-schema/migrations/0005_handwritten.sql"));
 });

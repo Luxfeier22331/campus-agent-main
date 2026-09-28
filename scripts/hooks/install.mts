@@ -114,7 +114,12 @@ export function installHooks(
 		commandOptions,
 		runner,
 	);
-	requireSuccess("pnpm", ["exec", "prek", "install", "--force"], commandOptions, runner);
+	requireSuccess(
+		"pnpm",
+		["exec", "prek", "install", "--force", "--config", ".config/.pre-commit-config.yaml"],
+		commandOptions,
+		runner,
+	);
 	const installedPath = requireSuccess(
 		"git",
 		["rev-parse", "--git-path", "hooks/pre-commit"],

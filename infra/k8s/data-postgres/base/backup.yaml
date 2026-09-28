@@ -1,0 +1,40 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: campus-agent-postgres-backup-store
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  configuration:
+    destinationPath: s3://campus-agent-postgres-backups/
+    endpointURL: http://object-store:9000
+    s3Credentials:
+      accessKeyId:
+        name: campus-agent-postgres-backup-store
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: campus-agent-postgres-backup-store
+        key: SECRET_ACCESS_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+    retentionPolicy: 7d
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: campus-agent-postgres-daily
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "0 0 20 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: campus-agent-postgres
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  suspend: false

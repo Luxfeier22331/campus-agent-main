@@ -26,5 +26,5 @@ GeoJSON、地点坐标和语义属性是产品事实源；Overpass 快照只提�
 - 海淀校区参考图：<https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0B_612F3.png>
 - 丰台校区参考图：<https://www.muc.edu.cn/__local/D/06/88/ED290FD6FCD89E0B4A6A5D0ADDA_11770E2B_26733.jpg>
 
-这些第三方来源派生数据不属于仓库 Apache-2.0 授权范围，详细边界见根目录
-`THIRD_PARTY_NOTICES.md`。
+这些第三方来源派生数据不属于仓库 Apache-2.0 授权范围，详细边界见
+[公开仓库数据策略的第三方来源声明](../../../../docs/policies/public-source-data.md#第三方来源声明)。

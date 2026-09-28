@@ -21,9 +21,9 @@
 
 安全与支持入口：
 
-- [安全策略](./SECURITY.md)
-- [支持说明](./SUPPORT.md)
-- [第三方内容](./THIRD_PARTY_NOTICES.md)
+- [安全策略](./.github/SECURITY.md)
+- [支持说明](./.github/SUPPORT.md)
+- [第三方内容](./docs/policies/public-source-data.md#第三方来源声明)
 
 ## 目录
 
@@ -51,7 +51,7 @@ pnpm check
 [测试与验证](./docs/reference/verification.md)。需要数据库、供应商、对象存储或私有内容的命令
 必须显式提供所属环境配置。
 
-协作方式见 [贡献指南](./CONTRIBUTING.md)。
+协作方式见 [贡献指南](./.github/CONTRIBUTING.md)。
 
 ### Git hooks
 
@@ -79,4 +79,4 @@ Python hooks 使用 `uv run --locked --only-dev`，按锁文件自动准备当�
 
 仓库自有源码、测试、配置和文档使用 [Apache License 2.0](./LICENSE)。第三方依赖、来源派生
 样例、地图数据和品牌资源仍受各自许可证约束；再分发前检查 [NOTICE](./NOTICE) 与
-[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+[第三方来源声明](./docs/policies/public-source-data.md#第三方来源声明)。

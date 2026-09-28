@@ -33,16 +33,10 @@ export function readHistory(folder: string): Migration[] {
 	return migrations;
 }
 
-export function compareHistory(
-	local: Migration[],
-	applied: AppliedMigration[],
-	named: boolean,
-): string[] {
+export function compareHistory(local: Migration[], applied: AppliedMigration[]): string[] {
 	const matched = new Set<string>();
 	for (const row of applied) {
-		const candidates = local.filter((migration) =>
-			named ? migration.name === row.name : migration.hash === row.hash,
-		);
+		const candidates = local.filter((migration) => migration.name === row.name);
 		const migration = candidates[0];
 		if (candidates.length !== 1 || !migration) {
 			throw new Error(`Unknown or ambiguous applied migration: ${row.name ?? row.id}`);
@@ -52,21 +46,6 @@ export function compareHistory(
 		}
 		if (matched.has(migration.name)) {
 			throw new Error(`Duplicate applied migration: ${migration.name}`);
-		}
-		// v1 upgrades v0 names by second-resolution timestamps, falling back to hashes.
-		// Confirm its match is the same before it changes the ledger or executes SQL.
-		if (!named) {
-			const at = Math.floor(Number(row.created_at) / 1000) * 1000;
-			const sameTime = local.filter((item) => item.folderMillis === at);
-			const nativeMatch =
-				sameTime.length === 1
-					? sameTime[0]
-					: sameTime.length > 1
-						? sameTime.find((item) => item.hash === row.hash)
-						: migration;
-			if (nativeMatch?.name !== migration.name) {
-				throw new Error(`Legacy migration mapping conflict: ${row.id}`);
-			}
 		}
 		matched.add(migration.name);
 	}

@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
 spec:
-  instances: 1
+  instances: 2
   imageName: ghcr.io/cloudnative-pg/postgresql:18.4-202606221003-minimal-trixie@sha256:538f1b327b8dc7621a94aac79c9c3e5c50dfa29115a6c291e19372a5b876f415
   managed:
     roles:
@@ -31,6 +31,11 @@ spec:
       - name: pgvector
         image:
           reference: ghcr.io/cloudnative-pg/pgvector:0.8.1-18-trixie
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: campus-agent-postgres-backup-store
   storage:
     size: 30Gi
   resources:

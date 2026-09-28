@@ -16,9 +16,11 @@ data:
 
     rc mb --ignore-existing object-store/campus-agent-source
     rc mb --ignore-existing object-store/campus-agent-derived
+    rc mb --ignore-existing object-store/campus-agent-postgres-backups
 
     rc version enable object-store/campus-agent-source
     rc version enable object-store/campus-agent-derived
+    rc version enable object-store/campus-agent-postgres-backups
 
     rc ilm rule import object-store/campus-agent-source /bootstrap/source-lifecycle.json
     rc ilm rule import object-store/campus-agent-derived /bootstrap/derived-lifecycle.json
@@ -28,17 +30,20 @@ data:
     rc admin policy create object-store campus-agent-derived-rw /bootstrap/derived-policy.json
     rc admin policy create object-store campus-agent-derived-ro /bootstrap/derived-read-policy.json
     rc admin policy create object-store campus-agent-source-ro /bootstrap/source-read-policy.json
+    rc admin policy create object-store campus-agent-postgres-backup-rw /bootstrap/postgres-backup-policy.json
 
     rc admin user add object-store "$OBJECT_STORE_SOURCE_ACCESS_KEY" "$OBJECT_STORE_SOURCE_SECRET_KEY"
     rc admin user add object-store "$OBJECT_STORE_DERIVED_ACCESS_KEY" "$OBJECT_STORE_DERIVED_SECRET_KEY"
     rc admin user add object-store "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY" "$OBJECT_STORE_DERIVED_READ_SECRET_KEY"
     rc admin user add object-store "$OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY" "$OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY"
     rc admin user add object-store "$OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY" "$OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_POSTGRES_BACKUP_ACCESS_KEY" "$OBJECT_STORE_POSTGRES_BACKUP_SECRET_KEY"
     rc admin policy attach object-store campus-agent-source-rw --user "$OBJECT_STORE_SOURCE_ACCESS_KEY"
     rc admin policy attach object-store campus-agent-derived-rw --user "$OBJECT_STORE_DERIVED_ACCESS_KEY"
     rc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY"
     rc admin policy attach object-store campus-agent-source-ro --user "$OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY"
     rc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-postgres-backup-rw --user "$OBJECT_STORE_POSTGRES_BACKUP_ACCESS_KEY"
   source-policy.json: |
     {
       "Version": "2012-10-17",
@@ -146,6 +151,22 @@ data:
           "Effect": "Allow",
           "Action": ["s3:GetObject", "s3:GetObjectVersion"],
           "Resource": ["arn:aws:s3:::campus-agent-source/*"]
+        }
+      ]
+    }
+  postgres-backup-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketVersions", "s3:ListBucketMultipartUploads"],
+          "Resource": ["arn:aws:s3:::campus-agent-postgres-backups"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
+          "Resource": ["arn:aws:s3:::campus-agent-postgres-backups/*"]
         }
       ]
     }
@@ -302,6 +323,16 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY
+            - name: OBJECT_STORE_POSTGRES_BACKUP_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_POSTGRES_BACKUP_ACCESS_KEY
+            - name: OBJECT_STORE_POSTGRES_BACKUP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_POSTGRES_BACKUP_SECRET_KEY
             - name: RC_CONFIG_DIR
               value: /tmp/.rc
           resources:

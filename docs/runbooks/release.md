@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 本文说明源码候选物如何交给环境仓并进入已配置的目标环境。分支协作见
-[贡献指南](../../CONTRIBUTING.md)，证据选择见 [测试与验证](../reference/verification.md)，环境部署和恢复命令由
+[贡献指南](../../.github/CONTRIBUTING.md)，证据选择见 [测试与验证](../reference/verification.md)，环境部署和恢复命令由
 环境仓操作手册维护。
 
 ## 发布链

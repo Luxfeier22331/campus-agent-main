@@ -56,10 +56,6 @@ Docs 的共享输入是对象存储中的 `campus-docs/source.json` 及其引用
 编译或对象读取失败时固定键不变；条件冲突表示其他发布者已更新来源，检查新来源后重新发布，不手工覆盖。
 静态构建失败可直接重跑候选流程，已有相同 digest 的副本会核对内容并复用。
 
-迁移入口 `docs:source:bootstrap -- --output <empty-directory> [--source-file <source.json>]` 可从指定文件或
-只读对象存储导出声明，只写本地空目录。比较重新生成的 canonical 清单与迁移前清单，完整 digest 应相同。
-旧 `docs:source:update -- --source-file <source.json>` 仅保留一个发布周期供迁移或恢复使用，也执行条件写入；
-确认 staging 新流程、静态站、Docs builder、本地同步均通过后退役，日常编辑使用 Git 声明。
 回滚优先 revert 对应声明并重新发布；紧急恢复可用保留的 release 副本，但必须同步恢复 Git 声明，避免下一次
 候选流水线再次发布新声明。固定键与保留的 release 引用对象均不得提前删除。
 

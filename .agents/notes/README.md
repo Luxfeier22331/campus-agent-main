@@ -89,7 +89,7 @@ pnpm exec tsx scripts/docs/archive-agent-note.ts \
 ## 校验与观察
 
 `pnpm docs:check` 包含笔记树、格式、归档标记与冻结检查、入口预算、当前链接和语言检查。
-归档由专用检查器维护，普通笔记格式、Markdownlint、EditorConfig、出站链接和语言检查跳过归档正文；
+归档由专用检查器维护，普通笔记格式、Markdownlint、出站链接和语言检查跳过归档正文；
 模板不作为正式笔记。默认 `rg` 搜索排除归档；追查历史时显式传入归档目录。
 
 `pnpm docs:notes:anchors` 扫描仓内 Markdown 的链接和反引号路径，统计不同来源文件。

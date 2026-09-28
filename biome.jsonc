@@ -8,7 +8,7 @@
 	"files": {
 		"ignoreUnknown": true,
 		"includes": [
-			".markdownlint-cli2.jsonc",
+			".config/.markdownlint-cli2.jsonc",
 			"biome.jsonc",
 			"package.json",
 			"turbo.json",
