@@ -1,8 +1,8 @@
+import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatWranglerFailure, runWranglerCommand } from "./run-wrangler-command.ts";
-import { resolveGitSha } from "./staging-release.mts";
 
 interface WorkerVersionSummary {
 	id: string;
@@ -61,6 +61,24 @@ interface WorkerVersionUploadDependencies {
 
 function fail(message: string): never {
 	throw new Error(message);
+}
+
+function resolveGitSha(): string {
+	const result = spawnSync("git", ["rev-parse", "HEAD"], {
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "inherit"],
+	});
+
+	if (result.status !== 0) {
+		fail("Unable to derive the release identity from git rev-parse HEAD.");
+	}
+
+	const commitSha = result.stdout?.trim();
+	if (!commitSha) {
+		fail("Unable to derive the release identity because git returned an empty commit SHA.");
+	}
+
+	return commitSha;
 }
 
 function parseJsonOutput<T>(stdout: string | Buffer | null, command: string): T {

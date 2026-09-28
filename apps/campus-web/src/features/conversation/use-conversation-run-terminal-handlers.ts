@@ -55,7 +55,8 @@ export function useConversationRunTerminalHandlers({
 				initializationRegistry.local = null;
 			}
 			const terminalError =
-				event.event === "request.failed" && event.data.error
+				(event.event === "request.failed" || event.event === "request.cancelled") &&
+				event.data.error
 					? new ChatStreamRequestError({
 							code: event.data.error.code,
 							message: event.data.error.message,
@@ -63,11 +64,11 @@ export function useConversationRunTerminalHandlers({
 							retryable: event.data.error.retryable,
 						})
 					: null;
-			if (event.event === "request.cancelled") {
-				return;
-			}
 			if (event.data.answer) {
-				const terminalMessages = toAssistantThreadMessages(event.data.answer.conversation);
+				const terminalMessages = toAssistantThreadMessages(
+					event.data.answer.conversation,
+					terminalError ? { code: terminalError.code, requestId: event.data.requestId } : undefined,
+				);
 				replaceWithCanonicalMessages(terminalMessages);
 				return;
 			}

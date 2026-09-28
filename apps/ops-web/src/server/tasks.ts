@@ -157,7 +157,7 @@ export function createTaskService(input: {
 				const value: OpsTask = {
 					id: task.id,
 					label: task.label,
-					runtime: task.cron ? "kubernetes" : "temporal",
+					runtime: task.legacyMode || !task.cron ? "temporal" : "kubernetes",
 					canSchedule: !task.legacyMode && (!task.cron || Boolean(task.operation && !input.local)),
 					canRun: !input.local,
 					enabled: null,
@@ -169,7 +169,7 @@ export function createTaskService(input: {
 					error: null,
 				};
 				try {
-					if (task.legacyMode && input.local) {
+					if (task.legacyMode) {
 						await temporal(async (client) => {
 							const schedule = await client.schedule.getHandle("notice-pipeline").describe();
 							value.enabled = !schedule.state.paused;
@@ -364,8 +364,8 @@ function message(error: unknown) {
 function noticeRun(job: NoticeJob): TaskRun {
 	return {
 		id: job.jobName,
-		workflowId: null,
-		runId: null,
+		workflowId: maintenanceWorkflowId,
+		runId: job.jobName,
 		status: job.status,
 		outcome: job.summary?.outcome ?? (job.status === "failed" ? "failed" : "unknown"),
 		startedAt: job.createdAt,

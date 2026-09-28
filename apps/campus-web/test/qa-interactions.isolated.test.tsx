@@ -462,6 +462,9 @@ describe("Q&A product interactions", () => {
 		await screen.findByRole("button", { name: "国家奖学金" });
 		await user.click(screen.getByRole("button", { name: "更多操作" }));
 		await user.click(await screen.findByRole("menuitem", { name: label }));
+		if (label === "删除") {
+			await user.click(await screen.findByRole("button", { name: "确认删除" }));
+		}
 		await waitFor(() => expect(conversationApiMock[method]).toHaveBeenCalledWith("conv_active"));
 	});
 
@@ -477,7 +480,11 @@ describe("Q&A product interactions", () => {
 		await screen.findByRole("button", { name: "国家奖学金" });
 		await user.click(screen.getByRole("button", { name: "更多操作" }));
 		await user.click(await screen.findByRole("menuitem", { name: label }));
-		await user.keyboard("{Escape}");
+		if (label === "删除") {
+			await user.click(await screen.findByRole("button", { name: "确认删除" }));
+		} else {
+			await user.keyboard("{Escape}");
+		}
 		expect(await screen.findByRole("alert")).toHaveTextContent(`${label}失败，请稍后重试。`);
 		expect(screen.getByRole("button", { name: "国家奖学金" })).toBeVisible();
 	});

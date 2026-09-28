@@ -15,8 +15,9 @@ status: active
 
 当前源码清单显示：
 
-- CNPG PostgreSQL 为单实例，存储 `30Gi`，容器 memory limit 为 `1536Mi`；
-- CNPG 清单未声明 backup/PITR/WAL archive 或 `PodMonitor` desired state，且 `enablePodMonitor: false`；
+- CNPG PostgreSQL 为 2 实例，每实例存储 `30Gi`；资源额度由环境 overlay 设置；
+- Barman Cloud Plugin 连续归档 WAL，每日 20:00 UTC 备份，ObjectStore 的 `spec.retentionPolicy` 为 `7d`；
+- 备份依赖的 Secret、ObjectStore、网络规则先于 Cluster 协调，ScheduledBackup 在 Cluster 之后；
 - RustFS 为单副本，存储 `20Gi`；
 - 对象 bucket 使用 versioning 时，源码合同仍不能据此推断存在独立备份。
 
@@ -65,3 +66,24 @@ status: active
 - [对象存储 ADR](../../.agents/notes/implemented/architecture/2026-07-16-object-storage.md)
 - [Campus Docs 维护与索引发布](./campus-docs.md)
 - [Temporal runbook](./temporal.md)
+
+## CNPG 备份恢复与失败副本重建
+
+先确认 primary/targetPrimary、最近完成的基础备份和 `pg_stat_archiver`，修复归档连接后再处理失败副本。
+数据库实际服务证书必须与环境 `PGHOST`、CA 挂载和 `verify-full` 一致；备份改动不改变现有 TLS 合同。
+
+隔离恢复 Cluster 使用 `bootstrap.recovery.source` 引用 `externalClusters[].plugin`，插件参数
+`barmanObjectName` 指向 ObjectStore，`serverName` 指向原集群。按名称恢复时，
+`recoveryTarget` 必须同时设置已完成备份的 `backupID` 和 `targetName`。
+恢复目标使用独立 PVC，不挂业务 Service，不配置向原备份目的地归档的 plugin；放行 operator、DNS、
+Kubernetes API 和 RustFS 连接。验证成功后只清理演练 Cluster、PVC 和对应网络策略。
+
+失败副本确需重建时，先确认它不是 primary 或 targetPrimary。staging 使用 local-path；保留失败副本
+底层 PV 时先把该 PV reclaimPolicy 改为 `Retain`，再用 CNPG destroy 删除该副本的 Pod/PVC，
+由 operator 新建副本。不要只保留同名 PVC 后期待 operator 跳过旧实例编号。
+核对新 PVC/PV、两实例 Ready 和 replication `streaming`，旧 PV 保持 Released/Retain，后续删除单独处理。
+
+2026-09-29 staging 演练使用基础备份 `20260928T214911` 和命名恢复点 `campus_repair_20260929`，
+恢复实例读取到 7,241 条通知与原 `current_index`，随后清理隔离资源。
+该结果证明当时备份和 WAL 可恢复；数据库、RustFS 与副本仍在同一节点，不代表节点丢失后的恢复能力。
+相关故障经过见[集群恢复复盘](../postmortem/0002-staging-postgres-pipeline-recovery.md)。

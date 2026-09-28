@@ -135,10 +135,7 @@
 				"$TURBO_ROOT$/packages/contracts/package.json",
 				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
-				"$TURBO_ROOT$/packages/domains/dining/src/**",
-				"$TURBO_ROOT$/scripts/deploy/run-wrangler-command.ts",
-				"$TURBO_ROOT$/scripts/deploy/staging-release.mts",
-				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
+				"$TURBO_ROOT$/packages/domains/dining/src/**"
 			],
 			"outputLogs": "new-only",
 			"outputs": ["dist/worker/**"],

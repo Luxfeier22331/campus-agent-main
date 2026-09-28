@@ -62,14 +62,17 @@ pnpm dev
 
 `build:fixture` 只供浏览器回归使用确定性测试内容。Campus Web 的正常开发和构建读取当前 worktree 对象存储中的 `campus-docs/source.json`。
 `pnpm dev:init -- --target core` 为当前 worktree 供应 PostgreSQL、RustFS、Qdrant、Temporal，安装 schema、测试账号和 namespace。
+测试账号由 [`apps/app-api/ops/db/seed-local-test-user.ts`](../../apps/app-api/ops/db/seed-local-test-user.ts) 种入：`test@muc.edu.cn` / `password123`（普通用户）、`admin@muc.edu.cn` / `admin123`（管理员）。
 
 初始化前停止当前 worktree 的应用。`core` 先初始化自己的运行数据库，再同步当前 worktree 的检索数据：
 
 ```bash
 pnpm dev:init -- --target core
-pnpm dev:init -- --target core --data cluster --context <context> --namespace <namespace>
+pnpm dev:init -- --target core --data cluster [--context <context> --namespace <namespace>]
 pnpm dev:doctor -- --scope data
 ```
+
+`--data cluster` 的 namespace 默认 `campus-agent-staging`，`--context` 缺省时回落到本机 kubectl current-context；跨集群同步时才需显式给两个 flag。
 
 `dev:init --data cluster` 不复制集群的完整业务数据库，只同步 Docs source 引用闭包、当前混合 Qdrant collection、检索所需通知表和当前 profile 的 `current_index`，不复制用户、session、Dining、Transport、Groups 或 reviews。基础 UI 验证仍可使用 seed 和 fixture；seed 是本地完整基础数据路径。模型连接仍由开发者提供；数据 ready 不等于模型配置或真实查询成功。
 

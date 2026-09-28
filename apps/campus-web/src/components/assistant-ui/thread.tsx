@@ -1,9 +1,16 @@
-import { AuiIf, ThreadPrimitive, useAui, useAuiState } from "@assistant-ui/react";
-import { cn } from "@campus-agent/ui";
+import {
+	AuiIf,
+	ThreadPrimitive,
+	useAui,
+	useAuiState,
+	useThreadViewportStore,
+} from "@assistant-ui/react";
+import { Button, cn } from "@campus-agent/ui";
 import { ArrowDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useContext, useEffect, useRef, useState } from "react";
 import { RetrievalStatus } from "@/components/conversation/retrieval-status";
+import { readCampusMessageMetadata } from "@/features/conversation/assistant-ui-mappers";
 import { Composer } from "./thread-composer";
 import {
 	DEFAULT_THREAD_SETTINGS,
@@ -14,7 +21,7 @@ import {
 } from "./thread-context";
 import type { ThreadProps } from "./thread-contract";
 import { ThreadMessage } from "./thread-message";
-import { ThreadSuggestions, ThreadWelcome } from "./thread-welcome";
+import { ThreadWelcome } from "./thread-welcome";
 import { TooltipIconButton } from "./tooltip-icon-button";
 
 export type { ThreadComponents, ThreadGroupPart, ThreadProps } from "./thread-contract";
@@ -64,7 +71,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 			>
 				<div
 					className={cn(
-						"mx-auto flex w-full max-w-(--thread-max-width) flex-col px-3 pt-4 sm:px-5 sm:pt-6",
+						"mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-3 pt-4 sm:px-5 sm:pt-6",
 						isEmpty && "justify-center",
 					)}
 				>
@@ -82,16 +89,14 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 					>
 						<ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
 					</div>
-					<ThreadRunStatus />
+					<ThreadCompletionScroll />
 				</div>
 			</ThreadPrimitive.Viewport>
 			<div className="aui-thread-composer-dock border-border/70 shrink-0 border-t bg-background px-3 pb-3 sm:px-5 sm:pb-5">
 				<div className="relative mx-auto flex w-full max-w-(--thread-max-width) flex-col gap-3 pt-2">
+					<ThreadRunStatus />
 					<ThreadScrollToBottom />
 					<Composer />
-					<AuiIf condition={(s) => isNewChatView(s) && s.composer.isEmpty}>
-						<ThreadSuggestions />
-					</AuiIf>
 				</div>
 			</div>
 		</ThreadPrimitive.Root>
@@ -138,7 +143,7 @@ const ThreadRunStatus: FC = () => {
 				<p
 					aria-atomic="true"
 					className={cn(
-						"aui-thread-run-status mx-auto mb-3 w-full max-w-(--thread-max-width) px-3 text-sm sm:px-5",
+						"aui-thread-run-status text-sm",
 						connection === "disconnected" ? "text-destructive" : "text-muted-foreground",
 					)}
 					data-connection={connection}
@@ -151,13 +156,15 @@ const ThreadRunStatus: FC = () => {
 							: "正在回答"}
 					{connection === "connected" ? <RetrievalStatus statuses={retrieval} /> : null}
 					{connection === "disconnected" ? (
-						<button
+						<Button
 							type="button"
-							className="ml-2 underline"
+							variant="link"
+							size="sm"
+							className="ml-1 h-auto px-1 py-0.5"
 							onClick={() => void aui.thread().resumeRun({ parentId: null })}
 						>
 							恢复连接
-						</button>
+						</Button>
 					) : null}
 				</p>
 			) : null}
@@ -179,3 +186,27 @@ const ThreadScrollToBottom: FC = () => (
 		</TooltipIconButton>
 	</ThreadPrimitive.ScrollToBottom>
 );
+
+const ThreadCompletionScroll: FC = () => {
+	const threadViewportStore = useThreadViewportStore();
+	const isRunning = useAuiState((state) => state.thread.isRunning);
+	const lastAssistantKind = useAuiState((state) => {
+		const last = state.thread.messages.at(-1);
+		if (!last?.role || last.role !== "assistant") {
+			return "none" as const;
+		}
+		return readCampusMessageMetadata(last.metadata?.custom).kind ?? ("answer" as const);
+	});
+	const previousRef = useRef({ isRunning, lastAssistantKind });
+
+	useEffect(() => {
+		const previous = previousRef.current;
+		previousRef.current = { isRunning, lastAssistantKind };
+		if (!previous.isRunning || isRunning || lastAssistantKind === "error") {
+			return;
+		}
+		threadViewportStore.getState().scrollToBottom({ behavior: "smooth" });
+	}, [isRunning, lastAssistantKind, threadViewportStore]);
+
+	return null;
+};

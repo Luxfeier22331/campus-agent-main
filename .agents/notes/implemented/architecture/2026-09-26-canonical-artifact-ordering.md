@@ -52,3 +52,8 @@ artifact 身份不再随运行 locale 或 ICU 数据变化；跨环境重建同�
 冲突，由各 artifact 的重新发布 owner 处理，不在本决策内修复。门禁只覆盖
 `CANONICAL_ORDER_PATHS` 列出的身份路径；新增 artifact owner 时须同步把路径加入该列表
 与 registry（`scripts/ci/check-canonical-order.test.ts` 断言两者一致）。
+
+2026-09-29 集群恢复确认当前已发布 Docs/Notice manifest 仍使用旧键序。恢复操作先验证旧字节 SHA、
+全部引用与 15,528 个向量，再仅重排 manifest 并按新身份重发布；保留原对象，使用统一 publisher 的锁和 CAS
+切换索引。自动清理只需保护 Notice manifest 的经摘要校验引用，复用 `noticeArtifactKeys`，不再为保护旧版本
+重新组装全部 Docs/Notice 向量；发布仍执行完整内容与 canonical 校验。

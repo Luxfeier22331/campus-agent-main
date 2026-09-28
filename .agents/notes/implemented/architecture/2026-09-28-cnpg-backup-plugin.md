@@ -30,9 +30,15 @@ bootstrap。
 
 ## 后果
 
-- RPO ≤ 5 分钟（WAL 归档默认 archive_timeout），每日一次基础备份，retention 7 天；
+- `archive_timeout` 为 5 分钟，每日一次基础备份，retention 7 天；实际 RPO 取决于归档成功时间；
   staging 数据可重建，7 天足够恢复演练。
 - 新增一个部署单元 `platform-cnpg-plugin-barman-cloud`（chart 0.8.0，与 operator 同
   namespace、同治理分组），退役条件是 CNPG 官方更换备份插件机制。
 - staging 内存占用翻倍（384Mi × 2），已确认接受。
-- 单实例到 2 实例的切换会触发一次滚动重建，合并部署时预期有短暂不可用。
+- 新增副本由 operator 初始化；备份迁移不改变原有服务端证书与客户端 CA 合同。
+
+2026-09-29 恢复修正了 ObjectStore retention 的层级，并将 ObjectStore 与实例网络策略移到 wave -2、
+ScheduledBackup 移到 wave 2。实例必须允许同集群 5432 复制和 RustFS 9000 归档；否则副本初始化与
+归档同时失败。隔离恢复已验证基础备份与命名恢复点。staging 的两个实例和 RustFS 同节点，当前选择
+不提供节点级容灾；不把 5 分钟 archive_timeout 表述为无条件 RPO 保证。
+操作见[数据恢复](../../../../docs/runbooks/data-recovery.md)，事件见[复盘](../../../../docs/postmortem/0002-staging-postgres-pipeline-recovery.md)。

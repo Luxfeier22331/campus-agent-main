@@ -18,7 +18,6 @@ on:
           - model-config-postgres
           - ops-web-postgres
           - infra
-          - otel
 
 permissions:
   contents: read

@@ -18,11 +18,12 @@
 			"packages/**",
 			"configs/**",
 			"scripts/**",
+			"infra/k8s/tests/**",
 			"!!apps/campus-web/assets/campus-map",
 			"!!apps/campus-web/data/campus-map",
 			"!!.tmp",
 			"!!var",
-			"!!scripts/dev/fixtures/product-data"
+			"!!scripts/dev/product-data/fixtures/product-data"
 		]
 	},
 	"formatter": {

@@ -29,6 +29,16 @@ func defaultString(value string, defaultValue string) string {
 	return value
 }
 
+// normalizeAnswerTransport defaults to buffered unless explicitly set to stream.
+// Any value other than "stream" resolves to buffered so a misconfigured
+// deployment never re-enables the defective provider streaming path.
+func normalizeAnswerTransport(value string) string {
+	if strings.ToLower(strings.TrimSpace(value)) == AnswerTransportStream {
+		return AnswerTransportStream
+	}
+	return AnswerTransportBuffered
+}
+
 func firstString(values ...string) string {
 	for _, value := range values {
 		if normalized := strings.TrimSpace(value); normalized != "" {

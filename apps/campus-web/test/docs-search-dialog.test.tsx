@@ -326,6 +326,7 @@ async function renderSearchPanel(siteIndex: ReturnType<typeof createLargeDocsSit
 				<DocsSearchPanel
 					onNavigate={() => undefined}
 					searchIndexUrl={siteIndex.searchIndexUrl}
+					searchRuntime={{ load: () => searchClientMock, reset: searchClientMock.reset }}
 					siteIndex={siteIndex}
 				/>
 				<Outlet />

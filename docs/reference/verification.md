@@ -48,7 +48,7 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 | --- | --- | --- |
 | `pre-commit` | 暂存文件的静态检查与 Secret 扫描、根脚本测试，以及受影响 Node/Go 源码检查 | build、integration、浏览器 E2E 或 runtime |
 | `pre-push` | 不再安装仓库重验证 hook | 源码或运行时验证 |
-| `pnpm verify` | 全量源码检查、Ragas 单测、数据库集成、Infra、OTel 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
+| `pnpm verify` | 全量源码检查、Ragas 单测、数据库集成、Infra 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
 | `pnpm check` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Ragas 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
 | `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描与 validation group | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、笔记树与格式、归档、入口预算、链接和语言合同 | 代码或部署状态 |
@@ -61,7 +61,6 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 | `pnpm --dir packages/contracts contracts:check` | JSON Schema/OpenAPI 同步和合同不变量 | consumer runtime 行为 |
 | `scripts/dependencies/scan.sh` | 已锁定依赖的漏洞扫描 | 应用行为或镜像漏洞 |
 | `scripts/infra/validate.sh` | Kustomize render 与基础设施 policy | 集群已应用或 workload 健康 |
-| `scripts/otel/validate-config.sh` | Collector 配置校验 | 后端已经收到真实信号 |
 | PR `container-build` profile | Docker Bake target、变量和构建定义可解析 | 镜像源码、依赖闭包或运行时入口 |
 | PR `image-build` profile | 受影响镜像可在 `linux/arm64` 以 `cacheonly` 完成 BuildKit 构建 | 推送、漏洞扫描或环境部署 |
 

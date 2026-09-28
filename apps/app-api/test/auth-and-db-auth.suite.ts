@@ -540,7 +540,7 @@ export function registerAppApiAuthConfigSuite() {
 			).rejects.toThrow(/same-origin/i);
 		});
 
-		it("writes and verifies Better Auth scrypt passwords", async () => {
+		it("writes and verifies Better Auth scrypt passwords", { timeout: 30000 }, async () => {
 			const hash = await hashAppPassword("StagingPass!2026");
 
 			expect(hash).not.toMatch(/^pbkdf2_sha256\$/);

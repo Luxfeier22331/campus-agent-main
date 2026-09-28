@@ -2,6 +2,8 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: data-postgres-instance-ingress
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
@@ -11,6 +13,13 @@ spec:
       cnpg.io/cluster: campus-agent-postgres
   policyTypes: ["Ingress"]
   ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
     - from:
         - podSelector:
             matchLabels:
@@ -79,6 +88,8 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: data-postgres-instance-egress
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
@@ -104,3 +115,11 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+              app.kubernetes.io/instance: rustfs
+      ports:
+        - protocol: TCP
+          port: 9000

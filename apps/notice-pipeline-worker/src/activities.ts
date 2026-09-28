@@ -1,8 +1,8 @@
-import { createNoticeDatabasePool } from "@campus-agent/notice-database";
+import { createNoticeDatabasePool, withNoticeProcessingLock } from "@campus-agent/notice-database";
 import { Context, heartbeat } from "@temporalio/activity";
 import {
 	type CollectionCommand,
-	runCollectionCommand,
+	executeCollectionCommand,
 } from "internal-portal-collection/collection-command";
 import { loadInternalPortalEnv } from "internal-portal-collection/config";
 import { resolveInternalPortalCredentialFromEnv } from "internal-portal-collection/ops-web-credential-resolver";
@@ -12,21 +12,18 @@ import {
 	resolveNoticeClassifierRuntimeConfig,
 } from "notice-classifier/model";
 import { internalPortalHost } from "notice-publisher/portal";
-import { publishNotices } from "notice-publisher/publisher";
+import { publishNotices, republishNotices } from "notice-publisher/publisher";
 import { createPublisherObjectStoreFromEnv } from "notice-publisher/store";
 
 export async function collectNotices(command: CollectionCommand = { mode: "notice-sync" }) {
-	return activity(async () => {
+	return activity(async (_signal, report) => {
 		loadInternalPortalEnv(process.env);
 		const credential = await resolveInternalPortalCredentialFromEnv(process.env);
-		const code = await runCollectionCommand(command, {
+		return await executeCollectionCommand(command, {
 			env: process.env,
 			ssoTgc: credential.ssoTgc,
+			onProgress: report,
 		});
-		if (code !== 0) {
-			throw new Error(`notice collection failed with exit code ${code}`);
-		}
-		return { outcome: "success" as const };
 	});
 }
 
@@ -38,37 +35,46 @@ export async function classifyNotices(noticeIds?: readonly number[]) {
 	return activity(async (signal, report) => {
 		const pool = createNoticeDatabasePool(process.env, { max: 3 });
 		try {
-			const runtime = await resolveNoticeClassifierRuntimeConfig(
-				fetch,
-				process.env.MODEL_CONFIG_URL,
-			);
-			return await runNoticeClassificationJob({
-				database: pool,
-				signal,
-				createModelClassifier: () => createNoticeClassifierFromRuntimeConfig(runtime, fetch),
-				onProgress: report,
-				...(noticeIds ? { noticeIds } : {}),
-			});
+			const lockClient = await pool.connect();
+			try {
+				return await withNoticeProcessingLock(lockClient, "classification", async (lockSignal) => {
+					const runtime = await resolveNoticeClassifierRuntimeConfig(
+						fetch,
+						process.env.MODEL_CONFIG_URL,
+					);
+					return await runNoticeClassificationJob({
+						database: pool,
+						signal: AbortSignal.any([signal, lockSignal]),
+						createModelClassifier: () => createNoticeClassifierFromRuntimeConfig(runtime, fetch),
+						onProgress: report,
+						...(noticeIds ? { noticeIds } : {}),
+					});
+				});
+			} finally {
+				lockClient.release();
+			}
 		} finally {
 			await pool.end();
 		}
 	});
 }
 
-export async function publishNoticesStage(noticeIds?: readonly number[]) {
+export async function publishNoticesStage(noticeIds?: readonly number[], republish = false) {
 	return activity(async (signal, report) => {
 		const pool = createNoticeDatabasePool(process.env, { max: 2 });
 		const client = await pool.connect();
 		const store = createPublisherObjectStoreFromEnv(process.env);
 		try {
-			return await publishNotices({
-				client,
-				signal,
-				objectStore: store,
-				portalHost: internalPortalHost(),
-				onProgress: report,
-				...(noticeIds ? { noticeIds } : {}),
-			});
+			return await withNoticeProcessingLock(client, "publication", (lockSignal) =>
+				(republish ? republishNotices : publishNotices)({
+					client,
+					signal: AbortSignal.any([signal, lockSignal]),
+					objectStore: store,
+					portalHost: internalPortalHost(),
+					onProgress: report,
+					...(noticeIds ? { noticeIds } : {}),
+				}),
+			);
 		} finally {
 			client.release();
 			store.close();

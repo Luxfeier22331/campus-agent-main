@@ -578,6 +578,70 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
 	});
 
+	it("renders the canonical cancelled message with localized text and errorCode metadata", async () => {
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					sequence: 1,
+					status: "accepted",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			yield cancellationTerminalEvent({
+				messages: [
+					{
+						conversationId: "conv_created",
+						createdAt: "2026-06-24T01:00:00.000Z",
+						id: "msg_user",
+						kind: null,
+						requestId: "req_01",
+						retryable: null,
+						role: "user",
+						text: "帮我查一下考试安排",
+					},
+					{
+						conversationId: "conv_created",
+						createdAt: "2026-06-24T01:00:02.000Z",
+						id: "msg_cancelled",
+						kind: "error",
+						requestId: "req_01",
+						retryable: false,
+						role: "assistant",
+						text: "The request was cancelled.",
+					},
+				],
+				sequence: 2,
+			});
+		});
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "帮我查一下考试安排", type: "text" }],
+			});
+			await submitPromise;
+		});
+
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(readMessageText("msg_cancelled")).toBe("已取消本次回答。");
+		const cancelledMessage = assistantUiMock.externalStoreInput?.messages.find(
+			(message) =>
+				typeof message === "object" &&
+				message !== null &&
+				"id" in message &&
+				message.id === "msg_cancelled",
+		) as { metadata?: { custom?: { campusMessage?: Record<string, unknown> } } };
+		expect(cancelledMessage.metadata?.custom?.campusMessage).toMatchObject({
+			errorCode: "execution_cancelled",
+			kind: "error",
+			requestId: "req_01",
+			retryable: false,
+		});
+	});
 	it("continues rendering when cancellation fails", async () => {
 		vi.useFakeTimers();
 		let observedSignal: AbortSignal | undefined;

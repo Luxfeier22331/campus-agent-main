@@ -116,13 +116,11 @@ status/list/cancel/retry API 或 reconciliation schedule。
 
 ```bash
 go -C apps/execution-control test ./internal/httpapi ./internal/temporalruntime ./internal/telemetry
-scripts/otel/validate-config.sh
 ```
 
-这些检查验证 adapter、workflow 和 Collector 配置，不证明外部环境已收到数据。
+这些检查验证 adapter、workflow 和 telemetry 配置，不证明外部环境已收到数据。
 
-OpenTelemetry 配置和信号验证统一见 [OpenTelemetry Collector](./otel.md) 与
-[Langfuse 运行合同](../contracts/langfuse-runtime.md)，不在本手册复制入口、属性和路由清单。
+Agent trace 信号验证见 [Langfuse 运行合同](../contracts/langfuse-runtime.md)，不在本手册复制入口、属性和路由清单。
 
 ## 官方资料
 

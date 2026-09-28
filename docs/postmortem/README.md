@@ -21,3 +21,4 @@ status: active
 ## 已记录案例
 
 - [0001 归档命令失效，却被报告为已完成](./0001-note-archive-false-completion.md)
+- [0002 staging PostgreSQL 与通知流水线恢复](./0002-staging-postgres-pipeline-recovery.md)

@@ -90,7 +90,7 @@ test("commit verification runs only selected tooling groups before package tasks
 	runPreCommitEvidence({ repositoryRoot: "/repo", env: {} }, (command, args, options) => {
 		const result = runner(command, args, options);
 		return command === "git" && args[0] === "diff"
-			? { status: 0, stdout: "M\0scripts/dev/environment.ts\0" }
+			? { status: 0, stdout: "M\0scripts/dev/lifecycle/environment.ts\0" }
 			: result;
 	});
 	const tooling = "nix develop .#ci-core --command pnpm test:tooling --groups=dev";

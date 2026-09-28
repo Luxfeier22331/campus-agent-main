@@ -94,6 +94,9 @@ test("tooling groups follow the changed repository surface", () => {
 	assert.deepEqual(toolingGroupsForFiles(["apps/campus-web/src/routes/index.tsx"]), []);
 	assert.deepEqual(toolingGroupsForFiles(["docs/architecture/product.md"]), ["docs"]);
 	assert.deepEqual(toolingGroupsForFiles(["scripts/ci/validation.mts"]), ["ci"]);
+	assert.deepEqual(toolingGroupsForFiles(["infra/k8s/execution-runtime/campus-docs-job.yaml"]), [
+		"infra",
+	]);
 	assert.deepEqual(toolingGroupsForFiles(["package.json"]), ["ci", "release"]);
 });
 
@@ -109,7 +112,6 @@ test("validation profiles have one fail-closed registry", () => {
 		"model-config-postgres",
 		"ops-web-postgres",
 		"infra",
-		"otel",
 	]);
 	assert.deepEqual(validationProfileMetadata("ragas"), {
 		lane: "manual",
@@ -237,7 +239,7 @@ test("keeps unrelated service, infrastructure and browser checks manual", () => 
 	for (const file of [
 		"packages/ragas-runner/tests/test_runner.py",
 		"infra/k8s/data-postgres/base/service.yaml",
-		"infra/otel/collector-local-debug.yaml",
+		"infra/k8s/ops-web/base/workload.yaml",
 		"apps/campus-web/src/routes/index.tsx",
 		"apps/campus-web/e2e/conversation-lifecycle.spec.ts",
 	]) {

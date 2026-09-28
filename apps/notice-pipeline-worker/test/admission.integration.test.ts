@@ -29,7 +29,7 @@ describe.skipIf(!enabled)("atomic maintenance admission", () => {
 		const native = await NativeConnection.connect({ address: process.env.TEMPORAL_ADDRESS });
 		const namespace = requiredEnv("TEMPORAL_NAMESPACE");
 		const client = new Client({ connection, namespace });
-		const queue = `rag-admission-${randomUUID()}`;
+		const _queue = `rag-admission-${randomUUID()}`;
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
@@ -39,23 +39,33 @@ describe.skipIf(!enabled)("atomic maintenance admission", () => {
 			started = resolve;
 		});
 		let prepares = 0;
+		const activities = {
+			collectNotices: async () => ({ summary: { outcome: "success" } }),
+			classifyNotices: async () => ({ outcome: "success" }),
+			publishNoticesStage: async () => ({ outcome: "success" }),
+			rollbackIndex: async () => {
+				started();
+				await gate;
+				return { noOp: false };
+			},
+			prepareRefresh: async () => {
+				prepares++;
+				return { unchanged: true, expectedCurrent: "A" };
+			},
+			cleanupVersions: async () => ({ outcome: "success" }),
+		};
 		const worker = await Worker.create({
 			connection: native,
 			namespace,
-			taskQueue: queue,
+			taskQueue: "notice-pipeline",
 			workflowsPath,
-			activities: {
-				rollbackIndex: async () => {
-					started();
-					await gate;
-					return { noOp: false };
-				},
-				prepareRefresh: async () => {
-					prepares++;
-					return { unchanged: true, expectedCurrent: "A" };
-				},
-				cleanupVersions: async () => ({ outcome: "success" }),
-			},
+			activities,
+		});
+		const artifactWorker = await Worker.create({
+			connection: native,
+			namespace,
+			taskQueue: "notice-artifacts",
+			activities,
 		});
 		const scheduleId = `rag-admission-${randomUUID()}`;
 		let schedule: Awaited<ReturnType<typeof client.schedule.create>> | undefined;
@@ -68,58 +78,63 @@ describe.skipIf(!enabled)("atomic maintenance admission", () => {
 				action: {
 					type: "startWorkflow",
 					workflowType: "noticePipelineScheduled",
-					taskQueue: queue,
+					taskQueue: "notice-pipeline",
 				},
 			});
-			await worker.runUntil(async () => {
-				const rollback = await client.workflow.start("noticePipelineRollback", {
-					workflowId: RAG_MAINTENANCE_WORKFLOW_ID,
-					taskQueue: queue,
-					args: [input],
-					workflowIdConflictPolicy: "FAIL",
-					workflowIdReusePolicy: "ALLOW_DUPLICATE",
-				});
-				const currentSchedule = schedule;
-				if (!currentSchedule) {
-					throw new Error("schedule was not created");
-				}
-				await rollbackStarted;
-				await expect(
-					client.workflow.start("noticePipelineRun", {
+			await artifactWorker.runUntil(() =>
+				worker.runUntil(async () => {
+					const rollback = await client.workflow.start("noticePipelineRollback", {
 						workflowId: RAG_MAINTENANCE_WORKFLOW_ID,
-						taskQueue: queue,
+						taskQueue: "notice-pipeline",
+						args: [input],
 						workflowIdConflictPolicy: "FAIL",
-					}),
-				).rejects.toBeInstanceOf(WorkflowExecutionAlreadyStartedError);
-				await currentSchedule.unpause();
-				await currentSchedule.trigger("SKIP");
-				let scheduled: { workflowId: string; firstExecutionRunId: string } | undefined;
-				await expect
-					.poll(async () => {
-						scheduled = (await currentSchedule.describe()).info.recentActions.at(-1)?.action
-							.workflow;
-						return Boolean(scheduled);
-					})
-					.toBe(true);
-				if (!scheduled) {
-					throw new Error("scheduled workflow was not recorded");
-				}
-				expect(
-					await client.workflow
-						.getHandle(scheduled.workflowId, scheduled.firstExecutionRunId)
-						.result(),
-				).toEqual({ outcome: "skipped", reason: "already-running" });
-				expect(prepares).toBe(0);
-				release();
-				await rollback.result();
-				const next = await client.workflow.start("noticePipelineScheduled", {
-					workflowId: `next-${randomUUID()}`,
-					taskQueue: queue,
-				});
-				expect(await next.result()).toMatchObject({ outcome: "skipped", collection: "A" });
-				expect(prepares).toBe(1);
-				await Worker.runReplayHistory({ workflowsPath }, await next.fetchHistory());
-			});
+						workflowIdReusePolicy: "ALLOW_DUPLICATE",
+					});
+					const currentSchedule = schedule;
+					if (!currentSchedule) {
+						throw new Error("schedule was not created");
+					}
+					await rollbackStarted;
+					await expect(
+						client.workflow.start("noticePipelineRun", {
+							workflowId: RAG_MAINTENANCE_WORKFLOW_ID,
+							taskQueue: "notice-pipeline",
+							workflowIdConflictPolicy: "FAIL",
+						}),
+					).rejects.toBeInstanceOf(WorkflowExecutionAlreadyStartedError);
+					await currentSchedule.unpause();
+					await currentSchedule.trigger("SKIP");
+					let scheduled: { workflowId: string; firstExecutionRunId: string } | undefined;
+					await expect
+						.poll(async () => {
+							scheduled = (await currentSchedule.describe()).info.recentActions.at(-1)?.action
+								.workflow;
+							return Boolean(scheduled);
+						})
+						.toBe(true);
+					if (!scheduled) {
+						throw new Error("scheduled workflow was not recorded");
+					}
+					expect(
+						await client.workflow
+							.getHandle(scheduled.workflowId, scheduled.firstExecutionRunId)
+							.result(),
+					).toEqual({ outcome: "skipped", reason: "already-running" });
+					expect(prepares).toBe(0);
+					release();
+					await rollback.result();
+					const next = await client.workflow.start("noticePipelineScheduled", {
+						workflowId: `next-${randomUUID()}`,
+						taskQueue: "notice-pipeline",
+					});
+					expect(await next.result()).toMatchObject({
+						outcome: "success",
+						rag: { outcome: "skipped", collection: "A" },
+					});
+					expect(prepares).toBe(1);
+					await Worker.runReplayHistory({ workflowsPath }, await next.fetchHistory());
+				}),
+			);
 		} finally {
 			release();
 			await schedule?.delete();
@@ -140,7 +155,7 @@ describe.skipIf(!enabled)("atomic maintenance admission", () => {
 		const worker = await Worker.create({
 			connection: native,
 			namespace,
-			taskQueue: queue,
+			taskQueue: "notice-artifacts",
 			workflowsPath,
 			activities: {
 				rollbackIndex: async (args: RollbackInput) => {
@@ -159,7 +174,7 @@ describe.skipIf(!enabled)("atomic maintenance admission", () => {
 			await worker.runUntil(async () => {
 				const handle = await client.workflow.start("noticePipelineRollback", {
 					workflowId: queue,
-					taskQueue: queue,
+					taskQueue: "notice-artifacts",
 					args: [input],
 				});
 				expect(await handle.result()).toEqual({ noOp: true, collection: "A" });

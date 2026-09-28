@@ -84,39 +84,10 @@ services:
       timeout: 5s
       retries: 60
       start_period: 180s
-    ports:
-      - "${HINDSIGHT_API_HOST_PORT:-127.0.0.1:8888}:8888"
-    networks:
-      - execution-runtime
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.158.0
-    restart: unless-stopped
-    command:
-      - --config=/etc/otelcol-contrib/config.yaml
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    volumes:
-      - ../otel/collector-local-debug.yaml:/etc/otelcol-contrib/config.yaml:ro
-    ports:
-      - "${OTEL_COLLECTOR_OTLP_HTTP_HOST_PORT:-127.0.0.1:4318}:4318"
-    healthcheck:
-      test:
-        - CMD
-        - /otelcol-contrib
-        - validate
-        - --config=/etc/otelcol-contrib/config.yaml
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
-    networks:
-      - execution-runtime
+      ports:
+        - "${HINDSIGHT_API_HOST_PORT:-127.0.0.1:8888}:8888"
+      networks:
+        - execution-runtime
 
 networks:
   execution-runtime:

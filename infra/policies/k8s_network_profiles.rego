@@ -184,6 +184,11 @@ allowed_ops_web_peer_port(peer, allowed_port) if {
 	exact_port(allowed_port, "TCP", 6443)
 }
 
+allowed_ops_web_peer_port(peer, allowed_port) if {
+	exact_pod_peer(peer, "app.kubernetes.io/part-of", "temporal")
+	exact_port(allowed_port, "TCP", 7233)
+}
+
 network_policy_has_allow_rules(spec) if {
 	count(object.get(spec, "ingress", [])) > 0
 }
@@ -210,7 +215,7 @@ ops_web_egress_has_invalid_peer_port(egress) if {
 }
 
 ops_web_egress_allowlist_is_complete(egress) if {
-	count(egress) == 7
+	count(egress) == 8
 	not ops_web_egress_rule_without_destination(egress)
 	not ops_web_egress_rule_without_port(egress)
 	not ops_web_egress_has_invalid_peer_port(egress)
@@ -223,6 +228,7 @@ ops_web_egress_allowlist_is_complete(egress) if {
 	allows_pod(egress, "app.kubernetes.io/name", "agent-runtime", 27062)
 	allows_external_https(egress)
 	allows_kubernetes_api(egress)
+	allows_pod(egress, "app.kubernetes.io/part-of", "temporal", 7233)
 }
 
 validated_ops_web_egress_policy(policy) if {
@@ -241,6 +247,7 @@ violation contains msg if {
 	network_policy_has_allow_rules(spec)
 	label_selector_matches(object.get(spec, "podSelector", {}), ops_web_canonical_labels)
 	not validated_ops_web_egress_policy(input)
+	not validated_ops_web_pipeline_ingress(input)
 	msg := sprintf("NetworkPolicy %s selects dedicated ops-web and must exclude its network policy profile", [input.metadata.name])
 }
 
@@ -273,8 +280,8 @@ violation contains msg if {
 	input.kind == "NetworkPolicy"
 	input.metadata.name == "ops-web-egress"
 	egress := object.get(input.spec, "egress", [])
-	count(egress) != 7
-	msg := "NetworkPolicy ops-web-egress must contain exactly seven dependency rules"
+	count(egress) != 8
+	msg := "NetworkPolicy ops-web-egress must contain exactly eight dependency rules"
 }
 
 violation contains msg if {
@@ -373,4 +380,20 @@ violation contains msg if {
 	egress := object.get(input.spec, "egress", [])
 	not allows_kubernetes_api(egress)
 	msg := "NetworkPolicy ops-web-egress must allow the Kubernetes API backend on TCP 6443"
+}
+
+validated_ops_web_pipeline_ingress(policy) if {
+	policy.kind == "NetworkPolicy"
+	policy.metadata.name == "ops-web-notice-pipeline-ingress"
+	exact_ops_web_policy_selector(policy.spec.podSelector)
+	policy.spec.policyTypes == ["Ingress"]
+	count(object.get(policy.spec, "egress", [])) == 0
+	policy.spec.ingress == [{"from": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "notice-pipeline-worker"}}}], "ports": [{"protocol": "TCP", "port": 5178}]}]
+}
+
+violation contains msg if {
+	input.kind == "NetworkPolicy"
+	input.metadata.name == "ops-web-egress"
+	not allows_pod(input.spec.egress, "app.kubernetes.io/part-of", "temporal", 7233)
+	msg := "NetworkPolicy ops-web-egress must allow Temporal on TCP 7233"
 }

@@ -194,7 +194,7 @@ PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGE
 Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次显式运行 `pnpm dev:init` 时获得独立
 profile、按 target 选择的应用文件、端口、数据库和所需的实例资源；linked worktree 同时按上述白名单从
 main checkout 补充维护者共享的 provider 连接和已有门户 TGC。PostgreSQL、RustFS、Qdrant 与 Temporal 容器、网络和数据卷按 worktree 独立，由当前 worktree 的 `dev:init` 启动和检查。真实检索数据由
-当前 worktree 的 `pnpm dev:init -- --target core --data cluster --context <context> --namespace <namespace>` 同步；
+当前 worktree 的 `pnpm dev:init -- --target core --data cluster` 同步；namespace 默认 `campus-agent-staging`，`--namespace` 可覆盖，`--context` 缺省时回落到本机 kubectl current-context，跨集群时显式补 `--context <context>`。
 每个 worktree 可显式请求集群只读 Secret，并只写自己的 Qdrant 和 current index。
 
 每个 worktree 都由自己的 profile 供应并探测本地依赖。execution-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享

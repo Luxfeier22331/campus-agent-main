@@ -5,10 +5,8 @@ import {
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { Context, heartbeat } from "@temporalio/activity";
 import { ApplicationFailure } from "@temporalio/common";
-import { collectValidatedArtifactClosure } from "campus-rag-index-publisher/artifact-import";
 import { readDocsEmbeddingSet, readNoticeEmbeddingSet } from "campus-rag-index-publisher/artifacts";
 import { createPostgresIndexCatalog } from "campus-rag-index-publisher/catalog";
-import { assembleCandidate } from "campus-rag-index-publisher/publisher";
 import { createQdrantClient } from "campus-rag-index-publisher/qdrant";
 import { runCampusRagPublish } from "campus-rag-index-publisher/run";
 import type { Sha256Ref } from "campus-rag-index-publisher/types";
@@ -178,29 +176,10 @@ export async function cleanupVersions() {
 				if (retiredIds.has(version.collection)) {
 					continue;
 				}
-				// Protect available references even when an incomplete candidate reused older objects.
-				if (!(version.validated || version.activatedAt) && version.producer === "automatic") {
-					for (const key of await noticeArtifactKeys(store, version.noticeEmbeddingSet)) {
-						protectedKeys.add(key);
-					}
-					continue;
-				}
-				const closure = await collectValidatedArtifactClosure({
-					sourceStore: store,
-					validate: (reader) =>
-						assembleCandidate(reader, version.docsEmbeddingSet, version.noticeEmbeddingSet).then(
-							() => undefined,
-						),
-				});
-				for (const object of closure) {
-					protectedKeys.add(object.key);
-					if (
-						object.key.startsWith("notices/rag/chunk-runs/") &&
-						object.key.endsWith("/manifest.json")
-					) {
-						protectedKeys.add(object.key.replace("manifest.json", "validation.json"));
-						protectedKeys.add(object.key.replace("manifest.json", "review-samples.ndjson"));
-					}
+				// Cleanup protects stored references, including manifests published before canonical ordering changed.
+				// Content and vector validation belongs to publication; cleanup only deletes Notice artifacts.
+				for (const key of await noticeArtifactKeys(store, version.noticeEmbeddingSet)) {
+					protectedKeys.add(key);
 				}
 			}
 			const retiredClosures = new Map<string, Set<string>>();

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, vi } from "vitest";
 
 import { createCampusAssistantRuntimeHook } from "../src/features/conversation/assistant-ui-runtime";
-import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
+import type {
+	ChatRequestStreamEvent,
+	ConversationDetail,
+} from "../src/features/conversation/model";
 import { UnauthorizedError } from "../src/platform/api/client";
 
 const assistantUiMock = vi.hoisted(() => ({
@@ -107,9 +110,11 @@ export async function* streamEvents(events: ChatRequestStreamEvent[]) {
 }
 
 export function cancellationTerminalEvent({
+	messages = [],
 	requestId = "req_01",
 	sequence = 2,
 }: {
+	messages?: ConversationDetail["messages"];
 	requestId?: string;
 	sequence?: number;
 } = {}): ChatRequestStreamEvent {
@@ -121,7 +126,7 @@ export function cancellationTerminalEvent({
 					activeRequestId: null,
 					createdAt: "2026-06-24T01:00:00.000Z",
 					id: "conv_created",
-					messages: [],
+					messages,
 					pinnedAt: null,
 					title: "",
 					updatedAt: "2026-06-24T01:00:02.000Z",
@@ -133,6 +138,11 @@ export function cancellationTerminalEvent({
 					requestId,
 					retryable: false,
 				},
+			},
+			error: {
+				code: "execution_cancelled",
+				message: "The request was cancelled.",
+				retryable: false,
 			},
 			occurredAt: "2026-06-24T01:00:02.000Z",
 			requestId,

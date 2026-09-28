@@ -15,7 +15,12 @@ UI worktree 曾有空通知表和不完整的检索绑定，初始化流程却�
 日期只在初次写入时生成，重复初始化保留本地编辑。已有数据不完整时不混入 seed，替换必须显式
 `--replace`，并清理依赖基础数据的本地食堂评论、编辑和举报；用户、会话、模型配置保留。
 
-cluster 模式显式选择 context/namespace，使用 product_data_ro、objectstore-ro、qdrant-ro。
+cluster 模式使用 product_data_ro、objectstore-ro、qdrant-ro；连接全程只读。
+namespace 默认 `campus-agent-staging`（staging 是仓库唯一承认的部署 namespace，属部署拓扑事实而非机器细节），
+`--namespace` 可覆盖；`--context` 缺省时省略 kubectl `--context`，回落到本机 kubectl current-context
+（与 RAG index publisher 的 `context?` 可选行为一致），跨集群时显式补 `--context`。
+原"两个 flag 都必须显式"的 fail-closed 已由只读身份校验兜底：`pg.username !== "product_data_ro"` 或
+TLS 配置不全时 `connectProductCluster` 直接报错，默认 namespace 指错集群也不会写入。
 范围包含产品与内容管理草稿，不包含原始门户采集、远端用户/会话/评论/模型秘密。
 附件只有元数据；图片、Docs 全版本引用闭包和食堂 SVG 复制实际字节。
 PostgreSQL 在单个 repeatable-read read-only 事务导出显式列；Qdrant 从 current_index 指向的真实
@@ -53,7 +58,11 @@ Docs-only 本地 current_index writer 退役；保留 Chunk、Embedding、评测
 
 ## 后果
 
-产品初始化和数据诊断由 `scripts/dev` 拥有，领域 schema、renderer、builder 与 publisher 仍由原模块拥有。
+产品初始化和数据诊断由 `scripts/dev/product-data` 拥有，本地环境生命周期由 `scripts/dev/lifecycle` 拥有，
+两者仅通过 lifecycle 的 profile（决定数据落点）耦合；`scripts/dev/cli.ts` 留在根作为统一命令入口。
+此前所有 product-data 文件与 lifecycle 文件混在 `scripts/dev/` 平铺目录，拆分为两个子目录以物理化子域边界；
+biome 对 fixture 的 ignore 路径同步到 `scripts/dev/product-data/fixtures`，`scripts/package.json` 的 `test:dev`
+glob 扩为 `dev/*.test.ts dev/*/*.test.ts`。领域 schema、renderer、builder 与 publisher 仍由原模块拥有。
 根脚本显式声明使用的 embedding 和 dining workspace 依赖，使 CI 仅安装根验证依赖时也能解析复用的 publisher；
 不能依赖开发机器完整安装留下的子包链接。
 本地真实 PostgreSQL/S3/Qdrant 已验证 seed、保留编辑、显式替换，以及 product_data_ro 的正反向权限。

@@ -333,7 +333,7 @@ export function runVerification(
 	}
 	runTasks("verify", DATABASE_TASKS, runner, options, { native: true });
 	runCandidateEvidence(
-		{ profiles: ["infra", "otel", "container-build"], repositoryRoot: input.repositoryRoot },
+		{ profiles: ["infra", "container-build"], repositoryRoot: input.repositoryRoot },
 		runner,
 	);
 }

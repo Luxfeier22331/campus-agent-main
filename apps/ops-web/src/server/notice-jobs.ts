@@ -487,6 +487,7 @@ function parseScalarSummary(value: unknown): NoticeJob["summary"] {
 			"notices",
 			"noticesFailed",
 			"noticesProcessed",
+			"noticesAdded",
 			"objectsReused",
 			"objectsWritten",
 			"pagesFetched",

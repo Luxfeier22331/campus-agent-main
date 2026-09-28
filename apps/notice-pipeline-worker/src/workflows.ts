@@ -57,13 +57,19 @@ export async function noticePipelineScheduled() {
 
 export async function noticePipelineRun(input: NoticePipelineInput = { mode: "scheduled" }) {
 	if (input.mode === "file-sync") {
-		return { files: await pipelineStages.syncFiles() };
+		const files = await pipelineStages.syncFiles();
+		return { outcome: files.summary.outcome, files };
 	}
 	if (input.mode === "classify-one") {
-		return { classification: await pipelineStages.classifyNotices(input.noticeIds) };
+		const classification = await pipelineStages.classifyNotices(input.noticeIds);
+		return { outcome: classification.outcome, classification };
 	}
 	if (input.mode === "publish-one" || input.mode === "republish-one") {
-		return { publication: await pipelineStages.publishNoticesStage(input.noticeIds) };
+		const publication = await pipelineStages.publishNoticesStage(
+			input.noticeIds,
+			input.mode === "republish-one",
+		);
+		return { outcome: publication.outcome, publication };
 	}
 	const collection =
 		input.mode === "refresh"
@@ -96,12 +102,20 @@ export async function noticePipelineRun(input: NoticePipelineInput = { mode: "sc
 	}
 	try {
 		const cleanup = await artifactStages.cleanupVersions();
-		return { collection, classification, publication, rag: result, cleanup };
+		return {
+			outcome: pipelineOutcome([collection, classification, publication, result, cleanup]),
+			collection,
+			classification,
+			publication,
+			rag: result,
+			cleanup,
+		};
 	} catch (error) {
 		if (isCancellation(error)) {
 			throw error;
 		}
 		return {
+			outcome: "partial" as const,
 			collection,
 			classification,
 			publication,
@@ -113,4 +127,15 @@ export async function noticePipelineRun(input: NoticePipelineInput = { mode: "sc
 
 export async function noticePipelineRollback(input: RollbackInput) {
 	return artifactStages.rollbackIndex(input);
+}
+
+function pipelineOutcome(stages: readonly unknown[]): "success" | "partial" | "skipped" {
+	const outcomes = stages.map((stage) => {
+		const value = stage as { outcome?: string; summary?: { outcome?: string } };
+		return value.summary?.outcome ?? value.outcome;
+	});
+	if (outcomes.some((value) => value === "partial" || value === "failed")) {
+		return "partial";
+	}
+	return outcomes.every((value) => value === "skipped") ? "skipped" : "success";
 }

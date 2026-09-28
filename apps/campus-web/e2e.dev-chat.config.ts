@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseEnv } from "node:util";
 import { defineConfig, devices } from "@playwright/test";
-import { loadLocalDevProfile } from "../../scripts/dev/profile";
+import { loadLocalDevProfile } from "../../scripts/dev/lifecycle/profile";
 
 const appRoot = import.meta.dirname;
 const repoRoot = resolve(appRoot, "../..");

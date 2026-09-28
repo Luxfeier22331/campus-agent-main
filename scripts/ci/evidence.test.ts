@@ -158,7 +158,6 @@ test("complete and source verification share checks without losing database cove
 		),
 	);
 	assert(full.some((command) => command.includes("scripts/infra/validate.sh")));
-	assert(full.some((command) => command.includes("scripts/otel/validate-config.sh")));
 	assert(full.some((command) => command[0] === "docker" && command.includes("--print")));
 });
 
@@ -411,7 +410,7 @@ test("runs fixed profiles without consulting Git", () => {
 	const calls: string[] = [];
 	runCandidateEvidence(
 		{
-			profiles: ["go", "ragas", "ops-web-postgres", "otel"],
+			profiles: ["go", "ragas", "ops-web-postgres", "infra"],
 			repositoryRoot: "/repository",
 		},
 		(command, args) => {
@@ -430,7 +429,7 @@ test("runs fixed profiles without consulting Git", () => {
 		"node --experimental-strip-types scripts/ci/turbo.mts typecheck test --filter=eval-langfuse --summarize",
 		"node --experimental-strip-types scripts/ci/turbo.mts test:eval --filter=ragas-runner --concurrency=1 --summarize",
 		"node --experimental-strip-types scripts/ci/turbo.mts test:database-integration --filter=ops-web --summarize",
-		"scripts/otel/validate-config.sh",
+		"scripts/infra/validate.sh",
 	]);
 });
 
@@ -447,7 +446,7 @@ test("stops on the first failed profile command", () => {
 				{
 					base: BASE,
 					head: HEAD,
-					profiles: ["infra", "otel"],
+					profiles: ["infra", "ragas"],
 					repositoryRoot: "/repository",
 				},
 				() => ({ status: 2 }),
@@ -518,10 +517,15 @@ test("filtered check keeps repository checks and verify profiles do not recurse"
 	assert(calls.some((args) => args.includes("actionlint")));
 	assert(!calls.some((args) => args.join(" ") === "pnpm check"));
 	calls.length = 0;
-	runWorkspaceCommand("verify", ["--profile=infra", "--profile=otel"], REPOSITORY_ROOT, runner);
+	runWorkspaceCommand(
+		"verify",
+		["--profile=infra", "--profile=container-build"],
+		REPOSITORY_ROOT,
+		runner,
+	);
 	assert.deepEqual(
 		calls.map((args) => args[0]),
-		["scripts/infra/validate.sh", "scripts/otel/validate-config.sh"],
+		["scripts/infra/validate.sh", "docker"],
 	);
 	assert.throws(
 		() => runWorkspaceCommand("verify", ["--source"], REPOSITORY_ROOT, runner),

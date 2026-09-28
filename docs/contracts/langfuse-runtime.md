@@ -40,9 +40,10 @@ execution-control 不创建 OTel exporter、编排 span 或 runtime metric；Tem
 `terminal_reason`、`fail_close_reason` 和产品 `retryable` 都由各自持久合同产生，不能从 trace、
 span、Langfuse 可见性或未传播的 `baggage` 推断。
 
-源码本地 Collector 只有一个 Agent trace pipeline：debug 配置写 debug exporter，prodlike 配置写
-Langfuse。它不接收 execution-control、Hindsight、日志或指标。环境部署
-是否使用 Collector 由环境仓决定，源码配置存在不证明某个环境已启用。
+Agent Runtime 直接把 Agent trace 发送到 Langfuse 云服务，不经过 Collector 中间层。Collector
+已从环境仓退役；源码仓不再维护 Collector 配置。trace 发送只覆盖 Agent/OpenInference span，不接收
+execution-control、Hindsight、日志或指标。环境是否启用 trace 导出由环境仓的
+`OTEL_EXPORTER_OTLP_*` endpoint 决定，源码不证明某个环境已启用。
 
 ## Trace 数据
 

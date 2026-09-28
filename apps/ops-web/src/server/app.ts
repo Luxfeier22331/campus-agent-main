@@ -77,7 +77,6 @@ import {
 	type NoticeAutomationService,
 } from "./notice-automation.ts";
 import {
-	createKubernetesNoticeJobStore,
 	createNoticeJobService,
 	NoticeJobConflictError,
 	NoticeJobNotFoundError,
@@ -146,6 +145,7 @@ import { registerTaskRoutes } from "./routes/tasks.ts";
 import { registerTransportRoutes } from "./routes/transport.ts";
 import { logOpsError } from "./safe-logging.ts";
 import { createTaskService } from "./tasks.ts";
+import { createTemporalNoticeJobStore } from "./temporal-notice-jobs.ts";
 import { createPgTransportStore } from "./transport-store.ts";
 import type { TransportStore } from "./transport-store-contract.ts";
 import {
@@ -663,12 +663,16 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 }
 
 export function createDefaultNoticeJobService(
-	env: Pick<OpsAppEnv, "DEPLOYMENT_ENVIRONMENT" | "OPS_WEB_KUBERNETES_NAMESPACE">,
+	env: Pick<
+		OpsAppEnv,
+		| "DEPLOYMENT_ENVIRONMENT"
+		| "OPS_WEB_KUBERNETES_NAMESPACE"
+		| "TEMPORAL_ADDRESS"
+		| "TEMPORAL_NAMESPACE"
+	>,
 ): NoticeJobService {
 	return createNoticeJobService(
-		isLocalOpsEnvironment(env)
-			? createLocalNoticeJobStore()
-			: createKubernetesNoticeJobStore(env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default"),
+		isLocalOpsEnvironment(env) ? createLocalNoticeJobStore() : createTemporalNoticeJobStore(env),
 	);
 }
 

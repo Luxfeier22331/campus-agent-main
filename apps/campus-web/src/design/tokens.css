@@ -41,7 +41,6 @@
 	--chat-message-user-bg: var(--sys-bg-muted);
 	--chat-message-user-text: var(--sys-text-default);
 	--chat-message-user-meta: var(--sys-text-muted);
-	--chat-reasoning-fade: color-mix(in oklab, var(--sys-bg-muted) 50%, transparent);
 	--docs-active-nav-bg: var(--campus-selected-bg);
 	--docs-active-nav-text: var(--campus-selected-foreground);
 	--map-overlay-surface: rgb(255 255 255 / 80%);

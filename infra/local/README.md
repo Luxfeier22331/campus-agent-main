@@ -8,8 +8,7 @@
 每个 compose 文件只负责一个本地边界：
 
 - `docker-compose.dev.yml`：每个 worktree 的 PostgreSQL、RustFS、Qdrant 与 Temporal；
-- `docker-compose.execution-runtime.yml`：按需启动本地 Hindsight 与 OTel 诊断依赖；
-- `docker-compose.execution-runtime.langfuse.yml`：将本地 Agent trace 转发至 Langfuse 的可选 OTel overlay；
+- `docker-compose.execution-runtime.yml`：按需启动本地 Hindsight；
 - `docker-compose.qdrant-tls.yml`：只用于 TLS 检查的 Qdrant 环境。
 
 ## 规则

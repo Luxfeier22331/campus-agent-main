@@ -1,5 +1,5 @@
-import { withLifecycleLock } from "../../../scripts/dev/locks.ts";
-import { resolveLocalDevRegistryPath } from "../../../scripts/dev/profile.ts";
+import { withLifecycleLock } from "../../../scripts/dev/lifecycle/locks.ts";
+import { resolveLocalDevRegistryPath } from "../../../scripts/dev/lifecycle/profile.ts";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";

@@ -116,7 +116,7 @@
 			"dependsOn": ["^source"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputLogs": "new-only",
-			"outputs": [],
+			"outputs": ["node_modules/.cache/*.tsbuildinfo"],
 			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
 		"native:format": {
@@ -213,12 +213,7 @@
 		},
 		"eval-langfuse#typecheck": {
 			"dependsOn": ["^source"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/scripts/deploy/**"
-			],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputLogs": "new-only"
 		},
 		"ingestion-contracts#typecheck": {
@@ -375,12 +370,7 @@
 		},
 		"eval-langfuse#test:unit": {
 			"dependsOn": ["^source"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/scripts/deploy/**"
-			],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputLogs": "new-only",
 			"env": ["CAMPUS_NODE_RUNTIME"]
 		},

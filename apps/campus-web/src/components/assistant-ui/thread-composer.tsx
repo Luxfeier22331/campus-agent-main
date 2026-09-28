@@ -82,15 +82,17 @@ const ComposerAction: FC = () => (
 		</AuiIf>
 		<AuiIf condition={(s) => s.thread.isRunning}>
 			<ComposerPrimitive.Cancel asChild>
-				<Button
+				<TooltipIconButton
+					tooltip="停止生成"
+					side="bottom"
 					type="button"
 					variant="primary"
 					size="icon"
-					className="aui-composer-cancel bg-chat-accent text-chat-accent-foreground hover:bg-chat-accent-hover active:bg-chat-accent-pressed relative size-9 rounded-full border-chat-accent-foreground/20 after:absolute after:-inset-1 after:content-['']"
+					className="aui-composer-cancel bg-chat-accent text-chat-accent-foreground hover:bg-chat-accent-hover active:bg-chat-accent-pressed size-9 rounded-full border-chat-accent-foreground/20 after:-inset-1"
 					aria-label="停止生成"
 				>
 					<SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" />
-				</Button>
+				</TooltipIconButton>
 			</ComposerPrimitive.Cancel>
 		</AuiIf>
 	</div>

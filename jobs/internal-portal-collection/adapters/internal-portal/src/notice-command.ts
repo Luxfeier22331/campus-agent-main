@@ -9,6 +9,7 @@ import {
 	backfillInternalPortalNotices,
 	isNoticeHistoryCovered,
 	type NoticeRunnerResult,
+ type NoticeRunnerProgress,
 	parseNoticeStartDate,
 	rescanInternalPortalNotices,
 	syncInternalPortalNotices,
@@ -25,6 +26,7 @@ export type NoticeCommand = { name: "backfill"; startDate: string } | { name: "s
 export interface NoticeCommandOptions {
 	env?: NodeJS.ProcessEnv;
 	ssoTgc?: string;
+ onProgress?: (progress: NoticeRunnerProgress) => void;
 }
 
 export async function runNoticeCommand(
@@ -90,6 +92,7 @@ export async function runNoticeCommand(
 		const apiContext = await createPortalApiContext(config);
 		try {
 			const runnerInput = {
+ ...(options.onProgress ? { onProgress: options.onProgress } : {}),
 				apiContext,
 				fetchNoticeDetail,
 				fetchNoticeMetadata,

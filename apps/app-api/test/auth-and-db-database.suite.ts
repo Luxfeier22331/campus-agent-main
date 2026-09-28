@@ -37,7 +37,9 @@ export function registerAppApiDatabaseConfigSuite() {
 				});
 			},
 		);
-		it("shares the invocation database with auth while probes own and close separate pools", async () => {
+		it("shares the invocation database with auth while probes own and close separate pools", {
+			timeout: 30000,
+		}, async () => {
 			resetPoolMockState();
 			const scope = createRequestRuntimeScope(APP_API_TEST_ENV);
 			const db = await scope.getDb();

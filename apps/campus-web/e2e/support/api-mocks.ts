@@ -308,7 +308,17 @@ export async function fulfillChatStream(
 		input.terminal === "cancelled"
 			? sse("request.cancelled", {
 					answer: {
-						conversation: conversation([userMessage]),
+						conversation: conversation([
+							userMessage,
+							chatMessage({
+								conversationId,
+								id: "msg_assistant_e2e",
+								kind: "error",
+								retryable: false,
+								role: "assistant",
+								text: "The request was cancelled.",
+							}),
+						]),
 						result: {
 							errorCode: "execution_cancelled",
 							kind: "error",
@@ -316,6 +326,11 @@ export async function fulfillChatStream(
 							requestId: "req_e2e",
 							retryable: false,
 						},
+					},
+					error: {
+						code: "execution_cancelled",
+						message: "The request was cancelled.",
+						retryable: false,
 					},
 					occurredAt: now,
 					requestId: "req_e2e",
@@ -1113,7 +1128,9 @@ function campusMapPlace(input: {
 function chatMessage(input: {
 	conversationId: string;
 	id: string;
-	kind?: "answer" | null;
+	kind?: "answer" | "error" | null;
+	requestId?: string;
+	retryable?: boolean | null;
 	role: "assistant" | "user";
 	text: string;
 }) {
@@ -1122,8 +1139,8 @@ function chatMessage(input: {
 		createdAt: now,
 		id: input.id,
 		kind: input.kind ?? null,
-		requestId: "req_e2e",
-		retryable: null,
+		requestId: input.requestId ?? "req_e2e",
+		retryable: input.retryable ?? null,
 		role: input.role,
 		structuredParts: [],
 		text: input.text,

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/citationdiagnostic"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
@@ -25,6 +26,14 @@ const WorkflowOperationInvocationSchemaVersion = "workflow_operation_invocation.
 // SolveTask decides whether the request can be answered in this operation or
 // needs a durable task plan. It owns no browser-visible output; answer text is
 // streamed through the internal runtime contract and finalized by Temporal.
+// streamModelAnswers reports whether solve/execute_step operations should stream
+// model answer deltas to the browser. It is gated by the answer-transport switch
+// (EXECUTION_CONTROL_ANSWER_TRANSPORT) and defaults to buffered while the
+// provider gateway rejects streaming requests that declare function tools.
+func (s *Adapter) streamModelAnswers() bool {
+	return s.Config.AnswerTransport == config.AnswerTransportStream
+}
+
 func (s *Adapter) SolveTask(
 	ctx context.Context,
 	input temporalruntime.SolveTaskActivityInput,
@@ -40,7 +49,7 @@ func (s *Adapter) SolveTask(
 		RequestID:   input.RequestID,
 		StepID:      "solve.initial",
 		StepKind:    "solver",
-		Stream:      true,
+		Stream:      s.streamModelAnswers(),
 		TraceParent: input.TraceParent,
 	})
 }
@@ -70,7 +79,7 @@ func (s *Adapter) ExecuteTaskStep(
 		Step:          &input.Step,
 		StepID:        stepID,
 		StepKind:      "executor",
-		Stream:        true,
+		Stream:        s.streamModelAnswers(),
 		TraceParent:   input.TraceParent,
 	})
 }
@@ -459,6 +468,24 @@ func (s *Adapter) RunWorkflowOperationActivity(
 		}
 		return s.FailWorkflowOperationActivity(ctx, run, request, kind, err)
 	}
+	// Buffered solve answers arrive as one FinalOutput payload without streaming
+	// answer_delta events. Project the full text as a single delta + completion so
+	// the browser-visible event sequence matches the streaming shape and the
+	// canonical terminal projection can render it unchanged.
+	if !request.Stream &&
+		request.Operation == temporalruntime.WorkflowOperationSolve &&
+		output.Status == "completed" &&
+		output.SolveOutcome == "answer" &&
+		strings.TrimSpace(output.FinalOutput) != "" {
+		messageID := run.RequestID + ":answer"
+		if err := s.ProjectWorkflowAnswerDelta(ctx, run, messageID, 1, output.FinalOutput); err != nil {
+			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_answer_projection_failed", err)
+		}
+		if err := s.ProjectWorkflowAnswerCompleted(ctx, run, messageID); err != nil {
+			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_answer_projection_failed", err)
+		}
+		output.AnswerStarted = true
+	}
 	if err := s.ProjectWorkflowToolResults(ctx, run, request, response.ToolResults, startedProjection); err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_tool_projection_failed", err)
 	}
@@ -577,8 +604,12 @@ func ValidateWorkflowOperationRequest(request WorkflowOperationActivityRequest) 
 	}
 	switch request.Operation {
 	case temporalruntime.WorkflowOperationSolve:
+		// Solve may run buffered (Stream=false) while the provider gateway rejects
+		// streaming requests that declare function tools; the buffered answer is
+		// projected as a single delta after completion. Re-enable the strict
+		// stream requirement when the gateway defect is fixed.
 		if request.StepID != "solve.initial" || request.MaxSteps < 1 ||
-			request.MaxSteps > request.AdmissionSnapshot.AgentBudget.MaxPlanSteps || !request.Stream {
+			request.MaxSteps > request.AdmissionSnapshot.AgentBudget.MaxPlanSteps {
 			return errors.New("solver identity, stream mode, or step budget is invalid")
 		}
 	case temporalruntime.WorkflowOperationExecuteStep:

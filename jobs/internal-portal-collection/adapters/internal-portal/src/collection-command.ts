@@ -1,5 +1,5 @@
 import { runFileSync } from "./file-sync.js";
-import { parseNoticeCommand, runNoticeCommand } from "./notice-command.js";
+import { parseNoticeCommand, runNoticeCommand, type NoticeCommandOptions } from "./notice-command.js";
 
 export const COLLECTION_USAGE = [
 	"Usage:",
@@ -15,10 +15,7 @@ export type CollectionCommand =
 	| { mode: "notice-backfill"; startDate: string }
 	| { mode: "notice-rescan"; from: string; to: string };
 
-export interface CollectionCommandOptions {
-	env?: NodeJS.ProcessEnv;
-	ssoTgc?: string;
-}
+export interface CollectionCommandOptions extends NoticeCommandOptions {}
 
 export function isCollectionHelp(argv: readonly string[]): boolean {
 	const normalized = argv[0] === "--" ? argv.slice(1) : argv;
@@ -64,10 +61,10 @@ export function parseCollectionCommand(argv: string[]): CollectionCommand {
 	throw usageError();
 }
 
-export async function runCollectionCommand(
+export async function executeCollectionCommand(
 	command: CollectionCommand,
 	options: CollectionCommandOptions = {},
-): Promise<number> {
+) {
 	const env = options.env ?? process.env;
 	if (command.mode === "file-sync") {
 		const summary = await runFileSync({
@@ -76,7 +73,7 @@ export async function runCollectionCommand(
 		});
 		const { failures: _failures, ...counts } = summary;
 		console.log(JSON.stringify({ summary: { ...counts, mode: "file-sync" } }));
-		return summary.failed > 0 ? 1 : 0;
+		return { summary: { ...counts, outcome: summary.failed > 0 ? "partial" as const : "success" as const }, maintenanceRange: null, processedRange: null };
 	}
 	const noticeSummary = await runNoticeCommand(
 		command.mode === "notice-rescan"
@@ -104,12 +101,11 @@ export async function runCollectionCommand(
 			}),
 		);
 	}
-	console.log(
-		JSON.stringify({
+	const result = {
 			maintenanceRange: noticeSummary.maintenanceRange,
 			processedRange: noticeSummary.processedRange,
 			summary: {
-                outcome: counts.failures.length > 0 ? "partial" : "success",
+                outcome: counts.failures.length > 0 ? "partial" as const : "success" as const,
 				attachmentsDownloaded: counts.resources.attachmentsDownloaded,
 				attachmentsMissing: counts.resources.attachmentsMissing,
 				attachmentsReused: counts.resources.attachmentsReused,
@@ -124,9 +120,14 @@ export async function runCollectionCommand(
 				...(counts.upToDate ? { upToDate: true } : {}),
 			},
 			status: counts.failures.length > 0 ? "failed" : "succeeded",
-		}),
-	);
-	return counts.failures.length > 0 ? 1 : 0;
+	};
+	console.log(JSON.stringify(result));
+	return result;
+}
+
+export async function runCollectionCommand(command: CollectionCommand, options: CollectionCommandOptions = {}): Promise<number> {
+ const result = await executeCollectionCommand(command, options);
+ return result.summary.outcome === "partial" ? 1 : 0;
 }
 
 function parseFlags(argv: string[]): Map<string, string> {

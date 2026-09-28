@@ -6,7 +6,7 @@ status: active
 
 # 通知维护接口
 
-Ops Web 提供通知摘要、已采集正文预览、分类维护和一次性维护任务，并复用 CronJob 模板启动固定任务。浏览器不能
+Ops Web 提供通知摘要、已采集正文预览、分类维护和一次性维护任务，并通过 Temporal 启动固定维护操作。浏览器不能
 提交任意 Kubernetes 命令、镜像、环境变量或 namespace。
 
 ## 通知
@@ -76,21 +76,20 @@ Ops Web 提供通知摘要、已采集正文预览、分类维护和一次性维
 - `GET /api/ops/notices/jobs/:jobName`
 
 允许操作为 `notice-sync`、`notice-backfill`、`notice-rescan`、`notice-classify-missing`、`notice-classify-one`、
-`notice-publish-pending`、`notice-publish-one` 和 `notice-republish-one`。采集、分类和发布各自构成一个互斥操作族；已有活动 Job
-时返回 `409 OPS_NOTICE_JOB_CONFLICT`。Job 固定零重试，完成 24 小时后回收，不承担长期审计。单条分类和发布 Job 使用
-`campus-agent.muc.wiki/notice-id` label 持久表达通知归属，任务响应通过 `noticeId` 返回该值；批量任务
-以及部署前创建且没有该 label 的单条任务返回 `noticeId: null`。
+`notice-publish-pending`、`notice-publish-one` 和 `notice-republish-one`。部署环境的所有通知维护操作与
+定时流水线共用 `notice-pipeline-workflow`，原子启动冲突返回 `409 OPS_NOTICE_JOB_CONFLICT`。
+`jobName` 为 Temporal runId；查询固定到该次运行，不跟随重试或后续运行。单条任务从输入投影 `noticeId`，
+批量任务返回 `null`。`summary.outcome` 保留 success、partial、failed、skipped；运行完成不掩盖部分失败。
 
-列表包含 Ops 创建与手动恢复的任务，以 `trigger: manual|scheduled` 区分（CronJob 模板保持暂停，
-正常不产生 `scheduled` 任务）；只返回最近 50 条，
-互斥检查覆盖全部仍保留的任务，不受展示数量限制。`notice-rescan` 接受 `{ from, to }` 半开区间，
-复用采集模板和数据库锁；仅补已有维护范围内缺少的通知，不刷新旧详情、不推进维护边界。
+列表从 Temporal 查询最近 50 条通知流水线运行，以 `trigger: manual|scheduled` 区分；运行冲突检查不依赖
+展示列表。历史保留期由 Temporal namespace 管理。`notice-rescan` 接受 `{ from, to }` 半开区间，
+复用采集实现和数据库锁；仅补已有维护范围内缺少的通知，不刷新旧详情、不推进维护边界。
 页面日期结束值包含当天，提交时转换成次日排他上界。分类与发布的自动执行由 `notice-pipeline` 统一
 编排，OCR 不参与自动调度。
 
-部署环境从固定 CronJob 模板创建 Kubernetes Job。`local/development` 使用相同接口和任务状态启动
-当前 worktree 的固定采集、分类或发布 CLI（采集使用其本地 adapter 入口加载自身环境）；本地任务只保存在 Ops Web 进程内，服务重启后消失。两种
-执行方式都不接受浏览器提交 command、环境变量或执行路径，也不在失败后切换到另一种执行方式。
+`local/development` 使用相同接口和任务状态启动当前 worktree 的固定采集、分类或发布 CLI
+（采集使用其本地 adapter 入口加载自身环境）；本地任务只保存在 Ops Web 进程内，服务重启后消失。
+两种执行方式都不接受浏览器提交 command、环境变量或执行路径，也不在失败后切换到另一种执行方式。
 
 `notice-republish-one` 只用于已发布的站内通知，重新读取 source bucket 并更新正文投影，保持已发布状态和分类不变；
 后台不提供批量重新发布入口，批量更新由 notice-publisher 运维命令显式执行。

@@ -6,7 +6,7 @@ import {
 	useAui,
 	useAuiState,
 } from "@assistant-ui/react";
-import { Button, Input, Skeleton, StateMessage } from "@campus-agent/ui";
+import { Button, ConfirmDialog, Input, Skeleton, StateMessage } from "@campus-agent/ui";
 import {
 	ArchiveIcon,
 	MoreHorizontalIcon,
@@ -400,6 +400,7 @@ const ThreadListItemMore: FC<ThreadListActionErrorProps & { onRename: () => void
 	const aui = useAui();
 	const runtime = aui.threadListItem;
 	const [isActionPending, setIsActionPending] = useState(false);
+	const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
 	const runThreadAction = async (action: () => Promise<void> | void, failureMessage: string) => {
 		onActionError(null);
@@ -413,58 +414,73 @@ const ThreadListItemMore: FC<ThreadListActionErrorProps & { onRename: () => void
 		}
 	};
 	return (
-		<ThreadListItemMorePrimitive.Root>
-			<ThreadListItemMorePrimitive.Trigger asChild>
-				<Button
-					aria-label="更多操作"
-					variant="ghost"
-					size="icon"
-					className="aui-thread-list-item-more data-[state=open]:bg-selected size-8 p-0 lg:size-7"
-					title="更多操作"
+		<>
+			<ThreadListItemMorePrimitive.Root>
+				<ThreadListItemMorePrimitive.Trigger asChild>
+					<Button
+						aria-label="更多操作"
+						variant="ghost"
+						size="icon"
+						className="aui-thread-list-item-more data-[state=open]:bg-selected relative size-8 p-0 after:absolute after:-inset-1 after:content-[''] lg:size-7"
+						title="更多操作"
+					>
+						<MoreHorizontalIcon className="size-3.5" />
+						<span className="sr-only">更多操作</span>
+					</Button>
+				</ThreadListItemMorePrimitive.Trigger>
+				<ThreadListItemMorePrimitive.Content
+					side="right"
+					align="start"
+					sideOffset={6}
+					className="aui-thread-list-item-more-content bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg"
 				>
-					<MoreHorizontalIcon className="size-3.5" />
-					<span className="sr-only">更多操作</span>
-				</Button>
-			</ThreadListItemMorePrimitive.Trigger>
-			<ThreadListItemMorePrimitive.Content
-				side="right"
-				align="start"
-				sideOffset={6}
-				className="aui-thread-list-item-more-content bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg"
-			>
-				<ThreadListItemMorePrimitive.Item
-					disabled={isActionPending}
-					onSelect={() => {
-						window.setTimeout(onRename, 0);
-					}}
-					className="aui-thread-list-item-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 lg:min-h-8"
-				>
-					<PencilIcon aria-hidden="true" className="size-4" />
-					重命名
-				</ThreadListItemMorePrimitive.Item>
-				<ThreadListItemMorePrimitive.Item
-					disabled={isActionPending}
-					onSelect={(event) => {
-						event.preventDefault();
-						void runThreadAction(runtime.archive, "归档失败，请稍后重试。");
-					}}
-					className="aui-thread-list-item-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 lg:min-h-8"
-				>
-					<ArchiveIcon className="size-4" />
-					归档
-				</ThreadListItemMorePrimitive.Item>
-				<ThreadListItemMorePrimitive.Item
-					disabled={isActionPending}
-					onSelect={(event) => {
-						event.preventDefault();
-						void runThreadAction(runtime.delete, "删除失败，请稍后重试。");
-					}}
-					className="aui-thread-list-item-more-item text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 lg:min-h-8"
-				>
-					<TrashIcon className="size-4" />
-					删除
-				</ThreadListItemMorePrimitive.Item>
-			</ThreadListItemMorePrimitive.Content>
-		</ThreadListItemMorePrimitive.Root>
+					<ThreadListItemMorePrimitive.Item
+						disabled={isActionPending}
+						onSelect={() => {
+							window.setTimeout(onRename, 0);
+						}}
+						className="aui-thread-list-item-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 lg:min-h-8"
+					>
+						<PencilIcon aria-hidden="true" className="size-4" />
+						重命名
+					</ThreadListItemMorePrimitive.Item>
+					<ThreadListItemMorePrimitive.Item
+						disabled={isActionPending}
+						onSelect={(event) => {
+							event.preventDefault();
+							void runThreadAction(runtime.archive, "归档失败，请稍后重试。");
+						}}
+						className="aui-thread-list-item-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 lg:min-h-8"
+					>
+						<ArchiveIcon className="size-4" />
+						归档
+					</ThreadListItemMorePrimitive.Item>
+					<ThreadListItemMorePrimitive.Item
+						disabled={isActionPending}
+						onSelect={() => {
+							setIsDeleteConfirmOpen(true);
+						}}
+						className="aui-thread-list-item-more-item text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 lg:min-h-8"
+					>
+						<TrashIcon className="size-4" />
+						删除
+					</ThreadListItemMorePrimitive.Item>
+				</ThreadListItemMorePrimitive.Content>
+			</ThreadListItemMorePrimitive.Root>
+			<ConfirmDialog
+				open={isDeleteConfirmOpen}
+				onOpenChange={setIsDeleteConfirmOpen}
+				title="删除这个对话？"
+				description="删除后无法恢复，该对话的全部消息将一并移除。"
+				confirmLabel="确认删除"
+				pending={isActionPending}
+				pendingLabel="正在删除"
+				onConfirm={() => {
+					void runThreadAction(runtime.delete, "删除失败，请稍后重试。").then(() => {
+						setIsDeleteConfirmOpen(false);
+					});
+				}}
+			/>
+		</>
 	);
 };

@@ -78,6 +78,47 @@ test.describe("conversation action browser flow", () => {
 		await accountTrigger.click();
 		await expectInsideViewport(page, page.getByRole("menu"));
 	});
+
+	test("asks for confirmation before deleting a conversation", async ({ page }) => {
+		const requests: CampusApiRequestRecord[] = [];
+		await mockCampusApi(page, { requests });
+		await page.goto("/");
+
+		const thread = page.locator(".aui-thread-list-item").filter({ hasText: "国家奖学金" });
+		await thread.hover();
+		await thread.getByRole("button", { name: "更多操作" }).click();
+		await page.getByRole("menuitem", { name: "删除" }).click();
+
+		const dialog = page.getByRole("alertdialog");
+		await expect(dialog).toBeVisible();
+		await expect(dialog).toContainText("删除这个对话？");
+
+		await dialog.getByRole("button", { name: "取消" }).click();
+		await expect(dialog).toBeHidden();
+		await page.waitForFunction(() => document.documentElement.style.pointerEvents !== "none");
+		expect(
+			requests.some(
+				(request) =>
+					request.method === "DELETE" &&
+					request.path === "/api/chat/conversations/conv_history_e2e",
+			),
+		).toBe(false);
+
+		await thread.hover();
+		await thread.getByRole("button", { name: "更多操作" }).click();
+		await page.getByRole("menuitem", { name: "删除" }).click();
+		await dialog.getByRole("button", { name: "确认删除" }).click();
+
+		await expect
+			.poll(() =>
+				requests.some(
+					(request) =>
+						request.method === "DELETE" &&
+						request.path === "/api/chat/conversations/conv_history_e2e",
+				),
+			)
+			.toBe(true);
+	});
 });
 
 async function expectInsideViewport(page: Page, menu: Locator) {

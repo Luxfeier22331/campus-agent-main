@@ -40,8 +40,7 @@ App API 的请求状态、阶段耗时和错误码属于 PostgreSQL 产品投影
 
 ## 验证
 
-修改信号时运行所属 producer 测试；修改 Collector 时运行
-`scripts/otel/validate-config.sh`。外部平台是否收到信号只能通过实际环境查询证明，并且只在任务明确
+修改信号时运行所属 producer 测试。外部平台是否收到信号只能通过实际环境查询证明，并且只在任务明确
 包含运行验收时成为完成条件。
 
 ## 相关文档
@@ -49,5 +48,4 @@ App API 的请求状态、阶段耗时和错误码属于 PostgreSQL 产品投影
 - [可观测数据边界](../../.agents/notes/implemented/architecture/2026-07-17-observability-planes.md)
 - [退役 Axiom](../../.agents/notes/implemented/simplification/2026-08-22-retire-axiom.md)
 - [Langfuse 运行合同](../contracts/langfuse-runtime.md)
-- [OpenTelemetry Collector](../runbooks/otel.md)
 - [Worker 发布与平台诊断](../runbooks/worker-otel.md)

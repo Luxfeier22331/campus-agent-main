@@ -77,6 +77,16 @@ test.describe("Q&A browser flow", () => {
 
 		await expect(page.getByText("国家奖学金怎么评审？")).toBeVisible();
 		await expect(page.getByText("国家奖学金评审材料以学校正式通知为准。")).toBeVisible();
+
+		await expect
+			.poll(() =>
+				page
+					.locator('[data-slot="aui_thread-viewport"]')
+					.evaluate(
+						(el) => el.scrollHeight > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 1,
+					),
+			)
+			.toBe(true);
 	});
 
 	test("cancels a running request", async ({ page }) => {
@@ -119,6 +129,11 @@ test.describe("Q&A browser flow", () => {
 
 		await expect.poll(() => cancelCalled).toBe(true);
 		await expect(page.getByText(postStopDelta)).toHaveCount(0);
+		await expect(page.getByText("已取消本次回答。")).toBeVisible();
+		await expect(page.locator(".aui-assistant-message-status")).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "重试", exact: true })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "重新生成" })).toHaveCount(0);
+		await expect(page.locator(".aui-thread-run-status")).toHaveCount(0);
 		await expect(page.getByRole("button", { name: "停止生成" })).toHaveCount(0);
 	});
 

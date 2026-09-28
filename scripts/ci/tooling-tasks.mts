@@ -4,6 +4,7 @@ export const TOOLING_GROUPS = [
 	"dev",
 	"docs",
 	"hooks",
+	"infra",
 	"notices",
 	"release",
 ] as const;
@@ -36,6 +37,9 @@ export function toolingGroupsForFiles(files: readonly string[]): ToolingGroup[] 
 		}
 		if (file === "dev" || file.startsWith("dev/") || file.startsWith("scripts/dev/")) {
 			selected.add("dev");
+		}
+		if (file === "infra" || file.startsWith("infra/") || file.startsWith("scripts/infra/")) {
+			selected.add("infra");
 		}
 		if (
 			file === "docs" ||

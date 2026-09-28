@@ -26,6 +26,13 @@ const (
 	fixedHTTPPort                     = 8000
 	fixedTemporalWorkflowTimeoutSec   = 900
 	maxGatewayPort                    = 65_533
+	// AnswerTransportStream streams model answer deltas to the browser;
+	// AnswerTransportBuffered buffers the full model answer and projects it once.
+	// Buffered is the safe default while the provider gateway rejects streaming
+	// requests that declare function tools. Re-evaluate streaming once the
+	// gateway fixes streamGenerateContent with functionDeclarations.
+	AnswerTransportStream   = "stream"
+	AnswerTransportBuffered = "buffered"
 )
 
 type Config struct {
@@ -55,6 +62,7 @@ type Config struct {
 	AgentRuntimeMaxOutputTokens             int
 	AgentRuntimeInputCharLimit              int
 	AgentRuntimeContextCharLimit            int
+	AnswerTransport                         string
 	ProductCallbackBaseURL                  string
 	ProductCallbackTimeoutMS                int
 	ModelConfigBaseURL                      string
@@ -94,6 +102,7 @@ type envValues struct {
 	AgentRuntimeBaseURL         string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
 	AgentRuntimeSharedSecret    string `env:"EXECUTION_AGENT_RUNTIME_SHARED_SECRET"`
 	ModelConfigBaseURL          string `env:"MODEL_CONFIG_URL"`
+	AnswerTransport             string `env:"EXECUTION_CONTROL_ANSWER_TRANSPORT"`
 	ProductCallbackBaseURL      string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
 	QdrantURL                   string `env:"QDRANT_URL"`
 	QdrantReadOnlyAPIKey        string `env:"QDRANT_READ_ONLY_API_KEY"`
@@ -161,6 +170,7 @@ func loadFromEnv() (Config, error) {
 		AgentRuntimeMaxOutputTokens:     0,
 		AgentRuntimeInputCharLimit:      defaultAgentRuntimeInputCharLimit,
 		AgentRuntimeContextCharLimit:    16_000,
+		AnswerTransport:                 normalizeAnswerTransport(values.AnswerTransport),
 		ProductCallbackBaseURL:          strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
 		ProductCallbackTimeoutMS:        defaultProductCallbackTimeoutMS,
 		ModelConfigBaseURL:              strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),

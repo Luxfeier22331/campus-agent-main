@@ -80,6 +80,23 @@ beforeEach(() => {
 	});
 });
 describe("native task ownership", () => {
+	it("projects the pipeline schedule for legacy tasks without reading retired CronJobs", async () => {
+		native.describe.mockResolvedValue({
+			state: { paused: false },
+			spec: { intervals: [{ every: 900000 }] },
+			info: { runningActions: [] },
+		});
+		const tasks = await service().list();
+		for (const id of ["notice-sync", "notice-classifier", "notice-publisher"]) {
+			expect(tasks.find((task) => task.id === id)).toMatchObject({
+				runtime: "temporal",
+				enabled: true,
+				intervalMinutes: 15,
+				canSchedule: false,
+				error: null,
+			});
+		}
+	});
 	it("keeps legacy and read-only CronJob scheduling immutable", async () => {
 		await expect(
 			service().update("notice-classifier", { enabled: true, intervalMinutes: 15 }),

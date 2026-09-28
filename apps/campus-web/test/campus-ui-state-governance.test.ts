@@ -63,7 +63,7 @@ describe("Campus Web 用户可见状态治理", () => {
 		expect(productionSource).not.toContain("components/ui/surface-state");
 	});
 
-	it("does not expose internal search, request, reasoning, or tool payload wording", () => {
+	it("does not expose internal search, request, or tool payload wording", () => {
 		const visibleSource = userInterfaceRoots
 			.flatMap((root) => sourceFiles(root, new Set([".tsx"])))
 			.map(read)
@@ -79,10 +79,8 @@ describe("Campus Web 用户可见状态治理", () => {
 		}
 
 		const toolFallbackSource = read("src/components/assistant-ui/tool-fallback.tsx");
-		const reasoningSource = read("src/components/assistant-ui/reasoning.tsx");
 		expect(toolFallbackSource).not.toContain("argsText");
 		expect(toolFallbackSource).not.toContain("ToolFallbackResult");
-		expect(reasoningSource).not.toContain("<ReasoningText>{children}</ReasoningText>");
 	});
 
 	it("keeps run phases out of the chat display", () => {

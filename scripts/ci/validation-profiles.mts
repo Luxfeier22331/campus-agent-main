@@ -269,14 +269,6 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresDocker: false,
 		requiresUv: false,
 	},
-	otel: {
-		shell: "ci-release",
-		installPackages: [],
-		executor: { commands: [["scripts/otel/validate-config.sh"]], kind: "commands" },
-		lane: "manual",
-		requiresDocker: true,
-		requiresUv: false,
-	},
 } as const satisfies Record<string, ValidationProfileDefinition>;
 
 export type ValidationProfile = keyof typeof VALIDATION_PROFILE_REGISTRY;

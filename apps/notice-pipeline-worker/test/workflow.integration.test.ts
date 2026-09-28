@@ -30,7 +30,7 @@ describe.skipIf(!enabled)("durable refresh workflow", () => {
 		const worker = await Worker.create({
 			connection: native,
 			namespace,
-			taskQueue: queue,
+			taskQueue: "notice-artifacts",
 			workflowsPath,
 			activities: {
 				prepareRefresh: async () => ({ unchanged: true, expectedCurrent: "existing" }),
@@ -47,9 +47,13 @@ describe.skipIf(!enabled)("durable refresh workflow", () => {
 			await worker.runUntil(async () => {
 				const handle = await client.workflow.start("noticePipelineRun", {
 					workflowId: queue,
-					taskQueue: queue,
+					taskQueue: "notice-artifacts",
+					args: [{ mode: "refresh" }],
 				});
-				expect(await handle.result()).toMatchObject({ outcome: "skipped", collection: "existing" });
+				expect(await handle.result()).toMatchObject({
+					outcome: "success",
+					rag: { outcome: "skipped", collection: "existing" },
+				});
 				await Worker.runReplayHistory({ workflowsPath }, await handle.fetchHistory());
 			});
 			expect(embeds).toBe(0);
@@ -73,7 +77,7 @@ describe.skipIf(!enabled)("durable refresh workflow", () => {
 		const worker = await Worker.create({
 			connection: native,
 			namespace,
-			taskQueue: queue,
+			taskQueue: "notice-artifacts",
 			maxHeartbeatThrottleInterval: "1 second",
 			workflowsPath: fileURLToPath(new URL("../src/workflows.ts", import.meta.url)),
 			activities: {
@@ -96,7 +100,8 @@ describe.skipIf(!enabled)("durable refresh workflow", () => {
 			await worker.runUntil(async () => {
 				const handle = await client.workflow.start("noticePipelineRun", {
 					workflowId: queue,
-					taskQueue: queue,
+					taskQueue: "notice-artifacts",
+					args: [{ mode: "refresh" }],
 				});
 				await embeddingStarted;
 				await handle.cancel();
@@ -125,7 +130,7 @@ describe.skipIf(!enabled)("durable refresh workflow", () => {
 		const first = await Worker.create({
 			connection: native,
 			namespace,
-			taskQueue: queue,
+			taskQueue: "notice-artifacts",
 			workflowsPath,
 			activities: {
 				prepareRefresh: async () => {
@@ -139,7 +144,8 @@ describe.skipIf(!enabled)("durable refresh workflow", () => {
 			const running = first.run();
 			const handle = await client.workflow.start("noticePipelineRun", {
 				workflowId: queue,
-				taskQueue: queue,
+				taskQueue: "notice-artifacts",
+				args: [{ mode: "refresh" }],
 			});
 			await prepared;
 			first.shutdown();
@@ -147,7 +153,7 @@ describe.skipIf(!enabled)("durable refresh workflow", () => {
 			const second = await Worker.create({
 				connection: native,
 				namespace,
-				taskQueue: queue,
+				taskQueue: "notice-artifacts",
 				workflowsPath,
 				activities: {
 					prepareRefresh: async () => {
@@ -169,7 +175,10 @@ describe.skipIf(!enabled)("durable refresh workflow", () => {
 				},
 			});
 			await second.runUntil(async () => {
-				expect(await handle.result()).toMatchObject({ outcome: "success", collection: "new" });
+				expect(await handle.result()).toMatchObject({
+					outcome: "success",
+					rag: { collection: "new" },
+				});
 				await Worker.runReplayHistory({ workflowsPath }, await handle.fetchHistory());
 			});
 			expect(calls).toEqual(["prepare", "embed", "publish", "cleanup"]);

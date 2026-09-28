@@ -4,17 +4,9 @@ import {
 	MessagePrimitive,
 	useAuiState,
 } from "@assistant-ui/react";
-import { cn } from "@campus-agent/ui";
 import type { FC } from "react";
 import { useContext, useMemo } from "react";
 import { LazyMarkdownText } from "@/components/assistant-ui/lazy-markdown-text";
-import {
-	Reasoning,
-	ReasoningContent,
-	ReasoningRoot,
-	ReasoningText,
-	ReasoningTrigger,
-} from "@/components/assistant-ui/reasoning";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import {
 	ToolGroupContent,
@@ -26,7 +18,7 @@ import { readCampusMessageMetadata } from "@/features/conversation/assistant-ui-
 import type { SourceItemPayload } from "@/features/conversation/model";
 import { AssistantActionBar, BranchPicker, UserActionBar } from "./thread-actions";
 import { EditComposer } from "./thread-composer";
-import { ThreadComponentsContext, ThreadSettingsContext } from "./thread-context";
+import { ThreadComponentsContext } from "./thread-context";
 
 export const ThreadMessage: FC = () => {
 	const { AssistantMessage: AssistantMessageComponent = AssistantMessage } =
@@ -52,12 +44,8 @@ const MessageError: FC = () => (
 );
 
 const AssistantMessage: FC = () => {
-	const {
-		ToolFallback: ToolFallbackComponent = ToolFallback,
-		ToolGroup,
-		ReasoningGroup,
-	} = useContext(ThreadComponentsContext);
-	useContext(ThreadSettingsContext);
+	const { ToolFallback: ToolFallbackComponent = ToolFallback, ToolGroup } =
+		useContext(ThreadComponentsContext);
 	const messageCustom = useAuiState((s) => s.message.metadata.custom);
 	const messageId = useAuiState((s) => s.message.id);
 	const content = useAuiState((s) => s.message.content);
@@ -90,13 +78,13 @@ const AssistantMessage: FC = () => {
 				// [contain-intrinsic-size:auto_24px] fixes issue #4104, don't change without checking for regressions
 				className="text-foreground px-1 leading-7 wrap-break-word [contain-intrinsic-size:auto_24px] [content-visibility:auto] sm:px-2"
 			>
-				<AssistantMessageStatus kind={messageMetadata.kind} />
+				<AssistantMessageStatus errorCode={messageMetadata.errorCode} kind={messageMetadata.kind} />
 				<MessagePrimitive.GroupedParts
 					groupBy={groupPartByType({
-						reasoning: ["group-chainOfThought", "group-reasoning"],
 						"tool-call": ["group-chainOfThought", "group-tool"],
 						"standalone-tool-call": [],
 					})}
+					indicator="never"
 				>
 					{({ part, children }) => {
 						switch (part.type) {
@@ -115,43 +103,18 @@ const AssistantMessage: FC = () => {
 										<ToolGroupContent>{children}</ToolGroupContent>
 									</ToolGroupRoot>
 								);
-							case "group-reasoning": {
-								if (ReasoningGroup) {
-									return <ReasoningGroup group={part}>{children}</ReasoningGroup>;
-								}
-								const running = part.status.type === "running";
-								return (
-									<ReasoningRoot streaming={running}>
-										<ReasoningTrigger active={running} />
-										<ReasoningContent aria-busy={running}>
-											<ReasoningText>{children}</ReasoningText>
-										</ReasoningContent>
-									</ReasoningRoot>
-								);
-							}
 							case "text":
 								return (
 									<div data-answer-message-id={messageId}>
 										<CitationSourcesContext.Provider value={citationSources}>
-											<LazyMarkdownText />
+											<LazyMarkdownText resetKey={part.text} />
 										</CitationSourcesContext.Provider>
 									</div>
 								);
-							case "reasoning":
-								return <Reasoning {...part} />;
 							case "tool-call":
 								return part.toolUI ?? <ToolFallbackComponent {...part} />;
 							case "data":
 								return part.dataRendererUI;
-							case "indicator":
-								return (
-									<span
-										data-slot="aui_assistant-message-indicator"
-										className="animate-pulse font-sans"
-									>
-										●<span className="sr-only">助手正在生成</span>
-									</span>
-								);
 							default:
 								return null;
 						}
@@ -162,7 +125,7 @@ const AssistantMessage: FC = () => {
 
 			<div
 				data-slot="aui_assistant-message-footer"
-				className="ms-1 mt-3 flex min-h-6 items-center gap-5 sm:ms-2"
+				className="ms-1 mt-3 flex items-center gap-5 empty:hidden sm:ms-2"
 			>
 				<BranchPicker />
 				<AssistantActionBar />
@@ -172,22 +135,19 @@ const AssistantMessage: FC = () => {
 };
 
 const AssistantMessageStatus: FC<{
+	errorCode: ReturnType<typeof readCampusMessageMetadata>["errorCode"];
 	kind: ReturnType<typeof readCampusMessageMetadata>["kind"];
-}> = ({ kind }) => {
-	const label = kind === "error" ? "回答失败" : null;
-	if (!label) {
+}> = ({ errorCode, kind }) => {
+	if (kind !== "error" || errorCode === "execution_cancelled") {
 		return null;
 	}
 
 	return (
 		<p
-			className={cn(
-				"aui-assistant-message-status mb-1 text-sm leading-6",
-				kind === "error" ? "text-destructive" : "text-muted-foreground",
-			)}
+			className="aui-assistant-message-status text-destructive mb-1 text-sm leading-6"
 			data-message-status={kind}
 		>
-			{label}
+			回答失败
 		</p>
 	);
 };

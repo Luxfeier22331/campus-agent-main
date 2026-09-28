@@ -51,6 +51,33 @@ func TestRuntimeUsesConfiguredHostPort(t *testing.T) {
 	}
 }
 
+func TestAnswerTransportDefaultsToBufferedUnlessStream(t *testing.T) {
+	cases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "unset", value: "", want: AnswerTransportBuffered},
+		{name: "buffered", value: "buffered", want: AnswerTransportBuffered},
+		{name: "stream", value: "stream", want: AnswerTransportStream},
+		{name: "stream mixed case", value: " Stream ", want: AnswerTransportStream},
+		{name: "unknown falls back to buffered", value: "sse", want: AnswerTransportBuffered},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
+			t.Setenv("EXECUTION_CONTROL_ANSWER_TRANSPORT", tc.value)
+			cfg, err := loadRuntimeFromTestEnv(t)
+			if err != nil {
+				t.Fatalf("load runtime: %v", err)
+			}
+			if cfg.AnswerTransport != tc.want {
+				t.Fatalf("AnswerTransport = %q, want %q", cfg.AnswerTransport, tc.want)
+			}
+		})
+	}
+}
+
 func TestRuntimeRejectsGatewayPortWithoutRoomForAdminListeners(t *testing.T) {
 	t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
 	t.Setenv("PORT", "65534")

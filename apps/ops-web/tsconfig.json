@@ -23,7 +23,9 @@
 		"erasableSyntaxOnly": true,
 		"types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
 		"skipLibCheck": true,
-		"noEmit": true
+		"noEmit": true,
+		"incremental": true,
+		"tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo"
 	},
 	"include": [
 		"src/**/*.ts",

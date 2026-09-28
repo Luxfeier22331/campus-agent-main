@@ -91,7 +91,7 @@ describe("AssistantConversationSurface", () => {
 		);
 		expect(threadActionsSource).toContain("flex gap-5 duration-200");
 		expect(threadMessageSource).toContain(
-			'className="ms-1 mt-3 flex min-h-6 items-center gap-5 sm:ms-2"',
+			'className="ms-1 mt-3 flex items-center gap-5 empty:hidden sm:ms-2"',
 		);
 		expect(threadSource).toContain("aui-thread-composer-dock");
 		expect(threadSource).not.toContain("sticky bottom-0 mt-auto");

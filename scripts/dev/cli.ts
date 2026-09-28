@@ -5,16 +5,16 @@ import {
 	diagnoseLocalDevInstances,
 	formatProfileSummary,
 	localInstanceDestroyPreview,
-} from "./instance-resources";
-import type { LocalDoctorScope } from "./lifecycle";
+} from "./lifecycle/instance-resources";
+import type { LocalDoctorScope } from "./lifecycle/lifecycle";
 import {
 	destroyLocalDevelopment,
 	diagnoseLocalDevelopment,
 	initializeLocalDevelopmentTarget,
 	pruneLocalDevelopment,
-} from "./lifecycle";
-import { parseProductDataOptions } from "./product-data-options";
-import { LOCAL_DEV_TARGETS, type LocalDevTarget } from "./targets";
+} from "./lifecycle/lifecycle";
+import { LOCAL_DEV_TARGETS, type LocalDevTarget } from "./lifecycle/targets";
+import { parseProductDataOptions } from "./product-data/product-data-options";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 

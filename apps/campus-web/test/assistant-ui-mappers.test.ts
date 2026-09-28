@@ -157,4 +157,79 @@ describe("assistant-ui conversation mappers", () => {
 		const [projected] = toAssistantThreadMessages(conversation);
 		expect(projected?.content).toEqual([{ text: "回答失败，请稍后重试。", type: "text" }]);
 	});
+
+	it("localizes the terminal error message and keeps errorCode metadata for the matching request", () => {
+		const conversation: ConversationDetail = {
+			archivedAt: null,
+			activeRequestId: null,
+			createdAt: "2026-06-21T01:00:00.000Z",
+			id: "conv_01HQ",
+			messages: [
+				{
+					conversationId: "conv_01HQ",
+					createdAt: "2026-06-21T01:00:00.000Z",
+					id: "msg_user",
+					kind: null,
+					requestId: null,
+					retryable: null,
+					role: "user",
+					text: "帮我查一下考试安排",
+				},
+				{
+					conversationId: "conv_01HQ",
+					createdAt: "2026-06-21T01:00:02.000Z",
+					id: "msg_cancelled",
+					kind: "error",
+					requestId: "req_cancelled",
+					retryable: false,
+					role: "assistant",
+					text: "The request was cancelled.",
+				},
+				{
+					conversationId: "conv_01HQ",
+					createdAt: "2026-06-21T01:00:04.000Z",
+					id: "msg_other_error",
+					kind: "error",
+					requestId: "req_other",
+					retryable: true,
+					role: "assistant",
+					text: "The request could not be completed.",
+				},
+			],
+			pinnedAt: null,
+			title: "校园问题",
+			updatedAt: "2026-06-21T01:00:04.000Z",
+		};
+
+		const projected = toAssistantThreadMessages(conversation, {
+			code: "execution_cancelled",
+			requestId: "req_cancelled",
+		});
+
+		expect(projected[1]).toMatchObject({
+			content: [{ text: "已取消本次回答。", type: "text" }],
+			metadata: {
+				custom: {
+					campusMessage: {
+						errorCode: "execution_cancelled",
+						kind: "error",
+						requestId: "req_cancelled",
+						retryable: false,
+					},
+				},
+			},
+		});
+		expect(projected[2]).toMatchObject({
+			content: [{ text: "回答失败，请稍后重试。", type: "text" }],
+			metadata: {
+				custom: {
+					campusMessage: {
+						kind: "error",
+						requestId: "req_other",
+						retryable: true,
+					},
+				},
+			},
+		});
+	});
 });

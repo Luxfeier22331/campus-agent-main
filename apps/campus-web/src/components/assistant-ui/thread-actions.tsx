@@ -29,7 +29,7 @@ export const AssistantActionBar: FC = () => (
 	<ActionBarPrimitive.Root
 		hideWhenRunning
 		autohide="not-last"
-		className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 flex gap-5 duration-200"
+		className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in flex gap-5 duration-200"
 	>
 		<ActionBarPrimitive.Copy asChild>
 			<TooltipIconButton tooltip="复制">
@@ -81,6 +81,9 @@ type AssistantFeedbackType = "positive" | "negative";
 const ReloadAction: FC = () => {
 	const messageCustom = useAuiState((state) => state.message.metadata.custom);
 	const metadata = readCampusMessageMetadata(messageCustom);
+	if (metadata.retryable === false) {
+		return null;
+	}
 	return (
 		<ActionBarPrimitive.Reload asChild>
 			<TooltipIconButton tooltip={metadata.kind === "error" ? "重试" : "重新生成"}>

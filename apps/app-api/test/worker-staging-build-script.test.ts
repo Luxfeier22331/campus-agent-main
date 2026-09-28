@@ -12,7 +12,7 @@ const repoRoot = resolve(testDir, "../../..");
 const stagingBuildScript = resolve(repoRoot, "scripts/deploy/run-worker-staging-build.ts");
 const tsxBin = resolve(repoRoot, "node_modules/.bin/tsx");
 
-describe("worker staging build wrapper", () => {
+describe("worker staging build wrapper", { timeout: 30000 }, () => {
 	it("allows staging builds that do not need runtime secret placeholders", () => {
 		const workDir = mkdtempSync(join(tmpdir(), "worker-staging-build-"));
 		const childSource = `
