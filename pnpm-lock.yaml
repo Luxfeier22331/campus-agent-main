@@ -396,6 +396,9 @@ importers:
 
   apps/notice-artifacts-worker:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1132.0
+        version: 3.1132.0
       '@campus-agent/embedding-runtime':
         specifier: workspace:*
         version: link:../../packages/embedding-runtime
@@ -442,6 +445,9 @@ importers:
 
   apps/notice-pipeline-worker:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1132.0
+        version: 3.1132.0
       '@campus-agent/notice-database':
         specifier: workspace:*
         version: link:../../packages/notice-database
