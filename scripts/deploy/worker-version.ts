@@ -63,7 +63,7 @@ function fail(message: string): never {
 	throw new Error(message);
 }
 
-function resolveGitSha(): string {
+export function resolveGitSha(): string {
 	const result = spawnSync("git", ["rev-parse", "HEAD"], {
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "inherit"],

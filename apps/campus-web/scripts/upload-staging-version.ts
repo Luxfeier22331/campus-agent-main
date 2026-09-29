@@ -2,8 +2,10 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveGitSha } from "../../../scripts/deploy/staging-release.mts";
-import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
+import {
+	resolveGitSha,
+	uploadStagingWorkerVersion,
+} from "../../../scripts/deploy/worker-version.ts";
 import { readCampusWebBuildSourceDigest } from "./build-campus-web.ts";
 
 const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
