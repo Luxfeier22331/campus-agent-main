@@ -60,14 +60,6 @@ export interface DocsDataSource {
 	loadDocument(target: DocsDocumentTarget): Promise<DocsDocumentRouteData>;
 }
 
-export interface DocsNavigationDocument {
-	canonicalUrl: string;
-	collection: string;
-	corpus: string;
-	documentSlug: string;
-	title: string;
-}
-
 export function createBrowserDocsDataSource(): DocsDataSource {
 	const routeBootstrap = readRouteBootstrap();
 	let siteIndexRequest: Promise<DocsSiteIndex> | null = routeBootstrap

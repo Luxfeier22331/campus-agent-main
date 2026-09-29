@@ -41,7 +41,7 @@ notice-publisher 读取数据库中已有分类且未发布的通知，显式物
 重新发布操作重新物化正文投影，但保持学生端可见边界不变。本地 CLI 与默认暂停的 Kubernetes Job 模板使用同一实现，不提供自动
 schedule。App API 和 Campus Web 只读取 `is_published=true` 的投影。完整
 数据结构和操作顺序分别由 [通知数据](../../data/notices.md) 和
-[采集运行](../../runbooks/ingestion.md) 维护。
+[采集运行](../../runbooks/ingestion/ingestion.md) 维护。
 
 下游领域必须通过自己的校验和发布入口消费通知。稳定制度正文可以显式提升为规章，已核对的日期
 安排可以成为校历参考；没有下游发布器的通知仍只是通知数据。
@@ -66,9 +66,10 @@ Agent 不能扫描通知对象存储或 PostgreSQL，也不提供通知结构化
 
 - [通知数据](../../data/notices.md)
 - [通知接口](../../contracts/app-api/notices.md)
-- [采集运行](../../runbooks/ingestion.md)
+- [采集运行](../../runbooks/ingestion/ingestion.md)
 - [内部门户文件发布采集](../../contracts/internal-portal-file-release.md)
 - [内部门户通知来源合同（认证通知来源）](../../../.agents/notes/implemented/architecture/2026-08-14-internal-portal-notice-source.md)
 - [内部门户通知来源合同](../../../.agents/notes/implemented/architecture/2026-08-14-internal-portal-notice-source.md)
 - [规范化通知存储](../../../.agents/notes/implemented/architecture/2026-08-14-normalized-notice-storage.md)
 - [通知维护状态收敛](../../../.agents/notes/implemented/architecture/2026-08-25-notice-maintenance-state.md)
+- [通知采集到 RAG 的统一 Temporal 流水线](../../../.agents/notes/implemented/architecture/2026-09-20-notice-pipeline-unification.md)

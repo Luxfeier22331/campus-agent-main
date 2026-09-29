@@ -33,9 +33,8 @@ func TestPersonalMemoryCommandWorkflowRetriesCallbackWithoutRepeatingProviderMut
 		UserID:            "user-1",
 	}
 	result := PersonalMemoryCommandActivityOutput{
-		CommandID:         command.CommandID,
-		ResultFingerprint: "fingerprint-1",
-		Status:            "succeeded",
+		CommandID: command.CommandID,
+		Status:    "succeeded",
 	}
 	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
 		Return(result, nil).
@@ -81,7 +80,7 @@ func TestPersonalMemoryCommandWorkflowWaitsAtOwnerReceiptGate(t *testing.T) {
 		TenantID:          "tenant-main",
 		UserID:            "user-1",
 	}
-	result := PersonalMemoryCommandActivityOutput{CommandID: command.CommandID, ResultFingerprint: "fingerprint", Status: "succeeded"}
+	result := PersonalMemoryCommandActivityOutput{CommandID: command.CommandID, Status: "succeeded"}
 	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
 		Return(PersonalMemoryCommandActivityOutput{}, temporal.NewApplicationError("waiting", "memory_command_owner_blocked")).
 		Once()
@@ -119,9 +118,8 @@ func TestPersonalMemoryEraseCompletesAfterProviderDeletion(t *testing.T) {
 		UserID:            "user-1",
 	}
 	result := PersonalMemoryCommandActivityOutput{
-		CommandID:         command.CommandID,
-		ResultFingerprint: "fingerprint",
-		Status:            "succeeded",
+		CommandID: command.CommandID,
+		Status:    "succeeded",
 	}
 	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
 		Return(result, nil).Once()
@@ -1046,10 +1044,9 @@ func TestPersonalMemoryCommandWorkflowFailsAfterBoundedOwnerGateWait(t *testing.
 	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
 		Return(PersonalMemoryCommandActivityOutput{}, temporal.NewApplicationError("waiting", "memory_command_owner_blocked"))
 	timeoutResult := PersonalMemoryCommandActivityOutput{
-		CommandID:         command.CommandID,
-		ErrorCode:         "memory_command_wait_timeout",
-		ResultFingerprint: "fingerprint-timeout",
-		Status:            "failed",
+		CommandID: command.CommandID,
+		ErrorCode: "memory_command_wait_timeout",
+		Status:    "failed",
 	}
 	env.OnActivity(
 		FinalizePersonalMemoryCommandReceiptActivityName,

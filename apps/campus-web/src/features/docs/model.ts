@@ -15,7 +15,6 @@ export type DocsReaderTableCell = SourceDocsReaderTableCell;
 export type DocsReaderTableElement = SourceDocsReaderTableElement;
 export type DocsReaderTextElement = SourceDocsReaderTextElement;
 export type DocsReaderBlock = DocsReaderTableElement | DocsReaderTextElement;
-export type DocsReaderSupplement = SourceDocsReader["supplements"][number];
 
 export interface DocsCourseMapPart {
 	height: number;

@@ -100,7 +100,6 @@ export interface ExecutionControlPersonalMemoryClient extends ProfileMemoryReade
 		commandId: string;
 		status: string;
 		errorCode: string;
-		resultFingerprint: string;
 		stale: boolean;
 	}>;
 }

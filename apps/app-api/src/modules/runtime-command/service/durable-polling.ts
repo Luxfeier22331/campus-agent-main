@@ -12,7 +12,6 @@ import {
 	lifecycleEventFromDurableRunEvent,
 } from "./durable";
 import { createDurableCloseoutQueue } from "./durable-closeout-queue";
-import { toHandledErrorTransportOutcome } from "./errors";
 import { executionFinalizationErrorResponse } from "./stream";
 import type {
 	ChatCommandResponse,
@@ -143,106 +142,6 @@ export async function waitForDurableFinalizationResponse<
 		response: durableEventWaitTimeoutResponse(),
 		terminalObserved: false,
 	};
-}
-
-export async function* streamDurableRunEventsUntilTerminal<
-	Context extends DurableRunEventContext,
->(input: {
-	context: Context;
-	finalizeAcceptedCommand(finalizeInput: {
-		context: Context;
-		executionResponse: ToolExecutionResponse;
-		executionFinalizationReceivedAt?: string | null;
-		streamAppApiTtftMs?: number | null;
-	}): Promise<ChatCommandResponse>;
-	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEventPage>;
-	now: () => Date;
-	polling?: DurableEventPollingPolicy;
-}): AsyncIterable<ChatCommandStreamEvent> {
-	const { context, now } = input;
-	const polling = validatePollingPolicy(input.polling);
-	let lastSequence = 0;
-	let emptyPollAttempts = 0;
-	let hasStreamedAnswerDelta = false;
-	let streamAppApiTtftMs: number | null = null;
-	try {
-		while (emptyPollAttempts < polling.maxAttempts) {
-			const page = await input.listRunEvents(lastSequence, polling.waitMs);
-			if (page.events.length === 0) {
-				emptyPollAttempts += 1;
-			} else {
-				emptyPollAttempts = 0;
-			}
-			for (const runEvent of page.events) {
-				lastSequence = updateLastSequence(context, lastSequence, runEvent);
-				const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
-				if (lifecycleEvent) {
-					yield lifecycleEvent;
-					continue;
-				}
-				const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
-				if (answerDelta) {
-					if (streamAppApiTtftMs === null) {
-						streamAppApiTtftMs = durationMsBetween(context.acceptedAt, now().toISOString());
-					}
-					hasStreamedAnswerDelta = true;
-					yield answerDelta;
-					continue;
-				}
-				const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
-				if (!terminalOutcome) {
-					continue;
-				}
-				const finalized = await input.finalizeAcceptedCommand({
-					context,
-					executionResponse: terminalOutcome.response,
-					executionFinalizationReceivedAt: runEvent.occurredAt,
-					streamAppApiTtftMs,
-				});
-				for (const event of chatStreamEventsForFinalized({
-					context,
-					finalized,
-					hasStreamedAnswerDelta,
-					occurredAt: runEvent.occurredAt,
-					sequence: runEvent.sequence,
-					sourceEvent: terminalOutcome.sourceEvent,
-				})) {
-					yield event;
-				}
-				return;
-			}
-			lastSequence = nextSequenceFromPage(lastSequence, page);
-		}
-	} catch (error) {
-		const handled = toHandledErrorTransportOutcome(error);
-		const finalized = await input.finalizeAcceptedCommand({
-			context,
-			executionResponse: handled,
-			streamAppApiTtftMs,
-		});
-		for (const event of chatStreamEventsForFinalized({
-			context,
-			finalized,
-			hasStreamedAnswerDelta,
-			occurredAt: now().toISOString(),
-		})) {
-			yield event;
-		}
-		return;
-	}
-	const finalized = await input.finalizeAcceptedCommand({
-		context,
-		executionResponse: durableEventWaitTimeoutResponse(),
-		streamAppApiTtftMs,
-	});
-	for (const event of chatStreamEventsForFinalized({
-		context,
-		finalized,
-		hasStreamedAnswerDelta,
-		occurredAt: now().toISOString(),
-	})) {
-		yield event;
-	}
 }
 
 export function startDurableFinalizationCloseout<Context extends DurableRunEventContext>(input: {

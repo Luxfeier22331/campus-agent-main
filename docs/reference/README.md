@@ -12,6 +12,7 @@ status: active
 - [eval.md](./eval.md)：评测所有权、运行方式和评分边界；
 - [eval-cases.md](./eval-cases.md)：评测用例格式；
 - [agent-orchestration.md](./agent-orchestration.md)：Agent 编排、检索和评测的外部研究依据；
-- [telemetry.md](./telemetry.md)：仓库运行信号的生产者、消费者和内容边界。
+- [telemetry.md](./telemetry.md)：仓库运行信号的生产者、消费者和内容边界；
+- [topic-index.md](./topic-index.md)：按主题聚合的跨分区文档入口。
 
 动态清单、一次性验收记录和清理报告不进入 reference；需要追溯时使用 git history。

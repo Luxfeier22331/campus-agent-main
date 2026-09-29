@@ -34,10 +34,6 @@ export function defaultComputeFingerprint(input: {
 		.digest("hex");
 }
 
-export function previewText(text: string, maxLength = 160): string {
-	return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
-}
-
 export function sanitizePublicAssistantText(input: {
 	status: ToolExecutionResponse["status"];
 	text: string;

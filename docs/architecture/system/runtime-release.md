@@ -96,6 +96,6 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 - [产品运行时](./product-runtime.md)
 - [Kubernetes 运行时](./k8s-runtime.md)
 - [环境配置](../../environment/README.md)
-- [发布操作](../../runbooks/release.md)
+- [发布操作](../../runbooks/release/release.md)
 - [GitOps](../../../.agents/notes/implemented/process/2026-07-16-gitops.md)
 - [Staging 版本选择](../../../.agents/notes/implemented/process/2026-07-25-promotion.md)

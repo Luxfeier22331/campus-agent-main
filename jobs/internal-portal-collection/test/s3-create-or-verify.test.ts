@@ -33,7 +33,6 @@ describe("internal portal collection S3 create-or-verify", () => {
 		).resolves.toEqual({
 			byteSize: body.byteLength,
 			contentSha256: digest,
-			etag: "head-etag",
 			versionId: "head-version",
 		});
 	});

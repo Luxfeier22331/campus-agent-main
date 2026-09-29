@@ -86,7 +86,7 @@ pnpm --dir apps/ops-web exec tsx test/fixtures/seed-transport-history.ts <已持
 没有旧表兼容层、自动班次消费任务或证据审核表。OCR 结果属于通知运维能力，不改变班次数据 owner。
 若未来引入自动来源写入，必须先明确新的数据 owner 和公开数据合同，再单独设计输入到结构化班次的写入边界。
 
-## 相关入口
+## 验证
 
 ```bash
 pnpm --dir packages/domains/transport typecheck
@@ -95,3 +95,9 @@ pnpm --dir apps/app-api typecheck
 pnpm --dir apps/ops-web typecheck
 pnpm --dir apps/campus-web typecheck
 ```
+
+## 相关文档
+
+- [共享类型与展示标签（packages/domains/transport）](../../packages/domains/transport/README.md)
+- [通知领域（时间段关联通知）](../architecture/domains/notices.md)
+- [Ops Web 通知合同（关联维护）](../contracts/ops-web/notices.md)

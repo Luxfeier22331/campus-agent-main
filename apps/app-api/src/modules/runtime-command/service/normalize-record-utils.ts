@@ -34,18 +34,6 @@ export function recordStringArray(
 	return normalizeStringArray(value);
 }
 
-export function recordObjectArray(
-	record: Record<string, unknown>,
-	snakeCaseKey: string,
-	camelCaseKey: string,
-): Record<string, unknown>[] {
-	const value = snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey];
-	if (!Array.isArray(value)) {
-		return [];
-	}
-	return value.filter((item): item is Record<string, unknown> => isRecord(item));
-}
-
 export function normalizeStringArray(value: unknown): string[] {
 	if (!Array.isArray(value)) {
 		return [];

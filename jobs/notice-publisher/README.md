@@ -33,6 +33,6 @@ URL。图片写入 derived bucket，附件字节继续保留在 source bucket。
 
 ## 相关文档
 
-- 操作步骤与故障排查：`docs/runbooks/ingestion.md`
+- 操作步骤与故障排查：`docs/runbooks/ingestion/ingestion.md`
 - 通知数据布局：`docs/data/notices.md`
 - 通知领域边界：`docs/architecture/domains/notices.md`

@@ -135,10 +135,6 @@ export interface IndexCatalog {
 	activate(index: CurrentIndexBinding): Promise<{ noOp: boolean }>;
 }
 
-export interface PublisherIndexCatalog extends IndexCatalog {
-	acquirePublisherLock(): Promise<void>;
-}
-
 export interface ChunkSetManifest {
 	chunkCount: number;
 	chunkDefinition: typeof CHUNK_SET_DEFINITION.chunking;

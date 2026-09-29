@@ -3,7 +3,6 @@ package executionreconciler
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"log/slog"
@@ -220,11 +219,6 @@ func temporalStartErrorCode(err error) string {
 		return ""
 	}
 	return "temporal_workflow_start_uncertain"
-}
-
-func lifecycleErrorHash(code string) string {
-	digest := sha256.Sum256([]byte(strings.TrimSpace(code)))
-	return hex.EncodeToString(digest[:])
 }
 
 func (r *Reconciler) store() executionapplication.RunStore {

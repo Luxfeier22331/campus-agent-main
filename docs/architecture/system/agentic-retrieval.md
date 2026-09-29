@@ -65,3 +65,4 @@ Finalization 校验并转换为正文中的编号来源链接与 `web_page` sour
 - [工具路由](tool-routing.md)
 - [检索服务](retrieval-serving.md)
 - [执行合同](../../contracts/tool-execution.md)
+- [实体别名](../../../.agents/notes/implemented/architecture/2026-07-16-entity-aliases.md)

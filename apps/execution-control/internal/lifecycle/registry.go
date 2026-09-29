@@ -16,15 +16,11 @@ var (
 type State string
 
 const (
-	StateAccepted         State = "accepted"
-	StateQueued           State = "queued"
-	StateRunningExecution State = "running_execution"
-	StateCancelRequested  State = "cancel_requested"
-	StateCompleted        State = "completed"
-	StateFailed           State = "failed"
-	StateTimedOut         State = "timed_out"
-	StateClientCanceled   State = "client_canceled"
-	StateCanceled         State = "canceled"
+	StateAccepted        State = "accepted"
+	StateCancelRequested State = "cancel_requested"
+	StateCompleted       State = "completed"
+	StateFailed          State = "failed"
+	StateTimedOut        State = "timed_out"
 )
 
 type Metadata struct {

@@ -76,6 +76,6 @@ GHCR package 退役不自动删除仍被本地测试或开发数据库使用的 
 
 ## 相关文档
 
-- [GHCR 镜像保留与清理](../../../../docs/runbooks/ghcr-retention.md)
+- [GHCR 镜像保留与清理](../../../../docs/runbooks/release/ghcr-retention.md)
 - [运行时发布架构](../../../../docs/architecture/system/runtime-release.md)
 - [Staging 版本选择](./2026-07-25-promotion.md)

@@ -93,8 +93,3 @@ func NumericValue(value any) (float64, bool) {
 		return 0, false
 	}
 }
-
-func NumericProjectionValue(value any) float64 {
-	numeric, _ := NumericValue(value)
-	return numeric
-}

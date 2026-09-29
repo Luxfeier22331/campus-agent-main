@@ -38,7 +38,7 @@ Run。`build-embeddings` 只读取显式 Chunk Run，从 Model Config 的 `campu
 指针，不写入 Qdrant 或通知数据库。统一 publisher 只读取该 Embedding Set 和其 Chunk Run，不连接 live
 Notices DB，也不重新 embedding。
 
-完整运行步骤见 [通知 Chunk 与 Embedding 制品](../../docs/runbooks/notice-indexing.md)。
+完整运行步骤见 [通知 Chunk 与 Embedding 制品](../../docs/runbooks/ingestion/notice-indexing.md)。
 
 ## 构建 Chunk
 

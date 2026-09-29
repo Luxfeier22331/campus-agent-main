@@ -728,7 +728,6 @@ describe("app-api shared product DB integration", () => {
 				commandId,
 				status,
 				...(status === "failed" ? { errorCode: "provider_timeout" } : {}),
-				resultFingerprint: (status === "failed" ? "b" : "a").repeat(64),
 				updatedAt: "2026-09-12T01:01:00Z",
 			});
 		await first.submitCorrection({ ...base("edit"), text: "先给一句结论" });
@@ -873,7 +872,6 @@ describe("app-api shared product DB integration", () => {
 			store.applyCommandResult({
 				commandId: `erase-first-${suffix}`,
 				errorCode: "personal_memory_command_failed",
-				resultFingerprint: "a".repeat(64),
 				status: "failed",
 				updatedAt: "2026-07-16T05:00:04.000Z",
 			}),
@@ -921,7 +919,6 @@ describe("app-api shared product DB integration", () => {
 		await expect(
 			store.applyCommandResult({
 				commandId: `erase-retry-${suffix}`,
-				resultFingerprint: "b".repeat(64),
 				status: "succeeded",
 				updatedAt: "2026-07-16T05:00:06.000Z",
 			}),

@@ -61,14 +61,6 @@ export async function loadOpsSubmissionRow(
 	return result.rows[0];
 }
 
-export async function loadOpsSubmission(
-	db: DiningDatabase,
-	id: string,
-	now: Date,
-): Promise<DiningOpsSubmissionRecord> {
-	return projectOpsSubmission(db, await loadOpsSubmissionRow(db, id), now);
-}
-
 export async function projectOpsSubmission(
 	db: DiningDatabase,
 	row: Record<string, unknown>,

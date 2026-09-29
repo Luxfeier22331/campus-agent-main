@@ -337,6 +337,6 @@ polling `maxAttempts` 是连续空页预算，不是严格 elapsed-time SLA；�
 - [聊天请求生命周期](../../contracts/app-api/request-lifecycle.md)
 - [执行合同](../../contracts/tool-execution.md)
 - [持久执行数据](../../data/durable-runtime.md)
-- [执行服务运维](../../runbooks/execution.md)
-- [Temporal 自托管运维](../../runbooks/temporal.md)
+- [执行服务运维](../../runbooks/runtime/execution.md)
+- [Temporal 自托管运维](../../runbooks/runtime/temporal.md)
 - [Agent 编排研究参考](../../reference/agent-orchestration.md)

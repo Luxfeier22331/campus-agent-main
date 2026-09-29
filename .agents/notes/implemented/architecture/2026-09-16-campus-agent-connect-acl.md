@@ -48,7 +48,7 @@ Status: implemented
 
 连接能力改为显式 `GRANT CONNECT` 后，新增运行角色若未同步授权将无法建立任何连接，环境实施
 需要把授权纳入变更清单。修改库级权限前的消费者核对成为强制步骤，验收标准从配置推断改为真实
-连接验证。具体操作见[协作者只读访问 runbook](../../../../docs/runbooks/collaborator-access.md)，
+连接验证。具体操作见[协作者只读访问 runbook](../../../../docs/runbooks/access/collaborator-access.md)，
 本笔记保留授权模型与变更约束。
 
 ## 重新评估与删除条件
@@ -60,4 +60,4 @@ Status: implemented
 ## 相关文档
 
 - [PostgreSQL 所有权](../../../../docs/data/postgres-ownership.md)
-- [协作者只读访问](../../../../docs/runbooks/collaborator-access.md)
+- [协作者只读访问](../../../../docs/runbooks/access/collaborator-access.md)

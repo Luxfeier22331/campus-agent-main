@@ -5,16 +5,19 @@ import {
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { Context, heartbeat } from "@temporalio/activity";
 import { ApplicationFailure } from "@temporalio/common";
-import { readDocsEmbeddingSet, readNoticeEmbeddingSet } from "campus-rag-index-publisher/artifacts";
+import {
+	readDocsEmbeddingSetManifest,
+	readNoticeEmbeddingSetManifest,
+} from "campus-rag-index-publisher/artifacts";
 import { createPostgresIndexCatalog } from "campus-rag-index-publisher/catalog";
 import { createQdrantClient } from "campus-rag-index-publisher/qdrant";
 import { runCampusRagPublish } from "campus-rag-index-publisher/run";
 import type { Sha256Ref } from "campus-rag-index-publisher/types";
+import { cleanupAutomaticObjects, noticeArtifactKeys } from "notice-index-publisher/cleanup";
 import { runStoredNoticeChunkBuild } from "notice-index-publisher/command";
 import { fetchNoticeEmbeddingConnection } from "notice-index-publisher/embedding";
 import { buildNoticeEmbeddingSet } from "notice-index-publisher/embedding-set";
 import { createNoticeS3ArtifactStore } from "notice-index-publisher/object-store";
-import { cleanupAutomaticObjects, noticeArtifactKeys } from "./cleanup.ts";
 import type { RollbackInput } from "./contracts.ts";
 import { connectTemporal } from "./schedule.ts";
 
@@ -71,22 +74,25 @@ export async function prepareRefresh(): Promise<PreparedRefresh> {
 					"MissingActiveIndex",
 				);
 			}
-			const docs = await readDocsEmbeddingSet(store, current.docsEmbeddingSet);
+			const docsManifest = await readDocsEmbeddingSetManifest(store, current.docsEmbeddingSet);
 			const connection = await fetchNoticeEmbeddingConnection(cancelFetch(signal));
-			if (docs.manifest.modelTargetSha256 !== connection.targetSha256) {
+			if (docsManifest.modelTargetSha256 !== connection.targetSha256) {
 				throw ApplicationFailure.nonRetryable(
 					"Docs model target differs from Model Config; explicitly republish Docs",
 					"ModelTargetMismatch",
 				);
 			}
-			const previous = await readNoticeEmbeddingSet(store, current.noticeEmbeddingSet);
+			const previousManifest = await readNoticeEmbeddingSetManifest(
+				store,
+				current.noticeEmbeddingSet,
+			);
 			const chunks = await runStoredNoticeChunkBuild({ artifactStore: store, pool, signal });
 			return {
 				expectedCurrent: current.collection,
 				docsEmbeddingSet: current.docsEmbeddingSet,
 				chunkRun: chunks.run,
 				modelTargetSha256: connection.targetSha256,
-				unchanged: previous.manifest.chunkRun === chunks.run,
+				unchanged: previousManifest.chunkRun === chunks.run,
 			};
 		} finally {
 			store.close();

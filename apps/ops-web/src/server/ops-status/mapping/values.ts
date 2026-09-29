@@ -84,10 +84,6 @@ export function requestSearchText(request: OpsRequestSummary): string {
 	return [request.requestId, request.question.preview].join(" ").toLowerCase();
 }
 
-export function normalizeStatusToDb(value: string | undefined): string | undefined {
-	return normalizeStatusToDbValues(value)[0];
-}
-
 export function normalizeStatusToDbValues(value: string | undefined): string[] {
 	if (!value) {
 		return [];
@@ -132,20 +128,6 @@ export function normalizeDbStatusToSummaryKey(
 		throw new Error(`Unsupported request projection status: ${status}`);
 	}
 	return summaryKey;
-}
-
-export function readMetricMs(value: unknown): number {
-	if (!isRecord(value)) {
-		return 0;
-	}
-	return readNonNegativeInteger(value.ms, 0);
-}
-
-export function readMetricCount(value: unknown, key: string): number {
-	if (!isRecord(value)) {
-		return 0;
-	}
-	return readNonNegativeInteger(value[key], 0);
 }
 
 export function normalizeNullableString(value: unknown): string | null {

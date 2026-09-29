@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -680,40 +679,6 @@ func missingEvidenceField(item temporalruntime.WorkflowEvidence) string {
 func IsMapValue(value any) bool {
 	_, ok := value.(map[string]any)
 	return ok
-}
-
-func CitedWorkflowResults(
-	answerText string,
-	results []WorkflowRunResult,
-) ([]WorkflowRunResult, error) {
-	byIndex := make(map[int]WorkflowRunResult, len(results))
-	for _, result := range results {
-		if _, duplicate := byIndex[result.CitationIndex]; duplicate {
-			return nil, errors.New("citation index is duplicated")
-		}
-		byIndex[result.CitationIndex] = result
-	}
-	cited := []WorkflowRunResult{}
-	seenRefs := map[string]struct{}{}
-	for _, match := range WorkflowCitationPattern.FindAllStringSubmatch(answerText, -1) {
-		index, err := strconv.Atoi(match[1])
-		if err != nil || index < 1 || index > WorkflowCitationLimit {
-			return nil, errors.New("citation index is invalid")
-		}
-		result, found := byIndex[index]
-		if !found {
-			// Finalized mixed-source answers also contain Web citation numbers. The
-			// eval projection only maps Campus Search results, so those numbers are
-			// not Campus citation failures and must not discard valid cited contexts.
-			continue
-		}
-		if _, duplicate := seenRefs[result.ResultRef]; duplicate {
-			continue
-		}
-		seenRefs[result.ResultRef] = struct{}{}
-		cited = append(cited, result)
-	}
-	return cited, nil
 }
 
 func offsetFailureFacts(value map[string]any, field string, index int, answer string) map[string]any {

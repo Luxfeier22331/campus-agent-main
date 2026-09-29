@@ -175,16 +175,6 @@ export async function localBucketProbe(
 	return probeLocalBucket(profile, secrets, bucketName);
 }
 
-export function runObjectStore(
-	repoRoot: string,
-	profile: LocalDevProfile,
-	bucketName: string,
-	action: "create" | "remove",
-): void {
-	const secrets = loadLocalInfrastructureSecrets(repoRoot, profile);
-	runCommand("docker", objectStoreCommand(profile, bucketName, action, secrets), { cwd: repoRoot });
-}
-
 export function objectStoreCommand(
 	profile: LocalDevProfile,
 	bucketName: string,

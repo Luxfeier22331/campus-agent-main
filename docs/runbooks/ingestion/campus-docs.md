@@ -20,7 +20,7 @@ Docs 的共享输入是对象存储中的 `campus-docs/source.json` 及其引用
 ## 维护规则
 
 `campus_docs_source.v4` 是完整当前期望集合，不是增量补丁。清单、reader、版本和补充对象的字段及
-关系以[文档来源与静态交付合同](../contracts/document-reader-delivery.md)为准；本手册只说明操作顺序。
+关系以[文档来源与静态交付合同](../../contracts/document-reader-delivery.md)为准；本手册只说明操作顺序。
 新增或修订对象先上传，再提交 Git 声明，由发布器自动生成固定键；删除通过移除声明表达。RAG 只索引当前 reader，
 历史 reader 只要仍被清单引用就不能清理。RAG publisher 当前只把来源清单选出的 current Docs 版本写入 serving collection；在线通过 payload 中的版本字段过滤和诊断。历史版本只有在未来被单独纳入 serving 制品后才可被历史查询消费。
 
@@ -41,7 +41,7 @@ Docs 的共享输入是对象存储中的 `campus-docs/source.json` 及其引用
 
 1. 来源 owner 先把新 reader、补充数据和图片上传至 RustFS 的新对象键；使用条件创建，已有内容不得覆盖。
 2. 修改 `apps/campus-web/docs-source/` 中对应 YAML，填写业务字段与对象 key。字段及布局见
-   [声明目录说明](../../apps/campus-web/docs-source/README.md)；不维护 `sha256` 或 `byteSize`。
+   [声明目录说明](../../../apps/campus-web/docs-source/README.md)；不维护 `sha256` 或 `byteSize`。
 3. 执行离线检查，提交 PR；Campus Web 的 Node 测试同样检查这份真实声明，不需要对象存储凭据：
 
    ```bash
@@ -111,7 +111,7 @@ pnpm --dir jobs/notice-index-publisher build-chunks-local
 ```
 
 成功输出提供本地 `run` 和输出目录。后续本地 Embedding 抽样或 dense 评测使用
-[Notice builder 的本地命令](../../jobs/notice-index-publisher/README.md#embedding-抽样与-recall-评测)，
+[Notice builder 的本地命令](../../../jobs/notice-index-publisher/README.md#embedding-抽样与-recall-评测)，
 需要 worktree 根 `.env` 中的 Embedding 连接；这些评测不会生成正式 Notice Embedding Set。
 
 `build-embeddings` 是对象存储制品入口：读取 derived bucket 中的显式 Chunk Run，从 Model Config
@@ -182,7 +182,7 @@ pnpm --dir jobs/campus-docs-index-publisher compare-chunks-local -- \
   --candidate-evaluation sha256:<candidate-evaluation-id>
 ```
 
-`--questions` 由命令按仓库根解析；标签汇总的 `--labels` 则按包工作目录解析，所以示例保留 `../../var/`。
+`--questions` 由命令按仓库根解析；标签汇总的 `--labels` 则按包工作目录解析，所以示例保留 `../../../var/`。
 
 比较前会校验两次评测分别引用对应 Chunk Set，并使用同一模型 target、问题文件摘要、embedding 定义、
 问题数量和顺序。报告给出结构 delta、evidence placement 状态、整体/分层 embedding delta 以及共同
@@ -414,7 +414,7 @@ collection；已发布的当前 collection 由 `campus_search` 按需消费。
 
 ## 相关文档
 
-- [检索服务](../architecture/system/retrieval-serving.md)
-- [文档站架构](../architecture/system/document-site.md)
-- [文档来源与静态交付合同](../contracts/document-reader-delivery.md)
-- [文档阅读器数据模型](../data/document-reader.md)
+- [检索服务](../../architecture/system/retrieval-serving.md)
+- [文档站架构](../../architecture/system/document-site.md)
+- [文档来源与静态交付合同](../../contracts/document-reader-delivery.md)
+- [文档阅读器数据模型](../../data/document-reader.md)

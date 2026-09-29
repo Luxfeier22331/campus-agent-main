@@ -117,36 +117,6 @@ export function stageTimingBudgetState(field: string, durationMs: number): Stage
 	return "within_budget";
 }
 
-export function projectStageTimingBudget(
-	stageTiming: Record<string, unknown> | null | undefined,
-): Partial<Record<StageTimingField, StageTimingBudgetProjection>> {
-	const output: Partial<Record<StageTimingField, StageTimingBudgetProjection>> = {};
-	for (const [field, durationMs] of Object.entries(stageTiming ?? {})) {
-		if (
-			!(
-				isStageTimingField(field) &&
-				typeof durationMs === "number" &&
-				Number.isFinite(durationMs) &&
-				durationMs >= 0
-			)
-		) {
-			continue;
-		}
-		const rule = LATENCY_BUDGET_RULE_BY_FIELD.get(field);
-		if (!rule) {
-			continue;
-		}
-		output[field] = {
-			budgetState: stageTimingBudgetState(field, durationMs),
-			budgetVersion: LATENCY_BUDGET_VERSION,
-			criticalMs: rule.critical_ms,
-			durationMs,
-			warnMs: rule.warn_ms,
-		};
-	}
-	return output;
-}
-
 function worstLatencyBudgetBreach(breaches: LatencyBudgetBreach[]): LatencyBudgetBreach | null {
 	return (
 		[...breaches].sort((left, right) => {

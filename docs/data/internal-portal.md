@@ -54,7 +54,7 @@ internal_portal/<site-id>/file-releases/<file-release-id>/source.json
 `internal-portal-collection` 是门户 source 对象的生产者，来源数据面拥有以下对象：原始 `file`、对应
 的 `source.json` 以及仍被来源清单或后续规范化流程引用的历史版本。采集 Job 不负责删除对象，也不对
 Campus Docs 的 normalized reader、chunk、embedding 或 Qdrant collection 负责。清理前必须由来源 owner
-依据完整 reader/补充资产引用重新计算存活 key 集合，并按[Campus Docs runbook](../runbooks/campus-docs.md)
+依据完整 reader/补充资产引用重新计算存活 key 集合，并按[Campus Docs runbook](../runbooks/ingestion/campus-docs.md)
 中的核对步骤执行；本合同不引入宽泛 TTL 或自动回收任务。
 
 ## 认证生命周期
@@ -66,5 +66,5 @@ TGC 只在本次会话使用，不回写凭据池。本地 `pnpm --dir jobs/inte
 ## 相关文档
 
 - [内部门户文件发布采集](../contracts/internal-portal-file-release.md)
-- [内部门户认证](../runbooks/portal-auth.md)
+- [内部门户认证](../runbooks/access/portal-auth.md)
 - [internal-portal-collection](../../jobs/internal-portal-collection/README.md)

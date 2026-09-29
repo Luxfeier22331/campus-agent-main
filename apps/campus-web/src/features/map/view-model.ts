@@ -13,13 +13,6 @@ export interface MapPlaceView {
 	usesFeatureHighlight: boolean;
 }
 
-export interface MapSelectionState {
-	category: MapTaskFilter;
-	campus: string;
-	query: string;
-	selectedPlaceId: string | null;
-}
-
 export type MapTaskFilter =
 	| "all"
 	| "dining"

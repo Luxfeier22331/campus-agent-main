@@ -143,11 +143,6 @@ spec:
                   key: OBJECT_STORE_DERIVED_READ_SECRET_KEY
             - name: MODEL_CONFIG_URL
               value: http://model-config:8000
-            - name: OPS_WEB_LANGFUSE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_LANGFUSE_URL
             - name: OPS_WEB_AUTOMATION_ORIGIN
               valueFrom:
                 configMapKeyRef:

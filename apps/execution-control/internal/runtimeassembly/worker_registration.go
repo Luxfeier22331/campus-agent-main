@@ -60,10 +60,6 @@ func WorkerOptionsForProfile(profile WorkerProfile) (worker.Options, error) {
 	return options, nil
 }
 
-func NewWorkflowWorker(temporalClient client.Client, queue string) worker.Worker {
-	return NewWorkflowWorkerWithOptions(temporalClient, queue, worker.Options{})
-}
-
 func NewWorkflowWorkerWithOptions(
 	temporalClient client.Client,
 	queue string,

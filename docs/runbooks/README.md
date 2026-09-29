@@ -5,20 +5,21 @@ status: active
 ---
 # 操作手册
 
-- 发布与环境交接：[release.md](./release.md)；
-- Staging 前台测试账号：[staging-test-account.md](./staging-test-account.md)；
-- GHCR 镜像盘点、保护与清理：[ghcr-retention.md](./ghcr-retention.md)；
-- CI Runner 与 BuildKit：[runner-buildkit.md](./runner-buildkit.md)；
-- 数据恢复：[data-recovery.md](./data-recovery.md)；
-- 运行时：[execution.md](./execution.md)、[temporal.md](./temporal.md)、
-  [hindsight.md](./hindsight.md)；
-- 采集、文档、通知发布与知识：[ingestion.md](./ingestion.md)、
-  [notice-indexing.md](./notice-indexing.md)、[campus-docs.md](./campus-docs.md)、
-  [portal-auth.md](./portal-auth.md)、[ragas.md](./ragas.md)；
-- 可观测性：[worker-otel.md](./worker-otel.md)；
-- 本地与领域：[local-verification.md](./local-verification.md)、
-  [campus-map-authoring.md](./campus-map-authoring.md)；
-- 安全与协作：[safety.md](./safety.md)、[provider-secrets.md](./provider-secrets.md)、
-  [collaborator-access.md](./collaborator-access.md)。
+`docs/runbooks/` 保存发布、运行时、可观测、采集制品与准入密钥等可重复操作步骤；事实边界归所属分区，操作前提与变更影响先回到对应架构或合同文档。
 
-runbook 只保存可重复操作，不决定产品或架构是否完成。历史步骤通过 git history 追溯。
+## 子分区
+
+- [release/](./release/README.md)：发布链与环境交接；
+- [runtime/](./runtime/README.md)：执行、Temporal 与记忆运维；
+- [observability/](./observability/README.md)：OTel 与 Worker 遥测诊断；
+- [ingestion/](./ingestion/README.md)：通知采集、文档与检索制品；
+- [access/](./access/README.md)：账号、准入、认证与密钥。
+
+## 平铺条目
+
+- [campus-map-authoring.md](./campus-map-authoring.md)：校园地图点位与路线编写；
+- [data-recovery.md](./data-recovery.md)：数据备份与恢复；
+- [local-verification.md](./local-verification.md)：本地验证；
+- [ragas.md](./ragas.md)：Ragas 评测；
+- [runner-buildkit.md](./runner-buildkit.md)：CI runner BuildKit；
+- [safety.md](./safety.md)：产品安全排查。

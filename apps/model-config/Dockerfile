@@ -25,5 +25,5 @@ RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/model-config /usr/local/bin/model-config
 USER appuser
-EXPOSE 8000 8001
+EXPOSE 8000
 ENTRYPOINT ["/usr/local/bin/model-config"]

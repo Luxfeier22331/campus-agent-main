@@ -257,10 +257,8 @@ export const NoticeListRequestQuerySchema = z
 		}
 	});
 
-export type NoticeAssetMetadata = z.infer<typeof NoticeAssetMetadataSchema>;
 export type NoticeAttachmentMetadata = z.infer<typeof NoticeAttachmentMetadataSchema>;
 export type NoticeDetailResponse = z.infer<typeof NoticeDetailResponseSchema>;
-export type NoticeImageMetadata = z.infer<typeof NoticeImageMetadataSchema>;
 export type NoticeListItem = z.infer<typeof NoticeListItemSchema>;
 export type NoticeListRequestQuery = z.infer<typeof NoticeListRequestQuerySchema>;
 export type NoticeListResponse = z.infer<typeof NoticeListResponseSchema>;

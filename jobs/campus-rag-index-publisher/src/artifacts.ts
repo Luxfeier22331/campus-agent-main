@@ -78,16 +78,18 @@ export async function readDocsChunkSet(
 	return { chunks, manifest };
 }
 
+export async function readDocsEmbeddingSetManifest(
+	store: ReaderObjectStore,
+	id: Sha256Ref,
+): Promise<DocsEmbeddingSetManifest> {
+	return readManifest(store, embeddingSetManifestKey(id), id, parseDocsEmbeddingSetManifest);
+}
+
 export async function readDocsEmbeddingSet(
 	store: ReaderObjectStore,
 	id: Sha256Ref,
 ): Promise<{ embeddings: StoredEmbedding[]; manifest: DocsEmbeddingSetManifest }> {
-	const manifest = await readManifest(
-		store,
-		embeddingSetManifestKey(id),
-		id,
-		parseDocsEmbeddingSetManifest,
-	);
+	const manifest = await readDocsEmbeddingSetManifest(store, id);
 	const bytes = await readVerifiedObject(store, manifest.embeddings, "Campus Docs embedding data");
 	const embeddings = decodeNdjson(bytes, (value, index) =>
 		parseEmbedding(value, index, manifest.embeddingSpace.dimensions, "Docs"),
@@ -126,16 +128,18 @@ export async function readNoticeChunkRun(
 	return { chunks, chunksByNoticeId, manifest };
 }
 
+export async function readNoticeEmbeddingSetManifest(
+	store: ReaderObjectStore,
+	id: Sha256Ref,
+): Promise<NoticeEmbeddingSetManifest> {
+	return readManifest(store, noticeEmbeddingSetManifestKey(id), id, parseNoticeEmbeddingSetManifest);
+}
+
 export async function readNoticeEmbeddingSet(
 	store: ReaderObjectStore,
 	id: Sha256Ref,
 ): Promise<NoticeEmbeddingSetData> {
-	const manifest = await readManifest(
-		store,
-		noticeEmbeddingSetManifestKey(id),
-		id,
-		parseNoticeEmbeddingSetManifest,
-	);
+	const manifest = await readNoticeEmbeddingSetManifest(store, id);
 	const bytes = await readVerifiedObject(store, manifest.embeddings, "notice embedding data");
 	const embeddings = decodeNdjson(bytes, (value, index) =>
 		parseEmbedding(value, index, manifest.embeddingSpace.dimensions, "Notice"),

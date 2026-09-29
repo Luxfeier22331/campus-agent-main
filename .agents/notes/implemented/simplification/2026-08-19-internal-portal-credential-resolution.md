@@ -62,5 +62,5 @@ Rust 分块栈和 canonical/retrieval 合同。对象存储辅助能力仍由实
 
 - [采集数据面](../../../../docs/architecture/system/data-plane.md)
 - [内部门户数据](../../../../docs/data/internal-portal.md)
-- [内部门户认证](../../../../docs/runbooks/portal-auth.md)
-- [采集运行](../../../../docs/runbooks/ingestion.md)
+- [内部门户认证](../../../../docs/runbooks/access/portal-auth.md)
+- [采集运行](../../../../docs/runbooks/ingestion/ingestion.md)

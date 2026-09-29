@@ -179,10 +179,6 @@ func searchResultItemFromMap(value map[string]any) (SearchResultItem, error) {
 	return item, nil
 }
 
-func ValidNoticeCitationHref(value string) bool {
-	return noticeCitationPattern.MatchString(strings.TrimSpace(value))
-}
-
 func ValidNoticeCitationHrefForNoticeID(value string, noticeID string) bool {
 	match := noticeCitationPattern.FindStringSubmatch(strings.TrimSpace(value))
 	return len(match) == 2 && strings.TrimSpace(noticeID) != "" && match[1] == strings.TrimSpace(noticeID)

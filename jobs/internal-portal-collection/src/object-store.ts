@@ -21,7 +21,6 @@ interface ArtifactWriteInput extends ObjectStoreLocation {
 interface ArtifactWriteResult {
 	byteSize: number;
 	contentSha256: string;
-	etag?: string | null;
 	versionId?: string | null;
 }
 

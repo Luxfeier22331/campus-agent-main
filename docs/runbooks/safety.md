@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-owner_boundary: docs/runbooks
+owner_boundary: apps/ops-web
 status: active
 ---
 
@@ -46,3 +46,9 @@ trace，可以使用 W3C context 做进一步关联；配额停收时不要求 t
 - 不从日志平台改写请求状态或限流判断。
 - 不复制认证、session、记忆、prompt、供应商响应或远端原文到工单。
 - 不为安全排查建立第二套请求状态数据库。
+
+## 相关文档
+
+- [运行时遥测（字段与边界）](../reference/telemetry.md)
+- [Langfuse 运行合同](../contracts/langfuse-runtime.md)
+- [Ops Web 内部门户接口](../contracts/ops-web/internal-portal.md)

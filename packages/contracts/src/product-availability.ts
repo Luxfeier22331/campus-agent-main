@@ -81,8 +81,5 @@ export type ProductAvailabilityStatus = z.infer<typeof ProductAvailabilityStatus
 export type ChatAvailabilityStatus = z.infer<typeof ChatAvailabilityStatusSchema>;
 export type ChatAvailabilityResponse = z.infer<typeof ChatAvailabilityResponseSchema>;
 export type ProductAvailabilityEnvironment = z.infer<typeof ProductAvailabilityEnvironmentSchema>;
-export type ProductAvailabilityTimelineEntry = z.infer<
-	typeof ProductAvailabilityTimelineEntrySchema
->;
 export type ProductAvailabilityService = z.infer<typeof ProductAvailabilityServiceSchema>;
 export type ProductAvailabilitySnapshot = z.infer<typeof ProductAvailabilitySnapshotSchema>;

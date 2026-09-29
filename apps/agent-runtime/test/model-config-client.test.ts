@@ -103,20 +103,6 @@ describe("Model Config runtime client", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
-	it.each(["", "stale", "A".repeat(64), `sha256:${"a".repeat(64)}`])(
-		"rejects invalid expected hash %j before making a request",
-		async (expected) => {
-			const fetchMock = vi.fn<typeof fetch>();
-			await expect(
-				resolveModelRuntimeConfig(
-					{ baseUrl: "http://model-config", fetchImplementation: fetchMock },
-					expected,
-				),
-			).rejects.toMatchObject({ code: "invalid_model_target_sha256", status: 400 });
-			expect(fetchMock).not.toHaveBeenCalled();
-		},
-	);
-
 	it.each([
 		[409, "model_target_mismatch"],
 		[401, "model_config_unavailable"],
@@ -159,10 +145,6 @@ describe("Model Config runtime client", () => {
 		["unknown field", Response.json({ ...validRuntimeConfig, extra: true })],
 		["empty secret", Response.json({ ...validRuntimeConfig, api_key: " " })],
 		["wrong name", Response.json({ ...validRuntimeConfig, name: "notice_classification" })],
-		[
-			"mismatched revision",
-			Response.json({ ...validRuntimeConfig, target_sha256: "0".repeat(64) }),
-		],
 	] as const)("rejects %s", async (_name, response) => {
 		let error: unknown;
 		try {

@@ -63,3 +63,8 @@ sampling、`persist=false`、`invocation_logs=false` 和
   destination 时先修复配置漂移，再执行完整哨兵检查。
 
 验收结果记录在所属 release 或 incident 中，不提交外部平台导出正文。
+
+## 相关文档
+
+- [运行时遥测（字段与边界）](../../reference/telemetry.md)
+- [Langfuse 运行合同](../../contracts/langfuse-runtime.md)

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -163,58 +162,10 @@ func publicErrorMessage(code string, _ string) string {
 	}
 }
 
-func writeRetryableAdmissionError(
-	response http.ResponseWriter,
-	queueTimeoutMS int,
-	code string,
-	message string,
-) {
-	response.Header().Set("retry-after", retryAfterSeconds(queueTimeoutMS))
-	writeError(response, http.StatusServiceUnavailable, code, message, true)
-}
-
-func retryAfterSeconds(timeoutMS int) string {
-	if timeoutMS <= 0 {
-		return "1"
-	}
-	seconds := (timeoutMS + 999) / 1000
-	if seconds <= 0 {
-		seconds = 1
-	}
-	return strconv.Itoa(seconds)
-}
-
 func writeJSON(response http.ResponseWriter, status int, body any) {
 	response.Header().Set("content-type", "application/json")
 	response.WriteHeader(status)
 	_ = json.NewEncoder(response).Encode(body)
-}
-
-func writeRawJSON(response http.ResponseWriter, status int, body []byte) {
-	response.Header().Set("content-type", "application/json")
-	response.WriteHeader(status)
-	_, _ = response.Write(body)
-}
-
-func normalizeJSONObjectJSON(rawBody []byte) ([]byte, error) {
-	body, err := decodeJSONObject(rawBody)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(body)
-}
-
-func executionErrorCode(rawBody []byte) string {
-	body, err := decodeJSONObject(rawBody)
-	if err != nil {
-		return ""
-	}
-	errorBody, ok := body["error"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	code, _ := errorBody["code"].(string)
-	return strings.TrimSpace(code)
 }
 
 func decodeJSONObject(rawBody []byte) (map[string]any, error) {
@@ -230,14 +181,4 @@ func defaultString(value string, defaultValue string) string {
 		return defaultValue
 	}
 	return value
-}
-
-func toLowerASCII(value string) string {
-	buffer := []byte(value)
-	for index, item := range buffer {
-		if item >= 'A' && item <= 'Z' {
-			buffer[index] = item + ('a' - 'A')
-		}
-	}
-	return string(buffer)
 }

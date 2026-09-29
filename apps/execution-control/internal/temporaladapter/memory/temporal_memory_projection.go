@@ -10,45 +10,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
-func MemoryRecallRequestForRun(
-	run execution.DurableRun,
-	payload map[string]any,
-) (memoryruntime.RecallRequest, error) {
-	if payload == nil {
-		return memoryruntime.RecallRequest{}, errors.New("execution input is required")
-	}
-	userGoal := strings.TrimSpace(execution.OptionalStringFromAny(payload["user_goal"]))
-	if userGoal == "" {
-		return memoryruntime.RecallRequest{}, errors.New("memory recall user_goal is required")
-	}
-	userID := execution.FirstNonEmptyText(
-		execution.NestedAny(payload, "actor", "user_id"),
-		execution.NestedAny(payload, "context", "actor", "user_id"),
-		run.OwnerUserID,
-	)
-	ownerGeneration, err := MemoryOwnerGenerationFromPayload(payload)
-	if err != nil {
-		return memoryruntime.RecallRequest{}, err
-	}
-	queryTimestamp := strings.TrimSpace(execution.OptionalStringFromAny(
-		execution.NestedAny(payload, "context", "conversation", "current_user_message", "created_at"),
-	))
-	request := memoryruntime.RecallRequest{
-		OwnerGeneration: ownerGeneration,
-		QueryTimestamp:  queryTimestamp,
-		RequestID:       run.RequestID,
-		SessionSlots:    MemorySessionSlotsFromPayload(payload),
-		TenantID:        execution.FirstNonEmptyText(payload["tenant_id"], execution.NestedAny(payload, "context", "tenant_id")),
-		ThreadID:        run.ConversationID,
-		UserGoal:        userGoal,
-		UserID:          userID,
-	}
-	if err := memoryruntime.ValidateRecallRequest(request); err != nil {
-		return memoryruntime.RecallRequest{}, err
-	}
-	return request, nil
-}
-
 func MemoryOwnerGenerationFromPayload(payload map[string]any) (int64, error) {
 	generation, ok := ExactInt64(execution.NestedAny(payload, "context", "memory", "owner_generation"))
 	if !ok || generation < 1 {
@@ -72,30 +33,6 @@ func ExactInt64(value any) (int64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func MemorySessionSlotsFromPayload(payload map[string]any) map[string]string {
-	rawSlots := execution.NestedAny(payload, "context", "session", "confirmed_slots")
-	items, ok := rawSlots.([]any)
-	if !ok || len(items) == 0 {
-		return nil
-	}
-	result := map[string]string{}
-	for _, raw := range items {
-		record, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		name := strings.TrimSpace(execution.OptionalStringFromAny(record["name"]))
-		value := strings.TrimSpace(execution.OptionalStringFromAny(record["value"]))
-		if name != "" && value != "" {
-			result[name] = value
-		}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
 }
 
 func (s *Adapter) RecallPersonalMemory(

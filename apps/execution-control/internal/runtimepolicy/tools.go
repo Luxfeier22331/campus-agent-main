@@ -16,14 +16,6 @@ func ModelVisibleFunctionToolNames() []string {
 	return registry.ModelVisibleFunctionToolNames()
 }
 
-func ModelVisibleToolByName(name string) (ToolSpec, bool) {
-	registry, ok := DefaultToolSpecRegistry()
-	if !ok {
-		return ToolSpec{}, false
-	}
-	return registry.ModelVisibleToolByName(name)
-}
-
 func DefaultToolSpecRegistry() (ToolSpecRegistry, bool) {
 	defaultToolSpecRegistryOnce.Do(func() {
 		registry, err := LoadToolSpecRegistry("")

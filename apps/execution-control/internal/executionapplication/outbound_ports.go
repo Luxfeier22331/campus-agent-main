@@ -55,10 +55,9 @@ type ProductCallbackClient interface {
 }
 
 type PersonalMemoryCommandResultRequest struct {
-	CommandID         string
-	ErrorCode         string
-	ResultFingerprint string
-	Status            string
+	CommandID string
+	ErrorCode string
+	Status    string
 }
 
 type ExecutionFinalizationRequest struct {

@@ -12,8 +12,8 @@
 
 本包不持久化 TGC（归 Ops Web 凭据服务），不解析通知内容，不拥有采集编排与对象写入。
 消费者为 `apps/ops-web`（凭据服务与配置）和 `jobs/internal-portal-collection`
-（`adapters/internal-portal`）。采集流程与故障排查见 `docs/runbooks/ingestion.md`，
-TGC 管理见 `docs/runbooks/portal-auth.md`。
+（`adapters/internal-portal`）。采集流程与故障排查见 `docs/runbooks/ingestion/ingestion.md`，
+TGC 管理见 `docs/runbooks/access/portal-auth.md`。
 
 ```bash
 pnpm --dir packages/internal-portal-client typecheck

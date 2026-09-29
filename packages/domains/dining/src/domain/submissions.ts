@@ -15,7 +15,6 @@ const cursor = z.string().min(1).nullable();
 const submissionContent = DiningMenuItemSchema.pick({ name: true, priceText: true });
 
 export const DINING_SUBMISSION_PHOTO_MAX_INPUT_BYTES = 10 * 1024 * 1024;
-export const DINING_SUBMISSION_PHOTO_MAX_INPUT_DIMENSION = 4096;
 export const DINING_SUBMISSION_PHOTO_MAX_OUTPUT_DIMENSION = 1600;
 
 export const DiningSubmissionRevisionSchema = z.number().int().positive();
@@ -61,8 +60,6 @@ export const DiningMySubmissionPhotoSchema = z
 			),
 	})
 	.strict();
-
-export type DiningMySubmissionPhoto = z.infer<typeof DiningMySubmissionPhotoSchema>;
 
 export const DiningSubmissionSchema = submissionContent
 	.extend({
@@ -156,15 +153,10 @@ export const DiningSubmissionReviewPageSchema = z
 export type DiningSubmissionReviewPage = z.infer<typeof DiningSubmissionReviewPageSchema>;
 
 export const DiningSubmissionReviewCreateSchema = DiningReviewCreateSchema;
-export type DiningSubmissionReviewCreate = z.infer<typeof DiningSubmissionReviewCreateSchema>;
 
 export const DiningSubmissionReportCreateSchema = DiningReviewReportCreateSchema;
-export type DiningSubmissionReportCreate = z.infer<typeof DiningSubmissionReportCreateSchema>;
 
 export const DiningSubmissionReviewReportCreateSchema = DiningReviewReportCreateSchema;
-export type DiningSubmissionReviewReportCreate = z.infer<
-	typeof DiningSubmissionReviewReportCreateSchema
->;
 
 export const DiningOpsSubmissionPhotoSchema = z
 	.object({
@@ -293,21 +285,13 @@ export const DiningOpsSubmissionRevisionSchema = z
 	.object({ expectedRevision: DiningSubmissionRevisionSchema })
 	.strict();
 
-export type DiningOpsSubmissionRevision = z.infer<typeof DiningOpsSubmissionRevisionSchema>;
-
 export const DiningOpsSubmissionVisibilitySchema = DiningOpsSubmissionRevisionSchema.extend({
 	visible: z.boolean(),
 }).strict();
 
-export type DiningOpsSubmissionVisibility = z.infer<typeof DiningOpsSubmissionVisibilitySchema>;
-
 export const DiningOpsSubmissionReportResolutionSchema = DiningOpsSubmissionRevisionSchema.extend(
 	DiningReportResolutionSchema.shape,
 ).strict();
-
-export type DiningOpsSubmissionReportResolution = z.infer<
-	typeof DiningOpsSubmissionReportResolutionSchema
->;
 
 export const DiningOpsSubmissionHistoricalPhotoSchema = z.discriminatedUnion("state", [
 	DiningOpsSubmissionPhotoSchema.extend({
@@ -348,8 +332,6 @@ export const DiningOpsSubmissionEditRecordSchema = z
 		message: "The next revision must follow the previous revision.",
 		path: ["nextRevision"],
 	});
-
-export type DiningOpsSubmissionEditRecord = z.infer<typeof DiningOpsSubmissionEditRecordSchema>;
 
 export const DiningOpsSubmissionDetailSchema = z
 	.object({
@@ -485,8 +467,6 @@ export const DiningOpsContentReportTargetSchema = z
 			});
 		}
 	});
-
-export type DiningOpsContentReportTarget = z.infer<typeof DiningOpsContentReportTargetSchema>;
 
 export const DiningOpsContentReportRecordSchema = z
 	.object({

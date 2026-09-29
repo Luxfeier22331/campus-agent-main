@@ -463,7 +463,6 @@ describe("execution control runtime adapter", () => {
 					error_code: "",
 					generation: 2,
 					kind: "memory_add",
-					result_fingerprint: "a".repeat(64),
 					sequence: 7,
 					stale: false,
 					status: "succeeded",

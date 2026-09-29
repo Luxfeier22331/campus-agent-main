@@ -57,7 +57,7 @@ Status: implemented
 - [通知数据](../../../../docs/data/notices.md)
 - [通知](../../../../docs/architecture/domains/notices.md)
 - [采集数据面](../../../../docs/architecture/system/data-plane.md)
-- [采集运行](../../../../docs/runbooks/ingestion.md)
+- [采集运行](../../../../docs/runbooks/ingestion/ingestion.md)
 - [内部门户数据](../../../../docs/data/internal-portal.md)
 - 本篇承接已合并的“认证通知来源”（原 ADR-0024）的来源通道与职责边界
 - 部分被 [规范化通知存储](./2026-08-14-normalized-notice-storage.md)和 [通知维护状态收敛](./2026-08-25-notice-maintenance-state.md)取代。

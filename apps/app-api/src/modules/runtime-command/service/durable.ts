@@ -382,16 +382,3 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 		sourceEvent: "execution.completed",
 	};
 }
-
-export function finalizationResponseFromDurableRunEvents(
-	context: DurableRunEventContext,
-	runEvents: ExecutionControlRunEvent[],
-): ToolExecutionResponse | null {
-	for (const runEvent of runEvents) {
-		const finalizationResponse = finalizationResponseFromDurableRunEvent(context, runEvent);
-		if (finalizationResponse) {
-			return finalizationResponse;
-		}
-	}
-	return null;
-}

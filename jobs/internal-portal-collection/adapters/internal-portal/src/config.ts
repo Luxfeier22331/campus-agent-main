@@ -8,10 +8,6 @@ import descriptorSource from "../../../../../configs/sources/internal-portal.jso
 };
 
 const adapterRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const INTERNAL_PORTAL_DESCRIPTOR_PATH = fileURLToPath(
-	new URL("../../../../../configs/sources/internal-portal.json", import.meta.url),
-);
-
 export interface InternalPortalDescriptor {
 	portalBaseUrl: string;
 	portalPageUrl: string;

@@ -46,5 +46,5 @@ Status: implemented
 一个发布周期作迁移恢复，staging 新流程与消费者验证后删除；不能把本地验证当作已完成线上切换。
 保留的 release 及引用对象受现有人工清理边界保护，不增加自动清理器。
 
-操作、字段和失败处理分别由[维护手册](../../../../docs/runbooks/campus-docs.md)、
+操作、字段和失败处理分别由[维护手册](../../../../docs/runbooks/ingestion/campus-docs.md)、
 [阅读器数据](../../../../docs/data/document-reader.md)和[交付合同](../../../../docs/contracts/document-reader-delivery.md)维护。

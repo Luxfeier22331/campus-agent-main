@@ -38,10 +38,6 @@ func ValidateDurableRunFailureEventForRun(run DurableRun, event DurableRunEvent)
 func ValidateDurableRunFailureReplay(run DurableRun, request DurableRunFailRequest, storedEvent DurableRunEvent) error {
 	return validateDurableRunFailureReplay(run, request, storedEvent)
 }
-func DurableRunEventPayloadFingerprint(payload map[string]any) (string, error) {
-	return durableRunEventPayloadFingerprint(payload)
-}
-func DurableRunStatusValid(status DurableRunStatus) bool    { return durableRunStatusValid(status) }
 func DurableRunStatusIsActive(status DurableRunStatus) bool { return durableRunStatusIsActive(status) }
 func DurableRunStatusIsTerminal(status DurableRunStatus) bool {
 	return durableRunStatusIsTerminal(status)

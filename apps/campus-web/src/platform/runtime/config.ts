@@ -37,14 +37,6 @@ export function buildAccountLoginUrl(config: CampusRuntimeConfig, returnTo: stri
 	return url.toString();
 }
 
-export function buildAccountLoginUrlForCurrentRoute(): string {
-	if (typeof window === "undefined") {
-		throw new Error("Campus login return target is unavailable outside the browser.");
-	}
-	const returnTo = `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
-	return buildAccountLoginUrl(getCampusRuntimeConfig(), returnTo);
-}
-
 function normalizeCampusRuntimeConfig(input: {
 	accountUrl?: unknown;
 	loginUrl?: unknown;

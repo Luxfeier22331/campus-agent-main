@@ -39,5 +39,5 @@ hash 不匹配报 `Applied migration SQL changed`（不会误升级）。
 
 集成测试 7/7 通过（含并发、失败回滚、非 owner 拒绝），单测 9/9 通过。
 
-操作、字段和失败处理分别由[维护手册](../../../../docs/runbooks/execution.md)和
+操作、字段和失败处理分别由[维护手册](../../../../docs/runbooks/runtime/execution.md)和
 [README](../../../../jobs/campus-agent-schema/README.md)维护。

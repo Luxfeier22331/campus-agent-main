@@ -109,6 +109,11 @@ score 名称由代码级 allowlist 校验，不再同步独立 score registry。
 - project、credential、Collector pipeline 或 workflow 存在不证明数据已写入或删除；需要数据事实时
   必须查询实际 project。
 
+## 相关文档
+
+- [运行时遥测（字段与边界）](../reference/telemetry.md)
+- [Worker 发布与平台诊断](../runbooks/observability/worker-otel.md)
+
 ## 参考
 
 - [Langfuse](../../.agents/notes/implemented/architecture/2026-07-16-langfuse.md)

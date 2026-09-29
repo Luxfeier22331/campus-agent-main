@@ -69,14 +69,6 @@ async function fingerprint(value: unknown): Promise<string> {
 	return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function normalizeReason(value: string): string {
-	const reason = value.trim();
-	if (!reason || reason.length > 500) {
-		throw routeError("invalid_reason", "A reason between 1 and 500 characters is required.", 400);
-	}
-	return reason;
-}
-
 function detailState(input: {
 	banned: boolean;
 	deleting: boolean;
@@ -289,7 +281,7 @@ export function buildAccountAdminService(input: {
 
 	return {
 		async banUser(command) {
-			const reason = normalizeReason(command.reason);
+			const reason = command.reason;
 			await getExistingUser(command.userId);
 			await assertNotDeleting(command.userId);
 			await runCommand({
@@ -310,7 +302,7 @@ export function buildAccountAdminService(input: {
 		},
 		getUser: getUserDetail,
 		async issueTemporaryPassword(command) {
-			const reason = normalizeReason(command.reason);
+			const reason = command.reason;
 			await getExistingUser(command.userId);
 			await assertNotDeleting(command.userId);
 			const result = await runCommand({
@@ -363,7 +355,7 @@ export function buildAccountAdminService(input: {
 			return getUserDetail(command.userId);
 		},
 		async revokeUserSessions(command) {
-			const reason = normalizeReason(command.reason);
+			const reason = command.reason;
 			await getExistingUser(command.userId);
 			await runCommand({
 				action: "sessions_revoked",
@@ -429,7 +421,7 @@ export function buildAccountAdminService(input: {
 			return getUserDetail(command.userId);
 		},
 		async unbanUser(command) {
-			const reason = normalizeReason(command.reason);
+			const reason = command.reason;
 			await getExistingUser(command.userId);
 			await runCommand({
 				action: "account_unbanned",

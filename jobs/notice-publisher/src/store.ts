@@ -72,7 +72,6 @@ export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): Publi
 						ContentType: input.contentType,
 						IfNoneMatch: "*",
 						Key: key,
-						Metadata: { "content-sha256": input.digest },
 					}),
 				);
 				return;

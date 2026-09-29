@@ -69,7 +69,7 @@ scope 额外使用 GitHub App token 读取 `campus-agent-gitops`。
 API 删除还要求 token 对目标 package 具备相应权限；失败时报告原因，不切换个人 PAT 或扩大组织权限。
 本地凭据的成功不能替代真实 workflow token 的验收。
 
-## 相关决策
+## 相关文档
 
-- [PR 缓存直查与暂停全量清理](../../.agents/notes/implemented/process/2026-09-17-ghcr-pr-cache-direct-cleanup.md)
-- [原镜像保留与退役决策](../../.agents/notes/implemented/process/2026-09-04-ghcr-retention.md)
+- [PR 缓存直查与暂停全量清理](../../../.agents/notes/implemented/process/2026-09-17-ghcr-pr-cache-direct-cleanup.md)
+- [原镜像保留与退役决策](../../../.agents/notes/implemented/process/2026-09-04-ghcr-retention.md)

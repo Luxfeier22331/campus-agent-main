@@ -1,4 +1,3 @@
-import type { OcrTask } from "@campus-agent/document-ocr";
 import { z } from "zod";
 
 const OcrBatchSchema = z
@@ -41,5 +40,3 @@ export const OcrReadingSchema = z
 	.strict();
 
 export type NoticeOcr = z.infer<typeof NoticeOcrSchema>;
-export type OcrReading = z.infer<typeof OcrReadingSchema>;
-export type OcrTaskView = OcrTask;

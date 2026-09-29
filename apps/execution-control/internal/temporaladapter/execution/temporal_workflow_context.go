@@ -11,14 +11,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-const WorkflowTransportGraceMS = 5000
-
-const (
-	DefaultAgentDeadlineMS        = 240000
-	DefaultAgentCurrentInputChars = 8000
-	DefaultAgentContextChars      = 16000
-)
-
 type WorkflowRuntimeLimits struct {
 	AgentDeadlineMS       int
 	ContextCharLimit      int
@@ -41,13 +33,6 @@ func WorkflowRuntimeLimitsPayload(limits WorkflowRuntimeLimits) map[string]any {
 		"max_plan_steps":           limits.MaxPlanSteps,
 		"max_replans":              limits.MaxReplans,
 	}
-}
-
-func PositiveOrDefault(value int, fallback int) int {
-	if value > 0 {
-		return value
-	}
-	return fallback
 }
 
 func WorkflowConversationContextForRun(

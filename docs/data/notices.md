@@ -8,7 +8,7 @@ status: active
 ## 边界
 
 本文统一维护通知来源对象、规范化投影和资源的长期数据语义。HTTP 响应由
-[通知接口](../contracts/app-api/notices.md) 维护，采集和发布步骤由 [采集运行](../runbooks/ingestion.md) 维护。
+[通知接口](../contracts/app-api/notices.md) 维护，采集和发布步骤由 [采集运行](../runbooks/ingestion/ingestion.md) 维护。
 
 来源对象保存门户原始数据；采集器在来源和必需资源齐备后同时登记 `notices.notices`。数据库中的
 `category` 是唯一分类状态，`is_published` 是学生端可见边界。通知数据不保存采集批次、模型理由、
@@ -136,7 +136,7 @@ organization 映射异常仅记诊断日志，不阻断批次。
 重新发布与发布共用 publication 失败记录：单条数据性失败按通知隔离、跳过并继续，基础设施错误终止
 本轮；自动 republish 批次不排除已有失败记录的通知，成功重物化在同一事务中清除记录。重新发布不触发
 chunk/embedding 制品，正文变化在下一次完整检索刷新进入 AI 搜索，收敛窗口见
-[通知索引 runbook](../runbooks/notice-indexing.md#与-republish-的一致性)。
+[通知索引 runbook](../runbooks/ingestion/notice-indexing.md#与-republish-的一致性)。
 
 ## 规范化投影
 
@@ -294,7 +294,7 @@ Publisher 成功验证并激活 `campus_docs_serving.current_index` 后，Notice
 
 - [通知](../architecture/domains/notices.md)
 - [通知接口](../contracts/app-api/notices.md)
-- [采集运行](../runbooks/ingestion.md)
+- [采集运行](../runbooks/ingestion/ingestion.md)
 - [内部门户通知来源合同](../../.agents/notes/implemented/architecture/2026-08-14-internal-portal-notice-source.md)
 - [规范化通知存储](../../.agents/notes/implemented/architecture/2026-08-14-normalized-notice-storage.md)
 - [通知维护状态收敛](../../.agents/notes/implemented/architecture/2026-08-25-notice-maintenance-state.md)

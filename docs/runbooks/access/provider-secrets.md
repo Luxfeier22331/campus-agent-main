@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-owner_boundary: docs/runbooks
+owner_boundary: model-config
 status: active
 ---
 
@@ -11,7 +11,7 @@ status: active
 Model Config 管理五个 name 的当前 config：`primary_agent`、
 `campus_docs_embedding`、`campus_docs_reranker`、`notice_classification` 和 `document_ocr`。本文规定这些在线模型
 配置中供应商密钥的首次配置、验证、替换、轮换和撤销。Provider 与环境所有权见
-[Provider 与 Secret](../environment/providers.md)，接口边界见 [模型配置接口](../contracts/ops-web/providers.md)。
+[Provider 与 Secret](../../environment/providers.md)，接口边界见 [模型配置接口](../../contracts/ops-web/providers.md)。
 
 Hindsight、评测、Langfuse、Cloudflare 和其他环境凭据不进入该服务。接口不提供 profile、
 revision、bundle、activation、history、fallback 或在线 rollback。不同部署环境是否使用独立密钥由
@@ -74,5 +74,7 @@ Secret。Model Config 没有需要轮换的内部调用 token。
 - 不把 Hindsight、eval provider 或未来假设性路由放入 Model Config；
 - 不把渲染成功或源码合并描述为环境迁移已经完成。
 
-Hindsight 模型配置见 [Hindsight 个人记忆运维](./hindsight.md)，评测模型配置见
-[Ragas 评测](./ragas.md)。
+## 相关文档
+
+Hindsight 模型配置见 [Hindsight 个人记忆运维](../runtime/hindsight.md)，评测模型配置见
+[Ragas 评测](../ragas.md)。

@@ -219,17 +219,15 @@ describe("product callback routes", () => {
 		expect(conflict.status).toBe(409);
 	});
 
-	it("accepts replayed or superseded memory results with deterministic fingerprints", async () => {
+	it("accepts replayed or superseded memory results", async () => {
 		const applyMemoryResult = vi.fn(async () => "superseded" as const);
 		const dispatchPending = vi.fn(async () => ({ admitted: 1, failed: 0, processed: 1 }));
 		const app = appWithCallbacks({ applyMemoryResult, dispatchPending });
 		const commandId = "memcmd_1";
-		const fingerprint = sha256(`${commandId}\0succeeded\0`);
 
 		const result = await app.request(`/api/internal/profile-memory/commands/${commandId}/result`, {
 			body: JSON.stringify({
 				error_code: "",
-				result_fingerprint: fingerprint,
 				status: "succeeded",
 			}),
 			headers: {
@@ -247,7 +245,6 @@ describe("product callback routes", () => {
 		);
 		expect(applyMemoryResult).toHaveBeenCalledWith({
 			commandId,
-			resultFingerprint: fingerprint,
 			status: "succeeded",
 		});
 	});

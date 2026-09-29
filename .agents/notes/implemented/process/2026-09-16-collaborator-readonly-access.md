@@ -65,7 +65,7 @@ token-auth 文件，授权全部挂在能力组上，集群内零 per-user 对�
    Dex/OIDC（k3s `kube-apiserver-arg` 换 oidc 参数），RBAC 与数据面全部不动。
 
 当前加人、离场、凭证轮换与验收步骤由
-[协作者只读访问 runbook](../../../../docs/runbooks/collaborator-access.md)维护。
+[协作者只读访问 runbook](../../../../docs/runbooks/access/collaborator-access.md)维护。
 
 ## 未采用方案
 

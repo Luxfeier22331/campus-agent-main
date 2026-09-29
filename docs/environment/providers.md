@@ -151,4 +151,4 @@ Worker source map 由 Wrangler 在 Worker 发布链路中上传给 Cloudflare，
   owner Secret 与 PostgreSQL CA；notice-classifier 不读取对象存储，模型设置从 Model Config 读取。
 
 环境文件和覆盖规则见 [环境文件](./env.md)，新增、轮换和撤销步骤见
-[在线模型密钥操作](../runbooks/provider-secrets.md)。
+[在线模型密钥操作](../runbooks/access/provider-secrets.md)。

@@ -9,11 +9,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
-const (
-	testCommandResultFingerprint  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	otherCommandResultFingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-)
-
 type PersonalMemoryCommandRequest = memoryruntime.PersonalMemoryCommandRequest
 type PersonalMemoryCommandItem = memoryruntime.PersonalMemoryCommandItem
 
@@ -38,7 +33,7 @@ func TestInMemoryStateStoreFencesOnlineCallsAcrossPauseAndErase(t *testing.T) {
 	if _, execute, err := store.BeginCommand(ctx, "owner", pause, time.Minute); err != nil || !execute {
 		t.Fatalf("begin pause execute=%t err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(ctx, pause.CommandID, "owner", "succeeded", "", testCommandResultFingerprint, "paused"); err != nil {
+	if _, err := store.FinalizeCommand(ctx, pause.CommandID, "owner", "succeeded", "", "paused"); err != nil {
 		t.Fatalf("complete pause: %v", err)
 	}
 	if err := store.BeginCall(ctx, "owner", "run-2:recall", 1, "recall", time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
@@ -66,7 +61,7 @@ func TestInMemoryStateStoreAllowsEraseToJumpSupersededSequences(t *testing.T) {
 	if _, execute, err := store.BeginCommand(ctx, "owner", pause, time.Minute); err != nil || !execute {
 		t.Fatalf("begin pause: execute=%v err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(ctx, "pause", "owner", "succeeded", "", testCommandResultFingerprint, "paused"); err != nil {
+	if _, err := store.FinalizeCommand(ctx, "pause", "owner", "succeeded", "", "paused"); err != nil {
 		t.Fatal(err)
 	}
 	erase := PersonalMemoryCommandRequest{CommandID: "erase", CommandKind: "owner_erase", OwnerGeneration: 2, OwnerSequence: 4, SchemaVersion: PersonalMemoryCommandSchemaVersion, SupersessionScope: "owner:erase:2"}
@@ -89,7 +84,7 @@ func TestInMemoryStateStoreAllowsSameGenerationEraseAfterErased(t *testing.T) {
 	if _, execute, err := store.BeginCommand(ctx, "owner", first, time.Minute); err != nil || !execute {
 		t.Fatalf("begin first erase execute=%v err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(ctx, first.CommandID, "owner", "succeeded", "", testCommandResultFingerprint, "erased"); err != nil {
+	if _, err := store.FinalizeCommand(ctx, first.CommandID, "owner", "succeeded", "", "erased"); err != nil {
 		t.Fatalf("finalize first erase: %v", err)
 	}
 
@@ -99,7 +94,7 @@ func TestInMemoryStateStoreAllowsSameGenerationEraseAfterErased(t *testing.T) {
 	if _, execute, err := store.BeginCommand(ctx, "owner", duplicate, time.Minute); err != nil || !execute {
 		t.Fatalf("begin duplicate erase execute=%v err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(ctx, duplicate.CommandID, "owner", "succeeded", "", otherCommandResultFingerprint, "erased"); err != nil {
+	if _, err := store.FinalizeCommand(ctx, duplicate.CommandID, "owner", "succeeded", "", "erased"); err != nil {
 		t.Fatalf("finalize duplicate erase: %v", err)
 	}
 }
@@ -115,7 +110,7 @@ func TestInMemoryStateStoreAllowsCoalescedSequenceGapAndRejectsOlderCommand(t *t
 	if _, execute, err := store.BeginCommand(ctx, "owner-gap", coalesced, time.Minute); err != nil || !execute {
 		t.Fatalf("begin coalesced sequence gap execute=%t err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(ctx, coalesced.CommandID, "owner-gap", "succeeded", "", testCommandResultFingerprint, "paused"); err != nil {
+	if _, err := store.FinalizeCommand(ctx, coalesced.CommandID, "owner-gap", "succeeded", "", "paused"); err != nil {
 		t.Fatal(err)
 	}
 	stale := PersonalMemoryCommandRequest{
@@ -134,7 +129,7 @@ func TestInMemoryStateStoreReplaysSucceededReceiptWithoutExecution(t *testing.T)
 	if _, execute, err := store.BeginCommand(context.Background(), "owner", command, time.Minute); err != nil || !execute {
 		t.Fatalf("first begin execute=%t err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "succeeded", "", testCommandResultFingerprint, "paused"); err != nil {
+	if _, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "succeeded", "", "paused"); err != nil {
 		t.Fatal(err)
 	}
 	receipt, execute, err := store.BeginCommand(context.Background(), "owner", command, time.Minute)
@@ -202,7 +197,7 @@ func TestInMemoryStateStoreGenerationDrainIncludesProcessingReceipts(t *testing.
 	if err != nil || drained {
 		t.Fatalf("drained=%t err=%v, want processing receipt to block erase", drained, err)
 	}
-	if _, err := store.FinalizeCommand(ctx, command.CommandID, "owner", "succeeded", "", testCommandResultFingerprint, ""); err != nil {
+	if _, err := store.FinalizeCommand(ctx, command.CommandID, "owner", "succeeded", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	drained, err = store.GenerationDrained(ctx, "owner", 1)
@@ -268,7 +263,7 @@ func TestInMemoryStateStoreBlocksLaterOwnerSequenceUntilEarlierReceiptIsTerminal
 	if _, _, err := store.BeginCommand(ctx, "owner", second, time.Minute); !errors.Is(err, ErrMemoryReceiptBlocked) {
 		t.Fatalf("retryable earlier receipt error=%v, want ErrMemoryReceiptBlocked", err)
 	}
-	if _, err := store.FinalizeCommand(ctx, first.CommandID, "owner", "failed", "personal_memory_command_failed", testCommandResultFingerprint, ""); err != nil {
+	if _, err := store.FinalizeCommand(ctx, first.CommandID, "owner", "failed", "personal_memory_command_failed", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, execute, err := store.BeginCommand(ctx, "owner", second, time.Minute); err != nil || !execute {
@@ -286,19 +281,19 @@ func TestInMemoryStateStoreFinalizesReceiptWithIdempotentCAS(t *testing.T) {
 	if _, execute, err := store.BeginCommand(context.Background(), "owner", command, time.Minute); err != nil || !execute {
 		t.Fatalf("begin execute=%t err=%v", execute, err)
 	}
-	first, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "failed", "personal_memory_command_failed", testCommandResultFingerprint, "")
+	first, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "failed", "personal_memory_command_failed", "")
 	if err != nil || first.Status != "failed" {
 		t.Fatalf("first finalization receipt=%#v err=%v", first, err)
 	}
-	replay, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "failed", "personal_memory_command_failed", testCommandResultFingerprint, "")
+	replay, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "failed", "personal_memory_command_failed", "")
 	if err != nil || replay.Status != "failed" {
 		t.Fatalf("idempotent finalization receipt=%#v err=%v", replay, err)
 	}
-	if _, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "succeeded", "", testCommandResultFingerprint, "paused"); !errors.Is(err, ErrMemoryFenceConflict) {
+	if _, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "succeeded", "", "paused"); !errors.Is(err, ErrMemoryFenceConflict) {
 		t.Fatalf("conflicting finalization error=%v, want ErrMemoryFenceConflict", err)
 	}
-	if _, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "failed", "personal_memory_command_failed", otherCommandResultFingerprint, ""); !errors.Is(err, ErrMemoryFenceConflict) {
-		t.Fatalf("conflicting fingerprint error=%v, want ErrMemoryFenceConflict", err)
+	if _, err := store.FinalizeCommand(context.Background(), command.CommandID, "owner", "failed", "memory_receipt_abandoned", ""); !errors.Is(err, ErrMemoryFenceConflict) {
+		t.Fatalf("conflicting error code error=%v, want ErrMemoryFenceConflict", err)
 	}
 }
 
@@ -323,7 +318,7 @@ func TestInMemoryStateStoreDrainTreatsRetryableReceiptAsActive(t *testing.T) {
 
 func TestInMemoryStateStoreFinalizeCommandMissingReceiptReturnsNotFound(t *testing.T) {
 	store := NewInMemoryStateStore()
-	if _, err := store.FinalizeCommand(context.Background(), "cmd-unknown", "owner", "failed", "personal_memory_command_failed", testCommandResultFingerprint, ""); !errors.Is(err, memoryruntime.ErrMemoryCommandNotFound) {
+	if _, err := store.FinalizeCommand(context.Background(), "cmd-unknown", "owner", "failed", "personal_memory_command_failed", ""); !errors.Is(err, memoryruntime.ErrMemoryCommandNotFound) {
 		t.Fatalf("missing receipt error=%v, want ErrMemoryCommandNotFound", err)
 	}
 }
@@ -346,7 +341,7 @@ func TestInMemoryStateStoreAbandonStaleGenerationReceipts(t *testing.T) {
 	if _, execute, err := store.BeginCommand(ctx, "owner", older, time.Minute); err != nil || !execute {
 		t.Fatalf("begin older execute=%t err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(ctx, older.CommandID, "owner", "succeeded", "", testCommandResultFingerprint, ""); err != nil {
+	if _, err := store.FinalizeCommand(ctx, older.CommandID, "owner", "succeeded", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, execute, err := store.BeginCommand(ctx, "owner", stale, time.Minute); err != nil || !execute {
@@ -371,9 +366,6 @@ func TestInMemoryStateStoreAbandonStaleGenerationReceipts(t *testing.T) {
 	staleReceipt, err := store.GetCommand(ctx, "owner", stale.CommandID)
 	if err != nil || staleReceipt.Status != "failed" || staleReceipt.ErrorCode != "memory_receipt_abandoned" {
 		t.Fatalf("abandoned receipt=%#v err=%v, want failed memory_receipt_abandoned", staleReceipt, err)
-	}
-	if staleReceipt.ResultFingerprint != memoryruntime.CommandResultFingerprint(stale.CommandID, "failed", "memory_receipt_abandoned") {
-		t.Fatalf("abandoned fingerprint=%s, want canonical fingerprint", staleReceipt.ResultFingerprint)
 	}
 	olderReceipt, err := store.GetCommand(ctx, "owner", older.CommandID)
 	if err != nil || olderReceipt.Status != "succeeded" {

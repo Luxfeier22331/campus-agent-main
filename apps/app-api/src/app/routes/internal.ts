@@ -239,18 +239,11 @@ export function registerInternalRoutes(input: {
 		}
 		const body = requireObject(await c.req.json().catch(() => null));
 		const status = body?.status;
-		const resultFingerprint = body?.result_fingerprint;
 		const errorCode = body?.error_code;
 		if (
 			(status !== "succeeded" && status !== "failed") ||
-			typeof resultFingerprint !== "string" ||
-			!/^[a-f0-9]{64}$/u.test(resultFingerprint.trim()) ||
 			(errorCode !== undefined && typeof errorCode !== "string") ||
-			(typeof errorCode === "string" && errorCode.trim().length > 64) ||
-			resultFingerprint.trim() !==
-				sha256(
-					`${c.req.param("commandId").trim()}\0${status}\0${typeof errorCode === "string" ? errorCode.trim() : ""}`,
-				)
+			(typeof errorCode === "string" && errorCode.trim().length > 64)
 		) {
 			return jsonResponse(
 				errorEnvelope({
@@ -265,7 +258,6 @@ export function registerInternalRoutes(input: {
 		const outcome = await memoryService.applyResult({
 			commandId: c.req.param("commandId"),
 			...(typeof errorCode === "string" && errorCode.trim() ? { errorCode: errorCode.trim() } : {}),
-			resultFingerprint: resultFingerprint.trim(),
 			status,
 		});
 		if (outcome === "not_found") {

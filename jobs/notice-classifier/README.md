@@ -11,7 +11,7 @@
 
 ## 相关文档
 
-- 本地与 Kubernetes 操作：`docs/runbooks/ingestion.md`
+- 本地与 Kubernetes 操作：`docs/runbooks/ingestion/ingestion.md`
 - 离线分类与模型评测：`scripts/notices/README.md`
 - 模型配置所有权：`docs/environment/providers.md`
 - 通知数据：`docs/data/notices.md`

@@ -10,13 +10,13 @@ status: active
 本文说明 Temporal Server 与 execution-control poller 的稳定运维规则。具体 chart 版本、Helm
 value、namespace、endpoint 和资源尺寸由环境仓库拥有，不在本文复制。
 
-本文不定义应用工作流语义：在线回答见 [持久 Agent 运行时](../architecture/system/durable-runtime.md)，个人记忆见
-[个人记忆](../architecture/system/memory-plane.md)。平台运维不得改变这些工作流的业务状态。
+本文不定义应用工作流语义：在线回答见 [持久 Agent 运行时](../../architecture/system/durable-runtime.md)，个人记忆见
+[个人记忆](../../architecture/system/memory-plane.md)。平台运维不得改变这些工作流的业务状态。
 
 execution-control 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
 poller。副本数与滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套
 自动扩缩状态。通知采集到 RAG 刷新的编排由 `notice-pipeline-worker` 在独立的 `notice-pipeline` 与
-`notice-artifacts` 队列执行，不占用 execution-control 的 poller，见[采集与离线数据运维](./ingestion.md)。
+`notice-artifacts` 队列执行，不占用 execution-control 的 poller，见[采集与离线数据运维](../ingestion/ingestion.md)。
 
 本地 Temporal 测试属于 integration 验证，不是完整产品 E2E。它使用 Temporal Dev Server、测试 worker
 和测试 projection，不连接 staging、真实 Agent Runtime 或 PostgreSQL。运行入口由 execution-control
@@ -47,7 +47,7 @@ execution-control 网关为新建在线回答固定设置 900 秒的 Temporal `W
 源码常量拥有，不是环境变量；source K8s manifest、本地 compose 和环境仓均不投递覆盖值。修改超时
 必须调整源码并验证受影响的启动合同，只影响之后启动的 workflow，不能缩短已经运行的 execution，
 也不能代替 activity deadline。
-超时后的产品终态顺序由[持久 Agent 运行时](../architecture/system/durable-runtime.md#取消超时与终态处理)
+超时后的产品终态顺序由[持久 Agent 运行时](../../architecture/system/durable-runtime.md#取消超时与终态处理)
 定义，运维不得直接修改 PostgreSQL 投影来跳过回调或输入清理。
 
 ## 变更步骤
@@ -152,5 +152,5 @@ Temporal persistence 与 visibility database 是 platform data。backup、restor
 
 ## 相关文档
 
-- [Temporal 执行面](../../.agents/notes/implemented/architecture/2026-06-06-temporal.md)
-- [Kubernetes 运行时](../architecture/system/k8s-runtime.md)
+- [Temporal 执行面](../../../.agents/notes/implemented/architecture/2026-06-06-temporal.md)
+- [Kubernetes 运行时](../../architecture/system/k8s-runtime.md)

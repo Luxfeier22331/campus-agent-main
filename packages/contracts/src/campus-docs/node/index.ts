@@ -6,7 +6,7 @@ import readerSchema from "../../../schemas/campus-docs-reader.v3.schema.json" wi
 import sourceSchema from "../../../schemas/campus-docs-source.v4.schema.json" with { type: "json" };
 
 import { parseDocsReaderContract } from "../reader.ts";
-import type { DocsCourseMaps, DocsReader, DocsSourceManifest, ObjectRef } from "../types.ts";
+import type { DocsCourseMaps, DocsReader, DocsSourceManifest } from "../types.ts";
 
 export { DOCS_SOURCE_KEY } from "../constants.ts";
 export {
@@ -31,29 +31,6 @@ export function parseReader(value: unknown): DocsReader {
 
 export function parseCourseMaps(value: unknown): DocsCourseMaps {
 	return validate(value, courseMapsValidator, "docs course maps");
-}
-
-export function parseObjectRef(value: unknown): ObjectRef {
-	if (!(value && typeof value === "object" && !Array.isArray(value))) {
-		throw new Error("object ref must be an object");
-	}
-	const record = value as Record<string, unknown>;
-	if (
-		typeof record.key !== "string" ||
-		!record.key.trim() ||
-		typeof record.byteSize !== "number" ||
-		!Number.isSafeInteger(record.byteSize) ||
-		record.byteSize < 1 ||
-		typeof record.sha256 !== "string" ||
-		!/^sha256:[a-f0-9]{64}$/u.test(record.sha256)
-	) {
-		throw new Error("object ref requires key, positive byteSize and sha256 digest");
-	}
-	return {
-		byteSize: record.byteSize,
-		key: record.key,
-		sha256: record.sha256 as `sha256:${string}`,
-	};
 }
 
 function validate<T>(value: unknown, validator: ValidateFunction<T>, label: string): T {

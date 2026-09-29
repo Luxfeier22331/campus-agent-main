@@ -98,4 +98,4 @@ Agent 只通过 `campus_search` 读取已发布的当前 collection。
 - [简化采集控制面与内部门户凭据所有权](../../../.agents/notes/implemented/simplification/2026-08-19-internal-portal-credential-resolution.md)（采集控制面退役与当前凭据所有权的理由）
 - [内部门户数据](../../data/internal-portal.md)
 - [通知数据](../../data/notices.md)
-- [采集运行](../../runbooks/ingestion.md)
+- [采集运行](../../runbooks/ingestion/ingestion.md)

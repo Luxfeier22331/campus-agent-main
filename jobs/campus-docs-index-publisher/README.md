@@ -77,7 +77,7 @@ chunk 都携带同一上下文，并按剩余字符预算重新拆分表格正�
 
 治理入口与生产分块共用本包实现，读取显式 Chunk Set，不自动改写生产定义或索引绑定。
 审阅、标签汇总、同题集真实 Embedding 评测与对比的操作、路径解析和结果解释统一见
-[Chunk 策略治理验证](../../docs/runbooks/campus-docs.md#chunk-策略治理验证)。
+[Chunk 策略治理验证](../../docs/runbooks/ingestion/campus-docs.md#chunk-策略治理验证)。
 这些本地诊断不是 PR gate，也不代表线上 hybrid 与 reranker 效果。
 
 ## Embedding 阶段
@@ -144,11 +144,11 @@ kubectl -n <namespace> create -f -
 
 需要复用向量时，在 Docs Embedding 的 `kubectl set env` 命令中同时设置
 `CAMPUS_DOCS_REUSE_EMBEDDING_SET=sha256:<id>`。每个 Job 只执行自己的阶段，不触发下一阶段。Notice
-builder 和统一 Publisher 的完整操作顺序见 [Campus Docs 与 Notices 操作手册](../../docs/runbooks/campus-docs.md)。
+builder 和统一 Publisher 的完整操作顺序见 [Campus Docs 与 Notices 操作手册](../../docs/runbooks/ingestion/campus-docs.md)。
 
 ## 相关文档
 
-- 完整操作步骤：[Campus Docs 与 Notices 操作手册](../../docs/runbooks/campus-docs.md)
+- 完整操作步骤：[Campus Docs 与 Notices 操作手册](../../docs/runbooks/ingestion/campus-docs.md)
 - 索引架构与制品语义：[检索服务](../../docs/architecture/system/retrieval-serving.md)
 - 文档输入数据：[阅读器数据](../../docs/data/document-reader.md)
 - 设计理由：[机构知识决策](../../.agents/notes/implemented/architecture/2026-07-29-agent-knowledge-tools.md)

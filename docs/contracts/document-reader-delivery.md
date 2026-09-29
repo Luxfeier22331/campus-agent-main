@@ -103,7 +103,7 @@ reader 提取与分段质量门禁在这一步执行，验证成功后
 以 `If-None-Match: *` 写入不可变副本，以开始时的 `If-Match` 更新固定键；首次创建固定键也使用
 `If-None-Match: *`。已有副本必须逐字节一致。固定键写入成功即完成发布，条件冲突直接失败，不自动覆盖、回读或重试。
 编译失败不得修改当前来源。对象存储地址和凭据不写入声明或清单。具体更新操作见
-[Campus Docs 维护与索引发布](../runbooks/campus-docs.md)。
+[Campus Docs 维护与索引发布](../runbooks/ingestion/campus-docs.md)。
 
 来源对象引用仍按摘要核对。reader 原件保存在对象存储；最终课程图只存在于 Campus Web 的本次构建
 目录及最终静态产物中，不回写对象存储。
@@ -175,8 +175,8 @@ version 时同时回滚全部文档静态内容。
 
 ## 操作入口
 
-- 来源更新、Campus Web 刷新与检索索引操作：[Campus Docs 与 Notices 维护及统一 RAG 发布](../runbooks/campus-docs.md)；
-- 环境选择与候选发布：[发布](../runbooks/release.md)；
+- 来源更新、Campus Web 刷新与检索索引操作：[Campus Docs 与 Notices 维护及统一 RAG 发布](../runbooks/ingestion/campus-docs.md)；
+- 环境选择与候选发布：[发布](../runbooks/release/release.md)；
 - 数据对象定义：[文档阅读器数据模型](../data/document-reader.md)。
 
 ## 相关文档

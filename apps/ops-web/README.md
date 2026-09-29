@@ -120,9 +120,8 @@ bucket，生成 Ops Web 及通知采集、分类、发布任务实际读取的�
 班车 baseline、Notice、分类模型与 Dining 本地基线。班车由 Ops Web 直接维护，使用统一 `ops_web` 角色；Dining
 不创建专属角色、连接、桶或凭据。
 
-Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
-`packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，对应的
-DDL 与其他产品 schema 一起由 `jobs/campus-agent-schema/` 管理，并记录在
+Ops Web 的 Dining schema 位于 `packages/domains/dining/src/schema.ts`；内部门户凭据与
+automation token 表与 Dining 表的 DDL 一起由 `jobs/campus-agent-schema/` 管理，并记录在
 `drizzle.campus_agent_migrations`。产品基础数据统一通过 `pnpm dev:init -- --target ops-web`
 初始化；默认 seed 与 core 相同，支持 `--data cluster --context <context> --namespace <namespace>`。
 已有数据要求显式 `--replace` 才会替换；应用离线，共享基础设施继续运行。seed 不创建表，

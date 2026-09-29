@@ -62,7 +62,6 @@ type RunProjectionStore interface {
 
 type OwnerDeletionStore interface {
 	BeginOwnerDeletion(context.Context, string, time.Time) (execution.OwnerDeletionStatus, error)
-	OwnerDeletionStatus(context.Context, string) (execution.OwnerDeletionStatus, error)
 	FinalizeOwnerDeletion(context.Context, execution.OwnerDeletionFinalizeRequest) (execution.OwnerDeletionStatus, error)
 }
 

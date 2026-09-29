@@ -150,6 +150,11 @@ Campus Web 资产 manifest、地点字段和验证命令仍以其当前代码和
    更新其静态资产和地点目录，并运行所属验证命令。不要提交 `.qgz`、`.gpkg`、OSM 下载文件、
    瓦片缓存、参考截图、Georeferencer 输出、QGIS 备份或其他中间文件。
 
+## 相关文档
+
+- [校园地点（地点目录与校园地图读取）](../domains/place.md)
+- [校园地图资产（发布清单、命令与署名）](../../apps/campus-web/assets/campus-map/README.md)
+
 ## 官方参考
 
 - [QGIS：创建 GeoPackage 图层和导出矢量数据](https://docs.qgis.org/latest/en/docs/user_manual/managing_data_source/create_layers.html)

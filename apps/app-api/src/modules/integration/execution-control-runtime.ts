@@ -204,7 +204,6 @@ export function createExecutionControlPersonalMemoryClient(
 				typeof payload.command_id !== "string" ||
 				typeof payload.status !== "string" ||
 				typeof payload.error_code !== "string" ||
-				typeof payload.result_fingerprint !== "string" ||
 				typeof payload.stale !== "boolean"
 			) {
 				throw new Error("execution control returned an invalid memory command status");
@@ -212,7 +211,6 @@ export function createExecutionControlPersonalMemoryClient(
 			return {
 				commandId: payload.command_id,
 				errorCode: payload.error_code,
-				resultFingerprint: payload.result_fingerprint,
 				stale: payload.stale,
 				status: payload.status,
 			};

@@ -67,7 +67,7 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 
 固定来源键表达完整期望集合。静态构建与 Docs Chunk builder 分别读取它；统一检索 publisher 只消费
 显式 Docs/Notice 制品，不直接读取来源清单。两条发布链不维护跨系统事务；具体更新和手动索引步骤见
-[Campus Docs 维护与索引发布](../../runbooks/campus-docs.md)。
+[Campus Docs 维护与索引发布](../../runbooks/ingestion/campus-docs.md)。
 
 不可变 Worker version 携带同一构建生成的文档内容；环境仓只选择 Worker version。环境交接和候选
 发布不由本文记录，按[运行时发布](runtime-release.md)处理。
@@ -76,6 +76,8 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 
 - [文档来源与静态交付合同](../../contracts/document-reader-delivery.md)
 - [文档阅读器数据模型](../../data/document-reader.md)
+- [Docs 来源声明（编辑与发布入口）](../../../apps/campus-web/docs-source/README.md)
 - [原生阅读器决策](../../../.agents/notes/implemented/feature/2026-08-01-native-reader.md)
 - [文档声明与生成发布决策](../../../.agents/notes/implemented/architecture/2026-09-22-docs-source-declarations.md)
+- [Campus Web 文档构建分片](../../../.agents/notes/implemented/architecture/2026-09-17-campus-web-docs-shard-build.md)
 - [运行时发布](runtime-release.md)

@@ -60,12 +60,12 @@ status: active
 恢复演练不得把这些不同 owner 的事实合并成一个 PostgreSQL 表，也不得复制 Hindsight、Temporal 或 Qdrant
 的内部历史来“补齐”恢复证据。
 
-## 相关入口
+## 相关文档
 
 - [PostgreSQL 所有权](../data/postgres-ownership.md)
 - [对象存储 ADR](../../.agents/notes/implemented/architecture/2026-07-16-object-storage.md)
-- [Campus Docs 维护与索引发布](./campus-docs.md)
-- [Temporal runbook](./temporal.md)
+- [Campus Docs 维护与索引发布](./ingestion/campus-docs.md)
+- [Temporal runbook](./runtime/temporal.md)
 
 ## CNPG 备份恢复与失败副本重建
 

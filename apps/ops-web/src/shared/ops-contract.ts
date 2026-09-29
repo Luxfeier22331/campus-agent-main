@@ -225,7 +225,6 @@ export const ModelDiscoveryResponseSchema = z
 		sampledAt: IsoDateTimeSchema,
 	})
 	.strict();
-export type ModelDiscoveryResponse = z.infer<typeof ModelDiscoveryResponseSchema>;
 
 export const ExecutionModelSettingSchema = z.object({
 	baseUrl: z.string().url(),
@@ -356,9 +355,6 @@ export const InternalPortalAutomationCredentialUpdateSchema = z
 			.max(16 * 1024),
 	})
 	.strict();
-export type InternalPortalAutomationCredentialUpdate = z.infer<
-	typeof InternalPortalAutomationCredentialUpdateSchema
->;
 
 const OpsStatusSchema = z.enum([
 	"COMPLETED",
@@ -580,7 +576,6 @@ export const OpsOverviewResponseSchema = z.object({
 export type OpsDataState = z.infer<typeof OpsDataStateSchema>;
 export type OpsHealthStatus = z.infer<typeof OpsHealthStatusSchema>;
 export type OpsOverviewResponse = z.infer<typeof OpsOverviewResponseSchema>;
-export type OpsOverviewWindow = z.infer<typeof OpsOverviewWindowSchema>;
 export type OpsRequestDetailResponse = z.infer<typeof OpsRequestDetailResponseSchema>;
 export type OpsRequestListView = z.infer<typeof OpsRequestListViewSchema>;
 export type OpsRequestListResponse = z.infer<typeof OpsRequestListResponseSchema>;

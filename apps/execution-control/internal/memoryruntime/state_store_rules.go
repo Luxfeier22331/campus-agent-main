@@ -1,7 +1,6 @@
 package memoryruntime
 
 import (
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -59,26 +58,19 @@ func CommandReceiptTerminal(status string) bool {
 	}
 }
 
-func ValidateCommandTerminalResult(status string, errorCode string, resultFingerprint string) (string, string, string, error) {
+func ValidateCommandTerminalResult(status string, errorCode string) (string, string, error) {
 	status = strings.TrimSpace(status)
 	errorCode = strings.TrimSpace(errorCode)
-	resultFingerprint = strings.TrimSpace(resultFingerprint)
-	if len(resultFingerprint) != 64 || resultFingerprint != strings.ToLower(resultFingerprint) {
-		return "", "", "", fmt.Errorf("%w: command result fingerprint is invalid", ErrMemoryFenceConflict)
-	}
-	if _, err := hex.DecodeString(resultFingerprint); err != nil {
-		return "", "", "", fmt.Errorf("%w: command result fingerprint is invalid", ErrMemoryFenceConflict)
-	}
 	switch status {
 	case "succeeded":
-		return status, "", resultFingerprint, nil
+		return status, "", nil
 	case "failed":
 		if errorCode == "" {
 			errorCode = "personal_memory_command_failed"
 		}
-		return status, errorCode, resultFingerprint, nil
+		return status, errorCode, nil
 	default:
-		return "", "", "", fmt.Errorf("%w: command terminal status is invalid", ErrMemoryFenceConflict)
+		return "", "", fmt.Errorf("%w: command terminal status is invalid", ErrMemoryFenceConflict)
 	}
 }
 

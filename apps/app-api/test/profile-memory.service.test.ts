@@ -356,7 +356,6 @@ describe("profile memory service", () => {
 				commandId: "memcmd_01HR",
 				status: "succeeded",
 				errorCode: "",
-				resultFingerprint: "a".repeat(64),
 				stale: false,
 			})),
 		};
@@ -373,7 +372,6 @@ describe("profile memory service", () => {
 		expect(store.applyCommandResult).toHaveBeenCalledWith(
 			expect.objectContaining({
 				commandId: "memcmd_01HR",
-				resultFingerprint: "a".repeat(64),
 				status: "succeeded",
 			}),
 		);
@@ -450,7 +448,6 @@ describe("profile memory service", () => {
 				commandId: "memcmd_01HT",
 				status: "processing",
 				errorCode: "",
-				resultFingerprint: "",
 				stale: true,
 			})),
 		};
@@ -495,7 +492,6 @@ describe("profile memory service", () => {
 				commandId: "memcmd_01HU",
 				status: "processing",
 				errorCode: "",
-				resultFingerprint: "",
 				stale: false,
 			})),
 		};
@@ -532,7 +528,6 @@ describe("profile memory service", () => {
 		await service.applyResult({
 			commandId: "memcmd_01HQ",
 			errorCode: "postgres://user:secret@internal-db/runtime",
-			resultFingerprint: "a".repeat(64),
 			status: "failed",
 		});
 		expect(store.applyCommandResult).toHaveBeenCalledWith(

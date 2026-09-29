@@ -61,6 +61,6 @@ client/API/UI、Terraform root 和发布验收，却不能回答上述事实所�
 - [运行时遥测](../../../../docs/reference/telemetry.md)
 - [产品运行时](../../../../docs/architecture/system/product-runtime.md)
 - [运行记录接口](../../../../docs/contracts/ops-web/runtime.md)
-- [Worker 发布与平台诊断](../../../../docs/runbooks/worker-otel.md)
+- [Worker 发布与平台诊断](../../../../docs/runbooks/observability/worker-otel.md)
 - [可观测数据边界](../architecture/2026-07-17-observability-planes.md)
 - 部分取代 [可观测数据边界](../architecture/2026-07-17-observability-planes.md)

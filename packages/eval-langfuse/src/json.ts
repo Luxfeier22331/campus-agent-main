@@ -65,9 +65,3 @@ export function requiredStringList(value: unknown, field: string): string[] {
 	}
 	return value.map((item) => String(item).trim()).filter(Boolean);
 }
-
-export function requireEqual(actual: unknown, expected: unknown, field: string): void {
-	if (actual !== expected) {
-		throw new Error(`${field} must be ${expected}`);
-	}
-}

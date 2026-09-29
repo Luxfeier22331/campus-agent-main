@@ -33,8 +33,7 @@ export function createProfileMemoryCommandStore({
 					return "not_found";
 				}
 				if (command.reportedResultStatus) {
-					return command.resultFingerprint === input.resultFingerprint &&
-						command.reportedResultStatus === input.status &&
+					return command.reportedResultStatus === input.status &&
 						(command.lastErrorCode ?? "") === (input.errorCode ?? "")
 						? "replayed"
 						: "conflict";
@@ -47,7 +46,6 @@ export function createProfileMemoryCommandStore({
 					.set({
 						status: current ? input.status : "superseded",
 						reportedResultStatus: input.status,
-						resultFingerprint: input.resultFingerprint,
 						lastErrorCode: input.errorCode ?? null,
 						payload: input.status === "succeeded" || !current ? null : command.payload,
 						processedAt: now,

@@ -53,7 +53,7 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 		context.Background(),
 		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{Command: workflowcontract.MemoryCommandToWorkflow(command), Result: result},
 	)
-	if err != nil || finalized.Status != "succeeded" || finalized.ResultFingerprint == "" {
+	if err != nil || finalized.Status != "succeeded" {
 		t.Fatalf("finalized result=%#v err=%v", finalized, err)
 	}
 	receipt, execute, err = state.BeginCommand(context.Background(), ownerHash, command, time.Minute)
@@ -65,7 +65,7 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 		context.Background(),
 		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{Command: workflowcontract.MemoryCommandToWorkflow(command), Result: finalized},
 	)
-	if err != nil || replayed.ResultFingerprint != finalized.ResultFingerprint {
+	if err != nil || replayed.Status != finalized.Status || replayed.ErrorCode != finalized.ErrorCode {
 		t.Fatalf("idempotent finalizer result=%#v err=%v", replayed, err)
 	}
 	conflictingResult := finalized

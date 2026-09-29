@@ -15,16 +15,6 @@ export function resolveDocumentDisplayTitle(title: string): string {
 		.replace(/([\p{Script=Han}）\d]):(?=\s*(?:[\p{Script=Han}（]|$))/gu, "$1：");
 }
 
-export function resolveDocumentKind(entry: ReaderLabelEntry): string {
-	if (isCurriculumCollection(entry)) {
-		return "curriculumPlan";
-	}
-	if (entry.collection === "student_rules") {
-		return "studentHandbookArticle";
-	}
-	return "publicRegulation";
-}
-
 export function resolveReaderLayout(entry: ReaderLabelEntry): string {
 	return isCurriculumCollection(entry) ? "tabular" : "article";
 }

@@ -923,21 +923,3 @@ func WorkflowToolResultMaps(value any) []map[string]any {
 		return []map[string]any{}
 	}
 }
-
-func StringSliceFromAny(value any) []string {
-	switch typed := value.(type) {
-	case []string:
-		return append([]string{}, typed...)
-	case []any:
-		result := make([]string, 0, len(typed))
-		for _, item := range typed {
-			text := strings.TrimSpace(fmt.Sprint(item))
-			if text != "" {
-				result = append(result, text)
-			}
-		}
-		return result
-	default:
-		return []string{}
-	}
-}

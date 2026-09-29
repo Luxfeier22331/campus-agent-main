@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-owner_boundary: docs/runbooks
+owner_boundary: execution-control
 status: active
 ---
 
@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 本文只说明如何检查和排查 campus-agent 对 Hindsight 的使用。组件关系和生命周期见
-[个人记忆架构](../architecture/system/memory-plane.md)；环境资源、Secret、Helm values、备份和恢复
+[个人记忆架构](../../architecture/system/memory-plane.md)；环境资源、Secret、Helm values、备份和恢复
 由环境仓维护。
 
 ## 配置检查
@@ -17,7 +17,7 @@ status: active
 1. 从当前镜像和 Go client pin 确认预期版本，再访问 Hindsight `/version`；不要在 runbook 中
    维护第二份固定版本。
 2. 确认 execution-control 获得 Hindsight base URL、tenant API secret 和稳定用户派生 salt；变量
-   所有权见 [Provider 与模型配置](../environment/providers.md)。
+   所有权见 [Provider 与模型配置](../../environment/providers.md)。
 3. 确认 Hindsight 自身的 PostgreSQL、LLM、embedding 和 reranker 配置由环境仓 Helm values
    提供，未从 app-api、Ops Web 或 execution-control 在线模型配置派生。
 4. `/readyz` 不调用 Hindsight，也不能替代业务路径验证；需要业务路径证据时，由环境所有者按需
@@ -120,7 +120,13 @@ go -C apps/execution-control test ./internal/httpapi ./internal/temporalruntime 
 
 这些检查验证 adapter、workflow 和 telemetry 配置，不证明外部环境已收到数据。
 
-Agent trace 信号验证见 [Langfuse 运行合同](../contracts/langfuse-runtime.md)，不在本手册复制入口、属性和路由清单。
+Agent trace 信号验证见 [Langfuse 运行合同](../../contracts/langfuse-runtime.md)，不在本手册复制入口、属性和路由清单。
+
+## 相关文档
+
+- [个人记忆架构](../../architecture/system/memory-plane.md)
+- [Langfuse 运行合同](../../contracts/langfuse-runtime.md)
+- [Provider 与模型配置](../../environment/providers.md)
 
 ## 官方资料
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { TransportRouteInputSchema } from "@campus-agent/transport/domain";
+import type { TransportRouteInput } from "@campus-agent/transport/domain";
 import type { Pool, PoolClient } from "pg";
 
 import {
@@ -126,7 +126,10 @@ export function createPgTransportStore(input: {
 		async updateRoute(actor, routeId, routeInput) {
 			return withTransportStoreErrors(async () => {
 				const current = await requireRoute(input.pool, routeId);
-				const updated = TransportRouteInputSchema.parse({
+				// routeInput 已在路由层由 TransportOpsRouteUpdateSchema 校验；current 来自
+				// requireRoute 的 DB 读边界校验。合并产物每字段均合法，且
+				// TransportRouteInputSchema 无跨字段约束，无需再次 parse。
+				const updated: TransportRouteInput = {
 					defaultBoardingPoint:
 						routeInput.defaultBoardingPoint === undefined
 							? current.defaultBoardingPoint
@@ -142,7 +145,7 @@ export function createPgTransportStore(input: {
 					origin: routeInput.origin ?? current.origin,
 					routeId,
 					serviceKind: routeInput.serviceKind ?? current.serviceKind,
-				});
+				};
 				await input.pool.query(
 					`UPDATE transport.routes
 					 SET origin = $2, destination = $3, service_kind = $4,

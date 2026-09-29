@@ -13,7 +13,6 @@
 	},
 	"dependencies": {
 		"@campus-agent/notice-database": "workspace:*",
-		"@campus-agent/notices": "workspace:*",
 		"campus-contracts": "workspace:*",
 		"ingestion-contracts": "workspace:*",
 		"notice-classifier-core": "workspace:*",
@@ -28,5 +27,8 @@
 		"vitest": "^5.0.0"
 	},
 	"license": "Apache-2.0",
-	"exports": { "./job": "./src/job.ts", "./model": "./src/model.ts" }
+	"exports": {
+		"./job": "./src/job.ts",
+		"./model": "./src/model.ts"
+	}
 }

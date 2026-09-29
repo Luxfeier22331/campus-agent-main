@@ -138,17 +138,6 @@ func (identity WorkflowProjectionIdentity) Apply(
 	return projection
 }
 
-func StringSet(values []string) map[string]struct{} {
-	result := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		normalized := strings.TrimSpace(value)
-		if normalized != "" {
-			result[normalized] = struct{}{}
-		}
-	}
-	return result
-}
-
 func ProjectionClassForToolName(toolName string) string {
 	toolName = strings.TrimSpace(toolName)
 	registry, ok := runtimepolicy.DefaultToolSpecRegistry()

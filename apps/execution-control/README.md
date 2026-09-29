@@ -119,5 +119,5 @@ PR 对受影响的 Go 包（包括 execution-control 与 model-config）运行 `
 Temporal、stream、replay 和 PostgreSQL 在 GitHub 手动 validation profile 中分别选择，暂不作为 PR
 required service checks。本地 Dev Server fixture 不用于部署验证。
 
-运行配置和环境操作见 `docs/runbooks/execution.md`、`docs/runbooks/temporal.md` 与
+运行配置和环境操作见 `docs/runbooks/runtime/execution.md`、`docs/runbooks/runtime/temporal.md` 与
 `docs/runbooks/local-verification.md`。README 不保存环境地址、Secret、完整变量清单或部署状态。

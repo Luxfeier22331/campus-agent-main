@@ -48,4 +48,4 @@ App API 的请求状态、阶段耗时和错误码属于 PostgreSQL 产品投影
 - [可观测数据边界](../../.agents/notes/implemented/architecture/2026-07-17-observability-planes.md)
 - [退役 Axiom](../../.agents/notes/implemented/simplification/2026-08-22-retire-axiom.md)
 - [Langfuse 运行合同](../contracts/langfuse-runtime.md)
-- [Worker 发布与平台诊断](../runbooks/worker-otel.md)
+- [Worker 发布与平台诊断](../runbooks/observability/worker-otel.md)

@@ -70,32 +70,6 @@ func (s *PostgresRunProjectionStore) BeginOwnerDeletion(
 	return status, nil
 }
 
-func (s *PostgresRunProjectionStore) OwnerDeletionStatus(
-	ctx context.Context,
-	ownerUserID string,
-) (execution.OwnerDeletionStatus, error) {
-	ownerUserID = strings.TrimSpace(ownerUserID)
-	if ownerUserID == "" {
-		return execution.OwnerDeletionStatus{}, errors.New("owner deletion owner is required")
-	}
-	var state string
-	err := s.pool.QueryRow(ctx, `
-		select state from execution_control.owner_deletion_fences where owner_user_id = $1`, ownerUserID).Scan(&state)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return execution.OwnerDeletionStatus{}, execution.ErrOwnerDeletionNotStarted
-	}
-	if err != nil {
-		return execution.OwnerDeletionStatus{}, err
-	}
-	var activeRuns int
-	if err := s.pool.QueryRow(ctx, `
-		select count(*) from execution_control.agent_runs
-		where owner_user_id = $1 and status in `+ownerDeletionActiveRunStatuses, ownerUserID).Scan(&activeRuns); err != nil {
-		return execution.OwnerDeletionStatus{}, err
-	}
-	return execution.OwnerDeletionStatus{OwnerUserID: ownerUserID, State: execution.OwnerDeletionState(state), ActiveRuns: activeRuns}, nil
-}
-
 func (s *PostgresRunProjectionStore) FinalizeOwnerDeletion(
 	ctx context.Context,
 	request execution.OwnerDeletionFinalizeRequest,

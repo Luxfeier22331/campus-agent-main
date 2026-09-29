@@ -67,7 +67,7 @@ INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
 
 ## Job 认证边界
 
-通知采集 Job 的创建命令和回填参数见[采集与发布](./ingestion.md#kubernetes)。
+通知采集 Job 的创建命令和回填参数见[采集与发布](../ingestion/ingestion.md#kubernetes)。
 
 这些模板读取 `OPS_WEB_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
 与本地 CLI 相同的采集实现。Job 不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。Kubernetes
@@ -96,7 +96,7 @@ Ops Web 会把这些领域结果映射为对应的 `OPS_INTERNAL_PORTAL_*` 页�
 
 ## 相关文档
 
-- [采集运行](./ingestion.md)
-- [内部门户数据](../data/internal-portal.md)
-- [内部门户凭据接口](../contracts/ops-web/internal-portal.md)
-- [简化采集控制面与内部门户凭据所有权](../../.agents/notes/implemented/simplification/2026-08-19-internal-portal-credential-resolution.md)
+- [采集运行](../ingestion/ingestion.md)
+- [内部门户数据](../../data/internal-portal.md)
+- [内部门户凭据接口](../../contracts/ops-web/internal-portal.md)
+- [简化采集控制面与内部门户凭据所有权](../../../.agents/notes/implemented/simplification/2026-08-19-internal-portal-credential-resolution.md)

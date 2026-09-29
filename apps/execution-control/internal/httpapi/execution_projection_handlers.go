@@ -495,10 +495,6 @@ func toolNameFromSDKStepID(stepID string) string {
 	return strings.TrimSpace(parts[2])
 }
 
-func requiredStringFromMap(payload map[string]any, key string) string {
-	return strings.TrimSpace(optionalStringFromMap(payload, key))
-}
-
 func optionalStringFromMap(payload map[string]any, key string) string {
 	value, _ := payload[key].(string)
 	return strings.TrimSpace(value)

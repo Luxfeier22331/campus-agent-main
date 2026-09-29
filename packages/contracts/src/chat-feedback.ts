@@ -79,6 +79,3 @@ export const ChatFeedbackPageSchema = z
 
 export type ChatFeedbackQuery = z.infer<typeof ChatFeedbackQuerySchema>;
 export type ChatFeedbackPage = z.infer<typeof ChatFeedbackPageSchema>;
-export type ChatFeedbackSummary = z.infer<typeof ChatFeedbackSummarySchema>;
-export type ChatFeedbackDetail = z.infer<typeof ChatFeedbackDetailSchema>;
-export type ChatFeedbackVote = z.infer<typeof ChatFeedbackVoteSchema>;

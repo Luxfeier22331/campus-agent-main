@@ -651,3 +651,10 @@ pnpm --dir apps/ops-web test:database-integration
 - 登录后自动继续发起的投稿或举报；取消登录不触发继续操作。
 - 投稿列表的文字和缩略图打开同一详情地址，照片重试按钮独立于链接。
 - 分享使用“复制链接”，成功或失败均反馈；失败时提供可选中的绝对公开地址且不改变当前页面。
+
+## 相关文档
+
+- [Dining 领域包（合同与 schema）](../../packages/domains/dining/README.md)
+- [食堂地图阅读、手势与往返导航](../../.agents/notes/implemented/bug-fix/2026-09-18-dining-map-navigation.md)
+- [dining submission interactions](../../.agents/notes/implemented/bug-fix/2026-09-17-dining-submission-interactions.md)
+- [Dining SVG 主题颜色](../../.agents/notes/implemented/bug-fix/2026-09-18-dining-floorplan-theme.md)

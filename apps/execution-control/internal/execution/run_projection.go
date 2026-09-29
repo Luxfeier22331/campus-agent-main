@@ -19,18 +19,14 @@ const (
 type DurableTerminalReason string
 
 const (
-	DurableTerminalReasonAnswerCompleted       DurableTerminalReason = "answer_completed"
-	DurableTerminalReasonToolClosed            DurableTerminalReason = "tool_closed"
-	DurableTerminalReasonConversationActiveRun DurableTerminalReason = "conversation_active_run"
-	DurableTerminalReasonQuotaExceeded         DurableTerminalReason = "quota_exceeded"
-	DurableTerminalReasonQueueTimeout          DurableTerminalReason = "queue_timeout"
-	DurableTerminalReasonWorkerUnavailable     DurableTerminalReason = "worker_unavailable"
-	DurableTerminalReasonProviderUnavailable   DurableTerminalReason = "provider_unavailable"
-	DurableTerminalReasonExecutionFailed       DurableTerminalReason = "execution_failed"
-	DurableTerminalReasonRuntimeInvariant      DurableTerminalReason = "runtime_invariant_failed"
-	DurableTerminalReasonUserCanceled          DurableTerminalReason = "user_canceled"
-	DurableTerminalReasonSystemDraining        DurableTerminalReason = "system_draining"
-	DurableTerminalReasonRunTimeout            DurableTerminalReason = "run_timeout"
+	DurableTerminalReasonAnswerCompleted     DurableTerminalReason = "answer_completed"
+	DurableTerminalReasonToolClosed          DurableTerminalReason = "tool_closed"
+	DurableTerminalReasonWorkerUnavailable   DurableTerminalReason = "worker_unavailable"
+	DurableTerminalReasonProviderUnavailable DurableTerminalReason = "provider_unavailable"
+	DurableTerminalReasonExecutionFailed     DurableTerminalReason = "execution_failed"
+	DurableTerminalReasonRuntimeInvariant    DurableTerminalReason = "runtime_invariant_failed"
+	DurableTerminalReasonUserCanceled        DurableTerminalReason = "user_canceled"
+	DurableTerminalReasonRunTimeout          DurableTerminalReason = "run_timeout"
 )
 
 type DurableRunEventType string
@@ -52,7 +48,6 @@ const (
 	DurableRunEventTypeRunExpired                 DurableRunEventType = "run.expired"
 	DurableRunEventTypeWorkflowStarted            DurableRunEventType = "workflow.started"
 	DurableRunEventTypeActivityFailed             DurableRunEventType = "activity.failed"
-	DurableRunEventTypeAgentCompleted             DurableRunEventType = "agent.completed"
 	DurableRunEventTypeWorkflowOperationCompleted DurableRunEventType = "workflow.operation_completed"
 	DurableRunEventTypeFinalizationReserved       DurableRunEventType = "finalization.reserved"
 	DurableRunEventTypeFinalizationCompleted      DurableRunEventType = "finalization.completed"
@@ -70,7 +65,6 @@ type DurableRunEventVisibility string
 const (
 	DurableRunEventVisibilityInternal DurableRunEventVisibility = "internal"
 	DurableRunEventVisibilityBrowser  DurableRunEventVisibility = "browser"
-	DurableRunEventVisibilityEval     DurableRunEventVisibility = "eval"
 )
 
 type DurableRun struct {

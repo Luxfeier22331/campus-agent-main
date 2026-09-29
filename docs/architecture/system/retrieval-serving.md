@@ -75,7 +75,7 @@ Chunk 策略治理与生产分块实现同属 `campus-docs-index-publisher`。�
 不能只看短块数量。
 
 该能力属于本地人工/研究验证，不是 PR 阻断检查，也不等于在线 hybrid 与 reranker 的最终效果。
-[操作手册](../../runbooks/campus-docs.md#chunk-策略治理验证)维护输入、命令、比较条件与结果解释，
+[操作手册](../../runbooks/ingestion/campus-docs.md#chunk-策略治理验证)维护输入、命令、比较条件与结果解释，
 本地正文和向量制品留在 worktree 的 `var/`，不提交 Git。Notice 的独立操作由
 [Notice builder](../../../jobs/notice-index-publisher/README.md)维护，v8 的历史选择与验证范围见
 [通知结构分块决策](../../../.agents/notes/implemented/architecture/2026-08-31-notice-chunk-strategy.md)。
@@ -104,7 +104,7 @@ Unified Publisher Job: Docs Embedding Set + Notice Embedding Set
 Notice Embedding Set 从对象存储中的 Chunk Run 构建，不直接消费本地评测目录。Chunk 构建在写入前校验
 来源覆盖、section、root unit、`retrievalText`、字符上限和表格单元格覆盖。所有阶段输出都按实际内容
 寻址，本地制品不自动晋升；Notice Embedding cache 的显式校验导入见
-[通知制品手册](../../runbooks/notice-indexing.md#导入本地-embedding-cache)。
+[通知制品手册](../../runbooks/ingestion/notice-indexing.md#导入本地-embedding-cache)。
 
 阶段之间只传递显式 `sha256:<id>`。`notice-pipeline-worker` 在独立 Temporal 队列串联 Notice 构建和统一发布，
 沿用当前 Docs Embedding Set；手动维护仍可显式执行各阶段，不维护 `latest` 制品指针。manifest 和
@@ -127,7 +127,7 @@ PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或
 `SELECT`、`INSERT`、`UPDATE`，并拒绝 `DELETE`、`TRUNCATE`、`REFERENCES` 和 `TRIGGER`。
 
 源码包含 Job、schema、制品或 collection 只能证明发布链可执行，不能证明任一环境已经运行这些 Job
-或激活当前索引。操作步骤和清理条件见 [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/campus-docs.md)。
+或激活当前索引。操作步骤和清理条件见 [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/ingestion/campus-docs.md)。
 
 ## 在线消费边界
 
@@ -164,8 +164,9 @@ Agent 正文只引用实际采用的候选；当前 Campus Docs 来源由 `campu
 - [Agent 的机构知识边界](./agentic-retrieval.md)
 - [文档站架构](./document-site.md)
 - [文档阅读器数据模型](../../data/document-reader.md)
-- [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/campus-docs.md)
+- [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/ingestion/campus-docs.md)
 - [Qdrant 托管方式](../../../.agents/notes/implemented/architecture/2026-07-16-qdrant-hosting.md)
+- [Artifact 身份的规范排序](../../../.agents/notes/implemented/architecture/2026-09-26-canonical-artifact-ordering.md)
 
 ## 自动通知索引生命周期
 

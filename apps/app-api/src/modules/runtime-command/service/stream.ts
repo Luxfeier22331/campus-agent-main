@@ -2,18 +2,12 @@ import {
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
 } from "../../integration";
-import type { RuntimeRunProductPhase } from "../../runtime-run";
 import { publicExecutionFailure } from "./errors";
 import type {
 	ChatCommandResponse,
 	ChatCommandStreamEvent,
 	ChatCommandStreamEventName,
 } from "./types";
-
-interface ParsedSseEvent {
-	data: unknown;
-	event: string;
-}
 
 class ExecutionLifecycleContractError extends Error {
 	constructor(message: string) {
@@ -51,125 +45,6 @@ function getError(value: unknown): { code: string; retryable: boolean } {
 	return {
 		code,
 		retryable: record.retryable,
-	};
-}
-
-function isRuntimeRunProductPhase(value: unknown): value is RuntimeRunProductPhase {
-	return value === "finalizing" || value === "generating" || value === "preparing";
-}
-
-function parseSseBlock(block: string): ParsedSseEvent | null {
-	let event = "message";
-	const dataLines: string[] = [];
-
-	for (const line of block.split(/\r?\n/)) {
-		if (line.startsWith("event:")) {
-			event = line.slice("event:".length).trim();
-			continue;
-		}
-		if (line.startsWith("data:")) {
-			dataLines.push(line.slice("data:".length).trimStart());
-		}
-	}
-
-	if (dataLines.length === 0) {
-		return null;
-	}
-
-	const rawData = dataLines.join("\n");
-	let data: unknown;
-	try {
-		data = JSON.parse(rawData);
-	} catch {
-		throw new ExecutionLifecycleContractError("SSE event data must be JSON");
-	}
-
-	return { data, event };
-}
-
-export async function* parseExecutionControlSse(response: Response): AsyncIterable<ParsedSseEvent> {
-	if (!response.body) {
-		return;
-	}
-
-	const reader = response.body.getReader();
-	const decoder = new TextDecoder();
-	let buffer = "";
-
-	try {
-		while (true) {
-			const chunk = await reader.read();
-			if (chunk.done) {
-				break;
-			}
-			buffer += decoder.decode(chunk.value, { stream: true });
-
-			let boundary = buffer.search(/\r?\n\r?\n/);
-			while (boundary >= 0) {
-				const block = buffer.slice(0, boundary);
-				const match = buffer.slice(boundary).match(/^\r?\n\r?\n/);
-				buffer = buffer.slice(boundary + (match?.[0].length ?? 2));
-				const parsed = parseSseBlock(block);
-				if (parsed) {
-					yield parsed;
-				}
-				boundary = buffer.search(/\r?\n\r?\n/);
-			}
-		}
-
-		buffer += decoder.decode();
-		const parsed = parseSseBlock(buffer.trim());
-		if (parsed) {
-			yield parsed;
-		}
-	} finally {
-		reader.releaseLock();
-	}
-}
-
-export function mapExecutionLifecycleEvent(input: {
-	data: unknown;
-	event: string;
-	now: () => Date;
-}): ChatCommandStreamEvent | null {
-	if (
-		input.event !== "execution.queued" &&
-		input.event !== "execution.running" &&
-		input.event !== "execution.phase"
-	) {
-		return null;
-	}
-
-	const record = getRecord(input.data);
-	if (!record) {
-		throw new ExecutionLifecycleContractError("lifecycle event payload must be an object");
-	}
-	const requestId = getString(record, "request_id");
-	if (!requestId) {
-		throw new ExecutionLifecycleContractError("lifecycle event missing request_id");
-	}
-	const occurredAt = getString(record, "occurred_at");
-	if (!occurredAt) {
-		throw new ExecutionLifecycleContractError("lifecycle event missing occurred_at");
-	}
-	const status =
-		input.event === "execution.queued" ? "queued" : (getString(record, "status") ?? "running");
-	const phase = record.phase;
-	if (input.event === "execution.phase" && !isRuntimeRunProductPhase(phase)) {
-		throw new ExecutionLifecycleContractError("phase event missing a supported phase");
-	}
-	const phaseData: { phase: RuntimeRunProductPhase } | undefined =
-		input.event === "execution.phase" && isRuntimeRunProductPhase(phase) ? { phase } : undefined;
-
-	return {
-		data: {
-			occurredAt,
-			requestId,
-			...(phaseData ?? {}),
-			...(typeof record.sequence === "number" ? { sequence: record.sequence } : {}),
-			status,
-		},
-		event: input.event,
 	};
 }
 

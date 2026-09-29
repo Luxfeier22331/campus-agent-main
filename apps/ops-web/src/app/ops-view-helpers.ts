@@ -5,12 +5,8 @@ import type {
 	OpsRequestSummary,
 	OpsRequestWindow,
 } from "../shared/ops-contract";
-import { formatDuration, formatHumanDuration, formatId, formatTimestamp } from "./format";
+import { formatHumanDuration, formatId } from "./format";
 import type { TimeSearch } from "./time-filters";
-
-export function formatNullableDuration(value: number | null | undefined, emptyLabel: string) {
-	return value === null || value === undefined ? emptyLabel : formatDuration(value);
-}
 
 export function formatRequestDuration(
 	request: Pick<OpsRequestSummary, "durationMs" | "startedAt" | "status">,
@@ -66,15 +62,6 @@ export function formatStatusLabel(status: string) {
 
 export function formatDataStateLabel(state: string) {
 	return formatStatusLabel(state);
-}
-
-export function formatRequestCompletedAt(
-	request: Pick<OpsRequestSummary, "completedAt" | "status">,
-) {
-	if (request.completedAt) {
-		return formatTimestamp(request.completedAt);
-	}
-	return request.status === "RUNNING" || request.status === "PENDING" ? "未完成" : "未记录完成时间";
 }
 
 export function requestFilterLabels(search: Partial<RequestSearchLike>) {
@@ -228,10 +215,6 @@ export function optionalStatus(value: unknown): OpsRequestSummary["status"] | un
 		return value;
 	}
 	return;
-}
-
-export function optionalRequestWindow(value: unknown): OpsRequestWindow | undefined {
-	return optionalTimeWindow(value);
 }
 
 export function optionalRequestListView(value: unknown): OpsRequestListView | undefined {

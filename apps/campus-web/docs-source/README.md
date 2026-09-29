@@ -16,4 +16,4 @@
 实际对象存在性、reader 身份和课程图结构由发布器完整校验后才更新固定来源键。
 
 声明合并后由现有 Campus Web 候选流水线发布；本地重放、连接选择、冲突处理与回滚见
-[Docs 维护手册](../../../docs/runbooks/campus-docs.md)。
+[Docs 维护手册](../../../docs/runbooks/ingestion/campus-docs.md)。

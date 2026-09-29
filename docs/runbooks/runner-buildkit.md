@@ -126,3 +126,8 @@ sudo -u github-runner env \
 
 `CI_RUNNER_MODE` 只由源码仓库的 CI/发布工作流消费，用于账单或平台故障时的人工切换，不建立新的信任
 边界。若 self-hosted Runner 被正式退役或不再维护，应删除该变量入口和本节备用流程。
+
+## 相关文档
+
+- [发布](./release/release.md)
+- [GHCR 镜像保留](./release/ghcr-retention.md)

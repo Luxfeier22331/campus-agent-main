@@ -2,17 +2,6 @@ import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 
 export type RuntimeMessages = ThreadMessageLike[];
 
-export function settleAssistantMessage(message: ThreadMessageLike): ThreadMessageLike {
-	if (!message.metadata?.isOptimistic) {
-		return message;
-	}
-	const { isOptimistic: _isOptimistic, ...metadata } = message.metadata;
-	return {
-		...message,
-		...(Object.keys(metadata).length > 0 ? { metadata } : {}),
-	};
-}
-
 export function upsertAssistantTextMessage(
 	messages: RuntimeMessages,
 	input: {

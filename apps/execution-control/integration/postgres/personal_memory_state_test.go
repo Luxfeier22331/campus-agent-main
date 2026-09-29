@@ -13,10 +13,6 @@ import (
 )
 
 func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
-	const (
-		resultFingerprint      = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-		conflictingFingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	)
 	_, databaseURL := harness.ownerDatabase(t)
 	requireSchema(t, databaseURL)
 	store, err := memorypersistence.NewPostgresStateStore(t.Context(), memorypersistence.PostgresStateStoreOptions{
@@ -42,7 +38,7 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 	})
 	t.Run("finalize reports missing receipts and abandon terminals stale ones", func(t *testing.T) {
 		ctx := t.Context()
-		_, err := store.FinalizeCommand(ctx, "cmd-unknown-postgres", "owner-abandon", "failed", "personal_memory_command_failed", resultFingerprint, "")
+		_, err := store.FinalizeCommand(ctx, "cmd-unknown-postgres", "owner-abandon", "failed", "personal_memory_command_failed", "")
 		require.ErrorIs(t, err, memoryruntime.ErrMemoryCommandNotFound)
 		orphan := memoryruntime.PersonalMemoryCommandRequest{
 			CommandID:         "cmd-orphan-postgres",
@@ -79,7 +75,6 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 		require.NoError(t, err)
 		require.Equal(t, "failed", receipt.Status)
 		require.Equal(t, "memory_receipt_abandoned", receipt.ErrorCode)
-		require.Equal(t, memoryruntime.CommandResultFingerprint(orphan.CommandID, "failed", "memory_receipt_abandoned"), receipt.ResultFingerprint)
 		require.False(t, memoryruntime.CommandReceiptStale(receipt, time.Now()))
 		abandoned, err = store.AbandonStaleGenerationReceipts(ctx, "owner-fresh-postgres", 1, time.Now().Add(-time.Hour))
 		require.NoError(t, err)
@@ -122,23 +117,23 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 	if drained, err := store.GenerationDrained(t.Context(), "owner-hash", 1); err != nil || drained {
 		t.Fatalf("retryable receipt drained=%t err=%v", drained, err)
 	}
-	if _, err := store.FinalizeCommand(t.Context(), first.CommandID, "owner-hash", "failed", "personal_memory_command_failed", resultFingerprint, ""); err != nil {
+	if _, err := store.FinalizeCommand(t.Context(), first.CommandID, "owner-hash", "failed", "personal_memory_command_failed", ""); err != nil {
 		t.Fatalf("finalize first: %v", err)
 	}
-	if _, err := store.FinalizeCommand(t.Context(), first.CommandID, "owner-hash", "failed", "personal_memory_command_failed", resultFingerprint, ""); err != nil {
+	if _, err := store.FinalizeCommand(t.Context(), first.CommandID, "owner-hash", "failed", "personal_memory_command_failed", ""); err != nil {
 		t.Fatalf("replay first finalizer: %v", err)
 	}
 	if _, execute, err := store.BeginCommand(t.Context(), "owner-hash", second, time.Minute); err != nil || !execute {
 		t.Fatalf("begin second command execute=%t err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(t.Context(), second.CommandID, "owner-hash", "succeeded", "", resultFingerprint, "paused"); err != nil {
+	if _, err := store.FinalizeCommand(t.Context(), second.CommandID, "owner-hash", "succeeded", "", "paused"); err != nil {
 		t.Fatalf("finalize second: %v", err)
 	}
-	if _, err := store.FinalizeCommand(t.Context(), second.CommandID, "owner-hash", "failed", "personal_memory_command_failed", resultFingerprint, ""); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
+	if _, err := store.FinalizeCommand(t.Context(), second.CommandID, "owner-hash", "failed", "personal_memory_command_failed", ""); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
 		t.Fatalf("conflicting terminal CAS error=%v", err)
 	}
-	if _, err := store.FinalizeCommand(t.Context(), first.CommandID, "owner-hash", "failed", "personal_memory_command_failed", conflictingFingerprint, ""); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
-		t.Fatalf("conflicting terminal fingerprint error=%v", err)
+	if _, err := store.FinalizeCommand(t.Context(), first.CommandID, "owner-hash", "failed", "memory_receipt_abandoned", ""); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
+		t.Fatalf("conflicting terminal error code error=%v", err)
 	}
 	coalesced := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID: "cmd-coalesced", CommandKind: "owner_transition", LifecycleState: "paused",
@@ -148,7 +143,7 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 	if _, execute, err := store.BeginCommand(t.Context(), "owner-gap", coalesced, time.Minute); err != nil || !execute {
 		t.Fatalf("begin coalesced gap execute=%t err=%v", execute, err)
 	}
-	if _, err := store.FinalizeCommand(t.Context(), coalesced.CommandID, "owner-gap", "succeeded", "", resultFingerprint, "paused"); err != nil {
+	if _, err := store.FinalizeCommand(t.Context(), coalesced.CommandID, "owner-gap", "succeeded", "", "paused"); err != nil {
 		t.Fatalf("finalize coalesced gap: %v", err)
 	}
 	stale := memoryruntime.PersonalMemoryCommandRequest{

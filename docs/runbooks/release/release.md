@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 本文说明源码候选物如何交给环境仓并进入已配置的目标环境。分支协作见
-[贡献指南](../../.github/CONTRIBUTING.md)，证据选择见 [测试与验证](../reference/verification.md)，环境部署和恢复命令由
+[贡献指南](../../../.github/CONTRIBUTING.md)，证据选择见 [测试与验证](../../reference/verification.md)，环境部署和恢复命令由
 环境仓操作手册维护。
 
 ## 发布链
@@ -69,7 +69,7 @@ canonical cache，但仍不会写入任何 PR cache。
 
 ## 相关文档
 
-- [运行时发布架构](../architecture/system/runtime-release.md)
-- [GitOps](../../.agents/notes/implemented/process/2026-07-16-gitops.md)
-- [源码仓库与环境仓库边界](../../.agents/notes/implemented/process/2026-07-16-repository-boundary.md)
-- [Staging 版本选择](../../.agents/notes/implemented/process/2026-07-25-promotion.md)
+- [运行时发布架构](../../architecture/system/runtime-release.md)
+- [GitOps](../../../.agents/notes/implemented/process/2026-07-16-gitops.md)
+- [源码仓库与环境仓库边界](../../../.agents/notes/implemented/process/2026-07-16-repository-boundary.md)
+- [Staging 版本选择](../../../.agents/notes/implemented/process/2026-07-25-promotion.md)

@@ -1,5 +1,4 @@
 import {
-	type TransportPublicScheduleRange,
 	TransportPublicScheduleRangeSchema,
 	type TransportPublicScheduleResponse,
 	TransportPublicScheduleResponseSchema,
@@ -11,7 +10,6 @@ import {
 import { requestJson } from "@/platform/api/client";
 
 export type TransportScheduleResponse = TransportPublicScheduleResponse;
-export type TransportScheduleRangeResponse = TransportPublicScheduleRange;
 export type {
 	TransportPublicDeparture,
 	TransportPublicRoute,

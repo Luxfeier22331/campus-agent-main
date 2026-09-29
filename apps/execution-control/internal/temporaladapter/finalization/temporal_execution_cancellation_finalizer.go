@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
@@ -91,8 +90,4 @@ func (s *Adapter) FinalizeExecutionCancellation(
 		RequestID: run.RequestID,
 		Status:    string(run.Status),
 	}, nil
-}
-
-func CancellationFinalizerTime(input temporalruntime.FinalizeExecutionCancellationActivityInput) time.Time {
-	return input.CanceledAt.UTC()
 }

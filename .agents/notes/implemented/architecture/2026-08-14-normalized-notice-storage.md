@@ -47,6 +47,6 @@ Status: implemented
 
 - [通知数据](../../../../docs/data/notices.md)
 - [通知](../../../../docs/architecture/domains/notices.md)
-- [采集运行](../../../../docs/runbooks/ingestion.md)
+- [采集运行](../../../../docs/runbooks/ingestion/ingestion.md)
 - 部分取代 [内部门户通知来源合同](2026-08-14-internal-portal-notice-source.md)
 - 部分被 [单一 Agent 与机构知识边界](./2026-07-29-agent-knowledge-tools.md)和 [通知维护状态收敛](2026-08-25-notice-maintenance-state.md)取代。

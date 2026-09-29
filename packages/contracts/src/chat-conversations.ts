@@ -36,8 +36,6 @@ export const OpsChatConversationSchema = z
 		messages: z.array(OpsChatMessageSchema),
 	})
 	.strict();
-export type OpsChatConversation = z.infer<typeof OpsChatConversationSchema>;
-export type OpsChatMessage = z.infer<typeof OpsChatMessageSchema>;
 
 export const OpsConversationListStatusSchema = z.enum([
 	"COMPLETED",
@@ -94,5 +92,3 @@ export const OpsConversationListResponseSchema = z
 	})
 	.strict();
 export type OpsConversationListQuery = z.infer<typeof OpsConversationListQuerySchema>;
-export type OpsConversationSummary = z.infer<typeof OpsConversationSummarySchema>;
-export type OpsConversationListResponse = z.infer<typeof OpsConversationListResponseSchema>;

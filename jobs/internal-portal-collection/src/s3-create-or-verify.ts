@@ -21,7 +21,6 @@ export async function createOrVerifyS3Object(input: {
 }): Promise<{
 	byteSize: number;
 	contentSha256: string;
-	etag: string | null;
 	versionId: string | null;
 }> {
 	const bytePayload = input.body instanceof Uint8Array ? input.body : null;
@@ -40,7 +39,6 @@ export async function createOrVerifyS3Object(input: {
 	if (bytePayload && input.byteSize !== undefined && input.byteSize !== bytePayload.byteLength) {
 		throw new Error("provided S3 object byte size does not match byte payload");
 	}
-	let putEtag: string | null = null;
 	let putVersionID: string | null = null;
 	try {
 		const result = await input.client.send(
@@ -55,7 +53,6 @@ export async function createOrVerifyS3Object(input: {
 			}),
 			input.abortSignal ? { abortSignal: input.abortSignal } : {},
 		);
-		putEtag = result.ETag ?? null;
 		putVersionID = result.VersionId ?? null;
 	} catch (error) {
 		if (!isPreconditionFailed(error)) {
@@ -78,7 +75,6 @@ export async function createOrVerifyS3Object(input: {
 	return {
 		byteSize: Number(byteSize),
 		contentSha256,
-		etag: existing.ETag ?? putEtag,
 		versionId: existing.VersionId ?? putVersionID,
 	};
 }

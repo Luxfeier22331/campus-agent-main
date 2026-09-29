@@ -969,18 +969,15 @@ func WorkflowOperationResultPayload(
 	runtimeRelease string,
 ) (map[string]any, error) {
 	payload := map[string]any{
-		"activity_attempt":           activityAttempt,
-		"admission_snapshot_sha256":  execution.SHA256JSONRef(request.AdmissionSnapshot),
-		"agent_runtime_release":      strings.TrimSpace(output.RuntimeRelease),
-		"execution_control_release":  strings.TrimSpace(runtimeRelease),
-		"operation":                  string(request.Operation),
-		"solve_outcome":              output.SolveOutcome,
-		"provider_invocation_sha256": invocationSHA256,
-		"provider_response_id":       output.ProviderResponseID,
-		"stage_timing":               execution.CloneAnyMapFromValue(output.StageTiming),
-		"status":                     output.Status,
-		"terminal_reason":            output.TerminalReason,
-		"tool_contract_fingerprint":  execution.CloneAnyMapFromValue(output.ToolContractFingerprint),
+		"activity_attempt":          activityAttempt,
+		"agent_runtime_release":     strings.TrimSpace(output.RuntimeRelease),
+		"execution_control_release": strings.TrimSpace(runtimeRelease),
+		"operation":                 string(request.Operation),
+		"solve_outcome":             output.SolveOutcome,
+		"provider_response_id":      output.ProviderResponseID,
+		"stage_timing":              execution.CloneAnyMapFromValue(output.StageTiming),
+		"status":                    output.Status,
+		"terminal_reason":           output.TerminalReason,
 		"usage": map[string]any{
 			"model_request_count": output.Usage.ModelRequestCount,
 			"input_tokens":        output.Usage.InputTokens,
@@ -994,17 +991,6 @@ func WorkflowOperationResultPayload(
 		payload["failure"] = output.Failure
 		payload["failure_kind"] = output.Failure.Code
 	}
-	if output.Plan != nil {
-		payload["plan_sha256"] = activityprojection.Sha256AnyValue(output.Plan)
-	}
-	if output.Replan != nil {
-		payload["replan_sha256"] = activityprojection.Sha256AnyValue(output.Replan)
-	}
-
-	payload["evidence_sha256"] = activityprojection.Sha256AnyValue(output.Evidence)
-	payload["source_attempts_sha256"] = activityprojection.Sha256AnyValue(output.SourceAttempts)
-	payload["tool_results_sha256"] = activityprojection.Sha256AnyValue(output.ToolResults)
-	payload["final_output_sha256"] = activityprojection.Sha256AnyValue(output.FinalOutput)
 	return payload, nil
 }
 
@@ -1048,15 +1034,13 @@ func (s *Adapter) ProjectWorkflowToolResults(
 			severity = "warning"
 		}
 		payload := map[string]any{
-			"arguments_json_sha256": execution.SHA256JSONRef(result.ArgumentsJSON),
-			"invocation_id":         result.InvocationID,
-			"operation":             string(request.Operation),
-			"parent_step_id":        request.StepID,
-			"outcome":               BoundedToolOutcome(resultPayload["outcome"]),
-			"result_sha256":         activityprojection.Sha256AnyValue(resultPayload),
-			"severity":              severity,
-			"tool_name":             toolName,
-			"tool_status":           status,
+			"invocation_id":  result.InvocationID,
+			"operation":      string(request.Operation),
+			"parent_step_id": request.StepID,
+			"outcome":        BoundedToolOutcome(resultPayload["outcome"]),
+			"severity":       severity,
+			"tool_name":      toolName,
+			"tool_status":    status,
 		}
 		if result.Failure != nil {
 			payload["failure"] = normalizedRuntimeFailure(result.Failure)

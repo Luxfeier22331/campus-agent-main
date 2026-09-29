@@ -78,13 +78,12 @@ func (s *Server) handlePersonalMemoryCommandStatus(response http.ResponseWriter,
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
-		"command_id":         receipt.CommandID,
-		"error_code":         receipt.ErrorCode,
-		"generation":         receipt.Generation,
-		"kind":               receipt.Kind,
-		"result_fingerprint": receipt.ResultFingerprint,
-		"sequence":           receipt.Sequence,
-		"stale":              memoryruntime.CommandReceiptStale(receipt, time.Now()),
-		"status":             receipt.Status,
+		"command_id": receipt.CommandID,
+		"error_code": receipt.ErrorCode,
+		"generation": receipt.Generation,
+		"kind":       receipt.Kind,
+		"sequence":   receipt.Sequence,
+		"stale":      memoryruntime.CommandReceiptStale(receipt, time.Now()),
+		"status":     receipt.Status,
 	})
 }

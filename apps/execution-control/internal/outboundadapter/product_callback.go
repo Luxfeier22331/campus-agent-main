@@ -45,17 +45,9 @@ func (client *productCallbackHTTPClient) WritePersonalMemoryCommandResult(
 	ctx context.Context,
 	request executionapplication.PersonalMemoryCommandResultRequest,
 ) error {
-	resultFingerprint := strings.TrimSpace(request.ResultFingerprint)
-	if resultFingerprint == "" {
-		return productCallbackError(
-			"product_callback_invalid",
-			errors.New("personal memory result fingerprint is required"),
-		)
-	}
 	body, err := json.Marshal(map[string]string{
-		"error_code":         request.ErrorCode,
-		"result_fingerprint": resultFingerprint,
-		"status":             request.Status,
+		"error_code": request.ErrorCode,
+		"status":     request.Status,
 	})
 	if err != nil {
 		return productCallbackError("product_callback_invalid", err)

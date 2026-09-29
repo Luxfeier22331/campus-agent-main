@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
+import { cleanupAutomaticObjects, noticeArtifactKeys } from "notice-index-publisher/cleanup";
 import { describe, expect, it } from "vitest";
-import { cleanupAutomaticObjects, noticeArtifactKeys } from "../src/cleanup.ts";
 
 describe("automatic artifact cleanup", () => {
 	it("preserves current, previous, shared, manual, active and recent orphan objects", async () => {
@@ -135,6 +135,8 @@ describe("protected artifact references", () => {
 			`notices/rag/embedding-sets/sha256/${embeddingId.slice(7)}/manifest.json`,
 			encode({ tampered: true }),
 		);
-		await expect(noticeArtifactKeys({ read }, embeddingId)).rejects.toThrow("digest mismatch");
+		await expect(noticeArtifactKeys({ read }, embeddingId)).rejects.toThrow(
+			"Artifact digest mismatch during cleanup",
+		);
 	});
 });

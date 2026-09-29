@@ -67,10 +67,6 @@ export type CampusGroupSection = z.infer<typeof CampusGroupSectionSchema>;
 export type CampusGroupsCatalog = z.infer<typeof CampusGroupsCatalogSchema>;
 export type CampusGroupsJoinPlatform = "discord" | "qq";
 
-export function isAllowedCampusGroupsJoinUrl(value: string): boolean {
-	return CampusGroupsJoinUrlSchema.safeParse(value).success;
-}
-
 export function getCampusGroupsJoinPlatform(value: string): CampusGroupsJoinPlatform | null {
 	if (CampusGroupsQqJoinUrlSchema.safeParse(value).success) {
 		return "qq";

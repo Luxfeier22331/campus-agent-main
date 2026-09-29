@@ -12,8 +12,6 @@ const (
 	ConfigDocumentOCR          ConfigName = "document_ocr"
 )
 
-var AllConfigNames = []ConfigName{ConfigPrimaryAgent, ConfigCampusDocsEmbedding, ConfigCampusDocsReranker, ConfigNoticeClassification, ConfigDocumentOCR}
-
 type Target struct {
 	Name        ConfigName `json:"name"`
 	Provider    string     `json:"provider"`

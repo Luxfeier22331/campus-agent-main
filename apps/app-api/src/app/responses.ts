@@ -22,28 +22,6 @@ export function sessionRequiredResponse() {
 	);
 }
 
-export function serviceCredentialRequiredResponse() {
-	return jsonResponse(
-		errorEnvelope({
-			code: "service_credential_required",
-			message: "Collector service credential required.",
-			retryable: false,
-		}),
-		{ status: 401 },
-	);
-}
-
-export function internalAuthRequiredResponse() {
-	return jsonResponse(
-		errorEnvelope({
-			code: "internal_auth_required",
-			message: "Trusted internal shared secret required.",
-			retryable: false,
-		}),
-		{ status: 401 },
-	);
-}
-
 export function routeErrorResponseWithRouteErrorCorrelation(
 	error: AppApiRouteError,
 	correlation: {

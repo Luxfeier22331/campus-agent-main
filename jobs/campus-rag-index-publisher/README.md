@@ -135,7 +135,7 @@ pnpm dev:init -- --target campus-rag-index-publisher
 Publisher 只需要 derived object-store read credentials、Qdrant 连接和 current-index 数据库连接；它不
 需要 Model Config、Notice 数据库或 embedding provider 凭据。
 
-完整的 Docs/Notice 构建顺序、回滚和清理步骤见 `docs/runbooks/campus-docs.md`。
+完整的 Docs/Notice 构建顺序、回滚和清理步骤见 `docs/runbooks/ingestion/campus-docs.md`。
 
 ## 产品开发数据
 

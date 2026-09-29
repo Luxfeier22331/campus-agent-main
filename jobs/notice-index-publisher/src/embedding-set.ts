@@ -9,10 +9,9 @@ import { join } from "node:path";
 import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 
 import {
+	assertNoticeEmbeddingModelTargetSha256,
 	assertValidNoticeEmbeddingVector,
 	collectNoticeEmbeddingInputs,
-	noticeEmbeddingCacheKey,
-	parseCachedNoticeEmbedding,
 	resolveStoredNoticeEmbeddingCache,
 	sortNoticeEmbeddingInputs,
 } from "./embedding-cache.ts";
@@ -32,7 +31,7 @@ import type {
 export async function buildNoticeEmbeddingSet(
 	input: BuildNoticeEmbeddingSetInput,
 ): Promise<BuildNoticeEmbeddingSetResult> {
-	assertModelTarget(input.modelTargetSha256);
+	assertNoticeEmbeddingModelTargetSha256(input.modelTargetSha256);
 	const chunkRun = await readStoredNoticeChunkRun(input.artifactStore, input.chunkRun);
 	const inputs = sortNoticeEmbeddingInputs(collectNoticeEmbeddingInputs(chunkRun.chunks));
 	const resolved = await resolveStoredNoticeEmbeddingCache({
@@ -51,15 +50,12 @@ export async function buildNoticeEmbeddingSet(
 		let byteSize = 0;
 		let embeddingCount = 0;
 		for (const [retrievalTextSha256] of inputs) {
-			const cached = parseCachedNoticeEmbedding(
-				await input.artifactStore.read(
-					noticeEmbeddingCacheKey(input.modelTargetSha256, retrievalTextSha256),
-				),
-				retrievalTextSha256,
-				input.modelTargetSha256,
-			);
+			const dense = resolved.vectorsByTextSha256.get(retrievalTextSha256);
+			if (!dense) {
+				throw new ArtifactValidationError(`notice embedding cache is missing ${retrievalTextSha256}`);
+			}
 			const recordBytes = canonicalJsonBytes({
-				dense: cached.dense,
+				dense,
 				retrievalTextSha256,
 			});
 			await writeAll(fileHandle, recordBytes);
@@ -118,7 +114,7 @@ export async function readNoticeEmbeddingSet(
 	}
 	const manifest = value as unknown as NoticeEmbeddingSetManifest;
 	assertSha256Ref(manifest.chunkRun, "notice embedding chunk run");
-	assertModelTarget(manifest.modelTargetSha256);
+	assertNoticeEmbeddingModelTargetSha256(manifest.modelTargetSha256);
 	if (
 		!positiveInteger(manifest.embeddingCount) ||
 		!isDeepStrictEqual(manifest.embeddingSpace, EMBEDDING_SPACE)
@@ -201,12 +197,6 @@ function assertObjectReference(value: unknown, label: string): asserts value is 
 		!isSha256Ref(value.sha256)
 	) {
 		throw new ArtifactValidationError(`${label} reference is invalid`);
-	}
-}
-
-function assertModelTarget(value: string): void {
-	if (!/^[0-9a-f]{64}$/u.test(value)) {
-		throw new ArtifactValidationError("notice embedding model target SHA-256 is invalid");
 	}
 }
 

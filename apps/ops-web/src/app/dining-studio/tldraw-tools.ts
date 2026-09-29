@@ -129,10 +129,6 @@ export const DINING_EDITOR_TOOLS = [
 	DiningPartitionTool,
 ];
 
-export function toolIdForDiningCreation(kind: DiningCreationKind): string {
-	return `dining-${kind}`;
-}
-
 export function nextEntityId(prefix: string, existing: readonly string[]): string {
 	const used = new Set(existing);
 	for (let number = 1; number < 10_000; number += 1) {

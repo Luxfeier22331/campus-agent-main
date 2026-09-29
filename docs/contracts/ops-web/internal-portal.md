@@ -70,4 +70,4 @@ TGC 不出现在列表、URL、ETag、错误正文或日志。人工 reveal 只�
 - `503 OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`
 - `428 OPS_INTERNAL_PORTAL_PRECONDITION_REQUIRED`
 
-数据所有权见 [内部门户数据](../../data/internal-portal.md)，操作步骤见 [内部门户认证](../../runbooks/portal-auth.md)。
+数据所有权见 [内部门户数据](../../data/internal-portal.md)，操作步骤见 [内部门户认证](../../runbooks/access/portal-auth.md)。

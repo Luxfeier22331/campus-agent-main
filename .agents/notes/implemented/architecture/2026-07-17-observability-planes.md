@@ -115,7 +115,7 @@ Agent Runtime 的 Langfuse trace 凭据只由 trace producer 消费；Sentry 和
 
 - [运行时遥测](../../../../docs/reference/telemetry.md)
 - [Langfuse 运行合同](../../../../docs/contracts/langfuse-runtime.md)
-- [Worker 发布与平台诊断](../../../../docs/runbooks/worker-otel.md)
+- [Worker 发布与平台诊断](../../../../docs/runbooks/observability/worker-otel.md)
 - [自托管 Ops Web](./2026-07-12-self-hosted-ops-web.md)
 - [Langfuse 调用链数据](./2026-07-15-langfuse-trace-data.md)
 - 部分被 [退役 Axiom](../simplification/2026-08-22-retire-axiom.md)取代；

@@ -16,13 +16,11 @@
 		"@temporalio/client": "1.24.0",
 		"@temporalio/common": "1.24.0",
 		"@temporalio/worker": "1.24.0",
-		"@temporalio/workflow": "1.24.0",
 		"@campus-agent/embedding-runtime": "workspace:*",
 		"@campus-agent/notice-database": "workspace:*",
 		"campus-rag-index-publisher": "workspace:*",
 		"notice-index-publisher": "workspace:*",
 		"pg": "^8.23.0",
-		"@aws-sdk/client-s3": "^3.1132.0",
 		"tsx": "^4.23.13"
 	},
 	"devDependencies": {

@@ -50,5 +50,7 @@ OpenStreetMap，依据 ODbL 1.0 提供；页面通过 MapLibre source 展示 man
 
 ## 相关文档
 
+- [校园地图制图流程](../runbooks/campus-map-authoring.md)
+- [校园地图资产（发布清单、命令与署名）](../../apps/campus-web/assets/campus-map/README.md)
 - [导航边界](../../.agents/notes/implemented/architecture/2026-07-16-navigation.md)
 - [校园地图渲染](../../.agents/notes/implemented/architecture/2026-07-16-map-provider.md)

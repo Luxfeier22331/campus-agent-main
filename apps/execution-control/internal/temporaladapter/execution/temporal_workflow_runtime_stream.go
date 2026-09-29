@@ -14,18 +14,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func WorkflowTransportTimeout(deadlineMS int) time.Duration {
-	deadlineMS = PositiveOrDefault(deadlineMS, DefaultAgentDeadlineMS)
-	graceMS := deadlineMS / 10
-	if graceMS < 1 {
-		graceMS = 1
-	}
-	if graceMS > WorkflowTransportGraceMS {
-		graceMS = WorkflowTransportGraceMS
-	}
-	return time.Duration(deadlineMS+graceMS) * time.Millisecond
-}
-
 type AgentRuntimeSSEEvent struct {
 	Event string
 	Data  json.RawMessage

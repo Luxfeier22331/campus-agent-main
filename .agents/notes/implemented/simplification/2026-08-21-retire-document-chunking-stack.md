@@ -43,6 +43,6 @@ Qdrant collection。继续保留两套分块语义会造成错误的能力认知
 
 - [采集数据面](../../../../docs/architecture/system/data-plane.md)
 - [检索服务](../../../../docs/architecture/system/retrieval-serving.md)
-- [Campus Docs 与 Notices 维护及统一 RAG 发布](../../../../docs/runbooks/campus-docs.md)
+- [Campus Docs 与 Notices 维护及统一 RAG 发布](../../../../docs/runbooks/ingestion/campus-docs.md)
 - [Campus Docs Chunk 与 Embedding 任务](../../../../jobs/campus-docs-index-publisher/README.md)
 - 部分取代 [简化采集控制面与内部门户凭据所有权](./2026-08-19-internal-portal-credential-resolution.md)；通知状态见 [通知维护状态收敛](../architecture/2026-08-25-notice-maintenance-state.md)。

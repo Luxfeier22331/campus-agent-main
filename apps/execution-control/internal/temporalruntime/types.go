@@ -281,10 +281,9 @@ type PersonalMemoryCommandWorkflowInput struct {
 }
 
 type PersonalMemoryCommandActivityOutput struct {
-	CommandID         string `json:"command_id"`
-	ErrorCode         string `json:"error_code,omitempty"`
-	ResultFingerprint string `json:"result_fingerprint"`
-	Status            string `json:"status"`
+	CommandID string `json:"command_id"`
+	ErrorCode string `json:"error_code,omitempty"`
+	Status    string `json:"status"`
 }
 
 type FinalizePersonalMemoryCommandReceiptActivityInput struct {
@@ -306,8 +305,7 @@ type FinalizeExecutionFailureActivityOutput struct {
 }
 
 type PersonalMemoryCommandWorkflowResult struct {
-	CommandID         string `json:"command_id"`
-	ErrorCode         string `json:"error_code,omitempty"`
-	ResultFingerprint string `json:"result_fingerprint"`
-	Status            string `json:"status"`
+	CommandID string `json:"command_id"`
+	ErrorCode string `json:"error_code,omitempty"`
+	Status    string `json:"status"`
 }

@@ -1,7 +1,3 @@
-import {
-	DiningSubmissionCreateSchema,
-	DiningSubmissionUpdateSchema,
-} from "@campus-agent/dining/domain";
 import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { Env } from "../../config";
 import type { RuntimeDbGetter } from "../../db/runtime";
@@ -73,7 +69,7 @@ export function createPgDiningSubmissionService(
 
 	const service: DiningSubmissionService = {
 		async create(input) {
-			const metadata = DiningSubmissionCreateSchema.parse(input.metadata);
+			const metadata = input.metadata;
 			validatePhotoAction(metadata.photoAction, input.photo);
 			const inputSha = input.photo ? await sha256(input.photo) : null;
 			const db = await getDb();
@@ -181,7 +177,7 @@ export function createPgDiningSubmissionService(
 			}
 		},
 		async update(input) {
-			const metadata = DiningSubmissionUpdateSchema.parse(input.metadata);
+			const metadata = input.metadata;
 			validatePhotoAction(metadata.photoAction, input.photo);
 			const db = await getDb();
 			async function check(tx: SubmissionTransaction) {

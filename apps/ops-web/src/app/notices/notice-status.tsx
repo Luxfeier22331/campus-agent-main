@@ -1,5 +1,5 @@
 import { Badge } from "@campus-agent/ui";
-import { NOTICE_CATEGORY_LABELS, type NoticeCategory } from "campus-contracts/notices";
+import { NOTICE_CATEGORY_LABELS } from "campus-contracts/notices";
 import type {
 	NoticeJob,
 	NoticeJobOperation,
@@ -60,10 +60,6 @@ export function NoticeCategoryBadge({ category }: { category: NoticeSummary["cat
 		return <Badge tone="neutral">尚无分类结果</Badge>;
 	}
 	return <Badge tone="info">{NOTICE_CATEGORY_LABELS[category]}</Badge>;
-}
-
-export function noticeCategoryLabel(category: NoticeCategory | null): string {
-	return category ? NOTICE_CATEGORY_LABELS[category] : "尚无分类结果";
 }
 
 export function noticeStateLabel(state: NoticeState): string {

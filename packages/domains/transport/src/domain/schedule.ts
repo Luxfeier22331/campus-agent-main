@@ -214,7 +214,6 @@ export const TransportPublicScheduleRangeSchema = z
 	.strict();
 
 export type TransportServiceKind = z.infer<typeof TransportServiceKindSchema>;
-export type TransportScheduleStatus = z.infer<typeof TransportScheduleStatusSchema>;
 export type TransportRiderType = z.infer<typeof TransportRiderTypeSchema>;
 export type TransportScheduleItem = z.infer<typeof TransportScheduleItemSchema>;
 export type TransportSchedulePeriodInput = z.infer<typeof TransportSchedulePeriodInputSchema>;

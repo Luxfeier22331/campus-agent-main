@@ -182,7 +182,7 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
   必须在环境实施时同步补授权，且库级权限调整前先以 `pg_stat_activity` 和本文角色表核对
   真实消费者。
 - 协作者只读角色（如 `hindsight_ro`）的数据库级授权、凭证与生命周期由
-  [协作者只读访问](../runbooks/collaborator-access.md) 拥有，不进入本文产品角色清单。
+  [协作者只读访问](../runbooks/access/collaborator-access.md) 拥有，不进入本文产品角色清单。
 - 常驻运行时不使用 schema 管理或 migration 凭据；
 - 每个运行时只获得完成其职责所需的表、列和操作权限；
 - `campus-agent-schema` 为 `execution_control` 授予所属 schema `USAGE` 和表的
@@ -250,8 +250,7 @@ App API 当前实现投稿创建、本人修改与软删除、公开及本人读
 
 - 当前 DDL、授权和具名 SQL migration：`jobs/campus-agent-schema/`
 - App API 声明式 schema：`apps/app-api/src/db/schema/`
-- Ops Web 声明式 schema：`packages/domains/dining/src/schema.ts`、
-  `apps/ops-web/ops/db/internal-portal-schema.ts`
+- Ops Web 声明式 schema：`packages/domains/dining/src/schema.ts`
 - 本地业务 seed：`apps/app-api/ops/db/`、`jobs/notice-publisher/src/seed-local.ts`、
   `apps/ops-web/ops/db/`
 - `apps/app-api/src/db/schema/` 只描述 App API 所属表，不再提供可执行 migration runner；其他应用自有 schema runner、旧 migration
@@ -265,5 +264,5 @@ App API 当前实现投稿创建、本人修改与软删除、公开及本人读
 - [采集数据面](../architecture/system/data-plane.md)
 - [Kubernetes 运行时](../architecture/system/k8s-runtime.md)
 - [检索服务](../architecture/system/retrieval-serving.md)
-- [Campus Docs 与 Notices 维护及统一 RAG 发布](../runbooks/campus-docs.md)
+- [Campus Docs 与 Notices 维护及统一 RAG 发布](../runbooks/ingestion/campus-docs.md)
 - [PostgreSQL](../../.agents/notes/implemented/architecture/2026-07-16-postgres.md)

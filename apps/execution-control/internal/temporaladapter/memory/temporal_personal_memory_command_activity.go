@@ -21,10 +21,6 @@ import (
 // erase gate can fail visibly and the owner can issue a successor command.
 const personalMemoryEraseDrainTimeout = 24 * time.Hour
 
-func PersonalMemoryResultFingerprint(commandID string, status string, errorCode string) string {
-	return memoryruntime.CommandResultFingerprint(commandID, status, errorCode)
-}
-
 func PersonalMemoryOwnerScopeHash(ownerSalt string, tenantID string, userID string) string {
 	mac := hmac.New(sha256.New, []byte(strings.TrimSpace(ownerSalt)))
 	_, _ = mac.Write([]byte(strings.TrimSpace(tenantID) + "\x00" + strings.TrimSpace(userID)))
@@ -43,10 +39,9 @@ func PersonalMemorySubjectScopeHash(ownerHash string, subjectID string) string {
 
 func PersonalMemoryActivityOutput(commandID string, status string, errorCode string) temporalruntime.PersonalMemoryCommandActivityOutput {
 	return temporalruntime.PersonalMemoryCommandActivityOutput{
-		CommandID:         strings.TrimSpace(commandID),
-		ErrorCode:         strings.TrimSpace(errorCode),
-		ResultFingerprint: PersonalMemoryResultFingerprint(commandID, status, errorCode),
-		Status:            status,
+		CommandID: strings.TrimSpace(commandID),
+		ErrorCode: strings.TrimSpace(errorCode),
+		Status:    status,
 	}
 }
 
@@ -229,7 +224,6 @@ func (s *Adapter) FinalizePersonalMemoryCommandReceipt(
 		)
 	}
 	result.ErrorCode = PersonalMemoryCommandErrorCodeForStatus(result.Status, result.ErrorCode)
-	result.ResultFingerprint = PersonalMemoryResultFingerprint(result.CommandID, result.Status, result.ErrorCode)
 	ownerHash := PersonalMemoryOwnerScopeHash(s.Config.PersonalMemoryOwnerSalt, input.Command.TenantID, input.Command.UserID)
 	lifecycle := ""
 	switch input.Command.CommandKind {
@@ -243,7 +237,7 @@ func (s *Adapter) FinalizePersonalMemoryCommandReceipt(
 	// receipt (for example after the bounded owner-gate wait timed out) has
 	// nothing to persist here, and its result flows to the product callback so
 	// admission can retry the command from scratch.
-	if _, err := s.PersonalMemoryStateStore.FinalizeCommand(ctx, result.CommandID, ownerHash, result.Status, result.ErrorCode, result.ResultFingerprint, lifecycle); err != nil {
+	if _, err := s.PersonalMemoryStateStore.FinalizeCommand(ctx, result.CommandID, ownerHash, result.Status, result.ErrorCode, lifecycle); err != nil {
 		if errors.Is(err, memoryruntime.ErrMemoryCommandNotFound) {
 			return result, nil
 		}
@@ -283,9 +277,6 @@ func (s *Adapter) WritePersonalMemoryCommandResult(
 	ctx context.Context,
 	result temporalruntime.PersonalMemoryCommandActivityOutput,
 ) error {
-	if result.ResultFingerprint == "" {
-		result.ResultFingerprint = PersonalMemoryResultFingerprint(result.CommandID, result.Status, result.ErrorCode)
-	}
 	if s == nil || s.ProductCallbackClient == nil {
 		return activityprojection.SanitizedTemporalApplicationError(
 			"product_callback_not_configured",
@@ -296,10 +287,9 @@ func (s *Adapter) WritePersonalMemoryCommandResult(
 	return activityprojection.MapProductCallbackError(s.ProductCallbackClient.WritePersonalMemoryCommandResult(
 		ctx,
 		executionapplication.PersonalMemoryCommandResultRequest{
-			CommandID:         result.CommandID,
-			ErrorCode:         result.ErrorCode,
-			ResultFingerprint: result.ResultFingerprint,
-			Status:            result.Status,
+			CommandID: result.CommandID,
+			ErrorCode: result.ErrorCode,
+			Status:    result.Status,
 		},
 	))
 }

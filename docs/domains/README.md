@@ -7,7 +7,8 @@ status: active
 
 `docs/domains/` 只保存可以由一份人类文档完整说明的窄能力，不为宽领域建立转发 hub。
 
-- [place.md](./place.md)：地点目录与校园地图读取；
+- [place.md](./place.md)：地点目录与校园地图读取；制图与接入流程见
+  [校园地图制图流程](../runbooks/campus-map-authoring.md)；
 - [calendar.md](./calendar.md)：校历参考数据、通知关联和未开放边界；
 - [source-card.md](./source-card.md)：问答来源卡片、阅读器固定链接、锚点与高亮；
 - [groups.md](./groups.md)：同好群目录维护和学生端读取。

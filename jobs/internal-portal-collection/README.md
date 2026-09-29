@@ -11,7 +11,7 @@
 
 ## 相关文档
 
-- 操作步骤与故障排查：`docs/runbooks/ingestion.md`
-- TGC 管理：`docs/runbooks/portal-auth.md`
+- 操作步骤与故障排查：`docs/runbooks/ingestion/ingestion.md`
+- TGC 管理：`docs/runbooks/access/portal-auth.md`
 - 数据布局：`docs/data/internal-portal.md`、`docs/data/notices.md`
 - 文件发布合同：`docs/contracts/internal-portal-file-release.md`

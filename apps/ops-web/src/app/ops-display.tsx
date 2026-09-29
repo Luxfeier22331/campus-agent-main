@@ -158,23 +158,6 @@ export function KeyValue({ label, value }: { label: string; value: ReactNode }) 
 	);
 }
 
-export function CopyableKeyValue({
-	contextLabel,
-	label,
-	value,
-}: {
-	contextLabel?: string | undefined;
-	label: string;
-	value: string | null;
-}) {
-	return (
-		<div className="grid min-w-0 gap-1 px-1 py-2">
-			<span className="font-medium text-muted-foreground text-xs">{label}</span>
-			<CopyableValue contextLabel={contextLabel} label={label} value={value} />
-		</div>
-	);
-}
-
 export function CopyableValue({
 	compact = false,
 	contextLabel,
@@ -304,37 +287,6 @@ function CopyStatusIcon({ status }: { status: "copied" | "failed" | "idle" }) {
 		return <CircleAlert className="size-4" />;
 	}
 	return <Clipboard className="size-4" />;
-}
-
-export function MetricTile({
-	className,
-	label,
-	value,
-	valueClassName,
-}: {
-	className?: string;
-	label: string;
-	value: ReactNode;
-	valueClassName?: string;
-}) {
-	return (
-		<div
-			className={cn(
-				"grid min-w-0 content-center gap-1 rounded-[var(--radius-lg)] border border-border bg-background px-3 py-2.5",
-				className,
-			)}
-		>
-			<span className="font-medium text-muted-foreground text-xs">{label}</span>
-			<span
-				className={cn(
-					"min-w-0 break-words font-semibold text-foreground tabular-nums",
-					valueClassName,
-				)}
-			>
-				{value}
-			</span>
-		</div>
-	);
 }
 
 type DisplayStatus = OpsHealthStatus | OpsRequestSummary["status"];

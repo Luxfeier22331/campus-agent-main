@@ -1,4 +1,4 @@
-import type { TLContent, TLExternalContent } from "@tldraw/editor";
+import type { TLContent } from "@tldraw/editor";
 import {
 	createShapeId,
 	type Editor,
@@ -165,17 +165,6 @@ export function runDiningHistoryAction(
 		editor[direction]();
 	}
 	return diningDocumentFingerprint(editor) !== before;
-}
-
-export function prepareDiningExternalContent(
-	editor: Editor,
-	content: TLExternalContent<unknown>,
-): TLExternalContent<unknown> | null {
-	if (content.type !== "tldraw") {
-		return null;
-	}
-	const prepared = prepareDiningContent(editor, content.content);
-	return prepared ? { ...content, content: prepared } : null;
 }
 
 export function prepareDiningContent(editor: Editor, content: TLContent): TLContent | null {

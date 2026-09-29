@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-owner_boundary: docs/runbooks
+owner_boundary: runtime-release
 status: active
 ---
 
@@ -12,7 +12,7 @@ status: active
 port-forward、PostgreSQL `hindsight` 库、rustfs 对象存储 `campus-agent-source` /
 `campus-agent-derived` 桶、Qdrant 向量检索。认证使用 k3s apiserver 的
 `token-auth-file`（`/etc/rancher/k3s/tokens.csv`），授权使用 namespace `campus-agent-staging`
-内的能力组 RoleBinding（manifest 见 `../../infra/k8s/collaborator-access/base/rbac.yaml`）。
+内的能力组 RoleBinding（manifest 见 `../../../infra/k8s/collaborator-access/base/rbac.yaml`）。
 交付物只有 kubeconfig；协作者不获得主机账号。
 
 写入权限、`campus_agent` 业务库中产品同步授权表以外的数据、其他 namespace 和集群管理操作不在本文范围内。
@@ -111,13 +111,13 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO hindsight_ro
 
 #### 库级权限变更安全配方（2026-09-16 事故教训）
 
-`campus_agent` 是共享库（消费者见 `../data/postgres-ownership.md` 角色表）。调整任何库级
+`campus_agent` 是共享库（消费者见 `../../data/postgres-ownership.md` 角色表）。调整任何库级
 权限前：
 
 1. 先核对真实消费者：`SELECT usename, count(*) FROM pg_stat_activity WHERE datname =
    'campus_agent' GROUP BY 1;`，并与所有权文档角色表对照；静态 ACL 上没有显式授权的角色
    同样可能是消费者（PostgreSQL 默认给 `PUBLIC` 授 `CONNECT`）。
-2. 若按 [campus_agent 共享库连接授权模型](../../.agents/notes/implemented/architecture/2026-09-16-campus-agent-connect-acl.md) 收紧 `PUBLIC`，必须在
+2. 若按 [campus_agent 共享库连接授权模型](../../../.agents/notes/implemented/architecture/2026-09-16-campus-agent-connect-acl.md) 收紧 `PUBLIC`，必须在
    同一变更中为全部真实消费者逐一显式 `GRANT CONNECT`（当前：`campus_agent`、`app_api`、
    `execution_control`、`model_config`、`ops_web`）。
 3. 验证以每个消费者**新建连接**成功为准：存量连接池不受 `CONNECT` 收回影响，故障会随池
@@ -128,7 +128,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO hindsight_ro
 无需手工操作：`object-store-secrets` 中的 `OBJECT_STORE_HUMANS_*` 四个键由
 object-store bootstrap Job 声明式铸造（`campus-agent-source-ro` / 复用
 `campus-agent-derived-ro` policy），见
-`../../infra/k8s/data-object-store/base/bootstrap.yaml`。
+`../../../infra/k8s/data-object-store/base/bootstrap.yaml`。
 
 ### Qdrant
 
@@ -195,4 +195,10 @@ Source 的 data-postgres DatabaseRole 创建 product_data_ro，schema migration 
 食堂基础表和 current_index 的 SELECT；不设置覆盖整个 schema 的默认 SELECT 权限。
 凭据由 GitOps data-postgres overlay 投递；交付顺序为凭据/角色、schema grants、协作者访问验收。
 新增 Source revision 和 schema image 必须交付后再执行 `dev:init --data cluster`，不能用管理员身份
-读取应用 Secret 来替代。具体数据与替换规则见[本地运行检查](./local-verification.md)。
+读取应用 Secret 来替代。具体数据与替换规则见[本地运行检查](../local-verification.md)。
+
+## 相关文档
+
+- [本地运行检查](../local-verification.md)
+- [PostgreSQL 角色与库所有权](../../data/postgres-ownership.md)
+- [运行时发布架构](../../architecture/system/runtime-release.md)

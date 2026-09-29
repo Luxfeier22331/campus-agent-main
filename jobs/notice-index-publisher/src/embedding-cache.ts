@@ -40,6 +40,7 @@ export interface ResolvedStoredNoticeEmbeddingCache {
 	generatedTextSha256s: ReadonlySet<Sha256Ref>;
 	reusedInputCount: number;
 	reusedTextSha256s: ReadonlySet<Sha256Ref>;
+	vectorsByTextSha256: ReadonlyMap<Sha256Ref, number[]>;
 }
 
 export interface ImportedNoticeEmbeddingCache {
@@ -64,9 +65,6 @@ export async function resolveNoticeEmbeddingVectors(input: {
 	const missing: Array<[Sha256Ref, string]> = [];
 	const sortedInputs = sortNoticeEmbeddingInputs(input.textBySha256);
 	for (const [textSha256, text] of sortedInputs) {
-		if (sha256(text) !== textSha256) {
-			throw new ArtifactValidationError(`notice embedding input text hash is invalid: ${textSha256}`);
-		}
 		const fileName = `${artifactHex(textSha256)}.json`;
 		if (!cachedNames.has(fileName)) {
 			missing.push([textSha256, text]);
@@ -86,7 +84,8 @@ export async function resolveNoticeEmbeddingVectors(input: {
 					const entry = missing[batch.offset + index];
 					if (!entry) throw new ArtifactValidationError("embedding result batch offset is invalid");
 					const [textSha256] = entry;
-					assertValidNoticeEmbeddingVector(dense, textSha256);
+					// 向量维度与数值已由 embedding-runtime 的 embedTextBatches 在 provider
+					// 返回边界校验，此处不再重复。
 					vectorsByTextSha256.set(textSha256, dense);
 					await writeImmutable(
 						noticeEmbeddingCachePath(
@@ -129,20 +128,19 @@ export async function resolveStoredNoticeEmbeddingCache(input: {
 	);
 	const missing: Array<[Sha256Ref, string]> = [];
 	const reusedTextSha256s = new Set<Sha256Ref>();
+	const vectorsByTextSha256 = new Map<Sha256Ref, number[]>();
 	for (const [textSha256, text] of sortedInputs) {
-		if (sha256(text) !== textSha256) {
-			throw new ArtifactValidationError(`notice embedding input text hash is invalid: ${textSha256}`);
-		}
 		const key = noticeEmbeddingCacheKey(input.modelTargetSha256, textSha256);
 		if (!storedKeys.has(key)) {
 			missing.push([textSha256, text]);
 			continue;
 		}
-		parseCachedNoticeEmbedding(
+		const cached = parseCachedNoticeEmbedding(
 			await input.artifactStore.read(key),
 			textSha256,
 			input.modelTargetSha256,
 		);
+		vectorsByTextSha256.set(textSha256, cached.dense);
 		reusedTextSha256s.add(textSha256);
 	}
 
@@ -156,7 +154,6 @@ export async function resolveStoredNoticeEmbeddingCache(input: {
 					const entry = missing[batch.offset + index];
 					if (!entry) throw new ArtifactValidationError("embedding result batch offset is invalid");
 					const [textSha256] = entry;
-					assertValidNoticeEmbeddingVector(dense, textSha256);
 					const bytes = canonicalJsonBytes(
 						cachedNoticeEmbedding(dense, textSha256, input.modelTargetSha256),
 					);
@@ -164,6 +161,7 @@ export async function resolveStoredNoticeEmbeddingCache(input: {
 						noticeEmbeddingCacheKey(input.modelTargetSha256, textSha256),
 						bytes,
 					);
+					vectorsByTextSha256.set(textSha256, dense);
 					generatedTextSha256s.add(textSha256);
 				}),
 			);
@@ -175,6 +173,7 @@ export async function resolveStoredNoticeEmbeddingCache(input: {
 		generatedTextSha256s,
 		reusedInputCount: reusedTextSha256s.size,
 		reusedTextSha256s,
+		vectorsByTextSha256,
 	};
 }
 
@@ -186,11 +185,6 @@ export async function importLocalNoticeEmbeddingCache(input: {
 }): Promise<ImportedNoticeEmbeddingCache> {
 	assertNoticeEmbeddingModelTargetSha256(input.modelTargetSha256);
 	const sortedInputs = sortNoticeEmbeddingInputs(input.textBySha256);
-	for (const [textSha256, text] of sortedInputs) {
-		if (sha256(text) !== textSha256) {
-			throw new ArtifactValidationError(`notice embedding input text hash is invalid: ${textSha256}`);
-		}
-	}
 	const names = new Set(await readdir(input.cacheDirectory));
 	const expectedNames = new Set(sortedInputs.map(([textSha256]) => cacheFileName(textSha256)));
 	const extraNames = [...names].filter((name) => !expectedNames.has(name)).sort();
@@ -337,7 +331,6 @@ function cachedNoticeEmbedding(
 	textSha256: Sha256Ref,
 	modelTargetSha256: string,
 ): CachedNoticeEmbedding {
-	assertValidNoticeEmbeddingVector(dense, textSha256);
 	return {
 		dense,
 		embeddingSpace: EMBEDDING_SPACE,

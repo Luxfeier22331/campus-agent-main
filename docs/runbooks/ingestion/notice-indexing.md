@@ -115,3 +115,10 @@ Model Config、Provider 及 cache 校验错误，修复后用相同输入创建�
 
 完成后按[统一发布步骤](./campus-docs.md#5-发布统一-campus-rag-index)与 Docs 制品共同发布；
 构建本身不改变当前在线索引。ID 和运行日志属于本次操作，不回填为长期文档中的固定环境事实。
+
+## 相关文档
+
+- [通知领域（架构边界）](../../architecture/domains/notices.md)
+- [通知数据](../../data/notices.md)
+- [采集运行](./ingestion.md)
+- [Campus Docs 维护与索引发布](./campus-docs.md)

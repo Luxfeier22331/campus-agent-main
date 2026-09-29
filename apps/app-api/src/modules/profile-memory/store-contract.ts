@@ -45,7 +45,6 @@ export interface ProfileMemoryCommandStore {
 	applyCommandResult(input: {
 		commandId: string;
 		errorCode?: string;
-		resultFingerprint: string;
 		status: "succeeded" | "failed";
 		updatedAt: string;
 	}): Promise<"applied" | "conflict" | "not_found" | "replayed" | "superseded">;

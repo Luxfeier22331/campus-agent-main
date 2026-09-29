@@ -5,22 +5,6 @@ export function escapeHtml(value: unknown): string {
 	return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
-export function escapeAttribute(value: unknown): string {
-	return escapeHtml(value).replaceAll('"', "&quot;");
-}
-
-export function escapeMarkdownLinkText(value: string): string {
-	return value.replaceAll("[", "\\[").replaceAll("]", "\\]");
-}
-
-export function escapeMdxHeadingText(value: string): string {
-	return escapeHtml(value)
-		.replaceAll("{", "&#123;")
-		.replaceAll("}", "&#125;")
-		.replace(/\s+/gu, " ")
-		.trim();
-}
-
 export function normalizeText(value: unknown): string {
 	return String(value ?? "").trim();
 }

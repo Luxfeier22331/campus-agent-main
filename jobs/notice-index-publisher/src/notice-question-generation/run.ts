@@ -106,16 +106,11 @@ export async function runLocalNoticeQuestionSetGeneration(input: {
 	const targetedQuestionBytes = encodeNdjson(targetedQuestions);
 	const validationBytes = canonicalJsonBytes(validation);
 	const manifest: NoticeQuestionSetManifest = {
-		broadSample: {
-			censusSha256: sha256(broadSample.censusBytes),
-			sampleSha256: sha256(broadSample.sampleBytes),
-		},
 		chunkRun: input.chunkRun,
 		definition: NOTICE_QUESTION_SET_DEFINITION,
 		model: input.modelName,
 		questionCount: questions.length,
 		questions: reference("questions.ndjson", questionBytes),
-		reviewCandidatesSha256: sha256(reviewCandidates.bytes),
 		schemaVersion: NOTICE_QUESTION_SET_SCHEMA_VERSION,
 		targetedNoticeIds: reviewCandidates.noticeIds,
 		targetedQuestions: reference("targeted-questions.ndjson", targetedQuestionBytes),

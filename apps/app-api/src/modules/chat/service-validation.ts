@@ -89,16 +89,7 @@ export function normalizeMessageFeedbackReasonCodes(input: {
 	reasonCodes?: string[];
 	vote: ChatMessageFeedbackVote;
 }): ChatMessageFeedbackReasonCode[] {
-	const rawReasonCodes = input.reasonCodes ?? [];
-	if (!Array.isArray(rawReasonCodes)) {
-		throw createChatRouteError({
-			code: "invalid_message_feedback",
-			message: "reasonCodes must be an array.",
-			status: 400,
-		});
-	}
-
-	const reasonCodes = rawReasonCodes.map((reasonCode) => reasonCode.trim());
+	const reasonCodes = (input.reasonCodes ?? []).map((reasonCode) => reasonCode.trim());
 	if (input.vote === "helpful" && reasonCodes.length > 0) {
 		throw createChatRouteError({
 			code: "invalid_message_feedback",

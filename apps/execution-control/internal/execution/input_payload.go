@@ -1,8 +1,6 @@
 package execution
 
 import (
-	"context"
-
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 )
 
@@ -24,27 +22,11 @@ func PayloadMap(wire contracts.ExecutionPayloadWire) map[string]any {
 	return result
 }
 
-func LoadPayload(
-	ctx context.Context,
-	loader InputLoader,
-	run DurableRun,
-) (map[string]any, error) {
-	wire, err := loader.Load(ctx, run)
-	if err != nil {
-		return nil, err
-	}
-	return PayloadMap(wire), nil
-}
-
 func InputFailureKind(err error, fallback string) string {
 	if kind := InputErrorKind(err); kind != "" && kind != "execution_input_unavailable" {
 		return kind
 	}
 	return fallback
-}
-
-func InputFailureIsNonRetryable(err error) bool {
-	return !InputErrorIsRetryable(err)
 }
 
 func cloneInputMap(source map[string]any) map[string]any {

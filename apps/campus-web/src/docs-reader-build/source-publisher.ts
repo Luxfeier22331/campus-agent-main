@@ -81,15 +81,6 @@ export async function prepareDocsSourcePublication(input: {
 	return { compiled, source, sourceBytes, sourceDigest: sha256(sourceBytes) };
 }
 
-export async function assertCurrentSourceDigest(
-	client: Pick<ReaderObjectStoreWriter, "readOptionalBytesObject">,
-	expectedDigest: `sha256:${string}`,
-): Promise<Uint8Array> {
-	const bytes = await client.readOptionalBytesObject({ key: DOCS_SOURCE_KEY });
-	assertSourceDigest(bytes, expectedDigest);
-	return bytes;
-}
-
 export function docsSourceReleaseKey(sourceDigest: `sha256:${string}`): string {
 	return `${DOCS_SOURCE_RELEASE_PREFIX}/${assertSha256(sourceDigest).slice("sha256:".length)}/source.json`;
 }

@@ -80,7 +80,6 @@ export const profileMemoryCommands = profile.table(
 		status: text("status").notNull().default("pending_admission"),
 		admittedAt: timestamp("admitted_at", { withTimezone: true }),
 		lastErrorCode: text("last_error_code"),
-		resultFingerprint: text("result_fingerprint"),
 		reportedResultStatus: text("reported_result_status"),
 		idempotencyKeyHash: text("idempotency_key_hash").notNull(),
 		requestFingerprint: text("request_fingerprint").notNull(),

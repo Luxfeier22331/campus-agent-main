@@ -9,6 +9,8 @@ import {
 	embeddingSetManifestKey,
 	noticeChunkRunPrefix,
 	noticeEmbeddingSetManifestKey,
+	readDocsEmbeddingSetManifest,
+	readNoticeEmbeddingSetManifest,
 } from "../src/artifacts.ts";
 import { assembleCandidate, buildNoticePoints, publishCampusRagIndex } from "../src/publisher.ts";
 import type {
@@ -405,6 +407,34 @@ async function prepareArtifacts(input: {
 	});
 	return { docsChunkKey, docsEmbeddingSet, noticeEmbeddingSet, store };
 }
+
+describe("manifest-only embedding set reads", () => {
+	it("reads only the manifest object without touching embedding data", async () => {
+		const prepared = await prepareArtifacts();
+		const docsManifest = await readDocsEmbeddingSetManifest(prepared.store, prepared.docsEmbeddingSet);
+		const noticeManifest = await readNoticeEmbeddingSetManifest(
+			prepared.store,
+			prepared.noticeEmbeddingSet,
+		);
+
+		expect(docsManifest.modelTargetSha256).toBe("a".repeat(64));
+		expect(noticeManifest.modelTargetSha256).toBe("a".repeat(64));
+		expect(noticeManifest.chunkRun).toMatch(/^sha256:/u);
+		for (const [key, count] of prepared.store.readCounts) {
+			expect(key, `unexpected read of ${key}`).not.toContain("embedding-data");
+			expect(count).toBeGreaterThan(0);
+		}
+	});
+
+	it("still rejects a manifest whose digest does not match its id", async () => {
+		const prepared = await prepareArtifacts();
+		const key = embeddingSetManifestKey(prepared.docsEmbeddingSet);
+		prepared.store.put(key, new TextEncoder().encode('{"tampered":true}\n'));
+		await expect(
+			readDocsEmbeddingSetManifest(prepared.store, prepared.docsEmbeddingSet),
+		).rejects.toThrow("does not match");
+	});
+});
 
 class MemoryStore implements ReaderObjectStore {
 	readonly objects = new Map<string, Uint8Array>();

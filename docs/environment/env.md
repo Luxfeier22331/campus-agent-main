@@ -142,7 +142,7 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 
 内部门户采集、notice-classifier 和 notice-publisher 只读取各自 workload 声明的数据库、对象存储、
 Ops Web 或 Model Config 配置。任务参数属于单次 Job 输入，不进入长期环境配置；模板和任务操作由
-[采集与发布手册](../runbooks/ingestion.md)维护。
+[采集与发布手册](../runbooks/ingestion/ingestion.md)维护。
 
 ### 部署配置生命周期
 
@@ -227,6 +227,6 @@ stale 实例不会自动清理。先运行 `pnpm dev:prune` 列出 stale 记录�
 
 - [Provider 与 Secret](./providers.md)
 - [测试与验证](../reference/verification.md)
-- [供应商密钥操作](../runbooks/provider-secrets.md)
-- [采集与发布手册](../runbooks/ingestion.md)
+- [供应商密钥操作](../runbooks/access/provider-secrets.md)
+- [采集与发布手册](../runbooks/ingestion/ingestion.md)
 - [Secret 投递决策](../../.agents/notes/implemented/process/2026-07-04-secret-delivery.md)

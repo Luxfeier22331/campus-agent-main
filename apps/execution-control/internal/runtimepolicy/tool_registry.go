@@ -148,14 +148,6 @@ func (r ToolSpecRegistry) ModelVisibleFunctionToolNames() []string {
 	return allowed
 }
 
-func (r ToolSpecRegistry) ModelVisibleToolByName(name string) (ToolSpec, bool) {
-	tool, ok := r.ToolByName(name)
-	if !ok || tool.Exposure != "model_visible" || !tool.ReadOnly {
-		return ToolSpec{}, false
-	}
-	return tool, true
-}
-
 func (r ToolSpecRegistry) ToolNamesByHandlerEndpoint(endpoint string) []string {
 	normalized := strings.TrimSpace(endpoint)
 	if normalized == "" {

@@ -72,15 +72,6 @@ export function createS3DiningFloorplanAssetStore(input: {
 	};
 }
 
-export function createUnavailableDiningFloorplanAssetStore(
-	error: unknown,
-): DiningFloorplanAssetStore {
-	const unavailable = async (): Promise<never> => {
-		throw new Error("Dining floorplan object storage is unavailable.", { cause: error });
-	};
-	return { putSvg: unavailable, verifyReadiness: unavailable };
-}
-
 function digestFromSha256(value: `sha256:${string}`): string {
 	const digest = /^sha256:([0-9a-f]{64})$/.exec(value)?.[1];
 	if (!digest) {

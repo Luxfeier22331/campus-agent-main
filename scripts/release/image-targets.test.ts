@@ -142,7 +142,7 @@ test("recognizes container definition changes independently of image selection",
 	assert.equal(containerBuildInputsChanged([".node-version"]), true);
 	assert.equal(containerBuildInputsChanged(["scripts/release/images.mts"]), true);
 	assert.equal(containerBuildInputsChanged(["apps/agent-runtime/Dockerfile"]), true);
-	assert.equal(containerBuildInputsChanged(["docs/runbooks/release.md"]), false);
+	assert.equal(containerBuildInputsChanged(["docs/runbooks/release/release.md"]), false);
 });
 
 test("maps OCR bundled inputs to its image", () => {

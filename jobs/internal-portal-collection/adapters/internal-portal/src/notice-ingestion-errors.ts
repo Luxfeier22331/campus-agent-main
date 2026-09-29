@@ -16,7 +16,3 @@ export class NoticeIngestionDataError extends Error {
 		this.operation = input.operation;
 	}
 }
-
-export function isNoticeIngestionDataError(error: unknown): error is NoticeIngestionDataError {
-	return error instanceof NoticeIngestionDataError;
-}

@@ -1,6 +1,6 @@
 import {
 	CANONICAL_EMBEDDING_MODEL,
-	createEmbeddingConnection,
+	normalizeEmbeddingBaseUrl,
 	type EmbeddingConnection,
 } from "@campus-agent/embedding-runtime";
 
@@ -34,12 +34,12 @@ export async function fetchNoticeEmbeddingConnection(
 	) {
 		throw new Error("notice embedding model runtime config is invalid");
 	}
-	return createEmbeddingConnection({
+	return {
 		apiKey: payload.api_key,
-		baseUrl: payload.base_url,
-		model: payload.model,
+		baseUrl: normalizeEmbeddingBaseUrl(payload.base_url),
+		model: CANONICAL_EMBEDDING_MODEL,
 		targetSha256: payload.target_sha256,
-	});
+	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

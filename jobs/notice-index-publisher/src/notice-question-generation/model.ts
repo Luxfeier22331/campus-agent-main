@@ -80,16 +80,11 @@ export interface GeneratedNoticeQuestionSelection {
 }
 
 export interface NoticeQuestionSetManifest {
-	broadSample: {
-		censusSha256: Sha256Ref;
-		sampleSha256: Sha256Ref;
-	};
 	chunkRun: Sha256Ref;
 	definition: typeof NOTICE_QUESTION_SET_DEFINITION;
 	model: string;
 	questionCount: number;
 	questions: ArtifactReference;
-	reviewCandidatesSha256: Sha256Ref;
 	schemaVersion: typeof NOTICE_QUESTION_SET_SCHEMA_VERSION;
 	targetedNoticeIds: string[];
 	targetedQuestions: ArtifactReference;

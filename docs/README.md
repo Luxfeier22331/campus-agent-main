@@ -28,7 +28,7 @@ status: active
 - [data/README.md](./data/README.md)：数据结构和读取模型所有权
 - [决策笔记](../.agents/notes/README.md)：决策记录生命周期和理由（`.agents/notes/`）
 - [postmortem/README.md](./postmortem/README.md)：真实故障、漏检原因与回归防护
-- [reference/README.md](./reference/README.md)：术语、矩阵和稳定参考
+- [reference/README.md](./reference/README.md)：术语、矩阵和稳定参考（含[主题索引](./reference/topic-index.md)）
 - [runbooks/README.md](./runbooks/README.md)：可重复的操作步骤
 - [environment/README.md](./environment/README.md)：环境变量、供应商和 Secret 所有权
 - [policies/README.md](./policies/README.md)：治理规则和采集策略

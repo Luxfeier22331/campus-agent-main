@@ -54,10 +54,3 @@ export const CitationDiagnosticSchema = z
 		"citation diagnostic exceeds 2 KiB",
 	);
 export type CitationDiagnostic = z.infer<typeof CitationDiagnosticSchema>;
-export const CitationFailureFixtureSchema = z
-	.object({
-		code: z.literal("citation_validation_failed"),
-		reason: z.enum(Object.keys(CITATION_REASONS) as [CitationReason, ...CitationReason[]]),
-		citation: CitationDiagnosticSchema,
-	})
-	.strict();

@@ -12,7 +12,7 @@ type MemoryStore interface {
 	BeginCall(context.Context, string, string, int64, string, time.Duration) error
 	BeginCommand(context.Context, string, memoryruntime.PersonalMemoryCommandRequest, time.Duration) (memoryruntime.CommandReceipt, bool, error)
 	EndCall(context.Context, string, string) error
-	FinalizeCommand(context.Context, string, string, string, string, string, string) (memoryruntime.CommandReceipt, error)
+	FinalizeCommand(context.Context, string, string, string, string, string) (memoryruntime.CommandReceipt, error)
 	GetCommand(context.Context, string, string) (memoryruntime.CommandReceipt, error)
 	GenerationDrained(context.Context, string, int64) (bool, error)
 	ListGenerationAppendCallIDs(context.Context, string, int64) ([]string, error)

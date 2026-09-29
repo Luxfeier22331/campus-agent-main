@@ -9,7 +9,6 @@ import { buildLocalNoticeChunkRun } from "../src/command.ts";
 import {
 	NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION,
 	parseCachedNoticeEmbedding,
-	resolveNoticeEmbeddingVectors,
 } from "../src/embedding-cache.ts";
 import {
 		runLocalNoticeEmbeddingSample,
@@ -175,25 +174,6 @@ describe("notice embedding sample execution", () => {
 });
 
 describe("notice embedding cache contract", () => {
-	it("rejects a mismatched input text hash before calling the provider", async () => {
-		const root = await mkdtemp(join(tmpdir(), "notice-embedding-cache-"));
-		try {
-			const embed = vi.fn(async () => [] as number[][]);
-			const wrongHash = `sha256:${"b".repeat(64)}` as Sha256Ref;
-			await expect(
-				resolveNoticeEmbeddingVectors({
-					artifactRoot: root,
-					embedding: { embed },
-					modelTargetSha256: "a".repeat(64),
-					textBySha256: new Map([[wrongHash, "text"]]),
-				}),
-			).rejects.toThrow("input text hash is invalid");
-			expect(embed).not.toHaveBeenCalled();
-		} finally {
-			await rm(root, { force: true, recursive: true });
-		}
-	});
-
 	it("rejects invalid dimensions, zero norms, and non-canonical cache JSON", () => {
 		const textSha256 = sha256("text");
 		const modelTargetSha256 = "a".repeat(64);

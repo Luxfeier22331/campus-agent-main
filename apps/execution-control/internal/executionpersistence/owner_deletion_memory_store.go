@@ -67,22 +67,6 @@ func (s *InMemoryRunProjectionStore) BeginOwnerDeletion(
 	return s.ownerDeletionStatusLocked(ownerUserID), nil
 }
 
-func (s *InMemoryRunProjectionStore) OwnerDeletionStatus(
-	_ context.Context,
-	ownerUserID string,
-) (execution.OwnerDeletionStatus, error) {
-	ownerUserID = strings.TrimSpace(ownerUserID)
-	if ownerUserID == "" {
-		return execution.OwnerDeletionStatus{}, errors.New("owner deletion owner is required")
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if _, exists := s.ownerDeletionFences[ownerUserID]; !exists {
-		return execution.OwnerDeletionStatus{}, execution.ErrOwnerDeletionNotStarted
-	}
-	return s.ownerDeletionStatusLocked(ownerUserID), nil
-}
-
 func (s *InMemoryRunProjectionStore) FinalizeOwnerDeletion(
 	_ context.Context,
 	request execution.OwnerDeletionFinalizeRequest,

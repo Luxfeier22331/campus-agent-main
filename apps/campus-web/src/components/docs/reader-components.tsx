@@ -113,10 +113,6 @@ export function ReaderDocument({
 	);
 }
 
-export function ReaderAnchor({ id }: { id: string }) {
-	return <span className="docs-reader-anchor" id={id} tabIndex={-1} />;
-}
-
 export function ReaderBlock({
 	children,
 	rootUnitId,

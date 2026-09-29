@@ -185,4 +185,4 @@ pnpm --dir scripts typecheck:notices
 pnpm exec biome check scripts/notices package.json
 ```
 
-通知数据语义和本地显式发布步骤分别见 `docs/data/notices.md` 与 `docs/runbooks/ingestion.md`。
+通知数据语义和本地显式发布步骤分别见 `docs/data/notices.md` 与 `docs/runbooks/ingestion/ingestion.md`。

@@ -36,11 +36,6 @@ spec:
           args:
             - dist/worker.js
           env:
-            - name: EXECUTION_CONTROL_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: execution-tool-read-model-secrets
-                  key: EXECUTION_CONTROL_DATABASE_URL
             - name: OBJECT_STORE_ENDPOINT
               value: http://object-store:9000
             - name: HOME

@@ -61,16 +61,12 @@ export const DiningReviewCreateSchema = z
 	})
 	.strict();
 
-export type DiningReviewCreate = z.infer<typeof DiningReviewCreateSchema>;
-
 export const DiningReviewReportCreateSchema = z
 	.object({
 		details: z.string().trim().max(300).nullable().optional(),
 		reason: DiningReportReasonSchema,
 	})
 	.strict();
-
-export type DiningReviewReportCreate = z.infer<typeof DiningReviewReportCreateSchema>;
 
 export const DiningMenuItemRecordSchema = DiningMenuItemSchema.extend({
 	archivedAt: isoDate.nullable(),
@@ -128,8 +124,6 @@ export const DiningReviewEditRecordSchema = z
 	})
 	.strict();
 
-export type DiningReviewEditRecord = z.infer<typeof DiningReviewEditRecordSchema>;
-
 export const DiningOpsReviewRecordSchema = z
 	.object({
 		anonymous: z.boolean(),
@@ -152,8 +146,6 @@ export const DiningOpsReviewRecordSchema = z
 	})
 	.strict();
 
-export type DiningOpsReviewRecord = z.infer<typeof DiningOpsReviewRecordSchema>;
-
 export const DiningOpsReviewPageSchema = z
 	.object({
 		items: z.array(DiningOpsReviewRecordSchema),
@@ -161,19 +153,11 @@ export const DiningOpsReviewPageSchema = z
 	})
 	.strict();
 
-export type DiningOpsReviewPage = z.infer<typeof DiningOpsReviewPageSchema>;
-
 export const DiningOpsReviewDetailSchema = z
 	.object({
 		edits: z.array(DiningReviewEditRecordSchema),
 		review: DiningOpsReviewRecordSchema,
 	})
-	.strict();
-
-export type DiningOpsReviewDetail = z.infer<typeof DiningOpsReviewDetailSchema>;
-
-export const DiningOpsReviewResponseSchema = z
-	.object({ review: DiningOpsReviewRecordSchema })
 	.strict();
 
 export const DiningOpsReportRecordSchema = z
@@ -190,13 +174,9 @@ export const DiningOpsReportRecordSchema = z
 	})
 	.strict();
 
-export type DiningOpsReportRecord = z.infer<typeof DiningOpsReportRecordSchema>;
-
 export const DiningOpsReportPageSchema = z
 	.object({
 		items: z.array(DiningOpsReportRecordSchema),
 		nextCursor: z.string().min(1).nullable(),
 	})
 	.strict();
-
-export type DiningOpsReportPage = z.infer<typeof DiningOpsReportPageSchema>;

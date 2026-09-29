@@ -108,3 +108,9 @@ provider-backed `owner_transition`、callback-only recovery 与 raw management r
 execution-control worker 不能混跑。现有 Hindsight bank 内容不因代码切换迁移或重导入。
 
 接口细节见 [App API 个人记忆接口](../../contracts/app-api/memory.md)。
+
+## 相关文档
+
+- [App API 个人记忆接口](../../contracts/app-api/memory.md)
+- [Personal memory access boundary](../../../.agents/notes/implemented/architecture/2026-09-24-memory-access-boundary.md)
+- [Agent 记忆协调器](../../../.agents/notes/implemented/architecture/2026-09-24-agent-memory-coordinator.md)

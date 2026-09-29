@@ -52,7 +52,6 @@ export interface ProfileMemoryCommandStatusReader {
 		commandId: string;
 		status: string;
 		errorCode: string;
-		resultFingerprint: string;
 		stale: boolean;
 	}>;
 }
@@ -69,7 +68,6 @@ export interface ProfileMemoryServiceDependencies {
 export interface ProfileMemoryCommandResultInput {
 	commandId: string;
 	errorCode?: string;
-	resultFingerprint: string;
 	status: "succeeded" | "failed";
 }
 export type ProfileMemoryCommandResultApplyOutcome =
@@ -99,7 +97,7 @@ function identity(key: string, value: unknown) {
 	return { idempotencyKeyHash: hash(key.trim()), requestFingerprint: hash(JSON.stringify(value)) };
 }
 function normalizeText(text: string): string {
-	if (typeof text !== "string" || !text.trim()) {
+	if (!text.trim()) {
 		throw error("invalid_profile_memory_text", "Memory text must not be empty.");
 	}
 	return text.trim();
@@ -284,7 +282,6 @@ export function buildProfileMemoryService(
 					await service.applyResult({
 						commandId: command.commandId,
 						...(status.errorCode ? { errorCode: status.errorCode } : {}),
-						resultFingerprint: status.resultFingerprint,
 						status: status.status,
 					});
 					reconciled++;

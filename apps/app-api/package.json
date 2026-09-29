@@ -19,7 +19,6 @@
 		"@better-auth/oauth-provider": "1.7.5",
 		"@campus-agent/dining": "workspace:*",
 		"@campus-agent/transport": "workspace:*",
-		"@hono/zod-openapi": "^1.6.3",
 		"aws4fetch": "1.0.20",
 		"better-auth": "1.7.5",
 		"better-call": "1.4.0",

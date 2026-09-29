@@ -7,7 +7,6 @@ import {
 
 export const REFRESH_SCHEDULE_ID = "notice-pipeline";
 export const RAG_TASK_QUEUE = "notice-pipeline";
-export const NOTICE_PIPELINE_TASK_QUEUE = RAG_TASK_QUEUE;
 export async function connectTemporal(env = process.env) {
 	const connection = await Connection.connect({
 		address: env.TEMPORAL_ADDRESS ?? "localhost:7233",

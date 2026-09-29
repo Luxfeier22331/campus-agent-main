@@ -36,13 +36,6 @@ export async function resolveModelRuntimeConfig(
 	expectedTargetSha256: string,
 	signal?: AbortSignal,
 ): Promise<PromptProviderRuntimeConfig> {
-	if (!/^[0-9a-f]{64}$/u.test(expectedTargetSha256)) {
-		throw new ModelConfigClientError(
-			"The expected Model Config target hash is invalid.",
-			400,
-			"invalid_model_target_sha256",
-		);
-	}
 	const baseUrl = options.baseUrl.trim().replace(/\/+$/u, "");
 	if (!baseUrl) {
 		throw new ModelConfigClientError(
@@ -93,13 +86,6 @@ export async function resolveModelRuntimeConfig(
 	if (!isRuntimeConfigResponse(payload)) {
 		throw new ModelConfigClientError(
 			"Model Config returned an invalid runtime contract.",
-			503,
-			"model_config_unavailable",
-		);
-	}
-	if (payload.target_sha256 !== expectedTargetSha256) {
-		throw new ModelConfigClientError(
-			"Model Config returned a mismatched runtime target.",
 			503,
 			"model_config_unavailable",
 		);

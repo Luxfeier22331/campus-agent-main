@@ -1,7 +1,4 @@
-import {
-	loadLocalInfrastructureSecrets,
-	resolveLocalInfrastructureSecretsPath,
-} from "./infrastructure-secrets";
+import { loadLocalInfrastructureSecrets } from "./infrastructure-secrets";
 import type { LocalDevProfile } from "./profile";
 
 export interface LocalQdrantConnection {
@@ -33,16 +30,4 @@ export async function resolveLocalQdrantConnection(
 		throw new Error(`Local Qdrant credential check failed: HTTP ${response.status} at ${url}.`);
 	}
 	return { apiKey: secrets.qdrantApiKey, readOnlyApiKey: secrets.qdrantReadOnlyApiKey, url };
-}
-
-export function localQdrantComposeArgs(profile: LocalDevProfile, repoRoot: string): string[] {
-	return [
-		"compose",
-		"--project-name",
-		profile.infraProject,
-		"--env-file",
-		resolveLocalInfrastructureSecretsPath(repoRoot, profile),
-		"-f",
-		"infra/local/docker-compose.dev.yml",
-	];
 }

@@ -26,6 +26,18 @@ Model Config 与调用方位于共同受信任的内部服务边界，不再建�
 读取后直接调用 Provider，Model Config 不成为模型流量代理。当前仓库提供上述具名在线配置；离线 Ragas
 profile 保持独立。
 
+各配置名的当前消费者：
+
+| name | 消费者 |
+| --- | --- |
+| `primary_agent` | execution-control（执行准入读取 target）、agent-runtime（携带预期 hash 读取完整配置） |
+| `campus_docs_embedding` | execution-control 的 campus_search、campus-docs-index-publisher、notice-index-publisher、notice-artifacts-worker（目标一致性检查） |
+| `campus_docs_reranker` | execution-control 的 campus_search |
+| `notice_classification` | notice-pipeline-worker（分类 activity，复用 notice-classifier 运行时） |
+| `document_ocr` | document-ocr job（读取配置并回写异步验证结果） |
+
+Ops Web 通过管理接口保存和重新验证全部五个 name，不直接调用 Provider。
+
 `name` 表达产品配置槽位，`api_protocol` 决定验证与调用方式；Model Config 不保存独立模型类型字段。
 数据库保存每个 name 的当前配置和加密 API key；验证是可选状态。新建或重建数据库由
 `campus-agent-schema` 使用既有 `campus_agent` owner 安装并拥有 `model_config` schema，与其他产品

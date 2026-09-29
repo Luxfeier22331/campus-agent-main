@@ -85,25 +85,6 @@ export function createLocalEmbeddingConnection(input: {
 	};
 }
 
-export function createEmbeddingConnection(input: {
-	apiKey: string;
-	baseUrl: string;
-	model: string;
-	targetSha256: string;
-}): EmbeddingConnection {
-	const connection = createLocalEmbeddingConnection({
-		apiKey: input.apiKey,
-		baseUrl: input.baseUrl,
-	});
-	if (input.model.trim() !== CANONICAL_EMBEDDING_MODEL) {
-		throw new Error("embedding model is fixed by the Campus Docs contract");
-	}
-	if (input.targetSha256 !== connection.targetSha256) {
-		throw new Error("embedding target hash does not match the embedding connection");
-	}
-	return connection;
-}
-
 export function createOpenAICompatibleEmbeddingClient(
 	connection: EmbeddingConnection,
 	fetchImpl: typeof fetch = fetch,

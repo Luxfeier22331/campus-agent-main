@@ -81,5 +81,5 @@ seed、授权来源和业务测试所需代码，业务 seed 不进入 migration
 - `docs/contracts/app-api/README.md`
 - `docs/data/app-api/README.md`
 - `docs/data/postgres-ownership.md`
-- `docs/runbooks/release.md`
+- `docs/runbooks/release/release.md`
 - `jobs/campus-agent-schema/README.md`

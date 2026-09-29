@@ -162,7 +162,6 @@ func (s *InMemoryStateStore) BeginCommand(_ context.Context, ownerHash string, c
 			}
 			receipt.Status = "processing"
 			receipt.ProcessingUntil = memoryruntime.CommandLeaseDeadline(leaseTTL)
-			receipt.ResultFingerprint = ""
 			receipt.UpdatedAt = time.Now()
 			s.receipts[command.CommandID] = receipt
 			return receipt, true, nil
@@ -216,7 +215,6 @@ func (s *InMemoryStateStore) AbandonStaleGenerationReceipts(_ context.Context, o
 		receipt.Status = "failed"
 		receipt.ErrorCode = "memory_receipt_abandoned"
 		receipt.ProcessingUntil = nil
-		receipt.ResultFingerprint = memoryruntime.CommandResultFingerprint(receipt.CommandID, "failed", "memory_receipt_abandoned")
 		receipt.UpdatedAt = time.Now()
 		s.receipts[commandID] = receipt
 		abandoned++
@@ -224,19 +222,19 @@ func (s *InMemoryStateStore) AbandonStaleGenerationReceipts(_ context.Context, o
 	return abandoned, nil
 }
 
-func (s *InMemoryStateStore) FinalizeCommand(_ context.Context, commandID string, ownerHash string, status string, errorCode string, resultFingerprint string, lifecycle string) (memoryruntime.CommandReceipt, error) {
+func (s *InMemoryStateStore) FinalizeCommand(_ context.Context, commandID string, ownerHash string, status string, errorCode string, lifecycle string) (memoryruntime.CommandReceipt, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	receipt, ok := s.receipts[commandID]
 	if !ok || receipt.OwnerScopeHash != ownerHash {
 		return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryCommandNotFound
 	}
-	status, errorCode, resultFingerprint, err := memoryruntime.ValidateCommandTerminalResult(status, errorCode, resultFingerprint)
+	status, errorCode, err := memoryruntime.ValidateCommandTerminalResult(status, errorCode)
 	if err != nil {
 		return memoryruntime.CommandReceipt{}, err
 	}
 	if memoryruntime.CommandReceiptTerminal(receipt.Status) {
-		if receipt.Status == status && receipt.ErrorCode == errorCode && receipt.ResultFingerprint == resultFingerprint {
+		if receipt.Status == status && receipt.ErrorCode == errorCode {
 			return receipt, nil
 		}
 		return memoryruntime.CommandReceipt{}, memoryruntime.ErrMemoryFenceConflict
@@ -244,7 +242,6 @@ func (s *InMemoryStateStore) FinalizeCommand(_ context.Context, commandID string
 	receipt.Status = status
 	receipt.ErrorCode = errorCode
 	receipt.ProcessingUntil = nil
-	receipt.ResultFingerprint = resultFingerprint
 	receipt.UpdatedAt = time.Now()
 	s.receipts[commandID] = receipt
 	if status == "succeeded" && lifecycle != "" {
@@ -267,7 +264,6 @@ func (s *InMemoryStateStore) MarkCommandRetryable(_ context.Context, commandID s
 	}
 	receipt.Status = "retryable"
 	receipt.ProcessingUntil = nil
-	receipt.ResultFingerprint = ""
 	receipt.UpdatedAt = time.Now()
 	s.receipts[commandID] = receipt
 	return nil

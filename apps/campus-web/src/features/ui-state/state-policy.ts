@@ -61,7 +61,3 @@ export const CAMPUS_UI_STATE_POLICY: Readonly<
 		userVisible: true,
 	},
 };
-
-export function isCampusUiStateKind(value: string): value is CampusUiStateKind {
-	return value in CAMPUS_UI_STATE_POLICY;
-}

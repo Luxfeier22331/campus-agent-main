@@ -15,5 +15,10 @@
 	"docs/postmortem/README.md": 25,
 	"docs/product/README.md": 35,
 	"docs/reference/README.md": 25,
-	"docs/runbooks/README.md": 30
+	"docs/runbooks/README.md": 40,
+	"docs/runbooks/access/README.md": 15,
+	"docs/runbooks/ingestion/README.md": 15,
+	"docs/runbooks/observability/README.md": 15,
+	"docs/runbooks/release/README.md": 15,
+	"docs/runbooks/runtime/README.md": 15
 }

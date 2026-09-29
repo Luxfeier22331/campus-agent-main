@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,26 +70,4 @@ export function listFilesMatching(directory: string, pattern: string): string[] 
 function globPatternToRegExp(pattern: string): RegExp {
 	const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replaceAll("*", ".*");
 	return new RegExp(`^${escaped}$`);
-}
-
-export function stableJson(value: unknown): string {
-	return JSON.stringify(sortJson(value));
-}
-
-function sortJson(value: unknown): unknown {
-	if (Array.isArray(value)) {
-		return value.map(sortJson);
-	}
-	if (!isRecord(value)) {
-		return value;
-	}
-	const sorted: Record<string, unknown> = {};
-	for (const key of Object.keys(value).sort()) {
-		sorted[key] = sortJson(value[key]);
-	}
-	return sorted;
-}
-
-export function sha256JsonRef(value: unknown): string {
-	return `sha256:${createHash("sha256").update(stableJson(value), "utf8").digest("hex")}`;
 }
