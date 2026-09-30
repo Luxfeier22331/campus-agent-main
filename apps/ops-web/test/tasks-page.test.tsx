@@ -4,16 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TasksPage } from "../src/app/tasks-page";
 
 const task = {
-	id: "notice-classifier",
-	label: "通知分类",
-	runtime: "kubernetes",
+	id: "notice-pipeline",
+	label: "通知采集与 RAG 流水线",
+	runtime: "temporal",
 	canSchedule: true,
 	canRun: true,
 	enabled: false,
 	intervalMinutes: 15,
-	schedule: "*/15 * * * *",
+	schedule: "15 min",
 	running: false,
-	problemCount: 2,
 	runs: [],
 	error: null,
 };
@@ -69,7 +68,44 @@ describe("tasks page", () => {
 		expect(view.container.querySelectorAll("details")).toHaveLength(2);
 		client.clear();
 	});
-	it("retains operator draft on failed save and displays persistent problems", async () => {
+	it("keeps raw task read errors collapsed and read-only tasks without run controls", async () => {
+		const error =
+			'HTTP-Code: 404 Headers: {"content-type":"application/json"} Body: cronjobs.batch "document-ocr" not found';
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					tasks: [
+						{
+							...task,
+							id: "document-ocr",
+							label: "OCR 扫描",
+							runtime: "kubernetes",
+							canRun: false,
+							canSchedule: false,
+							enabled: null,
+							error,
+						},
+					],
+				}),
+			),
+		);
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		render(
+			<QueryClientProvider client={client}>
+				<TasksPage />
+			</QueryClientProvider>,
+		);
+		await screen.findByText("无法读取OCR 扫描的调度或运行记录。");
+		expect(screen.queryByRole("button", { name: "立即运行一次" })).not.toBeInTheDocument();
+		const details = screen.getByText(error).closest("details");
+		expect(details).not.toHaveAttribute("open");
+		fireEvent.click(screen.getByText("技术信息"));
+		expect(details).toHaveAttribute("open");
+		client.clear();
+	});
+
+	it("retains operator draft on failed schedule save", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async (_url, init) =>
@@ -86,7 +122,7 @@ describe("tasks page", () => {
 				<TasksPage />
 			</QueryClientProvider>,
 		);
-		await screen.findByText(/待处理问题：2/);
+		await screen.findByRole("heading", { name: "通知采集与 RAG 流水线" });
 		fireEvent.click(screen.getByRole("checkbox"));
 		fireEvent.change(screen.getByRole("combobox"), { target: { value: "30" } });
 		fireEvent.click(screen.getByText("保存设置"));

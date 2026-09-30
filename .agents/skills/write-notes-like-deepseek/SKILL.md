@@ -7,6 +7,8 @@ description: 为改变行为、架构、跨文件合同或工具流程的非平�
 
 先读 [笔记 README](../../notes/README.md) 的分类、格式和归档规则；本 Skill 负责操作顺序，
 规则和命令示例由 README 维护，不把范围扩展到当前任务之外。
+笔记的章节要求仅适用于笔记，不扩展为 Issue 或 PR 的固定格式。提案的验收目标应来自当前任务与
+有效合同，不因需要填写章节而新增环境门槛；Agent 自拟条款不成为用户已确认需求。
 
 1. 按模块名、行为和关键词搜索活动笔记：
    `rg --hidden --glob '!.agents/notes/archived/**' '关键词' .agents/notes/`。

@@ -1,5 +1,7 @@
 import {
 	Button,
+	Disclosure,
+	DisclosureSummary,
 	Field,
 	Input,
 	Sheet,
@@ -7,8 +9,10 @@ import {
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
+	Skeleton,
+	StateMessage,
 } from "@campus-agent/ui";
-import { ChevronDown, DatabaseZap, History, Send, Sparkles } from "lucide-react";
+import { DatabaseZap, History, Send, Sparkles } from "lucide-react";
 import { useState } from "react";
 import type { NoticeJob, NoticeJobCreate } from "../../shared/ops-contract";
 import { formatTimestamp } from "../format";
@@ -94,10 +98,10 @@ export function NoticeTaskCenter({
 										onClick={() => onCreate({ operation: "notice-sync" })}
 										title="同步新通知"
 									/>
-									<details className="border-t pt-2">
-										<summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
+									<Disclosure className="border-t pt-2">
+										<DisclosureSummary className="py-3 text-sm font-medium">
 											补查遗漏
-										</summary>
+										</DisclosureSummary>
 										<form
 											className="grid gap-3"
 											onSubmit={(event) => {
@@ -130,7 +134,7 @@ export function NoticeTaskCenter({
 											</Field>
 											<Button
 												type="submit"
-												variant="outline"
+												variant="secondary"
 												disabled={
 													isFamilyBusy("collection") ||
 													!rescanFrom ||
@@ -141,18 +145,14 @@ export function NoticeTaskCenter({
 												开始补查
 											</Button>
 										</form>
-									</details>
-									<details className="group border-border border-t pt-2">
-										<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-md px-2 font-medium text-sm hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
+									</Disclosure>
+									<Disclosure className="group border-border border-t pt-2">
+										<DisclosureSummary className="gap-3 rounded-md px-2 font-medium text-sm hover:bg-surface-hover">
 											<span className="flex items-center gap-2">
 												<History aria-hidden="true" className="size-4 text-muted-foreground" />
 												历史回填
 											</span>
-											<ChevronDown
-												aria-hidden="true"
-												className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
-											/>
-										</summary>
+										</DisclosureSummary>
 										<form
 											className="grid gap-3 px-2 pt-2 pb-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
 											onSubmit={(event) => {
@@ -173,12 +173,12 @@ export function NoticeTaskCenter({
 											<Button
 												disabled={isFamilyBusy("collection") || !startDate}
 												type="submit"
-												variant="outline"
+												variant="secondary"
 											>
 												开始回填
 											</Button>
 										</form>
-									</details>
+									</Disclosure>
 								</ActionGroup>
 
 								<ActionGroup
@@ -218,7 +218,7 @@ export function NoticeTaskCenter({
 							</div>
 							{jobsError ? <InlineError error={jobsError} title="任务读取失败" /> : null}
 							{jobsError && onRetry ? (
-								<Button onClick={onRetry} variant="outline">
+								<Button onClick={onRetry} variant="secondary">
 									重试任务读取
 								</Button>
 							) : null}
@@ -401,18 +401,19 @@ function noticeJobScopeLabel(job: NoticeJob): string {
 
 function TaskListEmpty() {
 	return (
-		<div className="rounded-[var(--card-radius)] border border-dashed border-border px-4 py-8 text-center">
-			<p className="font-medium text-sm">暂无手动任务</p>
-			<p className="mt-1 text-muted-foreground text-xs">启动任务后，状态会显示在这里。</p>
-		</div>
+		<StateMessage
+			textAlign="center"
+			title="暂无手动任务"
+			description="启动任务后，状态会显示在这里。"
+		/>
 	);
 }
 
 function TaskListSkeleton() {
 	return (
 		<div aria-label="正在读取任务" className="grid gap-2" role="status">
-			<div className="h-20 animate-pulse rounded-[var(--card-radius)] bg-surface-muted" />
-			<div className="h-20 animate-pulse rounded-[var(--card-radius)] bg-surface-muted" />
+			<Skeleton className="h-20 rounded-[var(--card-radius)]" />
+			<Skeleton className="h-20 rounded-[var(--card-radius)]" />
 		</div>
 	);
 }

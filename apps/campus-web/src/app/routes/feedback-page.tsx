@@ -132,7 +132,12 @@ export function FeedbackPage({
 								render={({ field }) => (
 									<div className="grid gap-2">
 										<Label htmlFor="feedback-category">问题类型</Label>
-										<Select name="category" onValueChange={field.onChange} value={field.value}>
+										<Select
+											items={categories}
+											name="category"
+											onValueChange={field.onChange}
+											value={field.value}
+										>
 											<SelectTrigger className="min-h-11" id="feedback-category">
 												<SelectValue />
 											</SelectTrigger>

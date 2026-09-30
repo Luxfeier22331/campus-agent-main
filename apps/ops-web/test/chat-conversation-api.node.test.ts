@@ -29,14 +29,19 @@ describe("Ops conversation API", () => {
 			),
 		});
 		const response = await app.request(
-			`/api/ops/chat-conversations?hasFailures=${value}&status=RUNNING`,
+			`/api/ops/chat-conversations?hasFailures=${value}&status=RUNNING&ownerQuery=Alice%40example.test&ownerId=user-1`,
 		);
 		expect(response.status).toBe(200);
 		const upstream = new URL(fetchImplementation.mock.calls[0]?.[0] as string);
 		expect(upstream.searchParams.get("hasFailures")).toBe(value);
 		expect(
 			OpsConversationListQuerySchema.parse(Object.fromEntries(upstream.searchParams)),
-		).toMatchObject({ hasFailures: value === "true", status: "RUNNING" });
+		).toMatchObject({
+			hasFailures: value === "true",
+			status: "RUNNING",
+			ownerQuery: "Alice@example.test",
+			ownerId: "user-1",
+		});
 	});
 	it("rejects invalid failure filters before calling App API", async () => {
 		const list = vi.fn();

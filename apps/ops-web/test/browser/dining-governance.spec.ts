@@ -93,19 +93,25 @@ test("投稿举报使用投稿版本处理，旧评价举报明确历史不可�
 		await route.fulfill({ status: 204 });
 	});
 	await page.goto("/dining/reports");
-	const itemRole = (page.viewportSize()?.width ?? 0) < 768 ? "listitem" : "row";
-	const submissionRow = page.getByRole(itemRole).filter({ hasText: "投稿说明" });
+	const submissionRow = page.getByRole("listitem").filter({ hasText: "投稿说明" });
 	await expect(submissionRow).toContainText("当前投稿 · 12 元");
-	await expect(submissionRow).toContainText("举报时：举报时投稿 · 10 元");
-	const reviewRow = page.getByRole(itemRole).filter({ hasText: "旧评价举报" });
-	await expect(reviewRow).toContainText("当前评价不能用作举报历史");
-	await expect(reviewRow).toContainText("举报时：历史不可回放");
-	await submissionRow.getByRole("button", { name: "保留", exact: true }).click();
+	await submissionRow.getByRole("button").click();
+	const detail = page.getByRole("dialog", { name: "举报详情", exact: true });
+	await expect(detail).toContainText("举报时：举报时投稿 · 10 元");
+	await detail.getByRole("button", { name: "关闭举报详情" }).click();
+	const reviewRow = page.getByRole("listitem").filter({ hasText: "旧评价举报" });
+	await reviewRow.getByRole("button").click();
+	await expect(detail).toContainText("当前评价不能用作举报历史");
+	await expect(detail).toContainText("举报时：历史不可回放");
+	await detail.getByRole("button", { name: "关闭举报详情" }).click();
+	await submissionRow.getByRole("button").click();
+	await detail.getByRole("button", { name: "保留投稿并处理举报", exact: true }).click();
 	await page
 		.getByRole("alertdialog", { name: "保留这条投稿？" })
 		.getByRole("button", { name: "保留投稿" })
 		.click();
 	await expect(submissionRow).toHaveCount(0);
+	await expect(detail).toBeHidden();
 	expect(submitted).toEqual({ expectedRevision: 3, resolution: "keep" });
 	await expect(reviewRow).toBeVisible();
 });

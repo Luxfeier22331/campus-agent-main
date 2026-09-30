@@ -35,8 +35,8 @@ describe("fixed tasks API", () => {
 		const { app, service } = fixture(true);
 		for (const [url, method] of [
 			["/api/ops/tasks", "GET"],
-			["/api/ops/tasks/notice-sync/schedule", "PUT"],
-			["/api/ops/tasks/notice-sync/runs", "POST"],
+			["/api/ops/tasks/notice-pipeline/schedule", "PUT"],
+			["/api/ops/tasks/notice-pipeline/runs", "POST"],
 		] as const) {
 			expect((await app.request(url, { method })).status).toBe(401);
 		}
@@ -51,7 +51,7 @@ describe("fixed tasks API", () => {
 		]) {
 			expect(
 				(
-					await app.request("/api/ops/tasks/notice-classifier/schedule", {
+					await app.request("/api/ops/tasks/notice-pipeline/schedule", {
 						method: "PUT",
 						headers: { "content-type": "application/json" },
 						body: JSON.stringify(value),
@@ -64,11 +64,29 @@ describe("fixed tasks API", () => {
 			404,
 		);
 	});
+	it.each(["notice-sync", "notice-classifier", "notice-publisher"])(
+		"rejects retired task ID %s without invoking a service",
+		async (id) => {
+			const { app, service } = fixture();
+			for (const [suffix, method] of [
+				["schedule", "PUT"],
+				["runs", "POST"],
+				["runs", "GET"],
+				["runs/run-1", "GET"],
+			] as const) {
+				expect((await app.request(`/api/ops/tasks/${id}/${suffix}`, { method })).status).toBe(404);
+			}
+			expect(service.update).not.toHaveBeenCalled();
+			expect(service.run).not.toHaveBeenCalled();
+			expect(service.runs).not.toHaveBeenCalled();
+			expect(service.getRun).not.toHaveBeenCalled();
+		},
+	);
 	it("preserves native busy conflicts", async () => {
 		const { app, service } = fixture();
 		service.run.mockRejectedValue(new TaskError("already running", 409));
 		expect(
-			(await app.request("/api/ops/tasks/notice-publisher/runs", { method: "POST" })).status,
+			(await app.request("/api/ops/tasks/notice-pipeline/runs", { method: "POST" })).status,
 		).toBe(409);
 	});
 	it("passes only the fixed schedule contract", async () => {
@@ -76,13 +94,13 @@ describe("fixed tasks API", () => {
 		const body = { enabled: false, intervalMinutes: 30 };
 		expect(
 			(
-				await app.request("/api/ops/tasks/notice-classifier/schedule", {
+				await app.request("/api/ops/tasks/notice-pipeline/schedule", {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify(body),
 				})
 			).status,
 		).toBe(200);
-		expect(service.update).toHaveBeenCalledWith("notice-classifier", body);
+		expect(service.update).toHaveBeenCalledWith("notice-pipeline", body);
 	});
 });

@@ -21,8 +21,8 @@ namespace 默认 `campus-agent-staging`（staging 是仓库唯一承认的部署
 （与 RAG index publisher 的 `context?` 可选行为一致），跨集群时显式补 `--context`。
 原"两个 flag 都必须显式"的 fail-closed 已由只读身份校验兜底：`pg.username !== "product_data_ro"` 或
 TLS 配置不全时 `connectProductCluster` 直接报错，默认 namespace 指错集群也不会写入。
-范围包含产品与内容管理草稿，不包含原始门户采集、远端用户/会话/评论/模型秘密。
-附件只有元数据；图片、Docs 全版本引用闭包和食堂 SVG 复制实际字节。
+当前 `cluster` 范围为检索通知表、Docs 引用闭包及当前混合索引，不包含群、班车、食堂或远端用户/会话/评论/模型秘密。
+附件只有元数据；通知图片、Docs 全版本引用闭包复制实际字节。seed 继续覆盖完整基础内容；内容页验收另用下述 `cluster-content`。
 PostgreSQL 在单个 repeatable-read read-only 事务导出显式列；Qdrant 从 current_index 指向的真实
 collection 分批读取 dense/sparse vectors。只有需要反复遍历的 Qdrant points 使用临时 NDJSON，
 取消信号同时传递给分页下载和重试等待，临时文件在成功或失败后清理。
@@ -47,6 +47,13 @@ Docs-only 本地 current_index writer 退役；保留 Chunk、Embedding、评测
 入口缺失与引用损坏按实际失败报告，不把所有诊断失败都引导到覆盖本地数据。
 缺少索引返回 `campus_search_unavailable`；其他检索或引用合同失败不因此变成可恢复错误。
 
+2026-09-30 Ops 实际验收要求少量真实通知且不复制图片，增加 `cluster-content` 模式，复用当前 profile、
+只读集群连接和既有基础表列投影。默认取最近 100 条通知并补齐班车引用，群、班车、地图与菜单全量读取。
+只复制选中通知的 source JSON，因为 Ops 正文预览的实际消费者读取 source bucket，而非数据库正文列；
+不下载图片、附件文件、Docs、食堂 SVG 或向量索引，也不连接集群 Qdrant。基础表替换复用原事务和依赖评价
+清理，清除与部分通知不再一致的本地 current_index；不增加部分索引或页面 fallback。该模式由内容验收
+需求驱动，完整检索同步继续使用 `cluster`；若内容验收也要求完整资源，重新评估此模式即可。
+
 ## 未采用方案
 
 - 自动 merge/upsert 可保留部分本地内容，但会形成 seed 与真实内容混合且不完整的集合；采用明确替换。
@@ -69,3 +76,5 @@ glob 扩为 `dev/*.test.ts dev/*/*.test.ts`。领域 schema、renderer、builder
 数据 ready 与模型配置、进程健康、真实 provider 请求分别判断。集群新增身份须先完成 GitOps 凭据和
 Source 角色/迁移交付；本地权限验证不替代线上协作者验收。操作入口见
 [本地运行检查](../../../../docs/runbooks/local-verification.md)。
+
+2026-09-30 在 `ops-web-redesign` 的独立本地实例完成实际替换：105 条通知（最近 100 条加 5 条班车引用）、53 个群、6 条线路、28 个时间段、125 个班次、1 个地图发布版本；复制正文 JSON 共 887367 字节，未下载二进制资源。真实 Ops 列表和正文预览返回 200。新增模式与既有产品数据测试 14 项、生命周期测试 40 项通过；图片／附件与检索不属于该次验收覆盖。

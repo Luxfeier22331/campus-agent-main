@@ -1,6 +1,16 @@
-import { Button } from "@campus-agent/ui";
+import {
+	Alert,
+	Button,
+	Disclosure,
+	DisclosureSummary,
+	StateMessage,
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 import { ChatAnswerBody, ChatAnswerSources } from "./chat-answer-content";
@@ -10,15 +20,23 @@ import {
 	CopyableValue,
 	ErrorState,
 	PageHeader,
-	PageShell,
 	StaleDataWarning,
 	StatusBadge,
 } from "./ops-display";
 import { formatLifecyclePhase, formatOpsDomainValue } from "./ops-domain-labels";
 import { formatRequestDuration, normalizeRequestListReturnPath } from "./ops-view-helpers";
-import { RequestDiagnostics } from "./request-diagnostics";
+import { RequestDiagnostics, RequestExceptions, RequestRetrieval } from "./request-diagnostics";
 
-export function RequestDetailPage({ from, requestId }: { from?: string; requestId: string }) {
+export function RequestDetailPage({
+	from,
+	requestId,
+	tab = "result",
+}: {
+	from?: string;
+	requestId: string;
+	tab?: string;
+}) {
+	const navigate = useNavigate();
 	const detail = useQuery({
 		queryFn: ({ signal }) => fetchOpsRequestDetail(requestId, { signal }),
 		queryKey: ["ops", "requests", requestId],
@@ -29,23 +47,35 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 	const returnPath = normalizeRequestListReturnPath(from);
 
 	if (detail.isPending) {
-		return <PageShell title="运行详情">正在读取运行详情...</PageShell>;
+		return (
+			<section>
+				<BackToRequests href={returnPath} />
+				<PageHeader title="执行详情" />
+				<StateMessage layout="inline" role="status" description="正在读取执行详情..." />
+			</section>
+		);
 	}
 	if (detail.isError && !detail.data) {
 		return (
 			<section>
 				<BackToRequests href={returnPath} />
-				<PageHeader title="运行详情" />
+				<PageHeader title="执行详情" />
 				<ErrorState
 					error={detail.error}
 					onRetry={() => detail.refetch()}
-					title="运行详情读取失败"
+					title="执行详情读取失败"
 				/>
 			</section>
 		);
 	}
 	if (!detail.data) {
-		return <PageShell title="运行详情">正在读取运行详情...</PageShell>;
+		return (
+			<section>
+				<BackToRequests href={returnPath} />
+				<PageHeader title="执行详情" />
+				<StateMessage layout="inline" role="status" description="正在读取执行详情..." />
+			</section>
+		);
 	}
 
 	return (
@@ -57,25 +87,25 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 						aria-busy={detail.isFetching}
 						disabled={detail.isFetching}
 						onClick={() => void detail.refetch()}
-						variant="outline"
+						variant="ghost"
 					>
 						<RefreshCw className="size-4" />
 						{detail.isFetching ? "刷新中" : "刷新"}
 					</Button>
 				}
 				description="查看用户结果、执行过程和可用于定位失败的运行事实。"
-				title="运行详情"
+				title="执行详情"
 			/>
 			{detail.isRefetchError ? (
 				<StaleDataWarning
 					error={detail.error}
 					lastSuccessfulAt={detail.dataUpdatedAt}
 					onRetry={() => void detail.refetch()}
-					title="运行详情刷新失败"
+					title="执行详情刷新失败"
 				/>
 			) : null}
 			<RequestSummary detail={detail.data} />
-			<Button asChild variant="outline" className="mt-4">
+			<Button asChild variant="secondary" className="mt-4">
 				<Link
 					to="/conversations/$conversationId"
 					params={{ conversationId: detail.data.conversation.id }}
@@ -94,16 +124,41 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 					回答已完成，后台记忆或结果投影仍在处理中。
 				</p>
 			) : null}
-			<div className="grid gap-10 py-6">
-				<QuestionSection detail={detail.data} />
-				<ResultSection detail={detail.data} />
-				{detail.data.result.state === "WRITTEN" && detail.data.result.sources.length > 0 ? (
-					<div data-testid="request-sources">
-						<ChatAnswerSources sources={detail.data.result.sources} />
-					</div>
-				) : null}
-				<RequestDiagnostics detail={detail.data} from={returnPath} />
-			</div>
+			<RequestExceptions detail={detail.data} />
+			<Tabs
+				value={tab}
+				onValueChange={(value) =>
+					void navigate({
+						to: "/requests/$requestId",
+						params: { requestId },
+						search: { from, tab: value },
+						replace: true,
+						resetScroll: false,
+					})
+				}
+			>
+				<TabsList aria-label="执行详情分区">
+					<TabsTrigger value="result">结果</TabsTrigger>
+					<TabsTrigger value="execution">执行过程</TabsTrigger>
+					<TabsTrigger value="retrieval">检索与引用</TabsTrigger>
+				</TabsList>
+				<TabsContent value="result" className="space-y-6">
+					<QuestionSection detail={detail.data} />
+					<ResultSection detail={detail.data} />
+				</TabsContent>
+				<TabsContent value="execution" className="space-y-6">
+					<RequestDiagnostics detail={detail.data} from={returnPath} />
+				</TabsContent>
+				<TabsContent value="retrieval" className="space-y-6">
+					{detail.data.result.state === "WRITTEN" ? (
+						<div data-testid="request-sources">
+							<ChatAnswerSources sources={detail.data.result.sources} />
+						</div>
+					) : null}
+					<RequestRetrieval detail={detail.data} from={returnPath} />
+				</TabsContent>
+			</Tabs>
+
 			{detail.data.request.lifecyclePhase === "FINISHED" ? null : (
 				<p className="border-border border-t pt-4 text-muted-foreground text-xs">
 					运行快照生成于 {formatTimestamp(detail.data.generatedAt)}
@@ -133,19 +188,22 @@ export function requestDetailPollInterval(
 
 function BackToRequests({ href }: { href: string }) {
 	return (
-		<a
-			className="mb-3 inline-flex min-h-11 items-center gap-2 font-medium text-muted-foreground text-sm hover:text-foreground hover:underline"
-			href={href}
-		>
-			<ArrowLeft className="size-4" />
-			{href.startsWith("/chat-feedback")
-				? "返回回答反馈"
-				: href.startsWith("/conversations/")
-					? "返回会话"
-					: href.startsWith("/requests/")
-						? "返回运行详情"
-						: "返回运行诊断"}
-		</a>
+		<Button asChild variant="ghost" className="mb-3">
+			<Link to={href}>
+				<ArrowLeft className="size-4" />
+				{href.startsWith("/overview")
+					? "返回问答概览"
+					: href.startsWith("/conversations?") || href === "/conversations"
+						? "返回历史会话"
+						: href.startsWith("/chat-feedback")
+							? "返回回答反馈"
+							: href.startsWith("/conversations/")
+								? "返回会话"
+								: href.startsWith("/requests/")
+									? "返回执行详情"
+									: "返回运行记录"}
+			</Link>
+		</Button>
 	);
 }
 
@@ -156,7 +214,10 @@ function RequestSummary({ detail }: { detail: OpsRequestDetailResponse }) {
 			data-testid="request-context"
 		>
 			<StatusBadge status={detail.request.status} />
-			<CopyableValue compact label="请求 ID" value={detail.request.requestId} />
+			<Disclosure>
+				<DisclosureSummary>关联标识</DisclosureSummary>
+				<CopyableValue compact label="请求 ID" value={detail.request.requestId} />
+			</Disclosure>
 			{detail.request.lifecyclePhase === "FINISHED" ? null : (
 				<span className="text-muted-foreground">
 					{formatLifecyclePhase(detail.request.lifecyclePhase)}
@@ -191,20 +252,22 @@ function ResultSection({ detail }: { detail: OpsRequestDetailResponse }) {
 			</h2>
 			{detail.result.state === "WRITTEN" ? (
 				<div className="max-w-3xl border-y border-border py-5">
-					<ChatAnswerBody text={detail.result.text} kind={detail.result.kind} />
+					<ChatAnswerBody
+						text={detail.result.text}
+						kind={detail.result.kind}
+						sources={detail.result.sources}
+					/>
 				</div>
 			) : detail.result.state === "MISSING" ? (
-				<div className="border border-danger/30 bg-danger-subtle p-4 text-danger" role="alert">
+				<Alert tone="danger" role="alert">
 					<p className="font-semibold">会话结果缺失</p>
 					<p className="mt-1 text-sm">
 						产品状态为 {formatOpsDomainValue(detail.request.status)}
 						，但没有找到与本次请求匹配的助手消息。
 					</p>
-				</div>
+				</Alert>
 			) : (
-				<div className="border-border border-y bg-secondary p-4 text-muted-foreground text-sm">
-					请求仍在处理中，助手消息尚未写入会话。
-				</div>
+				<StateMessage description="请求仍在处理中，助手消息尚未写入会话。" />
 			)}
 		</section>
 	);

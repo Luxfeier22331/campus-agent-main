@@ -1,4 +1,4 @@
-import { ActionGroup, Badge, Button, cn } from "@campus-agent/ui";
+import { ActionGroup, Badge, Button, cn, StateMessage } from "@campus-agent/ui";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -60,10 +60,12 @@ export function SortableGroupSection({
 			ref={sortable.setNodeRef}
 			style={style}
 		>
-			<header className="flex min-w-0 items-center gap-2 border-border border-b bg-muted/30 px-3 py-3 sm:px-4">
-				<button
+			<header className="flex min-w-0 items-center gap-2 border-border border-b bg-surface-muted px-2 py-2 sm:px-3">
+				<Button
+					variant="ghost"
+					size="icon"
 					aria-label={`调整分组“${section.name}”的顺序`}
-					className="grid size-10 shrink-0 touch-none place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+					className="shrink-0 touch-none text-muted-foreground"
 					disabled={disabled}
 					title="调整分组顺序"
 					type="button"
@@ -71,7 +73,7 @@ export function SortableGroupSection({
 					{...sortable.listeners}
 				>
 					<GripVertical className="size-4" />
-				</button>
+				</Button>
 				<div className="min-w-0 flex-1">
 					<h3 className="truncate font-semibold text-base text-foreground">{section.name}</h3>
 					<p className="mt-0.5 text-muted-foreground text-xs">{section.groups.length} 个群</p>
@@ -79,7 +81,7 @@ export function SortableGroupSection({
 				<ActionGroup className="shrink-0">
 					<Button
 						aria-label={`在“${section.name}”中新增群`}
-						className="size-10 p-0"
+						className="size-11 lg:size-9 p-0"
 						disabled={disabled}
 						onClick={onAddGroup}
 						title="新增群"
@@ -89,7 +91,7 @@ export function SortableGroupSection({
 					</Button>
 					<Button
 						aria-label={`重命名分组“${section.name}”`}
-						className="size-10 p-0"
+						className="size-11 lg:size-9 p-0"
 						disabled={disabled}
 						onClick={onRenameSection}
 						title="重命名分组"
@@ -99,7 +101,7 @@ export function SortableGroupSection({
 					</Button>
 					<Button
 						aria-label={`删除分组“${section.name}”`}
-						className="size-10 p-0"
+						className="size-11 lg:size-9 p-0"
 						disabled={disabled}
 						onClick={onRemoveSection}
 						title="删除分组"
@@ -130,7 +132,9 @@ export function SortableGroupSection({
 							/>
 						))
 					) : (
-						<li className="px-4 py-5 text-muted-foreground text-sm">此分组暂无群。</li>
+						<li className="px-4">
+							<StateMessage description="此分组暂无群。" />
+						</li>
 					)}
 				</ul>
 			</SortableContext>
@@ -162,15 +166,17 @@ function SortableGroupRow({
 	return (
 		<li
 			className={cn(
-				"grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-start gap-x-2 px-2 py-3 sm:px-3 md:grid-cols-[2.5rem_minmax(12rem,1.3fr)_minmax(9rem,0.8fr)_minmax(10rem,1fr)_auto] md:items-center",
+				"grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-start gap-x-2 px-2 py-3 sm:px-3 xl:grid-cols-[2.5rem_minmax(10rem,1.3fr)_minmax(8rem,0.8fr)_minmax(9rem,1fr)_auto] xl:items-center",
 				sortable.isDragging && "z-10 bg-card opacity-70 shadow-md",
 			)}
 			ref={sortable.setNodeRef}
 			style={style}
 		>
-			<button
+			<Button
+				variant="ghost"
+				size="icon"
 				aria-label={`调整“${group.name}”的顺序`}
-				className="grid size-10 touch-none place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+				className="shrink-0 touch-none text-muted-foreground"
 				disabled={disabled}
 				title="调整群顺序"
 				type="button"
@@ -178,7 +184,7 @@ function SortableGroupRow({
 				{...sortable.listeners}
 			>
 				<GripVertical className="size-4" />
-			</button>
+			</Button>
 			<div className="min-w-0 self-center">
 				<h4 className="break-words font-medium text-foreground">{group.name}</h4>
 				{group.summary ? (
@@ -187,16 +193,16 @@ function SortableGroupRow({
 					</p>
 				) : null}
 			</div>
-			<div className="col-start-2 mt-2 min-w-0 self-center md:col-start-auto md:mt-0">
+			<div className="col-start-2 mt-2 min-w-0 self-center xl:col-start-auto xl:mt-0">
 				<GroupContact group={group} />
 			</div>
-			<div className="col-start-2 mt-2 min-w-0 self-center text-muted-foreground text-sm md:col-start-auto md:mt-0">
+			<div className="col-start-2 mt-2 min-w-0 self-center text-muted-foreground text-sm xl:col-start-auto xl:mt-0">
 				{group.tags.join("、") || "未填写标签"}
 			</div>
-			<ActionGroup className="col-start-3 row-span-3 row-start-1 shrink-0 self-center md:col-start-auto md:row-span-1 md:row-start-auto">
+			<ActionGroup className="col-start-3 row-span-3 row-start-1 shrink-0 self-center xl:col-start-auto xl:row-span-1 xl:row-start-auto">
 				<Button
 					aria-label={`编辑 ${group.name}`}
-					className="size-10 p-0"
+					className="size-11 lg:size-9 p-0"
 					disabled={disabled}
 					onClick={onEdit}
 					title="编辑"
@@ -206,7 +212,7 @@ function SortableGroupRow({
 				</Button>
 				<Button
 					aria-label={`删除 ${group.name}`}
-					className="size-10 p-0"
+					className="size-11 lg:size-9 p-0"
 					disabled={disabled}
 					onClick={onRemove}
 					title="删除"

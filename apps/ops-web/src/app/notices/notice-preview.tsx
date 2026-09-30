@@ -69,7 +69,7 @@ export function NoticePreviewPanel({
 					<InlineError error={query.error} title="正文刷新失败" />
 					<Button
 						size="sm"
-						variant="outline"
+						variant="secondary"
 						disabled={query.isFetching}
 						onClick={() => void query.refetch()}
 					>
@@ -82,7 +82,7 @@ export function NoticePreviewPanel({
 					<p className="break-words text-sm text-muted-foreground">
 						外链通知 · {new URL(query.data.externalUrl).hostname}
 					</p>
-					<Button asChild variant="outline">
+					<Button asChild variant="secondary">
 						<a href={query.data.externalUrl} target="_blank" rel="noopener noreferrer">
 							打开原始链接
 							<ExternalLink aria-hidden="true" />
@@ -95,13 +95,9 @@ export function NoticePreviewPanel({
 					{imageCount > 0 ? <span>图片 {imageCount}</span> : null}
 					{imageCount > 0 && hasAttachments ? <span aria-hidden="true">·</span> : null}
 					{hasAttachments ? (
-						<button
-							type="button"
-							onClick={jumpToAttachments}
-							className="min-h-11 rounded px-2 text-link underline underline-offset-4 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-						>
+						<Button variant="link" type="button" onClick={jumpToAttachments} className="px-2">
 							附件 {query.data?.attachments.length}
-						</button>
+						</Button>
 					) : null}
 				</div>
 			) : null}
@@ -186,7 +182,7 @@ const PreviewBody = memo(function PreviewBody({ html }: { html: string }) {
 			status.setAttribute("role", "status");
 			const retry = document.createElement("button");
 			retry.type = "button";
-			retry.className = buttonVariants({ variant: "outline", size: "sm" });
+			retry.className = buttonVariants({ variant: "secondary", size: "sm" });
 			retry.textContent = "重试";
 			retry.setAttribute("aria-label", `重试${label}`);
 			retry.hidden = true;

@@ -100,12 +100,11 @@ export function DataTable<T extends RowData>({
 														(pinBothEdges
 															? "md:sticky md:left-0 md:z-20 md:border-r"
 															: "sticky left-0 z-20 border-r"),
-													column?.stickyRight ||
-														(stickyLastColumn &&
-															index === headerGroup.headers.length - 1 &&
-															(pinBothEdges
-																? "md:sticky md:right-0 md:z-20 md:border-l"
-																: "sticky right-0 z-20 border-l")),
+													(column?.stickyRight ||
+														(stickyLastColumn && index === headerGroup.headers.length - 1)) &&
+														(pinBothEdges
+															? "md:sticky md:right-0 md:z-20 md:border-l"
+															: "sticky right-0 z-20 border-l"),
 												)}
 												key={header.id}
 												scope="col"
@@ -177,17 +176,15 @@ function DataTableRow<T extends RowData>({
 						(pinBothEdges
 							? "md:sticky md:left-0 md:z-10 md:border-r md:bg-background md:group-hover:bg-surface-hover md:group-focus-within:bg-surface-hover"
 							: "sticky left-0 z-10 border-r bg-background group-hover:bg-surface-hover group-focus-within:bg-surface-hover"),
-					column?.stickyRight ||
-						(stickyLastColumn &&
-							index === cells.length - 1 &&
-							(pinBothEdges
-								? "md:sticky md:right-0 md:z-10 md:border-l md:bg-background md:group-hover:bg-surface-hover md:group-focus-within:bg-surface-hover"
-								: "sticky right-0 z-10 border-l bg-background group-hover:bg-surface-hover group-focus-within:bg-surface-hover")),
+					(column?.stickyRight || (stickyLastColumn && index === cells.length - 1)) &&
+						(pinBothEdges
+							? "md:sticky md:right-0 md:z-10 md:border-l md:bg-background md:group-hover:bg-surface-hover md:group-focus-within:bg-surface-hover"
+							: "sticky right-0 z-10 border-l bg-background group-hover:bg-surface-hover group-focus-within:bg-surface-hover"),
 				);
 				return columns[index]?.rowHeader ? (
 					<th
 						className={cn(
-							"break-words px-3 py-2.5 text-left font-medium align-top",
+							"break-words px-3 py-2 text-left font-medium align-top",
 							column?.cellClassName,
 							stickyClass,
 						)}
@@ -198,7 +195,7 @@ function DataTableRow<T extends RowData>({
 					</th>
 				) : (
 					<td
-						className={cn("break-words px-3 py-2.5 align-top", column?.cellClassName, stickyClass)}
+						className={cn("break-words px-3 py-2 align-top", column?.cellClassName, stickyClass)}
 						key={cell.id}
 					>
 						{content}

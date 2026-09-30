@@ -2,7 +2,13 @@ import { cn } from "@campus-agent/ui";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-export function SafeMarkdown({ children }: { children: string }) {
+export function SafeMarkdown({
+	children,
+	resolveLink,
+}: {
+	children: string;
+	resolveLink?: (href: string) => string | null;
+}) {
 	return (
 		<ReactMarkdown
 			components={{
@@ -39,14 +45,22 @@ export function SafeMarkdown({ children }: { children: string }) {
 				img: ({ alt, ...props }) => (
 					<img {...props} alt={alt ?? ""} className="my-3 max-w-full h-auto" loading="lazy" />
 				),
-				a: ({ className, ...props }) => (
-					<a
-						{...props}
-						className={cn("break-words font-medium text-info underline", className)}
-						rel="noreferrer"
-						target="_blank"
-					/>
-				),
+				a: ({ className, href, children, ...props }) => {
+					const target = href && resolveLink ? resolveLink(href) : href;
+					return target ? (
+						<a
+							{...props}
+							href={target}
+							className={cn("break-words font-medium text-info underline", className)}
+							rel="noreferrer"
+							target="_blank"
+						>
+							{children}
+						</a>
+					) : (
+						<span>{children}</span>
+					);
+				},
 				code: ({ className, ...props }) => (
 					<code
 						{...props}

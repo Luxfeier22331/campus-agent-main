@@ -61,7 +61,6 @@ export function createChatFeedbackQueryService({ getDb }: { getDb: RuntimeDbGett
 		async list(query: ChatFeedbackQuery) {
 			const cursor = decodeCursor(query.cursor);
 			const filter = and(
-				query.vote ? eq(messageFeedback.vote, query.vote) : undefined,
 				query.requestId ? eq(messageFeedback.requestId, query.requestId) : undefined,
 				query.from ? gte(messageFeedback.updatedAt, new Date(query.from)) : undefined,
 				query.to ? lt(messageFeedback.updatedAt, new Date(query.to)) : undefined,
@@ -82,6 +81,7 @@ export function createChatFeedbackQueryService({ getDb }: { getDb: RuntimeDbGett
 						.where(
 							and(
 								filter,
+								query.vote ? eq(messageFeedback.vote, query.vote) : undefined,
 								cursor
 									? or(
 											lt(messageFeedback.updatedAt, new Date(cursor.at)),

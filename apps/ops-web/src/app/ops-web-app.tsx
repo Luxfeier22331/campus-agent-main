@@ -34,8 +34,10 @@ import { ChatFeedbackPage } from "./chat-feedback-page";
 import { ConversationsPage } from "./conversations-page";
 import { DiningMenuPage } from "./dining-menu-page";
 import { DiningPage } from "./dining-page";
+import { readDiningReportsSearch } from "./dining-report-navigation";
 import { DiningReportsPage } from "./dining-reports-page";
 import { DiningReviewsPage } from "./dining-reviews-page";
+import { readDiningSubmissionsSearch } from "./dining-submission-navigation";
 import { DiningSubmissionDetailPage, DiningSubmissionsPage } from "./dining-submissions-page";
 import { EmailAccessPage } from "./email-access-page";
 import { GroupsPage } from "./groups-page";
@@ -105,6 +107,7 @@ const requestsRoute = createRoute({
 		const parsed = {
 			...readFailureFilters(search),
 			cursor: optionalBoundedSearchString(search.cursor, 512),
+			history: optionalSearchString(search.history),
 			q: optionalBoundedSearchString(search.q, 256),
 			requestId: optionalBoundedSearchString(search.requestId, 128),
 			status: optionalStatus(search.status),
@@ -125,7 +128,12 @@ const conversationsListRoute = createRoute({
 	path: "/conversations",
 	validateSearch: (search: Record<string, unknown>) => ({
 		q: optionalBoundedSearchString(search.q, 256),
+		ownerQuery: optionalBoundedSearchString(search.ownerQuery, 320),
+		ownerId: optionalBoundedSearchString(search.ownerId, 200),
+		conversationId: optionalBoundedSearchString(search.conversationId, 200),
+		messageId: optionalBoundedSearchString(search.messageId, 200),
 		cursor: optionalBoundedSearchString(search.cursor, 512),
+		history: optionalSearchString(search.history),
 		...readTimeSearch(search),
 		status: optionalStatus(search.status),
 		feedback:
@@ -147,6 +155,7 @@ const requestDetailRoute = createRoute({
 	path: "/requests/$requestId",
 	validateSearch: (search: Record<string, unknown>) => ({
 		from: optionalSearchString(search.from),
+		tab: search.tab === "execution" || search.tab === "retrieval" ? search.tab : "result",
 	}),
 	component: RequestDetailRoute,
 });
@@ -239,15 +248,20 @@ const diningMenuRoute = createRoute({
 const diningSubmissionsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining/submissions",
-	component: DiningSubmissionsPage,
+	validateSearch: readDiningSubmissionsSearch,
+	component: () => <DiningSubmissionsPage search={diningSubmissionsRoute.useSearch()} />,
 });
 
 const diningSubmissionDetailRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining/submissions/$submissionId",
+	validateSearch: (search: Record<string, unknown>) => ({
+		from: optionalBoundedSearchString(search.from, 20000),
+	}),
 	component: () => (
 		<DiningSubmissionDetailPage
 			submissionId={diningSubmissionDetailRoute.useParams().submissionId}
+			from={diningSubmissionDetailRoute.useSearch().from}
 		/>
 	),
 });
@@ -269,7 +283,8 @@ const diningReviewsRoute = createRoute({
 const diningReportsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining/reports",
-	component: DiningReportsPage,
+	validateSearch: readDiningReportsSearch,
+	component: () => <DiningReportsPage search={diningReportsRoute.useSearch()} />,
 });
 
 const transportRoute = createRoute({
@@ -304,6 +319,7 @@ const chatFeedbackRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/chat-feedback",
 	validateSearch: (search: Record<string, unknown>) => ({
+		...(search.window || search.from || search.to ? readTimeSearch(search) : {}),
 		feedbackId: optionalBoundedSearchString(search.feedbackId, 200),
 		vote: optionalBoundedSearchString(search.vote, 20),
 		startDate: optionalBoundedSearchString(search.startDate, 10),
@@ -352,6 +368,17 @@ function createOpsRouter(initialPath?: string) {
 	return createRouter({
 		context: {},
 		defaultPreload: "intent",
+		scrollRestoration: true,
+		getScrollRestorationKey: (location) => {
+			const url = new URL(location.href, "https://ops-web.local");
+			if (url.pathname === "/chat-feedback") {
+				url.searchParams.delete("feedbackId");
+			}
+			if (url.pathname === "/conversations") {
+				url.searchParams.delete("messageId");
+			}
+			return `${url.pathname}${url.search}`;
+		},
 		...(initialPath ? { history: createMemoryHistory({ initialEntries: [initialPath] }) } : {}),
 		routeTree,
 	});
@@ -373,11 +400,10 @@ function RootLayout() {
 		<SidebarLayout
 			navGroups={[
 				{
-					label: "观测",
+					label: "问答运营",
 					items: [
-						{ href: "/overview", icon: Activity, label: "运行概览" },
+						{ href: "/overview", icon: Activity, label: "问答概览" },
 						{ href: "/conversations", icon: History, label: "历史会话" },
-						{ href: "/requests", icon: ClipboardList, label: "运行诊断" },
 						{ href: "/chat-feedback", icon: ClipboardList, label: "回答反馈" },
 					],
 				},
@@ -387,6 +413,9 @@ function RootLayout() {
 						{ href: "/tasks", icon: ListChecks, label: "定时任务" },
 						{ href: "/notices", icon: ListChecks, label: "通知维护" },
 						{ href: "/ocr", icon: ListChecks, label: "文档识别" },
+						{ href: "/dining", icon: Utensils, label: "食堂" },
+						{ href: "/transport", icon: Bus, label: "班车" },
+						{ href: "/groups", icon: UsersRound, label: "同好群" },
 					],
 				},
 				{
@@ -402,9 +431,6 @@ function RootLayout() {
 					items: [
 						{ href: "/providers", icon: ServerCog, label: "模型配置" },
 						{ href: "/internal-portal", icon: KeyRound, label: "内部门户凭据" },
-						{ href: "/dining", icon: Utensils, label: "食堂" },
-						{ href: "/transport", icon: Bus, label: "班车" },
-						{ href: "/groups", icon: UsersRound, label: "同好群" },
 					],
 				},
 			]}
@@ -430,8 +456,8 @@ function RequestsRoute() {
 
 function RequestDetailRoute() {
 	const { requestId } = requestDetailRoute.useParams();
-	const { from } = requestDetailRoute.useSearch();
-	return <RequestDetailPage from={from} requestId={requestId} />;
+	const { from, tab } = requestDetailRoute.useSearch();
+	return <RequestDetailPage from={from} requestId={requestId} tab={tab} />;
 }
 
 function ProviderConfigRoute() {

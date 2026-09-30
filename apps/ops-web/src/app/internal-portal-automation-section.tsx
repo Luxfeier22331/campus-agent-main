@@ -9,7 +9,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Field,
 	Input,
+	StateMessage,
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
@@ -110,15 +112,15 @@ function AutomationTokensSection(props: {
 	const [copied, setCopied] = useState(false);
 	if (props.query.isPending) {
 		return (
-			<section className="mt-10">
+			<section className="ops-section mt-6 min-w-0 scroll-mt-24" id="portal-automation">
 				<h2 className="font-semibold text-foreground text-lg">开发者自动化访问</h2>
-				<p className="mt-2 text-muted-foreground text-sm">正在读取自动化 token...</p>
+				<StateMessage layout="inline" description="正在读取自动化 token..." />
 			</section>
 		);
 	}
 	if (props.query.isError || !props.query.data) {
 		return (
-			<section className="mt-10">
+			<section className="ops-section mt-6 min-w-0 scroll-mt-24" id="portal-automation">
 				<h2 className="font-semibold text-foreground text-lg">开发者自动化访问</h2>
 				<div className="mt-3">
 					<ErrorState
@@ -133,7 +135,7 @@ function AutomationTokensSection(props: {
 
 	const { endpoint, tokens } = props.query.data;
 	return (
-		<section className="mt-10">
+		<section className="ops-section mt-6 min-w-0 scroll-mt-24" id="portal-automation">
 			<div className="flex flex-wrap items-end justify-between gap-3">
 				<div>
 					<h2 className="font-semibold text-foreground text-lg">开发者自动化访问</h2>
@@ -148,7 +150,7 @@ function AutomationTokensSection(props: {
 						onClick={() => void props.query.refetch()}
 						size="icon"
 						title="刷新自动化 token"
-						variant="outline"
+						variant="ghost"
 					>
 						<RefreshCw className="size-4" />
 					</Button>
@@ -158,8 +160,8 @@ function AutomationTokensSection(props: {
 					</Button>
 				</ActionGroup>
 			</div>
-			<div className="mt-4 flex max-w-3xl items-center gap-2">
-				<Input aria-label="自动化接口地址" readOnly value={endpoint} />
+			<div className="mt-4 flex min-w-0 max-w-3xl items-center gap-2">
+				<Input className="min-w-0 flex-1" aria-label="自动化接口地址" readOnly value={endpoint} />
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<Button
@@ -168,7 +170,7 @@ function AutomationTokensSection(props: {
 								void navigator.clipboard.writeText(endpoint).then(() => setCopied(true));
 							}}
 							size="icon"
-							variant="outline"
+							variant="ghost"
 						>
 							{copied ? <Check className="size-4" /> : <Copy className="size-4" />}
 						</Button>
@@ -251,8 +253,8 @@ function AutomationTokenMobileRow(props: {
 	token: InternalPortalAutomationTokenMetadata;
 }) {
 	return (
-		<div className="grid gap-3 border-border border-b px-1 py-4 last:border-b-0">
-			<div className="flex items-start justify-between gap-3">
+		<div className="grid min-w-0 gap-3 border-border border-b px-1 py-4 last:border-b-0">
+			<div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0">
 					<p className="break-words font-medium text-foreground">{props.token.name}</p>
 					<p className="truncate font-mono text-muted-foreground text-xs">{props.token.tokenId}</p>
@@ -334,7 +336,7 @@ function CreateAutomationTokenDialog(props: {
 							onClick={() => {
 								void navigator.clipboard.writeText(created.tokenValue).then(() => setCopied(true));
 							}}
-							variant="outline"
+							variant="secondary"
 						>
 							{copied ? <Check /> : <Copy />}
 							{copied ? "已复制" : "复制 token"}
@@ -348,8 +350,7 @@ function CreateAutomationTokenDialog(props: {
 							create.mutate();
 						}}
 					>
-						<label className="grid gap-1 text-sm" htmlFor="internal-portal-automation-token-name">
-							<span className="font-medium">名称</span>
+						<Field label="名称">
 							<Input
 								autoFocus
 								id="internal-portal-automation-token-name"
@@ -358,10 +359,10 @@ function CreateAutomationTokenDialog(props: {
 								required
 								value={name}
 							/>
-						</label>
+						</Field>
 						{create.error ? <InlineError error={create.error} title="token 生成失败" /> : null}
 						<DialogFooter>
-							<Button onClick={props.onClose} variant="outline">
+							<Button onClick={props.onClose} variant="secondary">
 								取消
 							</Button>
 							<Button disabled={create.isPending || !name.trim()} type="submit">
@@ -372,7 +373,7 @@ function CreateAutomationTokenDialog(props: {
 				)}
 				{created ? (
 					<DialogFooter>
-						<Button onClick={props.onClose} variant="outline">
+						<Button onClick={props.onClose} variant="secondary">
 							关闭
 						</Button>
 					</DialogFooter>
@@ -414,7 +415,7 @@ function RevealAutomationTokenDialog(props: {
 							onClick={() => {
 								void navigator.clipboard.writeText(revealed).then(() => setCopied(true));
 							}}
-							variant="outline"
+							variant="secondary"
 						>
 							{copied ? <Check /> : <Copy />}
 							{copied ? "已复制" : "复制 token"}
@@ -428,7 +429,7 @@ function RevealAutomationTokenDialog(props: {
 				)}
 				{reveal.error ? <InlineError error={reveal.error} title="token 读取失败" /> : null}
 				<DialogFooter>
-					<Button onClick={close} variant="outline">
+					<Button onClick={close} variant="secondary">
 						关闭
 					</Button>
 				</DialogFooter>

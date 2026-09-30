@@ -4,7 +4,7 @@ import type {
 	DiningOpsSubmissionRecord,
 	DiningOpsSubmissionSnapshot,
 } from "@campus-agent/dining/domain";
-import { Badge, Button } from "@campus-agent/ui";
+import { Alert, Badge, Button, StateMessage } from "@campus-agent/ui";
 import { useState } from "react";
 import { formatTimestamp } from "./format";
 
@@ -102,15 +102,15 @@ export function SubmissionPhoto({
 	const [failed, setFailed] = useState(false);
 	const [attempt, setAttempt] = useState(0);
 	if ("state" in photo && photo.state === "expired") {
-		return <p className="text-muted-foreground text-sm">历史照片已到期或清理，不可回放。</p>;
+		return <StateMessage layout="inline" description={<>历史照片已到期或清理，不可回放。</>} />;
 	}
 	return (
 		<div className="min-w-0 space-y-2">
 			{failed ? (
-				<div role="alert" className="space-y-2 text-sm">
+				<Alert tone="danger" role="alert" className="space-y-2">
 					<p>{label}读取失败。请检查访问权限或稍后重试。</p>
 					<Button
-						variant="outline"
+						variant="secondary"
 						onClick={() => {
 							setFailed(false);
 							setAttempt((value) => value + 1);
@@ -118,7 +118,7 @@ export function SubmissionPhoto({
 					>
 						重新读取图片
 					</Button>
-				</div>
+				</Alert>
 			) : (
 				<img
 					key={attempt}

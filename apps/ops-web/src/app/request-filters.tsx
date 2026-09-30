@@ -1,9 +1,10 @@
 import {
 	ActionGroup,
 	Button,
+	Disclosure,
+	DisclosureSummary,
 	Field,
 	Input,
-	NativeSelect,
 	Sheet,
 	SheetContent,
 	SheetDescription,
@@ -27,6 +28,7 @@ import {
 	requestSearchDraftFromSearch,
 } from "./ops-view-helpers";
 import { replaceTimeQuery, timeQueryFields } from "./time-filters";
+import { FilterSelect } from "./ui/filter-select";
 import { TimeRangeFilter } from "./ui/time-window-select";
 
 const exactIdFields = [
@@ -64,11 +66,11 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 		Number(Boolean(failureReason)) +
 		Number(Boolean(citationStage)) +
 		Number(Boolean(failureScope)) +
-		Number(draft.view === "attention") +
-		Number(Boolean(draft.q)) +
-		Number(Boolean(draft.status)) +
+		Number(search.view === "attention") +
+		Number(Boolean(search.q)) +
+		Number(Boolean(search.status)) +
 		Number(Boolean(search.from || (search.window && search.window !== "today"))) +
-		exactIdFields.filter((field) => Boolean(draft[field.name])).length;
+		exactIdFields.filter((field) => Boolean(search[field.name])).length;
 	const changeMobileFiltersOpen = (open: boolean) => {
 		setMobileFiltersOpen(open);
 		if (!open) {
@@ -82,7 +84,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 	};
 
 	return (
-		<div className="border-border border-y bg-background py-3 sm:py-4">
+		<div className="ops-filter-bar">
 			<form
 				className="grid gap-3"
 				onSubmit={(event) => {
@@ -98,7 +100,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 				ref={formRef}
 			>
 				<input name="view" type="hidden" value={draft.view} />
-				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_11rem_9rem_9rem_auto] xl:items-end">
+				<div className="ops-request-primary-filters grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_9rem_8rem_11rem_auto]">
 					<SearchInput
 						label="关键词"
 						maxLength={256}
@@ -119,7 +121,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 							value={draft.status}
 						/>
 					</div>
-					<div className="hidden md:block">
+					<div className="hidden md:contents">
 						<TimeRangeFilter
 							search={search}
 							scope="requests"
@@ -147,26 +149,30 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 							className="hidden md:inline-flex"
 							onClick={resetFilters}
 							type="button"
-							variant="outline"
+							variant="ghost"
 						>
 							重置
 						</Button>
 					</ActionGroup>
 				</div>
-				<div className="hidden md:block border-border border-t py-3">
-					<FailureFields
-						draft={draft}
-						onChange={(name, value) => setDraft((previous) => ({ ...previous, [name]: value }))}
-					/>
-				</div>
-				<details
+				<Disclosure
 					className="hidden border-border border-t px-1 py-2 md:block"
 					data-testid="request-exact-filters"
-					open={hasExactFilter || undefined}
+					open={
+						hasExactFilter ||
+						Boolean(failureCode || failureReason || citationStage || failureScope) ||
+						undefined
+					}
 				>
-					<summary className="flex min-h-9 cursor-pointer items-center font-medium text-foreground text-sm">
-						精确 ID 筛选
-					</summary>
+					<DisclosureSummary className="font-medium text-foreground">
+						高级筛选 · 失败原因与精确 ID
+					</DisclosureSummary>
+					<div className="mt-3">
+						<FailureFields
+							draft={draft}
+							onChange={(name, value) => setDraft((previous) => ({ ...previous, [name]: value }))}
+						/>
+					</div>
 					<div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
 						{exactIdFields.map((field) => (
 							<SearchInput
@@ -180,15 +186,15 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 							/>
 						))}
 					</div>
-				</details>
+				</Disclosure>
 				<Sheet onOpenChange={changeMobileFiltersOpen} open={mobileFiltersOpen}>
 					<SheetContent
-						aria-label="筛选运行诊断"
+						aria-label="筛选运行记录"
 						className="flex flex-col overflow-hidden"
 						side="right"
 					>
 						<SheetHeader className="mb-5 shrink-0 pr-10">
-							<SheetTitle>筛选运行诊断</SheetTitle>
+							<SheetTitle>筛选运行记录</SheetTitle>
 							<SheetDescription>按运行范围、状态、时间范围或精确 ID 缩小结果。</SheetDescription>
 						</SheetHeader>
 						<div className="grid min-h-0 flex-1 gap-4 overflow-y-auto pb-4">
@@ -245,7 +251,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 									resetFilters();
 								}}
 								type="button"
-								variant="outline"
+								variant="ghost"
 							>
 								重置
 							</Button>
@@ -266,15 +272,15 @@ function RequestViewField({
 }) {
 	return (
 		<Field label="运行范围">
-			<NativeSelect
+			<FilterSelect
 				aria-label="运行范围"
-				className="min-h-11"
-				onChange={(event) => onChange(optionalRequestListView(event.target.value) ?? "recent")}
 				value={value}
-			>
-				<option value="recent">{formatRequestViewLabel("recent")}</option>
-				<option value="attention">{formatRequestViewLabel("attention")}</option>
-			</NativeSelect>
+				onValueChange={(value) => onChange(optionalRequestListView(value) ?? "recent")}
+				options={[
+					{ value: "recent", label: formatRequestViewLabel("recent") },
+					{ value: "attention", label: formatRequestViewLabel("attention") },
+				]}
+			/>
 		</Field>
 	);
 }
@@ -288,21 +294,21 @@ function RequestStatusField({
 }) {
 	return (
 		<Field label="状态">
-			<NativeSelect
+			<FilterSelect
 				aria-label="状态"
-				className="min-h-11"
 				name="status"
-				onChange={(event) => onChange(optionalStatus(event.target.value) ?? "")}
 				value={value}
-			>
-				<option value="">全部状态</option>
-				<option value="FAILED">失败</option>
-				<option value="ACTION_REQUIRED">等待用户</option>
-				<option value="RUNNING">运行中</option>
-				<option value="PENDING">待处理</option>
-				<option value="COMPLETED">已完成</option>
-				<option value="CANCELLED">已取消</option>
-			</NativeSelect>
+				onValueChange={(value) => onChange(optionalStatus(value) ?? "")}
+				options={[
+					{ value: "", label: "全部状态" },
+					{ value: "FAILED", label: "失败" },
+					{ value: "ACTION_REQUIRED", label: "等待用户" },
+					{ value: "RUNNING", label: "运行中" },
+					{ value: "PENDING", label: "待处理" },
+					{ value: "COMPLETED", label: "已完成" },
+					{ value: "CANCELLED", label: "已取消" },
+				]}
+			/>
 		</Field>
 	);
 }
@@ -372,47 +378,42 @@ function FailureFields({
 				/>
 			</Field>
 			<Field label="失败原因">
-				<NativeSelect
+				<FilterSelect
 					name="failureReason"
 					value={draft.failureReason}
-					onChange={(event) => onChange("failureReason", event.target.value)}
-				>
-					<option value="">全部原因</option>
-					{draft.failureReason && !(draft.failureReason in CITATION_REASONS) ? (
-						<option value={draft.failureReason}>{draft.failureReason}</option>
-					) : null}
-					{Object.entries(CITATION_REASONS).map(([value, label]) => (
-						<option key={value} value={value}>
-							{label}
-						</option>
-					))}
-				</NativeSelect>
+					onValueChange={(value) => onChange("failureReason", value)}
+					options={[
+						{ value: "", label: "全部原因" },
+						...(draft.failureReason && !(draft.failureReason in CITATION_REASONS)
+							? [{ value: draft.failureReason, label: draft.failureReason }]
+							: []),
+						...Object.entries(CITATION_REASONS).map(([value, label]) => ({ value, label })),
+					]}
+				/>
 			</Field>
 			<Field label="校验阶段">
-				<NativeSelect
+				<FilterSelect
 					name="citationStage"
 					value={draft.citationStage}
-					onChange={(event) => onChange("citationStage", event.target.value)}
-				>
-					<option value="">全部校验阶段</option>
-					{Object.entries(CITATION_STAGE_LABELS).map(([value, label]) => (
-						<option key={value} value={value}>
-							{label}
-						</option>
-					))}
-				</NativeSelect>
+					onValueChange={(value) => onChange("citationStage", value)}
+					options={[
+						{ value: "", label: "全部校验阶段" },
+						...Object.entries(CITATION_STAGE_LABELS).map(([value, label]) => ({ value, label })),
+					]}
+				/>
 			</Field>
 			<Field label="失败范围">
-				<NativeSelect
+				<FilterSelect
 					name="failureScope"
 					value={draft.failureScope}
-					onChange={(event) => onChange("failureScope", event.target.value)}
-				>
-					<option value="">不限定</option>
-					<option value="any">任一失败</option>
-					<option value="stage">执行阶段失败</option>
-					<option value="terminal">回答终态失败</option>
-				</NativeSelect>
+					onValueChange={(value) => onChange("failureScope", value)}
+					options={[
+						{ value: "", label: "不限定" },
+						{ value: "any", label: "任一失败" },
+						{ value: "stage", label: "执行阶段失败" },
+						{ value: "terminal", label: "回答终态失败" },
+					]}
+				/>
 			</Field>
 		</div>
 	);

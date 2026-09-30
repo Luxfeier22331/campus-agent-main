@@ -90,9 +90,12 @@ describe("chat feedback PostgreSQL queries", () => {
 		expect(second.items.map((item) => item.feedbackId)).toEqual([id("f1")]);
 		expect(second.counts).toEqual(first.counts);
 		expect(second.nextCursor).toBeNull();
+		expect(
+			(await list({ vote: "unhelpful" })).items.every((item) => item.vote === "unhelpful"),
+		).toBe(true);
 		expect((await list({ vote: "unhelpful" })).counts).toEqual({
-			total: 2,
-			helpful: 0,
+			total: 3,
+			helpful: 1,
 			unhelpful: 2,
 		});
 		expect((await list({ requestId: id("r1") })).items).toHaveLength(1);
@@ -288,6 +291,50 @@ describe("conversation summaries PostgreSQL queries", () => {
 	const list = (query: Record<string, unknown> = {}) =>
 		service.listSummaries(OpsConversationListQuerySchema.parse({ ownerId: owner, ...query }));
 
+	it("searches owner names and emails before pagination and combines with content", async () => {
+		const name = `验收_${owner}%\\`;
+		const email = `${owner}@example.test`;
+		const otherOwner = `${owner}-other`;
+		await management.query(
+			'insert into app_auth."user" (id, name, email, "createdAt", "updatedAt") values ($1, $2, $3, $4, $4)',
+			[owner, name, email, at],
+		);
+		try {
+			const first = await conversation("a");
+			const second = await conversation("b");
+			await runtime.query(
+				"insert into chat.conversations (id, owner_user_id, title, created_at, updated_at) values ($1, $2, $3, $4, $4)",
+				[otherOwner, otherOwner, name, at],
+			);
+			for (const ownerQuery of [name, email.toUpperCase(), owner]) {
+				const query = { ownerId: undefined, ownerQuery, limit: 1 };
+				const page = await list(query);
+				expect(page.rows.map((row) => row.id)).toEqual([second]);
+				expect(page.nextCursor).toBe(second);
+				const next = await list({ ...query, cursor: page.nextCursor });
+				expect(next.rows.map((row) => row.id)).toEqual([first]);
+				expect(next.nextCursor).toBeNull();
+			}
+			await runtime.query("update chat.conversations set title = '办理材料' where id = $1", [
+				first,
+			]);
+			expect(
+				(await list({ ownerId: undefined, ownerQuery: name, q: "办理" })).rows.map((row) => row.id),
+			).toEqual([first]);
+			expect((await list({ ownerId: undefined, ownerQuery: `missing-${owner}` })).rows).toEqual([]);
+			// Missing account data still supports a full user ID, but not an ID prefix.
+			expect(
+				(await list({ ownerId: undefined, ownerQuery: otherOwner })).rows.map((row) => row.id),
+			).toEqual([otherOwner]);
+			expect(
+				(await list({ ownerId: undefined, ownerQuery: otherOwner.slice(0, -1) })).rows,
+			).toEqual([]);
+		} finally {
+			await runtime.query("delete from chat.conversations where owner_user_id = $1", [otherOwner]);
+			await management.query('delete from app_auth."user" where id = $1', [owner]);
+		}
+	});
+
 	it.each([
 		["accepted", null, "PENDING"],
 		["accepted", "created", "PENDING"],
@@ -316,6 +363,28 @@ describe("conversation summaries PostgreSQL queries", () => {
 			).toHaveLength(0);
 		},
 	);
+
+	it("pairs previews with the latest dispatch, including an unanswered latest question", async () => {
+		const id = await conversation("pairing");
+		await dispatch(id, "completed", null);
+		await runtime.query(
+			"insert into chat.messages (id, conversation_id, role, text, request_id, parent_message_id, created_at, turn_sequence) values ($1, $2, 'assistant', 'First answer', $3, $4, $5, 1)",
+			[`${id}-a1`, id, `${id}-r1`, `${id}-q1`, at],
+		);
+		expect((await list()).rows).toMatchObject([{ latestAnswer: "First answer" }]);
+		await dispatch(id, "accepted", null, 2);
+		await runtime.query("update chat.messages set text = 'Second question' where id = $1", [
+			`${id}-q2`,
+		]);
+		expect((await list()).rows).toMatchObject([
+			{
+				latestQuestion: "Second question",
+				latestAnswer: null,
+				latestRequestId: `${id}-r2`,
+				latestStatus: "PENDING",
+			},
+		]);
+	});
 
 	it("can read only the two granted execution columns", async () => {
 		await expect(

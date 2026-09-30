@@ -3,7 +3,15 @@ import type { ChatSourceItem } from "campus-contracts/chat-sources";
 import { useId } from "react";
 import { SafeMarkdown } from "./ui/safe-markdown";
 
-export function ChatAnswerBody({ text, kind }: { text: string; kind: "answer" | "error" }) {
+export function ChatAnswerBody({
+	text,
+	kind,
+	sources,
+}: {
+	text: string;
+	kind: "answer" | "error";
+	sources: ChatSourceItem[];
+}) {
 	return (
 		<div
 			className={cn(
@@ -13,9 +21,33 @@ export function ChatAnswerBody({ text, kind }: { text: string; kind: "answer" | 
 			role={kind === "error" ? "alert" : undefined}
 		>
 			{kind === "error" ? <p className="mb-2 font-semibold">错误结果已写入会话</p> : null}
-			<SafeMarkdown>{text}</SafeMarkdown>
+			<SafeMarkdown resolveLink={(href) => resolveAnswerLink(href, sources)}>{text}</SafeMarkdown>
 		</div>
 	);
+}
+
+export function resolveAnswerLink(href: string, sources: ChatSourceItem[]): string | null {
+	// Source actions already carry the configured Campus origin and access decision.
+	if (!/^\/(?:notices|docs)(?:\/|$)/u.test(href)) {
+		return href;
+	}
+	for (const source of sources) {
+		if (
+			source.kind === "web_page" ||
+			!source.primaryAction.href ||
+			source.primaryAction.disabledReason
+		) {
+			continue;
+		}
+		if (!/^https?:\/\//u.test(source.primaryAction.href)) {
+			continue;
+		}
+		const target = new URL(source.primaryAction.href);
+		if (`${target.pathname}${target.search}${target.hash}` === href) {
+			return source.primaryAction.href;
+		}
+	}
+	return null;
 }
 
 export function ChatAnswerSources({ sources }: { sources: ChatSourceItem[] }) {

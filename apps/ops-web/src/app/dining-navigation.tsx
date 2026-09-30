@@ -19,7 +19,7 @@ export interface DiningWindowOption {
 export function DiningTaskNavigation() {
 	const pathname = useRouterState({ select: (state) => state.location.pathname });
 	return (
-		<nav aria-label="食堂维护" className="mb-5 overflow-x-auto border-border border-b">
+		<nav aria-label="食堂维护" className="mb-5 max-w-full overflow-x-auto border-border border-b">
 			<div className="flex min-w-max gap-1">
 				{diningTasks.map((task) => {
 					const active =
@@ -29,9 +29,9 @@ export function DiningTaskNavigation() {
 						<Link
 							aria-current={active ? "page" : undefined}
 							className={cn(
-								"min-h-11 border-b-2 px-4 py-3 font-medium text-sm",
+								"min-h-11 rounded-t-md border-b-2 px-4 py-3 font-medium text-sm",
 								active
-									? "border-border-selected text-selected-foreground"
+									? "border-border-selected bg-selected text-selected-foreground"
 									: "border-transparent text-muted-foreground hover:text-foreground",
 							)}
 							key={task.href}

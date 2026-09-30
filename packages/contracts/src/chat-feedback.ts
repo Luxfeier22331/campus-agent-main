@@ -67,6 +67,7 @@ export const ChatFeedbackPageSchema = z
 	.object({
 		items: z.array(ChatFeedbackSummarySchema),
 		nextCursor: z.string().nullable(),
+		// Same time/request filters as items; ignores vote and cursor so tabs retain their totals.
 		counts: z
 			.object({
 				total: z.number().int().nonnegative(),

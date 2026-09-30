@@ -153,8 +153,7 @@
 	color: var(--sys-text-selected);
 }
 
-.element-list button:focus-visible,
-.diagnostic-panel button:focus-visible {
+.element-list button:focus-visible {
 	outline: 2px solid var(--sys-focus-ring);
 	outline-offset: -2px;
 }
@@ -205,7 +204,6 @@
 	font-size: 12px;
 }
 
-.diagnostic-panel button,
 .quality-panel button {
 	display: flex;
 	align-items: center;
@@ -220,10 +218,6 @@
 	text-align: left;
 	white-space: normal;
 	pointer-events: auto;
-}
-
-.diagnostic-panel button:hover {
-	background: var(--dining-editor-danger-subtle);
 }
 
 .quality-panel {
@@ -644,8 +638,7 @@
 }
 
 @media (max-width: 640px), (pointer: coarse) {
-	.element-list button,
-	.diagnostic-panel button {
+	.element-list button {
 		min-height: var(--control-height-touch);
 	}
 }

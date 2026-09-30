@@ -19,6 +19,9 @@ export function createOpsConversationQueryService({
 			const filters = resolveTimeQuery(query, "conversations", generatedAt);
 			const db = await getDb();
 			const pattern = query.q ? `%${query.q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%` : null;
+			const ownerPattern = query.ownerQuery
+				? `%${query.ownerQuery.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`
+				: null;
 			const cursorRow = query.cursor
 				? (
 						await db
@@ -58,10 +61,10 @@ export function createOpsConversationQueryService({
 					turnCount: sql<number>`(select count(*)::int from chat.turn_dispatches d where d.conversation_id = ${conversations.id})`,
 					latestQuestion: sql<
 						string | null
-					>`coalesce((select m.text from chat.messages m where m.conversation_id = ${conversations.id} and m.role = 'user' order by m.created_at desc, m.id desc limit 1), ${conversations.title})`,
+					>`(select m.text from chat.turn_dispatches d left join chat.messages m on m.id = d.user_message_id and m.conversation_id = d.conversation_id and m.role = 'user' where d.conversation_id = ${conversations.id} order by d.created_at desc, d.request_id desc limit 1)`,
 					latestAnswer: sql<
 						string | null
-					>`(select m.text from chat.messages m where m.conversation_id = ${conversations.id} and m.role = 'assistant' order by m.created_at desc, m.id desc limit 1)`,
+					>`(select m.text from chat.turn_dispatches d left join chat.messages m on m.id = d.assistant_message_id and m.request_id = d.request_id and m.conversation_id = d.conversation_id and m.role = 'assistant' where d.conversation_id = ${conversations.id} order by d.created_at desc, d.request_id desc limit 1)`,
 					latestRequestId: sql<
 						string | null
 					>`(select d.request_id from chat.turn_dispatches d where d.conversation_id = ${conversations.id} order by d.created_at desc, d.request_id desc limit 1)`,
@@ -75,6 +78,9 @@ export function createOpsConversationQueryService({
 					and(
 						isNull(conversations.deletedAt),
 						query.ownerId ? eq(conversations.ownerUserId, query.ownerId) : undefined,
+						ownerPattern
+							? sql`(${conversations.ownerUserId} = ${query.ownerQuery} or ${user.name} ilike ${ownerPattern} escape '\\' or ${user.email} ilike ${ownerPattern} escape '\\')`
+							: undefined,
 						sql`${conversations.updatedAt} >= ${new Date(filters.from)}`,
 						sql`${conversations.updatedAt} < ${new Date(filters.to)}`,
 						cursorRow

@@ -338,6 +338,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 	});
 
 	test("账户界面沿用 Campus 交互色与圆角", { tag: "@interaction" }, async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: "reduce" });
 		const width = page.viewportSize()?.width ?? 0;
 		await page.goto("/feedback", { waitUntil: "domcontentloaded" });
 		for (const theme of ["light", "dark"] as const) {
@@ -352,9 +353,11 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 			await expect(routeContext).toHaveCSS("border-radius", "8px");
 			const selectBeforeAuth = await readFocusedFeedbackOptionStyle(page);
 			expect(selectBeforeAuth.backgroundColor).toBe(
-				await resolveCssColor(page, "--sys-surface-hover"),
+				await resolveCssColor(page, "--campus-selected-hover"),
 			);
-			expect(selectBeforeAuth.color).toBe(await resolveCssColor(page, "--sys-text-strong"));
+			expect(selectBeforeAuth.color).toBe(
+				await resolveCssColor(page, "--campus-selected-foreground"),
+			);
 
 			if (width === 1440) {
 				const stylesheetSources = await readApplicationStylesheetSources(page);
@@ -546,6 +549,7 @@ async function readFocusedFeedbackOptionStyle(page: Page) {
 	await page.getByRole("combobox", { name: "问题类型" }).click();
 	const option = page.getByRole("option", { name: "内容问题" });
 	await expect(option).toBeVisible();
+	await expect(option).toHaveAttribute("data-selected", "");
 	await option.focus();
 	const style = await readVisualStyle(option);
 	await page.keyboard.press("Escape");

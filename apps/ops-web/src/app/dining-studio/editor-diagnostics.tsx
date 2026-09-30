@@ -1,4 +1,5 @@
 import type { DiningWayfindingDiagnostic } from "@campus-agent/dining/floorplans";
+import { Button } from "@campus-agent/ui";
 import type { Editor } from "tldraw";
 import { diningShapeEntityId } from "./tldraw-shapes";
 
@@ -11,7 +12,9 @@ export function DiningEditorDiagnosticPanel(props: {
 			<div className="diagnostic-panel" role="alert">
 				<strong>当前地图需要修正</strong>
 				{props.diagnostics.map((diagnostic) => (
-					<button
+					<Button
+						variant="ghost"
+						className="pointer-events-auto justify-start whitespace-normal rounded-none px-3 text-left text-danger"
 						key={`${diagnostic.code}:${diagnostic.message}`}
 						onClick={() => {
 							const ids = diagnostic.entities.flatMap((entity) => {
@@ -28,7 +31,7 @@ export function DiningEditorDiagnosticPanel(props: {
 						type="button"
 					>
 						{diagnostic.message}
-					</button>
+					</Button>
 				))}
 			</div>
 		</div>

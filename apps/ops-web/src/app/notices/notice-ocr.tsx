@@ -1,10 +1,11 @@
-import { Button, NativeSelect, StateMessage } from "@campus-agent/ui";
+import { Button, Field, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { NoticeOcrSchema } from "../../shared/ocr-contract";
 import { OcrResultDialog } from "../ocr-result-dialog";
 import { fetchJson } from "../ops-api/core";
 import { ErrorState } from "../ops-display";
+import { FilterSelect } from "../ui/filter-select";
 
 const labels = {
 	pending: "等待识别",
@@ -57,7 +58,7 @@ export function NoticeOcrSection({
 				/>
 			) : null}
 			{query.data?.resources.length === 0 ? (
-				<p className="text-sm text-muted-foreground">没有可识别的图片或 PDF。</p>
+				<StateMessage description={<>没有可识别的图片或 PDF。</>} />
 			) : null}
 			<ul className="min-w-0 divide-y">
 				{query.data?.resources.map((resource) => {
@@ -79,26 +80,26 @@ export function NoticeOcrSection({
 								</p>
 							</div>
 							{available.length > 1 ? (
-								<NativeSelect
-									aria-label={`${resource.label}识别批次`}
-									className="w-full sm:w-auto"
-									value={selectedId ?? ""}
-									onChange={(event) =>
-										setBatch((previous) => ({
-											...previous,
-											[resource.sourceKey]: event.target.value,
-										}))
-									}
-								>
-									{available.map((item) => (
-										<option key={item.id} value={item.id}>
-											{item.createdAt}
-										</option>
-									))}
-								</NativeSelect>
+								<Field label={`${resource.label}识别批次`}>
+									<FilterSelect
+										aria-label={`${resource.label}识别批次`}
+										className="w-full sm:w-auto"
+										value={selectedId ?? ""}
+										onValueChange={(nextValue) =>
+											setBatch((previous) => ({
+												...previous,
+												[resource.sourceKey]: nextValue,
+											}))
+										}
+										options={available.map((item) => ({
+											value: item.id,
+											label: item.createdAt,
+										}))}
+									/>
+								</Field>
 							) : null}
 							{selectedBatch ? (
-								<Button size="sm" variant="outline" onClick={() => setSelected(selectedBatch.id)}>
+								<Button size="sm" variant="ghost" onClick={() => setSelected(selectedBatch.id)}>
 									查看结果
 								</Button>
 							) : null}

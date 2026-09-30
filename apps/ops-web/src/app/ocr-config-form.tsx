@@ -28,7 +28,7 @@ export function OcrConfigForm() {
 		refetchInterval: 5000,
 	});
 	if (config.isPending) {
-		return <p>正在读取 OCR 配置…</p>;
+		return <StateMessage layout="inline" description="正在读取 OCR 配置…" />;
 	}
 	if (config.isError) {
 		return (
@@ -121,7 +121,7 @@ function Form({ config }: { config: OcrConfigView | null }) {
 							</Button>
 							<Button
 								type="button"
-								variant="outline"
+								variant="secondary"
 								disabled={!config || dirty || save.isPending || validate.isPending}
 								title={config ? (dirty ? "请先保存更改" : undefined) : "请先保存配置"}
 								onClick={() => validate.mutate()}

@@ -12,7 +12,15 @@ export function failureReasonLabel(reason: string | null | undefined): string {
 	return reason ? (CITATION_REASONS[reason as CitationReason] ?? reason) : "未记录";
 }
 export function similarFailurePath(failure: Failure, from?: string): string {
-	const previous = new URL(normalizeRequestListReturnPath(from), "https://ops.local");
+	let previous = new URL(normalizeRequestListReturnPath(from), "https://ops.local");
+	// Detail return links carry a parent path in `from`, while list pages use it for time.
+	while (/^\/(requests|conversations)\/[^/]+$/.test(previous.pathname)) {
+		const parent = previous.searchParams.get("from");
+		if (!parent) {
+			break;
+		}
+		previous = new URL(normalizeRequestListReturnPath(parent), "https://ops.local");
+	}
 	const query = new URLSearchParams();
 	for (const field of ["window", "from", "to"]) {
 		const value = previous.searchParams.get(field);

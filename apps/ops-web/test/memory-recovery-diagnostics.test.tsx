@@ -41,10 +41,10 @@ describe("memory recovery diagnostics", () => {
 		);
 		render(<RequestDiagnostics detail={{ ...opsRequestDetailFixture, execution }} />);
 		if (status === "completed") {
-			expect(screen.queryByTestId("request-failure")).not.toBeInTheDocument();
+			expect(screen.queryByTestId("request-failure-facts")).not.toBeInTheDocument();
 			expect(screen.queryByText(failure.detail)).not.toBeInTheDocument();
 		} else {
-			const summary = within(screen.getByTestId("request-failure"));
+			const summary = within(screen.getByTestId("request-failure-facts"));
 			expect(summary.getByText(failure.detail)).toBeVisible();
 			expect(summary.getByText("503")).toBeVisible();
 		}

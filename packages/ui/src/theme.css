@@ -35,6 +35,7 @@
 	--color-border-strong: var(--sys-border-strong);
 	--color-border-selected: var(--sys-border-selected);
 	--color-input: var(--input-border);
+	--color-control: var(--sys-surface-default);
 	--color-ring: var(--sys-focus-ring);
 	--color-info: var(--sys-status-info);
 	--color-info-subtle: var(--sys-status-info-subtle);

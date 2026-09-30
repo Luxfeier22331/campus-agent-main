@@ -178,10 +178,10 @@ describe("shared UI primitives", () => {
 		expect(trigger).toHaveFocus();
 	});
 
-	it("supports keyboard selection through the Radix select", async () => {
+	it("supports keyboard selection without locking page interactions", async () => {
 		const user = userEvent.setup();
 		render(
-			<Select>
+			<Select items={{ running: "运行中", completed: "已完成" }}>
 				<SelectTrigger aria-label="状态">
 					<SelectValue placeholder="选择状态" />
 				</SelectTrigger>
@@ -194,14 +194,17 @@ describe("shared UI primitives", () => {
 
 		const trigger = screen.getByRole("combobox", { name: "状态" });
 		trigger.focus();
-		await user.keyboard("{ArrowDown}{Enter}");
+		await user.keyboard("{ArrowDown}");
+		expect(await screen.findByRole("listbox")).toBeVisible();
+		expect(document.body).not.toHaveAttribute("data-scroll-locked");
+		await user.keyboard("{Enter}");
 		expect(trigger).toHaveTextContent("运行中");
 	});
 	it("uses a single focus ring contract for bordered form controls", () => {
 		render(
 			<>
 				<Input aria-label="关键词" />
-				<Select>
+				<Select items={{ running: "运行中", completed: "已完成" }}>
 					<SelectTrigger aria-label="状态">
 						<SelectValue placeholder="选择状态" />
 					</SelectTrigger>

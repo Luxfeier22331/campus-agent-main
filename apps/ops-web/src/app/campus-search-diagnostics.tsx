@@ -1,3 +1,14 @@
+import {
+	Disclosure,
+	DisclosureSummary,
+	StateMessage,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@campus-agent/ui";
 import type { CampusSearchDiagnostics } from "../shared/campus-search-diagnostics";
 import { formatTimestamp } from "./format";
 
@@ -45,13 +56,13 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 			</p>
 			{diagnostics.reason ? <p className="mb-3 text-sm">{diagnostics.reason}</p> : null}
 			{diagnostics.calls.map((call) => (
-				<details key={call.invocationId} className="border-y border-border py-3" open>
-					<summary className="cursor-pointer font-medium">
+				<Disclosure key={call.invocationId} className="border-y border-border py-3" open>
+					<DisclosureSummary className="font-medium">
 						{call.searchQuery || "空查询"} · {labels[call.status]}
 						{call.currentPhase === call.status
 							? ""
 							: ` · ${labels[call.currentPhase] ?? call.currentPhase}`}
-					</summary>
+					</DisclosureSummary>
 					<p className="mt-2 text-xs text-muted-foreground">
 						{call.workflowStepId} · attempt {call.activityAttempt} · {call.invocationId}
 					</p>
@@ -142,24 +153,27 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 							</p>
 							{call.snapshot.candidates.length > 0 ? (
 								<div className="overflow-x-auto">
-									<table className="w-full text-left text-sm">
-										<thead>
-											<tr>
-												<th>候选</th>
-												<th>召回 / 重排名次</th>
-												<th>融合 / 重排分数</th>
-												<th>筛选</th>
-												<th>最终引用</th>
-											</tr>
-										</thead>
-										<tbody>
+									<Table className="w-full text-left text-sm">
+										<TableHeader>
+											<TableRow>
+												<TableHead>候选</TableHead>
+												<TableHead>召回 / 重排名次</TableHead>
+												<TableHead>融合 / 重排分数</TableHead>
+												<TableHead>筛选</TableHead>
+												<TableHead>最终引用</TableHead>
+											</TableRow>
+										</TableHeader>
+										<TableBody>
 											{call.snapshot.candidates.map((candidate) => (
-												<tr key={candidate.resultRef} className="border-t border-border align-top">
-													<td className="max-w-xl py-3 pr-4">
-														<details>
-															<summary className="cursor-pointer">
+												<TableRow
+													key={candidate.resultRef}
+													className="border-t border-border align-top"
+												>
+													<TableCell className="max-w-xl py-3 pr-4">
+														<Disclosure>
+															<DisclosureSummary>
 																{candidate.title} · {candidate.section} ({candidate.sourceKind})
-															</summary>
+															</DisclosureSummary>
 															<p className="my-2 whitespace-pre-wrap">{candidate.text}</p>
 															<p>
 																来源 ID：{candidate.noticeId ?? candidate.documentId ?? "未记录"}
@@ -168,42 +182,42 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 																{candidate.resultRef}
 																{candidate.returned ? "" : " · 正文仅预览"}
 															</p>
-														</details>
-													</td>
-													<td>
+														</Disclosure>
+													</TableCell>
+													<TableCell>
 														{candidate.retrievalRank} / {candidate.rerankRank ?? "—"}
-													</td>
-													<td>
+													</TableCell>
+													<TableCell>
 														{candidate.fusionScore.toFixed(4)} /{" "}
 														{candidate.rerankScore?.toFixed(4) ?? "—"}
-													</td>
-													<td>
+													</TableCell>
+													<TableCell>
 														{candidate.returned
 															? `返回 [${candidate.citationIndex}]`
 															: candidate.exclusionReason
 																? labels[candidate.exclusionReason]
 																: "尚未筛选"}
-													</td>
-													<td>
+													</TableCell>
+													<TableCell>
 														{candidate.cited === null
 															? "未判定"
 															: candidate.cited
 																? "已引用"
 																: "未引用"}
-													</td>
-												</tr>
+													</TableCell>
+												</TableRow>
 											))}
-										</tbody>
-									</table>
+										</TableBody>
+									</Table>
 								</div>
 							) : (
-								<p className="my-3 text-sm text-muted-foreground">尚无候选记录。</p>
+								<StateMessage layout="inline" description="尚无候选记录。" />
 							)}
 						</>
 					) : (
-						<p className="mt-3 text-sm text-muted-foreground">尚无服务端检索快照。</p>
+						<StateMessage layout="inline" description="尚无服务端检索快照。" />
 					)}
-				</details>
+				</Disclosure>
 			))}
 		</section>
 	);

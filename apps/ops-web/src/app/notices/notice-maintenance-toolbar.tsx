@@ -1,4 +1,4 @@
-import { Button, Field, Input, NativeSelect } from "@campus-agent/ui";
+import { Button, Field, Input } from "@campus-agent/ui";
 import {
 	NOTICE_CATEGORIES,
 	NOTICE_CATEGORY_LABELS,
@@ -7,6 +7,7 @@ import {
 import { Search } from "lucide-react";
 import type { FormEvent } from "react";
 import type { NoticeListCounts, NoticeState } from "../../shared/ops-contract";
+import { FilterSelect } from "../ui/filter-select";
 import { noticeStateLabel } from "./notice-status";
 
 const STATE_OPTIONS: Array<{
@@ -59,52 +60,48 @@ export function NoticeMaintenanceToolbar({
 	};
 
 	return (
-		<div className="mb-5 grid gap-5 border-border border-b pb-5">
+		<div className="mb-4 grid gap-3">
 			<form
-				className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem_14rem_auto]"
+				className="ops-filter-bar grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1fr)_11rem_11rem_auto]"
 				onSubmit={submit}
 			>
-				<Field label="搜索标题或通知 ID">
-					<div className="relative">
-						<Input
-							className="pr-11"
-							onChange={(event) => onSearchChange(event.target.value)}
-							placeholder="输入标题或 ID"
-							value={search}
-						/>
-						<Search
-							aria-hidden="true"
-							className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
-						/>
-					</div>
+				<Field
+					label="搜索标题或通知 ID"
+					action={<Search aria-hidden="true" className="pointer-events-none mr-3 size-4" />}
+				>
+					<Input
+						className="pr-11"
+						onChange={(event) => onSearchChange(event.target.value)}
+						placeholder="输入标题或 ID"
+						value={search}
+					/>
 				</Field>
 				<Field label="状态">
-					<NativeSelect
+					<FilterSelect
 						className="min-h-11"
-						onChange={(event) => onStateChange(event.target.value as NoticeState | "")}
+						onValueChange={(nextValue) => onStateChange(nextValue as NoticeState | "")}
 						value={state}
-					>
-						{STATE_OPTIONS.map((option) => (
-							<option key={option.value || "all"} value={option.value}>
-								{counts?.[option.countKey] === undefined
+						options={STATE_OPTIONS.map((option) => ({
+							value: option.value,
+							label:
+								counts?.[option.countKey] === undefined
 									? option.label
-									: `${option.label}（${counts[option.countKey]}）`}
-							</option>
-						))}
-					</NativeSelect>
+									: `${option.label}（${counts[option.countKey]}）`,
+						}))}
+					/>
 				</Field>
 				<Field label="分类">
-					<NativeSelect
-						onChange={(event) => onCategoryChange(event.target.value as NoticeCategory | "")}
+					<FilterSelect
+						onValueChange={(nextValue) => onCategoryChange(nextValue as NoticeCategory | "")}
 						value={category}
-					>
-						<option value="">全部分类</option>
-						{NOTICE_CATEGORIES.map((value) => (
-							<option key={value} value={value}>
-								{NOTICE_CATEGORY_LABELS[value]}
-							</option>
-						))}
-					</NativeSelect>
+						options={[
+							{ value: "", label: "全部分类" },
+							...NOTICE_CATEGORIES.map((value) => ({
+								value: value,
+								label: NOTICE_CATEGORY_LABELS[value],
+							})),
+						]}
+					/>
 				</Field>
 				<div className="flex items-end">
 					<Button className="w-full md:w-auto" disabled={isPlaceholderData} type="submit">

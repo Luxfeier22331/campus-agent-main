@@ -102,7 +102,7 @@ export function UnsavedChangesGuard({ dirty }: { dirty: boolean }) {
 				<DialogDescription>离开此页面将丢失尚未保存的模型配置。</DialogDescription>
 				<DialogFooter>
 					<DialogClose asChild>
-						<Button autoFocus variant="outline">
+						<Button autoFocus variant="secondary">
 							继续编辑
 						</Button>
 					</DialogClose>

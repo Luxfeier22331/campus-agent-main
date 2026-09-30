@@ -1,4 +1,4 @@
-import { Button, Input, NativeSelect, StateMessage } from "@campus-agent/ui";
+import { Button, Field, Input, StateMessage } from "@campus-agent/ui";
 import {
 	beijingDate,
 	dateRangeQuery,
@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from "react";
 import { formatTimestamp } from "../format";
 import type { TimeSearch } from "../time-filters";
+import { FilterSelect } from "./filter-select";
 
 export function timeWindowOptions(_scope: TimeScope): Array<{ label: string; value: TimeWindow }> {
 	return TIME_WINDOWS.map((value) => ({ label: TIME_WINDOW_LABELS[value], value }));
@@ -22,9 +23,13 @@ export function TimeRangeFilter({
 	search,
 	scope,
 	onChange,
+	allowAll = false,
+	label,
 }: {
 	search: TimeSearch;
 	scope: TimeScope;
+	allowAll?: boolean;
+	label?: string;
 	onChange: (query: TimeQuery) => void;
 }) {
 	const { window, from, to, timeError } = search;
@@ -39,36 +44,39 @@ export function TimeRangeFilter({
 		setError(undefined);
 	}, [window, from, to, timeError]);
 	return (
-		<div className="grid gap-2">
-			<label htmlFor="time-window" className="grid gap-1 text-sm">
-				时间范围
-				<NativeSelect
-					id="time-window"
+		<div className="ops-time-range min-w-0 grid gap-2">
+			<Field
+				label={
+					<span>
+						{label ?? TIME_SCOPE[scope].label}{" "}
+						<span className="text-xs font-normal leading-none text-muted-foreground">
+							· 北京时间
+						</span>
+					</span>
+				}
+			>
+				<FilterSelect
 					aria-label="时间范围"
-					className="min-h-11"
-					value={custom ? "custom" : (window ?? "today")}
-					onChange={(event) => {
+					value={custom ? "custom" : (window ?? (allowAll ? "all" : "today"))}
+					onValueChange={(value) => {
 						setError(undefined);
-						if (event.target.value === "custom") {
+						if (value === "custom") {
 							setCustom(true);
 							return;
 						}
 						setCustom(false);
-						onChange({ window: event.target.value as TimeWindow });
+						onChange(value === "all" ? {} : { window: value as TimeWindow });
 					}}
-				>
-					{timeWindowOptions(scope).map((option) => (
-						<option key={option.value} value={option.value}>
-							{option.label}
-						</option>
-					))}
-					<option value="custom">选择日期</option>
-				</NativeSelect>
-			</label>
+					options={[
+						...(allowAll ? [{ value: "all", label: "全部时间" }] : []),
+						...timeWindowOptions(scope),
+						{ value: "custom", label: "选择日期" },
+					]}
+				/>
+			</Field>
 			{custom ? (
 				<div className="flex flex-wrap items-end gap-2">
-					<label htmlFor="time-start" className="grid gap-1 text-xs">
-						开始日期
+					<Field label="开始日期">
 						<Input
 							id="time-start"
 							aria-label="开始日期"
@@ -76,9 +84,8 @@ export function TimeRangeFilter({
 							value={start}
 							onChange={(event) => setStart(event.target.value)}
 						/>
-					</label>
-					<label htmlFor="time-end" className="grid gap-1 text-xs">
-						结束日期
+					</Field>
+					<Field label="结束日期">
 						<Input
 							id="time-end"
 							aria-label="结束日期"
@@ -86,7 +93,7 @@ export function TimeRangeFilter({
 							value={end}
 							onChange={(event) => setEnd(event.target.value)}
 						/>
-					</label>
+					</Field>
 					<Button
 						type="button"
 						onClick={() => {
@@ -103,7 +110,6 @@ export function TimeRangeFilter({
 					</Button>
 				</div>
 			) : null}
-			<p className="text-xs text-muted-foreground">{TIME_SCOPE[scope].label} · 北京时间</p>
 			{error || timeError ? (
 				<StateMessage layout="inline" role="alert" tone="danger" description={error ?? timeError} />
 			) : null}

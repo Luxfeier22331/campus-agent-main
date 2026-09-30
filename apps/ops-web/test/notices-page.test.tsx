@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { NOTICE_CATEGORY_LABELS } from "campus-contracts/notices";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpsWebApp } from "../src/app/ops-web-app";
 
@@ -41,12 +42,12 @@ describe("notice maintenance page", () => {
 		);
 		const view = render(<OpsWebApp />);
 		await waitFor(() => expect(requests.at(-1)?.searchParams.get("page")).toBe("2"));
-		expect(screen.getByRole("combobox", { name: "状态" })).toHaveValue("published");
-		expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("campus_operations");
+		expect(screen.getByRole("combobox", { name: "状态" })).toHaveTextContent("已发布");
+		expect(screen.getByRole("combobox", { name: "分类" })).toHaveTextContent(
+			NOTICE_CATEGORY_LABELS.campus_operations,
+		);
 		expect(screen.getByPlaceholderText("输入标题或 ID")).toHaveValue("first");
-		fireEvent.change(screen.getByRole("combobox", { name: "分类" }), {
-			target: { value: "research_affairs" },
-		});
+		await chooseCategory(screen.getByRole("combobox", { name: "分类" }), "research_affairs");
 		await waitFor(() =>
 			expect(new URLSearchParams(window.location.search).get("category")).toBe("research_affairs"),
 		);
@@ -54,11 +55,15 @@ describe("notice maintenance page", () => {
 		expect(new URLSearchParams(window.location.search).get("issueStage")).toBe("publication");
 		await act(async () => window.history.back());
 		await waitFor(() =>
-			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("campus_operations"),
+			expect(screen.getByRole("combobox", { name: "分类" })).toHaveTextContent(
+				NOTICE_CATEGORY_LABELS.campus_operations,
+			),
 		);
 		await act(async () => window.history.forward());
 		await waitFor(() =>
-			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("research_affairs"),
+			expect(screen.getByRole("combobox", { name: "分类" })).toHaveTextContent(
+				NOTICE_CATEGORY_LABELS.research_affairs,
+			),
 		);
 		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
 		fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
@@ -67,22 +72,28 @@ describe("notice maintenance page", () => {
 		});
 		const draft = await screen.findByRole("combobox", { name: "通知分类" });
 		await waitFor(() => expect(screen.queryByText("正在刷新详情…")).not.toBeInTheDocument());
-		fireEvent.change(draft, { target: { value: "campus_operations" } });
+		await chooseCategory(draft, "campus_operations");
 		await screen.findByText("有未保存的分类更改。");
 		await act(async () => window.history.back());
 		await screen.findByRole("dialog", { name: "有未保存的分类更改" });
 		fireEvent.click(screen.getByRole("button", { name: "放弃更改" }));
 		await waitFor(() =>
-			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("campus_operations"),
+			expect(screen.getByRole("combobox", { name: "分类" })).toHaveTextContent(
+				NOTICE_CATEGORY_LABELS.campus_operations,
+			),
 		);
 		await waitFor(() => expect(screen.queryByText("有未保存的分类更改。")).not.toBeInTheDocument());
 		await act(async () => window.history.forward());
 		await waitFor(() =>
-			expect(screen.getByRole("combobox", { name: "分类" })).toHaveValue("research_affairs"),
+			expect(screen.getByRole("combobox", { name: "分类" })).toHaveTextContent(
+				NOTICE_CATEGORY_LABELS.research_affairs,
+			),
 		);
 		view.unmount();
 		const reopened = render(<OpsWebApp />);
-		expect(await screen.findByRole("combobox", { name: "分类" })).toHaveValue("research_affairs");
+		expect(await screen.findByRole("combobox", { name: "分类" })).toHaveTextContent(
+			NOTICE_CATEGORY_LABELS.research_affairs,
+		);
 		expect(screen.getByPlaceholderText("输入标题或 ID")).toHaveValue("first");
 		reopened.unmount();
 		window.history.replaceState(null, "", "/");
@@ -571,14 +582,15 @@ describe("notice maintenance page", () => {
 			ctrlKey: false,
 		});
 		expect(await screen.findByRole("combobox", { name: "通知分类" })).toBeInTheDocument();
-		fireEvent.change(screen.getByRole("combobox", { name: "分类" }), {
-			target: { value: "campus_operations" },
-		});
+		await chooseCategory(screen.getByRole("combobox", { name: "分类" }), "campus_operations");
 
 		await waitFor(() => expect(listRequests).toBe(2));
 		expect(screen.getByRole("combobox", { name: "通知分类" })).toBeInTheDocument();
 		resolveFilteredList?.(noticeListResponse([]));
-		expect(await screen.findByText("选择一条通知")).toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.queryByRole("complementary", { name: "通知检查器" })).not.toBeInTheDocument(),
+		);
+		expect(screen.getByText("没有符合当前筛选条件的通知。")).toBeInTheDocument();
 	});
 
 	it("protects a dirty selection when a successful refresh removes it", async () => {
@@ -613,18 +625,21 @@ describe("notice maintenance page", () => {
 		});
 		const category = await screen.findByRole("combobox", { name: "通知分类" });
 		await waitFor(() => expect(screen.queryByText("正在刷新详情…")).not.toBeInTheDocument());
-		fireEvent.change(category, { target: { value: "campus_operations" } });
+		await chooseCategory(category, "campus_operations");
 		expect(await screen.findByText("有未保存的分类更改。")).toBeInTheDocument();
 		fireEvent.mouseDown(screen.getByRole("tab", { name: "正文" }), { button: 0, ctrlKey: false });
 		expect(screen.queryByRole("combobox", { name: "通知分类" })).not.toBeInTheDocument();
 		fireEvent.mouseDown(screen.getByRole("tab", { name: "维护" }), { button: 0, ctrlKey: false });
-		expect(screen.getByRole("combobox", { name: "通知分类" })).toHaveValue("campus_operations");
+		expect(screen.getByRole("combobox", { name: "通知分类" })).toHaveTextContent("校园服务与运行");
 		fireEvent.click(screen.getByRole("button", { name: "刷新通知队列" }));
 
 		expect(await screen.findByRole("dialog", { name: "有未保存的分类更改" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { hidden: true, name: "测试通知" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "放弃更改" }));
-		expect(await screen.findByText("选择一条通知")).toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.queryByRole("complementary", { name: "通知检查器" })).not.toBeInTheDocument(),
+		);
+		expect(screen.getByText("没有符合当前筛选条件的通知。")).toBeInTheDocument();
 	});
 
 	it("discovers a completed automatic job between idle polls", async () => {
@@ -772,7 +787,9 @@ describe("notice maintenance page", () => {
 			expect(screen.getAllByText("校园服务与运行").length).toBeGreaterThan(0);
 			expect(screen.getAllByText("待发布").length).toBeGreaterThan(0);
 			if (terminalStatus === "succeeded") {
-				expect(screen.getByRole("combobox", { name: "通知分类" })).toHaveValue("campus_operations");
+				expect(screen.getByRole("combobox", { name: "通知分类" })).toHaveTextContent(
+					"校园服务与运行",
+				);
 				expect(screen.queryByText("有未保存的分类更改。")).not.toBeInTheDocument();
 			}
 			if (terminalStatus === "failed") {
@@ -843,7 +860,7 @@ describe("notice maintenance page", () => {
 			ctrlKey: false,
 		});
 		const category = await screen.findByRole("combobox", { name: "通知分类" });
-		fireEvent.change(category, { target: { value: "student_affairs" } });
+		await chooseCategory(category, "student_affairs");
 		expect(await screen.findByText("有未保存的分类更改。")).toBeInTheDocument();
 
 		jobFinished = true;
@@ -909,6 +926,7 @@ function noticeListResponse(items: ReturnType<typeof notice>[]) {
 }
 
 function useDesktopViewport() {
+	HTMLElement.prototype.scrollIntoView = vi.fn();
 	vi.stubGlobal(
 		"ResizeObserver",
 		class {
@@ -930,4 +948,15 @@ function useDesktopViewport() {
 			removeListener: vi.fn(),
 		})),
 	);
+}
+
+async function chooseCategory(control: HTMLElement, value: keyof typeof NOTICE_CATEGORY_LABELS) {
+	if (control.tagName === "SELECT") {
+		fireEvent.change(control, { target: { value } });
+	} else {
+		fireEvent.keyDown(control, { key: "ArrowDown" });
+		const option = await screen.findByRole("option", { name: NOTICE_CATEGORY_LABELS[value] });
+		fireEvent.pointerDown(option, { pointerType: "mouse" });
+		fireEvent.click(option);
+	}
 }

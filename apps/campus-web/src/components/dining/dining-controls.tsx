@@ -55,6 +55,7 @@ export function DiningHallSwitcher(props: {
 			</div>
 			<div className="lg:hidden">
 				<Select
+					items={props.halls.map((hall) => ({ value: hall.hallId, label: hall.name }))}
 					onValueChange={(hallId) => {
 						const hall = props.halls.find((item) => item.hallId === hallId);
 						if (hall) {

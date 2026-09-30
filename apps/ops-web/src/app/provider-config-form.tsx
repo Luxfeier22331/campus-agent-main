@@ -6,13 +6,14 @@ import {
 	CardHeader,
 	CardTitle,
 	cn,
+	Disclosure,
+	DisclosureSummary,
 	Field as FormField,
 	Input,
-	NativeSelect,
 	StateMessage,
 } from "@campus-agent/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Eye, EyeOff, RefreshCw, Save, Undo2 } from "lucide-react";
+import { Eye, EyeOff, RefreshCw, Save, Undo2 } from "lucide-react";
 import { type FormEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import type { ExecutionModelSettingsStatus, ModelSettingKind } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
@@ -41,6 +42,7 @@ import {
 	ValidationBadge,
 	validationDetail,
 } from "./provider-config-ui";
+import { FilterSelect } from "./ui/filter-select";
 
 export function ExecutionModelSettingForm({
 	embeddingContract,
@@ -182,12 +184,13 @@ export function ExecutionModelSettingForm({
 			: { credentialConfigured: false },
 	);
 	const modelControlId = `execution-${kind}-model`;
-	const modelErrorId = `${modelControlId}-error`;
 	return (
 		<Card>
 			<CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
 				<div className="min-w-0">
-					<CardTitle>{settingTitle}</CardTitle>
+					<CardTitle asChild>
+						<h3>{settingTitle}</h3>
+					</CardTitle>
 					<p className="mt-1 text-muted-foreground text-sm">{settingDescription}</p>
 				</div>
 				<ValidationBadge validation={setting?.latestValidation ?? null} />
@@ -231,36 +234,31 @@ export function ExecutionModelSettingForm({
 							</dl>
 						) : (
 							<>
-								<div className="grid gap-1.5 text-sm">
-									<label className="font-medium leading-none" htmlFor={modelControlId}>
-										模型
-									</label>
-									<div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+								<div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+									<FormField label="模型" id={modelControlId} error={errors.model}>
 										{discovery.data && discovery.data.models.length > 0 ? (
-											<NativeSelect
-												aria-describedby={errors.model ? modelErrorId : undefined}
+											<FilterSelect
 												aria-invalid={Boolean(errors.model)}
 												className="min-h-11 min-w-0"
 												id={modelControlId}
-												onChange={(event) =>
-													updateDraft({ model: event.target.value }, ["model"], {
+												onValueChange={(nextValue) =>
+													updateDraft({ model: nextValue }, ["model"], {
 														keepDiscovery: true,
 													})
 												}
 												value={draft.model}
-											>
-												{draft.model && !discovery.data.models.includes(draft.model) ? (
-													<option value={draft.model}>{draft.model}</option>
-												) : null}
-												{discovery.data.models.map((model) => (
-													<option key={model} value={model}>
-														{model}
-													</option>
-												))}
-											</NativeSelect>
+												options={[
+													...(draft.model && !discovery.data.models.includes(draft.model)
+														? [{ value: draft.model, label: draft.model }]
+														: []),
+													...discovery.data.models.map((model) => ({
+														value: model,
+														label: model,
+													})),
+												]}
+											/>
 										) : (
 											<Input
-												aria-describedby={errors.model ? modelErrorId : undefined}
 												aria-invalid={Boolean(errors.model)}
 												className="min-h-11 min-w-0"
 												id={modelControlId}
@@ -272,22 +270,17 @@ export function ExecutionModelSettingForm({
 												value={draft.model}
 											/>
 										)}
-										<Button
-											aria-label={`获取${settingTitle}模型`}
-											disabled={discovery.isPending}
-											onClick={discoverModels}
-											type="button"
-											variant="outline"
-										>
-											<RefreshCw className={cn("size-4", discovery.isPending && "animate-spin")} />
-											{discovery.isPending ? "正在获取" : "获取模型"}
-										</Button>
-									</div>
-									{errors.model ? (
-										<div className="text-danger text-xs" id={modelErrorId}>
-											{errors.model}
-										</div>
-									) : null}
+									</FormField>
+									<Button
+										aria-label={`获取${settingTitle}模型`}
+										disabled={discovery.isPending}
+										onClick={discoverModels}
+										type="button"
+										variant="secondary"
+									>
+										<RefreshCw className={cn("size-4", discovery.isPending && "animate-spin")} />
+										{discovery.isPending ? "正在获取" : "获取模型"}
+									</Button>
 								</div>
 								{discovery.data ? (
 									<StateMessage
@@ -302,28 +295,25 @@ export function ExecutionModelSettingForm({
 							</>
 						)}
 						{embedding ? null : (
-							<details
+							<Disclosure
 								className="border-border border-t pt-3"
 								onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
 								open={advancedOpen}
 							>
-								<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-medium text-foreground text-sm">
+								<DisclosureSummary className="font-medium text-foreground text-sm">
 									高级设置
-									<ChevronDown
-										className={cn("size-4 transition-transform", advancedOpen && "rotate-180")}
-									/>
-								</summary>
+								</DisclosureSummary>
 								<div className="grid gap-4 pt-3">
 									<div className="grid gap-4 sm:grid-cols-2">
 										<FormField label="服务商">
-											<NativeSelect
+											<FilterSelect
 												className="min-h-11"
-												onChange={(event) =>
+												onValueChange={(nextValue) =>
 													updateDraft(
 														{
-															provider: event.target.value as ExecutionDraft["provider"],
+															provider: nextValue as ExecutionDraft["provider"],
 															transport:
-																event.target.value === "google"
+																nextValue === "google"
 																	? "generate_content"
 																	: draft.transport === "generate_content"
 																		? "responses"
@@ -333,22 +323,32 @@ export function ExecutionModelSettingForm({
 													)
 												}
 												value={draft.provider}
-											>
-												{reranker ? (
-													<>
-														<option value="cohere">Cohere</option>
-														<option value="cohere-compatible">Cohere 兼容接口</option>
-													</>
-												) : (
-													<>
-														{kind === "llm" ? (
-															<option value="google">Gemini（原生 API）</option>
-														) : null}
-														<option value="openai">OpenAI</option>
-														<option value="openai-compatible">OpenAI 兼容接口</option>
-													</>
-												)}
-											</NativeSelect>
+												options={
+													reranker
+														? [
+																{ value: "cohere", label: "Cohere" },
+																{
+																	value: "cohere-compatible",
+																	label: "Cohere 兼容接口",
+																},
+															]
+														: [
+																...(kind === "llm"
+																	? [
+																			{
+																				value: "google",
+																				label: "Gemini（原生 API）",
+																			},
+																		]
+																	: []),
+																{ value: "openai", label: "OpenAI" },
+																{
+																	value: "openai-compatible",
+																	label: "OpenAI 兼容接口",
+																},
+															]
+												}
+											/>
 										</FormField>
 										{reranker ? (
 											<FormField label="接口类型">
@@ -356,33 +356,43 @@ export function ExecutionModelSettingForm({
 											</FormField>
 										) : (
 											<FormField label="接口类型">
-												<NativeSelect
+												<FilterSelect
 													className="min-h-11"
-													onChange={(event) =>
+													onValueChange={(nextValue) =>
 														updateDraft(
 															{
-																transport: event.target.value as ExecutionDraft["transport"],
+																transport: nextValue as ExecutionDraft["transport"],
 															},
 															["transport"],
 														)
 													}
 													value={draft.transport}
-												>
-													{draft.provider === "google" ? (
-														<option value="generate_content">Gemini GenerateContent</option>
-													) : null}
-													<option disabled={draft.provider === "google"} value="responses">
-														Responses API
-													</option>
-													<option disabled={draft.provider === "google"} value="chat_completions">
-														Chat Completions API
-													</option>
-												</NativeSelect>
+													options={[
+														...(draft.provider === "google"
+															? [
+																	{
+																		value: "generate_content",
+																		label: "Gemini GenerateContent",
+																	},
+																]
+															: []),
+														{
+															value: "responses",
+															label: "Responses API",
+															disabled: draft.provider === "google",
+														},
+														{
+															value: "chat_completions",
+															label: "Chat Completions API",
+															disabled: draft.provider === "google",
+														},
+													]}
+												/>
 											</FormField>
 										)}
 									</div>
 								</div>
-							</details>
+							</Disclosure>
 						)}
 						<div className="border-border border-t pt-3 text-muted-foreground text-sm">
 							<p>{setting ? validationDetail(setting.latestValidation) : "尚未配置"}</p>
@@ -420,7 +430,7 @@ export function ExecutionModelSettingForm({
 										revalidate.mutate();
 									}}
 									type="button"
-									variant="outline"
+									variant="secondary"
 								>
 									<RefreshCw className={cn("size-4", revalidate.isPending && "animate-spin")} />
 									{revalidate.isPending ? "重新验证中" : "重新验证"}
@@ -472,7 +482,7 @@ function SecretField({
 					aria-label={`${visible ? "隐藏" : "显示"} ${label}`}
 					disabled={disabled}
 					onClick={() => setVisible((current) => !current)}
-					size="icon-lg"
+					size="icon"
 					title={`${visible ? "隐藏" : "显示"} ${label}`}
 					variant="ghost"
 				>

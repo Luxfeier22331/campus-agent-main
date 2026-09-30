@@ -1,6 +1,7 @@
 import type { DiningMapDraft } from "@campus-agent/dining/domain";
 import type { DiningFloorplanBundleV1 } from "@campus-agent/dining/floorplans";
 import {
+	Alert,
 	Badge,
 	Button,
 	Card,
@@ -11,6 +12,8 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Skeleton,
+	StateMessage,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
@@ -26,6 +29,7 @@ import {
 	restoreDiningRelease,
 	saveDiningDraft,
 } from "./ops-api/dining";
+import { PageHeader } from "./ops-display";
 import { useConfirmCommand } from "./use-confirm-command";
 import "./dining-page.css";
 
@@ -105,53 +109,53 @@ export function DiningPage() {
 	return (
 		<div className="dining-workspace mx-auto grid w-full min-w-0 max-w-[1600px] gap-5">
 			<DiningTaskNavigation />
-			<header className="flex flex-wrap items-end justify-between gap-4 border-border border-b pb-4">
-				<div>
-					<p className="text-muted-foreground text-sm">食堂</p>
-					<h1 className="ui-page-title">平面图维护</h1>
-				</div>
-				<div className="flex flex-wrap items-center justify-end gap-2">
-					<PublicationState
-						currentRelease={currentRelease}
-						draft={draft}
-						unsavedCount={unsavedCount}
-					/>
-					<Button
-						aria-label="刷新食堂地图"
-						disabled={state.isFetching || unsavedCount > 0}
-						onClick={() => void refresh()}
-						size="icon"
-						variant="outline"
-					>
-						<RefreshCw className={`size-4 ${state.isFetching ? "animate-spin" : ""}`} />
-					</Button>
-					<ConfirmDialog
-						confirmLabel="发布"
-						confirmVariant="primary"
-						description="当前已保存草稿会成为学生端使用的地图，并创建一个不可变版本。"
-						{...confirmCommand("command", () => publish.mutateAsync(draft.revision))}
-						title="发布当前地图？"
-						trigger={
-							<Button
-								disabled={
-									unsavedCount > 0 || !hasUnpublishedChanges || publish.isPending || save.isPending
-								}
-							>
-								<Send className="size-4" />
-								发布
-							</Button>
-						}
-					/>
-				</div>
-			</header>
+			<PageHeader
+				title="平面图维护"
+				description="编辑食堂窗口与楼层，保存草稿后发布到学生端。"
+				actions={
+					<div className="flex flex-wrap items-center justify-end gap-2">
+						<PublicationState
+							currentRelease={currentRelease}
+							draft={draft}
+							unsavedCount={unsavedCount}
+						/>
+						<Button
+							aria-label="刷新食堂地图"
+							disabled={state.isFetching || unsavedCount > 0}
+							onClick={() => void refresh()}
+							size="icon"
+							variant="ghost"
+						>
+							<RefreshCw className={`size-4 ${state.isFetching ? "animate-spin" : ""}`} />
+						</Button>
+						<ConfirmDialog
+							confirmLabel="发布"
+							confirmVariant="primary"
+							description="当前已保存草稿会成为学生端使用的地图，并创建一个不可变版本。"
+							{...confirmCommand("command", () => publish.mutateAsync(draft.revision))}
+							title="发布当前地图？"
+							trigger={
+								<Button
+									disabled={
+										unsavedCount > 0 ||
+										!hasUnpublishedChanges ||
+										publish.isPending ||
+										save.isPending
+									}
+								>
+									<Send className="size-4" />
+									发布
+								</Button>
+							}
+						/>
+					</div>
+				}
+			/>
 
 			{mutationError ? (
-				<div
-					className="border-danger/20 border-y bg-danger-subtle px-4 py-3 text-danger text-sm"
-					role="alert"
-				>
+				<Alert tone="danger" role="alert">
 					{errorMessage(mutationError)}
-				</div>
+				</Alert>
 			) : null}
 
 			<div className="dining-workspace-columns min-w-0">
@@ -205,7 +209,7 @@ export function DiningPage() {
 									navigationBlocker.reset();
 								}
 							}}
-							variant="outline"
+							variant="secondary"
 						>
 							继续编辑
 						</Button>
@@ -269,21 +273,18 @@ function ReleaseHistory(props: {
 			{props.loading ? (
 				<div aria-label="正在读取发布历史" className="grid gap-2" role="status">
 					{[0, 1, 2].map((item) => (
-						<div className="h-20 animate-pulse rounded-md bg-surface-muted" key={item} />
+						<Skeleton className="h-20 rounded-md" key={item} />
 					))}
 				</div>
 			) : props.error ? (
-				<div
-					className="border-danger/20 border-y bg-danger-subtle px-3 py-3 text-danger text-sm"
-					role="alert"
-				>
+				<Alert tone="danger" role="alert">
 					<p>{errorMessage(props.error)}</p>
-					<Button className="mt-3" onClick={props.onRetry} variant="outline">
+					<Button className="mt-3" onClick={props.onRetry} variant="secondary">
 						重试
 					</Button>
-				</div>
+				</Alert>
 			) : props.releases.length === 0 ? (
-				<p className="border-border border-y py-4 text-muted-foreground text-sm">尚无发布版本。</p>
+				<StateMessage layout="inline" description={<>尚无发布版本。</>} />
 			) : (
 				<ol className="grid max-h-[690px] gap-2 overflow-y-auto pr-1">
 					{props.releases.map((release) => {
@@ -319,7 +320,7 @@ function ReleaseHistory(props: {
 											<Button
 												className="mt-3 w-full"
 												disabled={props.restoring || props.unsavedCount > 0}
-												variant="outline"
+												variant="secondary"
 											>
 												<RotateCcw className="size-4" />
 												恢复
@@ -344,10 +345,10 @@ function DiningPageLoading() {
 			className="dining-workspace mx-auto grid w-full min-w-0 max-w-[1600px] gap-5"
 			role="status"
 		>
-			<div className="h-16 animate-pulse border-border border-b bg-surface-muted" />
+			<Skeleton className="h-16 border-border border-b" />
 			<div className="dining-workspace-columns">
-				<div className="h-[620px] animate-pulse rounded-xl bg-surface-muted" />
-				<div className="h-80 animate-pulse rounded-md bg-surface-muted" />
+				<Skeleton className="h-[620px] rounded-xl" />
+				<Skeleton className="h-80 rounded-md" />
 			</div>
 		</div>
 	);
@@ -355,11 +356,7 @@ function DiningPageLoading() {
 
 function EditorLoading() {
 	return (
-		<div
-			aria-label="正在加载地图编辑器"
-			className="h-[620px] animate-pulse rounded-xl bg-surface-muted"
-			role="status"
-		/>
+		<Skeleton aria-label="正在加载地图编辑器" className="h-[620px] rounded-xl" role="status" />
 	);
 }
 
@@ -368,7 +365,7 @@ function PageFailure(props: { error: unknown; onRetry: () => void }) {
 		<Card className="mx-auto w-full max-w-2xl p-6">
 			<h1 className="font-semibold text-lg">食堂地图读取失败</h1>
 			<p className="mt-2 text-muted-foreground text-sm">{errorMessage(props.error)}</p>
-			<Button className="mt-4" onClick={props.onRetry} variant="outline">
+			<Button className="mt-4" onClick={props.onRetry} variant="secondary">
 				<RefreshCw className="size-4" />
 				重试
 			</Button>

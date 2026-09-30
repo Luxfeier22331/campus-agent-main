@@ -140,7 +140,11 @@ function FieldsExample({
 					</Field>
 					<div className="grid gap-1.5">
 						<label htmlFor="style-dev-select">自定义下拉</label>
-						<Select defaultValue="student" disabled={disabled}>
+						<Select
+							items={{ student: "学生", teacher: "教师" }}
+							defaultValue="student"
+							disabled={disabled}
+						>
 							<SelectTrigger id="style-dev-select">
 								<SelectValue />
 							</SelectTrigger>

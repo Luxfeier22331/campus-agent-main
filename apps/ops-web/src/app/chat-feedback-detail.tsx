@@ -1,46 +1,75 @@
 import {
 	ActionGroup,
 	Button,
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
 	Disclosure,
 	DisclosureSummary,
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
 	StateMessage,
 } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { type ReactNode, useEffect, useRef } from "react";
 import { ChatAnswerBody, ChatAnswerSources } from "./chat-answer-content";
-import { feedbackVoteLabel } from "./chat-feedback-query";
+import { feedbackReasonLabels, feedbackVoteLabel } from "./chat-feedback-query";
 import { formatTimestamp } from "./format";
 import { fetchChatFeedbackDetail } from "./ops-api/chat-feedback";
 import { OpsApiError } from "./ops-api/core";
 import { CopyableValue, ErrorState, InlineError } from "./ops-display";
-
-const reasonLabels = {
-	wrong_intent: "理解错了问题",
-	not_enough_detail: "信息不够详细",
-	outdated_or_missing_source: "来源过时或缺失",
-	incorrect_answer: "回答不正确",
-	unclear_or_hard_to_use: "表达不清或难以使用",
-	other: "其他原因",
-};
 
 export function ChatFeedbackDetailDialog({
 	feedbackId,
 	onClose,
 	restoreFocus,
 	returnPath,
+	inline = false,
+	navigation,
 }: {
 	feedbackId: string | null;
 	onClose: () => void;
 	restoreFocus: () => void;
 	returnPath: string;
+	inline?: boolean;
+	navigation?: ReactNode;
 }) {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (feedbackId && scrollRef.current) {
+			scrollRef.current.scrollTop = 0;
+		}
+	}, [feedbackId]);
+	if (inline) {
+		return feedbackId ? (
+			<aside aria-label="回答反馈详情" className="sticky top-20 min-w-0 border-l pl-6">
+				<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+					<h2 className="font-semibold">回答反馈详情</h2>
+					<Button
+						variant="ghost"
+						onClick={() => {
+							onClose();
+							requestAnimationFrame(restoreFocus);
+						}}
+					>
+						关闭详情
+					</Button>
+				</div>
+				{navigation}
+				<div
+					ref={scrollRef}
+					data-scroll-restoration-id={`feedback-content-${feedbackId}`}
+					className="max-h-[calc(100dvh-12rem)] overflow-y-auto overscroll-contain pr-2"
+				>
+					<FeedbackDetail key={feedbackId} feedbackId={feedbackId} returnPath={returnPath} />
+				</div>
+			</aside>
+		) : null;
+	}
+
 	return (
-		<Dialog
+		<Sheet
 			open={feedbackId !== null}
 			onOpenChange={(open) => {
 				if (!open) {
@@ -48,22 +77,29 @@ export function ChatFeedbackDetailDialog({
 				}
 			}}
 		>
-			<DialogContent
-				className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
+			<SheetContent
+				className="flex w-full max-w-none flex-col gap-4 overflow-hidden sm:max-w-none"
 				onCloseAutoFocus={(event) => {
 					event.preventDefault();
 					restoreFocus();
 				}}
 			>
-				<DialogHeader>
-					<DialogTitle>回答反馈详情</DialogTitle>
-					<DialogDescription>查看本条反馈对应的问题和回答。</DialogDescription>
-				</DialogHeader>
-				{feedbackId ? (
-					<FeedbackDetail key={feedbackId} feedbackId={feedbackId} returnPath={returnPath} />
-				) : null}
-			</DialogContent>
-		</Dialog>
+				<SheetHeader className="pr-10">
+					<SheetTitle>回答反馈详情</SheetTitle>
+					<SheetDescription>查看本条反馈对应的问题和回答。</SheetDescription>
+				</SheetHeader>
+				{navigation}
+				<div
+					ref={scrollRef}
+					data-scroll-restoration-id={`feedback-content-${feedbackId}`}
+					className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+				>
+					{feedbackId ? (
+						<FeedbackDetail key={feedbackId} feedbackId={feedbackId} returnPath={returnPath} />
+					) : null}
+				</div>
+			</SheetContent>
+		</Sheet>
 	);
 }
 
@@ -106,7 +142,7 @@ function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; return
 			<p className="text-sm">
 				原因：
 				{data.reasonCodes.length > 0
-					? data.reasonCodes.map((reason) => reasonLabels[reason]).join("、")
+					? data.reasonCodes.map((reason) => feedbackReasonLabels[reason]).join("、")
 					: "未提供原因"}
 			</p>
 			<section className="min-w-0 space-y-2" aria-label="对应问题">
@@ -117,11 +153,11 @@ function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; return
 			</section>
 			<section className="min-w-0 space-y-2 break-words" aria-label="被评价回答">
 				<h3 className="font-semibold">回答</h3>
-				<ChatAnswerBody text={data.answer.text} kind="answer" />
+				<ChatAnswerBody text={data.answer.text} kind="answer" sources={data.answer.sources} />
 				<ChatAnswerSources sources={data.answer.sources} />
 			</section>
 			<ActionGroup>
-				<Button asChild variant="outline">
+				<Button asChild variant="secondary">
 					<Link
 						to="/conversations/$conversationId"
 						params={{ conversationId: data.conversationId }}
@@ -130,7 +166,7 @@ function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; return
 						查看所属会话
 					</Link>
 				</Button>
-				<Button asChild variant="outline">
+				<Button asChild variant="secondary">
 					<Link
 						to="/requests/$requestId"
 						params={{ requestId: data.requestId }}

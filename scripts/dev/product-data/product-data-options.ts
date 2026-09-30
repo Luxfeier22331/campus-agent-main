@@ -1,5 +1,6 @@
 export interface ProductDataOptions {
-	data: "seed" | "cluster";
+	data: "seed" | "cluster" | "cluster-content";
+	noticeLimit?: number;
 	replace: boolean;
 	context?: string;
 	namespace?: string;
@@ -23,8 +24,18 @@ export function parseProductDataOptions(args: readonly string[]): ProductDataOpt
 		return value;
 	};
 	const data = read("--data") ?? "seed";
-	if (data !== "seed" && data !== "cluster") {
-		throw new Error("--data must be seed or cluster");
+	if (data !== "seed" && data !== "cluster" && data !== "cluster-content") {
+		throw new Error("--data must be seed, cluster or cluster-content");
+	}
+	const limit = read("--notice-limit");
+	if (limit !== undefined && data !== "cluster-content") {
+		throw new Error("--notice-limit requires --data cluster-content");
+	}
+	if (
+		limit !== undefined &&
+		!(/^[1-9][0-9]*$/u.test(limit) && Number.isSafeInteger(Number(limit)))
+	) {
+		throw new Error("--notice-limit must be a positive integer");
 	}
 	const context = read("--context");
 	const namespace = read("--namespace");
@@ -35,6 +46,7 @@ export function parseProductDataOptions(args: readonly string[]): ProductDataOpt
 		data,
 		replace: args.includes("--replace"),
 		context,
-		namespace: data === "cluster" ? (namespace ?? DEFAULT_CLUSTER_NAMESPACE) : namespace,
+		namespace: data === "seed" ? namespace : (namespace ?? DEFAULT_CLUSTER_NAMESPACE),
+		...(data === "cluster-content" ? { noticeLimit: Number(limit ?? 100) } : {}),
 	};
 }

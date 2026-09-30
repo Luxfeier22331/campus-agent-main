@@ -55,7 +55,7 @@ describe("回答反馈页面", () => {
 		);
 		render(<OpsWebApp initialPath="/chat-feedback?vote=unhelpful" />);
 		const trigger = await screen.findByRole("button", { name: "查看反馈：第一轮问题" });
-		expect(screen.getByText("匹配反馈 2 条 · 有帮助 0 条 · 没有帮助 2 条")).toBeInTheDocument();
+		expect(screen.getByText("匹配反馈 2 条 · 当前页 1 条")).toBeInTheDocument();
 		expect(screen.queryByLabelText("用户")).not.toBeInTheDocument();
 		fireEvent.click(trigger);
 		const dialog = await screen.findByRole("dialog");
@@ -96,6 +96,7 @@ describe("回答反馈页面", () => {
 		fireEvent.click(screen.getByRole("button", { name: "下一页" }));
 		await screen.findByText("第二条反馈");
 		expect(screen.getByRole("button", { name: "上一页" })).toBeEnabled();
+		fireEvent.click(screen.getByText("更多筛选"));
 		fireEvent.change(screen.getByLabelText("请求 ID"), { target: { value: "req-other" } });
 		fireEvent.click(screen.getByRole("button", { name: /^查询$/ }));
 		await screen.findByRole("status", { name: "正在读取回答反馈" });

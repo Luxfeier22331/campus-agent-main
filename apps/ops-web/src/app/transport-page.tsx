@@ -1,4 +1,5 @@
-import { ActionGroup, Card, StateMessage } from "@campus-agent/ui";
+import { ActionGroup, Card, Field, StateMessage } from "@campus-agent/ui";
+import { FilterSelect } from "./ui/filter-select";
 import "./transport-page.css";
 import {
 	formatWeekdays,
@@ -13,7 +14,6 @@ import {
 	cn,
 	Disclosure,
 	DisclosureSummary,
-	NativeSelect,
 	Tabs,
 	TabsContent,
 	TabsList,
@@ -81,7 +81,10 @@ export function TransportPage({
 	const error = routes.error ?? periods.error;
 	if (!(routes.data && periods.data)) {
 		return error ? (
-			<ErrorState error={error} onRetry={refresh} title="班车数据读取失败" />
+			<section>
+				<PageHeader title="班车维护" />
+				<ErrorState error={error} onRetry={refresh} title="班车数据读取失败" />
+			</section>
 		) : (
 			<PageShell title="班车维护">正在读取班车数据…</PageShell>
 		);
@@ -263,13 +266,14 @@ function TransportWorkspace({
 		<section className="ops-transport-workspace mx-auto w-full max-w-[1440px]">
 			<PageHeader
 				title="班车维护"
+				description="选择服务和线路，查看生效班次，维护时间段与关联通知。"
 				actions={
 					<ActionGroup>
 						<Button
 							aria-label="刷新班车数据"
 							disabled={refreshing || busy}
 							size="icon"
-							variant="outline"
+							variant="ghost"
 							onClick={() =>
 								guard(() => {
 									close();
@@ -295,7 +299,7 @@ function TransportWorkspace({
 						tone="danger"
 						description={<> 所关联的时间段不存在或已删除。 </>}
 					/>
-					<Button className="justify-self-start" variant="outline" onClick={() => guard(close)}>
+					<Button className="justify-self-start" variant="ghost" onClick={() => guard(close)}>
 						返回班车维护
 					</Button>
 				</div>
@@ -311,22 +315,18 @@ function TransportWorkspace({
 				<TabsContent value={kind} className="mt-4">
 					<div className="ops-transport-columns grid items-start gap-5">
 						<div className="min-w-0">
-							<label className="grid gap-1 text-sm xl:hidden" htmlFor="ops-transport-route">
-								线路方向
-							</label>
-							<NativeSelect
-								id="ops-transport-route"
-								className="xl:hidden"
-								value={selected?.routeId ?? ""}
-								onChange={(event) => selectRoute(event.target.value)}
-							>
-								{kindRoutes.map((route) => (
-									<option key={route.routeId} value={route.routeId}>
-										{route.origin} → {route.destination}
-									</option>
-								))}
-							</NativeSelect>
-							<nav aria-label="班车线路" className="hidden gap-2 xl:grid">
+							<Field label="线路方向" className="ops-transport-route-picker">
+								<FilterSelect
+									id="ops-transport-route"
+									value={selected?.routeId ?? ""}
+									onValueChange={(nextValue) => selectRoute(nextValue)}
+									options={kindRoutes.map((route) => ({
+										value: route.routeId,
+										label: `${route.origin} → ${route.destination}`,
+									}))}
+								/>
+							</Field>
+							<nav aria-label="班车线路" className="ops-transport-route-list gap-2">
 								{kindRoutes.map((route) => {
 									const entries = periods.filter((period) => period.routeId === route.routeId);
 									const active = entries.filter(
@@ -458,7 +458,7 @@ function TransportWorkspace({
 													<Button onClick={() => quickEdit("add")}>新增班次</Button>
 													{effective ? (
 														<Button
-															variant="outline"
+															variant="secondary"
 															onClick={() =>
 																begin({ type: "period", source: effective, copy: false })
 															}
@@ -511,7 +511,7 @@ function TransportWorkspace({
 																	<ActionGroup>
 																		<Button
 																			size="sm"
-																			variant="outline"
+																			variant="ghost"
 																			aria-label={`修改班次 ${itemTime(item)} ${riderLabel(item.riderType)}`}
 																			onClick={() => quickEdit("edit", index)}
 																		>
@@ -655,7 +655,7 @@ function RouteDetails({
 					<h2 className="text-xl font-semibold">
 						{route.origin} → {route.destination}
 					</h2>
-					<Button variant="outline" onClick={onEditRoute}>
+					<Button variant="secondary" onClick={onEditRoute}>
 						编辑线路
 					</Button>
 				</div>
@@ -688,7 +688,7 @@ function RouteDetails({
 				</Button>
 			</div>
 			{periods.length === 0 ? (
-				<p className="text-muted-foreground text-sm">这条线路还没有时间安排。</p>
+				<StateMessage layout="inline" description="这条线路还没有时间安排。" />
 			) : null}
 			{groups
 				.filter((group) => group.entries.length)
@@ -774,7 +774,7 @@ function PeriodCard({
 					<ActionGroup>
 						<Button
 							size="sm"
-							variant="outline"
+							variant="ghost"
 							onClick={onNotices}
 							aria-label={`关联通知 ${period.scheduleId}`}
 						>
@@ -783,7 +783,7 @@ function PeriodCard({
 						<Button
 							onClick={onEdit}
 							size="sm"
-							variant="outline"
+							variant="ghost"
 							aria-label={`编辑时间段 ${period.scheduleId}`}
 						>
 							编辑

@@ -1,4 +1,14 @@
-import { ActionGroup, Badge, Button, Checkbox, Input, NativeSelect } from "@campus-agent/ui";
+import {
+	ActionGroup,
+	Badge,
+	Button,
+	Checkbox,
+	ConfirmDialog,
+	Field,
+	Input,
+	Label,
+	StateMessage,
+} from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
 	EmailAccessGrant,
@@ -6,15 +16,17 @@ import type {
 	EmailAccessGrantState,
 } from "campus-contracts/email-access";
 import { MailPlus, RefreshCw, RotateCw, ShieldX } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatTimestamp } from "./format";
 import {
 	commandEmailAccessGrant,
 	createEmailAccessGrant,
 	fetchEmailAccessGrants,
 } from "./ops-api/email-access";
-import { ErrorState, PageHeader } from "./ops-display";
+import { ErrorState, InlineError, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
+import { FilterSelect } from "./ui/filter-select";
+import { useConfirmCommand } from "./use-confirm-command";
 
 const stateLabels: Record<EmailAccessGrantState, string> = {
 	active: "有效",
@@ -37,12 +49,20 @@ const environmentLabels: Record<EmailAccessGrant["environment"], string> = {
 
 export function EmailAccessPage() {
 	const queryClient = useQueryClient();
+	const confirmCommand = useConfirmCommand();
 	const [emailFilter, setEmailFilter] = useState("");
+	const [draft, setDraft] = useState({
+		email: "",
+		kind: "" as EmailAccessGrantKind | "",
+		state: "" as EmailAccessGrantState | "",
+	});
+	const [environment, setEnvironment] = useState<EmailAccessGrant["environment"]>();
 	const [kindFilter, setKindFilter] = useState<EmailAccessGrantKind | "">("");
 	const [stateFilter, setStateFilter] = useState<EmailAccessGrantState | "">("");
 	const [cursor, setCursor] = useState<string | undefined>();
 	const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([]);
 	const [commandError, setCommandError] = useState<unknown>(null);
+	const [rowErrors, setRowErrors] = useState<Record<string, unknown>>({});
 	const grants = useQuery({
 		queryFn: ({ signal }) =>
 			fetchEmailAccessGrants(
@@ -84,30 +104,23 @@ export function EmailAccessPage() {
 			commandEmailAccessGrant(input.grantId, input.action, {
 				idempotencyKey: crypto.randomUUID(),
 			}),
-		onError: setCommandError,
 		onSuccess: refresh,
 	});
+	const runGrantCommand = async (input: { action: "resend" | "revoke"; grantId: string }) => {
+		setRowErrors((current) => ({ ...current, [input.grantId]: undefined }));
+		try {
+			await commandGrant.mutateAsync(input);
+		} catch (error) {
+			setRowErrors((current) => ({ ...current, [input.grantId]: error }));
+			throw error;
+		}
+	};
 
-	if (grants.isPending) {
-		return (
-			<section>
-				<PageHeader description="管理校园邮箱之外的按地址邀请和限时测试授权。" title="账号准入" />
-				<p className="text-muted-foreground text-sm">正在读取授权...</p>
-			</section>
-		);
-	}
-	if (grants.isError || !grants.data) {
-		return (
-			<section>
-				<PageHeader description="管理校园邮箱之外的按地址邀请和限时测试授权。" title="账号准入" />
-				<ErrorState
-					error={grants.error}
-					onRetry={() => void grants.refetch()}
-					title="账号准入读取失败"
-				/>
-			</section>
-		);
-	}
+	useEffect(() => {
+		if (grants.data) {
+			setEnvironment(grants.data.environment);
+		}
+	}, [grants.data]);
 
 	const data = grants.data;
 	return (
@@ -117,7 +130,7 @@ export function EmailAccessPage() {
 					<Button
 						disabled={grants.isFetching}
 						onClick={() => void grants.refetch()}
-						variant="outline"
+						variant="ghost"
 					>
 						<RefreshCw className="size-4" />
 						刷新
@@ -131,119 +144,162 @@ export function EmailAccessPage() {
 					<ErrorState error={commandError} title="账号准入操作失败" />
 				</div>
 			) : null}
-			<section aria-labelledby="create-email-access-heading" className="mb-8">
-				<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-					<h2 className="font-semibold text-foreground text-lg" id="create-email-access-heading">
-						创建授权
-					</h2>
-					<Badge tone={data.environment === "production" ? "warning" : "neutral"}>
-						{environmentLabels[data.environment]}
-					</Badge>
-				</div>
-				<CreateGrantForm
-					disabled={createGrant.isPending}
-					environment={data.environment}
-					onSubmit={(value) => createGrant.mutate(value)}
-				/>
-			</section>
+			{environment ? (
+				<section aria-labelledby="create-email-access-heading" className="ops-section mb-5">
+					<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+						<h2 className="font-semibold text-foreground text-lg" id="create-email-access-heading">
+							创建授权
+						</h2>
+						<Badge tone={environment === "production" ? "warning" : "neutral"}>
+							{environmentLabels[environment]}
+						</Badge>
+					</div>
+					<CreateGrantForm
+						disabled={createGrant.isPending}
+						environment={environment}
+						onSubmit={(value) => createGrant.mutate(value)}
+					/>
+				</section>
+			) : null}
 			<section aria-labelledby="email-access-records-heading">
 				<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
 					<h2 className="font-semibold text-foreground text-lg" id="email-access-records-heading">
 						授权记录
 					</h2>
-					<span className="text-muted-foreground text-sm">当前页 {data.items.length} 条</span>
+					<span className="text-muted-foreground text-sm">当前页 {data?.items.length ?? 0} 条</span>
 				</div>
-				<div className="mb-4 grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem]">
-					<Input
-						aria-label="按邮箱筛选"
-						className="min-h-10 min-w-0"
-						name="email-access-filter-email"
-						onChange={(event) => {
-							setCursor(undefined);
-							setPreviousCursors([]);
-							setEmailFilter(event.target.value);
-						}}
-						placeholder="按邮箱筛选"
-						value={emailFilter}
-					/>
-					<NativeSelect
-						aria-label="按授权类型筛选"
-						className="min-h-10 min-w-0"
-						name="email-access-filter-kind"
-						onChange={(event) => {
-							setCursor(undefined);
-							setPreviousCursors([]);
-							setKindFilter(event.target.value as EmailAccessGrantKind | "");
-						}}
-						value={kindFilter}
-					>
-						<option value="">全部类型</option>
-						<option value="invitation">正式邀请</option>
-						<option value="test">测试授权</option>
-					</NativeSelect>
-					<NativeSelect
-						aria-label="按授权状态筛选"
-						className="min-h-10 min-w-0"
-						name="email-access-filter-state"
-						onChange={(event) => {
-							setCursor(undefined);
-							setPreviousCursors([]);
-							setStateFilter(event.target.value as EmailAccessGrantState | "");
-						}}
-						value={stateFilter}
-					>
-						<option value="">全部状态</option>
-						<option value="pending">待领取</option>
-						<option value="active">有效</option>
-						<option value="revoked">已撤销</option>
-						<option value="expired">已过期</option>
-					</NativeSelect>
-				</div>
-				{data.items.length === 0 ? (
-					<p className="border-border border-y bg-background p-6 text-center text-muted-foreground text-sm">
-						没有符合条件的授权。
-					</p>
-				) : (
-					<>
-						<div className="hidden md:block">
-							<DataTable
-								caption="邮箱准入授权"
-								data={data.items}
-								minWidth="1040px"
-								rowKey={(row) => row.id}
-								columns={buildColumns({
-									command: commandGrant.mutate,
-									pending: commandGrant.isPending,
-								})}
-							/>
-						</div>
-						<GrantMobileList
-							command={commandGrant.mutate}
-							grants={data.items}
-							pending={commandGrant.isPending}
+				<form
+					className="ops-filter-bar mb-4 grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto]"
+					onSubmit={(event) => {
+						event.preventDefault();
+						setEmailFilter(draft.email.trim());
+						setKindFilter(draft.kind);
+						setStateFilter(draft.state);
+						setCursor(undefined);
+						setPreviousCursors([]);
+					}}
+				>
+					<Field label="按邮箱筛选">
+						<Input
+							aria-label="按邮箱筛选"
+							className="min-h-11 min-w-0"
+							name="email-access-filter-email"
+							onChange={(event) => setDraft({ ...draft, email: event.target.value })}
+							placeholder="按邮箱筛选"
+							value={draft.email}
 						/>
-					</>
-				)}
+					</Field>
+					<Field label="按授权类型筛选">
+						<FilterSelect
+							aria-label="按授权类型筛选"
+							className="min-h-11 min-w-0"
+							name="email-access-filter-kind"
+							onValueChange={(nextValue) =>
+								setDraft({ ...draft, kind: nextValue as EmailAccessGrantKind | "" })
+							}
+							value={draft.kind}
+							options={[
+								{ value: "", label: "全部类型" },
+								{ value: "invitation", label: "正式邀请" },
+								{ value: "test", label: "测试授权" },
+							]}
+						/>
+					</Field>
+					<Field label="按授权状态筛选">
+						<FilterSelect
+							aria-label="按授权状态筛选"
+							className="min-h-11 min-w-0"
+							name="email-access-filter-state"
+							onValueChange={(nextValue) =>
+								setDraft({ ...draft, state: nextValue as EmailAccessGrantState | "" })
+							}
+							value={draft.state}
+							options={[
+								{ value: "", label: "全部状态" },
+								{ value: "pending", label: "待领取" },
+								{ value: "active", label: "有效" },
+								{ value: "revoked", label: "已撤销" },
+								{ value: "expired", label: "已过期" },
+							]}
+						/>
+					</Field>
+					<ActionGroup>
+						<Button type="submit">查询</Button>
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={() => {
+								setDraft({ email: "", kind: "", state: "" });
+								setEmailFilter("");
+								setKindFilter("");
+								setStateFilter("");
+								setCursor(undefined);
+								setPreviousCursors([]);
+							}}
+						>
+							清除筛选
+						</Button>
+					</ActionGroup>
+				</form>
+				{grants.isPending ? (
+					<StateMessage layout="inline" role="status" description="正在读取授权..." />
+				) : null}
+				{grants.error ? (
+					<ErrorState
+						error={grants.error}
+						title={data ? "授权刷新失败，仍显示上次结果" : "账号准入读取失败"}
+						onRetry={() => void grants.refetch()}
+					/>
+				) : null}
+				{data ? (
+					data.items.length === 0 ? (
+						<StateMessage description="没有符合条件的授权。" />
+					) : (
+						<>
+							<div className="hidden md:block">
+								<DataTable
+									caption="邮箱准入授权"
+									data={data.items}
+									minWidth="1040px"
+									rowKey={(row) => row.id}
+									columns={buildColumns({
+										command: runGrantCommand,
+										confirmCommand,
+										rowErrors,
+										pending: commandGrant.isPending,
+									})}
+								/>
+							</div>
+							<GrantMobileList
+								command={runGrantCommand}
+								confirmCommand={confirmCommand}
+								grants={data.items}
+								rowErrors={rowErrors}
+								pending={commandGrant.isPending}
+							/>
+						</>
+					)
+				) : null}
 			</section>
 			<ActionGroup className="mt-4 justify-end">
 				<Button
-					disabled={previousCursors.length === 0}
+					disabled={grants.isFetching || previousCursors.length === 0}
 					onClick={() => {
 						const previous = [...previousCursors];
 						setCursor(previous.pop());
 						setPreviousCursors(previous);
 					}}
-					variant="outline"
+					variant="ghost"
 				>
 					上一页
 				</Button>
 				<Button
-					disabled={!data.nextCursor}
+					disabled={grants.isFetching || !data?.nextCursor}
 					onClick={() => {
 						setPreviousCursors((current) => [...current, cursor]);
-						setCursor(data.nextCursor ?? undefined);
+						setCursor(data?.nextCursor ?? undefined);
 					}}
-					variant="outline"
+					variant="ghost"
 				>
 					下一页
 				</Button>
@@ -268,40 +324,38 @@ function CreateGrantForm({
 	const requiresConfirmation = environment === "production";
 	return (
 		<form
-			className="grid gap-3 border-border border-y bg-background py-4 md:grid-cols-[minmax(16rem,1fr)_10rem_8rem_auto] md:items-end"
+			className="grid gap-3 border-border border-y bg-background py-4 sm:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_10rem_8rem_auto] xl:items-end"
 			onSubmit={(event) => {
 				event.preventDefault();
 				onSubmit({ accessDays, email: email.trim().toLowerCase(), kind });
 			}}
 		>
-			<label className="grid gap-1 text-foreground text-sm" htmlFor="email-access-address">
-				完整邮箱
+			<Field label="完整邮箱">
 				<Input
-					className="min-h-10"
+					className="min-h-11"
 					id="email-access-address"
 					onChange={(event) => setEmail(event.target.value)}
 					required
 					type="email"
 					value={email}
 				/>
-			</label>
-			<label className="grid gap-1 text-foreground text-sm" htmlFor="email-access-kind">
-				授权类型
-				<NativeSelect
-					className="min-h-10"
+			</Field>
+			<Field label="授权类型">
+				<FilterSelect
+					className="min-h-11"
 					id="email-access-kind"
-					onChange={(event) => setKind(event.target.value as EmailAccessGrantKind)}
+					onValueChange={(nextValue) => setKind(nextValue as EmailAccessGrantKind)}
 					value={kind}
-				>
-					<option value="invitation">正式邀请</option>
-					{environment === "production" ? null : <option value="test">测试授权</option>}
-				</NativeSelect>
-			</label>
+					options={[
+						{ value: "invitation", label: "正式邀请" },
+						...(environment === "production" ? [] : [{ value: "test", label: "测试授权" }]),
+					]}
+				/>
+			</Field>
 			{kind === "test" ? (
-				<label className="grid gap-1 text-foreground text-sm" htmlFor="email-access-days">
-					有效天数
+				<Field label="有效天数">
 					<Input
-						className="min-h-10"
+						className="min-h-11"
 						id="email-access-days"
 						max={30}
 						min={1}
@@ -309,7 +363,7 @@ function CreateGrantForm({
 						type="number"
 						value={accessDays}
 					/>
-				</label>
+				</Field>
 			) : (
 				<div className="hidden md:block" />
 			)}
@@ -322,7 +376,7 @@ function CreateGrantForm({
 				创建并发送
 			</Button>
 			{requiresConfirmation ? (
-				<label
+				<Label
 					className="flex min-h-11 cursor-pointer items-center gap-2 text-foreground text-sm md:col-span-4"
 					htmlFor="email-access-production-confirmation"
 				>
@@ -332,7 +386,7 @@ function CreateGrantForm({
 						onCheckedChange={(checked) => setConfirmed(checked === true)}
 					/>
 					确认在 production 创建正式邀请
-				</label>
+				</Label>
 			) : null}
 		</form>
 	);
@@ -340,12 +394,16 @@ function CreateGrantForm({
 
 function GrantMobileList({
 	command,
+	confirmCommand,
 	grants,
 	pending,
+	rowErrors,
 }: {
-	command: (input: { action: "resend" | "revoke"; grantId: string }) => void;
+	command: (input: { action: "resend" | "revoke"; grantId: string }) => Promise<unknown>;
+	confirmCommand: ReturnType<typeof useConfirmCommand>;
 	grants: EmailAccessGrant[];
 	pending: boolean;
+	rowErrors: Record<string, unknown>;
 }) {
 	return (
 		<div
@@ -377,7 +435,14 @@ function GrantMobileList({
 						/>
 						<GrantFact className="col-span-2" label="绑定" value={grant.userId ?? "未绑定"} />
 					</dl>
-					<GrantActions command={command} grant={grant} pending={pending} />
+					<GrantActions
+						command={command}
+						confirmCommand={confirmCommand}
+						grant={grant}
+						mode="mobile"
+						pending={pending}
+						rowError={rowErrors[grant.id]}
+					/>
 				</article>
 			))}
 		</div>
@@ -411,45 +476,64 @@ function GrantStateBadge({ state }: { state: EmailAccessGrantState }) {
 
 function GrantActions({
 	command,
+	confirmCommand,
 	grant,
+	mode,
 	pending,
+	rowError,
 }: {
-	command: (input: { action: "resend" | "revoke"; grantId: string }) => void;
+	command: (input: { action: "resend" | "revoke"; grantId: string }) => Promise<unknown>;
+	confirmCommand: ReturnType<typeof useConfirmCommand>;
 	grant: EmailAccessGrant;
+	mode: "desktop" | "mobile";
 	pending: boolean;
+	rowError?: unknown;
 }) {
 	if (grant.state !== "pending" && grant.state !== "active") {
 		return null;
 	}
 	return (
-		<ActionGroup>
-			{grant.state === "pending" ? (
-				<Button
-					className="min-h-9 py-1"
-					disabled={pending}
-					onClick={() => command({ action: "resend", grantId: grant.id })}
-					variant="outline"
-				>
-					<RotateCw className="size-4" />
-					重发
-				</Button>
-			) : null}
-			<Button
-				className="min-h-9 py-1"
-				disabled={pending}
-				onClick={() => command({ action: "revoke", grantId: grant.id })}
-				variant="outline"
-			>
-				<ShieldX className="size-4" />
-				撤销
-			</Button>
-		</ActionGroup>
+		<div className="grid gap-2">
+			<ActionGroup>
+				{grant.state === "pending" ? (
+					<Button
+						size="sm"
+						disabled={pending}
+						onClick={() =>
+							void command({ action: "resend", grantId: grant.id }).catch(() => undefined)
+						}
+						variant="ghost"
+					>
+						<RotateCw className="size-4" />
+						重发
+					</Button>
+				) : null}
+				<ConfirmDialog
+					confirmLabel="撤销"
+					confirmVariant="destructive"
+					description="撤销后该授权不能继续领取或访问。"
+					{...confirmCommand(`${grant.id}-${mode}-revoke`, () =>
+						command({ action: "revoke", grantId: grant.id }),
+					)}
+					title={`撤销 ${grant.email} 的授权？`}
+					trigger={
+						<Button size="sm" disabled={pending} variant="ghost">
+							<ShieldX className="size-4" />
+							撤销
+						</Button>
+					}
+				/>
+			</ActionGroup>
+			{rowError ? <InlineError error={rowError} title="该授权操作失败" /> : null}
+		</div>
 	);
 }
 
 function buildColumns(input: {
-	command: (input: { action: "resend" | "revoke"; grantId: string }) => void;
+	command: (input: { action: "resend" | "revoke"; grantId: string }) => Promise<unknown>;
+	confirmCommand: ReturnType<typeof useConfirmCommand>;
 	pending: boolean;
+	rowErrors: Record<string, unknown>;
 }) {
 	return [
 		{
@@ -482,7 +566,14 @@ function buildColumns(input: {
 			header: "操作",
 			cell: (row: EmailAccessGrant) =>
 				row.state === "pending" || row.state === "active" ? (
-					<GrantActions command={input.command} grant={row} pending={input.pending} />
+					<GrantActions
+						command={input.command}
+						confirmCommand={input.confirmCommand}
+						grant={row}
+						mode="desktop"
+						pending={input.pending}
+						rowError={input.rowErrors[row.id]}
+					/>
 				) : (
 					"-"
 				),

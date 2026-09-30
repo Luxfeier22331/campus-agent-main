@@ -1,10 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
-
 import type { NoticeOcr } from "../../src/shared/ocr-contract.ts";
 import type { ExecutionModelSettingsStatus } from "../../src/shared/ops-contract.ts";
 import { opsRequestDetailFixture } from "../../src/shared/ops-fixtures.ts";
+import { expectControlValue, selectFilter } from "./select-control";
 
 const browserCampusGroup = {
 	id: "qq-760540871",
@@ -67,6 +67,7 @@ async function expectStableViewport(
 }
 
 async function expectNoAccessibilityViolations(page: Page): Promise<void> {
+	await page.emulateMedia({ reducedMotion: "reduce" });
 	const results = await new AxeBuilder({ page })
 		.withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
 		.analyze();
@@ -309,7 +310,8 @@ test("通知标题最多两行且不挤压状态标签", async ({ page }) => {
 	await page.route("**/api/ops/notices?*", async (route) => {
 		const response = await route.fetch();
 		const data = await response.json();
-		data.items[0].title = "关于秋季学期两校区通勤班车及地铁接驳车运行时间和上下车地点调整的通知";
+		data.items[0].title =
+			"关于秋季学期两校区通勤班车及地铁接驳车运行时间和上下车地点调整的通知".repeat(4);
 		await route.fulfill({ json: data });
 	});
 	await page.goto("/notices");
@@ -330,35 +332,48 @@ test("通知标题最多两行且不挤压状态标签", async ({ page }) => {
 		.toBe(true);
 });
 
-test("移动端通知关闭与 Esc 保留草稿提醒并返回队列焦点", async ({ page }) => {
+test("通知关闭保留草稿提醒并返回队列焦点，移动端支持 Esc", async ({ page }) => {
 	await page.goto("/notices");
 	const selected = page.getByRole("list", { name: "通知队列" }).getByRole("button").first();
 	await selected.click();
-	if ((page.viewportSize()?.width ?? 0) >= 1024) {
-		await expect(page.getByRole("complementary", { name: "通知检查器" })).toBeVisible();
-		return;
-	}
-	const inspector = page.getByRole("dialog", { name: "通知详情", exact: true });
-	await expect(inspector.getByRole("button", { name: "关闭", exact: true })).toHaveCount(1);
+	const desktop = (page.viewportSize()?.width ?? 0) >= 1024;
+	const inspector = desktop
+		? page.getByRole("complementary", { name: "通知检查器" })
+		: page.getByRole("dialog", { name: "通知详情", exact: true });
+	const close = inspector.getByRole("button", {
+		name: desktop ? "收起通知详情" : "关闭",
+		exact: true,
+	});
+	await expect(close).toHaveCount(1);
 	await inspector.getByRole("tab", { name: "维护", exact: true }).click();
-	await inspector.getByRole("combobox", { name: "通知分类" }).selectOption("campus_operations");
+	await selectFilter(page, "通知分类", "campus_operations", "校园服务与运行");
 	await inspector.getByRole("tab", { name: "正文", exact: true }).click();
-	await inspector.getByRole("button", { name: "关闭", exact: true }).click();
+	await close.click();
 	const warning = page.getByRole("dialog", { name: "有未保存的分类更改", exact: true });
 	await expect(warning).toBeVisible();
 	await warning.getByRole("button", { name: "取消", exact: true }).click();
 	await inspector.getByRole("tab", { name: "维护", exact: true }).click();
-	await expect(inspector.getByRole("combobox", { name: "通知分类" })).toHaveValue(
+	await expectControlValue(
+		inspector.getByRole("combobox", { name: "通知分类" }),
 		"campus_operations",
+		"校园服务与运行",
 	);
-	await page.keyboard.press("Escape");
+	if (desktop) {
+		await close.click();
+	} else {
+		await page.keyboard.press("Escape");
+	}
 	await expect(warning).toBeVisible();
 	await warning.getByRole("button", { name: "放弃更改", exact: true }).click();
 	await expect(inspector).toBeHidden();
 	await expect(selected).toBeFocused();
 	await page.keyboard.press("Enter");
 	await expect(inspector).toBeVisible();
-	await page.keyboard.press("Escape");
+	if (desktop) {
+		await close.click();
+	} else {
+		await page.keyboard.press("Escape");
+	}
 	await expect(inspector).toBeHidden();
 	await expect(selected).toBeFocused();
 });
@@ -371,7 +386,14 @@ test("通知维护在不同宽度下保持队列、Inspector 和任务中心层�
 	await page.goto("/notices");
 
 	await expect(page.getByRole("heading", { name: "通知维护" })).toBeVisible();
-	await expect(page.getByRole("navigation", { name: "通知状态" })).toContainText("待分类");
+	const stateFilter = page.getByRole("combobox", { name: "状态", exact: true });
+	if (await stateFilter.evaluate((element) => element.tagName === "SELECT")) {
+		await expect(stateFilter).toContainText("待分类");
+	} else {
+		await stateFilter.click();
+		await expect(page.getByRole("option", { name: /待分类/ })).toBeVisible();
+		await page.keyboard.press("Escape");
+	}
 	const queue = page.getByRole("list", { name: "通知队列" });
 	await expect(queue).toContainText("关于 2026 年秋季学期注册安排的通知");
 	await expect(queue).toContainText("校园网络维护安排");
@@ -465,7 +487,7 @@ test("总览在各宽度下保持可读", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/overview?window=today");
 
-	await expect(page.getByRole("heading", { name: "运行概览" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "问答概览" })).toBeVisible();
 	await expect(page.getByText("请求成功率")).toBeVisible();
 	await expect(page.getByText("请求量与结果")).toBeVisible();
 	await expect(page.getByText("95% 耗时", { exact: true }).first()).toBeVisible();
@@ -476,15 +498,15 @@ test("总览在各宽度下保持可读", async ({ page }) => {
 	await expectStableViewport(page, errors);
 });
 
-test("运行诊断进入同页产品结果和执行诊断", async ({ page }) => {
+test("运行记录进入同页产品结果和执行诊断", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/requests");
 
-	await expect(page.getByRole("heading", { name: "运行诊断" })).toBeVisible();
-	const compactLayout = (page.viewportSize()?.width ?? 0) < 1280;
+	await expect(page.getByRole("heading", { name: "运行记录" })).toBeVisible();
+	const compactLayout = true;
 	const recentResults = compactLayout
 		? page.getByTestId("request-mobile-list")
-		: page.getByRole("table", { name: "运行诊断" });
+		: page.getByRole("table", { name: "运行记录" });
 	await expect(recentResults).toContainText("缓考申请需要哪些材料？");
 	const completedRequest = recentResults
 		.getByRole("link", { name: "缓考申请需要哪些材料？" })
@@ -501,31 +523,36 @@ test("运行诊断进入同页产品结果和执行诊断", async ({ page }) => 
 
 	if ((page.viewportSize()?.width ?? 0) < 768) {
 		await page.getByRole("button", { name: /筛选/u }).click();
-		await page.getByRole("combobox", { name: "运行范围" }).selectOption("attention");
+		await selectFilter(page, "运行范围", "attention", "需要关注");
 		await page.getByRole("button", { name: "应用筛选" }).click();
 	} else {
-		await page.getByRole("combobox", { name: "运行范围" }).selectOption("attention");
+		await selectFilter(page, "运行范围", "attention", "需要关注");
 		await page.getByRole("button", { name: "应用" }).click();
 	}
-	await expect(page).toHaveURL(/\/requests\?view=attention$/u);
+	await expect(page).toHaveURL(
+		(url) =>
+			url.pathname === "/requests" &&
+			url.searchParams.get("view") === "attention" &&
+			url.searchParams.get("window") === "today",
+	);
 	if (compactLayout) {
 		await expect(page.getByText("运行范围：需要关注")).toBeVisible();
 	} else {
-		await expect(page.getByRole("combobox", { name: "运行范围" })).toHaveValue("attention");
+		await expect(page.getByRole("combobox", { name: "运行范围" })).toHaveText("需要关注");
 	}
 	const attentionResults = compactLayout
 		? page.getByTestId("request-mobile-list")
-		: page.getByRole("table", { name: "运行诊断" });
+		: page.getByRole("table", { name: "运行记录" });
 	await expect(attentionResults).toContainText("产品请求失败");
 	await expect(attentionResults).toContainText("等待用户补充信息");
 	await expect(attentionResults).toContainText("会话结果缺失");
 	await expect(page.getByText("req_ops_001")).toHaveCount(0);
 	if ((page.viewportSize()?.width ?? 0) < 768) {
 		await page.getByRole("button", { name: "筛选" }).click();
-		await page.getByRole("combobox", { name: "状态" }).selectOption("COMPLETED");
+		await selectFilter(page, "状态", "COMPLETED", "已完成");
 		await page.getByRole("button", { name: "应用筛选" }).click();
 	} else {
-		await page.getByRole("combobox", { name: "状态" }).selectOption("COMPLETED");
+		await selectFilter(page, "状态", "COMPLETED", "已完成");
 		await page.getByRole("button", { name: "应用" }).click();
 	}
 	await expect(page).toHaveURL(/status=COMPLETED/u);
@@ -533,28 +560,35 @@ test("运行诊断进入同页产品结果和执行诊断", async ({ page }) => 
 
 	if ((page.viewportSize()?.width ?? 0) < 768) {
 		await page.getByRole("button", { name: /筛选/u }).click();
-		await page.getByRole("combobox", { name: "运行范围" }).selectOption("recent");
+		await selectFilter(page, "运行范围", "recent", "最近运行");
 		await page.getByRole("button", { name: "应用筛选" }).click();
 	} else {
-		await page.getByRole("combobox", { name: "运行范围" }).selectOption("recent");
+		await selectFilter(page, "运行范围", "recent", "最近运行");
 		await page.getByRole("button", { name: "应用" }).click();
 	}
-	await expect(page).toHaveURL(/\/requests\?status=COMPLETED/u);
+	await expect(page).toHaveURL(
+		(url) =>
+			url.pathname === "/requests" &&
+			url.searchParams.get("status") === "COMPLETED" &&
+			!url.searchParams.has("view"),
+	);
 	if (compactLayout) {
 		await expect(page.getByText("运行范围：最近运行")).toBeVisible();
 	} else {
-		await expect(page.getByRole("combobox", { name: "运行范围" })).toHaveValue("recent");
+		await expect(page.getByRole("combobox", { name: "运行范围" })).toHaveText("最近运行");
 	}
 	await expect(recentResults).toContainText("会话结果缺失");
 	await page.getByRole("link", { name: "缓考申请需要哪些材料？" }).first().click();
-	await expect(page.getByRole("heading", { name: "运行详情" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "执行详情" })).toBeVisible();
 	await expect(page.getByTestId("request-question")).toContainText("缓考申请需要哪些材料？");
 	await expect(page.getByTestId("request-result")).toContainText(
 		opsRequestDetailFixture.result.text,
 	);
+	await page.getByRole("tab", { name: "检索与引用" }).click();
 	await expect(page.getByTestId("request-sources")).toContainText("学生管理规定");
 	await expect(page.getByTestId("request-sources")).toContainText("[1]");
 	await expect(page.getByTestId("request-sources").getByLabel("引用 1")).toBeVisible();
+	await page.getByRole("tab", { name: "执行过程" }).click();
 	const execution = page.getByTestId("request-execution");
 	const completedStage = execution.getByRole("listitem").first();
 	await expect(completedStage).toContainText("Agent");
@@ -575,54 +609,94 @@ test("运行诊断进入同页产品结果和执行诊断", async ({ page }) => 
 	await expectStableViewport(page, errors);
 });
 
-test("运行诊断在中等宽度使用任务卡片并在宽桌面使用表格", async ({ page }, testInfo) => {
-	testInfo.skip(testInfo.project.name !== "desktop-1440", "只在桌面浏览器项目中运行响应式边界验证");
-
-	await page.setViewportSize({ height: 900, width: 898 });
-	await page.goto("/requests");
-	await expect(page.getByTestId("request-mobile-list")).toBeVisible();
-	await expect(page.getByRole("table", { name: "运行诊断" })).toBeHidden();
-	await expect(page.getByRole("combobox", { name: "运行范围" })).toBeVisible();
-	await expect
-		.poll(() =>
-			page.evaluate(
-				() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-			),
-		)
-		.toBeLessThanOrEqual(0);
-
-	await page.getByRole("combobox", { name: "运行范围" }).selectOption("attention");
-	await page.getByRole("combobox", { name: "状态" }).selectOption("COMPLETED");
-	await page.getByRole("button", { name: "应用" }).click();
-	await expect(page).toHaveURL(
-		/view=attention.*status=COMPLETED|status=COMPLETED.*view=attention/u,
-	);
-	await expect(page.getByText("运行范围：需要关注")).toBeVisible();
-
-	await page.setViewportSize({ height: 900, width: 1280 });
-	await page.goto("/requests");
-	await expect(page.getByRole("table", { name: "运行诊断" })).toBeVisible();
-	await expect(page.getByTestId("request-mobile-list")).toBeHidden();
-	await expect(page.getByRole("columnheader", { name: "关注原因" })).toBeVisible();
-	const duration = page
-		.getByRole("table", { name: "运行诊断" })
-		.locator("tbody tr")
-		.first()
-		.locator("td")
-		.last()
-		.locator("span");
-	await expect(duration).toHaveCSS("white-space", "nowrap");
-	await expect
-		.poll(async () => (await duration.boundingBox())?.width ?? 0)
-		.toBeGreaterThanOrEqual(120);
+test("运行记录在平板与宽桌面使用紧凑列表", async ({ page }, testInfo) => {
+	testInfo.skip(testInfo.project.name !== "desktop-1440", "桌面浏览器覆盖响应式边界");
+	for (const width of [768, 1024, 1440]) {
+		await page.setViewportSize({ height: 900, width });
+		await page.goto("/requests");
+		await expect(page.getByTestId("request-mobile-list")).toBeVisible();
+		await expect(page.getByRole("table", { name: "运行记录" })).toHaveCount(0);
+		const first = page.getByTestId("request-mobile-card").first();
+		await expect(first.getByText("回答已写入会话")).toBeVisible();
+		await expect(first.getByText("req_ops_001", { exact: true })).toBeHidden();
+		await first.getByText("执行信息与标识").click();
+		await expect(first.getByText("req_ops_001", { exact: true })).toBeVisible();
+		await expectStableViewport(page, []);
+	}
 });
 
-test("六类运行诊断保留产品结果和执行诊断语义", async ({ page }) => {
+test("筛选控件保持对齐并支持日期展开、键盘选择和重置", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	const mobile = (page.viewportSize()?.width ?? 0) < 768;
+	await page.goto("/requests");
+	if (mobile) {
+		await page.getByRole("button", { name: /筛选/u }).click();
+	}
+	const scope = page.getByRole("combobox", { name: "运行范围", exact: true });
+	const scopeBefore = await scope.boundingBox();
+	await selectFilter(page, "时间范围", "custom", "选择日期");
+	await expect(page.getByLabel("开始日期", { exact: true })).toBeVisible();
+	if (!mobile) {
+		const scopeAfter = await scope.boundingBox();
+		expect(scopeAfter?.y).toBe(scopeBefore?.y);
+		const start = await page.getByLabel("开始日期", { exact: true }).boundingBox();
+		expect(start?.y).toBeGreaterThan((scopeAfter?.y ?? 0) + (scopeAfter?.height ?? 0));
+		await expectStableViewport(page, errors);
+	}
+	await page.getByLabel("开始日期", { exact: true }).fill("2026-09-01");
+	await page.getByLabel("结束日期", { exact: true }).fill("2026-09-02");
+	await page.getByRole("button", { name: "应用日期", exact: true }).click();
+	await expect(page).toHaveURL(
+		(url) => url.searchParams.get("from") === "2026-08-31T16:00:00.000Z",
+	);
+	await selectFilter(page, "时间范围", "today", "今日");
+	await expect(page).toHaveURL(
+		(url) => url.searchParams.get("window") === "today" && !url.searchParams.has("from"),
+	);
+	if (mobile) {
+		await page.getByRole("button", { name: "应用筛选" }).click();
+	}
+	await expectStableViewport(page, errors);
+
+	await page.route("**/api/ops/chat-feedback?*", (route) =>
+		route.fulfill({
+			json: { items: [], nextCursor: null, counts: { total: 0, helpful: 0, unhelpful: 0 } },
+		}),
+	);
+	await page.goto("/chat-feedback");
+	await expect(page.getByRole("heading", { name: "回答反馈" })).toBeVisible();
+
+	await page.getByRole("radio", { name: "没有帮助 0", exact: true }).click();
+	await expect(page).toHaveURL((url) => url.searchParams.get("vote") === "unhelpful");
+	await selectFilter(page, "时间范围", "custom", "选择日期");
+	await page.getByLabel("开始日期").fill("2026-09-01");
+	await page.getByLabel("结束日期").fill("2026-09-02");
+	await page.getByRole("button", { name: "应用日期" }).click();
+	await page.getByText("更多筛选", { exact: true }).click();
+	await page.getByLabel("请求 ID").fill("req-test");
+	await page.getByRole("button", { name: "查询", exact: true }).click();
+	await expect(page).toHaveURL(
+		(url) =>
+			url.searchParams.get("requestId") === "req-test" &&
+			url.searchParams.get("vote") === "unhelpful",
+	);
+	await page.getByRole("button", { name: "清除筛选", exact: true }).click();
+	await expect(page).toHaveURL((url) => url.search === "");
+	await expect(page.getByRole("radio", { name: "全部 0", exact: true })).toHaveAttribute(
+		"aria-checked",
+		"true",
+	);
+	await expectNoAccessibilityViolations(page);
+	await expectStableViewport(page, errors);
+});
+
+test("六类运行记录保留产品结果和执行诊断语义", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 
 	await page.goto("/requests/req_ops_002");
 	await expect(page.getByTestId("request-question")).toContainText("你好，你能帮我做什么？");
 	await expect(page.getByTestId("request-result")).toContainText("我可以帮助查询校园通知");
+	await page.getByRole("tab", { name: "执行过程" }).click();
 	await expect(page.getByTestId("request-execution").getByRole("listitem").first()).toContainText(
 		"Agent",
 	);
@@ -632,6 +706,7 @@ test("六类运行诊断保留产品结果和执行诊断语义", async ({ page 
 	await expect(page.getByTestId("request-context")).toContainText("运行中");
 	await expect(page.getByTestId("request-context")).toContainText("输出中");
 	await expect(page.getByTestId("request-result")).toContainText("请求仍在处理中");
+	await page.getByRole("tab", { name: "执行过程" }).click();
 	await expect(page.getByTestId("request-execution")).toContainText("执行中");
 
 	await page.goto("/requests/req_ops_004");
@@ -640,17 +715,20 @@ test("六类运行诊断保留产品结果和执行诊断语义", async ({ page 
 	await expect(page.getByTestId("request-result")).toContainText("错误结果已写入会话");
 	await expect(page.getByTestId("request-result")).toContainText("当前暂时无法完成查询");
 	await expect(page.getByTestId("request-failure")).toContainText("模型服务不可用");
-	await expect(page.getByTestId("request-failure")).toContainText("503");
+	await page.getByRole("tab", { name: "执行过程" }).click();
+	await expect(page.getByTestId("request-failure-facts")).toContainText("503");
 	await expect(page.getByTestId("request-run-closure")).toContainText("运行终态");
 	await expect(page.getByTestId("request-run-closure")).toContainText("模型服务不可用");
 	await expect(page.getByTestId("request-run-closure")).toContainText("协调收口原因");
 	await expect(page.getByTestId("request-run-closure")).toContainText("provider_timeout");
+	await page.getByRole("tab", { name: "执行过程" }).click();
 	await expect(page.getByTestId("request-execution")).toContainText("失败");
 
 	await page.goto("/requests/req_ops_005");
 	await expect(page.getByTestId("request-question")).toContainText("请帮我查询申请条件");
 	await expect(page.getByTestId("request-context")).toContainText("已完成");
 	await expect(page.getByTestId("request-result")).toContainText("请说明你要办理的具体事项");
+	await page.getByRole("tab", { name: "执行过程" }).click();
 	await expect(page.getByTestId("request-execution")).toContainText("已完成");
 
 	await page.goto("/requests/req_ops_006");
@@ -658,6 +736,7 @@ test("六类运行诊断保留产品结果和执行诊断语义", async ({ page 
 	await expect(page.getByTestId("request-context")).toContainText("已完成");
 	await expect(page.getByTestId("request-result")).toContainText("会话结果缺失");
 	await expect(page.getByTestId("request-result")).toContainText("产品状态为 已完成");
+	await page.getByRole("tab", { name: "执行过程" }).click();
 	await expect(page.getByTestId("request-execution").getByRole("listitem").first()).toContainText(
 		"Agent",
 	);
@@ -666,6 +745,16 @@ test("六类运行诊断保留产品结果和执行诊断语义", async ({ page 
 
 test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
+	await page.route("**/api/ops/chat-conversations?*", (route) =>
+		route.fulfill({
+			json: {
+				data: [],
+				page: { nextCursor: null },
+				filters: { from: null, to: null },
+				generatedAt: new Date().toISOString(),
+			},
+		}),
+	);
 	await page.goto("/overview");
 
 	if ((page.viewportSize()?.width ?? 0) < 1024) {
@@ -675,10 +764,12 @@ test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) 
 		await page
 			.getByRole("navigation", { name: "运维导航" })
 			.last()
-			.getByRole("link", { name: "运行诊断" })
+			.getByRole("link", { name: "历史会话" })
 			.click();
-		await expect(page).toHaveURL(/\/requests$/u);
-		await expect(page.getByRole("heading", { name: "运行诊断" })).toBeVisible();
+		await expect(page).toHaveURL(
+			(url) => url.pathname === "/conversations" && url.searchParams.get("window") === "today",
+		);
+		await expect(page.getByRole("heading", { name: "历史会话" })).toBeVisible();
 		await expect(page.locator("#ops-main-content")).toBeFocused();
 
 		await toggle.click();
@@ -689,9 +780,11 @@ test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) 
 		await page
 			.getByRole("navigation", { name: "运维导航" })
 			.first()
-			.getByRole("link", { name: "运行诊断" })
+			.getByRole("link", { name: "历史会话" })
 			.click();
-		await expect(page).toHaveURL(/\/requests$/u);
+		await expect(page).toHaveURL(
+			(url) => url.pathname === "/conversations" && url.searchParams.get("window") === "today",
+		);
 		await expect(page.locator("#ops-main-content")).not.toBeFocused();
 	}
 	await expectStableViewport(page, errors);
@@ -707,7 +800,7 @@ test("外观选择在刷新后保持并继续使用语义根属性", async ({ pa
 		.poll(() => page.evaluate(() => localStorage.getItem("campus-agent.theme")))
 		.toBe("dark");
 	await page.reload();
-	await expect(page.getByRole("heading", { name: "运行概览" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "问答概览" })).toBeVisible();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 	await expectStableViewport(page, errors);
 });
@@ -840,7 +933,7 @@ test("同好群目录可以排序、跨组移动和删除", async ({ page }) => 
 	await page.getByRole("button", { name: "编辑 央民二匹马俱乐部" }).click();
 	const dialog = page.getByRole("dialog", { name: "编辑同好群" });
 	await dialog.getByRole("textbox", { name: "说明" }).fill("更新后的说明");
-	await dialog.getByRole("combobox", { name: "分组" }).selectOption("clubs");
+	await selectFilter(page, "分组", "clubs", "社团群");
 	const updateRequest = page.waitForRequest(
 		(request) =>
 			new URL(request.url()).pathname === "/api/ops/groups/catalog" && request.method() === "PUT",
@@ -1012,7 +1105,7 @@ test("食堂接口格式错误时显示失败状态并允许重试", async ({ pa
 	await expectStableViewport(page, errors);
 });
 
-test("食堂菜单可以新增立即生效的菜品和价格", async ({ page }) => {
+test("食堂菜单可以新增菜品和价格", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/dining/menu");
 	await expect(page.getByRole("heading", { name: "菜单维护" })).toBeVisible();
@@ -1024,16 +1117,9 @@ test("食堂菜单可以新增立即生效的菜品和价格", async ({ page }) 
 	await dialog.getByRole("button", { name: "保存", exact: true }).click();
 
 	await expect(dialog).toBeHidden();
-	const row = page.getByRole("row").filter({ hasText: "宫保鸡丁" });
+	const row = page.getByRole("listitem").filter({ hasText: "宫保鸡丁" });
 	await expect(row).toContainText("15 元");
-	await expect(row).toContainText("已启用");
-	if ((page.viewportSize()?.width ?? 0) >= 768) {
-		await expect(row.getByRole("rowheader")).toHaveCSS("position", "sticky");
-		await expect(row.locator("td").last()).toHaveCSS("position", "sticky");
-	} else {
-		await expect(row.getByRole("rowheader")).toHaveCSS("position", "static");
-		await expect(row.locator("td").last()).toHaveCSS("position", "static");
-	}
+	await expect(row.getByRole("button", { name: "编辑 宫保鸡丁" })).toBeVisible();
 	await expectStableViewport(page, errors);
 });
 
@@ -1055,7 +1141,7 @@ test("食堂评价修改后展示正文和修改记录", async ({ page }) => {
 		.getByRole("button", { name: "关闭", exact: true })
 		.filter({ hasText: "关闭" })
 		.click();
-	const row = page.getByRole("row").filter({ hasText: "午餐时段" });
+	const row = page.getByRole("article").filter({ hasText: "午餐时段" });
 	await expect(row).toContainText("已编辑");
 	await expectStableViewport(page, errors);
 });
@@ -1066,7 +1152,12 @@ test("食堂举报处理后进入已处理列表", async ({ page }) => {
 	await expect(page.getByRole("heading", { name: "举报处理" })).toBeVisible();
 	await expect(page.getByText("正文包含联系方式").filter({ visible: true })).toBeVisible();
 
-	await page.getByRole("button", { name: "保留", exact: true }).click();
+	await page
+		.getByRole("list", { name: "待处理举报", exact: true })
+		.getByRole("button")
+		.first()
+		.click();
+	await page.getByRole("button", { name: "保留评价并处理举报", exact: true }).click();
 	const dialog = page.getByRole("alertdialog", { name: "保留这条评价？" });
 	await dialog.getByRole("button", { name: "保留评价" }).click();
 	await expect(page.getByText("当前没有待处理举报。")).toBeVisible();
@@ -1091,12 +1182,15 @@ test("在线问答直接编辑当前 LLM 和 Embedding 配置", async ({ page })
 	await page.getByRole("button", { name: "获取LLM模型" }).click();
 	const model = page.locator("#execution-llm-model");
 	await expect(model).toBeVisible();
-	await expect(model.getByRole("option", { name: "primary-model-next" })).toBeAttached();
-	await model.selectOption("primary-model-next");
+	await selectFilter(page, "模型", "primary-model-next", "primary-model-next");
 	await page.getByLabel("LLM API Key", { exact: true }).fill("private-next-key");
 	await page.getByRole("button", { name: "保存并验证" }).first().click();
 
-	await expect(page.locator("#execution-llm-model")).toHaveValue("primary-model-next");
+	await expectControlValue(
+		page.locator("#execution-llm-model"),
+		"primary-model-next",
+		"primary-model-next",
+	);
 	await expect(page.getByText("配置已保存并验证通过。")).toBeVisible();
 	expect(modelSettings.receivedApiKeys).toEqual(["private-next-key"]);
 	await expect(page.getByText("private-next-key")).toHaveCount(0);
@@ -1164,11 +1258,11 @@ test("账号准入在桌面和移动端均可读取并操作授权", async ({ pa
 		"name",
 		"email-access-filter-email",
 	);
-	await expect(page.getByRole("combobox", { name: "按授权类型筛选" })).toHaveAttribute(
+	await expect(page.locator('[name="email-access-filter-kind"]')).toHaveAttribute(
 		"name",
 		"email-access-filter-kind",
 	);
-	await expect(page.getByRole("combobox", { name: "按授权状态筛选" })).toHaveAttribute(
+	await expect(page.locator('[name="email-access-filter-state"]')).toHaveAttribute(
 		"name",
 		"email-access-filter-state",
 	);
@@ -1196,12 +1290,12 @@ test("未保存模型配置时确认离开", async ({ page }) => {
 	await page.goto("/providers");
 
 	await page.locator("#execution-llm-model").fill("unsaved-model");
-	await navigateFromSidebar(page, "运行概览");
+	await navigateFromSidebar(page, "问答概览");
 	await expect(page.getByRole("dialog")).toBeVisible();
 	await page.getByRole("button", { name: "继续编辑" }).click();
 	await expect(page.locator("#execution-llm-model")).toHaveValue("unsaved-model");
 
-	await navigateFromSidebar(page, "运行概览");
+	await navigateFromSidebar(page, "问答概览");
 	await page.getByRole("button", { name: "放弃修改并离开" }).click();
 	await expect(page).toHaveURL(/\/overview/u);
 	await expectStableViewport(page, errors);

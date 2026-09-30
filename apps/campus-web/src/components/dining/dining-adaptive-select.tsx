@@ -15,7 +15,7 @@ export interface AdaptiveSelectOption {
 
 /**
  * 表单内的选择控件：移动端用原生 select（系统选择器、滚轮、无自定义弹层定位问题），
- * 桌面端保持 Radix Select。两者都带 combobox 语义与相同的控件样式。
+ * 桌面端使用共享非模态 Select。两者都带 combobox 语义与相同的控件样式。
  */
 export function AdaptiveSelect(props: {
 	"aria-label"?: string;
@@ -43,6 +43,7 @@ export function AdaptiveSelect(props: {
 	}
 	return (
 		<Select
+			items={props.options}
 			onValueChange={props.onValueChange}
 			{...(props.value === undefined ? {} : { value: props.value })}
 		>

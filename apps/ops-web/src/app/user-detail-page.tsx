@@ -1,4 +1,4 @@
-import { ActionGroup, Button, ConfirmDialog } from "@campus-agent/ui";
+import { ActionGroup, Button, ConfirmDialog, StateMessage } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	AccountAdminUserDetailSchema,
@@ -149,16 +149,35 @@ export function UserDetailPage({ from, userId }: { from?: string; userId: string
 		}
 	};
 
-	if (user.isPending) {
-		return <p className="text-muted-foreground text-sm">正在读取用户...</p>;
-	}
-	if (user.isError || !user.data) {
+	const returnPath = normalizeUsersReturnPath(from);
+	if (!user.data) {
 		return (
-			<ErrorState error={user.error} onRetry={() => void user.refetch()} title="用户详情读取失败" />
+			<section>
+				<PageHeader
+					title="用户详情"
+					actions={
+						<Button asChild variant="ghost">
+							<a href={returnPath}>
+								<ArrowLeft className="size-4" />
+								返回
+							</a>
+						</Button>
+					}
+				/>
+				{user.isError ? (
+					<ErrorState
+						error={user.error}
+						onRetry={() => void user.refetch()}
+						title="用户详情读取失败"
+					/>
+				) : (
+					<StateMessage layout="inline" role="status" description="正在读取用户..." />
+				)}
+			</section>
 		);
 	}
+
 	const detail = user.data;
-	const returnPath = normalizeUsersReturnPath(from);
 	const requestReasonedAction = (
 		action: ReasonedAction,
 		title: string,
@@ -207,17 +226,13 @@ export function UserDetailPage({ from, userId }: { from?: string; userId: string
 			<PageHeader
 				actions={
 					<ActionGroup>
-						<Button asChild variant="outline">
+						<Button asChild variant="ghost">
 							<a href={returnPath}>
 								<ArrowLeft className="size-4" />
 								返回
 							</a>
 						</Button>
-						<Button
-							disabled={user.isFetching}
-							onClick={() => void user.refetch()}
-							variant="outline"
-						>
+						<Button disabled={user.isFetching} onClick={() => void user.refetch()} variant="ghost">
 							<RefreshCw className="size-4" />
 							刷新
 						</Button>
@@ -226,6 +241,13 @@ export function UserDetailPage({ from, userId }: { from?: string; userId: string
 				description={detail.email}
 				title={detail.name}
 			/>
+			{user.isError ? (
+				<ErrorState
+					error={user.error}
+					onRetry={() => void user.refetch()}
+					title="用户详情刷新失败"
+				/>
+			) : null}
 			<UserDetailCommandFeedback
 				commandError={commandError}
 				commandNotice={commandNotice}
@@ -235,7 +257,7 @@ export function UserDetailPage({ from, userId }: { from?: string; userId: string
 				retryableAttempt={retryableAttempt}
 				temporaryPassword={temporaryPassword}
 			/>
-			<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
+			<div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,1fr)]">
 				<UserDetailAccountOverview detail={detail} />
 				<UserDetailAccountActions
 					commandPending={commandPending}

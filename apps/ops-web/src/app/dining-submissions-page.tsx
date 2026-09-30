@@ -6,15 +6,21 @@ import {
 	ActionGroup,
 	Button,
 	ConfirmDialog,
+	Field,
 	Input,
-	NativeSelect,
 	StateMessage,
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
 } from "@campus-agent/ui";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
 import { DiningTaskNavigation, diningWindowOptions } from "./dining-navigation";
+import { reportReturnSearch } from "./dining-report-navigation";
 import { ReportsPanel } from "./dining-reports-page";
 import {
 	SubmissionDeadline,
@@ -23,11 +29,14 @@ import {
 	SubmissionStatus,
 	submissionRestriction,
 } from "./dining-submission-display";
+import {
+	type DiningSubmissionsSearch,
+	submissionReturnSearch,
+} from "./dining-submission-navigation";
 import { formatTimestamp } from "./format";
 import { OpsApiError } from "./ops-api/core";
 import {
 	changeDiningSubmission,
-	type DiningSubmissionListParams,
 	fetchDiningReports,
 	fetchDiningState,
 	fetchDiningSubmission,
@@ -37,22 +46,24 @@ import {
 } from "./ops-api/dining";
 import { ErrorState, InlineError, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
+import { FilterSelect } from "./ui/filter-select";
 import { useConfirmCommand } from "./use-confirm-command";
 
-type SubmissionStatusFilter = NonNullable<DiningSubmissionListParams["status"]> | "";
-type ReportStatusFilter = NonNullable<DiningSubmissionListParams["reportStatus"]> | "";
-
-export function DiningSubmissionsPage() {
-	const [windowInput, setWindowInput] = useState("");
-	const [windowId, setWindowId] = useState("");
-	const [status, setStatus] = useState<SubmissionStatusFilter>("");
-	const [reportStatus, setReportStatus] = useState<ReportStatusFilter>("");
-	const [cursor, setCursor] = useState<string>();
-	const [previous, setPrevious] = useState<Array<string | undefined>>([]);
-	const resetPage = () => {
-		setCursor(undefined);
-		setPrevious([]);
+export function DiningSubmissionsPage({ search = {} }: { search?: DiningSubmissionsSearch }) {
+	const navigate = useNavigate({ from: "/dining/submissions" });
+	const { windowId = "", status = "", reportStatus = "", cursor } = search;
+	const [windowInput, setWindowInput] = useState(windowId);
+	useEffect(() => setWindowInput(windowId), [windowId]);
+	const previous = decodeCursorHistory(search.history);
+	const filters = {
+		windowId: windowId || undefined,
+		status: status || undefined,
+		reportStatus: reportStatus || undefined,
 	};
+	const changeFilters = (next: DiningSubmissionsSearch) =>
+		void navigate({ search: { ...filters, ...next } });
+	const filterKey = JSON.stringify(filters);
+
 	const state = useQuery({
 		queryKey: ["dining", "state"],
 		queryFn: ({ signal }) => fetchDiningState({ signal }),
@@ -62,9 +73,9 @@ export function DiningSubmissionsPage() {
 		[state.data],
 	);
 	const labels = new Map(windows.map((window) => [window.windowId, window.label]));
-	const submissions = useQuery({
-		queryKey: ["dining", "submissions", windowId, status, reportStatus, cursor],
-		placeholderData: keepPreviousData,
+	const submissions = useQuery<Awaited<ReturnType<typeof fetchDiningSubmissions>>>({
+		queryKey: ["dining", "submissions", filterKey, cursor],
+		placeholderData: (previous, query) => (query?.queryKey[2] === filterKey ? previous : undefined),
 		queryFn: ({ signal }) =>
 			fetchDiningSubmissions(
 				{
@@ -85,7 +96,7 @@ export function DiningSubmissionsPage() {
 				description="独立于正式菜单的学生内容。查看投稿、编辑历史和举报，执行隐藏或删除等运营操作。"
 				actions={
 					<Button
-						variant="outline"
+						variant="ghost"
 						aria-label="刷新投稿"
 						disabled={submissions.isFetching}
 						onClick={() => void submissions.refetch()}
@@ -96,15 +107,13 @@ export function DiningSubmissionsPage() {
 				}
 			/>
 			<form
-				className="mb-5 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(18rem,1fr)_12rem_12rem_auto] xl:items-end"
+				className="ops-filter-bar mb-5 grid min-w-0 grid-cols-2 items-end gap-3 xl:grid-cols-[minmax(18rem,28rem)_12rem_12rem_auto] xl:justify-start"
 				onSubmit={(event) => {
 					event.preventDefault();
-					setWindowId(windowInput.trim());
-					resetPage();
+					changeFilters({ windowId: windowInput.trim() || undefined });
 				}}
 			>
-				<label className="grid min-w-0 gap-1 text-sm" htmlFor="submission-window">
-					<span>窗口</span>
+				<Field label="窗口" className="col-span-2 min-w-0 xl:col-span-1">
 					<Input
 						id="submission-window"
 						list="submission-windows"
@@ -112,55 +121,56 @@ export function DiningSubmissionsPage() {
 						onChange={(event) => setWindowInput(event.target.value)}
 						placeholder="全部窗口，或输入窗口标识"
 					/>
-					<datalist id="submission-windows">
-						{windows.map((window) => (
-							<option key={window.windowId} value={window.windowId}>
-								{window.label}
-							</option>
-						))}
-					</datalist>
-				</label>
-				<label className="grid gap-1 text-sm" htmlFor="submission-status">
-					<span>投稿状态</span>
-					<NativeSelect
+				</Field>
+				<datalist id="submission-windows">
+					{windows.map((window) => (
+						<option key={window.windowId} value={window.windowId}>
+							{window.label}
+						</option>
+					))}
+				</datalist>
+
+				<Field label="投稿状态">
+					<FilterSelect
 						id="submission-status"
 						value={status}
-						onChange={(event) => {
-							setStatus(event.target.value as SubmissionStatusFilter);
-							resetPage();
+						onValueChange={(nextValue) => {
+							changeFilters({
+								status: (nextValue || undefined) as DiningSubmissionsSearch["status"],
+							});
 						}}
-					>
-						<option value="">全部状态</option>
-						<option value="public">公开</option>
-						<option value="hidden">已隐藏</option>
-						<option value="deleted">已软删除</option>
-						<option value="expired">已到期</option>
-						<option value="purged">已清理</option>
-					</NativeSelect>
-				</label>
-				<label className="grid gap-1 text-sm" htmlFor="submission-report-status">
-					<span>投稿举报</span>
-					<NativeSelect
+						options={[
+							{ value: "", label: "全部状态" },
+							{ value: "public", label: "公开" },
+							{ value: "hidden", label: "已隐藏" },
+							{ value: "deleted", label: "已软删除" },
+							{ value: "expired", label: "已到期" },
+							{ value: "purged", label: "已清理" },
+						]}
+					/>
+				</Field>
+				<Field label="投稿举报">
+					<FilterSelect
 						id="submission-report-status"
 						value={reportStatus}
-						onChange={(event) => {
-							setReportStatus(event.target.value as ReportStatusFilter);
-							resetPage();
+						onValueChange={(nextValue) => {
+							changeFilters({
+								reportStatus: (nextValue || undefined) as DiningSubmissionsSearch["reportStatus"],
+							});
 						}}
-					>
-						<option value="">全部举报状态</option>
-						<option value="pending">有待处理举报</option>
-						<option value="resolved">有已处理举报</option>
-					</NativeSelect>
-				</label>
-				<Button type="submit" variant="outline">
+						options={[
+							{ value: "", label: "全部举报状态" },
+							{ value: "pending", label: "有待处理举报" },
+							{ value: "resolved", label: "有已处理举报" },
+						]}
+					/>
+				</Field>
+				<Button type="submit" variant="primary">
 					筛选窗口
 				</Button>
 			</form>
 			{state.error ? (
-				<p className="mb-4 text-muted-foreground text-sm">
-					窗口名称读取失败，仍可按窗口标识筛选投稿。
-				</p>
+				<StateMessage layout="inline" description="窗口名称读取失败，仍可按窗口标识筛选投稿。" />
 			) : null}
 			{submissions.error ? (
 				<div className="mb-4">
@@ -185,16 +195,14 @@ export function DiningSubmissionsPage() {
 							layout="inline"
 							role="status"
 							className="mb-3"
-							description={<>正在读取新范围，暂时显示上次结果。</>}
+							description={<>正在读取下一页，暂时显示当前页。</>}
 						/>
 					) : null}
 					{submissions.data.items.length === 0 ? (
-						<p className="border-border border-y py-10 text-center text-muted-foreground">
-							当前筛选范围没有投稿。
-						</p>
+						<StateMessage description={<>当前筛选范围没有投稿。</>} />
 					) : (
 						<>
-							<div className="hidden md:block">
+							<div className="hidden xl:block">
 								<DataTable
 									caption="用户投稿列表"
 									minWidth="960px"
@@ -238,20 +246,29 @@ export function DiningSubmissionsPage() {
 									]}
 								/>
 							</div>
-							<ul className="divide-y divide-border border-border border-y md:hidden">
+							<ul className="divide-y divide-border border-border border-y xl:hidden">
 								{submissions.data.items.map((submission) => (
-									<li key={submission.submissionId} className="space-y-3 py-4">
+									<li key={submission.submissionId} className="space-y-2 py-3">
 										<SubmissionLink submission={submission} />
-										<SubmissionStatus submission={submission} />
+										<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+											<SubmissionStatus submission={submission} />
+											{submission.status !== "purged" && submission.pendingReportCount > 0 ? (
+												<span>待处理举报 {submission.pendingReportCount}</span>
+											) : null}
+											<time>
+												{formatTimestamp(
+													submission.status === "purged"
+														? submission.purgedAt
+														: submission.createdAt,
+												)}
+											</time>
+										</div>
 										<SubmissionAttribution
 											submission={submission}
 											windowLabel={
 												submission.status === "purged" ? undefined : labels.get(submission.windowId)
 											}
 										/>
-										{submission.status === "purged" ? null : (
-											<p className="text-sm">待处理投稿举报：{submission.pendingReportCount}</p>
-										)}
 										<SubmissionDeadline submission={submission} />
 									</li>
 								))}
@@ -260,22 +277,26 @@ export function DiningSubmissionsPage() {
 					)}
 					<ActionGroup className="mt-4 justify-end">
 						<Button
-							variant="outline"
+							variant="ghost"
 							disabled={previous.length === 0 || submissions.isFetching}
 							onClick={() => {
 								const history = [...previous];
-								setCursor(history.pop());
-								setPrevious(history);
+								changeFilters({
+									cursor: history.pop() || undefined,
+									history: encodeCursorHistory(history),
+								});
 							}}
 						>
 							上一页
 						</Button>
 						<Button
-							variant="outline"
+							variant="ghost"
 							disabled={!submissions.data.nextCursor || submissions.isFetching}
 							onClick={() => {
-								setPrevious((values) => [...values, cursor]);
-								setCursor(submissions.data?.nextCursor ?? undefined);
+								changeFilters({
+									cursor: submissions.data?.nextCursor ?? undefined,
+									history: encodeCursorHistory([...previous, cursor ?? ""]),
+								});
 							}}
 						>
 							下一页
@@ -288,12 +309,14 @@ export function DiningSubmissionsPage() {
 }
 
 function SubmissionLink({ submission }: { submission: DiningOpsSubmissionRecord }) {
+	const from = useRouterState({ select: (state) => state.location.href });
 	return (
 		<div className="min-w-0 space-y-1">
 			<Link
 				className="inline-flex min-h-11 items-center break-words font-medium text-link hover:underline"
 				to="/dining/submissions/$submissionId"
 				params={{ submissionId: submission.submissionId }}
+				search={{ from }}
 			>
 				{"name" in submission
 					? submission.name
@@ -342,7 +365,13 @@ const actionDescriptions: Record<SubmissionAction, string> = {
 	restore: "仅撤销删除状态。原先隐藏的投稿仍保持隐藏，原先单独处理的评价不会恢复。",
 };
 
-export function DiningSubmissionDetailPage({ submissionId }: { submissionId: string }) {
+export function DiningSubmissionDetailPage({
+	submissionId,
+	from,
+}: {
+	submissionId: string;
+	from?: string | undefined;
+}) {
 	const confirmCommand = useConfirmCommand();
 
 	const queryClient = useQueryClient();
@@ -373,22 +402,24 @@ export function DiningSubmissionDetailPage({ submissionId }: { submissionId: str
 		},
 	});
 	const submission = detail.data?.submission;
+	const reportSearch = reportReturnSearch(from);
 	return (
 		<section className="mx-auto w-full min-w-0 max-w-[1200px]">
 			<DiningTaskNavigation />
 			<Link
 				className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm text-link hover:underline"
-				to="/dining/submissions"
+				to={reportSearch ? "/dining/reports" : "/dining/submissions"}
+				search={reportSearch ?? submissionReturnSearch(from)}
 			>
 				<ArrowLeft className="size-4" />
-				返回投稿列表
+				{reportSearch ? "返回举报队列" : "返回投稿列表"}
 			</Link>
 			<PageHeader
 				title="用户投稿详情"
-				description="投稿内容由学生提供，始终独立于正式菜单。运营只能处理状态，不能代作者修改正文或采纳为正式菜品。"
+				description="查看投稿内容，处理举报与公开状态。"
 				actions={
 					<Button
-						variant="outline"
+						variant="ghost"
 						disabled={detail.isFetching}
 						onClick={() => {
 							mutation.reset();
@@ -420,11 +451,34 @@ export function DiningSubmissionDetailPage({ submissionId }: { submissionId: str
 			) : null}
 			{submission && detail.data ? (
 				<>
-					<div className="mb-5 space-y-3">
+					{submission.status === "purged" ? null : (
+						<div className="mb-4 rounded-lg border border-border bg-background p-4">
+							<div className="min-w-0 space-y-3">
+								<h2 className="font-semibold">当前内容</h2>
+								{"name" in submission ? (
+									<>
+										<p className="break-words text-lg font-medium">{submission.name}</p>
+										<p>{submission.priceText ?? "未填写价格"}</p>
+										{submission.photo ? (
+											<SubmissionPhoto
+												key={submission.photo.photoId}
+												photo={submission.photo}
+												label="投稿当前照片"
+											/>
+										) : (
+											<p className="text-muted-foreground text-sm">无当前照片。</p>
+										)}
+									</>
+								) : (
+									<p className="text-muted-foreground text-sm">正文与照片已到期，不可回放。</p>
+								)}
+							</div>
+						</div>
+					)}
+
+					<div className="mb-3 flex flex-wrap items-center gap-3">
 						<SubmissionStatus submission={submission} />
-						<p className="break-all text-muted-foreground text-xs">
-							投稿标识：{submission.submissionId}
-						</p>
+
 						<SubmissionDeadline submission={submission} />
 						{submissionRestriction(submission) ? (
 							<p className="text-sm">{submissionRestriction(submission)}</p>
@@ -469,7 +523,7 @@ export function DiningSubmissionDetailPage({ submissionId }: { submissionId: str
 									})}
 									trigger={
 										<Button
-											variant={action === "delete" ? "destructive" : "outline"}
+											variant={action === "delete" ? "destructive" : "secondary"}
 											disabled={
 												mutation.isPending ||
 												detail.isFetching ||
@@ -485,96 +539,95 @@ export function DiningSubmissionDetailPage({ submissionId }: { submissionId: str
 									}
 								/>
 							))}
-					</div>
-					{submission.status === "purged" ? null : (
-						<div className="mb-7 grid min-w-0 gap-6 border-border border-y py-5 md:grid-cols-2">
-							<div className="min-w-0 space-y-3">
-								<h2 className="font-semibold">当前内容</h2>
-								{"name" in submission ? (
-									<>
-										<p className="break-words text-lg font-medium">{submission.name}</p>
-										<p>{submission.priceText ?? "未填写价格"}</p>
-										{submission.photo ? (
-											<SubmissionPhoto
-												key={submission.photo.photoId}
-												photo={submission.photo}
-												label="投稿当前照片"
-											/>
-										) : (
-											<p className="text-muted-foreground text-sm">无当前照片。</p>
-										)}
-									</>
-								) : (
-									<p className="text-muted-foreground text-sm">正文与照片已到期，不可回放。</p>
-								)}
-							</div>
-							<div className="min-w-0 space-y-2 text-sm">
-								<h2 className="font-semibold">作者与处理信息</h2>
-								<p>展示名：{submission.authorDisplayName ?? "身份已清理"}</p>
-								<p className="break-all">内部用户标识：{submission.authorId ?? "身份已清理"}</p>
-								<p className="break-all">窗口：{submission.windowId}</p>
-								<p>创建：{formatTimestamp(submission.createdAt)}</p>
-								<p>更新：{formatTimestamp(submission.updatedAt)}</p>
-								<p>最近操作者：{submission.updatedBy ?? "身份已清理"}</p>
-								{submission.hiddenAt ? (
-									<p>
-										隐藏：{formatTimestamp(submission.hiddenAt)} ·{" "}
-										{submission.hiddenBy ?? "身份已清理"}
-									</p>
-								) : null}
-								{submission.deletedAt ? (
-									<p>
-										删除：{formatTimestamp(submission.deletedAt)} ·{" "}
-										{submission.deletedBy ?? "身份已清理"}
-									</p>
-								) : null}
-								{submission.accountDeletingAt ? (
-									<p>注销撤下：{formatTimestamp(submission.accountDeletingAt)}</p>
-								) : null}
-								<p className="text-muted-foreground">
-									公开端只展示作者展示名；本页的内部身份、编辑历史与举报材料仅供获准运营人员查看。
-								</p>
-								<Link
-									className="inline-flex min-h-11 items-center text-link hover:underline"
-									to="/dining/reviews"
-									search={{ submission_id: submissionId }}
-								>
-									查看此投稿下的评价
-								</Link>
-							</div>
-						</div>
-					)}
-					<section className="mb-7 min-w-0 space-y-4" aria-labelledby="submission-history-title">
-						<h2 id="submission-history-title" className="font-semibold">
-							编辑历史
-						</h2>
-						{detail.data.edits.length === 0 ? (
-							<p className="text-muted-foreground text-sm">
-								{submission.status === "purged" ? "编辑历史已清理。" : "尚无编辑记录。"}
-							</p>
-						) : (
-							<ol className="divide-y divide-border">
-								{detail.data.edits.map((edit) => (
-									<li key={edit.editId} className="space-y-3 py-4">
-										<p className="text-muted-foreground text-sm">
-											{formatTimestamp(edit.editedAt)} · {edit.editedBy ?? "身份已清理"}
-										</p>
-										<div className="grid min-w-0 gap-5 md:grid-cols-2">
-											<SubmissionSnapshot
-												snapshot={edit.previous}
-												label={`修改前（内容版本 ${edit.previousRevision}）`}
-											/>
-											<SubmissionSnapshot
-												snapshot={edit.next}
-												label={`修改后（内容版本 ${edit.nextRevision}）`}
-											/>
-										</div>
-									</li>
-								))}
-							</ol>
+						{submission.status === "purged" ? null : (
+							<Link
+								className="inline-flex min-h-11 items-center text-link hover:underline"
+								to="/dining/reviews"
+								search={{ submission_id: submissionId }}
+							>
+								查看此投稿下的评价
+							</Link>
 						)}
-					</section>
-					<SubmissionReports submissionId={submissionId} onResolved={refresh} />
+					</div>
+
+					<Tabs defaultValue="reports" className="min-w-0">
+						<TabsList aria-label="投稿详情分区">
+							<TabsTrigger value="reports">相关举报</TabsTrigger>
+							<TabsTrigger value="history">编辑历史</TabsTrigger>
+							<TabsTrigger value="information">作者与处理信息</TabsTrigger>
+						</TabsList>
+						<TabsContent value="reports">
+							<SubmissionReports submissionId={submissionId} onResolved={refresh} />
+						</TabsContent>
+						<TabsContent value="history">
+							<section
+								className="mb-7 min-w-0 space-y-4"
+								aria-labelledby="submission-history-title"
+							>
+								<h2 id="submission-history-title" className="font-semibold">
+									编辑历史
+								</h2>
+								{detail.data.edits.length === 0 ? (
+									<StateMessage
+										description={
+											submission.status === "purged" ? "编辑历史已清理。" : "尚无编辑记录。"
+										}
+									/>
+								) : (
+									<ol className="divide-y divide-border">
+										{detail.data.edits.map((edit) => (
+											<li key={edit.editId} className="space-y-2 py-3">
+												<p className="text-muted-foreground text-sm">
+													{formatTimestamp(edit.editedAt)} · {edit.editedBy ?? "身份已清理"}
+												</p>
+												<div className="grid min-w-0 gap-5 md:grid-cols-2">
+													<SubmissionSnapshot
+														snapshot={edit.previous}
+														label={`修改前（内容版本 ${edit.previousRevision}）`}
+													/>
+													<SubmissionSnapshot
+														snapshot={edit.next}
+														label={`修改后（内容版本 ${edit.nextRevision}）`}
+													/>
+												</div>
+											</li>
+										))}
+									</ol>
+								)}
+							</section>
+						</TabsContent>
+						<TabsContent value="information">
+							<p className="mb-3 break-all text-xs text-muted-foreground">
+								投稿标识：{submission.submissionId}
+							</p>
+							{submission.status === "purged" ? null : (
+								<div className="min-w-0 space-y-2 text-sm">
+									<h2 className="font-semibold">作者与处理信息</h2>
+									<p>展示名：{submission.authorDisplayName ?? "身份已清理"}</p>
+									<p className="break-all">内部用户标识：{submission.authorId ?? "身份已清理"}</p>
+									<p className="break-all">窗口：{submission.windowId}</p>
+									<p>创建：{formatTimestamp(submission.createdAt)}</p>
+									<p>更新：{formatTimestamp(submission.updatedAt)}</p>
+									<p>最近操作者：{submission.updatedBy ?? "身份已清理"}</p>
+									{submission.hiddenAt ? (
+										<p>
+											隐藏：{formatTimestamp(submission.hiddenAt)} ·{" "}
+											{submission.hiddenBy ?? "身份已清理"}
+										</p>
+									) : null}
+									{submission.deletedAt ? (
+										<p>
+											删除：{formatTimestamp(submission.deletedAt)} ·{" "}
+											{submission.deletedBy ?? "身份已清理"}
+										</p>
+									) : null}
+									{submission.accountDeletingAt ? (
+										<p>注销撤下：{formatTimestamp(submission.accountDeletingAt)}</p>
+									) : null}
+								</div>
+							)}
+						</TabsContent>
+					</Tabs>
 				</>
 			) : null}
 		</section>
@@ -631,35 +684,35 @@ function SubmissionReports({
 			<h2 id="submission-reports-title" className="font-semibold">
 				相关举报与处理结果
 			</h2>
-			<div className="grid gap-3 sm:grid-cols-2">
-				<label className="grid gap-1 text-sm" htmlFor="submission-report-target">
-					<span>举报目标</span>
-					<NativeSelect
+			<div className="grid max-w-xl grid-cols-2 gap-3">
+				<Field label="举报目标">
+					<FilterSelect
 						id="submission-report-target"
 						value={targetType}
-						onChange={(event) => {
-							setTargetType(event.target.value as "review" | "submission");
+						onValueChange={(nextValue) => {
+							setTargetType(nextValue as "review" | "submission");
 							reset();
 						}}
-					>
-						<option value="submission">此投稿</option>
-						<option value="review">此投稿下的评价</option>
-					</NativeSelect>
-				</label>
-				<label className="grid gap-1 text-sm" htmlFor="submission-report-state">
-					<span>处理状态</span>
-					<NativeSelect
+						options={[
+							{ value: "submission", label: "此投稿" },
+							{ value: "review", label: "此投稿下的评价" },
+						]}
+					/>
+				</Field>
+				<Field label="处理状态">
+					<FilterSelect
 						id="submission-report-state"
 						value={status}
-						onChange={(event) => {
-							setStatus(event.target.value as "pending" | "resolved");
+						onValueChange={(nextValue) => {
+							setStatus(nextValue as "pending" | "resolved");
 							reset();
 						}}
-					>
-						<option value="pending">待处理</option>
-						<option value="resolved">已处理</option>
-					</NativeSelect>
-				</label>
+						options={[
+							{ value: "pending", label: "待处理" },
+							{ value: "resolved", label: "已处理" },
+						]}
+					/>
+				</Field>
 			</div>
 			{reports.error ? (
 				<ErrorState

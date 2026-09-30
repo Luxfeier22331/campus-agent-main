@@ -21,6 +21,7 @@ export function FilterSelect(props: {
 				{props.label}
 			</Label>
 			<Select
+				items={[{ value: "all", label: "全部分类" }, ...props.options]}
 				onValueChange={(value) => props.onChange(value === "all" ? undefined : value)}
 				value={props.value ?? "all"}
 			>

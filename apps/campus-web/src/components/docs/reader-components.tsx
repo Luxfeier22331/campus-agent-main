@@ -331,7 +331,15 @@ export function ReaderDocumentMeta({
 					) : null}
 					{hasMultipleVersions ? (
 						<div className="docs-version-switcher">
-							<Select name="docs-version" onValueChange={selectVersion} value={versionSlug}>
+							<Select
+								items={resolvedVersions.map((version) => ({
+									value: version.versionSlug,
+									label: formatDocsVersionLabel(version.versionSlug),
+								}))}
+								name="docs-version"
+								onValueChange={selectVersion}
+								value={versionSlug}
+							>
 								<SelectTrigger aria-label="选择文档版本" className="docs-version-trigger">
 									<History aria-hidden="true" />
 									<SelectValue />

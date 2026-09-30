@@ -1,4 +1,4 @@
-import { Alert, Button, cn, StateMessage } from "@campus-agent/ui";
+import { Alert, Button, cn, Disclosure, DisclosureSummary, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
@@ -7,6 +7,7 @@ import type {
 	OpsRequestListView,
 	OpsRequestSummary,
 } from "../shared/ops-contract";
+import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
 import { failureReasonLabel } from "./citation-failure-panel";
 import { formatTimestamp } from "./format";
 import { fetchOpsRequests } from "./ops-api/observability";
@@ -27,7 +28,6 @@ import {
 	requestListPath,
 } from "./ops-view-helpers";
 import { RequestFilters } from "./request-filters";
-import { DataTable } from "./ui/data-table";
 import { TimeRangeSummary } from "./ui/time-window-select";
 
 export function RequestsPage({
@@ -38,7 +38,9 @@ export function RequestsPage({
 	search: RequestSearchLike;
 }) {
 	const view = search.view ?? "recent";
-	const filterKey = JSON.stringify(cleanRequestSearch({ ...search, cursor: undefined }));
+	const filterKey = JSON.stringify(
+		cleanRequestSearch({ ...search, cursor: undefined, history: undefined }),
+	);
 	const requests = useQuery<OpsRequestListResponse>({
 		enabled: !search.timeError,
 		placeholderData: (previous, previousQuery) =>
@@ -59,45 +61,51 @@ export function RequestsPage({
 
 	return (
 		<section>
+			<Button asChild variant="ghost" className="mb-3">
+				<Link to="/overview" search={{ window: search.window, from: search.from, to: search.to }}>
+					返回问答概览
+				</Link>
+			</Button>
 			<PageHeader
 				actions={
 					<Button
 						aria-busy={isRefreshing}
-						aria-label={isRefreshing ? "刷新中" : "刷新运行诊断"}
+						aria-label={isRefreshing ? "刷新中" : "刷新运行记录"}
 						className="self-start lg:self-auto"
 						disabled={isRefreshing}
 						onClick={() => void requests.refetch()}
-						variant="outline"
+						variant="ghost"
 					>
 						<RefreshCw className="size-4" />
 						<span>{isRefreshing ? "刷新中" : "刷新"}</span>
 					</Button>
 				}
-				description="按 request 查看执行状态、产品结果和失败事实。"
-				title="运行诊断"
+				description="查看本时段请求的结果、耗时和需要关注的原因。"
+				title="运行记录"
 			/>
 			{requests.isRefetchError ? (
 				<StaleDataWarning
 					error={requests.error}
 					lastSuccessfulAt={requests.dataUpdatedAt}
 					onRetry={() => void requests.refetch()}
-					title="运行诊断刷新失败"
+					title="运行记录刷新失败"
 				/>
 			) : null}
 			{ignoredParamNames.length > 0 ? (
 				<Alert className="mb-4" tone="warning" role="note">
-					已忽略无效筛选参数：<span className="font-mono">{ignoredParamNames.join("、")}</span>
+					部分筛选条件无法识别，已忽略：
+					<span className="font-mono">{ignoredParamNames.join("、")}</span>
 				</Alert>
 			) : null}
 			<RequestFilters search={search} />
 			{requests.isPending && !search.timeError ? (
-				<StateMessage layout="inline" role="status" description={<> 正在读取运行诊断... </>} />
+				<StateMessage layout="inline" role="status" description={<> 正在读取运行记录... </>} />
 			) : null}
 			{requests.isError && !requests.data ? (
 				<ErrorState
 					error={requests.error}
 					onRetry={() => requests.refetch()}
-					title="运行诊断读取失败"
+					title="运行记录读取失败"
 				/>
 			) : null}
 			{requests.data && !search.timeError ? (
@@ -151,22 +159,11 @@ export function RequestsPage({
 					{requests.data.data.length === 0 ? (
 						<RequestListEmptyState hasActiveFilters={hasActiveFilters} view={view} />
 					) : (
-						<>
-							<RequestMobileList
-								generatedAt={requests.data.generatedAt}
-								requests={requests.data.data}
-								search={search}
-							/>
-							<div className="hidden xl:block">
-								<DataTable<OpsRequestSummary>
-									caption="运行诊断"
-									columns={createRequestColumns(requests.data.generatedAt, search)}
-									data={requests.data.data}
-									minWidth="1000px"
-									rowKey={(row) => row.requestId}
-								/>
-							</div>
-						</>
+						<RequestMobileList
+							generatedAt={requests.data.generatedAt}
+							requests={requests.data.data}
+							search={search}
+						/>
 					)}
 					{search.cursor || requests.data.page.nextCursor ? (
 						<div className="mt-4">
@@ -186,21 +183,30 @@ function RequestPagination({
 	nextCursor: string | null;
 	search: RequestSearchLike;
 }) {
+	const history = decodeCursorHistory(search.history);
 	return (
-		<nav aria-label="运行诊断分页" className="flex items-center gap-3">
+		<nav aria-label="运行记录分页" className="flex items-center gap-3">
 			{search.cursor ? (
 				<Link
 					className="font-medium text-info hover:underline"
-					search={cleanRequestSearch({ ...search, cursor: undefined })}
+					search={cleanRequestSearch({
+						...search,
+						cursor: history.at(-1) || undefined,
+						history: encodeCursorHistory(history.slice(0, -1)),
+					})}
 					to="/requests"
 				>
-					返回第一页
+					上一页
 				</Link>
 			) : null}
 			{nextCursor ? (
 				<Link
 					className="font-medium text-info hover:underline"
-					search={cleanRequestSearch({ ...search, cursor: nextCursor })}
+					search={cleanRequestSearch({
+						...search,
+						cursor: nextCursor,
+						history: encodeCursorHistory([...history, search.cursor ?? ""]),
+					})}
 					to="/requests"
 				>
 					下一页
@@ -231,10 +237,10 @@ function RequestListEmptyState({
 		<div className="border-border border-y bg-secondary p-4 text-sm">
 			<p className="font-medium text-foreground">
 				{hasActiveFilters
-					? "没有匹配的运行诊断。"
+					? "没有匹配的运行记录。"
 					: view === "attention"
 						? "当前没有需要关注的运行。"
-						: "当前时间范围内没有运行诊断。"}
+						: "当前时间范围内没有运行记录。"}
 			</p>
 			<p className="mt-1 text-muted-foreground">
 				{hasActiveFilters ? "调整或清除筛选条件后重试。" : "这不表示运行故障。"}
@@ -253,7 +259,7 @@ function RequestMobileList({
 	search: RequestSearchLike;
 }) {
 	return (
-		<div className="divide-y divide-border xl:hidden" data-testid="request-mobile-list">
+		<div className="divide-y divide-border border-y" data-testid="request-mobile-list">
 			{requests.map((request) => (
 				<article
 					className="grid gap-3 py-4 first:pt-0"
@@ -283,94 +289,27 @@ function RequestMobileList({
 						{questionPreview(request)}
 					</Link>
 					<RequestProductResult request={request} />
-					<RequestExecutionStage request={request} />
+					<Disclosure className="text-sm">
+						<DisclosureSummary>执行信息与标识</DisclosureSummary>
+						<RequestExecutionStage request={request} />
+						<div className="mt-2 flex min-w-0 items-center gap-2">
+							<code className="break-all">{request.requestId}</code>
+							<CopyIconButton
+								contextLabel={request.requestId}
+								label="requestId"
+								value={request.requestId}
+							/>
+						</div>
+					</Disclosure>
 					<div className="flex justify-end text-xs">
 						<span className="font-medium text-foreground">
 							{formatRequestDuration(request, generatedAt)}
 						</span>
 					</div>
-					<div className="flex min-w-0 items-center gap-1">
-						<span
-							className="truncate font-mono ui-metadata text-muted-foreground"
-							title={request.requestId}
-						>
-							{request.requestId}
-						</span>
-						<CopyIconButton
-							contextLabel={request.requestId}
-							label="requestId"
-							value={request.requestId}
-						/>
-					</div>
 				</article>
 			))}
 		</div>
 	);
-}
-
-function createRequestColumns(generatedAt: string, search: RequestSearchLike) {
-	return [
-		{
-			cell: (row: OpsRequestSummary) => (
-				<div className="grid min-w-[260px] gap-1">
-					<Link
-						className="line-clamp-2 font-medium text-foreground underline-offset-4 hover:underline"
-						params={{ requestId: row.requestId }}
-						search={{ from: requestListPath(search) }}
-						to="/requests/$requestId"
-					>
-						{questionPreview(row)}
-					</Link>
-					<div className="flex min-w-0 items-center gap-2 text-xs">
-						<span className="text-muted-foreground">{formatTimestamp(row.startedAt)}</span>
-						<span className="text-muted-foreground" aria-hidden="true">
-							·
-						</span>
-						<span className="truncate font-mono text-muted-foreground" title={row.requestId}>
-							{row.requestId}
-						</span>
-						<CopyIconButton contextLabel={row.requestId} label="requestId" value={row.requestId} />
-					</div>
-				</div>
-			),
-			header: "用户问题",
-			rowHeader: true,
-		},
-		{
-			cell: (row: OpsRequestSummary) => <RequestProductResult request={row} />,
-			header: "产品结果",
-		},
-		{
-			cell: (row: OpsRequestSummary) => (
-				<div className="grid min-w-[110px] gap-1">
-					<StatusBadge status={row.status} />
-				</div>
-			),
-			header: "产品状态",
-		},
-		{
-			cell: (row: OpsRequestSummary) => (
-				<RequestExecutionStage className="min-w-[190px]" request={row} />
-			),
-			header: "执行诊断",
-		},
-		{
-			cell: (row: OpsRequestSummary) => (
-				<div className="min-w-[140px]">
-					<RequestAttentionReason request={row} />
-				</div>
-			),
-			header: "关注原因",
-		},
-		{
-			cell: (row: OpsRequestSummary) => (
-				<span className="block min-w-[120px] whitespace-nowrap tabular-nums">
-					{formatRequestDuration(row, generatedAt)}
-				</span>
-			),
-			header: "耗时",
-		},
-	];
 }
 
 function questionPreview(request: OpsRequestSummary) {
@@ -432,7 +371,7 @@ function formatResultSummary(request: OpsRequestSummary) {
 	return request.result.state === "MISSING" ? "会话结果缺失" : "尚未写入会话结果";
 }
 
-function RequestAttentionReason({ request }: { request: OpsRequestSummary }) {
+export function RequestAttentionReason({ request }: { request: OpsRequestSummary }) {
 	if (!request.attentionReason) {
 		return null;
 	}

@@ -519,7 +519,7 @@
 }
 
 .docs-version-menu {
-	min-width: var(--radix-select-trigger-width);
+	min-width: var(--anchor-width);
 }
 
 .docs-version-history-warning {

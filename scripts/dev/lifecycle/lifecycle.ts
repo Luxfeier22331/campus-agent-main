@@ -83,7 +83,7 @@ export async function initializeLocalDevelopmentTarget(
 	const plan = resolveLocalDevTargetPlan(target);
 	const projections = plan.environmentProjections;
 	const productTarget = target === "core" || target === "ops-web";
-	if (!productTarget && (options.data === "cluster" || options.replace)) {
+	if (!productTarget && ((options.data && options.data !== "seed") || options.replace)) {
 		throw new Error("Product data options require --target core or ops-web");
 	}
 	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
@@ -131,6 +131,7 @@ export async function initializeLocalDevelopmentTarget(
 			replace: options.replace ?? false,
 			context: options.context,
 			namespace: options.namespace,
+			...(options.noticeLimit === undefined ? {} : { noticeLimit: options.noticeLimit }),
 		});
 		renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target, projections });
 	}

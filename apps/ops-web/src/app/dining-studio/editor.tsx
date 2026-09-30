@@ -15,8 +15,8 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Field,
 	Input,
-	NativeSelect,
 	useTheme,
 } from "@campus-agent/ui";
 import { getAssetUrlsByImport } from "@tldraw/assets/imports.vite";
@@ -39,6 +39,7 @@ import {
 	useState,
 } from "react";
 import { type Editor, type TLShapeId, TldrawUi } from "tldraw";
+import { FilterSelect } from "../ui/filter-select";
 import "tldraw/tldraw.css";
 import "./editor.css";
 
@@ -385,18 +386,18 @@ export function DiningFloorplanEditor(props: {
 						地图草稿
 					</h2>
 					<div className="editor-floor-control">
-						<NativeSelect
-							aria-label="选择楼层"
-							className="min-h-11"
-							onChange={(event) => switchFloor(event.target.value)}
-							value={activeFloorId}
-						>
-							{props.draft.bundle.layouts.map((layout) => (
-								<option key={layout.floorId} value={layout.floorId}>
-									{layout.label}
-								</option>
-							))}
-						</NativeSelect>
+						<Field label="选择楼层">
+							<FilterSelect
+								aria-label="选择楼层"
+								className="min-h-11"
+								onValueChange={(nextValue) => switchFloor(nextValue)}
+								value={activeFloorId}
+								options={props.draft.bundle.layouts.map((layout) => ({
+									value: layout.floorId,
+									label: layout.label,
+								}))}
+							/>
+						</Field>
 					</div>
 					<Button
 						aria-busy={props.saving}
@@ -471,8 +472,7 @@ export function DiningFloorplanEditor(props: {
 						<DialogTitle>给窗口命名</DialogTitle>
 						<DialogDescription>窗口必须有学生能够辨认的名称。</DialogDescription>
 					</DialogHeader>
-					<label className="grid gap-2 text-sm" htmlFor="dining-window-name">
-						<span className="font-medium">窗口名称</span>
+					<Field label="窗口名称" className="gap-2">
 						<Input
 							aria-label="窗口名称"
 							className="min-h-11"
@@ -486,9 +486,9 @@ export function DiningFloorplanEditor(props: {
 							ref={pendingWindowNameInputRef}
 							value={pendingWindowName?.value ?? ""}
 						/>
-					</label>
+					</Field>
 					<DialogFooter>
-						<Button onClick={cancelWindowName} variant="outline">
+						<Button onClick={cancelWindowName} variant="secondary">
 							取消创建
 						</Button>
 						<Button

@@ -6,6 +6,7 @@ import type {
 } from "@campus-agent/dining/domain";
 import { DiningOpsSubmissionRecordSchema } from "@campus-agent/dining/domain";
 import { expect, type Page, test } from "@playwright/test";
+import { selectFilter } from "./select-control";
 
 const at = "2026-09-14T08:00:00.000Z";
 const expiry = "2026-10-14T08:00:00.000Z";
@@ -232,6 +233,7 @@ async function mockSubmissions(page: Page, start: DiningOpsSubmissionRecord = in
 }
 
 async function checkLayout(page: Page) {
+	await page.emulateMedia({ reducedMotion: "reduce" });
 	await expect
 		.poll(async () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
 		.toBeLessThanOrEqual(1);
@@ -256,12 +258,12 @@ test("投稿列表筛选分页和治理详情在桌面与手机可用", async ({
 		page.getByRole("link", { name: "学生牛肉面", exact: true }).filter({ visible: true }),
 	).toBeVisible();
 	await checkLayout(page);
-	await page.getByRole("combobox", { name: "投稿状态", exact: true }).selectOption("hidden");
+	await selectFilter(page, "投稿状态", "hidden", "已隐藏");
 	await expect.poll(() => mock.listQueries.at(-1)?.get("status")).toBe("hidden");
 	await page.getByRole("combobox", { name: "窗口", exact: true }).fill(windowId);
 	await page.getByRole("button", { name: "筛选窗口" }).click();
 	await expect.poll(() => mock.listQueries.at(-1)?.get("window_id")).toBe(windowId);
-	await page.getByRole("combobox", { name: "投稿举报", exact: true }).selectOption("pending");
+	await selectFilter(page, "投稿举报", "pending", "有待处理举报");
 	await expect.poll(() => mock.listQueries.at(-1)?.get("report_status")).toBe("pending");
 	await page.getByRole("button", { name: "下一页", exact: true }).click();
 	await expect(page.getByText("当前筛选范围没有投稿。")).toBeVisible();
@@ -271,7 +273,9 @@ test("投稿列表筛选分页和治理详情在桌面与手机可用", async ({
 		.filter({ visible: true })
 		.click();
 	await expect(page.getByRole("heading", { name: "用户投稿详情" })).toBeVisible();
+	await page.getByRole("tab", { name: "作者与处理信息", exact: true }).click();
 	await expect(page.getByText("内部用户标识：internal-user")).toBeVisible();
+	await page.getByRole("tab", { name: "编辑历史", exact: true }).click();
 	await expect(page.getByText("历史照片已到期或清理，不可回放。").first()).toBeVisible();
 	await expect(page.getByRole("img", { name: "投稿当前照片", exact: true })).toBeVisible();
 	await checkLayout(page);
@@ -290,19 +294,40 @@ test("投稿列表筛选分页和治理详情在桌面与手机可用", async ({
 	expect(
 		mock.calls.map((call) => (call.body as { expectedRevision: number }).expectedRevision),
 	).toEqual([3, 4, 5, 6]);
-	await page.getByRole("combobox", { name: "举报目标", exact: true }).selectOption("review");
+	await page.getByRole("tab", { name: "相关举报", exact: true }).click();
+	await selectFilter(page, "举报目标", "review", "此投稿下的评价");
 	await expect.poll(() => mock.reportQueries.at(-1)?.get("target_type")).toBe("review");
 	await expect(page.getByText("当前没有待处理举报。")).toBeVisible();
-	await page.getByRole("combobox", { name: "举报目标", exact: true }).selectOption("submission");
-	await page.getByRole("button", { name: "保留", exact: true }).filter({ visible: true }).click();
+	await selectFilter(page, "举报目标", "submission", "此投稿");
+	await page
+		.getByRole("list", { name: "待处理举报", exact: true })
+		.getByRole("button")
+		.first()
+		.click();
+	await page
+		.getByRole("button", { name: "保留投稿并处理举报", exact: true })
+		.filter({ visible: true })
+		.click();
 	await page
 		.getByRole("alertdialog", { name: "保留这条投稿？" })
 		.getByRole("button", { name: "保留投稿" })
 		.click();
 	await expect(page.getByText("当前没有待处理举报。")).toBeVisible();
-	await page.getByRole("combobox", { name: "处理状态", exact: true }).selectOption("resolved");
+	await selectFilter(page, "处理状态", "resolved", "已处理");
 	await expect(page.getByText("已保留", { exact: true }).filter({ visible: true })).toBeVisible();
+	await page
+		.getByRole("list", { name: "已处理举报", exact: true })
+		.getByRole("button")
+		.first()
+		.click();
 	await expect(page.getByText("处理人：operator").filter({ visible: true })).toBeVisible();
+	await page.getByRole("button", { name: "关闭举报详情" }).click();
+	await page.getByRole("link", { name: "返回投稿列表" }).click();
+	await expect(page.getByRole("heading", { name: "用户投稿", exact: true })).toBeVisible();
+	expect(new URL(page.url()).searchParams.get("status")).toBe("hidden");
+	expect(new URL(page.url()).searchParams.get("windowId")).toBe(windowId);
+	expect(new URL(page.url()).searchParams.get("reportStatus")).toBe("pending");
+	await expect(page.getByRole("button", { name: "上一页", exact: true })).toBeDisabled();
 	await checkLayout(page);
 });
 
@@ -311,9 +336,17 @@ test("投稿冲突重新读取真实版本，图片失败不阻断治理", async
 	mock.setConflict();
 	mock.setFailPhoto(true);
 	await page.goto(`/dining/submissions/${id}`);
-	await expect(page.getByText("投稿当前照片读取失败。请检查访问权限或稍后重试。")).toBeVisible();
+	await expect(
+		page.getByText("投稿当前照片读取失败。请检查访问权限或稍后重试。", { exact: true }),
+	).toBeVisible();
 	await confirm(page, "隐藏投稿");
-	await expect(page.getByText("投稿已更新，请刷新后重试。")).toBeVisible();
+	await expect(
+		page.getByRole("alertdialog", { name: "隐藏投稿？" }).getByRole("alert"),
+	).toContainText("投稿已更新，请刷新后重试。");
+	await page
+		.getByRole("alertdialog", { name: "隐藏投稿？" })
+		.getByRole("button", { name: "取消", exact: true })
+		.click();
 	await expect(page.getByText("作者刚更新的名称", { exact: true })).toBeVisible();
 	mock.setFailPhoto(false);
 	await page.getByRole("button", { name: "重新读取图片" }).first().click();
@@ -384,8 +417,13 @@ test("已清理投稿不显示身份正文或可执行动作", async ({ page }) 
 	).toBeVisible();
 	await expect(page.getByText("内部用户标识：internal-user")).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "软删除投稿", exact: true })).toHaveCount(0);
+	await page
+		.getByRole("list", { name: "待处理举报", exact: true })
+		.getByRole("button")
+		.first()
+		.click();
 	await expect(
-		page.getByRole("button", { name: "保留", exact: true }).filter({ visible: true }),
+		page.getByRole("button", { name: "保留投稿并处理举报", exact: true }).filter({ visible: true }),
 	).toBeDisabled();
 	await checkLayout(page);
 });
@@ -411,4 +449,98 @@ test("投稿读取拒绝与空结果分别展示，支持就近重试", async ({
 	await page.getByRole("button", { name: "重试", exact: true }).click();
 	await expect(page.getByText("当前筛选范围没有投稿。")).toBeVisible();
 	await checkLayout(page);
+});
+
+test("举报筛选分页、刷新与投稿回跳恢复同一条举报", async ({ page }) => {
+	await mockSubmissions(page);
+	await page.route("**/api/ops/dining/reports?*", async (route) => {
+		const query = new URL(route.request().url()).searchParams;
+		await route.fulfill({
+			json: {
+				items: [
+					{
+						reportId: query.has("cursor") ? "page-two" : "page-one",
+						reporterUserId: "reader",
+						reason: "other",
+						details: "分页举报",
+						createdAt: at,
+						resolution: null,
+						resolvedAt: null,
+						resolvedBy: null,
+						target: {
+							kind: "submission",
+							current: initial,
+							targetRevision: 2,
+							reported: {
+								replayable: true,
+								name: initial.name,
+								priceText: initial.priceText,
+								photo: null,
+							},
+						},
+					},
+				],
+				nextCursor: query.has("cursor") ? null : "next-page",
+			},
+		});
+	});
+	await page.goto("/dining/reports");
+	await selectFilter(page, "举报目标", "submission", "用户投稿");
+	await page.getByLabel("投稿标识", { exact: true }).fill(id);
+	await page.getByRole("button", { name: "筛选投稿", exact: true }).click();
+	await page.getByRole("button", { name: "下一页", exact: true }).click();
+	await expect(page).toHaveURL(/cursor=next-page/);
+	await page.getByRole("list", { name: "待处理举报", exact: true }).getByRole("button").click();
+	const detail = page.getByRole("dialog", { name: "举报详情", exact: true });
+	await expect(detail).toBeVisible();
+	const from = page.url();
+	await page.reload();
+	await expect(detail).toBeVisible();
+	await detail.getByRole("link", { name: "查看投稿详情与历史" }).click();
+	await page.getByRole("link", { name: "返回举报队列" }).click();
+	await expect(page).toHaveURL(from);
+	await expect(detail).toBeVisible();
+	await detail.getByRole("link", { name: "查看投稿详情与历史" }).click();
+	await page.goBack();
+	await expect(page).toHaveURL(from);
+	await expect(detail).toBeVisible();
+	await detail.getByRole("button", { name: "关闭举报详情" }).click();
+	await expect(
+		page.getByRole("list", { name: "待处理举报", exact: true }).getByRole("button"),
+	).toBeFocused();
+	await page.getByRole("button", { name: "上一页", exact: true }).click();
+	await expect(page).not.toHaveURL(/cursor=/);
+	await expect(page.getByRole("button", { name: "上一页", exact: true })).toBeDisabled();
+	await expect(page.getByLabel("投稿标识", { exact: true })).toHaveValue(id);
+});
+
+test("举报状态加载期间保留筛选且不显示另一状态的记录", async ({ page }) => {
+	await mockSubmissions(page);
+	let release = () => {
+		/* gate remains pending until the assertion completes */
+	};
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route("**/api/ops/dining/reports?*", async (route) => {
+		if (new URL(route.request().url()).searchParams.get("status") !== "resolved") {
+			await route.fallback();
+			return;
+		}
+		await gate;
+		await route.fulfill({ json: { items: [], nextCursor: null } });
+	});
+	await page.goto("/dining/reports");
+	await expect(page.getByRole("list", { name: "待处理举报", exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "已处理", exact: true }).click();
+	try {
+		await expect(page.getByRole("tabpanel", { name: "已处理", exact: true })).toContainText(
+			"正在读取举报",
+		);
+		await expect(page.getByRole("listitem").filter({ hasText: "需要核对照片" })).toHaveCount(0);
+		await expect(page.getByLabel("投稿标识", { exact: true })).toBeVisible();
+	} finally {
+		release();
+	}
+	await expect(page.getByText("当前没有已处理举报。")).toBeVisible();
 });

@@ -8,13 +8,13 @@ import {
 	DialogTitle,
 	Field,
 	Input,
-	NativeSelect,
 	Textarea,
 } from "@campus-agent/ui";
 import type { CampusGroupSection } from "campus-contracts/campus-groups";
 import { useState } from "react";
 import type { GroupEditorState, PendingRemoval, SectionEditorState } from "./groups-page-model";
 import { InlineError } from "./ops-display";
+import { FilterSelect } from "./ui/filter-select";
 
 export function SectionEditor({
 	error,
@@ -138,17 +138,15 @@ export function GroupEditor({
 						/>
 					</Field>
 					<Field label="分组">
-						<NativeSelect
+						<FilterSelect
 							className="min-h-11"
-							onChange={(event) => setForm({ ...form, sectionId: event.target.value })}
+							onValueChange={(nextValue) => setForm({ ...form, sectionId: nextValue })}
 							value={form.sectionId}
-						>
-							{sections.map((section) => (
-								<option key={section.id} value={section.id}>
-									{section.name}
-								</option>
-							))}
-						</NativeSelect>
+							options={sections.map((section) => ({
+								value: section.id,
+								label: section.name,
+							}))}
+						/>
 					</Field>
 					<Field label="QQ 群号">
 						<Input

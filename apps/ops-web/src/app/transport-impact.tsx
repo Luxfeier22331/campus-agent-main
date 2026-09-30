@@ -4,7 +4,7 @@ import {
 	transportDateRange,
 	transportRiderLabel,
 } from "@campus-agent/transport/domain";
-import { Button, Disclosure, DisclosureSummary, Input } from "@campus-agent/ui";
+import { Button, Disclosure, DisclosureSummary, Field, Input } from "@campus-agent/ui";
 import { useState } from "react";
 import type {
 	TransportOpsRoute,
@@ -170,14 +170,13 @@ export function TransportImpact({
 			<div className="flex flex-wrap items-center gap-2">
 				<Button
 					size="sm"
-					variant="outline"
+					variant="ghost"
 					disabled={from <= first}
 					onClick={() => setStart(shiftTransportDate(from, -31))}
 				>
 					前31天
 				</Button>
-				<label className="flex items-center gap-2" htmlFor="transport-impact-date">
-					查看日期
+				<Field label="查看日期" className="flex items-center gap-2">
 					<Input
 						id="transport-impact-date"
 						aria-label="影响范围查看日期"
@@ -187,10 +186,10 @@ export function TransportImpact({
 						value={from}
 						onChange={(event) => event.target.value && setStart(event.target.value)}
 					/>
-				</label>
+				</Field>
 				<Button
 					size="sm"
-					variant="outline"
+					variant="ghost"
 					disabled={last !== null && to >= last}
 					onClick={() => setStart(shiftTransportDate(to, 1))}
 				>

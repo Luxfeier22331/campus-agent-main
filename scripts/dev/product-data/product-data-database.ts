@@ -129,48 +129,7 @@ export async function importProductData(
 ): Promise<void> {
 	await client.query("BEGIN");
 	try {
-		// Serialize changes and prevent a writer from appearing between inventory and replacement.
-		await client.query(
-			`LOCK TABLE ${tables.join(", ")}, dining.reviews, dining.review_edits, dining.review_reports, campus_docs_serving.current_index IN ACCESS EXCLUSIVE MODE`,
-		);
-		if (!input.replace && (await hasProductData(client))) {
-			throw new Error(
-				"Local product data exists; use --replace to replace foundation data and dependent dining reviews",
-			);
-		}
-		await client.query("delete from dining.review_reports");
-		await client.query("delete from dining.review_edits");
-		await client.query("delete from dining.reviews");
-		for (const table of [...tables].reverse()) {
-			await client.query(`delete from ${table}`);
-		}
-		for (const table of tables) {
-			const columns = PRODUCT_DATA_TABLES[table];
-			// One INSERT handles self-referencing release history in a single statement.
-			await client.query(
-				`insert into ${table} (${productDataProjection(table)}) select ${productDataProjection(table)} from json_populate_recordset(null::${table}, $1::json)`,
-				[
-					JSON.stringify(
-						input.rows[table].map((row) =>
-							Object.fromEntries(
-								columns.map((column) => {
-									if (!(column in row)) {
-										throw new Error(`Missing product data column ${table}.${column}`);
-									}
-									return [column, row[column]];
-								}),
-							),
-						),
-					),
-				],
-			);
-		}
-		if (input.localReviews?.length) {
-			await client.query(
-				"insert into dining.reviews select * from json_populate_recordset(null::dining.reviews, $1::json)",
-				[JSON.stringify(input.localReviews)],
-			);
-		}
+		await replaceProductRows(client, input);
 		const catalog = createTransactionalIndexCatalog(client);
 		await catalog.register({
 			collection: input.collection,
@@ -326,4 +285,68 @@ function serializeProductRows(
 			),
 		),
 	);
+}
+
+/** Replace UI content without binding a retrieval index to a partial notice sample. */
+export async function importProductContent(
+	client: Client,
+	input: { rows: ProductDataRows; replace: boolean },
+) {
+	await client.query("BEGIN");
+	try {
+		await replaceProductRows(client, input);
+		await client.query("delete from campus_docs_serving.current_index");
+		await client.query("COMMIT");
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	}
+}
+
+async function replaceProductRows(
+	client: Client,
+	input: { rows: ProductDataRows; replace: boolean; localReviews?: Record<string, unknown>[] },
+) {
+	// Serialize changes and prevent a writer from appearing between inventory and replacement.
+	await client.query(
+		`LOCK TABLE ${tables.join(", ")}, dining.reviews, dining.review_edits, dining.review_reports, campus_docs_serving.current_index IN ACCESS EXCLUSIVE MODE`,
+	);
+	if (!input.replace && (await hasProductData(client))) {
+		throw new Error(
+			"Local product data exists; use --replace to replace foundation data and dependent dining reviews",
+		);
+	}
+	await client.query("delete from dining.review_reports");
+	await client.query("delete from dining.review_edits");
+	await client.query("delete from dining.reviews");
+	for (const table of [...tables].reverse()) {
+		await client.query(`delete from ${table}`);
+	}
+	for (const table of tables) {
+		const columns = PRODUCT_DATA_TABLES[table];
+		// One INSERT handles self-referencing release history in a single statement.
+		await client.query(
+			`insert into ${table} (${productDataProjection(table)}) select ${productDataProjection(table)} from json_populate_recordset(null::${table}, $1::json)`,
+			[
+				JSON.stringify(
+					input.rows[table].map((row) =>
+						Object.fromEntries(
+							columns.map((column) => {
+								if (!(column in row)) {
+									throw new Error(`Missing product data column ${table}.${column}`);
+								}
+								return [column, row[column]];
+							}),
+						),
+					),
+				),
+			],
+		);
+	}
+	if (input.localReviews?.length) {
+		await client.query(
+			"insert into dining.reviews select * from json_populate_recordset(null::dining.reviews, $1::json)",
+			[JSON.stringify(input.localReviews)],
+		);
+	}
 }

@@ -73,7 +73,7 @@ export function NoticeQueue({
 								<button
 									aria-current={selected ? "true" : undefined}
 									className={cn(
-										"group grid min-h-28 w-full gap-3 px-4 py-4 text-left transition-[background-color,box-shadow] duration-[var(--motion-duration-fast)] hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+										"group grid min-h-24 w-full gap-2 px-4 py-3 text-left transition-[background-color,box-shadow] duration-[var(--motion-duration-fast)] hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
 										selected &&
 											"bg-selected/60 shadow-[inset_3px_0_0_var(--sys-border-selected)] hover:bg-selected",
 									)}
@@ -142,7 +142,7 @@ function QueuePagination({
 					disabled={disabled || data.page <= 1}
 					onClick={() => onPage(data.page - 1)}
 					size="sm"
-					variant="outline"
+					variant="ghost"
 				>
 					<ChevronLeft className="size-4" />
 					<span className="hidden sm:inline">上一页</span>
@@ -152,7 +152,7 @@ function QueuePagination({
 					disabled={disabled || data.page >= totalPages}
 					onClick={() => onPage(data.page + 1)}
 					size="sm"
-					variant="outline"
+					variant="ghost"
 				>
 					<span className="hidden sm:inline">下一页</span>
 					<ChevronRight className="size-4" />

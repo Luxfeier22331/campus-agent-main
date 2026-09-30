@@ -8,7 +8,7 @@ export function NotFoundPage() {
 			<p className="text-muted-foreground">当前地址不属于运维工作台。</p>
 			<div className="mt-4">
 				<Button asChild>
-					<Link to="/requests">返回运行诊断</Link>
+					<Link to="/overview">返回问答概览</Link>
 				</Button>
 			</div>
 		</PageShell>

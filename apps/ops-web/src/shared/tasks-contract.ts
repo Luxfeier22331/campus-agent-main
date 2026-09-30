@@ -1,8 +1,5 @@
 import { z } from "zod";
 export const TaskIdSchema = z.enum([
-	"notice-sync",
-	"notice-classifier",
-	"notice-publisher",
 	"notice-pipeline",
 	"document-ocr",
 	"internal-portal-credential-checker",
@@ -36,7 +33,6 @@ export interface OpsTask {
 	intervalMinutes: number | null;
 	schedule: string | null;
 	running: boolean;
-	problemCount: number | null;
 	runs: TaskRun[];
 	error: string | null;
 }

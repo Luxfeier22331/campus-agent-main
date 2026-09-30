@@ -269,7 +269,10 @@ describe("notice pages", () => {
 
 		const category = screen.getByLabelText("业务分类");
 		category.focus();
-		await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+		await user.keyboard("{ArrowDown}");
+		const procurement = await screen.findByRole("option", { name: "采购招标" });
+		fireEvent.pointerDown(procurement, { pointerType: "mouse" });
+		fireEvent.click(procurement);
 		expect(lastSearchUpdate({ page: 5, q: "旧关键词" })).toEqual({
 			category: "procurement",
 			page: 1,

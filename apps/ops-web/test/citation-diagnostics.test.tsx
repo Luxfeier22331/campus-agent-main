@@ -33,6 +33,13 @@ const failure = {
 	invocationId: null,
 };
 describe("citation failure diagnosis", () => {
+	it("retains the time window through conversation return paths", () => {
+		const from = `/conversations/conv_ops_1?${new URLSearchParams({ from: "/requests?window=30d" })}`;
+		const result = new URL(similarFailurePath(failure, from), "https://ops.local");
+		expect(result.searchParams.get("window")).toBe("30d");
+		expect(result.searchParams.has("from")).toBe(false);
+	});
+
 	it.each([
 		{
 			reason: "missing_evidence",
@@ -189,7 +196,7 @@ describe("citation failure diagnosis", () => {
 			render(
 				<OpsWebApp initialPath="/requests?failureCode=citation_validation_failed&failureReason=span_out_of_bounds&citationStage=provider_annotation&failureScope=stage" />,
 			);
-			await screen.findByRole("heading", { name: "运行诊断" });
+			await screen.findByRole("heading", { name: "运行记录" });
 			expect(await screen.findAllByText(/部分诊断无法解析/)).not.toHaveLength(0);
 			expect(screen.getByRole("combobox", { name: "失败原因" })).toHaveValue("span_out_of_bounds");
 			await waitFor(() =>

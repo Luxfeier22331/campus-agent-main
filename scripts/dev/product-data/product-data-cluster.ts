@@ -8,7 +8,7 @@ import { RetryableProductTransferError } from "./product-data-errors.ts";
 
 const exec = promisify(execFile);
 
-export async function connectProductCluster(
+async function connectProductClusterBase(
 	context: string | undefined,
 	namespace: string,
 	signal?: AbortSignal,
@@ -52,11 +52,7 @@ export async function connectProductCluster(
 	signal?.addEventListener("abort", interrupt, { once: true });
 
 	try {
-		const [pg, objects, vectors] = await Promise.all([
-			secret("pg-product-data-ro"),
-			secret("objectstore-ro"),
-			secret("qdrant-ro"),
-		]);
+		const pg = await secret("pg-product-data-ro");
 		const forward = async (service: string, remotePort: number) => {
 			const result = await startKubectlPortForward({
 				...(context?.trim() ? { context: context.trim() } : {}),
@@ -92,6 +88,50 @@ export async function connectProductCluster(
 			ssl: { ca: pg["ca.crt"], servername: pg.host, rejectUnauthorized: true },
 		});
 		await database.connect();
+		return { database, secret, forward, close };
+	} catch (error) {
+		await close();
+		throw error;
+	}
+}
+
+export async function connectProductContentCluster(
+	context: string | undefined,
+	namespace: string,
+	signal?: AbortSignal,
+) {
+	const remote = await connectProductClusterBase(context, namespace, signal);
+	try {
+		const objects = await remote.secret("objectstore-ro");
+		const port = await remote.forward("object-store", 9000);
+		const sourceStore = createS3ReaderStoreFromConfig(
+			{
+				endpoint: `http://127.0.0.1:${port}`,
+				bucket: "campus-agent-source",
+				accessKeyId: objects.OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY ?? "",
+				secretAccessKey: objects.OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY ?? "",
+			},
+			signal,
+		);
+		return { database: remote.database, sourceStore, close: remote.close };
+	} catch (error) {
+		await remote.close();
+		throw error;
+	}
+}
+
+export async function connectProductCluster(
+	context: string | undefined,
+	namespace: string,
+	signal?: AbortSignal,
+) {
+	const remote = await connectProductClusterBase(context, namespace, signal);
+	const { database, forward, close } = remote;
+	try {
+		const [objects, vectors] = await Promise.all([
+			remote.secret("objectstore-ro"),
+			remote.secret("qdrant-ro"),
+		]);
 		const objectPort = await forward("object-store", 9000);
 		const objectStore = createS3ReaderStoreFromConfig(
 			{

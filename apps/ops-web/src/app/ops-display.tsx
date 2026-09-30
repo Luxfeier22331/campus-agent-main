@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, CardContent, cn } from "@campus-agent/ui";
+import { Alert, Badge, Button, cn, Disclosure, DisclosureSummary } from "@campus-agent/ui";
 import { Check, CircleAlert, Clipboard, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -11,18 +11,23 @@ export function PageHeader({
 	actions,
 	description,
 	title,
+	headingLevel = 1,
 }: {
 	actions?: ReactNode;
 	description?: string;
 	title: string;
+	headingLevel?: 1 | 2;
 }) {
+	const Heading = headingLevel === 1 ? "h1" : "h2";
 	return (
-		<div className="mb-6 flex flex-col gap-3 border-border border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+		<div className="ops-page-header mb-5 flex flex-col gap-4 border-border border-b pb-4 lg:flex-row lg:items-center lg:justify-between">
 			<div className="min-w-0 space-y-1">
-				<h1 className="ui-page-title">{title}</h1>
+				<Heading className={headingLevel === 1 ? "ui-page-title" : "ui-section-title"}>
+					{title}
+				</Heading>
 				{description ? <p className="ui-supporting max-w-3xl">{description}</p> : null}
 			</div>
-			{actions}
+			{actions ? <div className="ops-page-actions shrink-0">{actions}</div> : null}
 		</div>
 	);
 }
@@ -39,15 +44,9 @@ export function PageShell({
 	return (
 		<section>
 			<PageHeader {...(description ? { description } : {})} title={title} />
-			<Card>
-				<CardContent
-					aria-live="polite"
-					className="p-4 text-muted-foreground text-sm md:p-5"
-					role="status"
-				>
-					{children}
-				</CardContent>
-			</Card>
+			<div className="py-4 text-muted-foreground text-sm" role="status" aria-live="polite">
+				{children}
+			</div>
 		</section>
 	);
 }
@@ -71,7 +70,7 @@ export function ErrorState({
 			<TechnicalErrorDetails detail={detail} />
 			{onRetry ? (
 				<div>
-					<Button onClick={onRetry} variant="outline">
+					<Button onClick={onRetry} variant="secondary">
 						<RefreshCw className="size-4" />
 						重试
 					</Button>
@@ -117,7 +116,7 @@ export function StaleDataWarning({
 				</p>
 				<TechnicalErrorDetails detail={detail} />
 			</div>
-			<Button onClick={onRetry} variant="outline">
+			<Button onClick={onRetry} variant="secondary">
 				<RefreshCw className="size-4" />
 				重试刷新
 			</Button>
@@ -133,8 +132,8 @@ function TechnicalErrorDetails({
 	detail: ReturnType<typeof describeError>;
 }) {
 	return (
-		<details className={cn("text-xs", className)}>
-			<summary className="w-fit cursor-pointer font-medium text-current">技术信息</summary>
+		<Disclosure className={cn("text-xs", className)}>
+			<DisclosureSummary className="w-fit font-medium text-current">技术信息</DisclosureSummary>
 			<div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
 				<Badge tone="danger">{detail.status}</Badge>
 				<span>{detail.code}</span>
@@ -145,7 +144,7 @@ function TechnicalErrorDetails({
 					{detail.details}
 				</pre>
 			) : null}
-		</details>
+		</Disclosure>
 	);
 }
 

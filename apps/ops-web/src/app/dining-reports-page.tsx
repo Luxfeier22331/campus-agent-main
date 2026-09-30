@@ -4,19 +4,28 @@ import {
 	Badge,
 	Button,
 	ConfirmDialog,
+	Disclosure,
+	DisclosureSummary,
+	Field,
 	Input,
-	NativeSelect,
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
 	StateMessage,
 	Tabs,
 	TabsContent,
 	TabsList,
 	TabsTrigger,
 } from "@campus-agent/ui";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { EyeOff, RefreshCw, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
 import { DiningTaskNavigation } from "./dining-navigation";
+import type { DiningReportsSearch } from "./dining-report-navigation";
 import { SubmissionPhoto, SubmissionSnapshot } from "./dining-submission-display";
 import { formatTimestamp } from "./format";
 import {
@@ -24,22 +33,28 @@ import {
 	resolveDiningReports,
 	resolveDiningSubmissionReports,
 } from "./ops-api/dining";
-import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
-import { DataTable } from "./ui/data-table";
+import { ErrorState, InlineError, PageHeader } from "./ops-display";
+import { FilterSelect } from "./ui/filter-select";
 import { useConfirmCommand } from "./use-confirm-command";
 
 type ReportStatus = "pending" | "resolved";
 
-export function DiningReportsPage() {
+export function DiningReportsPage({ search = {} }: { search?: DiningReportsSearch }) {
 	const queryClient = useQueryClient();
-	const [targetType, setTargetType] = useState<"review" | "submission" | "">("");
-	const [submissionInput, setSubmissionInput] = useState("");
-	const [submissionId, setSubmissionId] = useState("");
-	const [status, setStatus] = useState<ReportStatus>("pending");
-	const [cursor, setCursor] = useState<string | undefined>();
-	const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([]);
+	const navigate = useNavigate({ from: "/dining/reports" });
+	const returnTo = useRouterState({ select: (state) => state.location.href });
+	const { targetType = "", submissionId = "", status = "pending", cursor } = search;
+	const [submissionInput, setSubmissionInput] = useState(submissionId);
+	useEffect(() => setSubmissionInput(submissionId), [submissionId]);
+	const previousCursors = decodeCursorHistory(search.history);
+	const filters = {
+		targetType: targetType || undefined,
+		submissionId: submissionId || undefined,
+		status,
+	};
+	const changeFilters = (next: DiningReportsSearch) =>
+		void navigate({ search: { ...filters, ...next } });
 	const reports = useQuery({
-		placeholderData: keepPreviousData,
 		queryFn: ({ signal }) =>
 			fetchDiningReports(
 				{
@@ -71,49 +86,52 @@ export function DiningReportsPage() {
 			]);
 		},
 	});
-	const changeStatus = (value: ReportStatus) => {
-		setStatus(value);
-		setCursor(undefined);
-		setPreviousCursors([]);
-	};
-	if (!reports.data) {
-		return (
-			<div className="mx-auto w-full max-w-[1600px]">
-				<DiningTaskNavigation />
-				{reports.error ? (
-					<ErrorState
-						error={reports.error}
-						onRetry={() => void reports.refetch()}
-						title="举报读取失败"
-					/>
-				) : (
-					<PageShell title="举报处理">正在读取举报...</PageShell>
-				)}
-			</div>
+	const renderReportsPanel = (panelStatus: ReportStatus) =>
+		reports.data ? (
+			<ReportsPanel
+				hasNextPage={Boolean(reports.data.nextCursor)}
+				hasPreviousPage={previousCursors.length > 0}
+				isFetching={reports.isFetching}
+				onNextPage={() =>
+					changeFilters({
+						cursor: reports.data?.nextCursor ?? undefined,
+						history: encodeCursorHistory([...previousCursors, cursor ?? ""]),
+					})
+				}
+				onPreviousPage={() => {
+					const previous = [...previousCursors];
+					changeFilters({
+						cursor: previous.pop() || undefined,
+						history: encodeCursorHistory(previous),
+					});
+				}}
+				onResolve={(input) => resolve.mutateAsync(input)}
+				reports={reports.data}
+				resolveError={resolve.error}
+				isResolving={resolve.isPending}
+				status={panelStatus}
+				selection={{
+					key: search.selected ?? null,
+					onChange: (selected) => {
+						resolve.reset();
+						void navigate({
+							search: { ...search, selected: selected ?? undefined },
+							replace: true,
+							resetScroll: false,
+						});
+					},
+				}}
+				returnTo={returnTo}
+			/>
+		) : reports.error ? (
+			<ErrorState
+				error={reports.error}
+				onRetry={() => void reports.refetch()}
+				title="举报读取失败"
+			/>
+		) : (
+			<StateMessage role="status" description="正在读取举报..." />
 		);
-	}
-	const reportData = reports.data;
-	const renderReportsPanel = (panelStatus: ReportStatus) => (
-		<ReportsPanel
-			hasNextPage={Boolean(reportData.nextCursor)}
-			hasPreviousPage={previousCursors.length > 0}
-			isFetching={reports.isFetching}
-			onNextPage={() => {
-				setPreviousCursors((values) => [...values, cursor]);
-				setCursor(reportData.nextCursor ?? undefined);
-			}}
-			onPreviousPage={() => {
-				const previous = [...previousCursors];
-				setCursor(previous.pop());
-				setPreviousCursors(previous);
-			}}
-			onResolve={(input) => resolve.mutateAsync(input)}
-			reports={reportData}
-			resolveError={resolve.error}
-			isResolving={resolve.isPending}
-			status={panelStatus}
-		/>
-	);
 
 	return (
 		<section className="mx-auto w-full max-w-[1600px]">
@@ -125,7 +143,7 @@ export function DiningReportsPage() {
 						disabled={reports.isFetching}
 						onClick={() => void reports.refetch()}
 						size="icon"
-						variant="outline"
+						variant="ghost"
 					>
 						<RefreshCw className={`size-4 ${reports.isFetching ? "animate-spin" : ""}`} />
 					</Button>
@@ -135,56 +153,46 @@ export function DiningReportsPage() {
 			/>
 
 			<form
-				className="mb-4 grid gap-3 md:grid-cols-[12rem_minmax(12rem,1fr)_auto] md:items-end"
+				className="ops-filter-bar mb-4 grid gap-3 md:grid-cols-[12rem_minmax(12rem,24rem)_auto] md:justify-start md:items-end"
 				onSubmit={(event) => {
 					event.preventDefault();
-					setSubmissionId(submissionInput.trim());
-					setCursor(undefined);
-					setPreviousCursors([]);
+					changeFilters({ submissionId: submissionInput.trim() || undefined });
 				}}
 			>
-				<label className="grid gap-1 text-sm" htmlFor="dining-report-target">
-					<span>举报目标</span>
-					<NativeSelect
+				<Field label="举报目标">
+					<FilterSelect
 						id="dining-report-target"
 						value={targetType}
-						onChange={(event) => {
-							setTargetType(event.target.value as "review" | "submission" | "");
-							setCursor(undefined);
-							setPreviousCursors([]);
+						onValueChange={(nextValue) => {
+							changeFilters({
+								targetType: (nextValue || undefined) as DiningReportsSearch["targetType"],
+							});
 						}}
-					>
-						<option value="">全部目标</option>
-						<option value="submission">用户投稿</option>
-						<option value="review">评价</option>
-					</NativeSelect>
-				</label>
-				<label className="grid gap-1 text-sm" htmlFor="dining-report-submission">
-					<span>投稿标识</span>
+						options={[
+							{ value: "", label: "全部目标" },
+							{ value: "submission", label: "用户投稿" },
+							{ value: "review", label: "评价" },
+						]}
+					/>
+				</Field>
+				<Field label="投稿标识">
 					<Input
 						id="dining-report-submission"
 						value={submissionInput}
 						onChange={(event) => setSubmissionInput(event.target.value)}
 						placeholder="可选：按投稿及其评价筛选"
 					/>
-				</label>
-				<Button type="submit" variant="outline">
+				</Field>
+				<Button type="submit" variant="primary">
 					筛选投稿
 				</Button>
 			</form>
-			{reports.error ? (
+			{reports.error && reports.data ? (
 				<InlineError error={reports.error} title="刷新失败，以下为上次结果" />
-			) : null}
-			{reports.isPlaceholderData ? (
-				<StateMessage
-					layout="inline"
-					role="status"
-					description={<>正在读取新范围，暂时显示上次结果。</>}
-				/>
 			) : null}
 			<Tabs
 				className="mt-5"
-				onValueChange={(value) => changeStatus(value as ReportStatus)}
+				onValueChange={(value) => changeFilters({ status: value as ReportStatus })}
 				value={status}
 			>
 				<TabsList aria-label="举报状态" presentation="segmented">
@@ -213,6 +221,8 @@ export function ReportsPanel({
 	reports,
 	resolveError,
 	status,
+	selection,
+	returnTo,
 }: {
 	hasNextPage: boolean;
 	hasPreviousPage: boolean;
@@ -227,77 +237,177 @@ export function ReportsPanel({
 	reports: Awaited<ReturnType<typeof fetchDiningReports>>;
 	resolveError: unknown;
 	status: ReportStatus;
+	selection?: { key: string | null; onChange: (key: string | null) => void };
+	returnTo?: string;
 }) {
-	const actions = (report: DiningOpsContentReportRecord) => (
-		<ReportActions report={report} isResolving={isResolving || isFetching} onResolve={onResolve} />
-	);
+	const triggerRef = useRef<HTMLButtonElement | null>(null);
+	const panelRef = useRef<HTMLElement | null>(null);
+	const [localKey, setLocalKey] = useState<string | null>(null);
+	const selectedKey = selection ? selection.key : localKey;
+	const setSelectedKey = selection ? selection.onChange : setLocalKey;
+	const selectedIndex = reports.items.findIndex((report) => reportKey(report) === selectedKey);
+	const selected = reports.items[selectedIndex];
+	useEffect(() => {
+		if (selectedIndex >= 0) {
+			triggerRef.current =
+				panelRef.current?.querySelectorAll<HTMLButtonElement>("[data-report-trigger]")[
+					selectedIndex
+				] ?? null;
+		}
+	}, [selectedIndex]);
+
+	const selectReport = (index: number) => {
+		const report = reports.items[index];
+		if (report) {
+			triggerRef.current =
+				panelRef.current?.querySelectorAll<HTMLButtonElement>("[data-report-trigger]")[index] ??
+				null;
+			setSelectedKey(reportKey(report));
+		}
+	};
+
 	return (
-		<>
+		<section
+			ref={panelRef}
+			tabIndex={-1}
+			className="min-w-0 focus:outline-none"
+			aria-label="举报队列"
+		>
 			{resolveError ? (
 				<div className="mb-4">
 					<InlineError error={resolveError} title="举报处理失败" />
 				</div>
 			) : null}
 			{reports.items.length === 0 ? (
-				<p className="border-border border-y py-10 text-center text-muted-foreground text-sm">
-					{status === "pending" ? "当前没有待处理举报。" : "当前没有已处理举报。"}
-				</p>
+				<StateMessage
+					description={status === "pending" ? "当前没有待处理举报。" : "当前没有已处理举报。"}
+				/>
 			) : (
-				<>
-					<div className="hidden md:block">
-						<DataTable
-							caption={status === "pending" ? "待处理举报" : "已处理举报"}
-							columns={[
-								{
-									header: "举报内容",
-									rowHeader: true,
-									cell: (report) => <ReportDescription report={report} />,
-								},
-								{ header: "被举报内容", cell: (report) => <ReportContent report={report} /> },
-								{ header: "举报人 / 时间", cell: (report) => <ReportAuthor report={report} /> },
-								{ header: "处理", cell: actions },
-							]}
-							data={reports.items}
-							minWidth="1120px"
-							rowKey={(report) => `${report.target.kind}:${report.reportId}`}
-							stickyFirstColumn
-							stickyLastColumn
-						/>
-					</div>
-					<ul className="divide-y divide-border border-border border-y md:hidden">
-						{reports.items.map((report) => (
-							<li
-								key={`${report.target.kind}:${report.reportId}`}
-								className="min-w-0 space-y-4 py-5"
-							>
-								<ReportDescription report={report} />
-								<ReportContent report={report} />
-								<ReportAuthor report={report} />
-								{actions(report)}
-							</li>
-						))}
-					</ul>
-				</>
-			)}
-			<ActionGroup className="mt-4 justify-end">
-				<Button
-					disabled={!hasPreviousPage || isFetching}
-					onClick={onPreviousPage}
-					variant="outline"
+				<ul
+					aria-label={status === "pending" ? "待处理举报" : "已处理举报"}
+					className="divide-y divide-border rounded-lg border border-border bg-background"
 				>
+					{reports.items.map((report) => (
+						<li key={`${report.target.kind}:${report.reportId}`} className="min-w-0">
+							<Button
+								variant="ghost"
+								data-report-trigger
+								type="button"
+								className="grid h-auto w-full min-w-0 gap-2 whitespace-normal rounded-none px-4 py-4 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto]"
+								onClick={(event) => {
+									triggerRef.current = event.currentTarget;
+									setSelectedKey(reportKey(report));
+								}}
+							>
+								<div className="min-w-0 space-y-2">
+									<div className="flex flex-wrap items-center gap-2">
+										<Badge tone={reasonTone(report.reason)}>{reasonLabel(report.reason)}</Badge>
+										<span className="text-xs text-muted-foreground">
+											{report.target.kind === "submission" ? "用户投稿" : "评价"}
+										</span>
+										{report.resolution ? (
+											<Badge tone="neutral">
+												{report.resolution === "hide" ? "已隐藏" : "已保留"}
+											</Badge>
+										) : null}
+									</div>
+									<p className="line-clamp-2 break-words text-sm font-medium">
+										{reportCurrentBody(report)}
+									</p>
+									<p className="line-clamp-1 break-words text-xs text-muted-foreground">
+										{report.details || "无可用补充说明"}
+									</p>
+								</div>
+								<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground sm:flex-col sm:items-end sm:justify-center">
+									<time>{formatTimestamp(report.createdAt)}</time>
+									<span className="text-link">查看举报详情</span>
+								</div>
+							</Button>
+						</li>
+					))}
+				</ul>
+			)}
+			<Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelectedKey(null)}>
+				<SheetContent
+					className="flex w-full flex-col overflow-hidden p-0 sm:w-[min(42rem,90vw)]"
+					closeLabel="关闭举报详情"
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						(triggerRef.current?.isConnected ? triggerRef.current : panelRef.current)?.focus();
+					}}
+				>
+					<SheetHeader className="shrink-0 border-b border-border p-5 pr-16">
+						<SheetTitle>举报详情</SheetTitle>
+						<SheetDescription>{selected ? reportTargetName(selected) : ""}</SheetDescription>
+						{selected ? (
+							<nav aria-label="逐条查看举报" className="flex flex-wrap items-center gap-2 pt-2">
+								<Button
+									size="sm"
+									variant="ghost"
+									disabled={selectedIndex <= 0 || isResolving}
+									onClick={() => selectReport(selectedIndex - 1)}
+								>
+									上一条
+								</Button>
+								<span className="text-xs text-muted-foreground">
+									本页 {selectedIndex + 1} / {reports.items.length}
+								</span>
+								<Button
+									size="sm"
+									variant="ghost"
+									disabled={selectedIndex >= reports.items.length - 1 || isResolving}
+									onClick={() => selectReport(selectedIndex + 1)}
+								>
+									下一条
+								</Button>
+							</nav>
+						) : null}
+					</SheetHeader>
+					{selected ? (
+						<>
+							<div
+								key={reportKey(selected)}
+								className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5"
+							>
+								<ReportDescription report={selected} />
+								<ReportAuthor report={selected} />
+								<ReportContent report={selected} returnTo={returnTo} />
+								{resolveError ? <InlineError error={resolveError} title="举报处理失败" /> : null}
+							</div>
+							<div className="shrink-0 border-t border-border bg-background p-4">
+								<ReportActions
+									key={`${selected.target.kind}:${selected.reportId}`}
+									report={selected}
+									isResolving={isResolving || isFetching}
+									onResolve={async (input) => {
+										await onResolve(input);
+										setSelectedKey(null);
+									}}
+								/>
+							</div>
+						</>
+					) : null}
+				</SheetContent>
+			</Sheet>
+			<ActionGroup className="mt-4 justify-end">
+				<Button disabled={!hasPreviousPage || isFetching} onClick={onPreviousPage} variant="ghost">
 					上一页
 				</Button>
-				<Button disabled={!hasNextPage || isFetching} onClick={onNextPage} variant="outline">
+				<Button disabled={!hasNextPage || isFetching} onClick={onNextPage} variant="ghost">
 					下一页
 				</Button>
 			</ActionGroup>
-		</>
+		</section>
 	);
+}
+
+function reportKey(report: DiningOpsContentReportRecord) {
+	return `${report.target.kind}:${report.reportId}`;
 }
 
 function ReportDescription({ report }: { report: DiningOpsContentReportRecord }) {
 	return (
-		<div className="max-w-sm">
+		<div className="min-w-0">
 			<Badge tone={reasonTone(report.reason)}>{reasonLabel(report.reason)}</Badge>
 			<p className="mt-2 whitespace-pre-wrap break-words text-sm">
 				{report.details || "无可用补充说明"}
@@ -315,15 +425,31 @@ function ReportAuthor({ report }: { report: DiningOpsContentReportRecord }) {
 	);
 }
 
-function ReportContent({ report }: { report: DiningOpsContentReportRecord }) {
+function ReportContent({
+	report,
+	returnTo,
+}: {
+	report: DiningOpsContentReportRecord;
+	returnTo?: string | undefined;
+}) {
 	const target = report.target;
 	return (
 		<div className="min-w-0 max-w-xl space-y-2">
 			<p className="font-medium">{reportTargetName(report)}</p>
 			<p className="whitespace-pre-wrap break-words">{reportCurrentBody(report)}</p>
-			<p className="whitespace-pre-wrap break-words text-muted-foreground text-sm">
-				举报时：{reportOriginalBody(report)}
-			</p>
+			<Disclosure
+				open={
+					target.targetRevision === null || target.targetRevision !== target.current.contentRevision
+				}
+			>
+				<DisclosureSummary>举报时内容</DisclosureSummary>
+				<p className="whitespace-pre-wrap break-words py-3 text-sm text-muted-foreground">
+					举报时：{reportOriginalBody(report)}
+				</p>
+				{target.kind === "submission" && target.reported.replayable && target.reported.photo ? (
+					<SubmissionSnapshot snapshot={target.reported} label="举报时内容" />
+				) : null}
+			</Disclosure>
 			<div className="flex flex-wrap gap-2">
 				{reviewState(report)}
 				{target.targetRevision !== null &&
@@ -340,16 +466,11 @@ function ReportContent({ report }: { report: DiningOpsContentReportRecord }) {
 							label="被举报投稿当前照片"
 						/>
 					) : null}
-					{target.reported.replayable && target.reported.photo ? (
-						<details>
-							<summary className="min-h-11 cursor-pointer py-3 text-sm">查看举报时照片</summary>
-							<SubmissionSnapshot snapshot={target.reported} label="举报时内容" />
-						</details>
-					) : null}
 					<Link
 						className="inline-flex min-h-11 items-center text-sm text-link hover:underline"
 						to="/dining/submissions/$submissionId"
 						params={{ submissionId: target.current.submissionId }}
+						search={{ from: returnTo }}
 					>
 						查看投稿详情与历史
 					</Link>
@@ -359,6 +480,7 @@ function ReportContent({ report }: { report: DiningOpsContentReportRecord }) {
 					className="inline-flex min-h-11 items-center text-sm text-link hover:underline"
 					to="/dining/submissions/$submissionId"
 					params={{ submissionId: target.current.submissionId }}
+					search={{ from: returnTo }}
 				>
 					查看所属投稿
 				</Link>
@@ -422,14 +544,14 @@ function ReportActions({
 							trigger={
 								<Button
 									disabled={isResolving || purged || (resolution === "hide" && !canHide)}
-									variant={resolution === "keep" ? "outline" : "destructive"}
+									variant="secondary"
 								>
 									{resolution === "keep" ? (
 										<ShieldCheck className="size-4" />
 									) : (
 										<EyeOff className="size-4" />
 									)}
-									{resolution === "keep" ? "保留" : "隐藏"}
+									{label}并处理举报
 								</Button>
 							}
 						/>

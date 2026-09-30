@@ -81,6 +81,7 @@ describe("shared color tokens", () => {
 
 	it.each([
 		["light control border", light, "--sys-border-control", "--sys-bg-canvas"],
+		["light control surface", light, "--sys-border-control", "--sys-surface-default"],
 		["light focus ring", light, "--sys-focus-ring", "--sys-bg-canvas"],
 		["light selected border", light, "--sys-border-selected", "--sys-surface-default"],
 		["dark control border", explicitDark, "--sys-border-control", "--sys-surface-default"],

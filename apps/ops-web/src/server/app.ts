@@ -73,10 +73,6 @@ import {
 import { createPgInternalPortalCredentialStore } from "./internal-portal-credential-store.ts";
 import { createLocalNoticeJobStore } from "./local-notice-jobs.ts";
 import {
-	createNoticeAutomationService,
-	type NoticeAutomationService,
-} from "./notice-automation.ts";
-import {
 	createNoticeJobService,
 	NoticeJobConflictError,
 	NoticeJobNotFoundError,
@@ -189,7 +185,6 @@ interface OpsAppOptions {
 	internalPortalAutomationTokenService?: InternalPortalAutomationTokenService;
 	overviewService?: OpsOverviewService;
 	noticeJobService?: NoticeJobService;
-	noticeAutomationService?: NoticeAutomationService;
 	noticeStore?: NoticeStore;
 	noticePreviewStore?: NoticePreviewStore;
 	transportStore?: TransportStore;
@@ -610,15 +605,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	registerEmailAccessRoutes({ admission, app, client: emailAccessClient, publicOrigin });
 	registerObservabilityRoutes({ admission, app, store });
 	registerCampusGroupsRoutes({ admission, app, client: campusGroupsClient, publicOrigin });
-	const collectionAutomation =
-		options.noticeAutomationService ??
-		createNoticeAutomationService({
-			local: isLocalOpsEnvironment(env),
-			namespace: env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default",
-			env,
-			source: options.noticePreviewStore ?? createNoticePreviewStore(env),
-			credentials: internalPortalCredentialService,
-		});
 	registerTaskRoutes({
 		admission,
 		app,
@@ -626,8 +612,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			local: isLocalOpsEnvironment(env),
 			namespace: env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default",
 			env,
-			jobs: noticeJobService,
-			collection: collectionAutomation,
 			...(databasePool ? { pool: databasePool } : {}),
 		}),
 	});

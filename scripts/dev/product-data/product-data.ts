@@ -21,12 +21,14 @@ import {
 	type LocalDevProfile,
 	resolveLocalDevRegistryPath,
 } from "../lifecycle/profile.ts";
-import { connectProductCluster } from "./product-data-cluster.ts";
+import { connectProductCluster, connectProductContentCluster } from "./product-data-cluster.ts";
+import { copyNoticeSources, exportProductContent } from "./product-data-content.ts";
 import {
 	exportProductData,
 	exportRetrievalData,
 	hasProductData,
 	hasRetrievalData,
+	importProductContent,
 	importProductData,
 	importRetrievalData,
 } from "./product-data-database.ts";
@@ -95,6 +97,48 @@ export async function initializeProductData(
 			const signal = controller.signal;
 			try {
 				await client.connect();
+				if (options.data === "cluster-content") {
+					if (!options.namespace) {
+						throw new Error("Cluster content import requires a namespace");
+					}
+					if (!options.replace && (await hasProductData(client))) {
+						throw new Error("Local product data exists; use --replace to replace local content");
+					}
+					const remote = await connectProductContentCluster(
+						options.context,
+						options.namespace,
+						signal,
+					);
+					try {
+						const rows = await exportProductContent(remote.database, options.noticeLimit ?? 100);
+						const sourceTarget = createS3ObjectStore({
+							...env,
+							OBJECT_STORE_BUCKET_DERIVED: profile.sourceBucketName,
+						});
+						const sourceBytes = await copyNoticeSources(
+							rows,
+							remote.sourceStore,
+							async (key, body) => {
+								signal.throwIfAborted();
+								await sourceTarget.writeBytesObject({ key, body, contentType: "application/json" });
+							},
+						);
+						signal.throwIfAborted();
+						await importProductContent(client, { rows, replace: options.replace });
+						console.log(
+							JSON.stringify({
+								mode: "cluster-content",
+								rows: Object.fromEntries(
+									Object.entries(rows).map(([table, values]) => [table, values.length]),
+								),
+								sourceBytes,
+							}),
+						);
+					} finally {
+						await remote.close();
+					}
+					return;
+				}
 				const existing =
 					(options.data === "cluster"
 						? await hasRetrievalData(client)

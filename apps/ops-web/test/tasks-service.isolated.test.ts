@@ -2,7 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const native = vi.hoisted(() => ({
-	patch: vi.fn(),
+	readCron: vi.fn(),
+	listJobs: vi.fn(),
 	pause: vi.fn(),
 	describe: vi.fn(),
 	update: vi.fn(),
@@ -13,7 +14,6 @@ const native = vi.hoisted(() => ({
 	query: vi.fn(),
 	getHandle: vi.fn(),
 	readJob: vi.fn(),
-	getJob: vi.fn(),
 }));
 vi.mock("@kubernetes/client-node", () => ({
 	BatchV1Api: class {},
@@ -22,7 +22,11 @@ vi.mock("@kubernetes/client-node", () => ({
 			/* Fake cluster credentials for service behavior tests. */
 		}
 		makeApiClient() {
-			return { patchNamespacedCronJob: native.patch, readNamespacedJob: native.readJob };
+			return {
+				readNamespacedCronJob: native.readCron,
+				listNamespacedJob: native.listJobs,
+				readNamespacedJob: native.readJob,
+			};
 		}
 	},
 }));
@@ -47,14 +51,12 @@ vi.mock("@temporalio/client", () => ({
 import { WorkflowExecutionAlreadyStartedError } from "@temporalio/client";
 import { createTaskService } from "../src/server/tasks.ts";
 
-function service() {
+function service(local = false) {
 	return createTaskService({
-		local: false,
+		local,
 		namespace: "staging",
 		env: {},
 		pool: { query: native.query },
-		jobs: { list: async () => [], create: vi.fn(), get: native.getJob } as never,
-		collection: { update: vi.fn() } as never,
 	});
 }
 beforeEach(() => {
@@ -62,7 +64,13 @@ beforeEach(() => {
 	native.list.mockImplementation(async function* () {
 		/* No running workflows. */
 	});
-	native.describe.mockResolvedValue({ info: { runningActions: [] } });
+	native.describe.mockResolvedValue({
+		state: { paused: false },
+		spec: { intervals: [{ every: 900000 }] },
+		info: { runningActions: [] },
+	});
+	native.readCron.mockResolvedValue({ spec: { suspend: false, schedule: "*/5 * * * *" } });
+	native.listJobs.mockResolvedValue({ items: [] });
 	native.start.mockResolvedValue({
 		workflowId: "notice-pipeline-workflow",
 		firstExecutionRunId: "run-1",
@@ -80,31 +88,46 @@ beforeEach(() => {
 	});
 });
 describe("native task ownership", () => {
-	it("projects the pipeline schedule for legacy tasks without reading retired CronJobs", async () => {
-		native.describe.mockResolvedValue({
-			state: { paused: false },
-			spec: { intervals: [{ every: 900000 }] },
-			info: { runningActions: [] },
-		});
-		const tasks = await service().list();
-		for (const id of ["notice-sync", "notice-classifier", "notice-publisher"]) {
-			expect(tasks.find((task) => task.id === id)).toMatchObject({
+	it.each([false, true])(
+		"lists only current tasks with executable capabilities (local=%s)",
+		async (local) => {
+			const tasks = await service(local).list();
+			expect(tasks.map((task) => task.id)).toEqual([
+				"notice-pipeline",
+				"document-ocr",
+				"internal-portal-credential-checker",
+			]);
+			expect(tasks[0]).toMatchObject({
 				runtime: "temporal",
 				enabled: true,
 				intervalMinutes: 15,
-				canSchedule: false,
+				canSchedule: true,
+				canRun: true,
 				error: null,
 			});
+			for (const task of tasks.slice(1)) {
+				expect(task).toMatchObject({
+					runtime: "kubernetes",
+					canSchedule: false,
+					canRun: false,
+					error: null,
+				});
+			}
+			expect(native.describe).toHaveBeenCalledTimes(1);
+			expect(native.readCron.mock.calls.map(([request]) => request.name)).toEqual(
+				local ? [] : ["document-ocr", "ops-web-internal-portal-check"],
+			);
+		},
+	);
+	it("keeps current CronJob scheduling and execution read-only", async () => {
+		for (const id of ["document-ocr", "internal-portal-credential-checker"] as const) {
+			await expect(
+				service().update(id, { enabled: true, intervalMinutes: 15 }),
+			).rejects.toMatchObject({ status: 409 });
+			await expect(service().run(id)).rejects.toMatchObject({ status: 409 });
 		}
-	});
-	it("keeps legacy and read-only CronJob scheduling immutable", async () => {
-		await expect(
-			service().update("notice-classifier", { enabled: true, intervalMinutes: 15 }),
-		).rejects.toMatchObject({ status: 409 });
-		await expect(
-			service().update("document-ocr", { enabled: true, intervalMinutes: 15 }),
-		).rejects.toMatchObject({ status: 409 });
-		expect(native.patch).not.toHaveBeenCalled();
+		expect(native.update).not.toHaveBeenCalled();
+		expect(native.start).not.toHaveBeenCalled();
 	});
 	it("preserves Temporal action and policies when the operator changes timing", async () => {
 		const existing = {
@@ -208,7 +231,7 @@ describe("native task ownership", () => {
 			followRuns: false,
 		});
 	});
-	it("reads old Kubernetes runs directly and checks their owner", async () => {
+	it("reads current Kubernetes task runs directly and checks their owner", async () => {
 		native.readJob.mockResolvedValue({
 			metadata: { ownerReferences: [{ kind: "CronJob", name: "document-ocr" }] },
 		});
@@ -217,14 +240,5 @@ describe("native task ownership", () => {
 			runId: null,
 		});
 		expect(await service().getRun("internal-portal-credential-checker", "old-job")).toBeNull();
-		native.getJob.mockResolvedValue({
-			jobName: "old-notice-job",
-			operation: "notice-sync",
-			status: "succeeded",
-		});
-		expect(await service().getRun("notice-sync", "old-notice-job")).toMatchObject({
-			id: "old-notice-job",
-		});
-		expect(await service().getRun("notice-classifier", "old-notice-job")).toBeNull();
 	});
 });

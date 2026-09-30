@@ -99,6 +99,7 @@ export function cleanRequestSearch<T extends Partial<RequestSearchLike>>(search:
 	return {
 		...readFailureFilters({ ...search }),
 		...(search.cursor ? { cursor: search.cursor } : {}),
+		...(search.history ? { history: search.history } : {}),
 		...(search.from ? { from: search.from } : {}),
 		...(search.to ? { to: search.to } : {}),
 		...(search.q ? { q: search.q } : {}),
@@ -130,7 +131,7 @@ export function normalizeRequestListReturnPath(value: string | undefined) {
 		if (
 			parsed.origin !== "https://ops-web.local" ||
 			!(
-				["/requests", "/chat-feedback", "/conversations"].includes(parsed.pathname) ||
+				["/overview", "/requests", "/chat-feedback", "/conversations"].includes(parsed.pathname) ||
 				/^\/(requests|conversations)\/[^/]+$/.test(parsed.pathname)
 			)
 		) {
@@ -227,6 +228,7 @@ export function formatRequestWindowLabel(value: OpsRequestWindow) {
 
 export interface RequestSearchLike extends TimeSearch, FailureFilters {
 	cursor?: string | undefined;
+	history?: string | undefined;
 	ignored?: string | undefined;
 	q?: string | undefined;
 	requestId?: string | undefined;

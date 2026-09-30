@@ -3,10 +3,11 @@ import {
 	selectTransportPeriod,
 	shiftTransportDate,
 } from "@campus-agent/transport/domain";
-import { Button, Card, Input, NativeSelect, StateMessage } from "@campus-agent/ui";
+import { Button, Card, Field, Input, StateMessage } from "@campus-agent/ui";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { TransportOpsSchedulePeriod } from "../server/transport-store-contract";
+import { FilterSelect } from "./ui/filter-select";
 
 function monthStart(date: string) {
 	return `${date.slice(0, 7)}-01`;
@@ -133,43 +134,47 @@ export function TransportCalendar({
 				{onApplyPeriod || onSuspendPeriod ? (
 					<div className="grid gap-3 border-t pt-3">
 						<p className="text-sm font-medium">按日期范围安排</p>
-						<label className="grid gap-1 text-sm" htmlFor="transport-range-source">
-							套用来源时间段
-							<NativeSelect
+						<Field label="套用来源时间段">
+							<FilterSelect
 								id="transport-range-source"
 								aria-label="套用来源时间段"
 								value={sourceId}
-								onChange={(e) => setSourceId(e.target.value)}
-							>
-								<option value="">请选择时间段</option>
-								{periods.map((p) => (
-									<option key={p.scheduleId} value={p.scheduleId}>
-										{p.validFrom} — {p.validTo ?? "长期"} · {formatWeekdays(p.weekdays)} ·{" "}
-										{p.status === "suspended" ? "停运" : `${p.items.length}班`}
-										{p.note ? ` · ${p.note}` : ""}
-									</option>
-								))}
-							</NativeSelect>
-						</label>
+								onValueChange={(nextValue) => setSourceId(nextValue)}
+								options={[
+									{ value: "", label: "请选择时间段" },
+									...periods.map((p) => ({
+										value: p.scheduleId,
+										label: [
+											p.validFrom,
+											" — ",
+											p.validTo ?? "长期",
+											" · ",
+											formatWeekdays(p.weekdays),
+											" · ",
+											p.status === "suspended" ? "停运" : `${p.items.length}班`,
+											p.note ? ` · ${p.note}` : "",
+										].join(""),
+									})),
+								]}
+							/>
+						</Field>
 						<div className="grid gap-2 sm:grid-cols-2">
-							<label className="grid gap-1 text-sm" htmlFor="transport-range-from">
-								开始日期
+							<Field label="开始日期">
 								<Input
 									id="transport-range-from"
 									type="date"
 									value={range.from}
 									onChange={(event) => setRange({ ...range, from: event.target.value })}
 								/>
-							</label>
-							<label className="grid gap-1 text-sm" htmlFor="transport-range-to">
-								结束日期
+							</Field>
+							<Field label="结束日期">
 								<Input
 									id="transport-range-to"
 									type="date"
 									value={range.to}
 									onChange={(event) => setRange({ ...range, to: event.target.value })}
 								/>
-							</label>
+							</Field>
 						</div>
 						{range.from && range.to && range.from > range.to ? (
 							<StateMessage
@@ -193,7 +198,7 @@ export function TransportCalendar({
 							{onSuspendPeriod ? (
 								<Button
 									disabled={!validRange}
-									variant="outline"
+									variant="secondary"
 									onClick={() => validRange && onSuspendPeriod(range.from, range.to)}
 								>
 									设置停运

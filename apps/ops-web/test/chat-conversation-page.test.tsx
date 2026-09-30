@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { OpsChatConversationSchema } from "campus-contracts/chat-conversations";
 import { describe, expect, it, vi } from "vitest";
+import { groupConversationTurns } from "../src/app/chat-conversation-page";
 import { OpsWebApp } from "../src/app/ops-web-app";
 import { opsRequestDetailFixture } from "../src/shared/ops-fixtures";
 
@@ -78,6 +80,7 @@ describe("会话阅读", () => {
 		const answer = await screen.findByRole("article", { name: "助手回答，当前定位" });
 		expect(within(answer).getByRole("heading", { name: "第一轮回答" })).toBeInTheDocument();
 		expect(within(answer).getByRole("table")).toBeInTheDocument();
+		fireEvent.click(within(answer).getByText("回答来源（1）"));
 		expect(within(answer).getByRole("link", { name: "打开网页" })).toHaveAttribute(
 			"href",
 			"https://example.org/page",
@@ -88,7 +91,9 @@ describe("会话阅读", () => {
 			"href",
 			"/chat-feedback?feedbackId=fb-1&vote=unhelpful",
 		);
-		fireEvent.click(within(answer).getByRole("link", { name: "查看运行详情" }));
+		const turn = screen.getByRole("region", { name: "第 1 轮问答" });
+		expect(within(turn).getAllByRole("link", { name: "查看执行详情" })).toHaveLength(1);
+		fireEvent.click(within(turn).getByRole("link", { name: "查看执行详情" }));
 		const back = await screen.findByRole("link", { name: "返回会话" });
 		expect(back.getAttribute("href")).toContain("messageId=a-1");
 	});
@@ -129,4 +134,19 @@ describe("会话阅读", () => {
 		await waitFor(() => expect(screen.getByText("会话刷新失败")).toBeInTheDocument());
 		expect(screen.getByText("此会话尚无已保存的消息。")).toBeInTheDocument();
 	});
+});
+
+it("groups answers by their parent, retains unanswered questions and orphan answers", () => {
+	const messages = OpsChatConversationSchema.parse({
+		...conversation,
+		messages: [
+			conversation.messages[0],
+			conversation.messages[2],
+			conversation.messages[1],
+			{ ...message, id: "orphan", role: "assistant", parentMessageId: "removed", requestId: null },
+		],
+	}).messages;
+	expect(
+		groupConversationTurns(messages).map((turn) => turn.messages.map((message) => message.id)),
+	).toEqual([["q-1", "a-1"], ["q-2"], ["orphan"]]);
 });

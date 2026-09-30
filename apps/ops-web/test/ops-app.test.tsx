@@ -21,8 +21,8 @@ describe("OpsWebApp", () => {
 	it("redirects the root route to the operations overview", async () => {
 		render(<OpsWebApp initialPath="/" />);
 
-		expect(await screen.findByRole("heading", { name: "运行概览" })).toBeInTheDocument();
-		const activeLink = screen.getByRole("link", { name: "运行概览" });
+		expect(await screen.findByRole("heading", { name: "问答概览" })).toBeInTheDocument();
+		const activeLink = screen.getByRole("link", { name: "问答概览" });
 		expect(activeLink).toHaveAttribute("aria-current", "page");
 		expect(activeLink).toHaveClass("bg-selected", "text-selected-foreground");
 		expect(activeLink).not.toHaveClass("bg-primary", "text-primary-foreground");
@@ -59,13 +59,13 @@ describe("OpsWebApp", () => {
 		render(<OpsWebApp initialPath="/unknown-ops-page" />);
 
 		expect(await screen.findByRole("heading", { name: "页面不存在" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "返回运行诊断" })).toHaveAttribute("href", "/requests");
+		expect(screen.getByRole("link", { name: "返回问答概览" })).toHaveAttribute("href", "/overview");
 	});
 
 	it("renders recent run records", async () => {
 		render(<OpsWebApp initialPath="/requests" />);
 
-		expect(await screen.findByRole("heading", { name: "运行诊断" })).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "运行记录" })).toBeInTheDocument();
 		expect(screen.getByRole("navigation", { name: "运维导航" })).toBeInTheDocument();
 		expect((await screen.findAllByText("req_ops_001")).length).toBeGreaterThan(0);
 		expect((await screen.findAllByText("缓考申请需要哪些材料？")).length).toBeGreaterThan(0);
@@ -73,18 +73,7 @@ describe("OpsWebApp", () => {
 		expect((await screen.findAllByText("回答已写入会话")).length).toBeGreaterThan(0);
 		expect(screen.getByRole("combobox", { name: "运行范围" })).toHaveValue("recent");
 		expect(screen.getByRole("combobox", { name: "状态" })).toHaveValue("");
-		const requestTable = screen.getByRole("table", { name: "运行诊断" });
-		expect(requestTable).toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "用户问题" })).toHaveAttribute("scope", "col");
-		expect(screen.getByRole("columnheader", { name: "产品结果" })).toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "产品状态" })).toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "执行诊断" })).toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "关注原因" })).toBeInTheDocument();
-		expect(screen.queryByRole("columnheader", { name: "Token" })).not.toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "耗时" })).toBeInTheDocument();
-		expect(
-			within(requestTable).getByRole("rowheader", { name: /缓考申请需要哪些材料？/u }),
-		).toHaveAttribute("scope", "row");
+		const requestTable = screen.getByTestId("request-mobile-list");
 		expect((await screen.findAllByText("4.28 秒")).length).toBeGreaterThan(0);
 		expect((await screen.findAllByText("已运行 1 分 48 秒")).length).toBeGreaterThan(0);
 		expect(await screen.findByTestId("request-mobile-list")).toBeInTheDocument();
@@ -167,9 +156,9 @@ describe("OpsWebApp", () => {
 
 		fireEvent.click(await screen.findByRole("button", { name: "打开导航" }));
 		const mobileNav = await screen.findByRole("dialog");
-		fireEvent.click(within(mobileNav).getByRole("link", { name: "运行诊断" }));
+		fireEvent.click(within(mobileNav).getByRole("link", { name: "历史会话" }));
 
-		expect(await screen.findByRole("heading", { name: "运行诊断" })).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "历史会话" })).toBeInTheDocument();
 		await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
 	});
 
@@ -178,7 +167,7 @@ describe("OpsWebApp", () => {
 
 		const trigger = await screen.findByRole("button", { name: "筛选" });
 		fireEvent.click(trigger);
-		expect(await screen.findByRole("dialog", { name: "筛选运行诊断" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "筛选运行记录" })).toBeInTheDocument();
 
 		fireEvent.keyDown(document, { key: "Escape" });
 		await waitFor(() => expect(trigger).toHaveFocus());
@@ -279,6 +268,10 @@ describe("OpsWebApp", () => {
 			within(await screen.findByTestId("request-context")).getByText("已完成"),
 		).toBeInTheDocument();
 		expect(await screen.findByText(/请说明你要办理的具体事项/)).toBeInTheDocument();
+		fireEvent.mouseDown(screen.getByRole("tab", { name: "执行过程" }), {
+			button: 0,
+			ctrlKey: false,
+		});
 		expect(await screen.findByRole("heading", { name: "执行摘要" })).toBeInTheDocument();
 		expect(screen.getByText("Agent")).toBeInTheDocument();
 	});
@@ -302,13 +295,12 @@ describe("OpsWebApp", () => {
 		expect(main).toHaveAttribute("id", "ops-main-content");
 		expect(main).toHaveAttribute("tabindex", "-1");
 
-		const overviewLink = screen.getByRole("link", { name: "运行概览" });
+		const overviewLink = screen.getByRole("link", { name: "问答概览" });
 		overviewLink.focus();
 		fireEvent.click(overviewLink);
-		expect(await screen.findByRole("heading", { name: "运行概览" })).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "问答概览" })).toBeInTheDocument();
 		expect(main).not.toHaveFocus();
 		expect(overviewLink).toHaveFocus();
-		expect(window.scrollTo).toHaveBeenCalledWith({ behavior: "auto", left: 0, top: 0 });
 	});
 
 	it("uses explicit missing labels and 44px controls", async () => {
@@ -387,7 +379,7 @@ describe("OpsWebApp", () => {
 	it("warns when request filter URL params are ignored", async () => {
 		render(<OpsWebApp initialPath="/requests?status=done&limit=999" />);
 
-		expect(await screen.findByText(/已忽略无效筛选参数/)).toBeInTheDocument();
+		expect(await screen.findByText(/部分筛选条件无法识别，已忽略：/)).toBeInTheDocument();
 		expect(await screen.findByText("limit")).toBeInTheDocument();
 		expect(screen.getByRole("combobox", { name: "运行范围" })).toHaveValue("recent");
 	});
@@ -396,7 +388,7 @@ describe("OpsWebApp", () => {
 		render(<OpsWebApp initialPath="/requests?view=attention&status=COMPLETED" />);
 
 		expect((await screen.findAllByText("req_ops_006")).length).toBeGreaterThan(0);
-		expect(screen.queryByText(/已忽略无效筛选参数/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/部分筛选条件无法识别，已忽略：/)).not.toBeInTheDocument();
 		expect(screen.getByRole("combobox", { name: "运行范围" })).toHaveValue("attention");
 		expect(screen.getByRole("combobox", { name: "状态" })).toHaveValue("COMPLETED");
 	});
@@ -420,7 +412,7 @@ describe("OpsWebApp", () => {
 	it("ignores removed request list limit parameters", async () => {
 		render(<OpsWebApp initialPath="/requests?limit=20" />);
 
-		expect(await screen.findByText(/已忽略无效筛选参数/)).toBeInTheDocument();
+		expect(await screen.findByText(/部分筛选条件无法识别，已忽略：/)).toBeInTheDocument();
 		expect(await screen.findByText("limit")).toBeInTheDocument();
 		expect(await screen.findByText("共 6 条，当前显示 6 条")).toBeInTheDocument();
 		expect((await screen.findAllByText("req_ops_001")).length).toBeGreaterThan(0);
@@ -430,7 +422,7 @@ describe("OpsWebApp", () => {
 	it("shows an empty request list state for filters with no matches", async () => {
 		render(<OpsWebApp initialPath="/requests?q=no-such-request" />);
 
-		expect(await screen.findByText("没有匹配的运行诊断。")).toBeInTheDocument();
+		expect(await screen.findByText("没有匹配的运行记录。")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "重置" })).toBeEnabled();
 		expect(screen.getByRole("link", { name: "清除筛选" })).toBeInTheDocument();
 	});
@@ -465,7 +457,7 @@ describe("OpsWebApp", () => {
 			await waitFor(() => expect(screen.getAllByText("req_ops_003").length).toBeGreaterThan(0));
 			expect(screen.queryAllByText("req_ops_001")).toHaveLength(0);
 			expect(screen.getByText("共 6 条，当前显示 1 条")).toBeInTheDocument();
-			expect(screen.getByRole("link", { name: "返回第一页" })).toHaveAttribute("href", "/requests");
+			expect(screen.getByRole("link", { name: "上一页" })).toHaveAttribute("href", "/requests");
 			expect(screen.queryByRole("link", { name: "返回上一页" })).not.toBeInTheDocument();
 		} finally {
 			globalThis.fetch = originalFetch;
@@ -482,7 +474,7 @@ describe("OpsWebApp", () => {
 					JSON.stringify({
 						error: {
 							code: "OPS_INVALID_QUERY",
-							message: "运行诊断查询参数无效。",
+							message: "运行记录查询参数无效。",
 						},
 					}),
 					{ headers: { "content-type": "application/json" }, status: 400 },
@@ -494,8 +486,8 @@ describe("OpsWebApp", () => {
 		try {
 			render(<OpsWebApp initialPath="/requests?status=done&limit=999" />);
 
-			expect(await screen.findByText("运行诊断读取失败")).toBeInTheDocument();
-			expect(await screen.findByText("运行诊断查询参数无效。")).toBeInTheDocument();
+			expect(await screen.findByText("运行记录读取失败")).toBeInTheDocument();
+			expect(await screen.findByText("运行记录查询参数无效。")).toBeInTheDocument();
 			expect(await screen.findByText("OPS_INVALID_QUERY")).toBeInTheDocument();
 			expect(screen.getByRole("combobox", { name: "时间范围" })).toBeInTheDocument();
 			expect(screen.getByRole("button", { name: "重置" })).toBeEnabled();
@@ -528,14 +520,14 @@ describe("OpsWebApp", () => {
 			render(<OpsWebApp initialPath="/requests" />);
 			expect((await screen.findAllByText("req_ops_001")).length).toBeGreaterThan(0);
 
-			const refresh = screen.getByLabelText("刷新运行诊断");
+			const refresh = screen.getByLabelText("刷新运行记录");
 			expect(refresh).toHaveRole("button");
 			fireEvent.click(refresh);
 
-			expect(await screen.findByText("运行诊断刷新失败")).toBeInTheDocument();
+			expect(await screen.findByText("运行记录刷新失败")).toBeInTheDocument();
 			expect(await screen.findByText(/仍显示最后一次成功数据/)).toBeInTheDocument();
 			expect(screen.getAllByText("req_ops_001").length).toBeGreaterThan(0);
-			expect(screen.queryByText("运行诊断读取失败")).not.toBeInTheDocument();
+			expect(screen.queryByText("运行记录读取失败")).not.toBeInTheDocument();
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
@@ -546,18 +538,22 @@ describe("OpsWebApp", () => {
 			<OpsWebApp initialPath="/requests/req_ops_001?from=%2Frequests%3Fstatus%3DRUNNING%26q%3Dreq_ops_003" />,
 		);
 
-		expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "执行详情" })).toBeInTheDocument();
 		expect(await screen.findByText("缓考申请需要哪些材料？")).toBeInTheDocument();
-		expect(await screen.findByRole("link", { name: "返回运行诊断" })).toHaveAttribute(
+		expect(await screen.findByRole("link", { name: "返回运行记录" })).toHaveAttribute(
 			"href",
 			"/requests?status=RUNNING&q=req_ops_003",
 		);
 		expect(screen.queryByRole("link", { name: "系统记录" })).not.toBeInTheDocument();
 		const context = within(screen.getByTestId("request-context"));
 		const result = within(screen.getByTestId("request-result"));
-		const sources = within(screen.getByTestId("request-sources"));
-		expect(context.queryByText("已结束")).not.toBeInTheDocument();
 		expect(result.getByText(/缓考申请需要在规定期限内/u)).toBeInTheDocument();
+		fireEvent.mouseDown(screen.getByRole("tab", { name: "检索与引用" }), {
+			button: 0,
+			ctrlKey: false,
+		});
+		const sources = within(await screen.findByTestId("request-sources"));
+		expect(context.queryByText("已结束")).not.toBeInTheDocument();
 		expect(sources.getByText("学生管理规定")).toBeInTheDocument();
 		expect(sources.getByText("学生规定 · 2026 年版")).toBeInTheDocument();
 		expect(sources.getByText("jwc.muc.edu.cn")).toBeInTheDocument();
@@ -568,7 +564,11 @@ describe("OpsWebApp", () => {
 		);
 		expect(webSourceLink).toHaveAttribute("target", "_blank");
 		expect(webSourceLink).toHaveAttribute("rel", "noopener noreferrer");
-		const execution = within(screen.getByTestId("request-execution"));
+		fireEvent.mouseDown(screen.getByRole("tab", { name: "执行过程" }), {
+			button: 0,
+			ctrlKey: false,
+		});
+		const execution = within(await screen.findByTestId("request-execution"));
 		expect(execution.getByText("Agent")).toBeInTheDocument();
 		expect(execution.getByText("deepseek-v4-flash-0731")).toBeInTheDocument();
 		expect(execution.getByText("2,000")).toBeInTheDocument();
@@ -576,6 +576,7 @@ describe("OpsWebApp", () => {
 		expect(execution.getByText("400")).toBeInTheDocument();
 		expect(execution.getByText("agent-runtime@899f251")).toBeInTheDocument();
 		expect(execution.getByText("execution-control@a77a046")).toBeInTheDocument();
+		fireEvent.click(context.getByText("关联标识"));
 		fireEvent.click(context.getByRole("button", { name: "复制 请求 ID" }));
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("req_ops_001");
 		expect(screen.queryByRole("button", { name: /应用日志/u })).not.toBeInTheDocument();
@@ -611,7 +612,7 @@ describe("OpsWebApp", () => {
 		}) as typeof fetch;
 
 		try {
-			render(<OpsWebApp initialPath="/requests/req_duplicate_sources" />);
+			render(<OpsWebApp initialPath="/requests/req_duplicate_sources?tab=retrieval" />);
 
 			expect(await screen.findAllByText("学生管理规定")).toHaveLength(2);
 			expect(consoleError.mock.calls.flat().join(" ")).not.toContain(
@@ -626,8 +627,8 @@ describe("OpsWebApp", () => {
 	it("keeps a request list return action on detail errors", async () => {
 		render(<OpsWebApp initialPath="/requests/no-such-id?from=%2Frequests%3Flimit%3D1" />);
 
-		expect(await screen.findByText("运行详情读取失败")).toBeInTheDocument();
-		expect(await screen.findByRole("link", { name: "返回运行诊断" })).toHaveAttribute(
+		expect(await screen.findByText("执行详情读取失败")).toBeInTheDocument();
+		expect(await screen.findByRole("link", { name: "返回运行记录" })).toHaveAttribute(
 			"href",
 			"/requests?limit=1",
 		);
@@ -641,7 +642,11 @@ describe("OpsWebApp", () => {
 		expect(within(requestContext).getByText("运行中")).toBeInTheDocument();
 		expect(within(requestContext).getByText("输出中")).toBeInTheDocument();
 		expect(screen.getByTestId("request-result")).toHaveTextContent("请求仍在处理中");
-		expect(screen.getByTestId("request-execution")).toHaveTextContent("Agent");
+		fireEvent.mouseDown(screen.getByRole("tab", { name: "执行过程" }), {
+			button: 0,
+			ctrlKey: false,
+		});
+		expect(await screen.findByTestId("request-execution")).toHaveTextContent("Agent");
 		expect(screen.getByTestId("request-execution")).toHaveTextContent("执行中");
 	});
 
@@ -732,14 +737,18 @@ describe("OpsWebApp", () => {
 		try {
 			render(<OpsWebApp initialPath="/requests/req_ops_001" />);
 			await vi.advanceTimersByTimeAsync(1);
-			expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
+			expect(await screen.findByRole("heading", { name: "执行详情" })).toBeInTheDocument();
 			expect(screen.queryByText("hindsight_append_failed")).not.toBeInTheDocument();
 
 			await vi.advanceTimersByTimeAsync(30_000);
 			await waitFor(() => expect(detailCalls).toBeGreaterThan(1));
 			expect(await screen.findByText("hindsight_append_failed")).toBeInTheDocument();
 			expect(screen.getByTestId("request-result")).toHaveTextContent("缓考申请需要在规定期限内");
-			expect(screen.getByTestId("request-execution")).toHaveTextContent("memory");
+			fireEvent.mouseDown(screen.getByRole("tab", { name: "执行过程" }), {
+				button: 0,
+				ctrlKey: false,
+			});
+			expect(await screen.findByTestId("request-execution")).toHaveTextContent("更新记忆");
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

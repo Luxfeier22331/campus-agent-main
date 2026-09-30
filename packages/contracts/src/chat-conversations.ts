@@ -49,6 +49,7 @@ export const OpsConversationListQuerySchema = z
 	.object({
 		q: z.string().trim().min(1).max(256).optional(),
 		ownerId: z.string().trim().min(1).max(200).optional(),
+		ownerQuery: z.string().trim().min(1).max(320).optional(),
 		status: OpsConversationListStatusSchema.optional(),
 		feedback: z.enum(["ANY", "WITH_FEEDBACK", "WITHOUT_FEEDBACK"]).default("ANY"),
 		hasFailures: z

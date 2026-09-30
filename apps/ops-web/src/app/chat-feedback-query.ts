@@ -1,7 +1,8 @@
 import { type ChatFeedbackQuery, ChatFeedbackQuerySchema } from "campus-contracts/chat-feedback";
+import { resolveTimeQuery, type TimeQuery } from "campus-contracts/ops-time";
 import { z } from "zod";
 
-export interface ChatFeedbackSearch {
+export interface ChatFeedbackSearch extends TimeQuery {
 	feedbackId?: string | undefined;
 	vote?: string | undefined;
 	startDate?: string | undefined;
@@ -19,16 +20,26 @@ export function buildChatFeedbackQuery(
 			return { error: "请输入有效日期。" };
 		}
 	}
+	let time: TimeQuery = {};
+	if (search.window || search.from || search.to) {
+		try {
+			time = resolveTimeQuery(search, "overview");
+		} catch {
+			return { error: "时间范围无效，请重新选择有效区间（最多90天）。" };
+		}
+	}
 	const result = ChatFeedbackQuerySchema.safeParse({
 		vote: search.vote || undefined,
 		requestId: search.requestId?.trim() || undefined,
 		cursor: search.cursor,
-		from: search.startDate
-			? new Date(`${search.startDate}T00:00:00+08:00`).toISOString()
-			: undefined,
-		to: search.endDate
-			? new Date(Date.parse(`${search.endDate}T00:00:00+08:00`) + 86_400_000).toISOString()
-			: undefined,
+		from:
+			time.from ??
+			(search.startDate ? new Date(`${search.startDate}T00:00:00+08:00`).toISOString() : undefined),
+		to:
+			time.to ??
+			(search.endDate
+				? new Date(Date.parse(`${search.endDate}T00:00:00+08:00`) + 86_400_000).toISOString()
+				: undefined),
 		limit: 50,
 	});
 	return result.success
@@ -39,3 +50,12 @@ export function buildChatFeedbackQuery(
 export function feedbackVoteLabel(vote: "helpful" | "unhelpful") {
 	return vote === "helpful" ? "有帮助" : "没有帮助";
 }
+
+export const feedbackReasonLabels = {
+	wrong_intent: "理解错了问题",
+	not_enough_detail: "信息不够详细",
+	outdated_or_missing_source: "来源过时或缺失",
+	incorrect_answer: "回答不正确",
+	unclear_or_hard_to_use: "表达不清或难以使用",
+	other: "其他原因",
+};

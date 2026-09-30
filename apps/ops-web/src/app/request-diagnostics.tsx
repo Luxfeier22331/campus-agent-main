@@ -7,6 +7,44 @@ import { ModelOutputDiagnosticPanel } from "./model-output-diagnostic.tsx";
 import { KeyValue } from "./ops-display";
 import { formatOpsDomainValue } from "./ops-domain-labels";
 
+export function RequestExceptions({ detail }: { detail: OpsRequestDetailResponse }) {
+	return (
+		<div className="my-4 grid gap-3">
+			{detail.result.state === "MISSING" ? (
+				<div role="alert" className="border-l-2 border-danger pl-3 text-danger">
+					会话结果缺失：没有找到本次请求的助手消息。
+				</div>
+			) : null}
+			{detail.execution.terminalFailure ? (
+				<section aria-label="回答终态失败" className="border-l-2 border-danger pl-3">
+					<h2 className="font-semibold text-danger">回答终态失败</h2>
+					<p className="text-sm break-words">
+						{detail.execution.terminalFailure.detail ??
+							detail.execution.terminalFailure.code ??
+							"未记录失败详情"}
+					</p>
+				</section>
+			) : null}
+			{hasFailure(detail.execution.failure) ? (
+				<section data-testid="request-failure" className="border-l-2 border-warning pl-3">
+					<h2 className="font-semibold">阶段失败摘要（不等于回答失败）</h2>
+					<p className="text-sm break-words">
+						{detail.execution.failure.code
+							? formatOpsDomainValue(detail.execution.failure.code)
+							: detail.execution.failure.detail}
+						{detail.execution.failure.code && detail.execution.failure.detail
+							? ` · ${detail.execution.failure.detail}`
+							: ""}
+					</p>
+				</section>
+			) : null}
+			{detail.request.status === "ACTION_REQUIRED" ? (
+				<p className="text-sm text-warning">等待用户补充信息</p>
+			) : null}
+		</div>
+	);
+}
+
 export function RequestDiagnostics({
 	detail,
 	from,
@@ -17,18 +55,61 @@ export function RequestDiagnostics({
 	return (
 		<>
 			{detail.execution.terminalFailure ? (
-				<section aria-label="回答终态失败">
-					<h2 className="mb-3 font-semibold text-lg">回答终态失败</h2>
+				<section aria-label="回答失败事实">
+					<h2 className="font-semibold text-lg">回答失败事实</h2>
 					<KeyValue label="失败代码" value={detail.execution.terminalFailure.code ?? "未记录"} />
 					<KeyValue label="操作" value={detail.execution.terminalFailure.operation ?? "未记录"} />
 					<KeyValue label="详情" value={detail.execution.terminalFailure.detail ?? "未记录"} />
-					<CitationFailurePanel failure={detail.execution.terminalFailure} from={from} />
 				</section>
 			) : null}
 			<FailureSection detail={detail} from={from} />
 			<RunClosureSection detail={detail} />
 			<ExecutionSection detail={detail} from={from} />
+		</>
+	);
+}
+
+export function RequestRetrieval({
+	detail,
+	from,
+}: {
+	detail: OpsRequestDetailResponse;
+	from?: string | undefined;
+}) {
+	const citationFailures = [
+		{ key: "terminal", failure: detail.execution.terminalFailure },
+		{ key: "current", failure: detail.execution.failure },
+		...detail.execution.stages.map((stage) => ({
+			key: JSON.stringify([
+				stage.stepId,
+				stage.kind,
+				stage.status,
+				stage.startedAt,
+				stage.completedAt,
+				stage.invocationId,
+			]),
+			failure: stage.failure,
+		})),
+	].flatMap(({ key, failure }) =>
+		failure &&
+		(failure.citation || (failure.sourceCode ?? failure.code) === "citation_validation_failed")
+			? [{ key, failure }]
+			: [],
+	);
+
+	return (
+		<>
 			<CampusSearchSection diagnostics={detail.execution.campusSearch} />
+			<section aria-label="引用诊断">
+				<h2 className="font-semibold text-lg mb-3">引用诊断</h2>
+				{citationFailures.length > 0 ? (
+					citationFailures.map(({ key, failure }) => (
+						<CitationFailurePanel key={key} failure={failure} from={from} />
+					))
+				) : (
+					<p className="text-sm text-muted-foreground">本次请求没有引用校验失败记录。</p>
+				)}
+			</section>
 		</>
 	);
 }
@@ -63,7 +144,7 @@ function FailureSection({
 		return null;
 	}
 	return (
-		<section aria-labelledby="request-failure-title" data-testid="request-failure">
+		<section aria-labelledby="request-failure-title" data-testid="request-failure-facts">
 			<h2 className="mb-3 font-semibold text-foreground text-lg" id="request-failure-title">
 				阶段失败摘要（不等于回答失败）
 			</h2>

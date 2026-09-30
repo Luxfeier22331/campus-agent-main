@@ -111,6 +111,7 @@
 	--sys-status-danger-border: #d9928c;
 	--state-disabled-bg: #efeff2;
 	--state-disabled-text: #6e6e73;
+	--button-radius: var(--radius-pill);
 	--input-border: var(--sys-border-control);
 	--input-radius: var(--radius-lg);
 	--card-bg: var(--sys-surface-default);

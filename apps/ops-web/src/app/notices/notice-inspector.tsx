@@ -1,7 +1,9 @@
 import {
+	Alert,
 	Button,
+	Disclosure,
+	DisclosureSummary,
 	Field,
-	NativeSelect,
 	Skeleton,
 	StateMessage,
 	Tabs,
@@ -20,6 +22,7 @@ import type { NoticeJob, NoticeJobCreate, NoticeSummary } from "../../shared/ops
 import { formatTimestamp } from "../format";
 import { ErrorState, InlineError } from "../ops-display";
 import { NoticeTransportPeriods } from "../transport-notice-links";
+import { FilterSelect } from "../ui/filter-select";
 import { getNoticeActionState } from "./notice-actions";
 import { NoticeJobDiagnostics } from "./notice-job-diagnostics";
 import { NoticeOcrSection } from "./notice-ocr";
@@ -136,9 +139,9 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 			<div
 				ref={scroll}
 				data-notice-scroll
-				className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"
+				className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5"
 			>
-				<div className="grid gap-6">
+				<div className="grid gap-6 py-5">
 					<header className="grid gap-3">
 						<div className="flex flex-wrap items-center gap-2">
 							<NoticeStateBadge state={notice.state} />
@@ -147,13 +150,14 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 						</div>
 						<h2 className="break-words font-semibold text-xl leading-tight">{notice.title}</h2>
 						{notice.processingFailures?.map((failure) => (
-							<div key={failure.stage} role="alert" className="rounded border p-3">
+							<Alert tone="danger" key={failure.stage} role="alert">
 								<p>
 									{failure.stage === "classification" ? "分类" : "发布"}处理失败 ·{" "}
 									{failure.failedAt}
 								</p>
 								<pre className="whitespace-pre-wrap break-words">{failure.rawError}</pre>
-								<button
+								<Button
+									variant="link"
 									type="button"
 									disabled={isFamilyBusy(failure.stage)}
 									onClick={() =>
@@ -167,11 +171,11 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 									}
 								>
 									重新处理此通知
-								</button>
-							</div>
+								</Button>
+							</Alert>
 						))}
 						{detailError ? <InlineError error={detailError} title="详情刷新失败" /> : null}
-						{detailPending ? <p className="text-muted-foreground text-xs">正在刷新详情…</p> : null}
+						{detailPending ? <StateMessage layout="inline" description="正在刷新详情…" /> : null}
 					</header>
 
 					<Tabs value={tab} onValueChange={changeTab}>
@@ -194,19 +198,19 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 										分类
 									</h3>
 								</div>
-								<Field label="通知分类">
-									<NativeSelect
+								<Field label="通知分类" className="w-full max-w-xs">
+									<FilterSelect
 										aria-label="通知分类"
-										onChange={(event) => onDraftCategory(event.target.value as NoticeCategory | "")}
+										onValueChange={(nextValue) => onDraftCategory(nextValue as NoticeCategory | "")}
 										value={draftCategory}
-									>
-										<option value="">请选择分类</option>
-										{NOTICE_CATEGORIES.map((value) => (
-											<option key={value} value={value}>
-												{NOTICE_CATEGORY_LABELS[value]}
-											</option>
-										))}
-									</NativeSelect>
+										options={[
+											{ value: "", label: "请选择分类" },
+											...NOTICE_CATEGORIES.map((value) => ({
+												value: value,
+												label: NOTICE_CATEGORY_LABELS[value],
+											})),
+										]}
+									/>
 								</Field>
 								<p className="text-muted-foreground text-xs">{actionState.saveDescription}</p>
 								<Button disabled={savePending || !actionState.canSave} onClick={onSave}>
@@ -243,7 +247,7 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 												operation: "notice-classify-one",
 											})
 										}
-										variant="outline"
+										variant="secondary"
 									>
 										<Sparkles className="size-4" />
 										使用模型分类
@@ -283,11 +287,11 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 									</p>
 								) : null}
 								{actionState.showReclassify ? (
-									<details className="rounded-[var(--card-radius)] border border-border">
-										<summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+									<Disclosure className="rounded-[var(--card-radius)] border border-border">
+										<DisclosureSummary className="gap-2 px-3 text-sm font-medium">
 											<MoreHorizontal aria-hidden="true" className="size-4" />
 											更多操作
-										</summary>
+										</DisclosureSummary>
 										<div className="grid gap-2 border-border border-t p-3">
 											<Button
 												disabled={classifyDisabled}
@@ -297,7 +301,7 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 														operation: "notice-classify-one",
 													})
 												}
-												variant="outline"
+												variant="secondary"
 											>
 												<Sparkles className="size-4" />
 												重新分类
@@ -306,7 +310,7 @@ function NoticeInspectorContent(props: NoticeInspectorProps) {
 												模型结果会直接更新这条通知的分类。
 											</p>
 										</div>
-									</details>
+									</Disclosure>
 								) : null}
 								{pendingSubmission ? (
 									<div className="rounded-[var(--card-radius)] border border-border px-3 py-3">

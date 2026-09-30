@@ -7,6 +7,7 @@ import {
 	DialogTitle,
 	Disclosure,
 	DisclosureSummary,
+	Field,
 	Input,
 	StateMessage,
 	Textarea,
@@ -54,13 +55,14 @@ export function TransportNoticePicker({
 				{value.map((link) => (
 					<li key={link.noticeId} className="grid gap-2 rounded border p-3">
 						<div className="flex items-start justify-between gap-2">
-							<button
+							<Button
+								variant="link"
 								type="button"
-								className="min-h-11 text-left text-link underline underline-offset-4"
+								className="min-w-0 justify-start whitespace-normal px-0 text-left"
 								onClick={() => setPreview(link)}
 							>
 								{link.title}
-							</button>
+							</Button>
 							<Button
 								disabled={disabled}
 								size="sm"
@@ -75,8 +77,7 @@ export function TransportNoticePicker({
 							#{link.noticeId} · {formatTimestamp(link.releasedAt)} ·{" "}
 							{link.isPublished ? "已发布" : "未发布"}
 						</p>
-						<label className="grid gap-1 text-sm" htmlFor={`notice-link-summary-${link.noticeId}`}>
-							运营关联说明（可空，仅后台可见）
+						<Field label="运营关联说明（可空，仅后台可见）">
 							<Textarea
 								id={`notice-link-summary-${link.noticeId}`}
 								aria-label={`通知 ${link.noticeId} 关联说明`}
@@ -93,7 +94,7 @@ export function TransportNoticePicker({
 									)
 								}
 							/>
-						</label>
+						</Field>
 					</li>
 				))}
 			</ul>
@@ -115,7 +116,7 @@ export function TransportNoticePicker({
 						/>
 						<Button
 							type="button"
-							variant="outline"
+							variant="primary"
 							onClick={() => {
 								setQ(search.trim());
 								setPage(1);
@@ -135,19 +136,20 @@ export function TransportNoticePicker({
 						/>
 					) : null}
 					{results.data?.items.length === 0 ? (
-						<p className="text-sm">没有符合条件的通知。</p>
+						<StateMessage description={<>没有符合条件的通知。</>} />
 					) : null}
 					<ul className="divide-y">
 						{results.data?.items.map((notice) => (
 							<li key={notice.noticeId} className="flex items-start gap-2 py-2">
 								<div className="min-w-0 flex-1">
-									<button
+									<Button
+										variant="link"
 										type="button"
-										className="min-h-11 text-left text-sm text-link underline underline-offset-4"
+										className="min-w-0 justify-start whitespace-normal px-0 text-left"
 										onClick={() => setPreview(notice)}
 									>
 										{notice.title}
-									</button>
+									</Button>
 									<p className="text-xs text-muted-foreground">
 										#{notice.noticeId} · {formatTimestamp(notice.releasedAt)} ·{" "}
 										{notice.state === "published" ? "已发布" : "未发布"}
@@ -155,7 +157,7 @@ export function TransportNoticePicker({
 								</div>
 								<Button
 									size="sm"
-									variant="outline"
+									variant="secondary"
 									disabled={disabled || value.some((link) => link.noticeId === notice.noticeId)}
 									onClick={() =>
 										onChange([
@@ -178,7 +180,7 @@ export function TransportNoticePicker({
 					<div className="flex items-center justify-between gap-2">
 						<Button
 							size="sm"
-							variant="outline"
+							variant="ghost"
 							disabled={page === 1 || results.isFetching}
 							onClick={() => setPage(page - 1)}
 						>
@@ -189,7 +191,7 @@ export function TransportNoticePicker({
 						</span>
 						<Button
 							size="sm"
-							variant="outline"
+							variant="ghost"
 							disabled={!results.data || page >= results.data.totalPages || results.isFetching}
 							onClick={() => setPage(page + 1)}
 						>
@@ -201,7 +203,7 @@ export function TransportNoticePicker({
 					</Button>
 				</div>
 			) : (
-				<Button disabled={disabled} variant="outline" onClick={() => setSearching(true)}>
+				<Button disabled={disabled} variant="secondary" onClick={() => setSearching(true)}>
 					添加关联通知
 				</Button>
 			)}
@@ -255,7 +257,7 @@ export function TransportNoticeLinkEditor({
 		<section aria-label="维护关联通知" className="grid gap-4">
 			<div className="flex items-center justify-between gap-3">
 				<h2 className="font-medium">维护关联通知</h2>
-				<Button variant="outline" disabled={saving} onClick={onCancel}>
+				<Button variant="secondary" disabled={saving} onClick={onCancel}>
 					取消
 				</Button>
 			</div>

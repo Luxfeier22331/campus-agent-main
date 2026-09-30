@@ -6,7 +6,6 @@ import {
 	DisclosureSummary,
 	Field,
 	Input,
-	NativeSelect,
 	StateMessage,
 	Textarea,
 	ToggleGroup,
@@ -19,7 +18,6 @@ import {
 	type ReactNode,
 	useContext,
 	useEffect,
-	useId,
 	useRef,
 	useState,
 } from "react";
@@ -42,6 +40,7 @@ import {
 import { InlineError } from "./ops-display";
 import { TransportImpact } from "./transport-impact";
 import { TransportNoticePicker } from "./transport-notice-links";
+import { FilterSelect } from "./ui/filter-select";
 
 interface EditorEvents {
 	onDirty: (dirty: boolean) => void;
@@ -446,6 +445,17 @@ export function TransportPeriodEditor({
 		>
 			<Errors.Provider value={errors}>
 				<div ref={editorBody} className="grid gap-4">
+					<div className="grid gap-1 border-b border-border pb-3 text-sm">
+						<p>
+							线路：{route.origin} → {route.destination}
+						</p>
+						<p>
+							来源：{source ? `${source.validFrom} 至 ${source.validTo ?? "长期"}` : "新建安排"}
+						</p>
+						<p>
+							适用日期：{form.validFrom || "待选择"} 至 {form.validTo || "长期"}
+						</p>
+					</div>
 					{quickAction ? (
 						<p className="text-sm text-muted-foreground">
 							另存为所选日期的完整安排，原安排不变；扩展日期范围会套用整份时刻表。
@@ -548,7 +558,7 @@ export function TransportPeriodEditor({
 							</h3>
 							<Button
 								disabled={form.status === "suspended"}
-								variant="outline"
+								variant="secondary"
 								size="sm"
 								onClick={() => setForm({ ...form, items: [...form.items, newItem()] })}
 							>
@@ -920,27 +930,14 @@ function Choice({
 	options,
 }: TextProps & { options: [string, string][] }) {
 	const errors = useContext(Errors);
-	// NativeSelect has a wrapper, so link the label directly to its select.
-	const id = useId();
 	return (
-		<div className="grid min-w-0 gap-1.5 text-sm">
-			<label htmlFor={id} className="font-medium">
-				{label}
-			</label>
-			<NativeSelect
-				id={id}
+		<Field label={label} error={errors[name]}>
+			<FilterSelect
 				name={name}
-				aria-invalid={Boolean(errors[name])}
 				value={value}
-				onChange={(event) => onChange(event.target.value)}
-			>
-				{options.map(([key, text]) => (
-					<option key={key} value={key}>
-						{text}
-					</option>
-				))}
-			</NativeSelect>
-			{errors[name] ? <p className="text-danger text-xs">{errors[name]}</p> : null}
-		</div>
+				onValueChange={(nextValue) => onChange(nextValue)}
+				options={options.map(([key, text]) => ({ value: key, label: text }))}
+			/>
+		</Field>
 	);
 }

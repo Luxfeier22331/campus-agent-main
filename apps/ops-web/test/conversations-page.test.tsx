@@ -114,9 +114,10 @@ describe("conversation filters", () => {
 		const { urls } = await openPage("/conversations?cursor=previous");
 		const before = urls.length;
 		change("搜索会话", "奖学金");
-		change("会话状态", "RUNNING");
+		change("搜索用户", "  学生@example.test  ");
+		change("最新一轮状态", "RUNNING");
 		change("反馈状态", "WITH_FEEDBACK");
-		change("失败筛选", "false");
+		change("包含失败请求", "false");
 		change("时间范围", "custom");
 		change("开始日期", "2026-09-14");
 		change("结束日期", "2026-09-14");
@@ -129,6 +130,7 @@ describe("conversation filters", () => {
 		await waitFor(() => expect(urls.at(-1)?.searchParams.get("q")).toBe("奖学金"));
 		expect(Object.fromEntries(urls.at(-1)?.searchParams ?? [])).toMatchObject({
 			status: "RUNNING",
+			ownerQuery: "学生@example.test",
 			feedback: "WITH_FEEDBACK",
 			hasFailures: "false",
 			from: "2026-09-13T16:00:00.000Z",
@@ -137,11 +139,30 @@ describe("conversation filters", () => {
 		expect(urls.at(-1)?.searchParams.has("cursor")).toBe(false);
 		fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
 		await waitFor(() => expect(urls.at(-1)?.search).toBe(""));
-		for (const label of ["搜索会话", "会话状态", "反馈状态", "失败筛选"]) {
+		for (const label of ["搜索用户", "搜索会话", "最新一轮状态", "反馈状态", "包含失败请求"]) {
 			expect(screen.getByLabelText(label)).toHaveValue("");
 		}
 		submit();
 		expect(urls.at(-1)?.search).toBe("");
+	});
+
+	it("keeps user search across pagination and reading, removes it independently", async () => {
+		const { urls, history } = await openPage(
+			"/conversations?ownerQuery=Alice&q=materials&window=30d",
+		);
+		await waitFor(() => expect(urls.at(-1)?.searchParams.get("ownerQuery")).toBe("Alice"));
+		fireEvent.click(await screen.findByRole("link", { name: "测试会话" }));
+		await screen.findByRole("heading", { name: "测试会话" });
+		expect(new URLSearchParams(history.location.search).get("ownerQuery")).toBe("Alice");
+		fireEvent.click(screen.getByRole("button", { name: "返回历史会话" }));
+		fireEvent.click(await screen.findByRole("button", { name: "下一页" }));
+		await waitFor(() => expect(urls.at(-1)?.searchParams.get("cursor")).toBe("next"));
+		expect(urls.at(-1)?.searchParams.get("ownerQuery")).toBe("Alice");
+		fireEvent.click(screen.getByRole("button", { name: "移除用户筛选" }));
+		await waitFor(() => expect(urls.at(-1)?.searchParams.has("ownerQuery")).toBe(false));
+		expect(urls.at(-1)?.searchParams.has("cursor")).toBe(false);
+		expect(urls.at(-1)?.searchParams.get("q")).toBe("materials");
+		expect(screen.getByLabelText("搜索用户")).toHaveValue("");
 	});
 
 	it("restores applied fields on back and forward and retains drafts on refresh", async () => {
@@ -150,15 +171,15 @@ describe("conversation filters", () => {
 		submit();
 		await waitFor(() => expect(urls.at(-1)?.searchParams.get("q")).toBe("first"));
 		change("搜索会话", "second");
-		change("失败筛选", "false");
+		change("包含失败请求", "false");
 		submit();
 		await waitFor(() => expect(urls.at(-1)?.searchParams.get("q")).toBe("second"));
 		await act(async () => history.back());
 		await waitFor(() => expect(screen.getByLabelText("搜索会话")).toHaveValue("first"));
-		expect(screen.getByLabelText("失败筛选")).toHaveValue("");
+		expect(screen.getByLabelText("包含失败请求")).toHaveValue("");
 		await act(async () => history.forward());
 		await waitFor(() => expect(screen.getByLabelText("搜索会话")).toHaveValue("second"));
-		expect(screen.getByLabelText("失败筛选")).toHaveValue("false");
+		expect(screen.getByLabelText("包含失败请求")).toHaveValue("false");
 		change("搜索会话", "unsaved");
 		const before = urls.length;
 		fireEvent.click(screen.getByRole("button", { name: "刷新历史会话" }));
@@ -203,13 +224,10 @@ describe("conversation filters", () => {
 			);
 			expect(screen.getByLabelText("开始日期")).toHaveValue(date);
 			expect(screen.getByLabelText("结束日期")).toHaveValue(date);
-			fireEvent.click(screen.getByRole("link", { name: "测试会话" }));
+			fireEvent.click(await screen.findByRole("link", { name: "测试会话" }));
 			await screen.findByRole("heading", { name: "测试会话" });
-			const returnUrl = new URL(
-				screen.getByRole<HTMLAnchorElement>("link", { name: "返回历史会话" }).href,
-				"https://ops.example.test",
-			);
-			expect(returnUrl.searchParams.get("from")).toBe(from);
+			expect(history.location.search).toContain("conversationId=conv-1");
+			expect(new URLSearchParams(history.location.search).get("from")).toBe(from);
 			await act(async () => history.back());
 			await screen.findByRole("heading", { name: "历史会话" });
 			expect(screen.getByLabelText("开始日期")).toHaveValue(date);

@@ -1,50 +1,58 @@
-import { Button, Input, NativeSelect, StateMessage } from "@campus-agent/ui";
+import { Button, cn, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, MessageSquare, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
+import { ChatConversationPage } from "./chat-conversation-page";
+import { ConversationFilters } from "./conversation-filters";
 import { formatId, formatTimestamp } from "./format";
 import { fetchChatConversations } from "./ops-api/chat-conversations";
-import { ErrorState, PageHeader, StatusBadge } from "./ops-display";
-import { replaceTimeQuery, type TimeSearch, timeQueryFields } from "./time-filters";
-import { TimeRangeFilter, TimeRangeSummary } from "./ui/time-window-select";
+import { ErrorState, PageHeader, StaleDataWarning, StatusBadge } from "./ops-display";
+import type { TimeSearch } from "./time-filters";
 
-interface ConversationsFilterDraft {
-	q: string;
-	status: string;
-	feedback: string;
-	hasFailures: string;
+const desktopQuery = "(min-width: 1280px)";
+function subscribeDesktop(callback: () => void) {
+	const media = window.matchMedia?.(desktopQuery);
+	media?.addEventListener("change", callback);
+	return () => media?.removeEventListener("change", callback);
 }
-
-function filterDraft(search: Record<string, unknown>): ConversationsFilterDraft {
-	return {
-		q: typeof search.q === "string" ? search.q : "",
-		status: typeof search.status === "string" ? search.status : "",
-		feedback: typeof search.feedback === "string" ? search.feedback : "",
-		hasFailures: typeof search.hasFailures === "boolean" ? String(search.hasFailures) : "",
-	};
-}
-
-function isQuestionPreviewDuplicated(title: string, preview: string | null): boolean {
-	if (preview === null) {
-		return false;
-	}
-	if (preview === title) {
-		return true;
-	}
-	return title.endsWith("...") && preview.startsWith(title.slice(0, -3));
-}
+const isDesktop = () => window.matchMedia?.(desktopQuery).matches ?? false;
 
 export function ConversationsPage({ search }: { search: TimeSearch & Record<string, unknown> }) {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const { q, status, feedback, hasFailures } = search;
-	const [draft, setDraft] = useState(() => filterDraft(search));
+	const wide = useSyncExternalStore(subscribeDesktop, isDesktop, () => false);
+	const selectedId = typeof search.conversationId === "string" ? search.conversationId : undefined;
+	const messageId = typeof search.messageId === "string" ? search.messageId : undefined;
+	const readerRef = useRef<HTMLElement>(null);
+	const previousSelection = useRef(selectedId);
 	useEffect(() => {
-		setDraft(filterDraft({ q, status, feedback, hasFailures }));
-	}, [q, status, feedback, hasFailures]);
+		if (selectedId && !wide && !messageId) {
+			readerRef.current?.focus({ preventScroll: true });
+		}
+		if (!selectedId && previousSelection.current) {
+			document
+				.getElementById(`conversation-open-${previousSelection.current}`)
+				?.focus({ preventScroll: true });
+		}
+		previousSelection.current = selectedId;
+	}, [selectedId, wide, messageId]);
+	const history = decodeCursorHistory(
+		typeof search.history === "string" ? search.history : undefined,
+	);
 	const params = new URLSearchParams();
-	for (const key of ["q", "cursor", "from", "to", "window", "status", "feedback"]) {
+	for (const key of [
+		"q",
+		"ownerQuery",
+		"ownerId",
+		"cursor",
+		"from",
+		"to",
+		"window",
+		"status",
+		"feedback",
+	]) {
 		const value = search[key];
 		if (typeof value === "string" && value) {
 			params.set(key, value);
@@ -53,212 +61,244 @@ export function ConversationsPage({ search }: { search: TimeSearch & Record<stri
 	if (typeof search.hasFailures === "boolean") {
 		params.set("hasFailures", String(search.hasFailures));
 	}
-	const filterParams = new URLSearchParams(params);
-	filterParams.delete("cursor");
-	const filterKey = filterParams.toString();
-	const query = useQuery<Awaited<ReturnType<typeof fetchChatConversations>>>({
+	const query = useQuery({
 		enabled: !search.timeError,
-		queryKey: ["ops", "chat-conversations", filterKey, search.cursor],
+		queryKey: ["ops", "chat-conversations", "list", params.toString()],
 		queryFn: ({ signal }) => fetchChatConversations(params, signal),
-		placeholderData: (previous, previousQuery) =>
-			previousQuery?.queryKey[2] === filterKey ? previous : undefined,
 	});
-	const hasFilters =
-		["q", "status", "feedback", "hasFailures", "from", "to"].some(
-			(k) => search[k] !== undefined && search[k] !== "",
-		) || Boolean(search.window && search.window !== "today");
+	const rows = query.data?.data ?? [];
+	const selectedIndex = rows.findIndex((row) => row.id === selectedId);
+	const selected = rows[selectedIndex];
+	const select = (id: string | undefined) =>
+		void navigate({
+			to: "/conversations",
+			search: { ...search, conversationId: id, messageId: undefined },
+			resetScroll: !wide,
+		});
+	const listSearch = { ...search, conversationId: undefined, messageId: undefined };
+	const showList = wide || !selectedId;
 	return (
-		<section>
-			<PageHeader
-				actions={
-					<Button
-						aria-label="刷新历史会话"
-						disabled={query.isFetching}
-						onClick={() => void query.refetch()}
-						variant="outline"
-					>
-						<RefreshCw className="size-4" />
-						{query.isFetching ? "刷新中" : "刷新"}
-					</Button>
-				}
-				description="按会话查看用户问题、助手回答和需要排查的运行。日期按北京时间计算。"
-				title="历史会话"
-			/>
-			<form
-				className="my-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem_10rem_10rem_auto]"
-				onSubmit={(event) => {
-					event.preventDefault();
-					const value = (name: keyof typeof draft) => draft[name] || undefined;
-					void navigate({
-						to: "/conversations",
-						search: {
-							q: value("q"),
-							status: value("status"),
-							feedback: value("feedback"),
-							hasFailures:
-								value("hasFailures") === undefined ? undefined : value("hasFailures") === "true",
-							...timeQueryFields(search),
-						},
-					});
-				}}
-			>
-				<Input
-					aria-label="搜索会话"
-					value={draft.q}
-					onChange={(event) => setDraft((previous) => ({ ...previous, q: event.target.value }))}
-					name="q"
-					placeholder="搜索标题、问题、回答或 request ID"
-				/>
-				<NativeSelect
-					aria-label="会话状态"
-					value={draft.status}
-					onChange={(event) =>
-						setDraft((previous) => ({ ...previous, status: event.target.value }))
-					}
-					name="status"
+		<section className="ops-conversations min-w-0">
+			<PageHeader title="历史会话" />
+			<div className="ops-conversation-workspace">
+				<section aria-label="会话筛选" hidden={!showList} className="ops-conversation-search">
+					<ConversationFilters search={search} filters={query.data?.filters} />
+				</section>
+				<section
+					aria-label="会话队列"
+					hidden={!showList}
+					className="ops-conversation-queue"
+					data-scroll-restoration-id={`conversation-queue-${params}`}
 				>
-					<option value="">全部状态</option>
-					<option value="COMPLETED">已完成</option>
-					<option value="FAILED">失败</option>
-					<option value="RUNNING">运行中</option>
-					<option value="PENDING">待处理</option>
-					<option value="ACTION_REQUIRED">需要关注</option>
-					<option value="CANCELLED">已取消</option>
-				</NativeSelect>
-				<NativeSelect
-					aria-label="反馈状态"
-					value={draft.feedback}
-					onChange={(event) =>
-						setDraft((previous) => ({ ...previous, feedback: event.target.value }))
-					}
-					name="feedback"
-				>
-					<option value="">全部反馈</option>
-					<option value="WITH_FEEDBACK">有反馈</option>
-					<option value="WITHOUT_FEEDBACK">无反馈</option>
-				</NativeSelect>
-				<NativeSelect
-					aria-label="失败筛选"
-					value={draft.hasFailures}
-					onChange={(event) =>
-						setDraft((previous) => ({ ...previous, hasFailures: event.target.value }))
-					}
-					name="hasFailures"
-				>
-					<option value="">全部运行</option>
-					<option value="true">包含失败</option>
-					<option value="false">不含失败</option>
-				</NativeSelect>
-				<div className="sm:col-span-full">
-					<TimeRangeFilter
-						search={search}
-						scope="conversations"
-						onChange={(time) =>
-							void navigate({ to: "/conversations", search: replaceTimeQuery(search, time) })
-						}
-					/>
-				</div>
-				<Button type="submit">搜索</Button>
-			</form>
-			{query.isPending && !search.timeError ? (
-				<StateMessage layout="inline" role="status" description={<> 正在读取历史会话... </>} />
-			) : null}
-			{query.isError && !query.data ? (
-				<ErrorState error={query.error} onRetry={() => query.refetch()} title="历史会话读取失败" />
-			) : null}
-			{query.data && !search.timeError ? (
-				<>
-					<TimeRangeSummary filters={query.data.filters} />
-					<div className="mb-3 flex flex-wrap justify-between gap-2 text-sm text-muted-foreground">
-						<span>当前页 {query.data?.data.length ?? 0} 个会话 · 按最近活动时间排序</span>
-						{query.isFetching ? <span role="status">正在更新结果…</span> : null}
+					<h2 className="sr-only">会话列表</h2>
+					<div className="flex items-center justify-between gap-2 px-4 py-2">
+						<div className="text-xs text-muted-foreground" role="status">
+							{query.isFetching
+								? "正在读取会话…"
+								: query.data
+									? `本页 ${rows.length} 个会话 · 最近活动优先`
+									: "最近活动优先"}
+						</div>
+						<Button
+							aria-label="刷新历史会话"
+							variant="ghost"
+							size="sm"
+							disabled={query.isFetching}
+							onClick={() => void query.refetch()}
+						>
+							<RefreshCw className="size-4" />
+							刷新
+						</Button>
 					</div>
-					{query.isRefetchError ? (
-						<StateMessage
-							layout="inline"
-							role="status"
-							className="mb-3"
-							description={
-								<>
-									刷新失败，当前显示上一次成功结果。{" "}
-									<button className="underline" onClick={() => void query.refetch()} type="button">
-										重试
-									</button>
-								</>
-							}
+					{query.isError && !query.data ? (
+						<ErrorState
+							error={query.error}
+							onRetry={() => query.refetch()}
+							title="历史会话读取失败"
 						/>
 					) : null}
-					{query.data?.data.length === 0 ? (
-						<div className="border-border border-y bg-secondary p-4 text-sm">
-							没有匹配的历史会话。
-						</div>
-					) : (
-						<div className="divide-y divide-border border-y">
-							{query.data?.data.map((c) => (
-								<article className="grid gap-2 py-4" key={c.id}>
-									<div className="flex flex-wrap items-center justify-between gap-2">
-										<Link
-											className="font-medium text-foreground hover:underline"
-											params={{ conversationId: c.id }}
-											search={{ from: location.href }}
-											to="/conversations/$conversationId"
-										>
-											{c.title}
-										</Link>
-										<StatusBadge status={c.latestStatus} />
-									</div>
-									<div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-										<span title={c.owner.displayName ? undefined : c.owner.id}>
-											用户：
-											{c.owner.displayName
-												? `${c.owner.displayName}${c.owner.email ? `（${c.owner.email}）` : ""}`
-												: c.owner.email || formatId(c.owner.id)}
-										</span>
-										<span>更新于 {formatTimestamp(c.updatedAt)}</span>
-									</div>
-									{isQuestionPreviewDuplicated(c.title, c.latestQuestionPreview) ? null : (
-										<p className="text-sm text-foreground">
-											{c.latestQuestionPreview ?? "暂无用户问题"}
-										</p>
-									)}
-									{c.latestAnswerPreview ? (
-										<p className="line-clamp-2 text-sm text-muted-foreground">
-											{c.latestAnswerPreview}
-										</p>
-									) : null}
-									<div className="flex gap-3 text-xs text-muted-foreground">
-										{c.hasFailures ? <span>包含失败运行</span> : null}
-										{c.hasFeedback ? <span>有用户反馈</span> : null}
-									</div>
-								</article>
-							))}
-						</div>
-					)}
-					<div className="flex gap-3">
-						{query.data?.page.nextCursor ? (
-							<Link
-								className="mt-4 inline-flex font-medium text-info hover:underline"
-								search={{ ...search, cursor: query.data.page.nextCursor }}
-								to="/conversations"
-							>
-								下一页
-							</Link>
-						) : null}
-						{hasFilters ? (
-							<Button
-								className="mt-4"
-								onClick={() => {
-									setDraft(filterDraft({}));
-									void navigate({ to: "/conversations", search: {} });
-								}}
-								variant="ghost"
-							>
-								清除筛选
+					{query.isRefetchError && query.data ? (
+						<StaleDataWarning
+							error={query.error}
+							lastSuccessfulAt={query.dataUpdatedAt}
+							onRetry={() => void query.refetch()}
+							title="历史会话刷新失败"
+						/>
+					) : null}
+					{query.data && !search.timeError ? (
+						<>
+							{rows.length === 0 ? (
+								<StateMessage description="没有匹配的历史会话。" />
+							) : (
+								<nav aria-label="会话列表" className="px-2">
+									{rows.map((c) => (
+										<article key={c.id}>
+											<Link
+												id={`conversation-open-${c.id}`}
+												to="/conversations"
+												search={{ ...search, conversationId: c.id, messageId: undefined }}
+												resetScroll={!wide}
+												aria-label={c.title}
+												aria-current={selectedId === c.id ? "true" : undefined}
+												className={cn(
+													"ops-conversation-row",
+													selectedId === c.id && "ops-conversation-row-selected",
+												)}
+											>
+												<div className="flex min-w-0 items-center justify-between gap-3 text-xs text-muted-foreground">
+													<span className="truncate" title={c.owner.email || c.owner.id}>
+														用户：{c.owner.displayName || c.owner.email || formatId(c.owner.id)}
+													</span>
+													<time
+														className="shrink-0"
+														dateTime={c.updatedAt}
+														title={`${formatTimestamp(c.updatedAt)} 北京时间`}
+													>
+														{formatTimestamp(c.updatedAt).slice(5, 16)}
+													</time>
+												</div>
+												<h3 className="line-clamp-2 break-words font-medium leading-6">
+													{c.title}
+												</h3>
+												{c.latestQuestionPreview && c.latestQuestionPreview !== c.title ? (
+													<p className="line-clamp-1 break-words text-sm">
+														<span className="mr-2 text-muted-foreground">问</span>
+														{c.latestQuestionPreview}
+													</p>
+												) : null}
+												<p className="line-clamp-1 break-words text-sm text-muted-foreground">
+													<span className="mr-2">答</span>
+													{c.latestAnswerPreview ?? "最新一轮尚无回答"}
+												</p>
+												<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+													<span className="sr-only">最新一轮状态：</span>
+													<StatusBadge status={c.latestStatus} />
+													<span>{c.turnCount} 轮</span>
+													{c.hasFailures ? <span className="text-danger">包含失败</span> : null}
+													{c.hasFeedback ? <span>有反馈</span> : null}
+												</div>
+											</Link>
+										</article>
+									))}
+								</nav>
+							)}
+							<div className="flex items-center justify-between gap-2 border-t border-border p-3">
+								<Button
+									variant="ghost"
+									disabled={history.length === 0 || query.isFetching}
+									onClick={() =>
+										void navigate({
+											to: "/conversations",
+											search: {
+												...listSearch,
+												cursor: history.at(-1) || undefined,
+												history: encodeCursorHistory(history.slice(0, -1)),
+											},
+										})
+									}
+								>
+									<ChevronLeft className="size-4" />
+									上一页
+								</Button>
+								<Button
+									variant="ghost"
+									disabled={!query.data.page.nextCursor || query.isFetching}
+									onClick={() =>
+										void navigate({
+											to: "/conversations",
+											search: {
+												...listSearch,
+												cursor: query.data?.page.nextCursor ?? undefined,
+												history: encodeCursorHistory([
+													...history,
+													typeof search.cursor === "string" ? search.cursor : "",
+												]),
+											},
+										})
+									}
+								>
+									下一页
+									<ChevronRight className="size-4" />
+								</Button>
+							</div>
+						</>
+					) : null}
+				</section>
+				{selectedId ? (
+					<section
+						ref={readerRef}
+						tabIndex={-1}
+						aria-label="会话阅读区"
+						className="ops-conversation-reader outline-none"
+					>
+						<div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+							<Button variant="ghost" onClick={() => select(undefined)}>
+								<ArrowLeft className="size-4" />
+								返回历史会话
 							</Button>
-						) : null}
+							<fieldset className="flex items-center gap-1" aria-label="本页会话导航">
+								<Button
+									size="icon"
+									variant="ghost"
+									aria-label="上一条会话"
+									disabled={selectedIndex <= 0 || query.isFetching}
+									onClick={() => select(rows[selectedIndex - 1]?.id)}
+								>
+									<ChevronLeft className="size-4" />
+								</Button>
+								<span className="text-xs text-muted-foreground">
+									{selectedIndex < 0 ? "当前会话" : `${selectedIndex + 1} / ${rows.length}`}
+								</span>
+								<Button
+									size="icon"
+									variant="ghost"
+									aria-label="下一条会话"
+									disabled={
+										selectedIndex < 0 || selectedIndex >= rows.length - 1 || query.isFetching
+									}
+									onClick={() => select(rows[selectedIndex + 1]?.id)}
+								>
+									<ChevronRight className="size-4" />
+								</Button>
+							</fieldset>
+						</div>
+						<div
+							key={selectedId}
+							className="ops-conversation-reading-content"
+							data-scroll-restoration-id={`conversation-reader-${selectedId}`}
+						>
+							{selected ? (
+								<div className="mb-4 flex flex-wrap items-center gap-2 break-all text-xs text-muted-foreground">
+									<StatusBadge status={selected.latestStatus} />
+									<span>
+										{selected.owner.displayName ||
+											selected.owner.email ||
+											formatId(selected.owner.id)}
+									</span>
+									{selected.owner.displayName && selected.owner.email ? (
+										<span>{selected.owner.email}</span>
+									) : null}
+								</div>
+							) : null}
+							<ChatConversationPage
+								key={selectedId}
+								conversationId={selectedId}
+								messageId={messageId}
+								inline
+								from={location.href}
+							/>
+						</div>
+					</section>
+				) : wide ? (
+					<div className="flex min-w-0 flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+						<MessageSquare aria-hidden="true" className="size-9" />
+						<h2 className="text-lg font-medium text-foreground">选择一段会话</h2>
+						<p className="max-w-xs text-sm leading-6">
+							在左侧找到会话，在这里阅读完整问答、用户反馈和回答来源。
+						</p>
 					</div>
-				</>
-			) : null}
+				) : null}
+			</div>
 		</section>
 	);
 }

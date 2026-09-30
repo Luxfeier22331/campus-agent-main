@@ -55,7 +55,7 @@ export function UserDetailSessionsTable({
 							<Button
 								disabled={commandPending || !row.isActive}
 								onClick={() => onRevoke(row.id)}
-								variant="outline"
+								variant="ghost"
 							>
 								撤销
 							</Button>

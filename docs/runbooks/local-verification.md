@@ -77,6 +77,24 @@ pnpm dev:doctor -- --scope data
 `dev:init --data cluster` 不复制集群的完整业务数据库，只同步 Docs source 引用闭包、当前混合 Qdrant collection、检索所需通知表和当前 profile 的 `current_index`，不复制用户、session、Dining、Transport、Groups 或 reviews。基础 UI 验证仍可使用 seed 和 fixture；seed 是本地完整基础数据路径。模型连接仍由开发者提供；数据 ready 不等于模型配置或真实查询成功。
 
 同步失败时当前 profile 的 current pointer 不会激活候选 collection；修复集群连接或对象后重试同一条同步命令。
+
+只验收 Ops 内容页面时，可用轻量内容模式替换本地内容：
+
+```bash
+pnpm dev:init -- --target ops-web --data cluster-content --notice-limit 100 --replace \
+  --context nc-arm-6c --namespace campus-agent-staging
+```
+
+`cluster-content` 默认取最新 100 条通知，并补齐所导入班车时段引用的通知；`--notice-limit` 可调整近期通知数。
+群目录、班车和食堂地图／菜单使用现有产品数据列投影全量导入。通知资产只保留元数据，复制选中通知的原始
+正文 JSON 到本地 source bucket，使 Ops 正文预览可用；不复制图片、附件文件、食堂 SVG、Docs 或 Qdrant 索引。
+图片预览、附件下载和依赖这些文件的 OCR 不在此模式覆盖范围内。集群只使用 `product_data_ro` 和
+`objectstore-ro` 的 source 只读身份，不需要 Qdrant 连接。
+
+与 seed 替换一致，现有基础内容及其依赖的食堂评价会被替换，用户、会话和模型配置保留。由于部分通知不再
+匹配原索引，内容替换事务同时清除本地 `current_index` 绑定；本地检索不可用，完整检索验收需再运行
+`--data cluster`。导入前停止当前 worktree 应用，保留本地基础设施；已有本地内容需显式 `--replace`。
+
 浏览器验收按需使用 MCP，不增加 smoke 命令或 PR CI。
 
 初始化成功后不再自动进行全量诊断。默认 doctor 与启动检查只核对必要入口；业务表为空不代表损坏。

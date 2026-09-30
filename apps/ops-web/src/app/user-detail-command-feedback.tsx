@@ -29,7 +29,7 @@ export function UserDetailCommandFeedback({
 					<InlineError error={commandError} title="用户操作失败" />
 					{retryableAttempt ? (
 						<div>
-							<Button disabled={commandPending} onClick={onRetry} variant="outline">
+							<Button disabled={commandPending} onClick={onRetry} variant="secondary">
 								<RefreshCw className="size-4" />
 								重试同一操作
 							</Button>

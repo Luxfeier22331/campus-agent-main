@@ -9,7 +9,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Field,
 	Input,
+	StateMessage,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -72,15 +74,15 @@ export function InternalPortalCredentialsSection() {
 	if (credentials.isPending) {
 		return (
 			<section>
-				<PageHeader title="内部门户凭据" />
-				<p className="text-muted-foreground text-sm">正在读取凭据...</p>
+				<PageHeader headingLevel={2} title="内部门户凭据" />
+				<StateMessage layout="inline" description="正在读取凭据..." />
 			</section>
 		);
 	}
 	if (credentials.isError || !credentials.data) {
 		return (
 			<section>
-				<PageHeader title="内部门户凭据" />
+				<PageHeader headingLevel={2} title="内部门户凭据" />
 				<ErrorState
 					error={credentials.error}
 					onRetry={() => void credentials.refetch()}
@@ -109,6 +111,7 @@ export function InternalPortalCredentialsSection() {
 		<>
 			<section>
 				<PageHeader
+					headingLevel={2}
 					actions={
 						<ActionGroup>
 							<Button
@@ -117,7 +120,7 @@ export function InternalPortalCredentialsSection() {
 								onClick={() => void credentials.refetch()}
 								size="icon"
 								title="刷新凭据"
-								variant="outline"
+								variant="ghost"
 							>
 								<RefreshCw className="size-4" />
 							</Button>
@@ -127,6 +130,7 @@ export function InternalPortalCredentialsSection() {
 							</Button>
 						</ActionGroup>
 					}
+					description="维护采集凭据、轮换内容与连接检查结果。"
 					title="内部门户凭据"
 				/>
 				{commandError ? (
@@ -135,9 +139,7 @@ export function InternalPortalCredentialsSection() {
 					</div>
 				) : null}
 				{rows.length === 0 ? (
-					<div className="border-border border-y bg-background px-4 py-10 text-center text-muted-foreground text-sm">
-						尚无内部门户凭据。
-					</div>
+					<StateMessage layout="inline" description="尚无内部门户凭据。" />
 				) : (
 					<>
 						<div className="hidden md:block">
@@ -276,8 +278,8 @@ function CredentialMobileRow(props: {
 	credential: InternalPortalCredential;
 }) {
 	return (
-		<div className="grid gap-3 border-border border-b px-1 py-4 last:border-b-0">
-			<div className="flex min-w-0 items-start justify-between gap-3">
+		<div className="grid min-w-0 gap-3 border-border border-b px-1 py-4 last:border-b-0">
+			<div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0">
 					<p className="break-words font-medium text-foreground">{props.credential.name}</p>
 					<p className="truncate font-mono text-muted-foreground text-xs">
@@ -371,8 +373,7 @@ function RenameCredentialDialog(props: {
 						rename.mutate();
 					}}
 				>
-					<label className="grid gap-1 text-sm" htmlFor="internal-portal-rename">
-						<span className="font-medium">名称</span>
+					<Field label="名称">
 						<Input
 							autoFocus
 							id="internal-portal-rename"
@@ -381,10 +382,10 @@ function RenameCredentialDialog(props: {
 							required
 							value={name}
 						/>
-					</label>
+					</Field>
 					{rename.error ? <InlineError error={rename.error} title="重命名失败" /> : null}
 					<DialogFooter>
-						<Button onClick={props.onClose} variant="outline">
+						<Button onClick={props.onClose} variant="secondary">
 							取消
 						</Button>
 						<Button disabled={rename.isPending || !name.trim()} type="submit">
@@ -428,7 +429,7 @@ function RotateCredentialDialog(props: {
 					<TgcInput onChange={setSsoTgc} value={ssoTgc} />
 					{rotate.error ? <InlineError error={rotate.error} title="轮换失败" /> : null}
 					<DialogFooter>
-						<Button onClick={props.onClose} variant="outline">
+						<Button onClick={props.onClose} variant="secondary">
 							取消
 						</Button>
 						<Button disabled={rotate.isPending || !ssoTgc.trim()} type="submit">
@@ -473,7 +474,7 @@ function RevealCredentialDialog(props: {
 							onClick={() => {
 								void navigator.clipboard.writeText(revealed).then(() => setCopied(true));
 							}}
-							variant="outline"
+							variant="secondary"
 						>
 							{copied ? <Check /> : <Copy />}
 							{copied ? "已复制" : "复制"}
@@ -487,7 +488,7 @@ function RevealCredentialDialog(props: {
 				)}
 				{reveal.error ? <InlineError error={reveal.error} title="明文读取失败" /> : null}
 				<DialogFooter>
-					<Button onClick={close} variant="outline">
+					<Button onClick={close} variant="secondary">
 						关闭
 					</Button>
 				</DialogFooter>
@@ -522,8 +523,7 @@ function CredentialFormDialog(props: {
 						props.onSubmit();
 					}}
 				>
-					<label className="grid gap-1 text-sm" htmlFor="internal-portal-create-name">
-						<span className="font-medium">名称</span>
+					<Field label="名称">
 						<Input
 							autoFocus
 							id="internal-portal-create-name"
@@ -532,11 +532,11 @@ function CredentialFormDialog(props: {
 							required
 							value={props.name}
 						/>
-					</label>
+					</Field>
 					<TgcInput onChange={props.onTgcChange} value={props.ssoTgc} />
 					{props.error ? <InlineError error={props.error} title="凭据新增失败" /> : null}
 					<DialogFooter>
-						<Button onClick={props.onClose} variant="outline">
+						<Button onClick={props.onClose} variant="secondary">
 							取消
 						</Button>
 						<Button
@@ -554,8 +554,7 @@ function CredentialFormDialog(props: {
 
 function TgcInput(props: { onChange: (value: string) => void; value: string }) {
 	return (
-		<label className="grid gap-1 text-sm" htmlFor="internal-portal-sso-tgc">
-			<span className="font-medium">SSO_TGC 或 Cookie</span>
+		<Field label="SSO_TGC 或 Cookie">
 			<Input
 				autoComplete="off"
 				id="internal-portal-sso-tgc"
@@ -566,6 +565,6 @@ function TgcInput(props: { onChange: (value: string) => void; value: string }) {
 				type="password"
 				value={props.value}
 			/>
-		</label>
+		</Field>
 	);
 }

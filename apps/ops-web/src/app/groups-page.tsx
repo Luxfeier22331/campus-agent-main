@@ -1,4 +1,4 @@
-import { Button, Card, CardContent } from "@campus-agent/ui";
+import { Button, Card, CardContent, StateMessage } from "@campus-agent/ui";
 import {
 	DndContext,
 	type KeyboardCoordinateGetter,
@@ -100,7 +100,7 @@ export function GroupsPage() {
 						className="p-4 text-muted-foreground text-sm md:p-5"
 						role="status"
 					>
-						正在读取同好群目录...
+						<StateMessage layout="inline" description="正在读取同好群目录..." />
 					</CardContent>
 				</Card>
 			</div>
@@ -141,7 +141,7 @@ export function GroupsPage() {
 			) : null}
 
 			<section className="grid min-w-0 content-start gap-4">
-				<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
 					<div>
 						<h2 className="font-semibold text-lg">目录</h2>
 						<p className="mt-1 text-muted-foreground text-sm">
@@ -222,7 +222,7 @@ export function GroupsPage() {
 				) : (
 					<Card>
 						<CardContent className="p-4 text-muted-foreground text-sm md:p-5">
-							目录中还没有分组。
+							<StateMessage layout="inline" description="目录中还没有分组。" />
 						</CardContent>
 					</Card>
 				)}
@@ -305,7 +305,7 @@ function GroupsHeader({ onRefresh, refreshing }: { onRefresh: () => void; refres
 					aria-label={refreshing ? "刷新中" : "刷新同好群目录"}
 					disabled={refreshing}
 					onClick={onRefresh}
-					variant="outline"
+					variant="ghost"
 				>
 					<RefreshCw className={refreshing ? "size-4 animate-spin" : "size-4"} />
 					<span>{refreshing ? "刷新中..." : "刷新"}</span>

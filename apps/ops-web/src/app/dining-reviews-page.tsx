@@ -14,14 +14,16 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Field,
 	Input,
-	NativeSelect,
+	Label,
+	StateMessage,
 	Textarea,
 } from "@campus-agent/ui";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, FileClock, MessageSquarePlus, RefreshCw, Search, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { DiningTaskNavigation } from "./dining-navigation";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { DiningTaskNavigation, diningWindowOptions } from "./dining-navigation";
 import { formatTimestamp } from "./format";
 import {
 	createDiningReview,
@@ -29,11 +31,12 @@ import {
 	fetchDiningMenuItems,
 	fetchDiningReview,
 	fetchDiningReviews,
+	fetchDiningState,
 	setDiningReviewVisible,
 	updateDiningReview,
 } from "./ops-api/dining";
-import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
-import { DataTable } from "./ui/data-table";
+import { ErrorState, InlineError, PageHeader } from "./ops-display";
+import { FilterSelect } from "./ui/filter-select";
 import { useConfirmCommand } from "./use-confirm-command";
 
 type ReviewVisibility = "deleted" | "hidden" | "visible";
@@ -62,8 +65,19 @@ export function DiningReviewsPage({
 		queryFn: ({ signal }) => fetchDiningMenuItems({ signal }),
 		queryKey: ["dining", "menu-items"],
 	});
+	const state = useQuery({
+		queryKey: ["dining", "state"],
+		queryFn: ({ signal }) => fetchDiningState({ signal }),
+	});
+	const windowLabels = new Map(
+		state.data
+			? diningWindowOptions(state.data.draft.bundle).map((window) => [
+					window.windowId,
+					window.label,
+				])
+			: [],
+	);
 	const reviews = useQuery({
-		placeholderData: keepPreviousData,
 		queryFn: ({ signal }) =>
 			fetchDiningReviews(
 				{
@@ -102,25 +116,65 @@ export function DiningReviewsPage({
 		setPreviousCursors([]);
 	};
 
-	if (!(reviews.data && menu.data)) {
-		return (
-			<div className="mx-auto w-full max-w-[1600px]">
-				<DiningTaskNavigation />
-				{reviews.error || menu.error ? (
-					<ErrorState
-						error={reviews.error ?? menu.error}
-						onRetry={() => void Promise.all([reviews.refetch(), menu.refetch()])}
-						title="评价读取失败"
-					/>
-				) : (
-					<PageShell title="评价维护">正在读取评价...</PageShell>
-				)}
-			</div>
-		);
-	}
+	const activeMenuItems = menu.data?.items.filter((item) => item.archivedAt === null) ?? [];
 
-	const activeMenuItems = menu.data.items.filter((item) => item.archivedAt === null);
-	const mutationError = visibilityMutation.error ?? deleteMutation.error;
+	const renderActions = (review: DiningOpsContentReviewRecord) => (
+		<div className="grid gap-2">
+			<ActionGroup className="justify-start sm:justify-end">
+				<Button
+					aria-label={`查看评价 ${review.reviewId}`}
+					onClick={() => setDetailReviewId(review.reviewId)}
+					size="sm"
+					variant="ghost"
+				>
+					<FileClock className="size-4" />
+					查看详情
+				</Button>
+				{review.deletedAt ? null : (
+					<Button
+						aria-label={`${review.hiddenAt ? "公开" : "隐藏"}评价 ${review.reviewId}`}
+						disabled={visibilityMutation.isPending}
+						onClick={() =>
+							visibilityMutation.mutate({
+								reviewId: review.reviewId,
+								visible: Boolean(review.hiddenAt),
+							})
+						}
+						size="sm"
+						variant="ghost"
+					>
+						{review.hiddenAt ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+						{review.hiddenAt ? "公开" : "隐藏"}
+					</Button>
+				)}
+				{review.authorKind === "operator" && !review.deletedAt ? (
+					<ConfirmDialog
+						confirmLabel="删除"
+						description="评价会从学生端移除并保留数据库记录，删除后不能编辑。"
+						{...confirmCommand(`${review.reviewId}-actions`, () =>
+							deleteMutation.mutateAsync(review.reviewId),
+						)}
+						title="删除这条运维录入评价？"
+						trigger={
+							<Button
+								aria-label={`删除评价 ${review.reviewId}`}
+								disabled={deleteMutation.isPending}
+								size="sm"
+								variant="ghost"
+							>
+								<Trash2 className="size-4" />
+								删除
+							</Button>
+						}
+					/>
+				) : null}
+			</ActionGroup>
+			{visibilityMutation.error && visibilityMutation.variables?.reviewId === review.reviewId ? (
+				<InlineError error={visibilityMutation.error} title="评价状态修改失败" />
+			) : null}
+		</div>
+	);
+
 	return (
 		<section className="mx-auto w-full max-w-[1600px]">
 			<DiningTaskNavigation />
@@ -132,7 +186,7 @@ export function DiningReviewsPage({
 							disabled={reviews.isFetching}
 							onClick={() => void reviews.refetch()}
 							size="icon"
-							variant="outline"
+							variant="ghost"
 						>
 							<RefreshCw className={`size-4 ${reviews.isFetching ? "animate-spin" : ""}`} />
 						</Button>
@@ -146,27 +200,49 @@ export function DiningReviewsPage({
 				title="评价维护"
 			/>
 
-			<div className="mb-3 grid gap-3 md:grid-cols-2">
-				<label className="grid gap-1 text-sm" htmlFor="review-target">
-					<span>评价目标</span>
-					<NativeSelect
+			<form
+				className="ops-filter-bar mb-4 grid grid-cols-2 items-end gap-3 xl:grid-cols-[10rem_9rem_minmax(12rem,1fr)_minmax(12rem,18rem)_auto]"
+				onSubmit={(event) => {
+					event.preventDefault();
+					setQuery(queryInput.trim());
+					resetPage();
+				}}
+			>
+				<Field label="评价目标">
+					<FilterSelect
 						id="review-target"
 						value={targetType}
-						onChange={(event) => {
-							setTargetType(event.target.value as "menu_item" | "submission" | "");
+						onValueChange={(nextValue) => {
+							setTargetType(nextValue as "menu_item" | "submission" | "");
 							setMenuItemId("");
 							setSubmissionId("");
 							resetPage();
 						}}
-					>
-						<option value="">全部目标</option>
-						<option value="menu_item">正式菜品</option>
-						<option value="submission">用户投稿</option>
-					</NativeSelect>
-				</label>
+						options={[
+							{ value: "", label: "全部目标" },
+							{ value: "menu_item", label: "正式菜品" },
+							{ value: "submission", label: "用户投稿" },
+						]}
+					/>
+				</Field>
+				<Field label="状态">
+					<FilterSelect
+						className="min-h-11"
+						id="dining-review-visibility"
+						onValueChange={(nextValue) => {
+							setVisibility(nextValue as ReviewVisibility);
+							resetPage();
+						}}
+						value={visibility}
+						options={[
+							{ value: "visible", label: "未隐藏" },
+							{ value: "hidden", label: "已隐藏" },
+							{ value: "deleted", label: "已删除" },
+						]}
+					/>
+				</Field>
 				{targetType === "submission" ? (
-					<label className="grid gap-1 text-sm" htmlFor="review-submission">
-						<span>投稿标识</span>
+					<Field label="投稿标识" className="col-span-2 min-w-0 xl:col-span-1">
 						<Input
 							id="review-submission"
 							value={submissionId}
@@ -175,19 +251,9 @@ export function DiningReviewsPage({
 								resetPage();
 							}}
 						/>
-					</label>
+					</Field>
 				) : null}
-			</div>
-			<form
-				className="mb-4 grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(14rem,22rem)_12rem_auto] lg:items-end"
-				onSubmit={(event) => {
-					event.preventDefault();
-					setQuery(queryInput.trim());
-					resetPage();
-				}}
-			>
-				<label className="grid gap-1 text-sm" htmlFor="dining-review-query">
-					<span className="font-medium text-foreground">搜索</span>
+				<Field label="搜索" className="col-span-2 min-w-0 xl:col-span-1">
 					<Input
 						className="min-h-11"
 						id="dining-review-query"
@@ -196,161 +262,53 @@ export function DiningReviewsPage({
 						placeholder="评价内容、作者或菜品"
 						value={queryInput}
 					/>
-				</label>
-				<label className="grid gap-1 text-sm" htmlFor="dining-review-menu-item">
-					<span className="font-medium text-foreground">菜品</span>
-					<NativeSelect
-						className="min-h-11"
-						id="dining-review-menu-item"
-						disabled={targetType === "submission"}
-						onChange={(event) => {
-							setMenuItemId(event.target.value);
-							resetPage();
-						}}
-						value={menuItemId}
-					>
-						<option value="">全部菜品</option>
-						{menu.data.items.map((item) => (
-							<option key={item.menuItemId} value={item.menuItemId}>
-								{item.name}
-								{item.archivedAt ? "（已归档）" : ""}
-							</option>
-						))}
-					</NativeSelect>
-				</label>
-				<label className="grid gap-1 text-sm" htmlFor="dining-review-visibility">
-					<span className="font-medium text-foreground">状态</span>
-					<NativeSelect
-						className="min-h-11"
-						id="dining-review-visibility"
-						onChange={(event) => {
-							setVisibility(event.target.value as ReviewVisibility);
-							resetPage();
-						}}
-						value={visibility}
-					>
-						<option value="visible">未隐藏</option>
-						<option value="hidden">已隐藏</option>
-						<option value="deleted">已删除</option>
-					</NativeSelect>
-				</label>
-				<Button type="submit" variant="outline">
+				</Field>
+				{targetType === "submission" ? null : (
+					<Field label="菜品" className="min-w-0">
+						<FilterSelect
+							className="min-h-11"
+							id="dining-review-menu-item"
+							onValueChange={(nextValue) => {
+								setMenuItemId(nextValue);
+								resetPage();
+							}}
+							value={menuItemId}
+							options={[
+								{ value: "", label: "全部菜品" },
+								...(menu.data?.items ?? []).map((item) => ({
+									value: item.menuItemId,
+									label: [item.name, item.archivedAt ? "（已归档）" : ""].join(""),
+								})),
+							]}
+						/>
+					</Field>
+				)}
+
+				<Button type="submit" variant="primary">
 					<Search className="size-4" />
 					搜索
 				</Button>
 			</form>
 
-			{mutationError ? (
-				<div className="mb-4">
-					<InlineError error={mutationError} title="评价操作失败" />
-				</div>
-			) : null}
-
-			{reviews.data.items.length === 0 ? (
-				<div className="border-border border-y py-10 text-center text-muted-foreground text-sm">
-					当前范围没有评价。
-				</div>
-			) : (
-				<DataTable
-					caption="评价列表"
-					columns={[
-						{
-							cell: (review) => (
-								<div className="max-w-xl">
-									<p className="line-clamp-3 whitespace-pre-wrap text-foreground">
-										{review.body ?? "正文已到期或清理"}
-									</p>
-									<div className="mt-2 flex flex-wrap gap-2">
-										{review.editedAt ? <Badge tone="neutral">已编辑</Badge> : null}
-										{review.authorKind === "operator" ? (
-											<Badge tone="neutral">运维录入</Badge>
-										) : null}
-									</div>
-								</div>
-							),
-							header: "评价",
-							rowHeader: true,
-						},
-						{
-							cell: (review) => (
-								<div>
-									<p className="font-medium">{reviewTargetName(review)}</p>
-									<p className="mt-1 font-mono text-muted-foreground text-xs">{review.windowId}</p>
-								</div>
-							),
-							header: "菜品 / 窗口",
-						},
-						{
-							cell: (review) => (
-								<div>
-									<p>{review.authorDisplayName ?? "身份已清理"}</p>
-									<p className="mt-1 text-muted-foreground text-xs">
-										{review.anonymous ? "公开匿名" : "公开署名"}
-									</p>
-								</div>
-							),
-							header: "作者",
-						},
-						{ cell: reviewStatusBadge, header: "状态" },
-						{ cell: (review) => formatTimestamp(review.createdAt), header: "提交时间" },
-						{
-							cell: (review) => (
-								<ActionGroup className="justify-end">
-									<Button
-										aria-label={`查看评价 ${review.reviewId}`}
-										onClick={() => setDetailReviewId(review.reviewId)}
-										size="icon"
-										variant="ghost"
-									>
-										<FileClock className="size-4" />
-									</Button>
-									{review.deletedAt ? null : (
-										<Button
-											aria-label={`${review.hiddenAt ? "公开" : "隐藏"}评价 ${review.reviewId}`}
-											disabled={visibilityMutation.isPending}
-											onClick={() =>
-												visibilityMutation.mutate({
-													reviewId: review.reviewId,
-													visible: Boolean(review.hiddenAt),
-												})
-											}
-											size="icon"
-											variant="ghost"
-										>
-											{review.hiddenAt ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-										</Button>
-									)}
-									{review.authorKind === "operator" && !review.deletedAt ? (
-										<ConfirmDialog
-											confirmLabel="删除"
-											description="评价会从学生端移除并保留数据库记录，删除后不能编辑。"
-											{...confirmCommand(review.reviewId, () =>
-												deleteMutation.mutateAsync(review.reviewId),
-											)}
-											title="删除这条运维录入评价？"
-											trigger={
-												<Button
-													aria-label={`删除评价 ${review.reviewId}`}
-													disabled={deleteMutation.isPending}
-													size="icon"
-													variant="ghost"
-												>
-													<Trash2 className="size-4" />
-												</Button>
-											}
-										/>
-									) : null}
-								</ActionGroup>
-							),
-							header: "操作",
-						},
-					]}
-					data={reviews.data.items}
-					minWidth="1180px"
-					rowKey={(review) => review.reviewId}
-					stickyFirstColumn
-					stickyLastColumn
+			{reviews.error || menu.error ? (
+				<ErrorState
+					error={reviews.error ?? menu.error}
+					onRetry={() => void Promise.all([reviews.refetch(), menu.refetch()])}
+					title="评价读取失败"
 				/>
+			) : null}
+			{reviews.data ? (
+				reviews.data.items.length === 0 ? (
+					<StateMessage layout="inline" description="当前范围没有评价。" />
+				) : (
+					<ReviewList
+						items={reviews.data.items}
+						windowLabels={windowLabels}
+						renderActions={renderActions}
+					/>
+				)
+			) : reviews.error ? null : (
+				<StateMessage role="status" description="正在读取评价..." />
 			)}
 
 			<ActionGroup className="mt-4 justify-end">
@@ -361,17 +319,17 @@ export function DiningReviewsPage({
 						setCursor(previous.pop());
 						setPreviousCursors(previous);
 					}}
-					variant="outline"
+					variant="ghost"
 				>
 					上一页
 				</Button>
 				<Button
-					disabled={!reviews.data.nextCursor || reviews.isFetching}
+					disabled={!reviews.data?.nextCursor || reviews.isFetching}
 					onClick={() => {
 						setPreviousCursors((values) => [...values, cursor]);
 						setCursor(reviews.data?.nextCursor ?? undefined);
 					}}
-					variant="outline"
+					variant="ghost"
 				>
 					下一页
 				</Button>
@@ -392,6 +350,51 @@ export function DiningReviewsPage({
 				/>
 			) : null}
 		</section>
+	);
+}
+
+function ReviewList({
+	items,
+	windowLabels,
+	renderActions,
+}: {
+	items: DiningOpsContentReviewRecord[];
+	windowLabels: Map<string, string>;
+	renderActions: (review: DiningOpsContentReviewRecord) => ReactNode;
+}) {
+	return (
+		<div
+			className="divide-y divide-border rounded-lg border border-border bg-background px-4"
+			data-testid="dining-reviews-list"
+		>
+			{items.map((review) => (
+				<article className="grid min-w-0 gap-3 py-4" key={review.reviewId}>
+					<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+						{reviewStatusBadge(review)}
+						<span>
+							{review.authorDisplayName ?? "身份已清理"} · {review.anonymous ? "匿名" : "署名"}
+						</span>
+						<time>{formatTimestamp(review.createdAt)}</time>
+						{review.editedAt ? <Badge tone="neutral">已编辑</Badge> : null}
+						{review.authorKind === "operator" ? <Badge tone="neutral">运维录入</Badge> : null}
+					</div>
+					<p className="line-clamp-3 whitespace-pre-wrap break-words text-sm text-foreground">
+						{review.body ?? "正文已到期或清理"}
+					</p>
+					<div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+						<div className="min-w-0 text-xs text-muted-foreground">
+							<p className="line-clamp-2 break-words font-medium text-foreground">
+								{reviewTargetName(review)}
+							</p>
+							<p className="mt-1 break-words">
+								{windowLabels.get(review.windowId ?? "") ?? review.windowId ?? "未关联窗口"}
+							</p>
+						</div>
+						{renderActions(review)}
+					</div>
+				</article>
+			))}
+		</div>
 	);
 }
 
@@ -431,24 +434,27 @@ function CreateReviewDialog(props: {
 						create.mutate();
 					}}
 				>
-					<label className="grid gap-1 text-sm" htmlFor="ops-review-menu-item">
-						<span className="font-medium text-foreground">菜品</span>
-						<NativeSelect
+					<Field label="菜品">
+						<FilterSelect
 							className="min-h-11"
 							id="ops-review-menu-item"
-							onChange={(event) => setMenuItemId(event.target.value)}
+							onValueChange={(nextValue) => setMenuItemId(nextValue)}
 							required
 							value={menuItemId}
-						>
-							{props.items.map((item) => (
-								<option key={item.menuItemId} value={item.menuItemId}>
-									{item.name}
-								</option>
-							))}
-						</NativeSelect>
-					</label>
-					<label className="grid gap-1 text-sm" htmlFor="ops-review-body">
-						<span className="font-medium text-foreground">评价正文</span>
+							options={props.items.map((item) => ({
+								value: item.menuItemId,
+								label: item.name,
+							}))}
+						/>
+					</Field>
+					<Field
+						label={
+							<>
+								<span className="font-medium text-foreground">评价正文</span>{" "}
+								<span className="text-right text-muted-foreground text-xs">{body.length}/500</span>
+							</>
+						}
+					>
 						<Textarea
 							className="min-h-32"
 							id="ops-review-body"
@@ -457,9 +463,8 @@ function CreateReviewDialog(props: {
 							required
 							value={body}
 						/>
-						<span className="text-right text-muted-foreground text-xs">{body.length}/500</span>
-					</label>
-					<label
+					</Field>
+					<Label
 						className="flex min-h-11 items-center gap-2 text-sm"
 						htmlFor="ops-review-anonymous"
 					>
@@ -469,10 +474,10 @@ function CreateReviewDialog(props: {
 							onCheckedChange={(checked) => setAnonymous(checked === true)}
 						/>
 						在学生端匿名显示
-					</label>
+					</Label>
 					{create.error ? <InlineError error={create.error} title="评价发布失败" /> : null}
 					<DialogFooter>
-						<Button onClick={props.onClose} variant="outline">
+						<Button onClick={props.onClose} variant="secondary">
 							取消
 						</Button>
 						<Button disabled={create.isPending || !body.trim() || !menuItemId} type="submit">
@@ -508,13 +513,13 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 	});
 	return (
 		<Dialog onOpenChange={(open) => !open && props.onClose()} open>
-			<DialogContent className="w-[min(44rem,calc(100vw-2rem))]" closeLabel="关闭评价详情">
+			<DialogContent className="w-[calc(100vw-2rem)] max-w-2xl" closeLabel="关闭评价详情">
 				<DialogHeader>
 					<DialogTitle>评价详情</DialogTitle>
 					<DialogDescription>{props.reviewId}</DialogDescription>
 				</DialogHeader>
 				{detail.isPending ? (
-					<p className="py-6 text-muted-foreground text-sm">正在读取评价...</p>
+					<StateMessage layout="inline" description="正在读取评价..." />
 				) : detail.error || !detail.data ? (
 					<ErrorState
 						error={detail.error}
@@ -541,8 +546,16 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 								{formatTimestamp(detail.data.review.createdAt)}
 							</p>
 						</div>
-						<label className="grid gap-1 text-sm" htmlFor="ops-review-edit-body">
-							<span className="font-medium text-foreground">评价正文</span>
+						<Field
+							label={
+								<>
+									<span className="font-medium text-foreground">评价正文</span>{" "}
+									<span className="text-right text-muted-foreground text-xs">
+										{body.length}/500
+									</span>
+								</>
+							}
+						>
 							<Textarea
 								className="min-h-36"
 								disabled={Boolean(detail.data.review.deletedAt) || detail.data.review.body === null}
@@ -551,15 +564,12 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 								onChange={(event) => setBody(event.target.value)}
 								value={body}
 							/>
-							<span className="text-right text-muted-foreground text-xs">{body.length}/500</span>
-						</label>
+						</Field>
 						{update.error ? <InlineError error={update.error} title="评价修改失败" /> : null}
 						<div>
 							<h3 className="mb-2 font-semibold text-sm">修改记录</h3>
 							{detail.data.edits.length === 0 ? (
-								<p className="border-border border-y py-3 text-muted-foreground text-sm">
-									尚无修改记录。
-								</p>
+								<StateMessage description={<>尚无修改记录。</>} />
 							) : (
 								<ol className="grid max-h-56 gap-3 overflow-y-auto">
 									{detail.data.edits.map((edit) => (
@@ -579,7 +589,7 @@ function ReviewDetailDialog(props: { onClose: () => void; reviewId: string }) {
 							)}
 						</div>
 						<DialogFooter>
-							<Button onClick={props.onClose} variant="outline">
+							<Button onClick={props.onClose} variant="secondary">
 								关闭
 							</Button>
 							<Button

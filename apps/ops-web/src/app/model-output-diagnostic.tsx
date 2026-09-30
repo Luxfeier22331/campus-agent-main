@@ -1,3 +1,4 @@
+import { Disclosure, DisclosureSummary } from "@campus-agent/ui";
 import type { ModelOutputDiagnostic } from "../shared/model-output-diagnostic.ts";
 
 export function ModelOutputDiagnosticPanel({
@@ -6,8 +7,8 @@ export function ModelOutputDiagnosticPanel({
 	diagnostic?: ModelOutputDiagnostic | null | undefined;
 }) {
 	return (
-		<details className="rounded border border-border p-3 text-sm">
-			<summary className="cursor-pointer font-medium">模型输出诊断</summary>
+		<Disclosure className="rounded border border-border p-3 text-sm">
+			<DisclosureSummary className="font-medium">模型输出诊断</DisclosureSummary>
 			{diagnostic ? (
 				<div className="mt-2 space-y-2">
 					<p>
@@ -26,6 +27,6 @@ export function ModelOutputDiagnosticPanel({
 			) : (
 				<p className="mt-2 text-muted-foreground">未记录模型输出，不能据此判断模型返回了空文本。</p>
 			)}
-		</details>
+		</Disclosure>
 	);
 }

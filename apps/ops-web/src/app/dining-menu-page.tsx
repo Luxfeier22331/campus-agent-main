@@ -11,8 +11,12 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Disclosure,
+	DisclosureSummary,
+	Field,
 	Input,
-	NativeSelect,
+	Label,
+	StateMessage,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArrowDown, ArrowUp, Pencil, Plus, RefreshCw, RotateCcw } from "lucide-react";
@@ -33,7 +37,7 @@ import {
 	updateDiningMenuItem,
 } from "./ops-api/dining";
 import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
-import { DataTable } from "./ui/data-table";
+import { FilterSelect } from "./ui/filter-select";
 import { useConfirmCommand } from "./use-confirm-command";
 
 export function DiningMenuPage() {
@@ -105,11 +109,14 @@ export function DiningMenuPage() {
 			<div className="mx-auto w-full max-w-[1600px]">
 				<DiningTaskNavigation />
 				{state.error || menu.error ? (
-					<ErrorState
-						error={state.error ?? menu.error}
-						onRetry={() => void Promise.all([state.refetch(), menu.refetch()])}
-						title="菜单读取失败"
-					/>
+					<>
+						<PageHeader title="菜单维护" />
+						<ErrorState
+							error={state.error ?? menu.error}
+							onRetry={() => void Promise.all([state.refetch(), menu.refetch()])}
+							title="菜单读取失败"
+						/>
+					</>
 				) : (
 					<PageShell title="菜单维护">正在读取窗口和菜单...</PageShell>
 				)}
@@ -142,7 +149,72 @@ export function DiningMenuPage() {
 		[ids[index], ids[target]] = [targetId, currentId];
 		reorder.mutate({ menuItemIds: ids, windowId: selectedWindowId });
 	};
-	const mutationError = save.error ?? archive.error ?? reorder.error;
+	const mutationError = reorder.error;
+
+	const renderActions = (item: DiningMenuItemRecord) => (
+		<ActionGroup className="justify-start sm:justify-end">
+			{selectedWindowId && !item.archivedAt ? (
+				<>
+					<Button
+						aria-label={`上移 ${item.name}`}
+						disabled={reorder.isPending || orderedItems[0]?.menuItemId === item.menuItemId}
+						onClick={() => moveInOrder(item, -1)}
+						size="sm"
+						variant="ghost"
+					>
+						<ArrowUp className="size-4" />
+						<span className="sr-only">上移</span>
+					</Button>
+					<Button
+						aria-label={`下移 ${item.name}`}
+						disabled={reorder.isPending || orderedItems.at(-1)?.menuItemId === item.menuItemId}
+						onClick={() => moveInOrder(item, 1)}
+						size="sm"
+						variant="ghost"
+					>
+						<ArrowDown className="size-4" />
+						<span className="sr-only">下移</span>
+					</Button>
+				</>
+			) : null}
+			<Button
+				aria-label={`编辑 ${item.name}`}
+				onClick={() => setEditing(item)}
+				size="sm"
+				variant="ghost"
+			>
+				<Pencil className="size-4" />
+				编辑
+			</Button>
+			<ConfirmDialog
+				confirmLabel={item.archivedAt ? "恢复" : "归档"}
+				confirmVariant={item.archivedAt ? "primary" : "destructive"}
+				description={
+					item.archivedAt
+						? "恢复后该菜品会随缓存更新重新出现在学生端菜单中。"
+						: "归档后该菜品不再出现在学生端，已有评价仍会保留。"
+				}
+				{...confirmCommand(`${item.menuItemId}-actions`, () =>
+					archive.mutateAsync({
+						archived: !item.archivedAt,
+						menuItemId: item.menuItemId,
+					}),
+				)}
+				title={`${item.archivedAt ? "恢复" : "归档"}“${item.name}”？`}
+				trigger={
+					<Button
+						aria-label={`${item.archivedAt ? "恢复" : "归档"} ${item.name}`}
+						disabled={archive.isPending}
+						size="sm"
+						variant="ghost"
+					>
+						{item.archivedAt ? <RotateCcw className="size-4" /> : <Archive className="size-4" />}
+						{item.archivedAt ? "恢复" : "归档"}
+					</Button>
+				}
+			/>
+		</ActionGroup>
+	);
 
 	return (
 		<section className="mx-auto w-full max-w-[1600px]">
@@ -155,7 +227,7 @@ export function DiningMenuPage() {
 							disabled={state.isFetching || menu.isFetching}
 							onClick={() => void Promise.all([state.refetch(), menu.refetch()])}
 							size="icon"
-							variant="outline"
+							variant="ghost"
 						>
 							<RefreshCw className={`size-4 ${menu.isFetching ? "animate-spin" : ""}`} />
 						</Button>
@@ -165,31 +237,27 @@ export function DiningMenuPage() {
 						</Button>
 					</ActionGroup>
 				}
-				description="按地图窗口维护学生端立即可见的菜品和价格。"
+				description="按地图窗口维护菜品和价格，保存后随学生端缓存更新生效。"
 				title="菜单维护"
 			/>
 
-			<div className="mb-4 flex flex-wrap items-end gap-3">
-				<label
-					className="grid w-full min-w-0 max-w-full gap-1 text-sm sm:w-auto sm:min-w-[18rem]"
-					htmlFor="dining-menu-window"
-				>
-					<span className="font-medium text-foreground">窗口</span>
-					<NativeSelect
-						className="min-h-11 min-w-0 max-w-full"
+			<div className="ops-filter-bar mb-4 flex flex-wrap items-end gap-3">
+				<Field label="窗口" className="w-full min-w-0 sm:max-w-md">
+					<FilterSelect
+						className="min-h-11 w-full min-w-0 max-w-full"
 						id="dining-menu-window"
-						onChange={(event) => setSelectedWindowId(event.target.value)}
+						onValueChange={(nextValue) => setSelectedWindowId(nextValue)}
 						value={selectedWindowId}
-					>
-						<option value="">全部窗口</option>
-						{windows.map((window) => (
-							<option key={window.windowId} value={window.windowId}>
-								{window.label}
-							</option>
-						))}
-					</NativeSelect>
-				</label>
-				<label
+						options={[
+							{ value: "", label: "全部窗口" },
+							...windows.map((window) => ({
+								value: window.windowId,
+								label: window.label,
+							})),
+						]}
+					/>
+				</Field>
+				<Label
 					className="flex min-h-11 items-center gap-2 text-sm"
 					htmlFor="dining-menu-show-archived"
 				>
@@ -199,7 +267,7 @@ export function DiningMenuPage() {
 						onCheckedChange={(checked) => setShowArchived(checked === true)}
 					/>
 					显示已归档菜品
-				</label>
+				</Label>
 			</div>
 
 			{mutationError ? (
@@ -209,116 +277,77 @@ export function DiningMenuPage() {
 			) : null}
 
 			{items.length === 0 ? (
-				<div className="border-border border-y py-10 text-center text-muted-foreground text-sm">
-					当前范围没有菜品。
-				</div>
+				<StateMessage layout="inline" description="当前范围没有菜品。" />
 			) : (
-				<DataTable
-					caption="菜品列表"
-					columns={[
-						{
-							cell: (item) => (
-								<div>
-									<p className="font-medium text-foreground">{item.name}</p>
-									<p className="mt-1 font-mono text-muted-foreground text-xs">{item.menuItemId}</p>
+				<div className="space-y-6">
+					{windows
+						.filter((window) => items.some((item) => item.windowId === window.windowId))
+						.map((window) => (
+							<section
+								key={window.windowId}
+								aria-label={window.label}
+								className="overflow-hidden rounded-lg border border-border bg-background"
+							>
+								<div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-4 py-3">
+									<h2 className="min-w-0 break-words text-sm font-semibold">{window.label}</h2>
+									{selectedWindowId ? null : (
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() => setSelectedWindowId(window.windowId)}
+										>
+											管理此窗口
+										</Button>
+									)}
 								</div>
-							),
-							header: "菜品",
-							rowHeader: true,
-						},
-						{
-							cell: (item) => windowLabels.get(item.windowId) ?? item.windowId,
-							header: "窗口",
-						},
-						{ cell: (item) => item.priceText ?? "未填写", header: "价格" },
-						{
-							cell: (item) =>
-								item.archivedAt ? (
-									<Badge tone="neutral">已归档</Badge>
-								) : (
-									<Badge tone="success">已启用</Badge>
-								),
-							header: "状态",
-						},
-						{ cell: (item) => formatTimestamp(item.updatedAt), header: "最近修改" },
-						{
-							cell: (item) => (
-								<ActionGroup className="justify-end">
-									{selectedWindowId && !item.archivedAt ? (
-										<>
-											<Button
-												aria-label={`上移 ${item.name}`}
-												disabled={
-													reorder.isPending || orderedItems[0]?.menuItemId === item.menuItemId
-												}
-												onClick={() => moveInOrder(item, -1)}
-												size="icon"
-												variant="ghost"
+								<ul className="divide-y divide-border">
+									{items
+										.filter((item) => item.windowId === window.windowId)
+										.map((item) => (
+											<li
+												key={item.menuItemId}
+												className="grid min-w-0 gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
 											>
-												<ArrowUp className="size-4" />
-											</Button>
-											<Button
-												aria-label={`下移 ${item.name}`}
-												disabled={
-													reorder.isPending || orderedItems.at(-1)?.menuItemId === item.menuItemId
-												}
-												onClick={() => moveInOrder(item, 1)}
-												size="icon"
-												variant="ghost"
-											>
-												<ArrowDown className="size-4" />
-											</Button>
-										</>
-									) : null}
-									<Button
-										aria-label={`编辑 ${item.name}`}
-										onClick={() => setEditing(item)}
-										size="icon"
-										variant="ghost"
-									>
-										<Pencil className="size-4" />
-									</Button>
-									<ConfirmDialog
-										confirmLabel={item.archivedAt ? "恢复" : "归档"}
-										confirmVariant={item.archivedAt ? "primary" : "destructive"}
-										description={
-											item.archivedAt
-												? "恢复后该菜品会立即重新出现在学生端菜单中。"
-												: "归档后该菜品不再出现在学生端，已有评价仍会保留。"
-										}
-										{...confirmCommand(item.menuItemId, () =>
-											archive.mutateAsync({
-												archived: !item.archivedAt,
-												menuItemId: item.menuItemId,
-											}),
-										)}
-										title={`${item.archivedAt ? "恢复" : "归档"}“${item.name}”？`}
-										trigger={
-											<Button
-												aria-label={`${item.archivedAt ? "恢复" : "归档"} ${item.name}`}
-												disabled={archive.isPending}
-												size="icon"
-												variant="ghost"
-											>
-												{item.archivedAt ? (
-													<RotateCcw className="size-4" />
-												) : (
-													<Archive className="size-4" />
-												)}
-											</Button>
-										}
-									/>
-								</ActionGroup>
-							),
-							header: "操作",
-						},
-					]}
-					data={items}
-					minWidth="1040px"
-					rowKey={(item) => item.menuItemId}
-					stickyFirstColumn
-					stickyLastColumn
-				/>
+												<div className="min-w-0">
+													<div className="flex flex-wrap items-center gap-2">
+														<h3 className="break-words font-medium">{item.name}</h3>
+														{item.archivedAt ? <Badge tone="neutral">已归档</Badge> : null}
+													</div>
+													<p className="mt-1 break-words text-sm text-muted-foreground">
+														{item.priceText ?? "未填写价格"}
+													</p>
+												</div>
+												{renderActions(item)}
+											</li>
+										))}
+								</ul>
+							</section>
+						))}
+					{items.some((item) => !windowLabels.has(item.windowId)) ? (
+						<section aria-label="未关联窗口" className="rounded-lg border border-border p-4">
+							<h2 className="mb-3 text-sm font-semibold">未关联窗口</h2>
+							<ul className="divide-y divide-border">
+								{items
+									.filter((item) => !windowLabels.has(item.windowId))
+									.map((item) => (
+										<li
+											key={item.menuItemId}
+											className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+										>
+											<div className="min-w-0">
+												<h3 className="break-words font-medium">{item.name}</h3>
+												<p className="break-words text-sm text-muted-foreground">
+													{item.priceText ?? "未填写价格"}
+												</p>
+												<p className="break-all text-xs text-muted-foreground">{item.windowId}</p>
+											</div>
+											{renderActions(item)}
+										</li>
+									))}
+							</ul>
+						</section>
+					) : null}
+				</div>
 			)}
 
 			{editing ? (
@@ -361,12 +390,14 @@ function MenuItemDialog(props: {
 	);
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
-		void props.onSave({
-			current: props.item,
-			name: name.trim(),
-			priceText: priceText.trim() || null,
-			windowId,
-		});
+		void props
+			.onSave({
+				current: props.item,
+				name: name.trim(),
+				priceText: priceText.trim() || null,
+				windowId,
+			})
+			.catch(() => undefined);
 	};
 	return (
 		<Dialog onOpenChange={(open) => !open && props.onClose()} open>
@@ -376,8 +407,7 @@ function MenuItemDialog(props: {
 					<DialogDescription>保存后学生端菜单会在缓存更新后生效。</DialogDescription>
 				</DialogHeader>
 				<form className="grid gap-4" onSubmit={submit}>
-					<label className="grid gap-1 text-sm" htmlFor="menu-item-name">
-						<span className="font-medium text-foreground">菜品名称</span>
+					<Field label="菜品名称">
 						<Input
 							className="min-h-11"
 							id="menu-item-name"
@@ -386,9 +416,8 @@ function MenuItemDialog(props: {
 							required
 							value={name}
 						/>
-					</label>
-					<label className="grid gap-1 text-sm" htmlFor="menu-item-price">
-						<span className="font-medium text-foreground">价格</span>
+					</Field>
+					<Field label="价格">
 						<Input
 							className="min-h-11"
 							id="menu-item-price"
@@ -397,26 +426,32 @@ function MenuItemDialog(props: {
 							placeholder="可留空，例如 12 元"
 							value={priceText}
 						/>
-					</label>
-					<label className="grid gap-1 text-sm" htmlFor="menu-item-window">
-						<span className="font-medium text-foreground">窗口</span>
-						<NativeSelect
+					</Field>
+					<Field label="窗口">
+						<FilterSelect
 							className="min-h-11"
 							id="menu-item-window"
-							onChange={(event) => setWindowId(event.target.value)}
+							onValueChange={(nextValue) => setWindowId(nextValue)}
 							required
 							value={windowId}
-						>
-							{props.windows.map((window) => (
-								<option key={window.windowId} value={window.windowId}>
-									{window.label}
-								</option>
-							))}
-						</NativeSelect>
-					</label>
+							options={props.windows.map((window) => ({
+								value: window.windowId,
+								label: window.label,
+							}))}
+						/>
+					</Field>
+					{props.item ? (
+						<Disclosure>
+							<DisclosureSummary>菜品信息</DisclosureSummary>
+							<div className="space-y-2 py-3 text-xs text-muted-foreground">
+								<p className="break-all">菜品标识：{props.item.menuItemId}</p>
+								<p>最近修改：{formatTimestamp(props.item.updatedAt)}</p>
+							</div>
+						</Disclosure>
+					) : null}
 					{props.saveError ? <InlineError error={props.saveError} title="保存失败" /> : null}
 					<DialogFooter>
-						<Button onClick={props.onClose} type="button" variant="outline">
+						<Button onClick={props.onClose} type="button" variant="secondary">
 							取消
 						</Button>
 						<Button disabled={props.pending || !name.trim() || !windowId} type="submit">

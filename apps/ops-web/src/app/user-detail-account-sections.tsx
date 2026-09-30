@@ -5,6 +5,7 @@ import {
 	CardContent,
 	CardHeader,
 	CardTitle,
+	Field,
 	Input,
 } from "@campus-agent/ui";
 import type { AccountAdminUserDetail } from "campus-contracts/account-admin";
@@ -97,8 +98,7 @@ export function UserDetailAccountActions({
 				<CardTitle>账号操作</CardTitle>
 			</CardHeader>
 			<CardContent className="grid gap-4">
-				<label className="grid gap-1 text-muted-foreground text-xs" htmlFor="account-admin-reason">
-					操作原因
+				<Field label="操作原因">
 					<Input
 						className="min-h-10"
 						id="account-admin-reason"
@@ -106,12 +106,12 @@ export function UserDetailAccountActions({
 						onChange={(event) => onReasonChange(event.target.value)}
 						value={reason}
 					/>
-				</label>
+				</Field>
 				<ActionGroup>
 					<Button
 						disabled={deletionInProgress || commandPending}
 						onClick={() => onStartCommand("password-reset-email", {})}
-						variant="outline"
+						variant="secondary"
 					>
 						<Mail className="size-4" />
 						发送重置邮件
@@ -119,7 +119,7 @@ export function UserDetailAccountActions({
 					<Button
 						disabled={deletionInProgress || detail.emailVerified || commandPending}
 						onClick={() => onStartCommand("verification-email", {})}
-						variant="outline"
+						variant="secondary"
 					>
 						<ShieldCheck className="size-4" />
 						发送验证邮件
@@ -127,7 +127,7 @@ export function UserDetailAccountActions({
 					<Button
 						disabled={!reason.trim() || deletionInProgress || commandPending}
 						onClick={onIssueTemporaryPassword}
-						variant="outline"
+						variant="secondary"
 					>
 						<KeyRound className="size-4" />
 						签发临时密码
@@ -142,7 +142,7 @@ export function UserDetailAccountActions({
 								"确认撤销",
 							)
 						}
-						variant="outline"
+						variant="secondary"
 					>
 						<ShieldX className="size-4" />
 						撤销全部会话
