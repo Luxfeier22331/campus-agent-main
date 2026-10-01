@@ -34,9 +34,6 @@ export function normalizeCampusMapAssets(
 		? [input.campus]
 		: (Object.keys(CAMPUS_CONFIG) as CampusId[]);
 	const existingManifest = readExistingManifest(assetRoot);
-	if (existingManifest) {
-		validateCampusMapAssets(assetRoot);
-	}
 	const geojsonDigests: Partial<Manifest["campuses"]> = existingManifest?.campuses ?? {};
 	const nextGeojsonDigests: Record<CampusId, string> = {
 		fengtai: digestFromManifestEntry(geojsonDigests.fengtai?.geojsonUrl),

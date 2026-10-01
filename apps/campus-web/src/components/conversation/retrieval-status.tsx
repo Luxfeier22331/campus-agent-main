@@ -20,13 +20,10 @@ export function RetrievalStatus({
 				return label ? (
 					<span
 						key={source}
-						className="ml-3 inline-flex items-center gap-1"
+						className="inline-flex items-center gap-1"
 						data-retrieval-source={source}
 						data-retrieval-status={status}
 					>
-						<span aria-hidden="true" className={status === "started" ? "animate-pulse" : ""}>
-							{status === "started" ? "●" : "·"}
-						</span>
 						{label}
 					</span>
 				) : null;

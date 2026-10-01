@@ -207,7 +207,7 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			request := executionactivities.WorkflowOperationActivityRequest{
 				AdmissionSnapshot: snapshot, ConversationID: run.ConversationID, RequestID: runID,
 				Operation: temporalruntime.WorkflowOperationSolve, StepID: "solve.initial", StepKind: "solver",
-				MaxSteps: 2, Stream: true, Payload: map[string]any{"goal": "hello", "max_steps": 2},
+				MaxSteps: 2, Stream: false, Payload: map[string]any{"goal": "hello", "max_steps": 2},
 			}
 			step := temporalruntime.WorkflowTaskPlanStep{ID: "step.notice", Objective: "hello", CandidateSources: []temporalruntime.WorkflowSource{temporalruntime.WorkflowSourceCampusSearch}, DependsOn: []string{}}
 			plan := temporalruntime.WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: "hello", Steps: []temporalruntime.WorkflowTaskPlanStep{step}}

@@ -7,8 +7,7 @@ export const diningQueryKeys = {
 	map: ["dining", "map"] as const,
 	menu: (windowId: string) => ["dining", "menu", windowId] as const,
 	reviews: (menuItemId: string) => ["dining", "reviews", menuItemId] as const,
-	floorplan: (floorplanId: string, sha256: string) =>
-		["dining", "floorplan", floorplanId, sha256] as const,
+	floorplan: (svgAssetUrl: string) => ["dining", "floorplan", svgAssetUrl] as const,
 };
 
 export function diningMapQueryOptions() {
@@ -41,14 +40,10 @@ export function diningReviewsInfiniteQueryOptions(
 	});
 }
 
-export function diningFloorplanAssetQueryOptions(input: {
-	floorplanId: string;
-	sha256: string;
-	svgAssetUrl: string;
-}) {
+export function diningFloorplanAssetQueryOptions(input: { svgAssetUrl: string }) {
 	return queryOptions({
 		queryFn: ({ signal }) => loadDiningFloorplanAsset({ ...input, signal }),
-		queryKey: diningQueryKeys.floorplan(input.floorplanId, input.sha256),
+		queryKey: diningQueryKeys.floorplan(input.svgAssetUrl),
 		staleTime: Number.POSITIVE_INFINITY,
 	});
 }

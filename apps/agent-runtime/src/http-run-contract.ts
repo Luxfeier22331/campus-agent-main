@@ -110,6 +110,7 @@ const evidenceSchema = z
 		result_ref: z.string().min(1).optional(),
 		document_id: z.string().min(1).optional(),
 		notice_id: z.string().min(1).optional(),
+		released_at: z.string().datetime({ offset: true }).optional(),
 		citation_href: z.string().min(1).optional(),
 		section_ref: z.string().min(1).optional(),
 		section_title: z.string().min(1).optional(),
@@ -136,6 +137,7 @@ const completedStepSchema = z
 	.strict();
 
 const commonRequestShape = {
+	model_answer_transport: z.enum(["stream", "buffered"]).optional(),
 	deadline_at: z.string().datetime({ offset: true }),
 	prior_evidence: z.array(evidenceSchema).default([]),
 	prior_source_attempts: z.array(sourceAttemptSchema).default([]),
@@ -268,6 +270,9 @@ export function runtimeInputFromAgentRunRequest(
 	signal: AbortSignal,
 ): WorkflowOperationInput {
 	const base = {
+		...(parsed.model_answer_transport
+			? { modelAnswerTransport: parsed.model_answer_transport }
+			: {}),
 		deadlineAt: parsed.deadline_at,
 		priorEvidence: parsed.prior_evidence.map(mapEvidence),
 		priorSourceAttempts: parsed.prior_source_attempts.map((attempt) => ({
@@ -408,6 +413,7 @@ function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
 		["resultRef", value.result_ref],
 		["documentId", value.document_id],
 		["noticeId", value.notice_id],
+		["releasedAt", value.released_at],
 		["citationHref", value.citation_href],
 		["sectionRef", value.section_ref],
 		["sectionTitle", value.section_title],

@@ -36,7 +36,7 @@ const DOCS_SOURCE_SCHEMA_VERSION = "campus_docs_source.v4";
 const DOCS_CHUNK_SET_SCHEMA_VERSION = "campus_docs_chunk_set.v2";
 const DOCS_EMBEDDING_SET_SCHEMA_VERSION = "campus_docs_embedding_set.v3";
 const NOTICE_EMBEDDING_SET_SCHEMA_VERSION = "notice_embedding_set.v1";
-const NOTICE_CHUNK_RUN_SCHEMA_VERSION = "notice_chunk_run.v1";
+const NOTICE_CHUNK_RUN_SCHEMA_VERSION = "notice_chunk_run.v2";
 
 export function assertSha256Ref(value: string, label: string): Sha256Ref {
 	if (!/^sha256:[a-f0-9]{64}$/u.test(value)) {

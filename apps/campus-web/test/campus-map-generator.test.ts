@@ -39,6 +39,10 @@ describe("campus map generator", () => {
 			expect(result.placesDigest).toMatch(/^[0-9a-f]{64}$/u);
 			validateCampusMapAssets(candidateAssetRoot);
 			validateCampusMapRelease({ assetRoot: candidateAssetRoot, dataRoot });
+			expect(normalizeCampusMapAssets({ assetRoot: candidateAssetRoot, dataRoot })).toEqual(result);
+			expect(
+				normalizeCampusMapAssets({ campus: "fengtai", assetRoot: candidateAssetRoot, dataRoot }),
+			).toEqual(result);
 		} finally {
 			rmSync(candidateAssetRoot, { force: true, recursive: true });
 		}

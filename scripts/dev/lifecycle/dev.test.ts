@@ -29,8 +29,11 @@ import {
 	resolveLocalModelConfigEncryptionKeyPath,
 	resolveMainCheckoutRoot,
 } from "./environment";
+import { ensureLocalInfrastructureSecrets } from "./infrastructure-secrets";
 import { diagnoseLocalDevInstances, resolveUnmanagedInstanceCleanup } from "./instance-resources";
 import * as lifecycle from "./lifecycle";
+import { assertLocalHindsightProviders, localHindsightEnvironment } from "./local-hindsight";
+import { objectStoreCommand } from "./local-infrastructure";
 import { captureCommandResult } from "./process";
 import {
 	allocateAvailableSlot,
@@ -65,6 +68,38 @@ afterEach(() => {
 });
 
 describe("local development profiles", () => {
+	it("grants anonymous GET only to derived floorplans when provisioning buckets", () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+		const secrets = ensureLocalInfrastructureSecrets(repoRoot, profile);
+		for (const bucket of [profile.bucketName, profile.sourceBucketName]) {
+			for (const action of ["create", "remove"] as const) {
+				const command = objectStoreCommand(profile, bucket, action, secrets);
+				// Execute the generated shell; capture the policy passed to the CLI without Docker.
+				const output = execFileSync(
+					"sh",
+					["-ec", `rc() { if [ "$1" = anonymous ]; then cat "$3"; fi; }\n${command.at(-1)}`],
+					{ encoding: "utf8", env: { ...process.env, BUCKET: bucket } },
+				);
+				if (bucket === profile.bucketName && action === "create") {
+					assert.deepEqual(JSON.parse(output), {
+						Version: "2012-10-17",
+						Statement: [
+							{
+								Effect: "Allow",
+								Principal: { AWS: ["*"] },
+								Action: ["s3:GetObject"],
+								Resource: [`arn:aws:s3:::${bucket}/dining/floorplans/*`],
+							},
+						],
+					});
+				} else {
+					assert.equal(output, "");
+				}
+			}
+		}
+	});
+
 	it("derives stable non-overlapping service ports from a slot", () => {
 		assert.deepEqual(calculateLocalDevPorts(0), {
 			appApi: 27_031,
@@ -200,6 +235,22 @@ describe("local development profiles", () => {
 		}
 	});
 
+	it("adds the Hindsight port to an existing profile without replacing its identity", async () => {
+		const repoRoot = createGitRepository();
+		const original = await ensureLocalDevProfile(repoRoot);
+		const path = resolveLocalDevProfilePath(repoRoot);
+		const stored = JSON.parse(readFileSync(path, "utf8"));
+		delete stored.infraPorts.hindsightApi;
+		writeFileSync(path, JSON.stringify(stored));
+		const current = await ensureLocalDevProfile(repoRoot);
+		assert.equal(current.instanceId, original.instanceId);
+		assert.equal(current.databaseName, original.databaseName);
+		assert.deepEqual(current.ports, original.ports);
+		assert.equal(
+			current.infraPorts.hindsightApi,
+			calculateLocalDevInfrastructurePorts(current.slot).hindsightApi,
+		);
+	});
 	it("rejects legacy profiles and registry without rewriting them", async () => {
 		const repository = createGitRepository();
 		const stateDirectory = resolve(repository, "state");
@@ -845,6 +896,44 @@ describe("managed worktree environment", () => {
 		assert.equal(opsWebEnvironment.OPS_WEB_WEB_PORT, String(profile.ports.opsWeb));
 	});
 
+	it("requires independent Hindsight provider credentials rather than using product model settings", () => {
+		const repoRoot = createRepositoryShape();
+		writeFileSync(
+			resolve(repoRoot, ".env"),
+			"LLM_API_KEY=product-only\nEMBEDDING_API_KEY=product-only\n",
+		);
+		assert.throws(
+			() => assertLocalHindsightProviders(localHindsightEnvironment(repoRoot)),
+			/Configure local Hindsight providers/u,
+		);
+		writeFileSync(
+			resolve(repoRoot, ".env"),
+			"HINDSIGHT_API_LLM_API_KEY=memory-llm\nHINDSIGHT_API_LLM_PROVIDER=openai-responses\nHINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY=memory-embedding\nHINDSIGHT_OWNER_SALT=must-not-import\n",
+		);
+		const environment = localHindsightEnvironment(repoRoot);
+		assert.doesNotThrow(() => assertLocalHindsightProviders(environment));
+		assert.equal(environment.HINDSIGHT_API_LLM_PROVIDER, "openai-responses");
+		assert.equal(environment.HINDSIGHT_OWNER_SALT, undefined);
+	});
+	it("projects a stable isolated Hindsight connection across repeated initialization", () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+		renderLocalEnvironmentFiles({ repoRoot, profile, target: "core", qdrant });
+		const path = resolve(repoRoot, "apps/execution-control/.env.local");
+		const first = parseEnv(readFileSync(path, "utf8"));
+		renderLocalEnvironmentFiles({ repoRoot, profile, target: "core", qdrant });
+		const next = parseEnv(readFileSync(path, "utf8"));
+		assert.equal(
+			first.HINDSIGHT_API_BASE_URL,
+			`http://127.0.0.1:${profile.infraPorts.hindsightApi}`,
+		);
+		assert.ok(first.HINDSIGHT_API_TENANT_API_KEY);
+		assert.ok(first.HINDSIGHT_OWNER_SALT);
+		assert.equal(next.HINDSIGHT_OWNER_SALT, first.HINDSIGHT_OWNER_SALT);
+		assert.equal(next.HINDSIGHT_API_TENANT_API_KEY, first.HINDSIGHT_API_TENANT_API_KEY);
+		assert.ok(resolveLocalDevTargetPlan("core").capabilities.includes("hindsight"));
+		assert.ok(resolveLocalDevTargetPlan("ops-web").capabilities.includes("hindsight"));
+	});
 	it("creates a stable per-worktree Model Config encryption key with private permissions", () => {
 		const repoRoot = createRepositoryShape();
 		const first = ensureLocalModelConfigEncryptionKey(repoRoot);

@@ -5,6 +5,9 @@ import { dirname, resolve } from "node:path";
 import type { LocalDevProfile } from "./profile";
 
 export interface LocalInfrastructureSecrets {
+	hindsightTenantKey: string;
+	hindsightOwnerSalt: string;
+	hindsightPostgresPassword: string;
 	objectStoreAccessKey: string;
 	objectStoreSecretKey: string;
 	postgresPassword: string;
@@ -27,6 +30,9 @@ export function ensureLocalInfrastructureSecrets(
 	const path = resolveLocalInfrastructureSecretsPath(repoRoot, profile);
 	const existing = readIfExists(path);
 	const secrets: LocalInfrastructureSecrets = {
+		hindsightTenantKey: existing?.HINDSIGHT_API_TENANT_API_KEY ?? randomToken(32),
+		hindsightOwnerSalt: existing?.HINDSIGHT_OWNER_SALT ?? randomToken(32),
+		hindsightPostgresPassword: existing?.HINDSIGHT_POSTGRES_PASSWORD ?? randomToken(32),
 		objectStoreAccessKey: existing?.RUSTFS_ACCESS_KEY ?? randomToken(16),
 		objectStoreSecretKey: existing?.RUSTFS_SECRET_KEY ?? randomToken(32),
 		postgresPassword: existing?.POSTGRES_PASSWORD ?? randomToken(32),
@@ -35,6 +41,10 @@ export function ensureLocalInfrastructureSecrets(
 		temporalPostgresPassword: existing?.TEMPORAL_POSTGRES_PASSWORD ?? randomToken(32),
 	};
 	const values = [
+		`HINDSIGHT_API_TENANT_API_KEY=${secrets.hindsightTenantKey}`,
+		`HINDSIGHT_OWNER_SALT=${secrets.hindsightOwnerSalt}`,
+		`HINDSIGHT_POSTGRES_PASSWORD=${secrets.hindsightPostgresPassword}`,
+		`HINDSIGHT_API_HOST_PORT=127.0.0.1:${profile.infraPorts.hindsightApi}`,
 		`POSTGRES_PORT=${profile.infraPorts.postgres}`,
 		`OBJECT_STORE_PORT=${profile.infraPorts.objectStore}`,
 		`OBJECT_STORE_CONSOLE_PORT=${profile.infraPorts.objectStoreConsole}`,
@@ -78,6 +88,9 @@ export function loadLocalInfrastructureSecrets(
 		throw new Error(`Local infrastructure credentials are missing: ${path}`);
 	}
 	return {
+		hindsightTenantKey: values.HINDSIGHT_API_TENANT_API_KEY ?? "",
+		hindsightOwnerSalt: values.HINDSIGHT_OWNER_SALT ?? "",
+		hindsightPostgresPassword: values.HINDSIGHT_POSTGRES_PASSWORD ?? "",
 		objectStoreAccessKey: values.RUSTFS_ACCESS_KEY,
 		objectStoreSecretKey: values.RUSTFS_SECRET_KEY,
 		postgresPassword: values.POSTGRES_PASSWORD,

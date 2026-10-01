@@ -3,11 +3,11 @@ import { relative, resolve } from "node:path";
 
 const notesDir = resolve(process.cwd(), ".agents/notes");
 const requiredSectionsByLifecycle: Record<string, string[]> = {
-	proposed: ["背景", "提案", "未采用方案", "验收标准", "风险"],
+	proposed: ["背景", "提案", "未采用方案", "可观察结果", "风险"],
 	implemented: ["背景", "决策", "未采用方案", "后果"],
 	rejected: ["背景", "提案", "未采用方案"],
 };
-const proposalHeadings = /^##\s*(提案|验收标准|迁移计划|实施计划)\s*$/u;
+const proposalHeadings = /^##\s*(提案|可观察结果|验收标准|迁移计划|实施计划)\s*$/u;
 const numberedTitlePattern = /\bADR[- ]?\d+\b/iu;
 const errors: string[] = [];
 

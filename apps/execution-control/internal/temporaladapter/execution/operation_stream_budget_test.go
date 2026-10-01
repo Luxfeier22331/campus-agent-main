@@ -37,7 +37,7 @@ func TestHTTPResponseBudgetIncludesSuccessAndErrorBodies(t *testing.T) {
 				t.Fatal(err)
 			}
 			adapter := &Adapter{AgentRuntimeClient: payloadRuntimeClient{body: string(body), status: status}}
-			_, err = adapter.CallWorkflowOperationRuntime(t.Context(), execution.DurableRun{RequestID: "run", CreatedAt: time.Now()}, temporalruntime.WorkflowOperationExecuteStep, "", []byte("{}"), 60000, false)
+			_, err = adapter.CallWorkflowOperationRuntime(t.Context(), execution.DurableRun{RequestID: "run", CreatedAt: time.Now()}, temporalruntime.WorkflowOperationSynthesize, "", []byte("{}"), 60000, false)
 			var sizeError *execution.OperationPayloadTooLargeError
 			if errors.As(err, &sizeError) != (delta > 0) {
 				t.Fatalf("status=%d delta=%d err=%v", status, delta, err)

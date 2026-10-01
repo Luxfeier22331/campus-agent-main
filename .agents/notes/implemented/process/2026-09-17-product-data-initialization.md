@@ -14,6 +14,9 @@ UI worktree 曾有空通知表和不完整的检索绑定，初始化流程却�
 默认 seed 使用版本控制内的样例和现有 builder 生成的真实 Qwen3-Embedding-4B 向量。
 日期只在初次写入时生成，重复初始化保留本地编辑。已有数据不完整时不混入 seed，替换必须显式
 `--replace`，并清理依赖基础数据的本地食堂评论、编辑和举报；用户、会话、模型配置保留。
+通知 seed 由同一 Chunk builder 传入 `released_at`，提交的 Chunk Run 使用当前 `notice_chunk_run.v2` 合同。
+发布时间只属于点的 metadata，不进入 `retrievalText`；因此仅 metadata 变更时复用已有 embedding，更新
+Chunk Run、Embedding Set manifest 和 seed index 的绑定，不直接改写旧的不可变制品。
 
 cluster 模式使用 product_data_ro、objectstore-ro、qdrant-ro；连接全程只读。
 namespace 默认 `campus-agent-staging`（staging 是仓库唯一承认的部署 namespace，属部署拓扑事实而非机器细节），
@@ -54,19 +57,52 @@ Docs-only 本地 current_index writer 退役；保留 Chunk、Embedding、评测
 清理，清除与部分通知不再一致的本地 current_index；不增加部分索引或页面 fallback。该模式由内容验收
 需求驱动，完整检索同步继续使用 `cluster`；若内容验收也要求完整资源，重新评估此模式即可。
 
+统一 publisher 的 Qdrant 写入仅在响应体 `result.status` 为 `completed` 时继续内容校验。
+本地真实服务已复现 `wait=true` 返回 HTTP 200、`wait_timeout`，随后 exact count 为零；
+只看 HTTP 成功会把写入未完成误报为种子数量不匹配。客户端直接保留操作状态报错，复用既有
+候选清理流程；不改变 current pointer，也不增加自动重试。该判断由统一 publisher 的 Qdrant
+客户端拥有，供产品初始化与索引发布共同消费。
+
+分块修复验收另提供 `dev:sync-notices`，只复用 PostgreSQL 协作者只读身份，复制通知及其引用的
+分类、类型和组织。用户需要自己生成 Chunk/Embedding，不需要既有 Docs、向量、图片或附件，
+因此该入口不经过 core 初始化或完整检索同步；数据库关系沿用真实 ID，不生成替代关联。
+四张表在集群一致快照中读取，在本地单事务内 upsert 并逐字段验证。它与数据初始化共用当前
+profile 的数据操作锁，数据库写锁允许应用继续读取旧的已提交数据；只更新源数据，不改变索引绑定。
+本地独有记录保留并单独报告，包括可分块的额外记录数；本轮同步不清理本地业务引用。
+该行为只适用于显式的通知同步入口，不改变 seed 的替换规则。将来若通知评测需要消费图片或附件，
+再按实际输入需求扩展范围。
+
+core 的记忆页面需要真实 Hindsight；本地初始化将其纳入现有 capability、Compose project、
+端口分配和清理边界。provider 配置从独立 Hindsight 环境变量注入，tenant key 与 owner salt
+由当前 worktree 凭据文件生成并复用，防止重初始化改变用户 bank。已有 profile 补入按 slot
+派生的新端口，保留其数据库与其他端口。独立 Compose 使用 overlay，修正 ports/networks
+误嵌 healthcheck 的错误；不再采用固定共享网络或手改托管环境文件。
+
+本地 derived bucket 初始化同时设置与部署环境一致的 `dining/floorplans/*` 匿名 `GetObject`
+策略。App API 的平面图代理使用不带签名的读取；仅创建桶、复制 SVG 会导致 RustFS 返回 403，
+最终页面收到 502。策略使用当前 profile 的桶名，重复初始化会补齐已有桶；source 桶及其他
+对象前缀不开放匿名读取。修复已有环境只需执行桶初始化，无需替换通知、数据库或索引数据。
+
 ## 未采用方案
 
-- 自动 merge/upsert 可保留部分本地内容，但会形成 seed 与真实内容混合且不完整的集合；采用明确替换。
+- seed 替换时自动 merge/upsert 可保留部分本地内容，但会形成混合且不完整的基础集合；seed 采用明确替换。
+  仅通知同步按用户要求保留本地独有记录，通过额外记录报告明确分块输入范围。
 - 要求开发者手工指定两个 Embedding Set 可复用制品导入，但 current_index 不保存这些身份；
   产品同步直接读取当前 collection，不为同步扩展 serving 元数据。
 - 每次初始化现场调用 embedding provider 能即时生成向量，但会引入成本和外部依赖；提交小型真实产物，
   测试检查它们与当前内容、构建器和引用一致。
 - 浏览器 smoke 固定成命令或 PR CI 可以自动触发，但不符合已确认的资源开销决策；浏览器按需 MCP 验收。
+- 延长写入等待时间可能缓解慢磁盘，但不能修复 HTTP 200 被误当作操作完成的问题；本次先准确判断
+  完成状态，保持既有等待时间和失败清理行为。
+
+- 为通知分块验收运行完整 cluster 同步可直接获得在线检索环境，但会复制当前任务不消费的 Docs 和向量；
+  独立通知入口只提取已有数据库连接、字段映射和 upsert 能力，不新建采集或索引流程。
 
 ## 后果
 
 产品初始化和数据诊断由 `scripts/dev/product-data` 拥有，本地环境生命周期由 `scripts/dev/lifecycle` 拥有，
-两者仅通过 lifecycle 的 profile（决定数据落点）耦合；`scripts/dev/cli.ts` 留在根作为统一命令入口。
+两者通过 lifecycle 的 profile 决定数据落点；完整初始化入口保持 `scripts/dev/cli.ts`，
+仅通知同步入口为 `scripts/dev/product-data/notice-sync-cli.ts`。
 此前所有 product-data 文件与 lifecycle 文件混在 `scripts/dev/` 平铺目录，拆分为两个子目录以物理化子域边界；
 biome 对 fixture 的 ignore 路径同步到 `scripts/dev/product-data/fixtures`，`scripts/package.json` 的 `test:dev`
 glob 扩为 `dev/*.test.ts dev/*/*.test.ts`。领域 schema、renderer、builder 与 publisher 仍由原模块拥有。
@@ -78,3 +114,6 @@ Source 角色/迁移交付；本地权限验证不替代线上协作者验收。
 [本地运行检查](../../../../docs/runbooks/local-verification.md)。
 
 2026-09-30 在 `ops-web-redesign` 的独立本地实例完成实际替换：105 条通知（最近 100 条加 5 条班车引用）、53 个群、6 条线路、28 个时间段、125 个班次、1 个地图发布版本；复制正文 JSON 共 887367 字节，未下载二进制资源。真实 Ops 列表和正文预览返回 200。新增模式与既有产品数据测试 14 项、生命周期测试 40 项通过；图片／附件与检索不属于该次验收覆盖。
+
+写入回归覆盖 `completed`、`wait_timeout`、`acknowledged` 和缺失操作结果；未完成写入不得进入
+内容校验，仍清理本次新建候选。修复纠正失败归因，不消除本机存储延迟。

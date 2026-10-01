@@ -2,6 +2,10 @@
 
 Status: implemented
 
+完全接受原生排序的选择已由
+[Campus Web hash 清理与运行态故障修复](../bug-fix/2026-10-01-campus-ui-hash-and-runtime-cleanup.md)
+部分取代，新增标题与精确章节优先；本篇的 Document/Resolver、索引格式与导入导出设计仍有效。
+
 ## 背景
 
 文档搜索原先使用 FlexSearch `Index` 做召回，再由 Campus Web 自己维护标题精确度、章节精确度、词覆盖、字段权重、章节短语聚焦度和 FlexSearch 结果位置排序。该比较器重复实现了检索相关性，并且把同一 FlexSearch scoring slot 内的数组位置当成分数，导致输入顺序影响结果。

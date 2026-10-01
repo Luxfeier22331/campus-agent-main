@@ -27,8 +27,7 @@ import { TooltipIconButton } from "./tooltip-icon-button";
 
 export const AssistantActionBar: FC = () => (
 	<ActionBarPrimitive.Root
-		hideWhenRunning
-		autohide="not-last"
+		autohide="never"
 		className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in flex gap-5 duration-200"
 	>
 		<ActionBarPrimitive.Copy asChild>

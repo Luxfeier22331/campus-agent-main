@@ -210,7 +210,18 @@ function runAffectedNodeEvidence(
 	runner: EvidenceCommandRunner,
 ): void {
 	const options = { cwd: input.repositoryRoot, env: input.env };
-	runTasks("affected-node", PR_NODE_TASKS, runner, options, { scope: input.scope.tasks });
+	// Contract generator self-tests format Go output even though their entrypoint is Node.
+	runTasks("affected-node", ["test:generators"], runner, options, {
+		scope: input.scope.tasks,
+		shell: "ci-go",
+	});
+	runTasks(
+		"affected-node",
+		PR_NODE_TASKS.filter((task) => task !== "test:generators"),
+		runner,
+		options,
+		{ scope: input.scope.tasks },
+	);
 	// Image evidence already compiles these packages; run the other verification builds once.
 	const builds = input.scope.tasks.filter(
 		(task) => !(task.task === "build:check" && input.skipBuildPackages?.has(task.package)),

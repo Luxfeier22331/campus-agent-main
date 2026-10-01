@@ -163,6 +163,7 @@ func (s *AgentToolService) CampusSearch(
 		if errors.Is(err, context.Canceled) {
 			phase = "canceled"
 		}
+		snapshot.FailureDetail = err.Error()
 		observe(phase)
 		stage := snapshot.FailedStage
 		if stage == "" {
@@ -176,6 +177,10 @@ func (s *AgentToolService) CampusSearch(
 	if err != nil {
 		return nil, finishFailure(err)
 	}
+	query.RetrievalQuery = NormalizeRelativeNoticeYears(query.RetrievalQuery, run.CreatedAt)
+	query.RerankQuery = NormalizeRelativeNoticeYears(query.RerankQuery, run.CreatedAt)
+	snapshot.EffectiveQuery = campusdiagnostics.Bound(query.RetrievalQuery, 1024)
+	snapshot.RerankQuery = campusdiagnostics.Bound(query.RerankQuery, 1024)
 	snapshot.FailedStage = "index"
 	if s.campusDocsIndexStore == nil {
 		if s.campusDocsIndexStoreError != nil {
@@ -239,6 +244,20 @@ func (s *AgentToolService) CampusSearch(
 	snapshot.FailedStage = ""
 	observe("completed")
 	return campusdocs.EncodeSearchResult(results, request.AccessContext.CitationStart), nil
+}
+
+// NormalizeRelativeNoticeYears expands the narrow set of relative year terms
+// used in notice questions against the run's frozen creation date. Retrieval
+// and reranking must receive the same resolved wording.
+func NormalizeRelativeNoticeYears(value string, asOf time.Time) string {
+	if value == "" || asOf.IsZero() {
+		return value
+	}
+	year := asOf.UTC().Year()
+	value = strings.ReplaceAll(value, "前年", fmt.Sprintf("%d年", year-2))
+	value = strings.ReplaceAll(value, "去年", fmt.Sprintf("%d年", year-1))
+	value = strings.ReplaceAll(value, "今年", fmt.Sprintf("%d年", year))
+	return value
 }
 
 func (s *AgentToolService) PersonalMemoryRecall(

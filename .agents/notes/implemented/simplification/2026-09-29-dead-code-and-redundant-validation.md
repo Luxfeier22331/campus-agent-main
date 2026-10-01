@@ -58,6 +58,10 @@ Status: implemented
 - notice embedding：provider 返回边界校验（embedding-runtime）保留，cache 写入
   回调与 payload 构造两处同进程重复校验移除；embedding-set 与 embedding-cache
   两份 model target sha256 正则收敛为单一导出；
+- synthesis adapter：Runtime 不回传请求中已准入的 evidence/source attempts，
+  adapter 不再对两份同源材料做 SHA-256 自比较；adapter 仍拒绝 Runtime 越过合同
+  回传这些材料，并继续保留来源身份、准入、provider citation span 与最终 citation
+  closure 校验；
 - chat feedback 的不可达 `Array.isArray` 分支、profile memory 的静态类型守卫移除。
 
 ### 配置与依赖

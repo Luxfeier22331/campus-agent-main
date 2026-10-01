@@ -19,6 +19,7 @@ import type { SourceItemPayload } from "@/features/conversation/model";
 import { AssistantActionBar, BranchPicker, UserActionBar } from "./thread-actions";
 import { EditComposer } from "./thread-composer";
 import { ThreadComponentsContext } from "./thread-context";
+import { ThreadRunStatus } from "./thread-run-status";
 
 export const ThreadMessage: FC = () => {
 	const { AssistantMessage: AssistantMessageComponent = AssistantMessage } =
@@ -120,6 +121,7 @@ const AssistantMessage: FC = () => {
 						}
 					}}
 				</MessagePrimitive.GroupedParts>
+				<ThreadRunStatus />
 				<MessageError />
 			</div>
 

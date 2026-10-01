@@ -2,6 +2,7 @@
 
 import "@assistant-ui/react-markdown/styles/dot.css";
 
+import { TextMessagePartProvider } from "@assistant-ui/react";
 import {
 	type CodeHeaderProps,
 	MarkdownTextPrimitive,
@@ -33,6 +34,19 @@ const MarkdownTextImpl = () => {
 };
 
 export const MarkdownText = memo(MarkdownTextImpl);
+
+export function MarkdownContent({ text }: { text: string }) {
+	return (
+		<TextMessagePartProvider text={text}>
+			<MarkdownTextPrimitive
+				remarkPlugins={[remarkGfm]}
+				className="aui-md"
+				components={defaultComponents}
+				smooth={false}
+			/>
+		</TextMessagePartProvider>
+	);
+}
 
 const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
 	const { isCopied, copyToClipboard } = useCopyToClipboard();

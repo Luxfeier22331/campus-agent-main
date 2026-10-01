@@ -100,7 +100,7 @@ function createDiningQueryClient(): QueryClient {
 	for (const hall of DINING_MAP.halls) {
 		for (const floor of hall.floors) {
 			client.setQueryData(
-				diningQueryKeys.floorplan(floor.floorplan.floorplanId, floor.floorplan.sha256),
+				diningQueryKeys.floorplan(floor.floorplan.svgAssetUrl),
 				renderFloorplan(floor.windows.map((window) => window.svgAnchorId)),
 			);
 		}

@@ -75,6 +75,20 @@ describe("assistant-ui thread adapter", () => {
 		]);
 	});
 
+	it("opens login when loading a history thread is unauthorized", async () => {
+		const onUnauthorized = vi.fn();
+		conversationApiMock.getConversationDetail.mockRejectedValueOnce(new UnauthorizedError());
+		const adapter = createCampusAssistantThreadListAdapter({
+			enableRemoteHistory: true,
+			onUnauthorized,
+		});
+
+		await expect(adapter.unstable_Provider).toBeDefined();
+		const history = createCampusAssistantThreadHistoryAdapter("conv_01", onUnauthorized);
+		await expect(history.load()).rejects.toBeInstanceOf(UnauthorizedError);
+		expect(onUnauthorized).toHaveBeenCalledTimes(1);
+	});
+
 	it("maps campus conversation summaries to assistant-ui thread metadata", () => {
 		expect(
 			toAssistantThreadMetadata(

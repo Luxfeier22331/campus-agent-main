@@ -27,8 +27,9 @@ describe("localizeChatErrorMessage", () => {
 		expect(localizeChatErrorMessage({ code: "run_failed", message: "irrelevant" })).toBe(
 			GENERIC_CHAT_REQUEST_ERROR_MESSAGE,
 		);
-		expect(localizeChatErrorMessage({ code: "answer_stalled" })).toBe(
-			"回答长时间没有进展，已停止等待，请重试。",
+		expect(localizeChatErrorMessage({ code: "execution_cancelled" })).toBe("已取消本次回答。");
+		expect(localizeChatErrorMessage({ code: "request_cancel_failed" })).toBe(
+			"取消请求失败，当前回答仍在继续。",
 		);
 	});
 

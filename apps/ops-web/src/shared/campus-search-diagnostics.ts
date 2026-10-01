@@ -27,6 +27,7 @@ export const CampusSearchCandidateSchema = z.object({
 });
 
 export const CampusSearchSnapshotSchema = z.object({
+	failureDetail: z.string().optional(),
 	effectiveQuery: z.string().max(1024),
 	rerankQuery: z.string().max(1024),
 	citationStart: z.number().int(),
@@ -63,6 +64,7 @@ export const CampusSearchSnapshotSchema = z.object({
 	retrieval: z
 		.object({
 			collection: z.string(),
+			httpStatus: z.number().int().min(100).max(599).optional(),
 			httpMs: z.number().nonnegative().nullable(),
 			qdrantMs: z.number().nonnegative().nullable(),
 			decodeMs: z.number().nonnegative().nullable(),

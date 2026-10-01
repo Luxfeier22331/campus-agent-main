@@ -384,6 +384,11 @@ execution-control 已检查到的持久序列游标；app-api 后续必须将它
 
 ## Runtime 检索状态流
 
+Solve/Execute Step 的内部 SSE 与模型正文模式独立：operation 请求的 `model_answer_transport`
+由 Execution Control 按既有配置传入 `buffered|stream`。buffered 使用非流式模型调用，仍实时上报
+实际检索状态；完整 Solve 答案由 Execution Control 投影为一次正文 delta。Synthesize 的既有
+流式与 recovery 缓冲行为保持不变。
+
 Solve、Execute Step 和 Synthesize 支持内部 operation SSE；Execute Step 的摘要只在终态结果返回，
 不能成为 `answer_delta`。`retrieval_status` 仅允许 Solve 和 Execute Step 产生，且只记录我们实际调度的
 `campus_search`，携带 `schema_version=workflow_runtime_retrieval_status.v1`、`source=campus`、

@@ -69,7 +69,7 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 					<p className="my-2 text-sm">
 						排队 {ms(call.queueMs)} · 请求往返 {ms(call.toolTotalMs)}
 						{call.failureCode ? ` · ${call.failureCode}` : ""}
-						{call.httpStatus ? ` · HTTP ${call.httpStatus}` : ""}
+						{call.httpStatus ? ` · 工具 HTTP ${call.httpStatus}` : ""}
 					</p>
 					<p className="text-xs text-muted-foreground">
 						请求往返：发出请求至收到终态；不含排队。执行摘要工具耗时包含工具包装与观察上报；各阶段可嵌套，不能直接相加。
@@ -88,6 +88,11 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 							{call.snapshot.failedStage &&
 							(call.status === "failed" || call.status === "canceled") ? (
 								<p>失败阶段：{labels[call.snapshot.failedStage]}</p>
+							) : null}
+							{call.snapshot.failureDetail ? (
+								<p className="my-2 whitespace-pre-wrap break-words text-sm">
+									失败原因：{call.snapshot.failureDetail}
+								</p>
 							) : null}
 							<p className="my-3 whitespace-pre-wrap text-sm">
 								召回查询：{call.snapshot.effectiveQuery}
@@ -130,6 +135,9 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 							{call.snapshot.retrieval ? (
 								<div className="my-2 break-all text-xs">
 									<p>Collection：{call.snapshot.retrieval.collection}</p>
+									{call.snapshot.retrieval.httpStatus ? (
+										<p>Qdrant HTTP 状态：{call.snapshot.retrieval.httpStatus}</p>
+									) : null}
 									<p>
 										Qdrant HTTP 往返 {ms(call.snapshot.retrieval.httpMs)} · Qdrant 服务端{" "}
 										{ms(call.snapshot.retrieval.qdrantMs)} · 解码{" "}

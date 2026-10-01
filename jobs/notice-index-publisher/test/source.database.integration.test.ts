@@ -32,12 +32,13 @@ describe("published notice database source", () => {
 				notice_id bigint PRIMARY KEY,
 				title text NOT NULL,
 				content_text text,
+				released_at timestamptz NOT NULL,
 				is_published boolean NOT NULL
 			);
-			INSERT INTO notices.notices(notice_id, title, content_text, is_published) VALUES
-				(3, '未发布', '不可消费', false),
-				(2, '纯图片', NULL, true),
-				(1, '已发布正文', '可消费正文', true);
+			INSERT INTO notices.notices(notice_id, title, content_text, released_at, is_published) VALUES
+				(3, '未发布', '不可消费', '2026-09-03T00:00:00Z', false),
+				(2, '纯图片', NULL, '2026-09-02T00:00:00Z', true),
+				(1, '已发布正文', '可消费正文', '2026-09-01T00:00:00Z', true);
 		`);
 	}, 120_000);
 
@@ -51,7 +52,7 @@ describe("published notice database source", () => {
 
 	it("selects only published notices with stored text", async () => {
 		await expect(loadPublishedNoticeSources(pool)).resolves.toEqual([
-			{ contentText: "可消费正文", noticeId: "1", title: "已发布正文" },
+			{ contentText: "可消费正文", noticeId: "1", releasedAt: "2026-09-01T00:00:00.000Z", title: "已发布正文" },
 		]);
 	});
 });

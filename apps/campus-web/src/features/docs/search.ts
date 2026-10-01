@@ -82,7 +82,10 @@ export function searchDocsEngine(
 		"or",
 		engine.entries.length,
 	);
-	const entryIds = uniqueEntryIds([...completeMatches, ...partialMatches]);
+	const entryIds = uniqueEntryIds([
+		...prioritizeFocusedHeadings(completeMatches, normalizedQuery, engine),
+		...prioritizeFocusedHeadings(partialMatches, normalizedQuery, engine),
+	]);
 
 	return entryIds
 		.slice(0, requestedLimit)
@@ -93,6 +96,32 @@ export function searchDocsEngine(
 			entry,
 			url: buildDocsSearchResultUrl(document, entry),
 		}));
+}
+
+function prioritizeFocusedHeadings(
+	ids: Array<string | number>,
+	query: string,
+	engine: DocsSearchEngine,
+): Array<string | number> {
+	const phrase = query.replace(/\s+/gu, "");
+	const priority = (id: string | number): number => {
+		const item = engine.entries[Number(id)];
+		if (!item) {
+			return 2;
+		}
+		if (
+			normalizeDocsSearchQuery(item.document.documentTitle).replace(/\s+/gu, "").includes(phrase)
+		) {
+			return 0;
+		}
+		const heading = item.entry.sectionTitle.replace(
+			/^(?:第[一二三四五六七八九十百零〇两0-9]+[章节条]|[（(]?[一二三四五六七八九十百0-9]+[）)、.．])\s*/u,
+			"",
+		);
+		return normalizeDocsSearchQuery(heading).replace(/\s+/gu, "") === phrase ? 1 : 2;
+	};
+	// Preserve native ranking within each group, and complete matches before partial ones.
+	return [...ids].sort((left, right) => priority(left) - priority(right));
 }
 
 export async function readDocsSearchIndex(url: string): Promise<DocsSearchIndex> {

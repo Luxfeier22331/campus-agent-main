@@ -1,7 +1,8 @@
 import type { DataMessagePartProps } from "@assistant-ui/react";
 import { formatDocsVersionLabel } from "campus-contracts/campus-docs";
 import { Globe2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { NoticePreviewDialog } from "@/components/notices/notice-preview-dialog";
 import type { SourceItemPayload } from "@/features/conversation/model";
 
 export interface SourceItemsPayload {
@@ -50,7 +51,15 @@ function sourceItemKey(sourceItem: SourceItemPayload) {
 		.join(":");
 }
 
-export function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
+export function SourceItemCard({
+	sourceItem,
+	onPreviewNotice,
+}: {
+	sourceItem: SourceItemPayload;
+	onPreviewNotice?: () => void;
+}) {
+	const [previewOpen, setPreviewOpen] = useState(false);
+	const previewTrigger = useRef<HTMLButtonElement>(null);
 	const metadata =
 		sourceItem.kind === "web_page"
 			? isGroundingRedirect(sourceItem.primaryAction.href)
@@ -63,38 +72,63 @@ export function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }
 					);
 
 	return (
-		<div className="border-border/70 bg-surface-muted/20 rounded-md border px-3 py-2">
-			<div className="flex min-w-0 items-start justify-between gap-3">
-				<div className="flex min-w-0 items-start gap-2">
-					<span
-						aria-label={`引用 ${sourceItem.citationIndexes.join("、")}`}
-						className="text-muted-foreground shrink-0 text-sm font-medium"
-						role="img"
-					>
-						{sourceItem.citationIndexes.map((index) => `[${index}]`).join(" ")}
-					</span>
-					<SourceFavicon
-						href={sourceItem.kind === "web_page" ? sourceItem.primaryAction.href : null}
-					/>
-					<div className="min-w-0">
-						<p className="text-foreground line-clamp-2 text-sm font-medium">{sourceItem.title}</p>
-						{metadata.length > 0 ? (
-							<p className="text-muted-foreground mt-1 line-clamp-1 text-xs">
-								{metadata.join(" · ")}
-							</p>
-						) : null}
+		<>
+			<div className="border-border/70 bg-surface-muted/20 rounded-md border px-3 py-2">
+				<div className="flex min-w-0 items-start justify-between gap-3">
+					<div className="flex min-w-0 items-start gap-2">
+						<span
+							aria-label={`引用 ${sourceItem.citationIndexes.join("、")}`}
+							className="text-muted-foreground shrink-0 text-sm font-medium"
+							role="img"
+						>
+							{sourceItem.citationIndexes.map((index) => `[${index}]`).join(" ")}
+						</span>
+						<SourceFavicon
+							href={sourceItem.kind === "web_page" ? sourceItem.primaryAction.href : null}
+						/>
+						<div className="min-w-0">
+							<p className="text-foreground line-clamp-2 text-sm font-medium">{sourceItem.title}</p>
+							{metadata.length > 0 ? (
+								<p className="text-muted-foreground mt-1 line-clamp-1 text-xs">
+									{metadata.join(" · ")}
+								</p>
+							) : null}
+						</div>
 					</div>
+					{sourceItem.kind === "campus_notice" ? (
+						<button
+							ref={previewTrigger}
+							type="button"
+							aria-haspopup="dialog"
+							className="border-border text-foreground hover:bg-accent hover:text-accent-foreground inline-flex h-8 shrink-0 items-center rounded-md border px-2 text-xs font-medium transition-colors"
+							onClick={() => (onPreviewNotice ? onPreviewNotice() : setPreviewOpen(true))}
+						>
+							查看通知
+						</button>
+					) : (
+						<SourceItemAction sourceItem={sourceItem} />
+					)}
 				</div>
-				<SourceItemAction sourceItem={sourceItem} />
+				{(sourceItem.kind === "campus_document" || sourceItem.kind === "campus_notice") &&
+				sourceItem.sectionTitle ? (
+					<p className="text-muted-foreground mt-1 line-clamp-1 text-xs">
+						{sourceItem.sectionTitle}
+					</p>
+				) : null}
+				{sourceItem.snippet ? (
+					<p className="text-muted-foreground mt-2 line-clamp-3 text-sm">{sourceItem.snippet}</p>
+				) : null}
 			</div>
-			{(sourceItem.kind === "campus_document" || sourceItem.kind === "campus_notice") &&
-			sourceItem.sectionTitle ? (
-				<p className="text-muted-foreground mt-1 line-clamp-1 text-xs">{sourceItem.sectionTitle}</p>
+			{sourceItem.kind === "campus_notice" && !onPreviewNotice ? (
+				<NoticePreviewDialog
+					noticeId={sourceItem.noticeId}
+					title={sourceItem.title}
+					open={previewOpen}
+					onOpenChange={setPreviewOpen}
+					restoreFocus={() => previewTrigger.current?.focus({ preventScroll: true })}
+				/>
 			) : null}
-			{sourceItem.snippet ? (
-				<p className="text-muted-foreground mt-2 line-clamp-3 text-sm">{sourceItem.snippet}</p>
-			) : null}
-		</div>
+		</>
 	);
 }
 

@@ -66,7 +66,7 @@ Ops Web 提供通知摘要、已采集正文预览、分类维护和一次性维
   暂停、周期 15 分钟，可调整为 30 或 60 分钟；启停与周期通过任务页 `/api/ops/tasks` 修改，通知维护页
   不再提供自动采集配置。
 - 历史 `GET/PUT /api/ops/notices/automation` 入口已随统一流水线迁移移除；CronJob 不再承载自动调度，
-  保持 GitOps 管理的暂停模板，仅作为一次性 Job 的模板来源，运行时也不 patch 其 `suspend`/`schedule`。
+  通知维护接口不再依赖 Kubernetes 模板，运行时也不 patch `suspend`/`schedule`。
 - 任务列表在活动任务期间每 3 秒、空闲时每 30 秒刷新；后台标签页不轮询，回到页面重新读取。
 
 ## 任务操作
@@ -108,17 +108,13 @@ Ops Web 提供通知摘要、已采集正文预览、分类维护和一次性维
   可包含 `attachmentsMissing`，表示门户明确返回 HTTP 404 且未创建资源对象的通知附件数量；
   `noticesAdded` 为本轮新登记数，`upToDate=true` 显示为「本轮无新增通知」；
   首次发布摘要使用 `notices`、`assets`，重新发布还可使用 `updated`、`unchanged`；
-- `error`：应用进程从 Pod 或本地子进程输出的原始错误文本，包括 stack、cause、HTTP 状态和响应体，不做错误码泛化、
-  脱敏或 500 字符截断；
-- `controllerError`：Kubernetes Job condition 的原始 reason/message，例如
-  `BackoffLimitExceeded: Job has reached the specified backoff limit`。它描述控制器观测到的结果，不能替代
-  应用错误。
+- `error`：部署环境返回 Temporal Workflow failure 的错误信息；本地 adapter 返回子进程输出的错误；
+- `controllerError`：部署环境同步返回 Workflow 失败信息以保持响应字段兼容，不再读取 Kubernetes Job condition。
 
-Ops Web 会读取成功、失败和运行中 Job 的进程输出。若 Kubernetes Job 已失败但 Pod 输出不可用，`error` 为 `null`，
-`controllerError` 仍单独返回；任务中心分别展示两者。采集的 sync、backfill 和 rescan 是独立 Job，页面只显示
-实际创建的 Job，不自动补建或串联另一条。
+部署环境的采集进度来自 Activity heartbeat，最终摘要来自 Workflow result；完成但有逐项失败时保留
+`summary.outcome=partial`。sync、backfill 和 rescan 继续串联分类、发布和 RAG 刷新，页面只展示实际运行。
+失败的运行不能据此推断维护边界或索引指针已经推进。
 
-任务中心的操作族为采集、分类和发布。服务端只接受上述固定操作、回填起始日期或补查范围；每个操作族同时只能有一个
-待运行或运行中的 Job。浏览器在提交成功等待 Kubernetes 返回期间显示一个本地 pending 行并立即锁定对应操作族；
-服务端返回真实 Job 后，该行替换为真实记录。读取任务列表失败或仍在加载时不会删除 pending 行，也不会把客户端
-临时行当作 Kubernetes Job 返回给其他消费者。
+服务端只接受上述固定操作、回填起始日期或补查范围。所有部署环境维护操作共用一个 Workflow ID，
+同时只能有一条运行；前端操作族仍用于展示。浏览器在提交期间显示本地 pending 行，服务端返回后替换为
+实际运行记录。读取失败或仍在加载时不会删除 pending 行，也不会把客户端临时行返回给其他消费者。

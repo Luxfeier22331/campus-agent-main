@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestOptionalQdrantTimingCannotFailRetrieval(t *testing.T) {
 func TestCampusSearchKeepsComplementaryNoticeSectionsAndExcludesPriorEvidence(t *testing.T) {
 	notice := func(id, chunk string) qdrantPoint {
 		return qdrantPoint{ID: chunk, Score: .1, Payload: map[string]any{
-			"source_kind": "notice", "schema_version": "campus_rag_point.v1",
+			"source_kind": "notice", "schema_version": "campus_rag_point.v2",
 			"notice_id": id, "chunk_id": chunk, "title": "通知", "section_title": "正文",
 			"citation_href": "/notices/" + id, "text": chunk,
 			"text_sha256":           execution.SHA256TextRef(chunk),
@@ -169,5 +170,90 @@ func TestCampusSearchDiagnosticsRecordsEvidenceBudgetExclusion(t *testing.T) {
 	encoded := campusdocs.EncodeSearchResult(results, 1)
 	if len(encoded) != 2 {
 		t.Fatal("diagnostics leaked into tool response")
+	}
+}
+
+func publishedNoticePointForTest(t *testing.T) qdrantPoint {
+	t.Helper()
+	data, err := os.ReadFile("../../../../packages/contracts/fixtures/campus_rag/notice-point.v3.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Point qdrantPoint `json:"point"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	fixture.Point.Score = .9
+	return fixture.Point
+}
+
+func TestPublishedNoticePayloadSupportsCurrentAndPreviousSchema(t *testing.T) {
+	index := campusdocs.Index{Collection: "campus_docs_" + strings.Repeat("c", 64)}
+	for _, schema := range []string{"campus_rag_point.v3", "campus_rag_point.v2", "campus_rag_point.v1"} {
+		t.Run(schema, func(t *testing.T) {
+			point := publishedNoticePointForTest(t)
+			point.Payload["schema_version"] = schema
+			result, err := campusDocsCandidateFromQdrantPoint(index, point)
+			if err != nil || result.result.NoticeID != "900001" {
+				t.Fatalf("publisher notice rejected: %+v %v", result, err)
+			}
+			for name, mutate := range map[string]func(map[string]any){
+				"citation":           func(p map[string]any) { p["citation_href"] = "/notices/999" },
+				"hash":               func(p map[string]any) { p["text"] = "changed" },
+				"missing text":       func(p map[string]any) { delete(p, "text") },
+				"unsupported schema": func(p map[string]any) { p["schema_version"] = "campus_rag_point.v999" },
+				"release time":       func(p map[string]any) { delete(p, "released_at") },
+			} {
+				t.Run(name, func(t *testing.T) {
+					invalid := publishedNoticePointForTest(t)
+					invalid.Payload["schema_version"] = schema
+					mutate(invalid.Payload)
+					if _, err := campusDocsCandidateFromQdrantPoint(index, invalid); err == nil && (schema == "campus_rag_point.v3" || name != "release time") {
+						t.Fatal("invalid payload accepted")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestCampusSearchConsumesMixedPublisherNoticeAndDocument(t *testing.T) {
+	notice := publishedNoticePointForTest(t)
+	document := validCampusDocsPointForTest()
+	document.Payload["schema_version"] = "campus_rag_point.v2"
+	document.Payload["corpus"] = "regulations"
+	document.Payload["is_current"] = true
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/embeddings":
+			writeJSON(w, 200, map[string]any{"data": []any{map[string]any{"embedding": make([]float64, campusdocs.EmbeddingDimensions)}}})
+		case "/v1/rerank":
+			writeJSON(w, 200, map[string]any{"results": []any{map[string]any{"index": 0, "relevance_score": .9}, map[string]any{"index": 1, "relevance_score": .8}}})
+		default:
+			writeJSON(w, 200, map[string]any{"result": map[string]any{"points": []qdrantPoint{notice, document}}})
+		}
+	}))
+	defer provider.Close()
+	client := newCampusDocsHTTPClientForTest(t, config.Config{DeploymentEnvironment: "local", QdrantURL: provider.URL, QdrantReadOnlyAPIKey: "key"}, campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1"))
+	snapshot := &campusdiagnostics.Snapshot{Durations: map[string]int64{}}
+	ctx := campusdocs.WithSearchObserver(t.Context(), &campusdocs.SearchObserver{Snapshot: snapshot, Phase: func(string) {}})
+	results, err := client.Search(ctx, campusdocs.Index{Collection: "campus_docs_" + strings.Repeat("a", 64)}, campusdocs.SearchQuery{RetrievalQuery: "夜宵和学籍规定", RerankQuery: "夜宵和学籍规定"}, 5)
+	if err != nil || len(results) != 2 {
+		t.Fatalf("mixed retrieval failed: %+v %v", results, err)
+	}
+	if results[0].NoticeID != "900001" || results[1].SourceKind != "document" {
+		t.Fatalf("unexpected evidence: %+v", results)
+	}
+	if snapshot.Retrieval.HTTPStatus == nil || *snapshot.Retrieval.HTTPStatus != 200 {
+		t.Fatalf("Qdrant status missing: %+v", snapshot.Retrieval)
+	}
+	notice.Payload["schema_version"] = "campus_rag_point.v999"
+	if _, err := client.Search(ctx, campusdocs.Index{Collection: "campus_docs_" + strings.Repeat("a", 64)}, campusdocs.SearchQuery{RetrievalQuery: "夜宵和学籍规定", RerankQuery: "夜宵和学籍规定"}, 5); err == nil || !strings.Contains(err.Error(), "campus_rag_point.v999") {
+		t.Fatalf("missing concrete schema error: %v", err)
+	}
+	if snapshot.Retrieval.HTTPStatus == nil || *snapshot.Retrieval.HTTPStatus != 200 || snapshot.FailedStage != "retrieval" {
+		t.Fatalf("parse failure lost upstream status: %+v", snapshot)
 	}
 }

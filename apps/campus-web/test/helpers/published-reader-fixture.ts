@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { DocsSourceManifest } from "campus-contracts/campus-docs";
 
 import { COURSE_MAP_IMAGE as COURSE_MAP_IMAGE_FIXTURE } from "campus-contracts/campus-docs/fixture";
 
@@ -32,6 +33,7 @@ export interface PublishedReaderFixtureInput {
 export interface PublishedReaderFixture {
 	client: ReaderObjectStoreClient;
 	manifest: PublishedReaderManifest;
+	source: DocsSourceManifest;
 	root: string;
 }
 
@@ -201,6 +203,47 @@ export function createPublishedReaderFixture(
 				]
 			: [],
 	};
+	const source: DocsSourceManifest = {
+		schemaVersion: "campus_docs_source.v4",
+		collections: manifest.collections,
+		topics: manifest.topics,
+		redirects: manifest.redirects,
+		documents: [
+			...new Map(
+				manifest.entries.map(({ docId, documentSlug, collection, corpus, title, topicId }) => [
+					docId,
+					{ docId, documentSlug, collection, corpus, title, topicId },
+				]),
+			).values(),
+		],
+		versions: manifest.entries.map((entry) => ({
+			docId: entry.docId,
+			versionId: entry.versionId,
+			versionSlug: entry.versionSlug,
+			reader: entry.reader,
+			supplements: entry.supplements.map((supplement) => ({
+				...supplement,
+				object: addObject(
+					`source/${entry.versionId}/course-maps.json`,
+					JSON.stringify({
+						schemaVersion: "curriculum_course_maps_reader_v1",
+						docId: entry.docId,
+						versionId: entry.versionId,
+						blocks: [
+							{
+								blockId: "page-0001-map-01",
+								imagePath: "course-maps/page-0001-map-01.png",
+								pageNumber: 1,
+								parentHeadingHint: "六、课程地图",
+								regionBBoxProvider: [0, 0, 1233, 649],
+								title: "学生考勤课程地图",
+							},
+						],
+					}),
+				),
+			})),
+		})),
+	};
 	const missingObjects = new Set(input.missingObjects ?? []);
 	return {
 		client: {
@@ -213,6 +256,7 @@ export function createPublishedReaderFixture(
 			},
 		},
 		manifest,
+		source,
 		root,
 	};
 }

@@ -83,13 +83,6 @@ export interface PublishedReaderManifest {
 	topics: PublishedReaderTopic[];
 }
 
-export interface ReaderSyncInput {
-	client: ReaderObjectStoreClient;
-	docsRoot?: string;
-	manifest: PublishedReaderManifest;
-	targetRoot?: string;
-}
-
 export interface ReaderSyncDocsResult {
 	generatedDocumentCount: number;
 }
@@ -97,18 +90,6 @@ export interface ReaderSyncDocsResult {
 export interface ReaderSyncAssetsResult {
 	copiedAssetCount: number;
 	copiedDocumentCount: number;
-}
-
-export interface ReaderSyncCheckResult {
-	checkedDocumentCount: number;
-	checkedObjectCount: number;
-}
-
-export interface ReaderAssetCopy {
-	bytes: Uint8Array;
-	filePath: string;
-	targetObject: string;
-	targetPath: string;
 }
 
 export type ObjectStoreCredentialMode = "derived";

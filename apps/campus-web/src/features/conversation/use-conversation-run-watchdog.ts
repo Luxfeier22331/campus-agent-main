@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
 
-import { ChatStreamRequestError } from "./api";
-import type { RuntimeRunAction } from "./conversation-run-types";
 import type { RunOperationMachine } from "./run-operation-machine";
 
 export const RUN_STALL_TIMEOUT_MS = 180_000;
@@ -37,18 +35,18 @@ function createAbortError(): Error {
 }
 
 export function useConversationRunWatchdog({
-	appendLocalErrorMessage,
-	applyRunStateAction,
+	onStall,
 	operationMachine,
-	setIsRunning,
 	timeoutMs = RUN_STALL_TIMEOUT_MS,
 }: {
-	appendLocalErrorMessage: (error: ChatStreamRequestError) => void;
-	applyRunStateAction: (action: RuntimeRunAction) => unknown;
+	onStall: () => void;
 	operationMachine: RunOperationMachine;
-	setIsRunning: (isRunning: boolean) => void;
 	timeoutMs?: number;
 }) {
+	const onStallRef = useRef(onStall);
+	useEffect(() => {
+		onStallRef.current = onStall;
+	}, [onStall]);
 	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const armedRef = useRef(false);
 
@@ -60,37 +58,22 @@ export function useConversationRunWatchdog({
 		armedRef.current = false;
 	}, []);
 
-	const fire = useCallback(() => {
-		timerRef.current = null;
-		armedRef.current = false;
-		const operation = operationMachine.current();
-		const requestId = operationMachine.activeRun?.requestId;
-		if (!(operation || requestId)) {
-			return;
-		}
-		operationMachine.cancelFailure = null;
-		operationMachine.invalidate();
-		applyRunStateAction({
-			operationId: operation?.id ?? operationMachine.operationId,
-			type: "reset",
-		});
-		setIsRunning(false);
-		appendLocalErrorMessage(
-			new ChatStreamRequestError({
-				code: "answer_stalled",
-				message: "回答长时间没有进展，已停止等待，请重试。",
-				...(requestId ? { requestId } : {}),
-				retryable: true,
-			}),
-		);
-	}, [appendLocalErrorMessage, applyRunStateAction, operationMachine, setIsRunning]);
-
 	const schedule = useCallback(() => {
 		if (timerRef.current !== null) {
 			clearTimeout(timerRef.current);
 		}
-		timerRef.current = setTimeout(fire, timeoutMs);
-	}, [fire, timeoutMs]);
+		const operationId = operationMachine.operationId;
+		timerRef.current = setTimeout(() => {
+			timerRef.current = null;
+			armedRef.current = false;
+			if (
+				operationMachine.operationId === operationId &&
+				(operationMachine.controller || operationMachine.activeRun)
+			) {
+				onStallRef.current();
+			}
+		}, timeoutMs);
+	}, [operationMachine, timeoutMs]);
 
 	const startWatchdog = useCallback(() => {
 		armedRef.current = true;

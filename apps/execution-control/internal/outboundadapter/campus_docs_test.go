@@ -433,6 +433,7 @@ func TestCampusNoticeCandidateValidatesCitationIdentity(t *testing.T) {
 		ID:    "notice-point",
 		Score: 0.91,
 		Payload: map[string]any{
+			"source_kind":           "notice",
 			"citation_href":         "/notices/54321",
 			"chunk_id":              "notice-chunk",
 			"notice_id":             "12345",

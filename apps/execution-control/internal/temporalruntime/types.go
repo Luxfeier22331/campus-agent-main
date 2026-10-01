@@ -75,6 +75,7 @@ type WorkflowEvidence struct {
 	ResultRef     string         `json:"result_ref,omitempty"`
 	DocumentID    string         `json:"document_id,omitempty"`
 	NoticeID      string         `json:"notice_id,omitempty"`
+	ReleasedAt    string         `json:"released_at,omitempty"`
 	CitationHref  string         `json:"citation_href,omitempty"`
 	SectionRef    string         `json:"section_ref,omitempty"`
 	SectionTitle  string         `json:"section_title,omitempty"`

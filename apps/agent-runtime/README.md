@@ -87,6 +87,8 @@ operation 消费准入时持久化的绝对 `deadline_at`，切换步骤、重�
 如 `https://generativelanguage.googleapis.com/v1beta`；网关同样填写其原生 Gemini API 根路径。
 Solve/Executor 可使用已准入工具，Synthesizer 不使用工具；三者均可使用内部 SSE。
 Executor 只输出检索状态和终态结果，不输出 answer_delta；Replanner 使用非流式接口。
+Solve/Executor 通过 `model_answer_transport` 独立选择模型 buffered/stream；内部 SSE 两种模式均
+实时上报检索状态。buffered Solve 只返回 decision 和完整终态，正文由 Execution Control 单次投影。
 内部 `retrieval_status` 的 schema 为 `workflow_runtime_retrieval_status.v1`，字段为 `source`、`status`、
 `occurred_at`。Runtime 从实际 campus_search 函数调用产生产品检索状态，execution-control 持久化后
 由 App API 发布。Campus Search 排队不等于检索开始，已校验返回数量区分命中与无匹配。

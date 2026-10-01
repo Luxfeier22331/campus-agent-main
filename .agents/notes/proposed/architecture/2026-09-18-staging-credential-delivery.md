@@ -18,6 +18,6 @@ Status: proposed
 
 GitHub Environment Secret 更新是六次独立写入，失败后通过修复外部问题并重新 Argo sync 恢复。Job 镜像和 GitHub App SealedSecret 需要在首次激活前完成构建、发布和加密 bootstrap。
 
-## 验收标准
+## 可观察结果
 
 六值投递、失败门禁、Secret 所有权迁移及 Dining 发布均完成真实验证后转为 implemented。

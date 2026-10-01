@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAvailabilitySnapshot, markExpiredSnapshot } from "../src/status/aggregate";
+import {
+	aggregateServiceStatus,
+	buildAvailabilitySnapshot,
+	markExpiredSnapshot,
+} from "../src/status/aggregate";
 import {
 	CAMPUS_QA_DEFINITION,
 	CAMPUS_SERVICES_DEFINITION,
@@ -110,6 +114,26 @@ describe("status configuration", () => {
 });
 
 describe("status probes", () => {
+	it.each(["", "校园问答"])("accepts the Campus shell with title %j", async (title) => {
+		await expect(
+			runProbe(CAMPUS_SERVICES_DEFINITION.shell, "https://campus.example.test", {
+				fetchFn: async () => response("shell", { "content-type": "text/html" }),
+				htmlParser: async () => ({ ...HTML_STRUCTURE, title }),
+			}),
+		).resolves.toMatchObject({ status: "passed", httpStatus: 200 });
+	});
+
+	it("reports a parser failure as unknown rather than a product outage", async () => {
+		const result = await runProbe(CAMPUS_SERVICES_DEFINITION.shell, "https://campus.example.test", {
+			fetchFn: async () => response("shell", { "content-type": "text/html" }),
+			htmlParser: async () => {
+				throw new Error("HTML parser unavailable");
+			},
+		});
+		expect(result).toMatchObject({ status: "unknown", httpStatus: 200 });
+		expect(aggregateServiceStatus(CAMPUS_SERVICES_DEFINITION, [result])).toBe("unknown");
+	});
+
 	it("validates the shared Campus shell structure", async () => {
 		await expect(
 			runProbe(CAMPUS_SERVICES_DEFINITION.shell, "https://campus.example.test", {

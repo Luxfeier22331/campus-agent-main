@@ -1,9 +1,24 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-import { parseCampusHtmlWithHtmlRewriter } from "../src/status/probes";
+import campusHtml from "../../campus-web/index.html?raw";
+import { aggregateServiceStatus } from "../src/status/aggregate";
+import { CAMPUS_SERVICES_DEFINITION } from "../src/status/config";
+import { parseCampusHtmlWithHtmlRewriter, runProbe } from "../src/status/probes";
 
 describe("status worker runtime", () => {
+	it.each([
+		["actual Campus entry", campusHtml, "operational"],
+		["missing root", campusHtml.replace('id="root"', 'id="other"'), "outage"],
+		["missing module", campusHtml.replace('type="module"', 'type="text/plain"'), "outage"],
+		["error page", campusHtml.replace("<head>", "<head><title>Error</title>"), "outage"],
+	])("checks %s with the real HTMLRewriter", async (_name, html, expected) => {
+		const result = await runProbe(CAMPUS_SERVICES_DEFINITION.shell, "https://campus.example.test", {
+			fetchFn: async () => new Response(html, { headers: { "content-type": "text/html" } }),
+		});
+		expect(aggregateServiceStatus(CAMPUS_SERVICES_DEFINITION, [result])).toBe(expected);
+	});
+
 	it("parses the Campus shell with the Worker HTMLRewriter", async () => {
 		await expect(
 			parseCampusHtmlWithHtmlRewriter(

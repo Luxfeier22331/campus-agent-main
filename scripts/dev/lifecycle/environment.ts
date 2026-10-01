@@ -31,6 +31,13 @@ const IMPORTED_EXTERNAL_ENV_MARKER =
 	"# External development credentials imported from the main checkout by pnpm dev:init.";
 
 const SHARED_EXTERNAL_PROVIDER_ENV_KEYS = [
+	"HINDSIGHT_API_LLM_API_KEY",
+	"HINDSIGHT_API_LLM_BASE_URL",
+	"HINDSIGHT_API_LLM_MODEL",
+	"HINDSIGHT_API_LLM_PROVIDER",
+	"HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY",
+	"HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL",
+	"HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL",
 	"DOCUMENT_OCR_API_KEY",
 	"DOCUMENT_OCR_BASE_URL",
 	"LLM_BASE_URL",
@@ -394,6 +401,9 @@ export function renderLocalEnvironmentFiles(input: {
 			EXECUTION_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			EXECUTION_CONTROL_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: `${profile.instanceId}:execution-control`,
+			HINDSIGHT_API_BASE_URL: `http://127.0.0.1:${infraPorts.hindsightApi}`,
+			HINDSIGHT_API_TENANT_API_KEY: infrastructure.hindsightTenantKey,
+			HINDSIGHT_OWNER_SALT: infrastructure.hindsightOwnerSalt,
 			HOST: "127.0.0.1",
 			PORT: String(runtimePorts.executionControl),
 			...(input.qdrant

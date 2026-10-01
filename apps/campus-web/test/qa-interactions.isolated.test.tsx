@@ -189,6 +189,27 @@ describe("Q&A product interactions", () => {
 		});
 	});
 
+	it("opens a sidebar conversation through its canonical route", async () => {
+		const user = userEvent.setup();
+		render(<HomePage />);
+
+		await user.click(await screen.findByRole("button", { name: "国家奖学金" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			params: { conversationId: "conv_active" },
+			to: "/c/$conversationId",
+		});
+	});
+
+	it("returns to the home route when starting a new conversation", async () => {
+		const user = userEvent.setup();
+		render(<ConversationPage />);
+
+		await user.click(await screen.findByRole("button", { name: "新对话" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/" });
+	});
+
 	it("searches remote conversation history from the Q&A rail", async () => {
 		await import("../src/components/assistant-ui/thread-history-search-dialog");
 		const user = userEvent.setup();

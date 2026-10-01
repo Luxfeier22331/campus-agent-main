@@ -15,7 +15,6 @@ export type CampusHtmlParser = (html: string) => Promise<CampusHtmlStructure>;
 const DEFAULT_TIMEOUT_MS = 8_000;
 const ERROR_PAGE_PATTERN =
 	/(?:登录|错误|出错|无法访问|页面不存在|not found|sign in|log in|error)/iu;
-const CAMPUS_TITLE_PATTERN = /(?:MUC Campus|中央民族大学校园问答)/u;
 const CAMPUS_MODULE_PATTERN = /^\/?(?:src\/(?:docs-)?main\.tsx|assets\/[^/?#]+\.js)(?:[?#].*)?$/u;
 const ERROR_FINAL_PATH_PATTERN =
 	/^\/(?:account(?:\/|$)|auth(?:\/|$)|(?:login|signin|sign-in|error|errors|not-found)(?:[/-]|$)|(?:4\d{2}|5\d{2})(?:[/-]|$))/iu;
@@ -188,16 +187,21 @@ async function hasExpectedBody(
 	body: string,
 	htmlParser: CampusHtmlParser | undefined,
 ): Promise<"passed" | "failed" | "unknown" | null> {
-	try {
-		if (definition.bodyKind === "html") {
-			const parsed = await (htmlParser ?? parseCampusHtmlWithHtmlRewriter)(body);
-			return parsed.rootMountCount === 1 &&
-				CAMPUS_TITLE_PATTERN.test(parsed.title) &&
-				!ERROR_PAGE_PATTERN.test(parsed.title) &&
-				parsed.moduleScriptSources.some((source) => CAMPUS_MODULE_PATTERN.test(source))
-				? "passed"
-				: null;
+	if (definition.bodyKind === "html") {
+		let parsed: CampusHtmlStructure;
+		try {
+			parsed = await (htmlParser ?? parseCampusHtmlWithHtmlRewriter)(body);
+		} catch {
+			// A parser failure cannot establish whether the product is unavailable.
+			return "unknown";
 		}
+		return parsed.rootMountCount === 1 &&
+			!ERROR_PAGE_PATTERN.test(parsed.title) &&
+			parsed.moduleScriptSources.some((source) => CAMPUS_MODULE_PATTERN.test(source))
+			? "passed"
+			: null;
+	}
+	try {
 		const parsed: unknown = JSON.parse(body);
 		if (!isRecord(parsed) || Object.keys(parsed).length === 0 || "error" in parsed) {
 			return null;

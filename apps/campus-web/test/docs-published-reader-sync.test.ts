@@ -3,17 +3,16 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { writeNativeDocsHtmlPages } from "../src/docs-reader-build/native-reader-prerender.tsx";
-import { isMissingObjectError } from "../src/docs-reader-build/published-reader-object-store.ts";
 import {
-	checkCampusPublishedReaderInputs,
+	isMissingObjectError,
 	resolvePublishedReaderObjectStoreBucket,
 	resolvePublishedReaderObjectStoreConfig,
 	resolvePublishedReaderObjectStoreCredentials,
 	resolvePublishedReaderObjectStoreWriterConfig,
 	resolvePublishedReaderObjectStoreWriterCredentials,
-	syncCampusPublishedReaderAssets,
-	syncCampusPublishedReaderDocs,
-} from "../src/docs-reader-build/sync-campus-published-reader.ts";
+} from "../src/docs-reader-build/published-reader-object-store.ts";
+import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
+import { syncCompiledCampusPublishedReader } from "../src/docs-reader-build/sync-campus-published-reader.ts";
 import {
 	cleanupPublishedReaderFixture,
 	createPublishedReaderFixture,
@@ -328,16 +327,16 @@ describe("campus-web published reader sync", () => {
 	});
 
 	it("copies published reader assets into campus-web static delivery roots", async () => {
-		const { client, manifest, root } = createPublishedReaderFixture();
+		const { client, source, root } = createPublishedReaderFixture();
 		const targetRoot = join(root, "public");
 
-		const result = await syncCampusPublishedReaderAssets({
-			client,
-			manifest,
+		const result = await syncCompiledCampusPublishedReader({
+			compiled: await compileDocsSource({ client, source }),
+			docsRoot: join(root, "generated"),
 			targetRoot,
 		});
 
-		expect(result).toMatchObject({
+		expect(result.assets).toMatchObject({
 			copiedAssetCount: 7,
 			copiedDocumentCount: 3,
 		});
@@ -394,91 +393,50 @@ describe("campus-web published reader sync", () => {
 		expect(existsSync(join(targetRoot, "_gated-docs-search"))).toBe(false);
 	});
 
-	it("checks published reader inputs without writing generated docs or static assets", async () => {
-		const { client, manifest, root } = createPublishedReaderFixture();
-		const generatedRoot = join(root, "generated");
-		const targetRoot = join(root, "public");
-
-		const result = await checkCampusPublishedReaderInputs({
-			client,
-			docsRoot: generatedRoot,
-			manifest,
-			targetRoot,
-		});
-
-		expect(result).toMatchObject({
-			checkedDocumentCount: 3,
-			checkedObjectCount: 7,
-		});
-		expect(existsSync(join(generatedRoot, "catalog.json"))).toBe(false);
-		expect(
-			existsSync(
-				join(targetRoot, "_docs/regulations/student_rules/student-attendance/2026/reader.json"),
-			),
-		).toBe(false);
-	});
-
-	it("fails closed when check mode finds a missing reader source object", async () => {
-		const { client, manifest } = createPublishedReaderFixture({
+	it("rejects missing source objects before generating assets", async () => {
+		const { client, source } = createPublishedReaderFixture({
 			missingObjects: ["reader/public.json"],
 		});
-
-		await expect(
-			checkCampusPublishedReaderInputs({
-				client,
-				manifest,
-			}),
-		).rejects.toThrow("missing published reader object: reader/public.json");
+		await expect(compileDocsSource({ client, source })).rejects.toThrow(
+			"missing published reader object: reader/public.json",
+		);
 	});
 
-	it("keeps existing static assets when a replacement input is invalid", async () => {
-		const { client, manifest, root } = createPublishedReaderFixture();
+	it("keeps existing assets and catalog when compiling a replacement fails", async () => {
+		const { client, source, root } = createPublishedReaderFixture();
 		const targetRoot = join(root, "public");
-		await syncCampusPublishedReaderAssets({ client, manifest, targetRoot });
-		const existingPath = join(
+		const docsRoot = join(root, "generated");
+		await syncCompiledCampusPublishedReader({
+			compiled: await compileDocsSource({ client, source }),
+			targetRoot,
+			docsRoot,
+		});
+		const assetPath = join(
 			targetRoot,
 			"_docs/regulations/student_rules/student-attendance/2026/reader.json",
 		);
-		const existing = readFileSync(existingPath, "utf8");
-
-		await expect(
-			syncCampusPublishedReaderAssets({
-				client: {
-					readOptionalBytesObject: ({ key }) =>
-						key === "reader/public.json"
-							? Promise.resolve(undefined)
-							: client.readOptionalBytesObject({ key }),
-				},
-				manifest,
+		const catalogPath = join(docsRoot, "catalog.json");
+		const asset = readFileSync(assetPath, "utf8");
+		const catalog = readFileSync(catalogPath, "utf8");
+		const replacement = async () =>
+			syncCompiledCampusPublishedReader({
+				compiled: await compileDocsSource({
+					source,
+					client: {
+						readOptionalBytesObject: ({ key }) =>
+							key === "reader/public.json"
+								? Promise.resolve(undefined)
+								: client.readOptionalBytesObject({ key }),
+					},
+				}),
 				targetRoot,
-			}),
-		).rejects.toThrow("missing published reader object: reader/public.json");
-		expect(readFileSync(existingPath, "utf8")).toBe(existing);
-	});
-
-	it("keeps existing generated catalog when a replacement input is invalid", async () => {
-		const { client, manifest, root } = createPublishedReaderFixture();
-		const generatedRoot = join(root, "generated");
-		const targetRoot = join(root, "public");
-		await syncCampusPublishedReaderAssets({ client, manifest, targetRoot });
-		await syncCampusPublishedReaderDocs({ client, docsRoot: generatedRoot, manifest, targetRoot });
-		const catalogPath = join(generatedRoot, "catalog.json");
-		const existing = readFileSync(catalogPath, "utf8");
-
-		await expect(
-			syncCampusPublishedReaderDocs({
-				client: {
-					readOptionalBytesObject: ({ key }) =>
-						key === "reader/public.json"
-							? Promise.resolve(undefined)
-							: client.readOptionalBytesObject({ key }),
-				},
-				docsRoot: generatedRoot,
-				manifest,
-				targetRoot,
-			}),
-		).rejects.toThrow("missing published reader object: reader/public.json");
-		expect(readFileSync(catalogPath, "utf8")).toBe(existing);
+				docsRoot,
+			});
+		await expect(replacement()).rejects.toThrow(
+			"missing published reader object: reader/public.json",
+		);
+		expect(readFileSync(assetPath, "utf8")).toBe(asset);
+		expect(readFileSync(catalogPath, "utf8")).toBe(catalog);
 	});
 });
 
@@ -487,15 +445,9 @@ async function buildNativeReaderFixture(input: PublishedReaderFixtureInput = {})
 	const generatedRoot = join(fixture.root, "generated");
 	const pagesRoot = join(fixture.root, "pages");
 	const publicRoot = join(fixture.root, "public");
-	await syncCampusPublishedReaderAssets({
-		client: fixture.client,
-		manifest: fixture.manifest,
-		targetRoot: publicRoot,
-	});
-	const syncResult = await syncCampusPublishedReaderDocs({
-		client: fixture.client,
+	const { docs: syncResult } = await syncCompiledCampusPublishedReader({
+		compiled: await compileDocsSource({ client: fixture.client, source: fixture.source }),
 		docsRoot: generatedRoot,
-		manifest: fixture.manifest,
 		targetRoot: publicRoot,
 	});
 	const { pageCount } = await writeNativeDocsHtmlPages({

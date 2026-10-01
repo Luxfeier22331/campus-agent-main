@@ -38,7 +38,7 @@ reader。
 
 ### Notice Chunk Run
 
-已发布 Notice 的正文由 `notice-index-publisher` 生成 `notice_chunk_run.v1`。统一 publisher 只消费 Chunk
+已发布 Notice 的正文由 `notice-index-publisher` 生成 `notice_chunk_run.v2`。统一 publisher 只消费 Chunk
 数据；title 取 `retrieval_text` 首行，citation 由 `noticeId` 固定生成 `/notices/<noticeId>`，不访问 live
 Notices DB。`review-samples.ndjson` 和 `validation.json` 是离线诊断产物，不是 serving 输入。
 
@@ -94,10 +94,10 @@ Docs section 由 reader heading 路径或标题前正文形成，并绑定文档
 ### Point
 
 写入 Qdrant 的离线检索单元。point 使用按 source namespace 隔离的确定性 UUID，并保存统一
-`campus_rag_point.v1` payload、`dense` 与 `sparse` named vector。Docs point 的 `source_kind` 为
+`campus_rag_point.v3` payload、`dense` 与 `sparse` named vector。Docs point 的 `source_kind` 为
 `document`，携带文档/版本/section/root units；Notice point 的 `source_kind` 为 `notice`，携带
-`notice_id`、`chunk_index`、标题、heading path 和 `/notices/<noticeId>` citation。UI 将 Notice source kind
-映射为 `campus_notice`。
+`notice_id`、`chunk_index`、标题、heading path、`released_at` 和 `/notices/<noticeId>` citation；`released_at`
+只表示发布时间。UI 将 Notice source kind 映射为 `campus_notice`。
 
 ## 发布与激活
 

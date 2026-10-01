@@ -236,13 +236,13 @@ func TestRecoverySynthesisContract(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	output := temporalruntime.WorkflowOperationActivityOutput{Evidence: evidence, SourceAttempts: attempts}
+	output := temporalruntime.WorkflowOperationActivityOutput{}
 	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err != nil {
 		t.Fatal(err)
 	}
-	output.SourceAttempts = nil
+	output = temporalruntime.WorkflowOperationActivityOutput{Evidence: evidence, SourceAttempts: attempts}
 	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err == nil {
-		t.Fatal("lost source attempts accepted")
+		t.Fatal("synthesis response echoed admitted materials")
 	}
 	request.Evidence = nil
 	if err := executionactivities.ValidateWorkflowOperationRequest(request); err == nil {

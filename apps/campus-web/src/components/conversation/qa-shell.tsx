@@ -243,8 +243,12 @@ function AssistantRemoteRuntimeFrame({
 	threadId: string | null;
 }) {
 	const adapter = useMemo(
-		() => createCampusAssistantThreadListAdapter({ enableRemoteHistory }),
-		[enableRemoteHistory],
+		() =>
+			createCampusAssistantThreadListAdapter({
+				enableRemoteHistory,
+				onUnauthorized: onLoginRequired,
+			}),
+		[enableRemoteHistory, onLoginRequired],
 	);
 	const runtimeHook = useMemo(
 		() => createCampusAssistantRuntimeHook({ loginRequired, onLoginRequired }),

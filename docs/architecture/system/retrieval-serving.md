@@ -25,7 +25,7 @@ RAG 制品，不共享发布状态。Notice builder 从 `notice-publisher` 已�
 
 Docs serving 输入是清单中每份文档的当前 `campus_docs_reader.v3`。reader 引用由 `key`、`byteSize` 和
 `sha256` 固定；历史版本 reader、校历和其他补充资产不进入当前 Docs 索引。Notice serving 输入是显式
-`notice_chunk_run.v1` 与 `notice_embedding_set.v1`。统一 publisher 只读取 serving 所需的 Chunk 数据和
+`notice_chunk_run.v2` 与 `notice_embedding_set.v1`。Chunk 记录保留来源通知的 RFC3339 UTC `released_at`；统一 publisher 只读取 serving 所需的 Chunk 数据和
 Embedding 数据，不自动发现 bucket 中的对象；title 从 `retrievalText` 首行生成，citation 由
 `noticeId` 固定为 `/notices/<noticeId>`。
 
@@ -64,8 +64,8 @@ Docs 当前 `campus_docs_reader_elements.v5` 使用 Unicode 字符数，不依�
 
 Notice 使用独立的 `notice_text_structure.v8` 分块定义（软目标 800、硬上限 1200、无 overlap）。其
 `retrievalText` 由通知标题、heading path 和正文构成。统一 publisher 使用 Chunk 的 `retrievalText` 首行
-生成 title，并由 `noticeId` 生成 citation；builder 的 review 和 validation 文件只用于离线诊断，不进入
-serving 读取路径。
+生成 title，并由 `noticeId` 生成 citation；`released_at` 只作为通知发布时间证据，不参与 embedding、适用期推断或
+通知过滤。builder 的 review 和 validation 文件只用于离线诊断，不进入 serving 读取路径。
 
 ## Chunk 策略治理
 
@@ -91,7 +91,7 @@ Docs Chunk Job: source.json + 当前 reader
 Docs Embedding Job: Docs Chunk Set + Model Config 完整配置
   -> Docs Embedding Set
 Notice Chunk Job: 已发布 Notice 快照
-  -> Notice Chunk Run v1
+  -> Notice Chunk Run v2
 Notice Embedding Job: Notice Chunk Run + Model Config 完整配置
   -> Notice Embedding Set
 Unified Publisher Job: Docs Embedding Set + Notice Embedding Set
@@ -139,10 +139,10 @@ PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或
 在线 execution-control 只读取 `current_index`；它不执行 publisher 的激活流程。由于两条路径当前共享
 `execution_control` 技术身份，数据库权限不能单独表达这一进程级区分，代码行为和 ACL 需要分别验证。
 
-当前查询先根据问题中的版本意图生成检索范围：默认只允许 Docs 的当前版本；培养方案可按入学年份选择适用版本；明确历史或版本问题只有在索引中存在对应版本时才可能命中。该范围作为 Qdrant payload filter 同时应用到 dense/sparse hybrid RRF 的两个 prefetch。随后最多取得 24 个候选，再使用当前 `campus_docs_reranker`
+当前查询先根据问题中的版本意图生成检索范围：默认只允许 Docs 的当前版本；培养方案可按入学年份选择适用版本；明确历史或版本问题只有在索引中存在对应版本时才可能命中。对通知问题，`今年`、`去年`、`前年` 会基于同一 run 冻结的创建日期归一化为具体年份，并把同一结果用于召回和 rerank；其他相对时间不作推断。该范围作为 Qdrant payload filter 同时应用到 dense/sparse hybrid RRF 的两个 prefetch。随后最多取得 24 个候选，再使用当前 `campus_docs_reranker`
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。数量和字符预算前
 排除本轮已返回的 `result_ref`；同一通知的不同片段仍可返回，不按通知来源折叠互补章节，
-也不按通知发布时间自动排除旧通知。版本过滤不改变 Notices 的已发布通知范围。最终返回
+也不按通知发布时间自动排除旧通知。结果中的 `released_at` 只能证明通知发布时间，不能证明截止日期、适用年度、学期、申请窗口或当前有效性；正文没有适用信息时，答案必须说明无法确认。版本过滤不改变 Notices 的已发布通知范围。最终返回
 每次最多 5 条候选结果，正文总字符预算为 4000。execution-control 校验 point schema、文本 hash、section
 URL、版本字段和 `root_unit_ids` 后才把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
 score 必须是有限数值；调用或校验失败直接使检索失败，不回退到未重排候选。过滤后无结果返回成功的

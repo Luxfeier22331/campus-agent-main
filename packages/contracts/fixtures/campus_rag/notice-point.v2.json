@@ -1,0 +1,27 @@
+{
+	"chunk": {
+		"chunkId": "sha256:0c26fbd68af3a3f2a41c3edac9f5b047b0fb19bf59047a20a0558e2e9862905b",
+		"chunkIndex": 0,
+		"content": "学生食堂夜宵服务时间为每日 20:00 至 22:00。",
+		"headingPath": ["服务时间"],
+		"noticeId": "900001",
+		"retrievalText": "食堂夜宵服务安排\n服务时间\n学生食堂夜宵服务时间为每日 20:00 至 22:00。"
+	},
+	"point": {
+		"id": "8b443966-b233-5251-83e0-023ae901f240",
+		"payload": {
+			"chunk_id": "sha256:0c26fbd68af3a3f2a41c3edac9f5b047b0fb19bf59047a20a0558e2e9862905b",
+			"chunk_index": 0,
+			"citation_href": "/notices/900001",
+			"heading_path": ["服务时间"],
+			"notice_id": "900001",
+			"retrieval_text_sha256": "sha256:1aac173d7dd86633a6f6eb25562bc0588b667cf0afb5884459f637eb3396ec6f",
+			"schema_version": "campus_rag_point.v2",
+			"section_title": "服务时间",
+			"source_kind": "notice",
+			"text": "学生食堂夜宵服务时间为每日 20:00 至 22:00。",
+			"text_sha256": "sha256:043e5d3a81f1d22f3de06c404401b647c640ac2eb39ba22175a2426c5e6529dc",
+			"title": "食堂夜宵服务安排"
+		}
+	}
+}

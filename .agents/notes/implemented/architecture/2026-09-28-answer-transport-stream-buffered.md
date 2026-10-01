@@ -15,11 +15,14 @@ Status: implemented
 让 solve/execute_step 的模型消费协议同时支持流式与非流式、可切换，当前默认非流式，供应商修复后评估切回。
 
 - 新增进程级开关 `EXECUTION_CONTROL_ANSWER_TRANSPORT`（取值 `stream`/`buffered`，默认 `buffered`），由 `execution-control` config 读取。任何非 `stream` 值（含缺省、非法值）一律归一为 `buffered`，避免误开流式复现缺陷。
-- `streamModelAnswers()` 统一判定，solve/execute_step 的 `Stream` 标志由硬编码 `true` 改为读该开关。synthesize 的 `Stream: !BufferAnswer`（recovery 既有逻辑）不动。
-- 非流式 solve 返回完整 `FinalOutput` 后，在 activity 内复用 `ProjectWorkflowAnswerDelta`（单 chunk）+ `ProjectWorkflowAnswerCompleted` 投影全文并置 `AnswerStarted=true`，使浏览器可见事件序列与流式同构（answer-started → 单个 answer.delta(全文) → answer-completed → request.completed），前端零改动。
+- `streamModelAnswers()` 统一判定模型正文模式，通过 operation 请求的 `model_answer_transport` 明确传给 Runtime。Solve/Execute Step 的内部 HTTP 始终使用 SSE，独立于模型 buffered/stream；synthesize 的 `Stream: !BufferAnswer`（recovery 既有逻辑）不动。
+- buffered Runtime 将非流式 runner 接入既有检索回调队列，在模型返回全文前实时发送 `retrieval_status`。Solve 校验结果后发送 decision 和终态，不发正文 delta；全文仍由 Execution Control 的既有单 chunk 分支投影，避免双重输出。
+- 非流式 solve 返回完整 `FinalOutput` 后，在 activity 内复用 `ProjectWorkflowAnswerDelta`（单 chunk）+ `ProjectWorkflowAnswerCompleted` 投影全文并置 `AnswerStarted=true`，使浏览器可见事件序列与流式同构（answer-started → 单个 answer.delta(全文) → answer-completed → request.completed）。
 - 放开 `ValidateWorkflowOperationRequest` 中 solve 必须 `Stream: true` 的硬校验，保留 identity/budget 校验；execute_step 本就不强制流式。
 
-切回流式 = 改环境变量重启进程，无代码改动；流式代码路径（`ConsumeWorkflowRuntimeStream`、agent-runtime streaming runner）完整保留。
+切回模型流式只需改环境变量并重启进程；内部进度 SSE 在两种模式下都保留。
+
+2026-09-30 真实浏览器验证发现 buffered 同时关闭内部 SSE，导致检索提示丢失；消息区禁用加载占位，通用提示又在底部输入框，放大等待感。现将唯一运行提示放在当前助手消息内：没有检索事件时显示“正在回答”，真实检索状态替换文案，断线时保留恢复操作，终态移除提示。正文继续完整到达，不模拟打字；读屏开始/结束通知保留。
 
 ## 未采用方案
 
@@ -33,6 +36,8 @@ Status: implemented
 
 验证：config 开关三态（缺省/buffered/stream/非法值）、`streamModelAnswers` 开关映射、`CallWorkflowOperationRuntime` 的 Stream 透传与非流式整 body 读取均有单测；execution-control 全量 `go test ./...` 与 `go vet` 通过。真实链路（保持 gateway 缺陷、默认 buffered）实测：solve `run_failed` 转为 `request.completed`、单 `answer.delta` 落地完整回答；plan 分支（solve→executor×2→replan→synthesize）全步骤 completed。开关切回 `stream` 后 solve 回流式（本次实测亦 completed，印证 gateway 缺陷间歇性，更凸显默认 buffered 消除不确定性的价值）。
 
-删除条件：gateway 修复 `streamGenerateContent` 对 `functionDeclarations` 的支持后，将默认改为 `stream` 或直接移除开关与 buffered 投影分支，恢复 solve 必须流式的硬校验。
+2026-09-30 验证：Runtime 定向用例证明 buffered Solve/Executor 在模型完成前发出检索开始事件，且不调用 streaming runner；内部 HTTP 保留模型模式字段，Go 验证进度 SSE 与单次全文投影的模式选择。前端测试覆盖当前消息唯一加载提示、检索文案、正文衔接与连接状态；相关类型、格式和文档检查通过。重启本分支服务后通过 Playwright MCP 观察真实请求：提示位于当前助手消息内，并按“正在回答 → 正在检索校内资料 → 校内检索失败”切换；普通回答以单个完整正文事件完成，手动停止进入取消终态，提示与停止按钮均清理。随后对齐通知 v2 消费合同，真实夜宵问题完成检索并生成带通知引用的回答；MCP 确认“正在回答 → 正在检索校内资料 → 已找到校内资料 → 终态清理”，Ops Web 同请求显示 Qdrant HTTP 200、混合召回 11 条和最终引用 1 条。
+
+删除条件：gateway 修复 `streamGenerateContent` 对 `functionDeclarations` 的支持后，将默认改为 `stream` 或直接移除模型模式开关与 buffered 投影分支；内部检索进度仍走现有 SSE。
 
 已知边界：非流式 solve 的单 delta 投影在 `ValidateOperationOutputFields` 通过后、`ProjectWorkflowToolResults` 之前执行；`AnswerStarted=true` 与流式"已发 delta"语义一致，下游 recovery 的 `BufferAnswer: solveResult.AnswerStarted` 行为不变。gateway 缺陷间歇性意味着 `stream` 模式下偶发成功，不改变默认 `buffered` 的决策。

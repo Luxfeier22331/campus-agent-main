@@ -163,6 +163,7 @@ export function agentRunStreamResponse(
 }
 
 export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelease: string) {
+	const isSynthesis = result.operation === "synthesize";
 	const payload = {
 		...(result.webEvidence && result.webEvidence.length > 0
 			? {
@@ -226,12 +227,16 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 		...(result.plan ? { plan: structuredOutputWire(result.plan) } : {}),
 		...(result.replan ? { replan: structuredOutputWire(result.replan) } : {}),
 		...(result.remainingFacts ? { remaining_facts: result.remainingFacts } : {}),
-		evidence: result.evidence.map(evidenceWire),
-		source_attempts: result.sourceAttempts.map((attempt) => ({
-			source: attempt.source,
-			status: attempt.status,
-			...(attempt.failureCode ? { failure_code: attempt.failureCode } : {}),
-		})),
+		...(isSynthesis
+			? {}
+			: {
+					evidence: result.evidence.map(evidenceWire),
+					source_attempts: result.sourceAttempts.map((attempt) => ({
+						source: attempt.source,
+						status: attempt.status,
+						...(attempt.failureCode ? { failure_code: attempt.failureCode } : {}),
+					})),
+				}),
 		model_name: result.modelName,
 		model_provider: result.modelProvider,
 		provider_response_id: result.providerResponseId,
@@ -318,6 +323,7 @@ function evidenceWire(evidence: WorkflowEvidence) {
 		...(evidence.resultRef === undefined ? {} : { result_ref: evidence.resultRef }),
 		...(evidence.documentId === undefined ? {} : { document_id: evidence.documentId }),
 		...(evidence.noticeId === undefined ? {} : { notice_id: evidence.noticeId }),
+		...(evidence.releasedAt === undefined ? {} : { released_at: evidence.releasedAt }),
 		...(evidence.citationHref === undefined ? {} : { citation_href: evidence.citationHref }),
 		...(evidence.sectionRef === undefined ? {} : { section_ref: evidence.sectionRef }),
 		...(evidence.sectionTitle === undefined ? {} : { section_title: evidence.sectionTitle }),

@@ -71,8 +71,10 @@ notices/rag/embedding-data/sha256/<digest>/embeddings.ndjson
 ```
 
 Docs 制品使用 `campus_docs_chunk_set.v2` 和 `campus_docs_embedding_set.v3`。Notice 制品使用
-`notice_chunk_run.v1` 和 `notice_embedding_set.v1`。统一 publisher 从 Notice Chunk 的 `retrieval_text`
+`notice_chunk_run.v2` 和 `notice_embedding_set.v1`。统一 publisher 从 Notice Chunk 的 `retrieval_text`
 首行生成 title，并由 `notice_id` 生成 `/notices/<notice_id>` citation；不连接 live Notices DB。
+文档和通知统一写入 `campus_rag_point.v3`。通知 payload 保留 `released_at` 发布时间，但不包含文档版本路由字段；
+`packages/contracts/fixtures/campus_rag/notice-point.v3.json` 由发布端输出，发布测试与执行端解析测试共同校验。
 
 所有 serving 所需的 manifest、对象引用、NDJSON 记录、向量维度、内容摘要和数量都会在组装前校验。Docs 与 Notice 必须
 使用相同的 embedding space、dimensions 和 Model Target；每个 embedding set 必须精确覆盖对应 Chunk

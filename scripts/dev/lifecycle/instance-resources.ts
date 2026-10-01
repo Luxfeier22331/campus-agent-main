@@ -252,6 +252,7 @@ export function formatProfileSummary(profile: LocalDevProfile): string {
 		`PostgreSQL: 127.0.0.1:${profile.infraPorts.postgres}`,
 		`Object store: 127.0.0.1:${profile.infraPorts.objectStore}`,
 		`Qdrant: 127.0.0.1:${profile.infraPorts.qdrantHttp}`,
+		`Hindsight: http://127.0.0.1:${profile.infraPorts.hindsightApi}`,
 		`Temporal: 127.0.0.1:${profile.infraPorts.temporal}`,
 		`Temporal namespace: ${localTemporalNamespace(profile)}`,
 		`Database: ${profile.databaseName}`,

@@ -7,12 +7,12 @@ import {
 	loadLocalInfrastructureSecrets,
 	resolveLocalInfrastructureSecretsPath,
 } from "./infrastructure-secrets";
+import { assertLocalHindsightProviders, localHindsightEnvironment } from "./local-hindsight";
 import { type LocalResourceProbe, probeLocalBucket, probeLocalObject } from "./local-object-store";
 import { resolveLocalQdrantConnection } from "./local-qdrant";
 import { withLifecycleLock } from "./locks";
 import { captureCommandResult, runCommand } from "./process";
-import type { LocalDevProfile } from "./profile";
-import { resolveLocalDevRegistryPath } from "./profile";
+import { type LocalDevProfile, resolveLocalDevRegistryPath } from "./profile";
 import type { LocalDevCapability } from "./targets";
 
 export const DOCS_SOURCE_KEY = "campus-docs/source.json";
@@ -30,6 +30,7 @@ export interface LocalCapabilityDiagnosis {
 	required: LocalDevCapability[];
 	sourceBucket?: LocalResourceProbe;
 	temporal?: LocalResourceProbe;
+	hindsight?: LocalResourceProbe;
 }
 
 export interface LocalInfrastructureDiagnosis {
@@ -47,6 +48,8 @@ export function localComposeArgs(repoRoot: string, profile: LocalDevProfile): st
 		resolveLocalInfrastructureSecretsPath(repoRoot, profile),
 		"-f",
 		"infra/local/docker-compose.dev.yml",
+		"-f",
+		"infra/local/docker-compose.execution-runtime.yml",
 	];
 }
 
@@ -62,13 +65,16 @@ export async function ensureLocalInfrastructure(
 	await withLifecycleLock(lockPath, "local-infrastructure", async () => {
 		const secrets = ensureLocalInfrastructureSecrets(repoRoot, profile);
 		const services = servicesForCapabilities(required);
+		if (required.includes("hindsight")) {
+			assertLocalHindsightProviders(localHindsightEnvironment(repoRoot));
+		}
 		if (services.length > 0) {
 			runCommand(
 				"docker",
 				[...localComposeArgs(repoRoot, profile), "up", "-d", "--wait", ...services],
 				{
 					cwd: repoRoot,
-					env: composeEnvironment(profile, secrets),
+					env: { ...composeEnvironment(profile, secrets), ...localHindsightEnvironment(repoRoot) },
 					timeout: 180_000,
 				},
 			);
@@ -97,10 +103,15 @@ export async function inspectLocalInfrastructure(
 	required: readonly LocalDevCapability[] = [],
 ): Promise<LocalInfrastructureDiagnosis> {
 	const services = Object.fromEntries(
-		["postgres", "object-store", "temporal-postgres", "temporal", "qdrant"].map((service) => [
-			service,
-			inspectService(repoRoot, profile, service),
-		]),
+		[
+			"postgres",
+			"object-store",
+			"temporal-postgres",
+			"temporal",
+			"qdrant",
+			"hindsight-api",
+			"hindsight-postgres",
+		].map((service) => [service, inspectService(repoRoot, profile, service)]),
 	);
 	const capabilities: LocalCapabilityDiagnosis = { required: [...new Set(required)] };
 	const secrets = safeLoadSecrets(repoRoot, profile);
@@ -126,6 +137,15 @@ export async function inspectLocalInfrastructure(
 	if (required.includes("temporal")) {
 		capabilities.temporal = services.temporal.probe;
 	}
+	if (required.includes("hindsight")) {
+		const service = services["hindsight-api"];
+		capabilities.hindsight =
+			service.running && service.healthy
+				? "present"
+				: service.probe === "missing"
+					? "missing"
+					: "unknown";
+	}
 	if (secrets && capabilities.objectStore === "present") {
 		if (required.includes("source-bucket")) {
 			capabilities.sourceBucket = await probeLocalBucket(
@@ -147,7 +167,11 @@ export async function inspectLocalInfrastructure(
 		}
 	}
 	const relevantServices = servicesForCapabilities(required).flatMap((service) =>
-		service === "temporal" ? ["temporal-postgres", "temporal"] : [service],
+		service === "temporal"
+			? ["temporal-postgres", "temporal"]
+			: service === "hindsight-api"
+				? ["hindsight-postgres", "hindsight-api"]
+				: [service],
 	);
 	const serviceValues = relevantServices.map((service) => services[service]);
 	const states = [
@@ -181,10 +205,25 @@ export function objectStoreCommand(
 	action: "create" | "remove",
 	secrets: LocalInfrastructureSecrets,
 ): string[] {
-	const script =
+	let script =
 		action === "create"
 			? 'rc mb --ignore-existing "local/$BUCKET"'
 			: 'rc rb --force "local/$BUCKET"';
+	if (action === "create" && bucketName === profile.bucketName) {
+		// Match the deployed bucket policy used by App API's unsigned floorplan reads.
+		const policy = JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Principal: { AWS: ["*"] },
+					Action: ["s3:GetObject"],
+					Resource: [`arn:aws:s3:::${bucketName}/dining/floorplans/*`],
+				},
+			],
+		});
+		script += `\nprintf '%s' ${shell(policy)} | rc anonymous set-json /dev/stdin "local/$BUCKET"`;
+	}
 	return [
 		"run",
 		"--rm",
@@ -210,7 +249,7 @@ export function removeLocalInfrastructure(repoRoot: string, profile: LocalDevPro
 		[...localComposeArgs(repoRoot, profile), "down", "--volumes", "--remove-orphans"],
 		{
 			cwd: repoRoot,
-			env: composeEnvironment(profile, secrets),
+			env: { ...composeEnvironment(profile, secrets), ...localHindsightEnvironment(repoRoot) },
 			timeout: 120_000,
 		},
 	);
@@ -218,6 +257,9 @@ export function removeLocalInfrastructure(repoRoot: string, profile: LocalDevPro
 
 function servicesForCapabilities(required: readonly LocalDevCapability[]): string[] {
 	const services = new Set<string>();
+	if (required.includes("hindsight")) {
+		services.add("hindsight-api");
+	}
 	if (required.includes("postgres")) {
 		services.add("postgres");
 	}
@@ -285,6 +327,9 @@ function composeEnvironment(
 		TEMPORAL_POSTGRES_PASSWORD: secrets.temporalPostgresPassword,
 		QDRANT_API_KEY: secrets.qdrantApiKey,
 		QDRANT_READ_ONLY_API_KEY: secrets.qdrantReadOnlyApiKey,
+		HINDSIGHT_API_TENANT_API_KEY: secrets.hindsightTenantKey,
+		HINDSIGHT_POSTGRES_PASSWORD: secrets.hindsightPostgresPassword,
+		HINDSIGHT_API_HOST_PORT: `127.0.0.1:${profile.infraPorts.hindsightApi}`,
 	};
 }
 

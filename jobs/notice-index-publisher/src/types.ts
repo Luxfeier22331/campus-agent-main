@@ -11,6 +11,7 @@ export type Sha256Ref = `sha256:${string}`;
 export interface NoticeSource {
 	contentText: string;
 	noticeId: string;
+	releasedAt?: string;
 	title: string;
 }
 
@@ -20,6 +21,7 @@ export interface NoticeChunk {
 	content: string;
 	headingPath: string[];
 	noticeId: string;
+	releasedAt?: string;
 	retrievalText: string;
 }
 

@@ -1,6 +1,8 @@
 import {
 	AssistantRuntimeProvider,
 	type ChatModelAdapter,
+	type ThreadMessageLike,
+	useExternalStoreRuntime,
 	useLocalRuntime,
 } from "@assistant-ui/react";
 import { render, screen } from "@testing-library/react";
@@ -59,5 +61,74 @@ describe("assistant thread accessibility", () => {
 		expect(screen.queryByRole("region", { name: "回答进度" })).not.toBeInTheDocument();
 		expect(screen.queryByText("回答过程")).not.toBeInTheDocument();
 		expect(screen.queryByText("5秒")).not.toBeInTheDocument();
+	});
+});
+
+function RunningThread({
+	running = true,
+	retrieval,
+	connection = "connected",
+	text = "",
+}: {
+	running?: boolean;
+	retrieval?: string;
+	connection?: string;
+	text?: string;
+}) {
+	const runtime = useExternalStoreRuntime({
+		isRunning: running,
+		convertMessage: (message: ThreadMessageLike) => message,
+		extras: { connection, retrieval: retrieval ? { campus: retrieval } : undefined },
+		messages: [
+			{ id: "old-answer", role: "assistant", content: [{ type: "text", text: "上一轮回答" }] },
+			{ id: "question", role: "user", content: [{ type: "text", text: "查询请假流程" }] },
+			...(text
+				? [
+						{
+							id: "answer",
+							role: "assistant",
+							content: [{ type: "text", text }],
+						} as ThreadMessageLike,
+					]
+				: []),
+		] as ThreadMessageLike[],
+		onNew: async () => undefined,
+		onCancel: async () => undefined,
+	});
+	return (
+		<AssistantRuntimeProvider runtime={runtime}>
+			<Thread />
+		</AssistantRuntimeProvider>
+	);
+}
+
+describe("active answer feedback", () => {
+	it("places one waiting indicator in the current answer, updates retrieval, and removes it at completion", async () => {
+		const { container, rerender } = render(<RunningThread />);
+		const waiting = await screen.findByText("正在回答");
+		expect(screen.getByRole("log")).toContainElement(waiting);
+		expect(waiting.closest('[data-role="assistant"]')).toBe(
+			container.querySelectorAll('[data-role="assistant"]')[1],
+		);
+		expect(container.querySelector(".aui-thread-composer-dock")).not.toContainElement(waiting);
+		expect(container.querySelectorAll(".aui-thread-run-status")).toHaveLength(1);
+		rerender(<RunningThread retrieval="started" />);
+		expect(await screen.findByText("正在检索校内资料")).toBeVisible();
+		expect(screen.queryByText("正在回答")).not.toBeInTheDocument();
+		rerender(<RunningThread retrieval="completed" text="完整的新回答" />);
+		expect(await screen.findByText("完整的新回答")).toBeVisible();
+		expect(screen.getByText("已找到校内资料")).toBeVisible();
+		rerender(<RunningThread running={false} text="完整的新回答" />);
+		expect(container.querySelector(".aui-thread-run-status")).not.toBeInTheDocument();
+		expect(screen.getByText("完整的新回答")).toBeVisible();
+	});
+	it("shows connection recovery in the current answer and clears it when the run stops", async () => {
+		const { container, rerender } = render(<RunningThread connection="disconnected" />);
+		expect(await screen.findByText("连接已断开")).toBeVisible();
+		expect(screen.getByRole("button", { name: "恢复连接" })).toBeVisible();
+		rerender(<RunningThread connection="recovering" />);
+		expect(await screen.findByText("正在恢复连接")).toBeVisible();
+		rerender(<RunningThread running={false} />);
+		expect(container.querySelector(".aui-thread-run-status")).not.toBeInTheDocument();
 	});
 });

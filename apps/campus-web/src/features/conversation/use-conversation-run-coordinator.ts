@@ -89,10 +89,14 @@ export function useConversationRunCoordinator({
 	);
 
 	const { noteRunProgress, startWatchdog, stopWatchdog } = useConversationRunWatchdog({
-		appendLocalErrorMessage,
-		applyRunStateAction,
+		onStall: () => {
+			// A failed cancellation already exposes the explicit stop-waiting action.
+			// The timer must not trigger that action or discard the server run.
+			if (!operationMachineRef.current.cancelFailure) {
+				void onCancel();
+			}
+		},
 		operationMachine: operationMachineRef.current,
-		setIsRunning,
 	});
 
 	const settleIsRunning = useCallback(

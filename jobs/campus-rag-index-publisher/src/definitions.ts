@@ -5,7 +5,7 @@ export const COLLECTION_DEFINITION = {
 			"Given a Campus Web question, retrieve relevant passages from Campus Docs and published Notices that answer the query.",
 		vectorName: "dense",
 	},
-	pointSchemaVersion: "campus_rag_point.v2",
+	pointSchemaVersion: "campus_rag_point.v3",
 	sparse: {
 		language: "none",
 		model: "fnv1a_log_tf.v1",

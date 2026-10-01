@@ -7,6 +7,7 @@ import {
 	useAuiState,
 } from "@assistant-ui/react";
 import { Button, ConfirmDialog, Input, Skeleton, StateMessage } from "@campus-agent/ui";
+import { useNavigate } from "@tanstack/react-router";
 import {
 	ArchiveIcon,
 	MoreHorizontalIcon,
@@ -101,19 +102,25 @@ export const ThreadList: FC<{
 
 export const ThreadListNewButton: FC<{ onNavigate?: (() => void) | undefined }> = ({
 	onNavigate,
-}) => (
-	<ThreadListPrimitive.New asChild>
-		<SidebarMenuButton
-			className="h-11 px-2.5 lg:h-9 group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
-			onClick={onNavigate}
-			tooltip="新对话"
-			type="button"
-		>
-			<SquarePen aria-hidden="true" />
-			<span>新对话</span>
-		</SidebarMenuButton>
-	</ThreadListPrimitive.New>
-);
+}) => {
+	const navigate = useNavigate();
+	return (
+		<ThreadListPrimitive.New asChild>
+			<SidebarMenuButton
+				className="h-11 px-2.5 lg:h-9 group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
+				onClick={() => {
+					onNavigate?.();
+					void navigate({ to: "/" });
+				}}
+				tooltip="新对话"
+				type="button"
+			>
+				<SquarePen aria-hidden="true" />
+				<span>新对话</span>
+			</SidebarMenuButton>
+		</ThreadListPrimitive.New>
+	);
+};
 
 const SKELETON_THREAD_IDS = ["thread-1", "thread-2", "thread-3", "thread-4", "thread-5"] as const;
 
@@ -244,7 +251,9 @@ const ThreadListSkeleton: FC = () => (
 );
 
 const ThreadListItem: FC<ThreadListItemsProps> = ({ onActionError, onNavigate }) => {
+	const navigate = useNavigate();
 	const runtime = useAui().threadListItem;
+	const remoteId = useAuiState((state) => state.threadListItem.remoteId);
 	const title = useAuiState((state) => state.threadListItem.title) || "新对话";
 	const lastMessageAt = useAuiState((state) => state.threadListItem.lastMessageAt);
 	const isPinned = useAuiState((state) => Boolean(readPinnedAt(state.threadListItem.custom)));
@@ -324,7 +333,13 @@ const ThreadListItem: FC<ThreadListItemsProps> = ({ onActionError, onNavigate })
 				<ThreadListItemPrimitive.Trigger
 					aria-label={title}
 					className="aui-thread-list-item-trigger flex min-w-0 items-center gap-1.5 px-2.5 py-1 text-start text-sm"
-					onClick={onNavigate}
+					onClick={(event) => {
+						if (remoteId) {
+							event.preventDefault();
+							void navigate({ to: "/c/$conversationId", params: { conversationId: remoteId } });
+						}
+						onNavigate?.();
+					}}
 				>
 					{isPinned ? <PinIcon aria-hidden="true" className="me-1.5 size-3.5 shrink-0" /> : null}
 					<span className="flex min-w-0 flex-1 flex-col justify-center">

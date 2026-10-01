@@ -513,7 +513,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		}
 	});
 
-	it("stops retrying and surfaces a retryable error when the run stalls without progress", async () => {
+	it("cancels a stalled backend run before releasing the conversation", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -537,6 +537,18 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			}),
 		);
 
+		conversationApiMock.cancelRun.mockResolvedValue({
+			requestId: "req_recovery_reset",
+			conversationId: "conv_created",
+			phase: "canceled",
+			status: "cancelled",
+			acceptedAt: "2026-06-24T01:00:00.000Z",
+			startedAt: null,
+			completedAt: "2026-06-24T01:03:00.000Z",
+			durationMs: null,
+		});
+		conversationApiMock.getConversationDetail.mockResolvedValue(canonicalConversation(""));
+
 		try {
 			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 			let submitPromise: Promise<void> | undefined;
@@ -555,9 +567,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 
 			expect(conversationApiMock.getRunStatus.mock.calls.length).toBeGreaterThan(1);
 			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
-			expect(readMessageText("local-error-req_recovery_reset")).toBe(
-				"回答长时间没有进展，已停止等待，请重试。",
-			);
+			expect(conversationApiMock.cancelRun).toHaveBeenCalledExactlyOnceWith("req_recovery_reset");
 		} finally {
 			vi.useRealTimers();
 		}

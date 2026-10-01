@@ -8,7 +8,7 @@
 每个 compose 文件只负责一个本地边界：
 
 - `docker-compose.dev.yml`：每个 worktree 的 PostgreSQL、RustFS、Qdrant 与 Temporal；
-- `docker-compose.execution-runtime.yml`：按需启动本地 Hindsight；
+- `docker-compose.execution-runtime.yml`：core 初始化使用的 Hindsight overlay，与当前 worktree 共用 Compose project；
 - `docker-compose.qdrant-tls.yml`：只用于 TLS 检查的 Qdrant 环境。
 
 ## 规则

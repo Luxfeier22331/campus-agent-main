@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from "pg";
 
 import type { NoticeSource } from "./types.ts";
 
-export const PUBLISHED_NOTICE_SOURCE_QUERY = `SELECT notice_id::text, title, content_text
+export const PUBLISHED_NOTICE_SOURCE_QUERY = `SELECT notice_id::text, title, content_text, released_at
 FROM notices.notices
 WHERE is_published
   AND content_text IS NOT NULL
@@ -11,6 +11,7 @@ ORDER BY notice_id`;
 interface NoticeSourceRow {
 	content_text: string;
 	notice_id: string;
+	released_at: Date | string;
 	title: string;
 }
 
@@ -48,13 +49,15 @@ async function loadInSnapshot(client: PoolClient): Promise<NoticeSource[]> {
 				!row.notice_id ||
 				typeof row.title !== "string" ||
 				!row.title ||
-				typeof row.content_text !== "string"
+				typeof row.content_text !== "string" ||
+				(row.released_at instanceof Date && Number.isNaN(row.released_at.getTime()))
 			) {
 				throw new Error("published notice source row is invalid");
 			}
 			return {
 				contentText: row.content_text,
 				noticeId: row.notice_id,
+				releasedAt: new Date(String(row.released_at)).toISOString(),
 				title: row.title,
 			};
 		});

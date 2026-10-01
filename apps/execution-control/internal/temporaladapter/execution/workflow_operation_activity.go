@@ -705,10 +705,8 @@ func ValidateWorkflowOperationOutputSources(
 		}
 		return nil
 	case temporalruntime.WorkflowOperationSynthesize:
-		expectedAttempts := request.SourceAttempts
-		if len(output.Evidence) != len(request.Evidence) || (len(output.Evidence) > 0 && activityprojection.Sha256AnyValue(output.Evidence) != activityprojection.Sha256AnyValue(request.Evidence)) ||
-			len(output.SourceAttempts) != len(expectedAttempts) || (len(expectedAttempts) > 0 && activityprojection.Sha256AnyValue(output.SourceAttempts) != activityprojection.Sha256AnyValue(expectedAttempts)) {
-			return errors.New("synthesizer changed admitted evidence or source attempts")
+		if len(output.Evidence) > 0 || len(output.SourceAttempts) > 0 {
+			return errors.New("synthesizer returned admitted evidence or source attempts")
 		}
 		if len(output.ToolResults) > 0 {
 			return errors.New("synthesizer returned retrieval output")
@@ -849,6 +847,12 @@ func WorkflowOperationRuntimeRequestPayload(
 		"limits":                       WorkflowRuntimeLimitsPayload(limits),
 		"expected_model_target_sha256": request.AdmissionSnapshot.ModelTargetSHA256,
 	}
+	if request.Operation == temporalruntime.WorkflowOperationSolve || request.Operation == temporalruntime.WorkflowOperationExecuteStep {
+		payload["model_answer_transport"] = config.AnswerTransportBuffered
+		if request.Stream {
+			payload["model_answer_transport"] = config.AnswerTransportStream
+		}
+	}
 	if expected := execution.ToolContractFingerprintSnapshotMap(request.AdmissionSnapshot.ToolContractFingerprint); expected != nil {
 		payload["expected_tool_contract_fingerprint"] = expected
 	}
@@ -919,6 +923,12 @@ func WorkflowOperationOutputFromRuntimeResponse(
 	output.Plan = response.Plan
 	output.Replan = response.Replan
 	output.RemainingFacts = append([]string{}, response.RemainingFacts...)
+	if operation == temporalruntime.WorkflowOperationSynthesize &&
+		(len(response.Evidence) > 0 || len(response.SourceAttempts) > 0) {
+		return temporalruntime.WorkflowOperationActivityOutput{}, errors.New(
+			"synthesis response must not return evidence or source attempts",
+		)
+	}
 	if len(response.Evidence) > 0 {
 		if err := decodeOperationValue(response.Evidence, &output.Evidence); err != nil {
 			return temporalruntime.WorkflowOperationActivityOutput{}, fmt.Errorf("decode workflow evidence: %w", err)
@@ -1246,10 +1256,12 @@ func (s *Adapter) CallWorkflowOperationRuntime(
 			Cause: errors.New("agent runtime client is not configured"),
 		}
 	}
+	// Retrieval progress uses SSE independently of the provider's answer transport.
+	streamProgress := stream || operation == temporalruntime.WorkflowOperationSolve || operation == temporalruntime.WorkflowOperationExecuteStep
 	response, err := s.AgentRuntimeClient.Execute(requestCtx, executionapplication.AgentRuntimeRequest{
 		Body:      body,
 		RequestID: run.RequestID,
-		Stream:    stream,
+		Stream:    streamProgress,
 	})
 	if err != nil {
 		var requestError *executionapplication.AgentRuntimeRequestError
@@ -1277,7 +1289,7 @@ func (s *Adapter) CallWorkflowOperationRuntime(
 		_ = json.Unmarshal(encoded, &decoded)
 		return AgentRuntimeResponse{}, AgentRuntimeFailureFromResponse(response.StatusCode, decoded)
 	}
-	if stream {
+	if streamProgress {
 		return s.ConsumeWorkflowRuntimeStream(ctx, run, operation, response.Body)
 	}
 	var decoded AgentRuntimeResponse

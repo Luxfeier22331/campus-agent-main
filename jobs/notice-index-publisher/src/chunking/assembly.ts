@@ -117,6 +117,7 @@ export function combinePieces(
 			hardSectionId: current[0]?.hardSectionId ?? 0,
 			headingPath,
 			noticeId: source.noticeId,
+			...(source.releasedAt === undefined ? {} : { releasedAt: source.releasedAt }),
 			parts: current.map(
 				({
 					bodyRanges,

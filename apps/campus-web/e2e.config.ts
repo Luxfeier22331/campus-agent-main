@@ -1,6 +1,12 @@
+import { resolve } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+import { loadLocalDevProfile } from "../../scripts/dev/lifecycle/profile";
 
-const port = Number.parseInt(process.env.CAMPUS_WEB_E2E_PORT ?? "27014", 10);
+const repoRoot = resolve(import.meta.dirname, "../..");
+const port = Number.parseInt(
+	process.env.CAMPUS_WEB_E2E_PORT ?? String(loadLocalDevProfile(repoRoot).ports.campusWeb),
+	10,
+);
 const baseURL = `http://127.0.0.1:${port}`;
 const isCI = Boolean(process.env.CI);
 const usePrebuiltApp = process.env.CAMPUS_WEB_E2E_PREBUILT === "1";

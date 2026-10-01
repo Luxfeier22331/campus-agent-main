@@ -180,6 +180,13 @@ describe("inline citation preview", () => {
 						};
 			render(<Fixture text="要求[1]" sources={[item]} />);
 			fireEvent.click(await screen.findByRole("button", { name: /查看引用 1/ }));
+			if (kind === "campus_notice") {
+				expect(await screen.findByRole("button", { name: "查看通知" })).toHaveAttribute(
+					"aria-haspopup",
+					"dialog",
+				);
+				return;
+			}
 			const link = await screen.findByRole("link", { name: item.primaryAction.label });
 			expect(link).toHaveAttribute("href", item.primaryAction.href);
 			expect(link).not.toHaveAttribute("target");

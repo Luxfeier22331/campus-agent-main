@@ -78,7 +78,7 @@ notices/rag/embedding-sets/sha256/<id>/manifest.json
 
 同一内容寻址对象重复写入会验证已有内容；模板不包含 `NOTICE_CHUNK_RUN` 默认值，不扫描或选择最新制品。
 
-Chunk Run 使用 `notice_chunk_run.v1`。统一 publisher 只读取 Chunk 数据，从 `retrievalText` 首行生成 title，
+Chunk Run 使用 `notice_chunk_run.v2`，Chunk 同时保留通知的 RFC3339 UTC `released_at`。统一 publisher 只读取 Chunk 数据，从 `retrievalText` 首行生成 title，
 并由 `noticeId` 固定生成 `/notices/<noticeId>` citation；review sample 和 validation 仍作为离线诊断产物，
 不连接 live Notices DB，也不重新 embedding。
 

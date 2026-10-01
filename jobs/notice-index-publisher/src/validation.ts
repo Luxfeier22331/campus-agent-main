@@ -18,6 +18,9 @@ export function assertValidNoticeChunks(build: BuiltNoticeChunks): void {
 		if (chunk.noticeId !== build.source.noticeId || chunk.content.length === 0) {
 			throw new ArtifactValidationError(`notice chunk identity or content is invalid: ${chunk.chunkId}`);
 		}
+		if (chunk.releasedAt !== build.source.releasedAt) {
+			throw new ArtifactValidationError(`notice chunk release time is invalid: ${chunk.chunkId}`);
+		}
 		if (unicodeLength(chunk.content) > build.definition.maxChars) {
 			throw new ArtifactValidationError(`notice chunk exceeds the character limit: ${chunk.chunkId}`);
 		}
@@ -98,6 +101,7 @@ export function storedNoticeChunk(chunk: BuiltNoticeChunk): NoticeChunk {
 		content: chunk.content,
 		headingPath: [...chunk.headingPath],
 		noticeId: chunk.noticeId,
+		...(chunk.releasedAt === undefined ? {} : { releasedAt: chunk.releasedAt }),
 		retrievalText: chunk.retrievalText,
 	};
 }

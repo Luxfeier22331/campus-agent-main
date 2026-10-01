@@ -248,7 +248,7 @@ export async function importRetrievalData(
 	}
 }
 
-async function upsertRetrievalRows(
+export async function upsertRetrievalRows(
 	client: Client,
 	table: (typeof PRODUCT_RETRIEVAL_TABLES)[number],
 	json: string,
@@ -268,7 +268,7 @@ async function upsertRetrievalRows(
 	);
 }
 
-function serializeProductRows(
+export function serializeProductRows(
 	table: (typeof PRODUCT_RETRIEVAL_TABLES)[number],
 	rows: Record<string, unknown>[],
 ): string {

@@ -29,6 +29,7 @@ export interface LocalDevRuntimePorts {
 }
 
 export interface LocalDevInfrastructurePorts {
+	hindsightApi: number;
 	objectStore: number;
 	objectStoreConsole: number;
 	postgres: number;
@@ -96,6 +97,7 @@ export function calculateLocalDevRuntimePorts(slot: number): LocalDevRuntimePort
 export function calculateLocalDevInfrastructurePorts(slot: number): LocalDevInfrastructurePorts {
 	assertSlot(slot);
 	return {
+		hindsightApi: 27_088 + slot * 100,
 		objectStore: 25_900 + slot * 100,
 		objectStoreConsole: 25_901 + slot * 100,
 		postgres: 25_432 + slot * 100,
@@ -377,7 +379,7 @@ function parseProfile(value: unknown): LocalDevProfile {
 		createdAt: stringField(value, "createdAt"),
 		databaseName: stringField(value, "databaseName"),
 		instanceId: stringField(value, "instanceId"),
-		infraPorts: infrastructurePortsField(value.infraPorts),
+		infraPorts: infrastructurePortsField(value.infraPorts, slot),
 		infraProject: stringField(value, "infraProject"),
 		ports: portsField(value.ports),
 		repoKey: stringField(value, "repoKey"),
@@ -554,11 +556,15 @@ function portsField(value: unknown): LocalDevPorts {
 	};
 }
 
-function infrastructurePortsField(value: unknown): LocalDevInfrastructurePorts {
+function infrastructurePortsField(value: unknown, slot: number): LocalDevInfrastructurePorts {
 	if (!isRecord(value)) {
 		throw new Error("Invalid local development infrastructure ports.");
 	}
 	return {
+		hindsightApi:
+			value.hindsightApi === undefined
+				? calculateLocalDevInfrastructurePorts(slot).hindsightApi
+				: numberField(value, "hindsightApi"),
 		objectStore: numberField(value, "objectStore"),
 		objectStoreConsole: numberField(value, "objectStoreConsole"),
 		postgres: numberField(value, "postgres"),

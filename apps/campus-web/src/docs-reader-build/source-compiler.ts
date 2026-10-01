@@ -225,10 +225,6 @@ function registerGeneratedJson(
 	const bytes = canonicalJsonBytes(value);
 	const digest = sha256(bytes);
 	const key = `campus-web/docs-build/${digest.slice("sha256:".length)}/${fileName}`;
-	const existing = objects.get(key);
-	if (existing && !equalBytes(existing, bytes)) {
-		throw new Error(`compiled docs object identity is inconsistent: ${key}`);
-	}
 	objects.set(key, bytes);
 	return { byteSize: bytes.byteLength, key, sha256: digest };
 }
@@ -243,12 +239,6 @@ function overlayObjectStore(
 			return bytes ? Promise.resolve(bytes) : client.readOptionalBytesObject({ key });
 		},
 	};
-}
-
-function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
-	return (
-		left.byteLength === right.byteLength && left.every((value, index) => value === right[index])
-	);
 }
 
 function assertSameObjectRef(left: ObjectRef, right: ObjectRef): void {

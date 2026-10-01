@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -581,5 +582,91 @@ func TestCampusSearchReportsMissingIndexAsUnavailable(t *testing.T) {
 	})
 	if !errors.Is(err, ErrCampusSearchUnavailable) {
 		t.Fatalf("missing index error = %v, want unavailable", err)
+	}
+}
+
+type campusFailureDiagnosticStore struct {
+	*executionpersistence.InMemoryRunProjectionStore
+	failed chan campusdiagnostics.Observation
+}
+
+func (s *campusFailureDiagnosticStore) ObserveCampusSearch(_ context.Context, o campusdiagnostics.Observation) error {
+	if o.Phase == "failed" {
+		s.failed <- o
+	}
+	return nil
+}
+func (*campusFailureDiagnosticStore) MarkCampusSearchCitations(context.Context, string, []string) error {
+	return nil
+}
+
+func TestCampusSearchPreservesFailureDetailForOps(t *testing.T) {
+	base, run, _ := applicationTestRunningRun(t, false)
+	store := &campusFailureDiagnosticStore{InMemoryRunProjectionStore: base, failed: make(chan campusdiagnostics.Observation, 1)}
+	const detail = `campus notice Qdrant payload schema "campus_rag_point.v999" is unsupported`
+	service := NewAgentToolService(AgentToolServiceOptions{CampusDocsSearcherError: errors.New(detail), Store: store, CampusDocsIndexStore: applicationTestIndexStore{}})
+	_, err := service.CampusSearch(t.Context(), CampusSearchRequest{AccessContext: AgentToolAccessContext{ActivityAttempt: 1, CitationStart: 1, InvocationID: "call-diagnostic", RequestID: run.RequestID, ResultLimit: 5, UserGoal: "夜宵时间", WorkflowStepID: "task.step.step.lookup"}, SearchQuery: "夜宵时间"})
+	if err == nil {
+		t.Fatal("failure was hidden")
+	}
+	select {
+	case o := <-store.failed:
+		if o.Snapshot.FailureDetail != detail {
+			t.Fatalf("detail lost: %+v", o.Snapshot)
+		}
+		b, e := json.Marshal(o.Snapshot)
+		if e != nil || !strings.Contains(string(b), "failureDetail") {
+			t.Fatalf("snapshot serialization: %s %v", b, e)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("failure diagnostic not recorded")
+	}
+}
+
+func TestNormalizeRelativeNoticeYears(t *testing.T) {
+	asOf := time.Date(2026, time.September, 22, 8, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "current and previous", in: "今年和去年中秋怎么放", want: "2026年和2025年中秋怎么放"},
+		{name: "two years ago", in: "前年春节安排", want: "2024年春节安排"},
+		{name: "absolute unchanged", in: "2025年中秋怎么放", want: "2025年中秋怎么放"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := NormalizeRelativeNoticeYears(test.in, asOf); got != test.want {
+				t.Fatalf("normalized query = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestCampusSearchUsesOneResolvedYearForRetrievalAndRerank(t *testing.T) {
+	store, run, _ := applicationTestRunningRun(t, false)
+	searcher := &applicationTestSearcher{}
+	service := NewAgentToolService(AgentToolServiceOptions{
+		CampusDocsIndexStore: applicationTestIndexStore{},
+		CampusDocsSearcher:   searcher,
+		Store:                store,
+	})
+	query := "我们学校去年中秋怎么放"
+	if _, err := service.CampusSearch(t.Context(), CampusSearchRequest{
+		AccessContext: AgentToolAccessContext{
+			ActivityAttempt: 1,
+			CitationStart:   1,
+			InvocationID:    "tool-campus-search-relative-year",
+			RequestID:       run.RequestID,
+			ResultLimit:     5,
+			WorkflowStepID:  "task.step.step.lookup",
+		},
+		SearchQuery: query,
+		SearchGoal:  query,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := "我们学校2025年中秋怎么放"
+	if searcher.query.RetrievalQuery != want || searcher.query.RerankQuery != want {
+		t.Fatalf("resolved queries = %#v, want %q for both fields", searcher.query, want)
 	}
 }

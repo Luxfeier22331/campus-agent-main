@@ -84,6 +84,38 @@ function campusSearchRow(): CampusSearchDiagnosticRow {
 }
 
 describe("campus search diagnostics", () => {
+	it("preserves a failed retrieval and upstream status after the answer finishes", () => {
+		const row = campusSearchRow();
+		row.status = "failed";
+		row.currentPhase = "failed";
+		row.failureCode = "campus_search_retrieval_failed";
+		row.httpStatus = 503;
+		row.phaseTimes = { queued: "2026-09-30T00:00:00Z", failed: "2026-09-30T00:00:01Z" };
+		row.snapshot = {
+			...(row.snapshot as Record<string, unknown>),
+			failedStage: "retrieval",
+			failureDetail: 'campus notice Qdrant payload schema "campus_rag_point.v999" is unsupported',
+			retrieval: {
+				collection: "collection",
+				httpStatus: 200,
+				httpMs: 1,
+				qdrantMs: 0,
+				decodeMs: 0,
+				postprocessMs: null,
+			},
+		};
+		expect(
+			CampusSearchDiagnosticsSchema.parse(toCampusSearchDiagnostics([row], true)).calls[0],
+		).toMatchObject({
+			status: "failed",
+			httpStatus: 503,
+			snapshot: {
+				failedStage: "retrieval",
+				failureDetail: 'campus notice Qdrant payload schema "campus_rag_point.v999" is unsupported',
+				retrieval: { httpStatus: 200 },
+			},
+		});
+	});
 	it("rejects retired snapshots and preserves v2 metadata", () => {
 		const retired = { ...campusSearchRow(), schemaVersion: 1 };
 		expect(toCampusSearchDiagnostics([retired], true)).toMatchObject({

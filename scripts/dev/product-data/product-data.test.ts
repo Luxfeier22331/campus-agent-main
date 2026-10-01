@@ -118,6 +118,7 @@ test("committed real seed embeddings match current builders, source resources an
 					noticeId: String(row.notice_id),
 					title: String(row.title),
 					contentText: String(row.content_text),
+					releasedAt: new Date(String(row.released_at)).toISOString(),
 				})),
 		}),
 	});

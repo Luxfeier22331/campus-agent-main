@@ -76,6 +76,28 @@ pnpm dev:doctor -- --scope data
 
 `dev:init --data cluster` 不复制集群的完整业务数据库，只同步 Docs source 引用闭包、当前混合 Qdrant collection、检索所需通知表和当前 profile 的 `current_index`，不复制用户、session、Dining、Transport、Groups 或 reviews。基础 UI 验证仍可使用 seed 和 fixture；seed 是本地完整基础数据路径。模型连接仍由开发者提供；数据 ready 不等于模型配置或真实查询成功。
 
+需要自行验证通知分块和 Embedding 时，使用仅通知源数据同步入口：
+
+```bash
+pnpm dev:sync-notices -- --context <context> --namespace campus-agent-staging
+```
+
+命令要求当前 worktree 的 profile、PostgreSQL 和通知 schema 已存在；只读取集群
+`pg-product-data-ro`，按一致快照导出全部通知及其引用的分类、类型和组织，在本地事务中按原 ID
+插入或更新四张表。它不执行 core 初始化，不要求应用离线；不读取对象存储或 Qdrant，不同步
+图片、附件记录及文件、Docs、旧向量或索引指针，也不重新生成 Embedding。通知正文阅读可以验证，
+图片与附件的完整阅读体验不在这个入口的交付范围。
+
+同步保留本地独有通知及关联数据，输出 `source_notices`、`source_chunk_eligible`、`inserted`、
+`updated`、`unchanged`、`mismatched`、`related_rows`、`local_extra_count`、`local_extra_ids` 和
+`local_extra_chunk_eligible`。提交前逐字段核对导入结果，外键或内容验证失败时整批回滚。
+重复执行同一命令可更新集群通知；本地总量可能比集群多，不能仅凭总数判断同步是否成功。
+后续全库分块也会读取符合条件的本地独有通知，执行前应结合额外记录报告确定评测语料范围。
+
+通知源数据同步验证使用临时空数据库，可通过 `NOTICE_SYNC_TEST_DATABASE_URL` 显式指定并运行
+`pnpm exec tsx --test scripts/dev/product-data/notice-sync.test.ts`；测试从既有 migration 提取通知表
+及约束，覆盖重复导入、正文更新、本地记录保留和关系错误时的事务回滚。
+
 同步失败时当前 profile 的 current pointer 不会激活候选 collection；修复集群连接或对象后重试同一条同步命令。
 
 只验收 Ops 内容页面时，可用轻量内容模式替换本地内容：

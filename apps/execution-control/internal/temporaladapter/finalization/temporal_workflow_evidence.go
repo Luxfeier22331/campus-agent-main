@@ -249,7 +249,7 @@ func WorkflowEvidenceSource(
 				strings.TrimSpace(item.SectionTitle) == "" {
 				return nil, "", citationError("invalid_source_identity", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
 			}
-			return map[string]any{
+			source := map[string]any{
 				"citation_href": citationHref,
 				"evidence_ref":  item.ID,
 				"kind":          "campus_notice",
@@ -257,7 +257,11 @@ func WorkflowEvidenceSource(
 				"section_title": item.SectionTitle,
 				"snippet":       campusdocs.BoundedSourceSnippet(item.Excerpt),
 				"title":         item.Title,
-			}, "campus:" + item.ID, nil
+			}
+			if item.ReleasedAt != "" {
+				source["released_at"] = item.ReleasedAt
+			}
+			return source, "campus:" + item.ID, nil
 		}
 		href := strings.TrimSpace(item.SectionRef)
 		if href == "" {
@@ -364,19 +368,23 @@ func WorkflowResultsFromAgentResult(agentResult map[string]any) ([]WorkflowRunRe
 
 func WorkflowRunResultFromCampusSearch(item campusdocs.SearchResultItem) WorkflowRunResult {
 	if item.SourceKind == "notice" {
+		source := map[string]any{
+			"citation_href": item.CitationHref,
+			"evidence_ref":  item.ResultRef,
+			"kind":          "campus_notice",
+			"notice_id":     item.NoticeID,
+			"section_title": item.SectionTitle,
+			"snippet":       campusdocs.BoundedSourceSnippet(item.Text),
+			"title":         item.Title,
+		}
+		if item.ReleasedAt != "" {
+			source["released_at"] = item.ReleasedAt
+		}
 		return WorkflowRunResult{
 			CitationIndex: item.CitationIndex,
 			ResultRef:     item.ResultRef,
 			Text:          item.Text,
-			Source: map[string]any{
-				"citation_href": item.CitationHref,
-				"evidence_ref":  item.ResultRef,
-				"kind":          "campus_notice",
-				"notice_id":     item.NoticeID,
-				"section_title": item.SectionTitle,
-				"snippet":       campusdocs.BoundedSourceSnippet(item.Text),
-				"title":         item.Title,
-			},
+			Source:        source,
 		}
 	}
 	return WorkflowRunResult{

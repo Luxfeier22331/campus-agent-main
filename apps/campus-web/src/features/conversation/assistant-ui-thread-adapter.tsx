@@ -57,6 +57,7 @@ export function toAssistantThreadMetadata(
 
 export function createCampusAssistantThreadListAdapter(input: {
 	enableRemoteHistory: boolean;
+	onUnauthorized?: (() => void) | undefined;
 }): RemoteThreadListAdapter {
 	return {
 		async archive(remoteId) {
@@ -66,7 +67,14 @@ export function createCampusAssistantThreadListAdapter(input: {
 			await runSilentThreadListAction(() => deleteConversation(remoteId));
 		},
 		async fetch(threadId) {
-			return toAssistantThreadMetadata(await getConversationDetail(threadId));
+			try {
+				return toAssistantThreadMetadata(await getConversationDetail(threadId));
+			} catch (error) {
+				if (error instanceof UnauthorizedError) {
+					input.onUnauthorized?.();
+				}
+				throw error;
+			}
 		},
 		async generateTitle(remoteId) {
 			return createAssistantStream(async (controller) => {
@@ -101,7 +109,9 @@ export function createCampusAssistantThreadListAdapter(input: {
 		async unarchive(remoteId) {
 			await runSilentThreadListAction(() => unarchiveConversation(remoteId));
 		},
-		unstable_Provider: CampusAssistantThreadHistoryProvider,
+		unstable_Provider: (props) => (
+			<CampusAssistantThreadHistoryProvider {...props} onUnauthorized={input.onUnauthorized} />
+		),
 	};
 }
 
@@ -121,6 +131,7 @@ async function listConversationsForOptionalSession(input: {
 
 export function createCampusAssistantThreadHistoryAdapter(
 	remoteId: string | undefined,
+	onUnauthorized?: (() => void) | undefined,
 ): ThreadHistoryAdapter {
 	return {
 		async append(_item: ExportedMessageRepositoryItem) {
@@ -130,15 +141,28 @@ export function createCampusAssistantThreadHistoryAdapter(
 			if (!remoteId) {
 				return ExportedMessageRepository.fromArray([]);
 			}
-			const conversation = await getConversationDetail(remoteId);
-			return ExportedMessageRepository.fromArray(toAssistantThreadMessages(conversation));
+			try {
+				const conversation = await getConversationDetail(remoteId);
+				return ExportedMessageRepository.fromArray(toAssistantThreadMessages(conversation));
+			} catch (error) {
+				if (error instanceof UnauthorizedError) {
+					onUnauthorized?.();
+				}
+				throw error;
+			}
 		},
 	};
 }
 
-function CampusAssistantThreadHistoryProvider({ children }: PropsWithChildren) {
+function CampusAssistantThreadHistoryProvider({
+	children,
+	onUnauthorized,
+}: PropsWithChildren<{ onUnauthorized?: (() => void) | undefined }>) {
 	const remoteId = useAuiState((state) => state.threadListItem.remoteId);
-	const history = useMemo(() => createCampusAssistantThreadHistoryAdapter(remoteId), [remoteId]);
+	const history = useMemo(
+		() => createCampusAssistantThreadHistoryAdapter(remoteId, onUnauthorized),
+		[onUnauthorized, remoteId],
+	);
 
 	return <RuntimeAdapterProvider adapters={{ history }}>{children}</RuntimeAdapterProvider>;
 }

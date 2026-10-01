@@ -163,6 +163,9 @@ export function buildNoticePoints(
 		if (!vector) throw new ArtifactValidationError(`Notice embedding is missing chunk ${chunk.chunkId}`);
 		const title = titles.get(chunk.noticeId);
 		if (!title) throw new ArtifactValidationError(`Notice title is missing: ${chunk.noticeId}`);
+		if (!chunk.releasedAt || Number.isNaN(Date.parse(chunk.releasedAt))) {
+			throw new ArtifactValidationError(`Notice releasedAt is missing or invalid: ${chunk.noticeId}`);
+		}
 		return {
 			id: stableId("notice", chunk.chunkId),
 			payload: {
@@ -171,6 +174,7 @@ export function buildNoticePoints(
 				citation_href: `/notices/${encodeURIComponent(chunk.noticeId)}`,
 				heading_path: chunk.headingPath,
 				notice_id: chunk.noticeId,
+				released_at: new Date(chunk.releasedAt).toISOString(),
 				retrieval_text_sha256: retrievalTextSha256,
 				schema_version: COLLECTION_DEFINITION.pointSchemaVersion,
 				section_title: chunk.headingPath.at(-1) ?? "正文",

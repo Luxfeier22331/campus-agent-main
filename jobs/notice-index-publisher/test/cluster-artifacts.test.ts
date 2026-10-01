@@ -58,7 +58,7 @@ describe("cluster notice artifacts", () => {
 		expect(read.manifest).toMatchObject({
 			chunkCount: 2,
 			noticeCount: 2,
-			schemaVersion: "notice_chunk_run.v1",
+			schemaVersion: "notice_chunk_run.v2",
 		});
 		expect([...store.objects.keys()]).toEqual(
 			expect.arrayContaining([

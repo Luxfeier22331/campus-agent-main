@@ -135,7 +135,7 @@ test("活动笔记拒绝编号标题", () => {
 		write(root, ".agents/notes/README.md", "# 决策笔记\n");
 		const bodies: Record<string, string> = {
 			proposed:
-				"## 背景\n\nx\n\n## 提案\n\nx\n\n## 未采用方案\n\nx\n\n## 验收标准\n\nx\n\n## 风险\n\nx",
+				"## 背景\n\nx\n\n## 提案\n\nx\n\n## 未采用方案\n\nx\n\n## 可观察结果\n\nx\n\n## 风险\n\nx",
 			implemented: "## 背景\n\nx\n\n## 决策\n\nx\n\n## 未采用方案\n\nx\n\n## 后果\n\nx",
 			rejected: "## 背景\n\nx\n\n## 提案\n\nx\n\n## 未采用方案\n\nx",
 		};

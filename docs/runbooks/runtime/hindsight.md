@@ -48,8 +48,15 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 ## 本地业务验证
 
 先在目标 worktree 执行 `pnpm dev:init -- --target core`，使用初始化账号登录，不另行注册。
-Hindsight 使用隔离的本地 PostgreSQL 和 bank salt；provider 端点/密钥独立注入，不复制 staging 的
-Hindsight 数据库。端口取当前 dev profile。按本手册配置启动后访问
+core 初始化会启动当前 Compose project 的 Hindsight 与独立 PostgreSQL，生成并复用 tenant key
+和 bank salt，向 Execution Control 写入连接配置；端口取当前 dev profile。初始化前在根 `.env`
+独立配置 `HINDSIGHT_API_LLM_API_KEY`、`HINDSIGHT_API_LLM_BASE_URL`、`HINDSIGHT_API_LLM_MODEL`、
+`HINDSIGHT_API_LLM_PROVIDER` 及 `HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY`、
+`HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL`、`HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL`。
+使用 Responses 网关时设置 `HINDSIGHT_API_LLM_PROVIDER=openai-responses`，base URL 指向其 `/v1`；
+Hindsight 0.9.1 的 Gemini provider 不使用此 base URL，不能直接用它连接 Gemini 代理网关。
+已有明确的 Hindsight provider 配置可从主 checkout 导入；不复制 staging 数据库。
+`dev:doctor` 检查该依赖，`dev:destroy` 随当前 project 清理其容器和数据卷。启动应用后访问
 `/account/settings/memory`：
 
 1. 提交一段自然语言纠正，等待命令完成与画像刷新，确认画像内容来自 Hindsight 实际合成，而非本地输入镜像。

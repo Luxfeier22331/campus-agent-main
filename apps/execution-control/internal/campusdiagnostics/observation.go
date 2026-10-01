@@ -28,6 +28,7 @@ type Candidate struct {
 }
 
 type Snapshot struct {
+	FailureDetail              string           `json:"failureDetail,omitempty"`
 	EffectiveQuery             string           `json:"effectiveQuery"`
 	RerankQuery                string           `json:"rerankQuery"`
 	CitationStart              int              `json:"citationStart"`
@@ -62,6 +63,7 @@ type EmbeddingMeta struct {
 }
 
 type RetrievalMeta struct {
+	HTTPStatus    *int     `json:"httpStatus,omitempty"`
 	Collection    string   `json:"collection,omitempty"`
 	HTTPMs        *int64   `json:"httpMs"`
 	QdrantMs      *float64 `json:"qdrantMs"`

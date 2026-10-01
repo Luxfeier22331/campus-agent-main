@@ -239,7 +239,7 @@ test("治理引入当天的新笔记也要求完整章节", () => {
 	}
 });
 
-test("提案需要备选、可观察的验收目标和风险，拒绝后保留提案与备选", () => {
+test("提案需要备选、可观察结果和风险，拒绝后保留提案与备选", () => {
 	const root = fixture();
 	try {
 		const proposedDir = join(root, ".agents/notes/proposed/process");
@@ -252,10 +252,10 @@ test("提案需要备选、可观察的验收目标和风险，拒绝后保留�
 		writeFileSync(proposed, base);
 		let result = run(root, "check-notes-format.ts");
 		assert.notEqual(result.status, 0);
-		for (const section of ["未采用方案", "验收标准", "风险"]) {
+		for (const section of ["未采用方案", "可观察结果", "风险"]) {
 			assert.ok(result.stderr.includes(`缺少 “## ${section}”`), result.stderr);
 		}
-		const complete = `${base}\n## 未采用方案\n\n保留双入口会继续漂移。\n\n## 验收标准\n\n两个消费者调用同一入口。\n\n## 风险\n\n须同步调整调用方。\n`;
+		const complete = `${base}\n## 未采用方案\n\n保留双入口会继续漂移。\n\n## 可观察结果\n\n两个消费者调用同一入口。\n\n## 风险\n\n须同步调整调用方。\n`;
 		writeFileSync(proposed, complete);
 		result = run(root, "check-notes-format.ts");
 		assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -280,7 +280,7 @@ test("落地时仅改状态不足以完成转换，必须改写提案章节", ()
 		const file = join(root, ".agents/notes/implemented/process/2026-09-16-example.md");
 		const implemented =
 			"# Agent Note: 单入口\n\nStatus: implemented\n\n## 背景\n\n双入口漂移。\n\n## 决策\n\n共用入口。\n\n## 未采用方案\n\n独立实现会漂移。\n\n## 后果\n\n消费者共同维护入口。\n";
-		writeFileSync(file, `${implemented}\n## 验收标准\n\n未来迁移消费者。\n`);
+		writeFileSync(file, `${implemented}\n## 可观察结果\n\n未来迁移消费者。\n`);
 		let result = run(root, "check-notes-format.ts");
 		assert.notEqual(result.status, 0);
 		assert.match(result.stderr, /implemented 笔记禁止提案式标题/u);

@@ -85,7 +85,9 @@ describe("Campus Web 用户可见状态治理", () => {
 
 	it("keeps run phases out of the chat display", () => {
 		const styleDevSource = sourceFiles("src/style-dev").map(read).join("\n");
-		const threadSource = read("src/components/assistant-ui/thread.tsx");
+		const threadSource = ["thread.tsx", "thread-run-status.tsx"]
+			.map((file) => read(`src/components/assistant-ui/${file}`))
+			.join("\n");
 
 		expect(styleDevSource).not.toContain('label: "排队"');
 		expect(threadSource).toContain("正在回答");

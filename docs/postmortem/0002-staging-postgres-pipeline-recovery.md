@@ -32,6 +32,8 @@ WAL 归档失败。通知维护入口无法从已删除模板创建任务，完�
 实际 Cluster 未使用 GitOps 已声明的 origin server certificate；造成该漂移的操作者尚未确定。
 副本与归档网络未随备份拓扑补齐，ObjectStore retention 层级错误，资源依赖未在 Cluster 前就绪。
 通知迁移删除了 CronJob，却留下维护接口与兼容任务展示的模板读取；republish mode 也仍调用普通发布。
+真实检索还发现统一发布器生成 v2 point，但通知 reader 只接受 v1。Campus Web 上传入口保留了已删除
+发布模块的 import，导致构建完成后的候选物上传失败。
 
 ## 为什么检查没发现
 
@@ -44,6 +46,9 @@ Ready、静态清单和单包测试分别通过不能证明数据库 CA、跨仓
 源码修复由[网络与备份回归测试](../../infra/k8s/tests/cluster-recovery.test.ts)、
 [通知运行投影测试](../../apps/ops-web/test/temporal-notice-jobs.node.test.ts)和
 [流水线行为测试](../../apps/notice-pipeline-worker/test/workflows.test.ts)覆盖。
+旧制品 manifest 的 ICU 顺序与新 canonical JSON 合同不一致，已由原发布 owner 生成新不可变 manifest
+并通过锁、验证与 CAS 发布 15,528 个点。首次迁移因重复组装候选物超出 2 GiB 内存限制，释放重复候选后
+成功；现有制品和 Qdrant 点的正文摘要逐一核对通过。通知读取 v2 与发布脚本 import 已补修复。
 GitOps 收敛、修复镜像上线、手动全链路与两轮定时验收仍待执行，完成后更新本节。
 
 ## 长期教训

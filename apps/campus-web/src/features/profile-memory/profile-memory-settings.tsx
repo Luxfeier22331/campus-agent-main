@@ -10,6 +10,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { MarkdownContent } from "@/components/assistant-ui/markdown-text";
 import { formatTimestamp } from "@/lib/date-time";
 import { useCampusSession } from "@/platform/auth/session";
 import {
@@ -49,6 +50,8 @@ function MemorySettings({ userId }: { userId: string }) {
 		staleTime: 0,
 		refetchOnMount: "always",
 		refetchOnWindowFocus: true,
+		refetchInterval: (query) =>
+			query.state.status === "success" && query.state.data?.generating ? 2000 : false,
 	});
 	// A terminal command can arrive after the response is shown. Refresh the
 	// profile when pending work disappears, not just when the command is accepted.
@@ -119,8 +122,8 @@ function MemorySettings({ userId }: { userId: string }) {
 					>
 						<span
 							className={cn(
-								"absolute top-0.5 size-5 rounded-full bg-primary-foreground shadow transition-transform",
-								memory.lifecycleState === "active" ? "translate-x-5" : "translate-x-0.5",
+								"absolute left-0.5 top-0.5 size-5 rounded-full bg-primary-foreground shadow transition-transform",
+								memory.lifecycleState === "active" ? "translate-x-[22px]" : "translate-x-0",
 							)}
 						/>
 					</button>
@@ -176,12 +179,14 @@ function MemorySettings({ userId }: { userId: string }) {
 								</span>
 							) : null}
 						</div>
-						{profile.data.generating && !profile.data.content ? (
-							<p className="text-sm text-muted-foreground">
-								助手还没有足够记忆生成画像，可以先在对话中告诉它你的偏好。
-							</p>
+						{profile.data.content ? (
+							<MarkdownContent text={profile.data.content} />
 						) : (
-							<p className="whitespace-pre-wrap break-words text-sm">{profile.data.content}</p>
+							<p className="text-sm text-muted-foreground">
+								{profile.data.generating
+									? "画像生成中，完成后会自动显示。"
+									: "还没有画像，可以先在对话中告诉助手你的偏好。"}
+							</p>
 						)}
 					</div>
 				) : null}

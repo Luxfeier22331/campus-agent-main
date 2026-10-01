@@ -73,7 +73,8 @@ var/notices/chunking/sha256/<run-digest>/
 └── validation.json
 ```
 
-Chunk Run 使用 `notice_chunk_run.v1`。builder 在同一次 repeatable-read 快照中生成 Chunk、review sample
+Chunk Run 使用 `notice_chunk_run.v2`。每个 Chunk 保留通知来源的 RFC3339 UTC `released_at`，但不把发布时间拼入
+`retrievalText`。builder 在同一次 repeatable-read 快照中生成 Chunk、review sample
 和 validation 诊断；统一 publisher 只消费 Chunk 数据，使用 `retrievalText` 首行生成 Notice title，并由
 `noticeId` 生成 `/notices/<noticeId>` citation，不读取 live Notices DB。
 

@@ -12,6 +12,7 @@ export type LocalDevTarget =
 	| "notice-index-publisher";
 
 export type LocalDevCapability =
+	| "hindsight"
 	| "qdrant"
 	| "postgres"
 	| "derived-bucket"
@@ -85,7 +86,7 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 			"model-config-check",
 			"temporal-namespace",
 		],
-		capabilities: ["postgres", "docs-bucket", "docs-source", "temporal", "qdrant"],
+		capabilities: ["postgres", "docs-bucket", "docs-source", "temporal", "qdrant", "hindsight"],
 		directEnvironmentProjections: ["core"],
 		environmentDependencies: [],
 		modelConfigNames: ["primary_agent", "campus_docs_embedding", "campus_docs_reranker"],
@@ -100,7 +101,14 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 			"model-config-check",
 			"temporal-namespace",
 		],
-		capabilities: ["postgres", "derived-bucket", "source-bucket", "qdrant", "temporal"],
+		capabilities: [
+			"postgres",
+			"derived-bucket",
+			"source-bucket",
+			"qdrant",
+			"temporal",
+			"hindsight",
+		],
 		directEnvironmentProjections: [
 			"ops-web",
 			"internal-portal-collection",

@@ -155,6 +155,10 @@ export function useConversationRunTerminalHandlers({
 						}),
 					);
 				}
+			} finally {
+				if (ownsOperation(operation)) {
+					operationMachine.invalidate();
+				}
 			}
 		},
 		[

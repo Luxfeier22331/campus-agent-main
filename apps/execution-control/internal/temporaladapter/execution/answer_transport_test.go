@@ -45,9 +45,8 @@ func (c *streamCapturingClient) Execute(_ context.Context, request executionappl
 	}, nil
 }
 
-// Buffered transport must forward Stream=false to the agent runtime so it uses
-// the non-stream /internal/agent-requests endpoint instead of /stream.
-func TestCallWorkflowOperationRuntimeForwardsStreamFlag(t *testing.T) {
+// Both provider modes use internal SSE so retrieval can arrive before the answer.
+func TestCallWorkflowOperationRuntimeStreamsProgressInBothModelModes(t *testing.T) {
 	resultPayload, err := json.Marshal(map[string]any{
 		"request_id":    "run-1",
 		"operation":     "solve",
@@ -65,7 +64,7 @@ func TestCallWorkflowOperationRuntimeForwardsStreamFlag(t *testing.T) {
 		body   string
 	}{
 		{stream: true, body: sseBody},
-		{stream: false, body: string(resultPayload)},
+		{stream: false, body: sseBody},
 	}
 	for _, tc := range cases {
 		client := &streamCapturingClient{status: 200, response: tc.body}
@@ -82,7 +81,7 @@ func TestCallWorkflowOperationRuntimeForwardsStreamFlag(t *testing.T) {
 		if err != nil {
 			t.Fatalf("stream=%v err=%v", tc.stream, err)
 		}
-		if client.stream != tc.stream {
+		if !client.stream {
 			t.Fatalf("stream=%v forwarded Stream=%v", tc.stream, client.stream)
 		}
 		if response.RequestID != "run-1" || response.FinalOutput == "" {
@@ -91,14 +90,13 @@ func TestCallWorkflowOperationRuntimeForwardsStreamFlag(t *testing.T) {
 	}
 }
 
-// Buffered solve consumes the non-stream response body (io.ReadAll branch) and
-// must not require any SSE framing.
+// Buffered recovery synthesis keeps its existing non-stream response contract.
 func TestCallWorkflowOperationRuntimeBufferedReadsWholeBody(t *testing.T) {
 	payload, err := json.Marshal(map[string]any{
-		"request_id":     "run-2",
-		"operation":      "solve",
-		"status":         "completed",
-		"solve_outcome":  "answer",
+		"request_id": "run-2",
+		"operation":  "synthesize",
+		"status":     "completed",
+
 		"final_output":   "完整回答",
 		"answer_started": false,
 	})
@@ -110,7 +108,7 @@ func TestCallWorkflowOperationRuntimeBufferedReadsWholeBody(t *testing.T) {
 	response, err := adapter.CallWorkflowOperationRuntime(
 		t.Context(),
 		execution.DurableRun{RequestID: "run-2", CreatedAt: time.Now()},
-		temporalruntime.WorkflowOperationSolve,
+		temporalruntime.WorkflowOperationSynthesize,
 		"",
 		[]byte("{}"),
 		60_000,
@@ -119,7 +117,22 @@ func TestCallWorkflowOperationRuntimeBufferedReadsWholeBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.FinalOutput != "完整回答" || response.SolveOutcome != "answer" {
+	if response.FinalOutput != "完整回答" || client.stream {
 		t.Fatalf("unexpected buffered response: %#v", response)
+	}
+}
+
+func TestRuntimePayloadSelectsProviderTransport(t *testing.T) {
+	for _, operation := range []temporalruntime.WorkflowOperation{temporalruntime.WorkflowOperationSolve, temporalruntime.WorkflowOperationExecuteStep} {
+		for _, stream := range []bool{false, true} {
+			payload := WorkflowOperationRuntimeRequestPayload(execution.DurableRun{}, WorkflowOperationActivityRequest{Operation: operation, Stream: stream}, nil, WorkflowRuntimeLimits{}, 1)
+			want := config.AnswerTransportBuffered
+			if stream {
+				want = config.AnswerTransportStream
+			}
+			if payload["model_answer_transport"] != want {
+				t.Fatalf("operation=%s stream=%v payload=%v", operation, stream, payload)
+			}
+		}
 	}
 }

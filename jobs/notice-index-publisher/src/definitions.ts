@@ -12,7 +12,7 @@ export const NOTICE_CHUNK_DEFINITION = {
 	targetChars: 800,
 } as const satisfies NoticeChunkDefinition;
 
-export const NOTICE_CHUNK_RUN_SCHEMA_VERSION = "notice_chunk_run.v1" as const;
+export const NOTICE_CHUNK_RUN_SCHEMA_VERSION = "notice_chunk_run.v2" as const;
 export const NOTICE_CHUNK_VALIDATION_SCHEMA_VERSION = "notice_chunk_validation.v3" as const;
 
 export const MAX_HEADING_CHARS = 80;

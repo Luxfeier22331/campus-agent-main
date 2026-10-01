@@ -1,5 +1,4 @@
 const CHAT_REQUEST_ERROR_MESSAGES: Record<string, string> = {
-	answer_stalled: "回答长时间没有进展，已停止等待，请重试。",
 	approval_required: "该请求需要审批后才能继续。",
 	answer_synthesis_failed: "已找到部分资料，但生成最终回答失败，请稍后重试。",
 	chat_stream_connection_lost: "回答连接已断开。",

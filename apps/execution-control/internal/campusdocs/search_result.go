@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -26,6 +27,7 @@ type SearchResultItem struct {
 	SourceKind    string
 	DocumentID    string
 	NoticeID      string
+	ReleasedAt    string
 	Title         string
 	CitationHref  string
 	SectionRef    string
@@ -40,7 +42,7 @@ func EncodeSearchResult(results []SearchResultItem, citationStart int) map[strin
 	items := make([]map[string]any, 0, len(results))
 	for offset, item := range results {
 		if item.SourceKind == "notice" {
-			items = append(items, map[string]any{
+			encoded := map[string]any{
 				"citation_href":  item.CitationHref,
 				"citation_index": citationStart + offset,
 				"notice_id":      item.NoticeID,
@@ -49,7 +51,11 @@ func EncodeSearchResult(results []SearchResultItem, citationStart int) map[strin
 				"source_kind":    item.SourceKind,
 				"text":           item.Text,
 				"title":          item.Title,
-			})
+			}
+			if item.ReleasedAt != "" {
+				encoded["released_at"] = item.ReleasedAt
+			}
+			items = append(items, encoded)
 			continue
 		}
 		items = append(items, map[string]any{
@@ -146,6 +152,7 @@ func searchResultItemFromMap(value map[string]any) (SearchResultItem, error) {
 		VersionID:     execution.StringValue(value["version_id"]),
 		VersionSlug:   execution.StringValue(value["version_slug"]),
 		Text:          execution.StringValue(value["text"]),
+		ReleasedAt:    execution.StringValue(value["released_at"]),
 	}
 	if item.CitationIndex < 1 ||
 		!strings.HasPrefix(item.ResultRef, "result://") ||
@@ -154,9 +161,16 @@ func searchResultItemFromMap(value map[string]any) (SearchResultItem, error) {
 		return SearchResultItem{}, errors.New("result fields are invalid")
 	}
 	if item.SourceKind == "notice" {
-		if len(value) != 8 || item.NoticeID == "" ||
+		if (len(value) != 8 && (len(value) != 9 || item.ReleasedAt == "")) || item.NoticeID == "" ||
 			!ValidNoticeCitationHrefForNoticeID(item.CitationHref, item.NoticeID) {
 			return SearchResultItem{}, errors.New("notice result fields are invalid")
+		}
+		if item.ReleasedAt != "" {
+			parsed, err := time.Parse(time.RFC3339Nano, item.ReleasedAt)
+			_, offset := parsed.Zone()
+			if err != nil || offset != 0 {
+				return SearchResultItem{}, errors.New("notice released_at is invalid")
+			}
 		}
 		if utf8.RuneCountInString(item.Text) > EvidenceCharBudget {
 			return SearchResultItem{}, errors.New("text is too long")

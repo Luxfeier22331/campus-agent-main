@@ -1,53 +1,35 @@
-import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadDiningFloorplanAsset } from "../src/features/dining/floorplan-asset";
 
-const originalFetch = globalThis.fetch;
-
-afterEach(() => {
-	globalThis.fetch = originalFetch;
-});
-
+const svgAssetUrl = `/api/dining/floorplans/${"a".repeat(64)}.svg`;
+afterEach(() => vi.unstubAllGlobals());
 describe("dining floorplan asset loader", () => {
-	it("loads a same-origin asset after verifying its digest", async () => {
-		const markup = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
-		const digest = createHash("sha256").update(markup).digest("hex");
-		const sha256 = `sha256:${digest}`;
-		globalThis.fetch = vi.fn(async () => new Response(markup, { status: 200 }));
-
-		await expect(
-			loadDiningFloorplanAsset({
-				sha256,
-				svgAssetUrl: `/api/dining/floorplans/${digest}.svg`,
-			}),
-		).resolves.toBe(markup);
-		expect(globalThis.fetch).toHaveBeenCalledWith(
-			`/api/dining/floorplans/${digest}.svg`,
-			expect.objectContaining({ credentials: "same-origin" }),
+	it("loads the server-verified SVG without requiring browser crypto", async () => {
+		vi.stubGlobal("crypto", undefined);
+		const fetcher = vi.fn(async () => new Response("<svg></svg>"));
+		vi.stubGlobal("fetch", fetcher);
+		const signal = new AbortController().signal;
+		await expect(loadDiningFloorplanAsset({ svgAssetUrl, signal })).resolves.toBe("<svg></svg>");
+		expect(fetcher).toHaveBeenCalledWith(
+			svgAssetUrl,
+			expect.objectContaining({ signal, credentials: "same-origin" }),
 		);
 	});
-
-	it("fails closed when the digest does not match", async () => {
-		globalThis.fetch = vi.fn(async () => new Response("<svg></svg>", { status: 200 }));
-
-		await expect(
-			loadDiningFloorplanAsset({
-				sha256: `sha256:${"0".repeat(64)}`,
-				svgAssetUrl: `/api/dining/floorplans/${"0".repeat(64)}.svg`,
-			}),
-		).rejects.toThrow("checksum does not match");
+	it("reports a failed asset request", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response(null, { status: 502 })),
+		);
+		await expect(loadDiningFloorplanAsset({ svgAssetUrl })).rejects.toThrow("could not be loaded");
 	});
-
-	it("rejects external and non-dining asset URLs before fetching", async () => {
-		globalThis.fetch = vi.fn();
-		const sha256 = `sha256:${"0".repeat(64)}`;
-
-		await expect(
-			loadDiningFloorplanAsset({ sha256, svgAssetUrl: "https://example.com/map.svg" }),
-		).rejects.toThrow("asset URL is invalid");
-		await expect(
-			loadDiningFloorplanAsset({ sha256, svgAssetUrl: "/uploads/map.svg" }),
-		).rejects.toThrow("asset URL is invalid");
-		expect(globalThis.fetch).not.toHaveBeenCalled();
+	it("rejects external and non-dining URLs before fetching", async () => {
+		const fetcher = vi.fn();
+		vi.stubGlobal("fetch", fetcher);
+		for (const url of ["https://example.com/map.svg", "/uploads/map.svg"]) {
+			await expect(loadDiningFloorplanAsset({ svgAssetUrl: url })).rejects.toThrow(
+				"asset URL is invalid",
+			);
+		}
+		expect(fetcher).not.toHaveBeenCalled();
 	});
 });

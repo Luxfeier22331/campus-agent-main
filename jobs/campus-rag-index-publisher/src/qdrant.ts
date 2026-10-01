@@ -81,7 +81,7 @@ export function createQdrantClient(
 			}
 		},
 		async upsert(input) {
-			await request(
+			const response = await request(
 				`/collections/${encodeURIComponent(input.collection)}/points?wait=true`,
 				{
 					body: JSON.stringify({
@@ -92,6 +92,12 @@ export function createQdrantClient(
 					method: "PUT",
 				},
 			);
+			if (!isRecord(response) || !isRecord(response.result) || typeof response.result.status !== "string") {
+				throw new Error("Qdrant upsert returned an invalid operation result");
+			}
+			if (response.result.status !== "completed") {
+				throw new Error(`Qdrant upsert did not complete: ${response.result.status}`);
+			}
 		},
 		async validate(input) {
 			if (

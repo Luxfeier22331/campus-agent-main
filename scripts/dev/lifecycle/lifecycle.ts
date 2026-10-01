@@ -97,6 +97,11 @@ export async function initializeLocalDevelopmentTarget(
 	const infrastructureCapabilities = productTarget
 		? plan.capabilities.filter((capability) => capability !== "docs-source")
 		: plan.capabilities;
+	importMainCheckoutExternalCredentials({
+		mainCheckoutRoot: resolveMainCheckoutRoot(repoRoot),
+		projections,
+		repoRoot,
+	});
 	await ensureLocalInfrastructure(repoRoot, profile, infrastructureCapabilities);
 	const qdrant = plan.capabilities.includes("qdrant")
 		? await resolveLocalQdrantConnection(repoRoot, profile)
@@ -104,11 +109,6 @@ export async function initializeLocalDevelopmentTarget(
 	if (projections.some((projection) => ["core", "model-config"].includes(projection))) {
 		ensureLocalModelConfigEncryptionKey(repoRoot);
 	}
-	importMainCheckoutExternalCredentials({
-		mainCheckoutRoot: resolveMainCheckoutRoot(repoRoot),
-		projections,
-		repoRoot,
-	});
 	renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target, projections });
 	if (plan.bootstrapSteps.includes("temporal-namespace")) {
 		await ensureLocalTemporalNamespace(repoRoot, profile);

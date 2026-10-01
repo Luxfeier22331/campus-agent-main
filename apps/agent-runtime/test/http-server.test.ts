@@ -57,6 +57,24 @@ const evidence: WorkflowEvidence = {
 afterEach(() => vi.useRealTimers());
 
 describe("agent runtime HTTP handler", () => {
+	it("passes buffered model transport through the internal SSE endpoint", async () => {
+		const runtime: WorkflowOperationRuntime = {
+			...runtimeFor(),
+			async *stream(input) {
+				expect(input.modelAnswerTransport).toBe("buffered");
+				yield { event: "completed", data: resultFor(input) };
+			},
+		};
+		const handler = createAgentRuntimeHandler({ runtime, sharedSecret: "secret" });
+		const response = await post(
+			handler,
+			{ ...validBody("solve"), model_answer_transport: "buffered" },
+			"/internal/agent-requests/stream",
+		);
+		expect(response.status).toBe(200);
+		expect(await response.text()).toContain("event: completed");
+	});
+
 	it.each(["planned", "recovery"])(
 		"preserves nullable source links across the %s HTTP contract",
 		async (mode) => {
@@ -108,10 +126,31 @@ describe("agent runtime HTTP handler", () => {
 			);
 			expect(response.status).toBe(200);
 			const wire = await response.json();
-			expect(wire.evidence[0].source_link).toEqual({ href: null });
+			expect(wire).not.toHaveProperty("evidence");
 			expect(wire.web_evidence[0].source_link).toEqual({ href: null });
 		},
 	);
+	it("does not echo admitted synthesis materials in the runtime response", async () => {
+		const response = await post(
+			createAgentRuntimeHandler({
+				sharedSecret: "secret",
+				runtime: {
+					...runtimeFor(),
+					async run(input) {
+						return resultFor(input, {
+							evidence: [evidence],
+							sourceAttempts: [{ source: "campus_search", status: "matched" }],
+						});
+					},
+				},
+			}),
+			validBody("synthesize"),
+		);
+		expect(response.status).toBe(200);
+		const body = await response.json();
+		expect(body).not.toHaveProperty("evidence");
+		expect(body).not.toHaveProperty("source_attempts");
+	});
 	it.each(["/internal/agent-requests", "/internal/agent-requests/stream"])(
 		"preserves citation diagnostics through %s",
 		async (path) => {

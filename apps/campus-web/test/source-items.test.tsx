@@ -187,7 +187,7 @@ describe("conversation source items", () => {
 		expect(container.querySelectorAll("p")).toHaveLength(showHostname ? 2 : 1);
 	});
 
-	it("renders Campus Notice sources as internal links", () => {
+	it("offers a dialog for Campus Notice sources", () => {
 		render(
 			<SourceItemsList
 				sourceItems={[
@@ -211,9 +211,11 @@ describe("conversation source items", () => {
 
 		expect(screen.getByText("校园通知")).toBeInTheDocument();
 		expect(screen.getByText("办理要求")).toBeInTheDocument();
-		const link = screen.getByRole("link", { name: "查看通知" });
-		expect(link).toHaveAttribute("href", "/notices/358159");
-		expect(link).not.toHaveAttribute("target");
+		expect(screen.getByRole("button", { name: "查看通知" })).toHaveAttribute(
+			"aria-haspopup",
+			"dialog",
+		);
+		expect(screen.queryByRole("link", { name: "查看通知" })).toBeNull();
 	});
 
 	it("shows five sources by default and expands the complete collection", () => {

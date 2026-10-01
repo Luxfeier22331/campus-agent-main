@@ -248,60 +248,18 @@ publisher；已发布内容与新清洗结果冲突时，由引入清洗合同�
 结果，再开启 Schedule。手动运行使用固定执行 ID `notice-pipeline-workflow`，与正在进行的流水线或回滚
 重叠时返回 409，单次执行上限 4 小时；定时触发发现已在运行时跳过该轮。
 
-通知 CronJob 模板全部保持 `suspend: true`，不设置自动调度，GitOps 无需忽略 `suspend`/`schedule`
-字段。它们当前只充当一次性 Job 和手动恢复的模板来源：现有调用方为 Ops 通知维护页任务中心与详情页（经
-`/api/ops/notices/jobs` 从 `spec.jobTemplate` 创建一次性 Job，按采集、分类、发布操作族互斥）和本文
-的手动 kubectl 入口。兼容任务在 `/tasks` 中仍可查看与手动运行，运行时转发到统一 Workflow，但其调度
-设置只读（直接修改返回 409）。
+通知维护页的 `/api/ops/notices/jobs` 将八种固定操作映射到 Temporal Workflow；部署环境不再读取
+通知 CronJob 模板。完整流水线从 `/tasks` 运行，单项维护操作及其历史从通知维护页查看。
+采集 sync、backfill、rescan 会继续执行分类、发布和索引刷新；单条分类、发布、重新发布只执行对应阶段。
+文件同步通过 `file-sync` mode 执行，共用固定 Workflow ID。操作参数只属于本次运行，不写入长期配置。
 
-internal-portal-collection 镜像的 Job 入口消费
-`OPS_WEB_INTERNAL_URL`、既有
-`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还使用既有数据库 owner 连接登记通知
-库存。仍可由维护者显式创建一次性 Job：
+手动恢复优先使用 Ops 任务页或通知维护页，并从 Temporal history 查看阶段结果和 heartbeat。源码保留的
+暂停 CronJob 清单不是集群中模板存在的保证；不得从已删除的 `notice-sync`、`notice-backfill`、
+`file-sync` 或 `notice-publisher` 创建 Job。具体接口见[通知维护合同](../../contracts/ops-web/notices.md)。
 
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/notice-sync <job-name>
-
-kubectl -n <namespace> create job \
-  --from=cronjob/notice-backfill <job-name> \
-  --dry-run=client -o yaml |
-kubectl set env --local -f - \
-  INTERNAL_PORTAL_NOTICE_START_DATE=YYYY-MM-DD -o yaml |
-kubectl -n <namespace> create -f -
-
-kubectl -n <namespace> create job \
-  --from=cronjob/file-sync <job-name>
-```
-
-三个模板各自固定一种动作，不接收 `mode`。回填日期只属于本次 Job，不写入长期环境配置。通知 Job
-在 stdout 输出 `processedRange`、`maintenanceRange` 和 `scanning/processing/writing/finalizing` 结构化进度；
-最终通知摘要只输出数量，不输出完整 ID 列表。sync 和 backfill 是两个独立 Job，任务中心只显示实际创建的 Job，
-不自动创建另一条。
-
-通知分类 Job 复用既有数据库 owner Secret、PostgreSQL CA 和 Model Config，不读取对象存储，也不新增
-分类器专用数据库身份或模型 Secret。运行一次性采集 Job 前须在目标环境确认到 Ops Web、source bucket、
-PostgreSQL 和门户 HTTPS 的连通性。
-
-统一 `campus-agent-schema` Job 使用既有数据库 owner Secret 和 PostgreSQL CA。发布模板同样复用 owner
-与 source/derived 对象存储 Secret，不新增线上 publisher Secret。全量发布直接创建一次性 Job：
-
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/notice-publisher <job-name>
-```
-
-代表性发布只替换该次 Job 的参数：
-
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/notice-publisher <job-name> \
-  --dry-run=client -o yaml |
-kubectl patch --local -f - --type=json \
-  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["publish","--notice-id","123456"]}]' \
-  -o yaml |
-kubectl -n <namespace> create -f -
-```
+Worker 复用既有 Ops Web 凭据入口、数据库 owner Secret、PostgreSQL CA、Model Config 和 source/derived
+对象存储配置。运行前确认到 Ops Web、PostgreSQL、对象存储、门户 HTTPS、模型服务与 Qdrant 的对应网络
+方向。统一 `campus-agent-schema` Job 仍负责数据库结构与角色，不由通知 Workflow 执行迁移。
 
 ## 排查
 

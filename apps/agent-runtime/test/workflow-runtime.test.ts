@@ -68,6 +68,65 @@ const catalog: ToolCatalog = {
 };
 
 describe("workflow operation runtime", () => {
+	it.each(["solve", "execute_step"] as const)(
+		"reports retrieval before buffered %s finishes without streaming the model",
+		async (operation) => {
+			let finish!: () => void;
+			const waiting = new Promise<void>((resolve) => {
+				finish = resolve;
+			});
+			const runtime = createWorkflowOperationRuntime({
+				catalog,
+				runner: async (input) => {
+					input.reportRetrieval?.("campus", "search", "started");
+					await waiting;
+					input.reportRetrieval?.("campus", "search", "no_match");
+					return runnerResult({
+						finalOutput: JSON.stringify(
+							operation === "solve"
+								? { outcome: "answer", answer: "未找到资料" }
+								: { summary: "未找到资料", remainingFacts: [] },
+						),
+					});
+				},
+				streamingRunner: () => {
+					throw new Error("must not stream the provider");
+				},
+			});
+			const input =
+				operation === "solve"
+					? solveInput("检索资料", 2)
+					: executeInput(taskStep("search", "检索资料"));
+			const events = runtime
+				.stream({ ...input, modelAnswerTransport: "buffered" })
+				[Symbol.asyncIterator]();
+			try {
+				// This must resolve while the model is still waiting for the tool result.
+				expect(await events.next()).toMatchObject({
+					value: { event: "retrieval_status", data: { status: "started" } },
+				});
+			} finally {
+				finish();
+			}
+			const remaining: WorkflowOperationStreamEvent[] = [];
+			for (;;) {
+				const next = await events.next();
+				if (next.done) {
+					break;
+				}
+				remaining.push(next.value);
+			}
+			expect(remaining.map((event) => event.event)).toEqual(
+				operation === "solve"
+					? ["retrieval_status", "solve_decision", "completed"]
+					: ["retrieval_status", "completed"],
+			);
+			expect(remaining.at(-1)).toMatchObject({
+				data: { status: "completed", finalOutput: "未找到资料" },
+			});
+		},
+	);
+
 	it("streams executor retrieval while withholding its summary from answer deltas", async () => {
 		const runtime = createWorkflowOperationRuntime({
 			catalog,
@@ -451,6 +510,7 @@ describe("workflow operation runtime", () => {
 								citation_index: 2,
 								citation_href: "/notices/12345",
 								notice_id: "12345",
+								released_at: "2026-09-01T00:00:00.000Z",
 								result_ref: "result://notice-1",
 								section_title: "报名要求",
 								source_kind: "notice",
@@ -486,6 +546,7 @@ describe("workflow operation runtime", () => {
 				citationHref: "/notices/12345",
 				citationIndex: 2,
 				noticeId: "12345",
+				releasedAt: "2026-09-01T00:00:00.000Z",
 				resultRef: "result://notice-1",
 				sectionTitle: "报名要求",
 				source: "campus_search",

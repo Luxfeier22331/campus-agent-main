@@ -374,6 +374,61 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	assert.equal(bake?.nodeVersion, readNodeVersion(REPOSITORY_ROOT));
 });
 
+test("affected generator tests use the Go environment once and preserve failure propagation", () => {
+	for (const generatorsAffected of [false, true]) {
+		const calls: string[][] = [];
+		const input = {
+			profiles: ["affected-node"] as const,
+			repositoryRoot: REPOSITORY_ROOT,
+			scope: {
+				base: BASE,
+				head: HEAD,
+				changedFiles: [],
+				tasks: [
+					{ package: "campus-contracts", task: "test:unit" },
+					...(generatorsAffected ? [{ package: "campus-contracts", task: "test:generators" }] : []),
+				],
+			},
+		};
+		runCandidateEvidence({ ...input, profiles: [...input.profiles] }, (command, args) => {
+			calls.push([command, ...args]);
+			return { status: 0 };
+		});
+		const generatorCalls = calls.filter((call) =>
+			call.includes("campus-contracts#test:generators"),
+		);
+		assert.equal(generatorCalls.length, generatorsAffected ? 1 : 0);
+		assert.equal(calls.filter((call) => call[0] === "nix").length, generatorCalls.length);
+		const unitCalls = calls.filter((call) => call.includes("campus-contracts#test:unit"));
+		assert.equal(unitCalls.length, 1);
+		assert.equal(unitCalls[0][0], "node");
+		if (generatorsAffected) {
+			assert.deepEqual(generatorCalls[0].slice(0, 5), [
+				"nix",
+				"develop",
+				".#ci-go",
+				"--command",
+				"node",
+			]);
+			calls.length = 0;
+			assert.throws(
+				() =>
+					runCandidateEvidence({ ...input, profiles: [...input.profiles] }, (command, args) => {
+						calls.push([command, ...args]);
+						return { status: 17 };
+					}),
+				/exit code 17/u,
+			);
+			assert.equal(calls.length, 1);
+			assert(calls[0].includes("campus-contracts#test:generators"));
+		} else {
+			assert.equal(calls.length, 1);
+			assert.equal(calls[0][0], "node");
+			assert(calls[0].includes("campus-contracts#test:unit"));
+		}
+	}
+});
+
 test("requires an explicit repository for image evidence", () => {
 	assert.throws(
 		() =>

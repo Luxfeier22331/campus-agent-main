@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
 	createProfileMemoryCorrection: vi.fn(),
@@ -37,8 +37,19 @@ function setup() {
 	};
 }
 describe("native memory management", () => {
+	afterEach(() => vi.useRealTimers());
 	beforeEach(() => {
 		vi.resetAllMocks();
+		vi.mocked(window.matchMedia).mockImplementation((query) => ({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		}));
 		auth.userId = "user_1";
 		api.getProfileMemory.mockResolvedValue(state);
 		api.getProfileMemoryProfile.mockResolvedValue(profile);
@@ -82,9 +93,55 @@ describe("native memory management", () => {
 			lastRefreshedAt: "",
 		});
 		setup();
-		expect(
-			await screen.findByText("助手还没有足够记忆生成画像，可以先在对话中告诉它你的偏好。"),
-		).toBeInTheDocument();
+		expect(await screen.findByText("画像生成中，完成后会自动显示。")).toBeInTheDocument();
+	});
+	it("renders headings, lists, emphasis and tables as Markdown", async () => {
+		api.getProfileMemoryProfile.mockResolvedValue({
+			...profile,
+			content: "## 偏好\n\n- **简洁**\n\n| 项目 | 内容 |\n| --- | --- |\n| 语言 | 中文 |",
+		});
+		setup();
+		expect(await screen.findByRole("heading", { name: "偏好" })).toBeInTheDocument();
+		expect(screen.getByText("简洁").tagName).toBe("STRONG");
+		expect(screen.getByRole("list")).toBeInTheDocument();
+		expect(screen.getByRole("table")).toHaveTextContent("中文");
+	});
+	it("polls a generating profile and stops when it completes", async () => {
+		vi.useFakeTimers();
+		api.getProfileMemoryProfile
+			.mockResolvedValueOnce({ ...profile, content: "", generating: true })
+			.mockResolvedValue(profile);
+		setup();
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(100);
+		});
+		expect(screen.getByText("画像生成中，完成后会自动显示。")).toBeInTheDocument();
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(2200);
+		});
+		expect(screen.getByText(profile.content)).toBeInTheDocument();
+		expect(screen.queryByText("生成中")).not.toBeInTheDocument();
+		const calls = api.getProfileMemoryProfile.mock.calls.length;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(6000);
+		});
+		expect(api.getProfileMemoryProfile).toHaveBeenCalledTimes(calls);
+	});
+	it("stops polling after a generation read fails", async () => {
+		vi.useFakeTimers();
+		api.getProfileMemoryProfile
+			.mockResolvedValueOnce({ ...profile, content: "", generating: true })
+			.mockRejectedValue(new Error("refresh failed"));
+		setup();
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(2300);
+		});
+		expect(screen.getByText("无法读取画像")).toBeInTheDocument();
+		const calls = api.getProfileMemoryProfile.mock.calls.length;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(6000);
+		});
+		expect(api.getProfileMemoryProfile).toHaveBeenCalledTimes(calls);
 	});
 	it("keeps lifecycle controls usable when profile reads fail", async () => {
 		api.getProfileMemoryProfile.mockRejectedValue(new Error("provider offline"));

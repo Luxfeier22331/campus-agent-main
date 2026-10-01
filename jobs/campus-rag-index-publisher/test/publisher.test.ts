@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
@@ -15,6 +16,7 @@ import {
 import { assembleCandidate, buildNoticePoints, publishCampusRagIndex } from "../src/publisher.ts";
 import type {
 	CurrentIndexBinding,
+	NoticeChunk,
 	ObjectReference,
 	QdrantIndexClient,
 	ReaderObjectStore,
@@ -26,6 +28,20 @@ const DOCS_TEXT = "文档正文";
 const NOTICE_TEXT = "通知正文";
 
 describe("unified Campus RAG publisher", () => {
+	it("matches the notice payload consumed by Execution Control", () => {
+		const fixture = JSON.parse(
+			readFileSync(
+				new URL("../../../packages/contracts/fixtures/campus_rag/notice-point.v3.json", import.meta.url),
+				"utf8",
+			),
+		) as { chunk: NoticeChunk; point: Pick<UnifiedPoint, "id" | "payload"> };
+		const [point] = buildNoticePoints(
+			[fixture.chunk],
+			[{ dense: vector(3), retrievalTextSha256: sha256(fixture.chunk.retrievalText) }],
+		);
+		expect({ id: point?.id, payload: point?.payload }).toEqual(fixture.point);
+	});
+
 	it("assembles Docs and Notice points with isolated source namespaces", async () => {
 		const prepared = await prepareArtifacts();
 		const candidate = await assembleCandidate(
@@ -49,7 +65,7 @@ describe("unified Campus RAG publisher", () => {
 			citation_href: "/notices/42",
 			heading_path: [],
 			notice_id: "42",
-			schema_version: "campus_rag_point.v2",
+			schema_version: "campus_rag_point.v3",
 			section_title: "正文",
 			source_kind: "notice",
 			text: NOTICE_TEXT,
@@ -229,6 +245,7 @@ describe("unified Campus RAG publisher", () => {
 			content: "正文段落",
 			headingPath: ["通知", "办理要求"],
 			noticeId: "99",
+			releasedAt: "2026-08-23T10:00:00.000Z",
 			retrievalText: "通知标题\n通知\n办理要求\n正文段落",
 		};
 		const points = buildNoticePoints(
@@ -257,6 +274,7 @@ describe("unified Campus RAG publisher", () => {
 				content: "正文一",
 				headingPath: [],
 				noticeId: "99",
+			releasedAt: "2026-08-23T10:00:00.000Z",
 				retrievalText: "通知标题一\n正文一",
 			},
 			{
@@ -265,6 +283,7 @@ describe("unified Campus RAG publisher", () => {
 				content: "正文二",
 				headingPath: [],
 				noticeId: "99",
+			releasedAt: "2026-08-23T10:00:00.000Z",
 				retrievalText: "通知标题二\n正文二",
 			},
 		];
@@ -357,6 +376,7 @@ async function prepareArtifacts(input: {
 		content: noticeText,
 		headingPath: [],
 		noticeId: "42",
+		releasedAt: "2026-08-23T10:00:00.000Z",
 		retrievalText: noticeRetrievalText,
 	};
 	const noticeChunkBytes = encodeNdjson([noticeChunk]);
@@ -377,7 +397,7 @@ async function prepareArtifacts(input: {
 		},
 		noticeCount: 1,
 		reviewSamples: reference("review-samples.ndjson", noticeReviewBytes),
-		schemaVersion: "notice_chunk_run.v1",
+		schemaVersion: "notice_chunk_run.v2",
 		validation: reference("validation.json", noticeValidationBytes),
 	};
 	const noticeRunBytes = canonicalJson(noticeManifest);

@@ -2,6 +2,10 @@
 
 Status: implemented
 
+本篇暂留 Campus Web 客户端 digest 校验的选择已由
+[Campus Web hash 清理与运行态故障修复](../bug-fix/2026-10-01-campus-ui-hash-and-runtime-cleanup.md)
+部分取代；其他领域的决策仍有效。
+
 ## 背景
 
 项目历史上存在过度设计：对同一数据在多个环节重复计算或校验 hash、为无读者的字段计算 digest、

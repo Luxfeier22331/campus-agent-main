@@ -75,6 +75,7 @@ export interface NoticeChunk {
 	content: string;
 	headingPath: string[];
 	noticeId: string;
+	releasedAt?: string;
 	retrievalText: string;
 }
 
@@ -84,7 +85,7 @@ export interface NoticeChunkRunManifest {
 	definition: Record<string, unknown>;
 	noticeCount: number;
 	reviewSamples: ArtifactReference;
-	schemaVersion: "notice_chunk_run.v1";
+	schemaVersion: "notice_chunk_run.v2";
 	validation: ArtifactReference;
 }
 

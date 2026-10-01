@@ -15,6 +15,7 @@
 		"verify": "nix develop .#ci-full --command node --experimental-strip-types scripts/ci/evidence.mts --workspace verify",
 		"dev": "pnpm exec tsx scripts/dev/cli.ts doctor --target core --scope config && turbo run dev --env-mode=strict --filter=campus-web --filter=app-api --filter=model-config --filter=execution-control --filter=agent-runtime",
 		"dev:init": "pnpm exec tsx scripts/dev/cli.ts init",
+		"dev:sync-notices": "pnpm exec tsx scripts/dev/product-data/notice-sync-cli.ts",
 		"dev:doctor": "pnpm exec tsx scripts/dev/cli.ts doctor",
 		"dev:instances": "pnpm exec tsx scripts/dev/cli.ts instances",
 		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy",

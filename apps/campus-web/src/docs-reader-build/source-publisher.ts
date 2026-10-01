@@ -16,7 +16,6 @@ export interface PreparedDocsSourcePublication {
 
 type DocsSourcePublicationInput = {
 	client: DocsSourceObjectStore;
-	expectedCurrentDigest?: `sha256:${string}`;
 } & (
 	| { prepare: () => Promise<PreparedDocsSourcePublication>; source?: never }
 	| { source: DocsSourceManifest | (() => Promise<DocsSourceManifest>); prepare?: never }
@@ -31,9 +30,6 @@ export async function publishDocsSource(input: DocsSourcePublicationInput): Prom
 	// Capture before materializing declarations or validating assets; the final PUT must
 	// reject another publisher's update during that work.
 	const current = await input.client.readOptionalObject({ key: DOCS_SOURCE_KEY });
-	if (input.expectedCurrentDigest) {
-		assertSourceDigest(current?.body, input.expectedCurrentDigest);
-	}
 	if ("prepare" in input === "source" in input) {
 		throw new Error("Docs source publication requires exactly one source or prepare callback");
 	}
@@ -105,21 +101,6 @@ async function writeImmutableSourceRelease(
 		if (!(existing && equalBytes(existing, body))) {
 			throw new Error(`immutable docs source release conflicts with existing object: ${key}`);
 		}
-	}
-}
-
-function assertSourceDigest(
-	bytes: Uint8Array | undefined,
-	expectedDigest: `sha256:${string}`,
-): asserts bytes is Uint8Array {
-	if (!bytes) {
-		throw new Error(`missing campus docs source catalog: ${DOCS_SOURCE_KEY}`);
-	}
-	const actualDigest = sha256(bytes);
-	if (actualDigest !== expectedDigest) {
-		throw new Error(
-			`campus docs source digest changed: expected ${expectedDigest}, received ${actualDigest}`,
-		);
 	}
 }
 

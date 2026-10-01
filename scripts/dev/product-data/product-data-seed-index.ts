@@ -53,6 +53,7 @@ export async function buildProductSeedIndex(
 					noticeId: String(row.notice_id),
 					title: String(row.title),
 					contentText: String(row.content_text),
+					releasedAt: new Date(String(row.released_at)).toISOString(),
 				})),
 		}),
 	});

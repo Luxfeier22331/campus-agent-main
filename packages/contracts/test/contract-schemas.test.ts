@@ -82,7 +82,7 @@ describe("contract schema registry", () => {
 
 	it("defines campus search candidates and run-scoped citation indexes", () => {
 		const schema = readJson(
-			"packages/contracts/schemas/campus-search-tool-contracts.v4.schema.json",
+			"packages/contracts/schemas/campus-search-tool-contracts.v5.schema.json",
 		);
 		const definitions = schema.$defs as Record<string, Record<string, unknown>>;
 		const payload = definitions.CampusSearchPayload;

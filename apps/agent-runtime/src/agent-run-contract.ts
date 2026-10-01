@@ -47,6 +47,7 @@ export interface WorkflowEvidence {
 	resultRef?: string;
 	documentId?: string;
 	noticeId?: string;
+	releasedAt?: string;
 	citationHref?: string;
 	sectionRef?: string;
 	sectionTitle?: string;
@@ -72,6 +73,7 @@ export interface SourceAttempt {
 }
 
 interface WorkflowOperationInputBase {
+	modelAnswerTransport?: "stream" | "buffered";
 	deadlineAt?: string;
 	priorEvidence?: WorkflowEvidence[];
 	priorSourceAttempts?: SourceAttempt[];

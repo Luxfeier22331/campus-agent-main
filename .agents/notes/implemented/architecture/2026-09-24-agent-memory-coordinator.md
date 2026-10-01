@@ -110,6 +110,14 @@ scope、generation、lifecycle、call lease 和总 deadline。`paused` 允许 pr
 call lease 由此派生。异步 append 保存稳定 provider operation ID；查询重试不创建新的业务
 attempt。只有 provider 明确终态，或明确确认副作用已停止，才释放排空屏障。
 
+画像读取由 Hindsight adapter 投影原生 `refresh_mental_model` operation，按 `mental_model_id`
+选择当前用户画像任务；先读任务状态，再读模型，避免把任务完成与之前读取的占位正文拼接。
+首次创建的模型已有正文和时间戳，但没有生成结果；以完整模型的 `reflect_response.text`
+区分初始占位与已生成内容。pending/processing 返回 generating，失败通过已有读取错误表达，
+不匹配正文关键词、不保存第二套任务生命周期。已有正文在再次生成期间保留。
+Campus Web 在 generating 时刷新画像，完成或读取失败后停止；生成中与空画像分别展示，
+正文复用安全 Markdown 渲染。真实生成状态由适配器负责，前端不推断上游任务。
+
 ## 未采用方案
 
 - **继续让 app-api 通过 callback 推断执行终态**：实现简单，但 callback 不是可靠恢复机制，无法

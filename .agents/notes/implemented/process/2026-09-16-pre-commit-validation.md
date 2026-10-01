@@ -34,6 +34,10 @@ CI 使用同一 registry、命令和 Nix shell，只把选择范围换成 PR 分
 Actions 配置固定在 `ci-light` 中运行，避免依赖开发机或 runner 的全局 PATH。pre-push 的重验证与适配入口
 删除，安装器只卸载当前 worktree 的受管理 shim。PR 仍检查完整分支差异，不把一次本地提交检查作为合并证明。
 
+PR 的 affected Node 检查中，`test:generators` 虽由 Node 启动，仍需用 `gofmt` 格式化生成的 Go 合同，
+因此按原 affected 范围单独在 `ci-go` 执行一次；其余 Node 测试继续使用 `ci-core`。不向所有 Node
+检查加入 Go 工具链，也不依赖生成器缓存命中掩盖工具缺失；生成器失败仍阻断后续检查。
+
 提交前复用 prek 的未暂存修改隔离和 Turbo 的工作区 affected 选择，保留依赖传播与输入声明。
 首次提交运行全量模块任务；空暂存差异只运行可缓存的根测试。不创建临时提交、额外快照、验证
 凭证或第二套包依赖映射。`pnpm lint` 排除 validation group，保持全仓静态检查职责；repository checks

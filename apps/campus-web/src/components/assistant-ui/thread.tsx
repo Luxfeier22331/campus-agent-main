@@ -1,15 +1,8 @@
-import {
-	AuiIf,
-	ThreadPrimitive,
-	useAui,
-	useAuiState,
-	useThreadViewportStore,
-} from "@assistant-ui/react";
-import { Button, cn } from "@campus-agent/ui";
+import { AuiIf, ThreadPrimitive, useAuiState, useThreadViewportStore } from "@assistant-ui/react";
+import { cn } from "@campus-agent/ui";
 import { ArrowDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useContext, useEffect, useRef, useState } from "react";
-import { RetrievalStatus } from "@/components/conversation/retrieval-status";
 import { readCampusMessageMetadata } from "@/features/conversation/assistant-ui-mappers";
 import { Composer } from "./thread-composer";
 import {
@@ -94,7 +87,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 			</ThreadPrimitive.Viewport>
 			<div className="aui-thread-composer-dock border-border/70 shrink-0 border-t bg-background px-3 pb-3 sm:px-5 sm:pb-5">
 				<div className="relative mx-auto flex w-full max-w-(--thread-max-width) flex-col gap-3 pt-2">
-					<ThreadRunStatus />
+					<ThreadRunAnnouncement />
 					<ThreadScrollToBottom />
 					<Composer />
 				</div>
@@ -103,21 +96,9 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 	);
 };
 
-const ThreadRunStatus: FC = () => {
-	const aui = useAui();
+const ThreadRunAnnouncement: FC = () => {
 	const threadId = useAuiState((state) => state.threadListItem.id);
 	const isRunning = useAuiState((state) => state.thread.isRunning);
-	const connection = useAuiState((state) => {
-		const extras = state.thread.extras;
-		return extras && typeof extras === "object" && "connection" in extras
-			? (extras as { connection?: string }).connection
-			: "connected";
-	});
-	const retrieval = useAuiState(
-		(state) =>
-			(state.thread.extras as { retrieval?: Partial<Record<"campus", string>> } | undefined)
-				?.retrieval,
-	);
 	const previousRef = useRef<{ isRunning: boolean; threadId: string } | null>(null);
 	const [announcement, setAnnouncement] = useState("");
 
@@ -138,40 +119,9 @@ const ThreadRunStatus: FC = () => {
 	}, [isRunning, threadId]);
 
 	return (
-		<>
-			{isRunning ? (
-				<p
-					aria-atomic="true"
-					className={cn(
-						"aui-thread-run-status text-sm",
-						connection === "disconnected" ? "text-destructive" : "text-muted-foreground",
-					)}
-					data-connection={connection}
-					role="status"
-				>
-					{connection === "disconnected"
-						? "连接已断开"
-						: connection === "recovering"
-							? "正在恢复连接"
-							: "正在回答"}
-					{connection === "connected" ? <RetrievalStatus statuses={retrieval} /> : null}
-					{connection === "disconnected" ? (
-						<Button
-							type="button"
-							variant="link"
-							size="sm"
-							className="ml-1 h-auto px-1 py-0.5"
-							onClick={() => void aui.thread().resumeRun({ parentId: null })}
-						>
-							恢复连接
-						</Button>
-					) : null}
-				</p>
-			) : null}
-			<span aria-atomic="true" aria-live="polite" className="sr-only" role="status">
-				{announcement}
-			</span>
-		</>
+		<span aria-atomic="true" aria-live="polite" className="sr-only" role="status">
+			{announcement}
+		</span>
 	);
 };
 

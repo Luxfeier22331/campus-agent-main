@@ -50,6 +50,49 @@ func TestSourceFailureDoesNotInvalidateCompletedAnswer(t *testing.T) {
 	}
 }
 
+func TestSynthesisOutputMustNotReturnAdmittedMaterials(t *testing.T) {
+	request := WorkflowOperationActivityRequest{
+		Operation: temporalruntime.WorkflowOperationSynthesize,
+		Evidence: []temporalruntime.WorkflowEvidence{{
+			ID: "notice-1", Source: temporalruntime.WorkflowSourceCampusSearch,
+			Title: "通知", Excerpt: "正文", CitationIndex: 1,
+		}},
+		SourceAttempts: []temporalruntime.WorkflowSourceAttempt{{
+			Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched",
+		}},
+	}
+	if err := ValidateWorkflowOperationOutputSources(request, temporalruntime.WorkflowOperationActivityOutput{
+		Operation: temporalruntime.WorkflowOperationSynthesize,
+		Status:    "completed",
+	}); err != nil {
+		t.Fatalf("empty synthesis response rejected: %v", err)
+	}
+	if err := ValidateWorkflowOperationOutputSources(request, temporalruntime.WorkflowOperationActivityOutput{
+		Operation:      temporalruntime.WorkflowOperationSynthesize,
+		Status:         "completed",
+		Evidence:       request.Evidence,
+		SourceAttempts: request.SourceAttempts,
+	}); err == nil {
+		t.Fatal("synthesis response echoed admitted materials")
+	}
+}
+
+func TestSynthesisRuntimeResponseRejectsReturnedMaterials(t *testing.T) {
+	_, err := WorkflowOperationOutputFromRuntimeResponse(
+		AgentRuntimeResponse{
+			Operation:   string(temporalruntime.WorkflowOperationSynthesize),
+			Status:      "completed",
+			FinalOutput: "答案",
+			Evidence:    []map[string]any{{"id": "notice-1"}},
+		},
+		temporalruntime.WorkflowOperationSynthesize,
+		"operation-result",
+	)
+	if err == nil || !strings.Contains(err.Error(), "must not return evidence") {
+		t.Fatalf("err = %v, want synthesis material rejection", err)
+	}
+}
+
 func TestTemporalMemoryToolResultIsAllowlistedAndBounded(t *testing.T) {
 	result, err := temporalToolResult(AgentToolResult{
 		ToolName: "personal_memory_recall", Status: "completed",

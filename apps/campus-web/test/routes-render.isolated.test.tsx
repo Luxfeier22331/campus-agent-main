@@ -163,16 +163,12 @@ describe("campus routes", () => {
 		diningApiMock.getDiningMap.mockReset();
 		diningFloorplanAssetMock.loadDiningFloorplanAsset.mockReset();
 		diningFloorplanAssetMock.loadDiningFloorplanAsset.mockImplementation(
-			async (input: { floorplanId: string; sha256: string; svgAssetUrl: string }) => {
+			async (input: { svgAssetUrl: string }) => {
 				const asset = DINING_FIXTURE_ASSETS.find(
-					(entry) => entry.floorplanId === input.floorplanId,
+					(entry) => input.svgAssetUrl === `/api/dining/floorplans/${entry.sha256.slice(7)}.svg`,
 				);
-				if (
-					!asset ||
-					asset.sha256 !== input.sha256 ||
-					input.svgAssetUrl !== `/api/dining/floorplans/${input.sha256.slice("sha256:".length)}.svg`
-				) {
-					throw new Error("floorplan asset projection drifted");
+				if (!asset) {
+					throw new Error("floorplan asset missing");
 				}
 				return asset.svgMarkup;
 			},
@@ -581,7 +577,7 @@ describe("campus routes", () => {
 		expect(screen.getByText(floor.label)).toBeInTheDocument();
 		expect(diningApiMock.getDiningMap).toHaveBeenCalledOnce();
 		expect(diningFloorplanAssetMock.loadDiningFloorplanAsset).toHaveBeenCalledWith(
-			expect.objectContaining({ floorplanId: floor.floorplan.floorplanId }),
+			expect.objectContaining({ svgAssetUrl: floor.floorplan.svgAssetUrl }),
 		);
 	});
 
@@ -625,7 +621,7 @@ describe("campus routes", () => {
 
 		await waitFor(() => {
 			expect(diningFloorplanAssetMock.loadDiningFloorplanAsset).toHaveBeenCalledWith(
-				expect.objectContaining({ floorplanId: floor.floorplan.floorplanId }),
+				expect.objectContaining({ svgAssetUrl: floor.floorplan.svgAssetUrl }),
 			);
 		});
 		expect(diningRouteSearch.value).toMatchObject({ floor: floor.floorId, hall: hall.hallId });
@@ -650,13 +646,57 @@ describe("campus routes", () => {
 	it("keeps an invalid floorplan failure inside the map panel", async () => {
 		mockDiningFixtureApi(diningApiMock);
 		diningFloorplanAssetMock.loadDiningFloorplanAsset.mockRejectedValueOnce(
-			new Error("checksum mismatch"),
+			new Error("asset unavailable"),
 		);
 
 		render(<DiningPage />);
 
 		expect(await screen.findByRole("alert")).toHaveTextContent("平面图暂时无法显示");
 		expect(screen.getByTestId("dining-window-detail")).toBeInTheDocument();
+	});
+
+	it.each(["missing", "geometry", "label"])(
+		"keeps valid windows interactive when one anchor has a %s defect",
+		async (defect) => {
+			const user = userEvent.setup();
+			const fixture = structuredClone(DINING_FIXTURE_MAP);
+			const floor = fixture.halls[0]?.floors[0];
+			const broken = floor?.windows[0];
+			const valid = floor?.windows[1];
+			if (!(floor && broken && valid)) {
+				throw new Error("Dining fixture needs two windows.");
+			}
+			if (defect === "missing") {
+				broken.svgAnchorId = "missing-anchor";
+			} else {
+				const markup = DINING_FIXTURE_ASSETS[0].svgMarkup;
+				diningFloorplanAssetMock.loadDiningFloorplanAsset.mockResolvedValueOnce(
+					defect === "geometry"
+						? markup.replace('width="150"', 'width="0"')
+						: markup.replace('data-dining-anchor-number="true"', 'data-invalid-label="true"'),
+				);
+			}
+			diningApiMock.getDiningMap.mockResolvedValue(fixture);
+			render(<DiningPage />);
+			await user.click(await screen.findByRole("button", { name: `选择${valid.name}` }));
+			expect(screen.getByRole("heading", { name: valid.name })).toBeInTheDocument();
+			expect(screen.queryByText("平面图暂时无法显示")).not.toBeInTheDocument();
+			expect(screen.queryByRole("button", { name: `选择${broken.name}` })).not.toBeInTheDocument();
+			await user.type(screen.getByPlaceholderText("搜索窗口"), broken.name);
+			await user.click(await screen.findByRole("option", { name: new RegExp(broken.name) }));
+			expect(screen.getByRole("heading", { name: broken.name })).toBeInTheDocument();
+		},
+	);
+
+	it.each([
+		"<svg><broken>",
+		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><script>alert(1)</script></svg>',
+	])("does not mount an invalid or executable SVG", async (markup) => {
+		mockDiningFixtureApi(diningApiMock);
+		diningFloorplanAssetMock.loadDiningFloorplanAsset.mockResolvedValueOnce(markup);
+		render(<DiningPage />);
+		expect(await screen.findByRole("alert")).toHaveTextContent("平面图暂时无法显示");
+		expect(document.querySelector('[data-testid="dining-floorplan-surface"] script')).toBeNull();
 	});
 
 	it("renders the empty state when no map has been published", async () => {

@@ -9,7 +9,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { readFileBytes, readJson, sha256 } from "./map-format";
+import { readFileBytes, readJson } from "./map-format";
 import type { Manifest } from "./map-model";
 
 export function createStageRoot(assetRoot: string): string {
@@ -51,7 +51,7 @@ export function commitStagedFiles(
 		const targetPath = resolve(assetRoot, relativePath);
 		mkdirSync(dirname(targetPath), { recursive: true });
 		if (existsSync(targetPath)) {
-			if (sha256(readFileBytes(sourcePath)) !== sha256(readFileBytes(targetPath))) {
+			if (!equalBytes(readFileBytes(sourcePath), readFileBytes(targetPath))) {
 				throw new Error(
 					`Content-addressed asset already exists with different bytes: ${relativePath}`,
 				);
@@ -61,6 +61,12 @@ export function commitStagedFiles(
 		}
 		renameSync(sourcePath, targetPath);
 	}
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
+	return (
+		left.byteLength === right.byteLength && left.every((value, index) => value === right[index])
+	);
 }
 
 export function commitStagedManifest(stageRoot: string, assetRoot: string): void {

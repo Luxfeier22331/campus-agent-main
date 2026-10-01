@@ -117,6 +117,46 @@ describe("native docs search", () => {
 		expect(results.map(({ entry }) => entry.docId)).toEqual(["doc-scholarship", "doc-leave"]);
 	});
 
+	it("prefers the focused chapter over incidental mentions without adding aliases", () => {
+		const site = createSiteIndex();
+		const entries = [
+			createSearchEntry({
+				docId: "doc-public",
+				sectionTitle: "（四）连续两年转专业率高于40%",
+				searchText: "转专业统计",
+			}),
+			createSearchEntry({
+				docId: "doc-leave",
+				sectionTitle: "第三节 转专业与转学",
+				searchText: "转专业与转学",
+			}),
+			createSearchEntry({
+				docId: "doc-scholarship",
+				sectionTitle: "第二章 转专业",
+				searchText: "专业调整方式",
+				anchor: "transfer",
+				highlightRootUnitIds: ["transfer-root"],
+			}),
+		];
+		const results = searchDocsIndex("转专业", createSearchIndex(entries, site), site);
+		expect(results[0]?.entry.docId).toBe("doc-scholarship");
+		expect(results[0]?.url).toContain("?hl=transfer-root#transfer");
+		expect(
+			searchDocsIndex("专业调整", createSearchIndex(entries, site), site).map((x) => x.entry.docId),
+		).toEqual(["doc-scholarship"]);
+	});
+
+	it("keeps title matches ahead of focused chapters and complete matches ahead of partial ones", () => {
+		const site = createSiteIndex();
+		const entries = [
+			createSearchEntry({ docId: "doc-public", sectionTitle: "第二章 请假规定", searchText: "" }),
+			createSearchEntry({ docId: "doc-leave", sectionTitle: "申请", searchText: "" }),
+		];
+		expect(
+			searchDocsIndex("请假规定", createSearchIndex(entries, site), site)[0]?.entry.docId,
+		).toBe("doc-leave");
+	});
+
 	it("keeps canonical entry order independent of source order", () => {
 		const siteIndex = createSiteIndex();
 		const first = createSearchEntry({ anchor: "b", searchText: "共同内容" });

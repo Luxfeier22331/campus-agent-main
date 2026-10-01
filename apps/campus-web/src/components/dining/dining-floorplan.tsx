@@ -27,8 +27,6 @@ export function InteractiveFloorplan(props: InteractiveFloorplanProps) {
 	const aspectRatio = `${floorplan.canvas.width} / ${floorplan.canvas.height}`;
 	const query = useQuery(
 		diningFloorplanAssetQueryOptions({
-			floorplanId: floorplan.floorplanId,
-			sha256: floorplan.sha256,
 			svgAssetUrl: floorplan.svgAssetUrl,
 		}),
 	);
@@ -274,7 +272,7 @@ const DiningFloorplanSvg = memo(function DiningFloorplanSvg({ markup }: { markup
 	return (
 		<div
 			className="flex h-full w-full items-center justify-center [&_.dining-svg-anchor.is-dimmed]:cursor-default [&_.dining-svg-anchor.is-dimmed]:opacity-35 [&_.dining-svg-anchor[role=button]]:cursor-pointer [&_svg]:block [&_svg]:h-auto [&_svg]:max-h-full [&_svg]:w-full"
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: same-origin SVG is checksum-verified and structurally validated before mounting.
+			// biome-ignore lint/security/noDangerouslySetInnerHtml: same-origin SVG is checked for executable content before mounting.
 			dangerouslySetInnerHTML={{ __html: markup }}
 		/>
 	);
@@ -298,31 +296,24 @@ function prepareDiningFloorplanMarkup(input: {
 			throw new Error("Dining floorplan canvas does not match its SVG.");
 		}
 		const anchorElements = [...document.querySelectorAll("[data-dining-anchor-id]")];
-		const expectedAnchors = new Set(input.windows.map((window) => window.svgAnchorId));
-		if (
-			anchorElements.length !== expectedAnchors.size ||
-			anchorElements.some(
-				(element) => !expectedAnchors.has(element.getAttribute("data-dining-anchor-id") ?? ""),
-			)
-		) {
-			throw new Error("Dining floorplan anchors do not match its projection.");
-		}
 		document.documentElement.setAttribute("role", "group");
 		for (const element of anchorElements) {
 			const anchorId = element.getAttribute("data-dining-anchor-id") ?? "";
 			const diningWindow = input.windows.find((window) => window.svgAnchorId === anchorId);
 			if (!diningWindow) {
-				throw new Error("Dining floorplan anchor is unbound.");
+				element.remove();
+				continue;
 			}
-			setDiningWindowLabel(element, diningWindow.name);
-			element.setAttribute("data-dining-label", diningWindow.name);
-			element.classList.add("dining-svg-anchor");
-			element.setAttribute("data-testid", `dining-anchor-${anchorId}`);
-			const hitShape = element.querySelector("[data-dining-anchor-hit]");
-			if (!hitShape) {
-				throw new Error("Dining floorplan anchor is missing its hit shape.");
+			try {
+				setDiningWindowLabel(element, diningWindow.name);
+				element.setAttribute("data-dining-label", diningWindow.name);
+				element.classList.add("dining-svg-anchor");
+				element.setAttribute("data-testid", `dining-anchor-${anchorId}`);
+				element.querySelector("[data-dining-anchor-hit]")?.classList.add("dining-svg-anchor-hit");
+			} catch {
+				// A malformed window must not hide the floor or disable its other windows.
+				element.remove();
 			}
-			hitShape.classList.add("dining-svg-anchor-hit");
 		}
 		appendDiningFloorplanInteractionStyles(document);
 		return {

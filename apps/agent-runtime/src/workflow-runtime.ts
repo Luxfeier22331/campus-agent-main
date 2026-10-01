@@ -119,6 +119,7 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"校内资料使用工具返回的 citation_index 写成 [N]；联网资料保留原生来源关联。不要编造编号或手写来源 URL。先直接回答有支持的内容，不解释内部检索范围。",
 		"每次 campus_search 用 search_goal 说明本次要确认的具体事实，补查时聚焦尚缺内容，不重复泛查。已取得的资料可继续引用；工具只返回尚未取得的新片段。",
 		"每项结论只引用直接支持它的必要资料，不重复堆叠相同结论的来源；不同年度通知明确适用范围。",
+		"通知的 released_at 只能作为通知发布时间证据；不能据此推断截止日期、适用年度、学期、申请窗口或当前有效性。正文没有适用信息时，明确说明无法确认。",
 		'需要多个相互依赖的目标、多个检索步骤或一次检索无法闭合时，输出 {"result":{"outcome":"plan","plan":{...}}}，不得包含 answer 字段。',
 		"计划必须符合 task_plan.v1 合同。",
 		"不需要检索的问题必须直接返回 answer，不要制造空计划。",
@@ -202,7 +203,13 @@ export function createWorkflowOperationRuntime(
 					{ operation: "workflow.stream" },
 				);
 			}
-			const streamingRunner = options.streamingRunner;
+			// Internal progress remains streamed even when the provider returns a full answer.
+			const buffered = input.modelAnswerTransport === "buffered";
+			const streamingRunner = buffered
+				? async function* (runnerInput: AgentRunnerInput) {
+						yield await options.runner(runnerInput);
+					}
+				: options.streamingRunner;
 			if (!streamingRunner) {
 				throw new AgentRuntimeError(
 					"provider_unavailable",
@@ -230,6 +237,12 @@ export function createWorkflowOperationRuntime(
 						toolContractFingerprint: options.catalog.contractFingerprint,
 					});
 					if (input.operation === "solve" && completed.status !== "failed") {
+						if (buffered) {
+							solveDecision = completed.solveOutcome;
+							if (solveDecision) {
+								yield { event: "solve_decision", data: { outcome: solveDecision } };
+							}
+						}
 						if (solveDecision === undefined) {
 							throw new AgentRuntimeError(
 								"run_failed",
@@ -1014,10 +1027,11 @@ function campusEvidenceFromResult(result: Record<string, unknown>): WorkflowEvid
 			const noticeId = stringValue(raw.notice_id);
 			const citationHref = stringValue(raw.citation_href);
 			const sectionTitle = stringValue(raw.section_title);
+			const releasedAt = stringValue(raw.released_at);
 			if (!(noticeId && citationHref && sectionTitle)) {
 				continue;
 			}
-			evidence.push({
+			const item: WorkflowEvidence = {
 				citationHref,
 				citationIndex,
 				excerpt: [...excerpt].slice(0, maxEvidenceExcerptCharacters).join(""),
@@ -1028,7 +1042,11 @@ function campusEvidenceFromResult(result: Record<string, unknown>): WorkflowEvid
 				sectionTitle,
 				source: "campus_search",
 				title,
-			});
+			};
+			if (releasedAt) {
+				item.releasedAt = releasedAt;
+			}
+			evidence.push(item);
 			continue;
 		}
 		if (source !== "document") {

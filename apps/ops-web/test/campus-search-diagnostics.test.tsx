@@ -116,6 +116,62 @@ describe("Campus Search Ops display", () => {
 		expect(screen.getByText("已引用")).toBeInTheDocument();
 		expect(screen.getByText("未引用")).toBeInTheDocument();
 	});
+	it("distinguishes a tool failure from a successful Qdrant HTTP response", () => {
+		const diagnostics: CampusSearchDiagnostics = {
+			diagnosticState: "COMPLETE",
+			reason: null,
+			calls: [
+				{
+					invocationId: "call",
+					workflowStepId: "step",
+					activityAttempt: 1,
+					searchQuery: "夜宵",
+					status: "failed",
+					currentPhase: "failed",
+					phaseTimes: {},
+					queueMs: 0,
+					toolTotalMs: 30,
+					failureCode: "campus_search_retrieval_failed",
+					httpStatus: 503,
+					citedCount: 0,
+					updatedAt: "2026-09-30T00:00:00Z",
+					snapshot: {
+						effectiveQuery: "夜宵",
+						rerankQuery: "夜宵时间",
+						citationStart: 1,
+						resultLimit: 5,
+						durations: {},
+						retrievedCount: 1,
+						deduplicatedCount: 0,
+						rerankInputCount: 0,
+						rerankKeptCount: 0,
+						sourceGroupedCount: 0,
+						sourceGroupedExcludedCount: 0,
+						returnedCount: 0,
+						excludedCount: 0,
+						candidates: [],
+						snapshotTruncated: false,
+						failedStage: "retrieval",
+						failureDetail:
+							'campus notice Qdrant payload schema "campus_rag_point.v999" is unsupported',
+						retrieval: {
+							collection: "collection",
+							httpStatus: 200,
+							httpMs: 1,
+							qdrantMs: 0,
+							decodeMs: 0,
+							postprocessMs: null,
+						},
+					},
+				},
+			],
+		};
+		render(<CampusSearchSection diagnostics={diagnostics} />);
+		expect(screen.getByText(/工具 HTTP 503/)).toBeInTheDocument();
+		expect(screen.getByText("Qdrant HTTP 状态：200")).toBeInTheDocument();
+		expect(screen.getByText(/失败原因：.*campus_rag_point.v999.*unsupported/)).toBeInTheDocument();
+		expect(screen.getByText("失败阶段：召回")).toBeInTheDocument();
+	});
 	it("shows absent diagnostics without implying retrieval failed", () => {
 		render(<CampusSearchSection diagnostics={toCampusSearchDiagnostics([], true)} />);
 		expect(screen.getByText(/诊断.*无数据/)).toBeInTheDocument();

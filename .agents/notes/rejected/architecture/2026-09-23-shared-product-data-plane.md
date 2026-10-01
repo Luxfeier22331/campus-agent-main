@@ -86,7 +86,7 @@ checkout 重试同一来源。共享数据清理和 worktree 销毁不得删除�
 - **在本次重构中增加 worktree 间账号、会话或运行记录隔离层**：这是独立的数据边界需求；当前目标只要求统一真实产品
   数据平面，后续若需要隔离再单独设计 schema/database owner。
 
-## 验收标准
+## 可观察结果
 
 - main checkout 执行同步后，`dev:doctor --scope data` 同时确认产品 PostgreSQL、固定 Docs source、共享 Qdrant
   current collection 和 `current_index` 一致；

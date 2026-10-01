@@ -21,6 +21,7 @@ const hindsightProfileMaxTokens int32 = 2048
 
 type hindsightProfileModelSnapshot struct {
 	Content         string
+	Generating      bool
 	IsStale         bool
 	LastRefreshedAt string
 }
@@ -52,6 +53,7 @@ func (e hindsightExecutor) GetProfile(ctx context.Context, query memoryruntime.P
 	}
 	return memoryruntime.ProfileRecord{
 		Content:         snapshot.Content,
+		Generating:      snapshot.Generating,
 		IsStale:         snapshot.IsStale,
 		LastRefreshedAt: snapshot.LastRefreshedAt,
 	}, nil
@@ -70,8 +72,15 @@ func (e hindsightExecutor) profileModelRequest() hindsight.CreateMentalModelRequ
 }
 
 func (c hindsightHTTPClient) GetMentalModel(ctx context.Context, bankID string, modelID string) (hindsightProfileModelSnapshot, bool, error) {
+	// Read the operation before the model: once completion is observed, the
+	// subsequent model read includes its committed result, not an earlier placeholder.
+	status, err := c.profileRefreshStatus(ctx, bankID, modelID)
+	if err != nil {
+		return hindsightProfileModelSnapshot{}, false, err
+	}
 	responseBody, response, err := c.client.MentalModelsAPI.
 		GetMentalModel(ctx, strings.TrimSpace(bankID), strings.TrimSpace(modelID)).
+		Detail("full").
 		Execute()
 	if response != nil && response.StatusCode == http.StatusNotFound {
 		if response.Body != nil {
@@ -91,11 +100,74 @@ func (c hindsightHTTPClient) GetMentalModel(ctx context.Context, bankID string, 
 	if responseBody == nil {
 		return hindsightProfileModelSnapshot{}, false, errors.New("hindsight get mental model returned no response")
 	}
-	return hindsightProfileModelSnapshot{
+	if status == "failed" || status == "cancelled" {
+		return hindsightProfileModelSnapshot{}, false, errors.New("hindsight profile refresh did not complete")
+	}
+	snapshot := hindsightProfileModelSnapshot{
 		Content:         responseBody.GetContent(),
+		Generating:      status == "pending" || status == "processing",
 		IsStale:         responseBody.GetIsStale(),
 		LastRefreshedAt: strings.TrimSpace(responseBody.GetLastRefreshedAt()),
-	}, true, nil
+	}
+	// Creation also sets last_refreshed_at. The initial row has no reflect
+	// result; preserve only generated content while a later refresh is running.
+	if generated, _ := responseBody.ReflectResponse["text"].(string); strings.TrimSpace(generated) == "" {
+		snapshot.Content = ""
+		snapshot.LastRefreshedAt = ""
+	}
+	return snapshot, true, nil
+}
+
+func (c hindsightHTTPClient) profileRefreshStatus(ctx context.Context, bankID, modelID string) (string, error) {
+	const pageSize int32 = 100
+	for offset := int32(0); ; offset += pageSize {
+		body, response, err := c.client.OperationsAPI.ListOperations(ctx, bankID).
+			Type_("refresh_mental_model").Limit(pageSize).Offset(offset).Execute()
+		if response != nil && response.Body != nil {
+			_ = response.Body.Close()
+		}
+		if err != nil {
+			return "", err
+		}
+		if err := requireHindsightSuccess(response, "list profile refreshes"); err != nil {
+			return "", err
+		}
+		if body == nil {
+			return "", errors.New("hindsight list profile refreshes returned no response")
+		}
+		// Hindsight returns newest first. Other mental models may share a bank.
+		for _, operation := range body.Operations {
+			// The deployed 0.9.1 list does not expose mental_model_id. The
+			// original task payload identifies the target without persisting a
+			// second operation mapping in the product database.
+			detail, response, err := c.client.OperationsAPI.GetOperationStatus(ctx, bankID, operation.Id).
+				IncludePayload(true).Execute()
+			if response != nil && response.Body != nil {
+				_ = response.Body.Close()
+			}
+			if err != nil {
+				return "", err
+			}
+			if err := requireHindsightSuccess(response, "get profile refresh"); err != nil {
+				return "", err
+			}
+			if detail == nil {
+				return "", errors.New("hindsight get profile refresh returned no response")
+			}
+			if detail.TaskPayload["mental_model_id"] != modelID {
+				continue
+			}
+			switch detail.Status {
+			case "pending", "processing", "completed", "failed", "cancelled":
+				return detail.Status, nil
+			default:
+				return "", errors.New("hindsight returned an unknown profile refresh status")
+			}
+		}
+		if len(body.Operations) == 0 || offset+int32(len(body.Operations)) >= body.Total {
+			return "", nil
+		}
+	}
 }
 
 func (c hindsightHTTPClient) CreateMentalModel(ctx context.Context, bankID string, request hindsight.CreateMentalModelRequest) error {
