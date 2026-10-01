@@ -159,6 +159,7 @@ function createMemoryObjectStore(): InternalPortalCollectionObjectStore & {
 		async getObjectIfExists(input) {
 			return objects.get(input.key) ?? null;
 		},
+		async pruneObjectVersions() {},
 		async putObject(input) {
 			writes.push(input.key);
 			objects.set(input.key, input.body);

@@ -81,6 +81,12 @@ bucket versioning 只提供对象版本操作能力，不等于独立备份。�
 由环境 owner 提供；应用仓库不因使用 RustFS 自动声称已有备份。恢复应先写入隔离目标，再按来源摘要、
 对象 checksum、当前索引绑定和 Qdrant collection 进行核对。
 
+`internal_portal/notices/_state.json` 是来源 owner 拥有的可变维护边界，不是通知正文历史。该对象允许覆盖写，
+但只保留当前版本；来源采集在写入新版本后删除同一 key 的旧版本和删除标记。该清理复用通知采集已有的
+PostgreSQL advisory lock，不扩大到 source bucket 的其他对象，也不改变 derived bucket 的内容寻址制品保留。
+清理前由环境 owner 执行对象级备份和只读版本盘点；版本删除失败必须使本轮维护失败并保留当前对象，不能静默
+忽略。未启用对象版本控制时不执行版本清理。
+
 ## 相关文档
 
 - [采集数据面](../../../../docs/architecture/system/data-plane.md)

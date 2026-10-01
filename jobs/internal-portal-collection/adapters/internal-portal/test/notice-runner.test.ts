@@ -1102,6 +1102,8 @@ class MemoryObjectStore implements InternalPortalCollectionObjectStore {
 		return this.objects.has(input.key) ? new Uint8Array([1]) : null;
 	}
 
+	async pruneObjectVersions(): Promise<void> {}
+
 	async putObject(): Promise<{ byteSize: number; contentSha256: string }> {
 		return { byteSize: 0, contentSha256: "a" };
 	}

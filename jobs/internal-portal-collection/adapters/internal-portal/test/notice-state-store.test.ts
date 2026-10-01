@@ -9,12 +9,17 @@ import {
 describe("internal portal notice state store", () => {
 	it("writes and reads the v3 half-open maintenance range", async () => {
 		let existing: Uint8Array | null = null;
+		const pruneObjectVersions = vi.fn(async () => undefined);
 		const putObject = vi.fn(async (input: { body: Uint8Array }) => {
 			existing = input.body;
-			return { byteSize: input.body.byteLength, contentSha256: "a" };
+			return { byteSize: input.body.byteLength, contentSha256: "a", versionId: "version-2" };
 		});
 		const store = createObjectStoreInternalPortalNoticeSyncStateStore({
-			objectStore: objectStore({ getObjectIfExists: async () => existing, putObject }),
+			objectStore: objectStore({
+				getObjectIfExists: async () => existing,
+				putObject,
+				pruneObjectVersions,
+			}),
 		});
 		const state = {
 			coveredFrom: "2025-12-01",
@@ -30,6 +35,25 @@ describe("internal portal notice state store", () => {
 			schema_version: "internal_portal_notice_sync_state.v3",
 			updated_at: "2026-08-26T02:30:07.000Z",
 		});
+		expect(pruneObjectVersions).toHaveBeenCalledWith({
+			bucket: "campus-agent-source",
+			key: "internal_portal/notices/_state.json",
+			keepVersionId: "version-2",
+		});
+	});
+
+	it("does not prune when the object store is unversioned", async () => {
+		const pruneObjectVersions = vi.fn(async () => undefined);
+		const store = createObjectStoreInternalPortalNoticeSyncStateStore({
+			objectStore: objectStore({ putObject: async () => ({ byteSize: 1, contentSha256: "a", versionId: null }), pruneObjectVersions }),
+		});
+
+		await store.save({
+			coveredFrom: "2025-12-01",
+			coveredUntil: "2026-08-27",
+			updatedAt: "2026-08-26T02:30:07.000Z",
+		});
+		expect(pruneObjectVersions).not.toHaveBeenCalled();
 	});
 
 	it("reads a v2 state as a partial migration input without inventing covered_until", async () => {
@@ -81,6 +105,7 @@ function objectStore(
 		},
 		getObject: async () => new Uint8Array(),
 		getObjectIfExists: async () => null,
+		pruneObjectVersions: async () => undefined,
 		putObject: async () => ({ byteSize: 0, contentSha256: "a" }),
 		sourceBucket: "campus-agent-source",
 		...overrides,

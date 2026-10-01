@@ -1,6 +1,8 @@
 import type { Readable } from "node:stream";
 import {
+	DeleteObjectCommand,
 	GetObjectCommand,
+	ListObjectVersionsCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
 	S3Client,
@@ -35,6 +37,12 @@ export interface InternalPortalCollectionObjectStore {
 	putObject(
 		input: ArtifactWriteInput & { abortSignal?: AbortSignal },
 	): Promise<ArtifactWriteResult>;
+	pruneObjectVersions(input: {
+		abortSignal?: AbortSignal;
+		bucket: string;
+		key: string;
+		keepVersionId: string;
+	}): Promise<void>;
 	createOrVerifyObject(
 		input: ArtifactWriteInput & { abortSignal?: AbortSignal },
 	): Promise<ArtifactWriteResult>;
@@ -133,7 +141,7 @@ export function createInternalPortalCollectionObjectStoreFromEnv(
 		async putObject(input) {
 			assertSourceBucket(input.bucket, sourceBucket);
 			const contentSha256 = sha256Hex(input.body);
-			await client.send(
+			const result = await client.send(
 				new PutObjectCommand({
 					Body: input.body,
 					Bucket: input.bucket,
@@ -144,7 +152,52 @@ export function createInternalPortalCollectionObjectStoreFromEnv(
 				}),
 				input.abortSignal ? { abortSignal: input.abortSignal } : {},
 			);
-			return { byteSize: input.body.byteLength, contentSha256 };
+			return {
+				byteSize: input.body.byteLength,
+				contentSha256,
+				etag: result.ETag ?? null,
+				versionId: result.VersionId ?? null,
+			};
+		},
+		async pruneObjectVersions(input) {
+			assertSourceBucket(input.bucket, sourceBucket);
+			const keepVersionId = input.keepVersionId.trim();
+			if (!keepVersionId || keepVersionId === "null") {
+				throw new Error("versioned object cleanup requires a concrete keep version id");
+			}
+			let keyMarker: string | undefined;
+			let versionIdMarker: string | undefined;
+			const obsoleteVersionIds: string[] = [];
+			do {
+				const page = await client.send(
+					new ListObjectVersionsCommand({
+						Bucket: input.bucket,
+						KeyMarker: keyMarker,
+						Prefix: input.key,
+						VersionIdMarker: versionIdMarker,
+					}),
+					input.abortSignal ? { abortSignal: input.abortSignal } : {},
+				);
+				for (const entry of [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]) {
+					if (entry.Key !== input.key || !entry.VersionId || entry.VersionId === keepVersionId) {
+						continue;
+					}
+					obsoleteVersionIds.push(entry.VersionId);
+				}
+				keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
+				versionIdMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
+			} while (keyMarker || versionIdMarker);
+			// Keep pagination markers valid until the complete listing has been read.
+			for (const versionId of obsoleteVersionIds) {
+				await client.send(
+					new DeleteObjectCommand({
+						Bucket: input.bucket,
+						Key: input.key,
+						VersionId: versionId,
+					}),
+					input.abortSignal ? { abortSignal: input.abortSignal } : {},
+				);
+			}
 		},
 		async createOrVerifyStream(input) {
 			assertSourceBucket(input.bucket, sourceBucket);

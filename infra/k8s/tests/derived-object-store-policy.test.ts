@@ -19,6 +19,8 @@ const data = manifests.find((manifest) => manifest.kind === "ConfigMap").data;
 const job = manifests.find((manifest) => manifest.kind === "Job");
 const bucket = "arn:aws:s3:::campus-agent-derived";
 const photo = `${bucket}/dining/submissions/submission/photo.webp`;
+const sourceBucket = "arn:aws:s3:::campus-agent-source";
+const stateKey = `${sourceBucket}/internal_portal/notices/_state.json`;
 
 interface Statement {
 	Effect: "Allow" | "Deny";
@@ -228,6 +230,37 @@ test("automatic Notice RAG cleanup can remove versioned artifacts while caches a
 		assert.equal(
 			allows("derived-policy.json", "s3:DeleteObjectVersion", `${bucket}/${key}`),
 			false,
+		);
+	}
+});
+
+test("source writer can clean only the mutable notice state object", () => {
+	assert.equal(
+		allows(
+			"source-policy.json",
+			"s3:ListBucketVersions",
+			sourceBucket,
+			"internal_portal/notices/_state.json",
+		),
+		true,
+	);
+	for (const action of ["GetObjectVersion", "DeleteObject", "DeleteObjectVersion"]) {
+		assert.equal(allows("source-policy.json", `s3:${action}`, stateKey), true, action);
+		assert.equal(
+			allows(
+				"source-policy.json",
+				`s3:${action}`,
+				`${sourceBucket}/internal_portal/notices/other.json`,
+			),
+			false,
+			`${action}: other state key`,
+		);
+	}
+	for (const prefix of [undefined, "internal_portal/", "internal_portal/notices/"]) {
+		assert.equal(
+			allows("source-policy.json", "s3:ListBucketVersions", sourceBucket, prefix),
+			false,
+			`ListBucketVersions: ${prefix ?? "missing prefix"}`,
 		);
 	}
 });

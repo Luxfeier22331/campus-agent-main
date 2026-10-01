@@ -9,6 +9,7 @@
 		"auth:check": "tsx adapters/internal-portal/src/auth-cli.ts check",
 		"auth:pull": "tsx adapters/internal-portal/src/auth-cli.ts pull",
 		"collect": "tsx adapters/internal-portal/src/collection-cli.ts",
+		"state-versions": "tsx adapters/internal-portal/src/state-version-maintenance-cli.ts",
 		"typecheck": "tsc --noEmit",
 		"test:unit": "vitest run -c vitest.fast.config.mts"
 	},

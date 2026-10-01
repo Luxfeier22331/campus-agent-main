@@ -59,12 +59,19 @@ export function createObjectStoreInternalPortalNoticeSyncStateStore(input: {
 					`internal portal notice sync state is invalid: ${validation.errors.join("; ")}`,
 				);
 			}
-			await input.objectStore.putObject({
+			const result = await input.objectStore.putObject({
 				body: Buffer.from(`${JSON.stringify(stored, null, 2)}\n`, "utf-8"),
 				bucket: input.objectStore.sourceBucket,
 				contentType: "application/json",
 				key: internalPortalNoticeSyncStateObjectKey(),
 			});
+			if (result.versionId && result.versionId !== "null") {
+				await input.objectStore.pruneObjectVersions({
+					bucket: input.objectStore.sourceBucket,
+					key: internalPortalNoticeSyncStateObjectKey(),
+					keepVersionId: result.versionId,
+				});
+			}
 		},
 	};
 }
