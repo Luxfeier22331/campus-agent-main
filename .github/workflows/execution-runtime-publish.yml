@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       candidate_scope:
-        description: Select the accumulated diff or republish Campus Web with current docs
+        description: Select the accumulated diff or republish a Worker with current environment
         required: true
         default: affected
         type: choice
         options:
           - affected
           - campus-web-docs
+          - app-api-config
       promote:
         description: Open or update the staging GitOps promotion pull request
         required: true
@@ -133,6 +134,7 @@ jobs:
         id: plan
         env:
           REFRESH_CAMPUS_WEB_DOCS: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_scope == 'campus-web-docs' || false }}
+          REFRESH_APP_API: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_scope == 'app-api-config' || false }}
           RECOVERY_SOURCE_SHA: ${{ inputs.promotion_recovery_source_sha || github.sha }}
         run: |
           set -euo pipefail
@@ -143,6 +145,7 @@ jobs:
           plan="$(node --experimental-strip-types scripts/release/candidates.mts \
             --head "$RECOVERY_SOURCE_SHA" \
             --refresh-campus-web-docs "$REFRESH_CAMPUS_WEB_DOCS" \
+            --refresh-app-api "$REFRESH_APP_API" \
             --selection "$GITHUB_WORKSPACE/gitops-selection/releases/staging.json")"
           jq -e . <<< "$plan" >/dev/null
           {

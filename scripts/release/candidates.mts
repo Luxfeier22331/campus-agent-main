@@ -37,6 +37,7 @@ export interface CandidatePlanOptions {
 	base?: string;
 	head: string;
 	refreshCampusWebDocs: boolean;
+	refreshAppApi?: boolean;
 	repositoryRoot: string;
 	selectionFile?: string;
 }
@@ -129,6 +130,9 @@ export async function planCandidates(
 	const images = imageScopeBetween(base, options.head, options.repositoryRoot, runner).images;
 	const sourceBases = affectedSourceBases(files);
 	const topologyMigrations = await readTopologyRetirements(options.repositoryRoot, base, runner);
+	if (options.refreshAppApi) {
+		workers.add("app-api-staging");
+	}
 	if (options.refreshCampusWebDocs) {
 		workers.add(CAMPUS_WEB_WORKER);
 	}
@@ -177,6 +181,7 @@ async function main(args: string[]): Promise<void> {
 		base: values.get("base"),
 		head: required(values, "head"),
 		refreshCampusWebDocs: flag(values, "refresh-campus-web-docs"),
+		refreshAppApi: values.has("refresh-app-api") && flag(values, "refresh-app-api"),
 		repositoryRoot: values.get("root") ?? process.cwd(),
 		selectionFile: values.get("selection"),
 	});

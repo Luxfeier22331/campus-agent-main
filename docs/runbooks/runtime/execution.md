@@ -51,6 +51,8 @@ migration 退役，不是运行时接口。
    并确认所属回答、记忆命令和追加 workflow/activity 已关闭；不得删除队列、投影或终止 workflow。
 3. 经 GitOps 将旧 `execution-control` 缩至零并确认退出，再选定新 base 与镜像 digest，启动各一个
    API/Worker。原 Service 只选择 API；API `/readyz/process` 不依赖 Worker 或 Agent。
+   维护值变更后使用 `staging-candidate-publish` 的 `candidate_scope=app-api-config` 重新发布 App API；
+   即使已选 Source SHA 等于 main，也必须生成包含新配置的候选版本，再由 GitOps 选择流量。
 4. 核对三个队列 poller、两角色探针和原业务接口；将维护值设回 `false`，重新发布并选择 App API，
    验证真实回答、查询、取消和记忆路径，恢复正常自动 promotion。
 

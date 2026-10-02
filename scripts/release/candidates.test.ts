@@ -507,3 +507,27 @@ test("candidate planning rejects ambiguous base ownership", async (t) => {
 		/exactly one base or GitOps release selection/u,
 	);
 });
+
+test("App API configuration refresh publishes when the selected source already equals head", async (t) => {
+	const root = await fixture(t);
+	const plan = await planCandidates({ ...options(root), head: BASE, refreshAppApi: true }, () =>
+		result(),
+	);
+	assert.deepEqual(plan, {
+		base: BASE,
+		head: BASE,
+		images: [],
+		sourceBases: [],
+		topologyMigrations: [],
+		workers: ["app-api-staging"],
+	});
+});
+
+test("App API configuration refresh preserves other affected candidates", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(changed("apps/campus-web/src/index.ts"), [
+		{ command: "build", package: "campus-web", task: "build:fixture" },
+	]);
+	const plan = await planCandidates({ ...options(root), refreshAppApi: true }, runner);
+	assert.deepEqual(plan.workers, ["app-api-staging", "campus-web-staging"]);
+});

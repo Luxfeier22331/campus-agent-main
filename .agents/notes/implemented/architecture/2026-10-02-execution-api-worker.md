@@ -37,5 +37,7 @@ PostgreSQL 租约、会话互斥与终态 CAS 支持多个 API，不新增 leade
 
 两个进程会多持有连接池和 Go 基础内存；资源由环境仓分配，此次保持 Staging 总额度。
 维护开关写入不可变 App API 版本，开关变更必须重新发布并选择版本。
+发布入口提供显式 App API 配置刷新，复用原候选与 GitOps 流量选择；源码游标未变化时也生成候选，
+否则仅靠 accumulated diff 无法退出维护。Worker base 的滚动参数必须成对有效，环境仍拥有资源策略。
 三类队列及默认 slots 不变；Worker 重新启动依靠已有 Temporal history 和 receipt，不重新调用结果不确定的模型。
 当最后一个维护流程不再消费开关时，连同环境投影一起退役；目前它用于首次切换和同合同回退。
