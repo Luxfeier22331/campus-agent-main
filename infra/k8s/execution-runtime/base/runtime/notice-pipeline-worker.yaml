@@ -38,6 +38,8 @@ spec:
           env:
             - name: OBJECT_STORE_ENDPOINT
               value: http://object-store:9000
+            - name: OBJECT_STORE_BUCKET_SOURCE
+              value: campus-agent-source
             - name: HOME
               value: /tmp
             - name: TEMPORAL_ADDRESS

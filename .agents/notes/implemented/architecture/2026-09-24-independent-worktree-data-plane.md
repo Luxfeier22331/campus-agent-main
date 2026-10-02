@@ -25,8 +25,10 @@ main checkout 与 linked worktree 使用相同规则。此次 main 硬切销毁�
 
 通知采集和状态版本维护由采集模块统一解析 source 对象存储连接，bucket、endpoint 和凭据均由环境
 显式提供；本地通知分类同样要求 `OBJECT_STORE_BUCKET_SOURCE`，不限制固定桶名。维护命令的查询、
-备份、删除和输出使用实际 bucket。集群采集 Job 模板显式声明部署桶名，不能以业务代码中的默认桶名
-补齐缺失配置。集群同步的远端资源仍由目标集群约定决定，不能套用本地 worktree bucket。
+备份、删除和输出使用实际 bucket。集群采集 Job 模板与执行定时采集的 `notice-pipeline-worker`
+Deployment 均显式声明 `OBJECT_STORE_BUCKET_SOURCE`，不能以业务代码中的默认桶名补齐缺失配置。
+部署配置测试从实际 Worker 容器提取环境变量并调用采集模块的连接构造函数；只检查手动 Job 模板
+不能覆盖定时采集的配置合同。集群同步的远端资源仍由目标集群约定决定，不能套用本地 worktree bucket。
 
 主线新增的通知 pipeline/artifacts Worker 沿用相同 profile 的对象存储、数据库、Qdrant 和
 Temporal namespace；初始化保留主线的 schedule 创建，不重新使用机器级固定端口或凭据。
