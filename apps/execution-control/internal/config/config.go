@@ -112,11 +112,10 @@ type envValues struct {
 	PersonalMemoryOwnerSalt     string `env:"HINDSIGHT_OWNER_SALT"`
 }
 
-func LoadRuntimeFromEnv() (Config, error) {
-	return loadFromEnv()
-}
+func LoadAPIFromEnv() (Config, error)    { return loadFromEnv(false) }
+func LoadWorkerFromEnv() (Config, error) { return loadFromEnv(true) }
 
-func loadFromEnv() (Config, error) {
+func loadFromEnv(workerRole bool) (Config, error) {
 	values := envValues{}
 	if err := env.Parse(&values); err != nil {
 		return Config{}, fmt.Errorf("parse execution-control env: %w", err)
@@ -126,7 +125,7 @@ func loadFromEnv() (Config, error) {
 		return Config{}, err
 	}
 	if isDeployedEnvironment(environment) {
-		if err := validateDeployedRuntime(values); err != nil {
+		if err := validateDeployedRuntime(values, workerRole); err != nil {
 			return Config{}, err
 		}
 	}
@@ -140,6 +139,10 @@ func loadFromEnv() (Config, error) {
 	}
 	if port < 1 || port > maxGatewayPort {
 		return Config{}, fmt.Errorf("PORT must be between 1 and %d", maxGatewayPort)
+	}
+	workerProfiles := map[string]WorkerProfile(nil)
+	if workerRole {
+		workerProfiles = defaultWorkerProfiles()
 	}
 	return Config{
 		AppName:                                 "campus-agent",
@@ -177,7 +180,7 @@ func loadFromEnv() (Config, error) {
 		QdrantURL:                       strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantReadOnlyAPIKey:            strings.TrimSpace(values.QdrantReadOnlyAPIKey),
 		QdrantTLSCACertPath:             strings.TrimSpace(values.QdrantTLSCACertPath),
-		WorkerProfiles:                  defaultWorkerProfiles(),
+		WorkerProfiles:                  workerProfiles,
 		PersonalMemoryBaseURL:           strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
 		PersonalMemoryAPISecret:         strings.TrimSpace(values.PersonalMemoryAPISecret),
 		PersonalMemoryOwnerSalt:         strings.TrimSpace(values.PersonalMemoryOwnerSalt),
@@ -188,7 +191,7 @@ func loadFromEnv() (Config, error) {
 	}, nil
 }
 
-func validateDeployedRuntime(values envValues) error {
+func validateDeployedRuntime(values envValues, workerRole bool) error {
 	required := []struct {
 		name  string
 		value string
@@ -205,11 +208,18 @@ func validateDeployedRuntime(values envValues) error {
 		{"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", values.ProductCallbackBaseURL},
 		{"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", values.AgentRuntimeBaseURL},
 		{"EXECUTION_AGENT_RUNTIME_SHARED_SECRET", values.AgentRuntimeSharedSecret},
-		{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
-		{"MODEL_CONFIG_URL", values.ModelConfigBaseURL},
-		{"QDRANT_URL", values.QdrantURL},
-		{"QDRANT_READ_ONLY_API_KEY", values.QdrantReadOnlyAPIKey},
-		{"QDRANT_TLS_CA_CERT_PATH", values.QdrantTLSCACertPath},
+	}
+	if !workerRole {
+		required = append(required, []struct {
+			name  string
+			value string
+		}{
+			{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
+			{"MODEL_CONFIG_URL", values.ModelConfigBaseURL},
+			{"QDRANT_URL", values.QdrantURL},
+			{"QDRANT_READ_ONLY_API_KEY", values.QdrantReadOnlyAPIKey},
+			{"QDRANT_TLS_CA_CERT_PATH", values.QdrantTLSCACertPath},
+		}...)
 	}
 	for _, item := range required {
 		if strings.TrimSpace(item.value) == "" {

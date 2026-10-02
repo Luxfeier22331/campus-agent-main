@@ -30,7 +30,7 @@ function executionController() {
 	};
 }
 
-function diningDeletionFixture() {
+function diningDeletionFixture(executionMaintenance = false) {
 	const request = {
 		leaseToken: "lease_dining",
 		ownerUserId: "user_1",
@@ -49,6 +49,7 @@ function diningDeletionFixture() {
 		requestDeletion: vi.fn(),
 	};
 	const service = buildAccountLifecycleService({
+		executionMaintenance,
 		diningLifecycleService: { eraseForAccountDeletion },
 		executionController: executionController(),
 		profileMemoryService: {
@@ -344,4 +345,15 @@ describe("account lifecycle service", () => {
 		expect(new Set(claimedTokens).size).toBe(2);
 		expect(claimPending).toHaveBeenCalledTimes(3);
 	});
+});
+
+it("blocks new deletion during maintenance and still dispatches accepted deletion", async () => {
+	const { service, store } = diningDeletionFixture(true);
+	await expect(service.requestDeletion({ principal: principal() })).rejects.toMatchObject({
+		code: "execution_maintenance",
+		status: 503,
+	});
+	expect(store.requestDeletion).not.toHaveBeenCalled();
+	await service.dispatchPending();
+	expect(store.claimPending).toHaveBeenCalled();
 });

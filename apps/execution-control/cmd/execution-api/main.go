@@ -29,7 +29,7 @@ func main() {
 }
 
 func run(logger *slog.Logger) error {
-	cfg, err := config.LoadRuntimeFromEnv()
+	cfg, err := config.LoadAPIFromEnv()
 	if err != nil {
 		return fmt.Errorf("load runtime config: %w", err)
 	}
@@ -43,15 +43,11 @@ func run(logger *slog.Logger) error {
 	runtimeContext, cancelRuntime := context.WithCancel(context.Background())
 	defer cancelRuntime()
 
-	owner, err := runtimeassembly.NewOwner(cfg, logger)
+	owner, err := runtimeassembly.NewAPI(cfg, logger)
 	if err != nil {
 		return fmt.Errorf("build execution-control runtime: %w", err)
 	}
-	runtime, err := owner.Start(signalContext, runtimeContext, cfg, logger)
-	if err != nil {
-		_ = owner.Shutdown(context.Background())
-		return err
-	}
+	runtime := owner.Start(runtimeContext)
 	requestTracker := newRequestTracker(owner.Handler())
 	gatewayServer := newHTTPServer(
 		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
@@ -70,19 +66,27 @@ func run(logger *slog.Logger) error {
 			"status", "draining",
 			"source", "process",
 		)
-	case runtimeErr = <-runtime.Errors():
 	case runtimeErr = <-serverErrors:
 	}
 
-	if err := shutdownExecutionRuntime(
-		gatewayServer,
-		requestTracker,
-		runtime,
-		owner,
-		cancelRuntime,
-		time.Duration(cfg.ShutdownGraceMS)*time.Millisecond,
-	); err != nil && runtimeErr == nil {
-		runtimeErr = err
+	shutdownDone := make(chan error, 1)
+	go func() {
+		shutdownDone <- shutdownExecutionRuntime(
+			gatewayServer,
+			requestTracker,
+			runtime,
+			owner,
+			cancelRuntime,
+			time.Duration(cfg.ShutdownGraceMS)*time.Millisecond,
+		)
+	}()
+	select {
+	case err := <-shutdownDone:
+		if runtimeErr == nil {
+			runtimeErr = err
+		}
+	case <-time.After(110 * time.Second):
+		runtimeErr = fmt.Errorf("execution API shutdown exceeded 110s")
 	}
 	return runtimeErr
 }

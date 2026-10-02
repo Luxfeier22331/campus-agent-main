@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler"
 	temporalexecution "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
 	temporalfinalization "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
 	temporalmemory "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/memory"
@@ -29,11 +29,12 @@ const (
 )
 
 type Runtime struct {
-	client     client.Client
-	errors     chan error
-	reconciler *executionreconciler.Reconciler
-	stopOnce   sync.Once
-	workers    []worker.Worker
+	client   client.Client
+	errors   chan error
+	ready    atomic.Bool
+	failed   atomic.Bool
+	stopOnce sync.Once
+	workers  []worker.Worker
 }
 
 type ActivitySets struct {
@@ -54,27 +55,19 @@ func NewActivitySets(
 	}
 }
 
-func StartRuntime(
+func StartWorkers(
 	startupContext context.Context,
-	lifetimeContext context.Context,
 	cfg config.Config,
 	workflowActivities temporalexecution.Activities,
 	contextActivities temporalmemory.Activities,
 	finalizationActivities temporalfinalization.Activities,
-	reconciler *executionreconciler.Reconciler,
 	logger *slog.Logger,
 ) (*Runtime, error) {
 	if workflowActivities == nil || contextActivities == nil || finalizationActivities == nil {
-		return nil, fmt.Errorf("all activity owners are required for the combined runtime")
-	}
-	if reconciler == nil {
-		return nil, fmt.Errorf("execution reconciler is required for the combined runtime")
+		return nil, fmt.Errorf("all activity owners are required for the worker runtime")
 	}
 	if startupContext == nil {
 		startupContext = context.Background()
-	}
-	if lifetimeContext == nil {
-		lifetimeContext = startupContext
 	}
 	activitySets := NewActivitySets(workflowActivities, contextActivities, finalizationActivities)
 	if logger == nil {
@@ -86,10 +79,9 @@ func StartRuntime(
 	}
 
 	runtime := &Runtime{
-		client:     temporalClient,
-		errors:     make(chan error, 1),
-		reconciler: reconciler,
-		workers:    make([]worker.Worker, 0, 3),
+		client:  temporalClient,
+		errors:  make(chan error, 1),
+		workers: make([]worker.Worker, 0, 3),
 	}
 	for _, role := range []Role{RoleWorkflow, RoleCore, RoleAgent} {
 		role := role
@@ -99,6 +91,7 @@ func StartRuntime(
 			temporalClient,
 			activitySets,
 			func(fatalErr error) {
+				runtime.failed.Store(true)
 				logger.Error(
 					"execution_control.worker_fatal",
 					"event_type", "execution_control.worker_fatal",
@@ -128,7 +121,7 @@ func StartRuntime(
 			"role", string(role),
 		)
 	}
-	reconciler.Start(lifetimeContext)
+	runtime.ready.Store(true)
 	return runtime, nil
 }
 
@@ -141,9 +134,7 @@ func (runtime *Runtime) Stop() {
 		return
 	}
 	runtime.stopOnce.Do(func() {
-		if runtime.reconciler != nil {
-			runtime.reconciler.Stop()
-		}
+		runtime.ready.Store(false)
 		var waitGroup sync.WaitGroup
 		for _, runtimeWorker := range runtime.workers {
 			waitGroup.Add(1)
@@ -230,3 +221,8 @@ func temporalWorkerProfile(cfg config.Config, role string) WorkerProfile {
 		WorkflowTaskPollers:          profile.WorkflowTaskPollers,
 	}
 }
+
+func (runtime *Runtime) Ready() bool {
+	return runtime != nil && runtime.ready.Load() && !runtime.failed.Load()
+}
+func (runtime *Runtime) StartDraining() { runtime.ready.Store(false) }

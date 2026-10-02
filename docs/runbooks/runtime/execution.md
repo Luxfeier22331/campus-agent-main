@@ -39,6 +39,25 @@ migration 退役，不是运行时接口。
 
 具体集群命令只放环境仓 runbook，不在这里复制。
 
+## API 与 Worker 首次排空切换
+
+本次只替换合并进程，不变更 workflow、DTO 或 schema，不能套用下文不兼容 admission 硬切的数据清理。
+环境仓负责以下部署顺序及恢复：
+
+1. 将 Source staging Environment 的 `EXECUTION_MAINTENANCE` 投影设为 `true`，发布并选择包含该值的
+   App API Worker 版本。它阻止新回答、新记忆命令和新账户删除；既有幂等重放、查询、取消、回调和
+   已接受账户删除的收尾继续执行。只更改 GitHub variable 不会改变已选定的不可变 Worker 版本。
+2. 保留旧合并实例，等待 App API 已接受但尚未投递的回答、记忆 pending/admitted 命令和账户删除收敛，
+   并确认所属回答、记忆命令和追加 workflow/activity 已关闭；不得删除队列、投影或终止 workflow。
+3. 经 GitOps 将旧 `execution-control` 缩至零并确认退出，再选定新 base 与镜像 digest，启动各一个
+   API/Worker。原 Service 只选择 API；API `/readyz/process` 不依赖 Worker 或 Agent。
+4. 核对三个队列 poller、两角色探针和原业务接口；将维护值设回 `false`，重新发布并选择 App API，
+   验证真实回答、查询、取消和记忆路径，恢复正常自动 promotion。
+
+回退同样先关闭新增准入并排空，再一起恢复旧合并镜像与 base、移除 Worker；不得单独回退一个角色。
+维护开关只负责准入，不是全局容量控制，不暂停已接受工作。出现无法排空的运行时，按已有失败合同
+处理后再切换，不用新增重试或清理数据绕过。
+
 ## 破坏性 Schema 变更
 
 涉及删除表或列、重建数据，或不可逆转换的 execution-control schema 变更，只能在环境仓已隔离
@@ -110,7 +129,7 @@ Campus Docs 与 Notices 的 Chunk/Embedding Job 由人工分别触发。两个 E
 运行版本与环境选择一致；status-web 另检查 `/api/status` 能返回合同快照。源码仓不保存 staging
 hostname。
 
-execution-control readiness 降级时，根据顶层核心状态定位回答准入、Temporal、Agent Runtime、
+Kubernetes 使用 API `/readyz/process`，原 `/readyz` 保留聚合诊断。聚合 readiness 降级时，根据顶层核心状态定位回答准入、Temporal、Agent Runtime、
 PostgreSQL 或 execution runtime Application。`/readyz` 不探测 Model Config、Hindsight、Qdrant、
 OTel 或工具读取投影；这些局部能力由所属管理接口、业务路径、metrics 和 trace 提供故障证据。通过
 环境仓修复期望状态，不以本地 Docker、临时环境渲染器或宿主机修改代替 GitOps。

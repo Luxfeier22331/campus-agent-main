@@ -25,6 +25,7 @@ export interface LocalDevPorts {
 export interface LocalDevRuntimePorts {
 	agentRuntime: number;
 	executionControl: number;
+	executionWorker: number;
 	modelConfig: number;
 }
 
@@ -90,6 +91,7 @@ export function calculateLocalDevRuntimePorts(slot: number): LocalDevRuntimePort
 	return {
 		agentRuntime: 27_062 + slot * 100,
 		executionControl: 27_051 + slot * 100,
+		executionWorker: 27_052 + slot * 100,
 		modelConfig: 27_053 + slot * 100,
 	};
 }

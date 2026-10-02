@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-
 import type { ResolvedAppPrincipal } from "../auth/principal";
+import { requireExecutionAdmission } from "../integration/execution-maintenance";
 import type { AccountLifecycleService, AccountLifecycleServiceDependencies } from "./types";
 
 const ACCOUNT_DELETION_LEASE_MS = 5 * 60 * 1_000;
@@ -32,6 +32,7 @@ export function buildAccountLifecycleService(
 ): AccountLifecycleService {
 	return {
 		async requestDeletion(input) {
+			requireExecutionAdmission(dependencies.executionMaintenance);
 			return dependencies.store.requestDeletion({
 				ownerUserId: input.principal.principal.principalId,
 				requestId: `acctdel_${randomUUID().replace(/-/g, "")}`,

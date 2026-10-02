@@ -397,13 +397,7 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	output.RequestID = run.RequestID
 	output.WorkflowResultRef = resultRef
 	output.RuntimeRelease = strings.TrimSpace(response.RuntimeRelease)
-	if request.Operation == temporalruntime.WorkflowOperationSynthesize {
-		if len(response.Evidence) != 0 || len(response.SourceAttempts) != 0 {
-			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("synthesizer must not echo evidence"))
-		}
-		output.Evidence = append([]temporalruntime.WorkflowEvidence{}, request.Evidence...)
-		output.SourceAttempts = append([]temporalruntime.WorkflowSourceAttempt{}, request.SourceAttempts...)
-	}
+
 	if output.Status != "completed" && output.Status != "failed" {
 		return s.FailWorkflowOperationActivity(
 			ctx,
@@ -420,6 +414,12 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	}
 	if err := ValidateWorkflowOperationOutputSources(request, output); err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
+	}
+	if request.Operation == temporalruntime.WorkflowOperationSynthesize {
+		// Validate the runtime response before restoring already-admitted materials
+		// for finalization and receipt replay.
+		output.Evidence = append([]temporalruntime.WorkflowEvidence{}, request.Evidence...)
+		output.SourceAttempts = append([]temporalruntime.WorkflowSourceAttempt{}, request.SourceAttempts...)
 	}
 	if output.Status != "failed" && request.Operation == temporalruntime.WorkflowOperationSolve {
 		if output.SolveOutcome != "answer" && output.SolveOutcome != "plan" {

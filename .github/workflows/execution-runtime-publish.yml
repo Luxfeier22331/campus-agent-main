@@ -357,6 +357,7 @@ jobs:
           steps.install_workers.outcome == 'success' &&
           contains(fromJSON(needs.release-plan.outputs.workers), 'app-api-staging')
         env:
+          EXECUTION_MAINTENANCE: ${{ vars.EXECUTION_MAINTENANCE || 'false' }}
           APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
           AUTH_EMAIL_FROM: ${{ vars.AUTH_EMAIL_FROM }}
           APP_API_EXECUTION_SHARED_SECRET: ${{ secrets.APP_API_EXECUTION_SHARED_SECRET }}

@@ -57,6 +57,22 @@ describe("app-api staging upload config", () => {
 		expect(local?.images).toEqual({ binding: "DINING_IMAGES", remote: false });
 	});
 
+	it.each([undefined, false, true])(
+		"renders maintenance %s into the Worker version",
+		(executionMaintenance) => {
+			const generated = parse(
+				buildAppApiStagingUploadConfig(source, appDir, {
+					...resources,
+					...(executionMaintenance === undefined ? {} : { executionMaintenance }),
+				}),
+			);
+			expect(generated).toHaveProperty(
+				"env.staging.vars.EXECUTION_MAINTENANCE",
+				String(executionMaintenance ?? false),
+			);
+		},
+	);
+
 	it("rejects an invalid Hyperdrive configuration id", () => {
 		expect(() =>
 			buildAppApiStagingUploadConfig(source, appDir, {

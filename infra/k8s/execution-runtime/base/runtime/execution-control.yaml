@@ -40,12 +40,13 @@ spec:
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime
-      terminationGracePeriodSeconds: 160
+      terminationGracePeriodSeconds: 120
       securityContext:
         fsGroup: 10001
       containers:
         - name: execution-control
           image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
+          command: ["/usr/local/bin/execution-api"]
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -152,7 +153,7 @@ spec:
                 - |
                   curl -fsS \
                     -H "x-worker-origin-auth: ${APP_API_EXECUTION_SHARED_SECRET}" \
-                    http://127.0.0.1:8000/readyz >/dev/null
+                    http://127.0.0.1:8000/readyz/process >/dev/null
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5

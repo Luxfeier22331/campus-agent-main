@@ -24,7 +24,9 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 
 当前稳定进程形态是：
 
-- `execution-control`：一个标准 Deployment，提供执行 API 和三类 Temporal poller；
+- `execution-control`：执行 API Deployment 与原 Service，拥有业务 HTTP 和 reconciler；
+- `execution-worker`：独立 Deployment，承载三类 Temporal poller，仅开放 Pod 健康 listener；
+  与 API 使用同一镜像 digest，分别设置副本、资源和停机窗口；
 - `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；数据库结构由 data-postgres
   Application 中的统一 `campus-agent-schema` Job 安装；
 - `agent-runtime`：一个独立 Deployment；

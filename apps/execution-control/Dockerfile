@@ -23,7 +23,8 @@ COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts
 
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod \
   --mount=type=cache,id=go-build,target=/root/.cache/go-build \
-  CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control
+  CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/execution-api ./cmd/execution-api \
+  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/execution-worker ./cmd/execution-worker
 
 FROM debian:bookworm-slim
 
@@ -32,11 +33,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /out/execution-control /usr/local/bin/execution-control
+COPY --from=build /out/ /usr/local/bin/
 COPY configs/runtime/tool-function-schemas.v4.json /etc/campus-agent/tool-function-schemas.v4.json
 COPY configs/runtime/tools.v7.json /etc/campus-agent/tools.v7.json
 
 USER appuser
 EXPOSE 8000
 
-ENTRYPOINT ["/usr/local/bin/execution-control"]
+ENTRYPOINT ["/usr/local/bin/execution-api"]

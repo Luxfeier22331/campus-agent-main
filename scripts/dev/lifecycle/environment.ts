@@ -406,6 +406,7 @@ export function renderLocalEnvironmentFiles(input: {
 			HINDSIGHT_OWNER_SALT: infrastructure.hindsightOwnerSalt,
 			HOST: "127.0.0.1",
 			PORT: String(runtimePorts.executionControl),
+			EXECUTION_WORKER_PORT: String(runtimePorts.executionWorker),
 			...(input.qdrant
 				? {
 						QDRANT_READ_ONLY_API_KEY: input.qdrant.readOnlyApiKey,

@@ -157,5 +157,30 @@ func setRuntimeEnv(t *testing.T) {
 
 func loadRuntimeFromTestEnv(t *testing.T) (Config, error) {
 	t.Helper()
-	return loadFromEnv()
+	return LoadAPIFromEnv()
+}
+
+func TestRoleConfigurationDoesNotRequireAPIDependenciesForWorker(t *testing.T) {
+	setRuntimeEnv(t)
+	for _, key := range []string{"OPS_WEB_INTERNAL_TOKEN", "MODEL_CONFIG_URL", "QDRANT_URL", "QDRANT_READ_ONLY_API_KEY", "QDRANT_TLS_CA_CERT_PATH"} {
+		t.Setenv(key, "")
+	}
+	cfg, err := LoadWorkerFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerProfiles["workflow"].WorkflowTaskSlots != 16 || cfg.WorkerProfiles["activity-core"].ActivitySlots != 8 || cfg.WorkerProfiles["activity-agent"].ActivitySlots != 4 {
+		t.Fatalf("worker profiles changed: %#v", cfg.WorkerProfiles)
+	}
+	if _, err := LoadAPIFromEnv(); err == nil {
+		t.Fatal("API accepted missing API dependencies")
+	}
+	setRuntimeEnv(t)
+	api, err := LoadAPIFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(api.WorkerProfiles) != 0 {
+		t.Fatal("API configured worker slots")
+	}
 }

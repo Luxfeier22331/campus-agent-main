@@ -38,6 +38,7 @@ try {
 	writeFileSync(
 		configPath,
 		buildAppApiStagingUploadConfig(readFileSync(resolve(appDir, "wrangler.toml"), "utf8"), appDir, {
+			executionMaintenance: process.env.EXECUTION_MAINTENANCE === "true",
 			hyperdriveId,
 			objectStoreVpcServiceId,
 			vpcServiceId: executionControlVpcServiceId,

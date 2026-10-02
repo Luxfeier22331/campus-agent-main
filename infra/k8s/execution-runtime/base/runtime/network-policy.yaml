@@ -20,6 +20,7 @@ spec:
                 values:
                   - agent-runtime
                   - execution-control
+                  - execution-worker
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: private-service-connector
@@ -43,6 +44,7 @@ spec:
         values:
           - agent-runtime
           - execution-control
+          - execution-worker
   policyTypes: ["Egress"]
   egress:
     - to:

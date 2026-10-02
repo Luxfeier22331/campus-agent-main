@@ -64,8 +64,8 @@ async function runner(input: AgentRunnerInput): Promise<AgentRunnerResult> {
 			break;
 		case "replan":
 			result.finalOutput = JSON.stringify({
-				schemaVersion: "task_replan.v2",
-				decision: "insufficient",
+				schemaVersion: "task_replan.v3",
+				decision: "synthesize",
 				reason: "资料不足",
 				remainingSteps: [],
 			});

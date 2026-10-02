@@ -24,6 +24,7 @@ export interface DiningImagesBindingLike {
 }
 
 export interface Env {
+	EXECUTION_MAINTENANCE?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
 	BETTER_AUTH_SECRET?: string;
 	AUTH_SHELL_ORIGIN?: string;

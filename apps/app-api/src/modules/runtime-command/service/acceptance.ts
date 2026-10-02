@@ -1,5 +1,6 @@
 import { type ChatConversation, DRAFT_CONVERSATION_TITLE } from "../../chat";
 import type { ToolExecutionInput } from "../../integration";
+import { requireExecutionAdmission } from "../../integration/execution-maintenance";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../../personalization/tenant";
 import {
 	ChatAcceptanceConversationConflict,
@@ -120,6 +121,7 @@ export async function acceptChatCommand(
 		}
 	}
 
+	requireExecutionAdmission(dependencies.executionMaintenance);
 	const requestId = generateId("req");
 	const safetyIdentifier = deriveSafetyIdentifierForPrincipal(input.principal);
 	const acceptedAt = now().toISOString();

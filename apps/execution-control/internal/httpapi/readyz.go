@@ -184,3 +184,18 @@ func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
 	}
 	return status
 }
+
+// Process readiness keeps queries and cancellation reachable during execution outages.
+func (s *Server) handleProcessReadyz(response http.ResponseWriter, request *http.Request) {
+	if !s.readinessAuthorized(request) {
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid readiness auth.", false)
+		return
+	}
+	store := s.runProjectionStoreStatus(request.Context())
+	ready := s.runService != nil && s.runProjectionStore != nil && store["healthy"] == true && s.admission.Status().Healthy
+	status, code := "ready", http.StatusOK
+	if !ready {
+		status, code = "degraded", http.StatusServiceUnavailable
+	}
+	writeJSON(response, code, map[string]any{"status": status, "run_projection_store": store, "runtime_release": s.config.DeploymentRelease})
+}

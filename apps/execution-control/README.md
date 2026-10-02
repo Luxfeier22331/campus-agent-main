@@ -8,7 +8,7 @@ Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流�
 - `app-api` 负责浏览器认证、会话、请求提交和产品传输；
 - `agent-runtime` 在单个 Agent Activity 内运行 OpenAI Agents SDK 代理与工具循环；
 - `model-config` 独立拥有模型目标、凭据和验证；`execution-control` 只读取 `primary_agent` target 并
-  冻结服务返回的 hash，同时轮询 workflow、core activity 和 agent activity 三类 Temporal 队列；
+  冻结服务返回的 hash；独立 Worker 轮询三类 Temporal 队列；
 - Temporal 保存 workflow history、重试、超时、heartbeat 和 cancellation；
 - PostgreSQL 保存产品、运维和评测需要的有界投影；统一 Campus RAG publisher 使用 serving schema
   维护当前索引绑定；
@@ -52,13 +52,18 @@ HTTP API 也不拥有 worker 生命周期。
 
 ## 进程入口
 
-- `execution-control`：生产入口；`8000` 提供内部执行、查询、记忆和健康接口，同时运行三类
-  Temporal poller。本地宿主进程通过标准 `HOST` 和 `PORT` 配置监听地址。
+- `cmd/execution-api`：Deployment/Service 仍名为 `execution-control`，保留所有业务 HTTP 路由与 reconciler；不启动 poller。
+- `cmd/execution-worker`：独立 Deployment，只启动 workflow、core activity、agent activity poller，
+  HTTP 仅提供健康探针，不提供业务 Service 或 reconciler。两角色使用同一镜像 digest。
 
-收到 SIGTERM 或运行时致命错误时，`execution-control` 先将 HTTP 准入置为 draining，停止新的业务请求，
-并在 `ShutdownGraceMS` 窗口内等待已进入的请求完成。HTTP 阶段结束后才停止 reconciler 和 Temporal
-poller，最后关闭运行投影、个人记忆状态和 Temporal starter。超时请求会先收到 context cancellation；
-若仍有 handler 不退出，进程不会提前关闭其共享 store，持久化的 start/cancel intent 由下一实例继续收敛。
+API 的 `/readyz/process` 检查进程准入和执行数据库，作为 Kubernetes readiness；原 `/readyz`
+保留 Temporal poller 和 Agent Runtime 聚合诊断。Worker 的 `/readyz` 检查本地 poller 生命周期和
+执行、个人记忆数据库；两个角色的 `/healthz` 都不检查外部服务。readiness 继续使用现有内部鉴权。
+
+API 收到 SIGTERM 后先 draining，保留既有 HTTP 请求的有界排空，再停止 reconciler、关闭 store
+与 Temporal starter；总退出上限 110 秒，Pod 宽限 120 秒。Worker 先撤销 readiness，再并行停止
+三类 poller，SDK 停机上限 50 秒，最后关闭共享依赖；总退出上限 65 秒，Pod 宽限 75 秒。
+持久 start/cancel intent 和 invocation receipt 继续由新实例按既有合同收敛，不新增模型重试。
 
 当前共享数据库 schema 由 `jobs/campus-agent-schema/` 安装，统一记录在
 `drizzle.campus_agent_migrations`。运行时 Store 只连接和读写，不自动建表；PostgreSQL 集成测试也通过
@@ -72,6 +77,9 @@ poller，最后关闭运行投影、个人记忆状态和 Temporal starter。超
   `docs/environment/providers.md`。
 
 ## 本地开发
+
+`pnpm dev` 启动相同的 API 与 Worker 二进制；`pnpm --dir apps/execution-control dev:api` 和
+`dev:worker` 可单独启动角色。先运行 `pnpm dev:init` 生成 API `PORT` 与 `EXECUTION_WORKER_PORT`。
 
 Go workspace 和工具链版本由根 `go.work` 拥有，模块的语言版本保留在 `go.mod`。
 `flake.nix` 使用锁定 Nix 工具并核对版本，Dockerfile 保留构建所需的版本投影。

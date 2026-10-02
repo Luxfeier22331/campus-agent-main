@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import { ExecutionControlTransportError } from "../integration/execution-control-transport";
+import { requireExecutionAdmission } from "../integration/execution-maintenance";
 import type { ProfileMemoryList, ProfileMemoryMutationResult, ProfileMemoryProfile } from "./model";
 import type {
 	ProfileMemoryCommandPayload,
@@ -56,6 +57,7 @@ export interface ProfileMemoryCommandStatusReader {
 	}>;
 }
 export interface ProfileMemoryServiceDependencies {
+	executionMaintenance?: boolean;
 	commandAdmitter?: ProfileMemoryCommandAdmitter;
 	commandStatusReader?: ProfileMemoryCommandStatusReader;
 	memoryReader?: ProfileMemoryReader;
@@ -145,24 +147,46 @@ export function buildProfileMemoryService(
 			ownerGeneration: await dependencies.readStore.generationByOwner(ownerUserId),
 		};
 	};
+	const guardedMutation = async (
+		input: MutationInput,
+		value: unknown,
+		operation: (base: ReturnType<typeof mutationBase>) => Promise<ProfileMemoryMutationResult>,
+	): Promise<ProfileMemoryMutationResult> => {
+		const base = mutationBase(input, value);
+		if (dependencies.executionMaintenance) {
+			const existing = await dependencies.mutationStore.findCommandByIdempotency(base);
+			if (existing) {
+				const state = await dependencies.readStore.listByOwner(base.ownerUserId);
+				return {
+					commandId: existing.commandId,
+					lifecycleState: state.lifecycleState,
+					syncStatus: state.syncStatus,
+				};
+			}
+			requireExecutionAdmission(true);
+		}
+		return operation(base);
+	};
 	const service: ProfileMemoryService = {
 		retryCommand: (input) =>
 			mapFailure(() =>
-				dependencies.mutationStore.retryCommand({
-					...mutationBase(input, { action: "retry", commandId: input.commandId }),
-					failedCommandId: input.commandId,
-				}),
+				guardedMutation(input, { action: "retry", commandId: input.commandId }, (base) =>
+					dependencies.mutationStore.retryCommand({ ...base, failedCommandId: input.commandId }),
+				),
 			),
 		submitCorrection: (input) =>
 			mapFailure(() => {
 				const text = normalizeText(input.text);
-				return dependencies.mutationStore.submitCorrection({
-					...mutationBase(input, { action: "correction", text }),
-					text,
-				});
+				return guardedMutation(input, { action: "correction", text }, (base) =>
+					dependencies.mutationStore.submitCorrection({ ...base, text }),
+				);
 			}),
 		erase: (input) =>
-			mapFailure(() => dependencies.mutationStore.erase(mutationBase(input, { action: "erase" }))),
+			mapFailure(() =>
+				guardedMutation(input, { action: "erase" }, (base) =>
+					dependencies.mutationStore.erase(base),
+				),
+			),
 		async eraseForAccountDeletion(input) {
 			const ownerUserId = owner(input.principal);
 			if (!input.requestId.trim()) {
@@ -179,7 +203,12 @@ export function buildProfileMemoryService(
 					key = `${base}:retry:${command.commandId}`;
 					continue;
 				}
-				return service.erase({ ...input, idempotencyKey: key });
+				// This deletion was accepted before the maintenance window; finish its existing intent.
+				return mapFailure(() =>
+					dependencies.mutationStore.erase(
+						mutationBase({ ...input, idempotencyKey: key }, { action: "erase" }),
+					),
+				);
 			}
 		},
 		list: async (input) => dependencies.readStore.listByOwner(owner(input.principal)),
@@ -199,10 +228,9 @@ export function buildProfileMemoryService(
 			}),
 		setLifecycle: (input) =>
 			mapFailure(() =>
-				dependencies.mutationStore.setLifecycle({
-					...mutationBase(input, { action: "lifecycle", state: input.state }),
-					lifecycleState: input.state,
-				}),
+				guardedMutation(input, { action: "lifecycle", state: input.state }, (base) =>
+					dependencies.mutationStore.setLifecycle({ ...base, lifecycleState: input.state }),
+				),
 			),
 		async applyResult(input) {
 			const outcome = await dependencies.commandStore.applyCommandResult({

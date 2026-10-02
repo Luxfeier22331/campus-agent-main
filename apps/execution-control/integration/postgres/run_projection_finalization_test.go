@@ -17,6 +17,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 	t.Run("concurrent candidates select one canonical winner", func(t *testing.T) {
 		_, databaseURL := harness.ownerDatabase(t)
 		store := newRunProjectionStore(t, databaseURL, true)
+		stores := []*executionpersistence.PostgresRunProjectionStore{store, newRunProjectionStore(t, databaseURL, true)}
 		now := time.Date(2026, 7, 24, 9, 0, 0, 123456000, time.UTC)
 		run := createPostgresFinalizationRun(t, store, "run-finalization-race", now)
 		fingerprint := strings.Repeat("a", 64)
@@ -32,13 +33,13 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 		start := make(chan struct{})
 		outcomes := make(chan outcome, len(requests))
 		var waitGroup sync.WaitGroup
-		for _, request := range requests {
+		for index, request := range requests {
 			request := request
 			waitGroup.Add(1)
 			go func() {
 				defer waitGroup.Done()
 				<-start
-				result, err := store.FinalizeRunProjection(t.Context(), request)
+				result, err := stores[index].FinalizeRunProjection(t.Context(), request)
 				outcomes <- outcome{result: result, err: err}
 			}()
 		}

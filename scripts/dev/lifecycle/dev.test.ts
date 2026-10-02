@@ -116,6 +116,7 @@ describe("local development profiles", () => {
 		assert.deepEqual(calculateLocalDevRuntimePorts(2), {
 			agentRuntime: 27262,
 			executionControl: 27251,
+			executionWorker: 27252,
 			modelConfig: 27253,
 		});
 	});
@@ -1445,7 +1446,7 @@ describe("local development lifecycle guards", () => {
 				resolve(import.meta.dirname, "../../../apps/execution-control/scripts/dev.sh"),
 				"utf8",
 			),
-			/exec go run/u,
+			/go build -o .*execution-api \.\/cmd\/execution-api/u,
 		);
 		assert.match(agentPackage.scripts?.dev ?? "", /(?:^|\s)--experimental-strip-types(?:\s|$)/u);
 		assert.match(agentPackage.scripts?.dev ?? "", /(?:^|\s)src\/server\.ts$/u);

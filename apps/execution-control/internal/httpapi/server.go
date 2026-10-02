@@ -138,6 +138,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 			"status":   "ok",
 			"app_name": s.config.AppName,
 		})
+	case request.Method == http.MethodGet && path == "/readyz/process":
+		s.handleProcessReadyz(response, request)
 	case request.Method == http.MethodGet && path == "/readyz":
 		s.handleReadyz(response, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/requests":

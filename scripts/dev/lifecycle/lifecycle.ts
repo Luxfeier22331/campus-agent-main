@@ -353,6 +353,7 @@ async function diagnoseRuntime(
 			["app-api", profile.ports.appApi],
 			["campus-web", profile.ports.campusWeb],
 			["execution-control", runtimePorts.executionControl],
+			["execution-worker", runtimePorts.executionWorker],
 			["model-config", runtimePorts.modelConfig],
 			["agent-runtime", runtimePorts.agentRuntime],
 		);

@@ -513,6 +513,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 	t.Run("active conversation creation is serialized", func(t *testing.T) {
 		_, databaseURL := harness.ownerDatabase(t)
 		store := newRunProjectionStore(t, databaseURL, true)
+		stores := []*executionpersistence.PostgresRunProjectionStore{store, newRunProjectionStore(t, databaseURL, true)}
 		now := time.Date(2026, 7, 15, 8, 10, 0, 0, time.UTC)
 		start := make(chan struct{})
 		errorsByRun := make(chan error, 2)
@@ -522,7 +523,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			go func(index int) {
 				defer waitGroup.Done()
 				<-start
-				_, err := store.CreateRun(
+				_, err := stores[index].CreateRun(
 					t.Context(),
 					durableRun(fmt.Sprintf("run-active-%d", index), "conversation-active", now),
 				)

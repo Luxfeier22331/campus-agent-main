@@ -127,6 +127,7 @@ export interface DurableEventPollingPolicy {
 }
 
 export interface ChatCommandServiceDependencies {
+	executionMaintenance?: boolean;
 	abuseThrottleEnabled: boolean;
 	computeFingerprint?: (input: { conversationDiscriminator: string; prompt: string }) => string;
 	conversationStore: ChatConversationStore;

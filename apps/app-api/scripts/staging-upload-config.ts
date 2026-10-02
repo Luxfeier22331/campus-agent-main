@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { parse, stringify } from "smol-toml";
 
 export interface AppApiStagingResources {
+	executionMaintenance?: boolean;
 	hyperdriveId: string;
 	objectStoreVpcServiceId: string;
 	vpcServiceId: string;
@@ -94,6 +95,10 @@ export function buildAppApiStagingUploadConfig(
 		"id",
 		requireHyperdriveConfigurationId("APP_API_DB_HYPERDRIVE_ID", resources.hyperdriveId),
 	);
+	staging.vars = {
+		...(staging.vars as Record<string, unknown>),
+		EXECUTION_MAINTENANCE: String(resources.executionMaintenance ?? false),
+	};
 	config.main = resolve(appDir, "src/index.ts");
 	return stringify(config);
 }

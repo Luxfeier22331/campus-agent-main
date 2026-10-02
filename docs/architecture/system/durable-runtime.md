@@ -54,7 +54,9 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 
 `execution-control` 收到停机信号后先进入 draining，禁止新的 HTTP 业务请求；已进入的请求在有界的
 `ShutdownGraceMS` 窗口内继续使用尚未关闭的 runtime 和 store。HTTP listener 完成 shutdown 或超时
-强制关闭后，进程才停止 reconciler 与 Temporal poller，最后关闭共享数据库和 Temporal client。
+强制关闭后，API 才停止 reconciler，最后关闭共享数据库和 Temporal client。
+独立 `execution-worker` 先撤销 readiness，再并行停止三类 poller，最后关闭数据库和 client；
+停止 API 不会停止 Worker，扩容 API 不会增加 poller。具体退出上限与探针见执行模块 README。
 停机不会删除或伪造已持久化的 workflow start/cancellation intent；未完成命令由下一实例继续租约和收敛。
 
 ## 执行阶段
@@ -157,8 +159,10 @@ Reset 或其他 successor 不能改写产品终态或被重新绑定到原产品
 - core activity poller：`campus-agent.activity.core.v3`；
 - agent activity poller：`campus-agent.activity.agent.v3`。
 
-三个 poller 与执行 HTTP API 运行在同一个 `execution-control` 进程。不存在按知识类型、工具或检索
-能力拆分的独立 worker；`agent-runtime` 仍是独立 Deployment。
+三个 poller 运行在独立 `execution-worker` 进程，HTTP API 与 reconciler 运行在 `execution-control`
+Deployment。两个角色仍属于同一执行领域、Go module、数据库角色和发布版本；默认各一个副本。
+不按知识类型、工具或检索能力继续拆分 Worker；`agent-runtime` 仍是独立 Deployment。
+选择理由见 [API 与 Worker 部署边界](../../../.agents/notes/implemented/architecture/2026-10-02-execution-api-worker.md)。
 
 ## Agent Workflow operation
 

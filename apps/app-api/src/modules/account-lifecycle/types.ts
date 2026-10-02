@@ -62,6 +62,7 @@ export interface AccountLifecycleService {
 }
 
 export interface AccountLifecycleServiceDependencies {
+	executionMaintenance?: boolean;
 	diningLifecycleService: {
 		eraseForAccountDeletion(input: PendingAccountDeletion): Promise<boolean>;
 	};

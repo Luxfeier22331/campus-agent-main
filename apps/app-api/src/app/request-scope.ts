@@ -90,6 +90,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				const persistence = resolveProfileMemoryPersistence();
 				if (!memory) {
 					memory = buildProfileMemoryService({
+						executionMaintenance: input.env.EXECUTION_MAINTENANCE === "true",
 						commandAdmitter: createExecutionControlPersonalMemoryClient(input.env),
 						commandStatusReader: createExecutionControlPersonalMemoryClient(input.env),
 						memoryReader: createExecutionControlPersonalMemoryClient(input.env),
@@ -116,6 +117,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				}
 				const persistence = chatCommandPersistence;
 				command = buildChatCommandService({
+					executionMaintenance: input.env.EXECUTION_MAINTENANCE === "true",
 					abuseThrottleEnabled: isAbuseThrottleEnabled(resolveEnvironment(input.env)),
 					commandStore: persistence.commands,
 					conversationStore: createPgChatConversationStore({
@@ -141,6 +143,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 					})),
 				resolveAccountLifecycleService: () =>
 					(accountLifecycle ??= buildAccountLifecycleService({
+						executionMaintenance: input.env.EXECUTION_MAINTENANCE === "true",
 						diningLifecycleService: resolveDiningLifecycleService(),
 						executionController: executionRuntime ?? createExecutionControlRuntimeClient(input.env),
 						profileMemoryService: resolveProfileMemoryService(),
