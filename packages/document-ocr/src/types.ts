@@ -20,7 +20,7 @@ export type OcrInput =
 			key: string;
 			noticeId: string;
 			contentType: string;
-			resource?: { kind: "image" | "attachment"; ordinal: number };
+			resource?: { kind: "image" | "attachment"; ordinal: number; displayOrdinal?: number };
 	  }
 	| { kind: "uploaded"; key: string; contentType: string }
 	| { kind: "validation" };

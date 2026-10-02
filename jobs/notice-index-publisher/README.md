@@ -1,13 +1,13 @@
 # Notice Chunk、Embedding 与本地评测
 
-该包负责已发布且有正文通知的 Chunk Run、Embedding Set，以及本地结构验证、广泛抽样、问题生成和
+该包负责已发布站内通知的 Chunk Run、Embedding Set，以及本地结构验证、广泛抽样、问题生成和
 Embedding dense-retrieval 评测。集群任务把正式制品写入 derived bucket；本包不直接发布 Qdrant
 collection 或维护在线绑定，生产 serving 由 `jobs/campus-rag-index-publisher` 统一完成。
 
 ## 主链路
 
 ```text
-已发布 notice 的 content_text
+已发布站内 notice 的 content_text + 当时已有的正文图片 OCR 文本
   -> Chunk 数据
   ├-> Notice Embedding Set -> Campus RAG unified publisher
   └-> 本地 Chunk Run（含审查/诊断）-> 问题生成、抽样与评测
@@ -43,18 +43,15 @@ notice-chunk-builder
 
 ## 构建 Chunk
 
-任务在只读 repeatable-read 快照中选择：
+任务在只读 repeatable-read 快照中读取已发布站内通知，并按来源图片顺序、页序追加当时已有的 OCR
+文本；每张图片使用最新完成批次。来源适配只读 `ocr.tasks` 与 `ocr.pages`，不调用 OCR 服务。
+无正文文本且无 OCR 文本时使用通知标题，因此纯图片通知也正常进入构建。外链通知不参与。
 
-```sql
-SELECT notice_id::text, title, content_text
-FROM notices.notices
-WHERE is_published
-  AND content_text IS NOT NULL
-ORDER BY notice_id
-```
-
-`content_text` 已由 notice-publisher 从清洗后的 DOM 生成；Chunk 阶段不重新清洗正文，不读取
-`content_html`、图片或附件。图片型、外链和 `content_text` 为空的通知不会产生 Chunk。
+OCR 成功、失败、未完成均不改变通知是否进入本次构建；稍后完成的识别文本由下一次构建读取。
+Chunk 和 Embedding 阶段只消费组装后的文本，不接收任务状态、不等待识别，不触发重识别。
+`content_text` / `content_html` 和公开通知 API 保持原合同；不读取图片字节或附件。
+OCR Markdown 中的图片引用不作为文本输入，文字和表格保留；具体边界见
+[正文图片独立消费](../../.agents/notes/implemented/feature/2026-10-02-notice-body-image-ocr.md)。
 
 ```bash
 pnpm dev:init -- --target notice-index-publisher

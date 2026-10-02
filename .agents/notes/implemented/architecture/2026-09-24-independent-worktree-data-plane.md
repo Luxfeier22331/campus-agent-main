@@ -20,12 +20,20 @@ main checkout 与 linked worktree 使用相同规则。此次 main 硬切销毁�
 
 应用统一使用当前 profile 的 `OBJECT_STORE_*`、`EXECUTION_CONTROL_DATABASE_URL`、当前 profile Qdrant 和 Temporal 配置。`CAMPUS_DOCS_OBJECT_STORE_*`、`CAMPUS_DOCS_SERVING_DATABASE_URL`、`dev:sync-retrieval` 和 `dev:shared-reconcile` 不再属于本地运行合同。
 
+通知采集和状态版本维护由采集模块统一解析 source 对象存储连接，bucket、endpoint 和凭据均由环境
+显式提供；本地通知分类同样要求 `OBJECT_STORE_BUCKET_SOURCE`，不限制固定桶名。维护命令的查询、
+备份、删除和输出使用实际 bucket。集群采集 Job 模板显式声明部署桶名，不能以业务代码中的默认桶名
+补齐缺失配置。集群同步的远端资源仍由目标集群约定决定，不能套用本地 worktree bucket。
+
 主线新增的通知 pipeline/artifacts Worker 沿用相同 profile 的对象存储、数据库、Qdrant 和
 Temporal namespace；初始化保留主线的 schedule 创建，不重新使用机器级固定端口或凭据。
 集群同步是唯一的真实数据入口，保留主线的 Embedding Set 引用闭包和索引 catalog 注册合同；普通 doctor 只检查入口，
 完整对象与检索点校验仍由显式 data scope 承担。
 
 ## 未采用方案
+
+- **保留业务代码默认桶名**：可减少环境配置，但会使缺失配置被解释为访问另一桶，与 worktree 资源归属冲突。
+  部署配置负责提供具体值；协议常量与 OCR 固定策略不因本地资源隔离而全部转成环境变量，也不建立全仓库常量中心。
 
 - **继续共享四类容器，只隔离应用数据库**：会保留跨 worktree 的销毁、凭据和 current pointer 风险，也无法让 Compose project 成为明确 owner。
 - **只复制 JSON 到 worktree**：不能替代对象存储 reader、Qdrant 向量和数据库 current pointer，且会产生第二套未被应用消费的数据格式。

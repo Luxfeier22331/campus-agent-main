@@ -69,7 +69,7 @@ export function OcrPage() {
 				result.launchError
 					? `任务已保存，但启动失败：${result.launchError}。可点击“恢复”。`
 					: result.tasks?.length === 0
-						? "该通知没有可识别的图片或 PDF。"
+						? "该通知没有可识别的正文图片。"
 						: "识别任务已提交。",
 			);
 			await client.invalidateQueries({ queryKey: tasksKey });
@@ -94,10 +94,7 @@ export function OcrPage() {
 	});
 	return (
 		<section className="space-y-4">
-			<PageHeader
-				title="文档识别"
-				description="识别已采集通知中的图片和 PDF，查看或恢复处理任务。"
-			/>
+			<PageHeader title="文档识别" description="识别已采集通知中的正文图片，查看或恢复处理任务。" />
 			<Card className="border-border shadow-none" aria-label="发起识别">
 				<CardContent className="p-4">
 					<form

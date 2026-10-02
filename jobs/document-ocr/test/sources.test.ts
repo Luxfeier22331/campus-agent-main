@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { expect, it, vi } from "vitest";
 import { selectNoticeInputs } from "../src/sources.ts";
 
-it("selects source images and PDF attachments without requiring publication/classification", async () => {
+it("selects only body images without requiring publication/classification", async () => {
 	const query = vi.fn().mockResolvedValue({
 		rows: [{ id: "123" }],
 	});
@@ -13,7 +13,8 @@ it("selects source images and PDF attachments without requiring publication/clas
 				JSON.stringify({
 					notice_id: 123,
 					is_external: false,
-					notice_content_html: '<p><img src="a.jpg"><img src="b.png"></p>',
+					notice_content_html:
+						'<p><img src="a.jpg"><img src="/static/index/UEditor/themes/default/images/spacer.gif"><img src="b.png"></p>',
 					attachments: [{ suffix: "xlsx" }, { suffix: ".PDF" }, { suffix: null }],
 				}),
 			),
@@ -33,20 +34,25 @@ it("selects source images and PDF attachments without requiring publication/clas
 			noticeId: "123",
 			key: "internal_portal/notices/123/images/0",
 			contentType: "image/*",
+			resource: { kind: "image", ordinal: 0, displayOrdinal: 0 },
 		},
 		{
 			kind: "source",
 			noticeId: "123",
-			key: "internal_portal/notices/123/images/1",
+			key: "internal_portal/notices/123/images/2",
 			contentType: "image/*",
-		},
-		{
-			kind: "source",
-			noticeId: "123",
-			key: "internal_portal/notices/123/attachments/1",
-			contentType: "application/pdf",
+			resource: { kind: "image", ordinal: 2, displayOrdinal: 1 },
 		},
 	]);
 	expect(objects.getSource).toHaveBeenCalledWith("internal_portal/notices/123.json");
 	expect(query).toHaveBeenCalledWith(expect.any(String), ["123"]);
+});
+
+it("scans all internal notices, without a title restriction", async () => {
+	const query = vi.fn().mockResolvedValue({ rows: [] });
+	for await (const _input of selectNoticeInputs({ query } as unknown as Pool, {} as OcrObjects)) {
+		/* No rows. */
+	}
+	expect(query).toHaveBeenCalledWith(expect.stringContaining("where not is_external"), [null]);
+	expect(query.mock.calls[0]?.[0]).not.toMatch(/title|is_published|category/);
 });

@@ -180,13 +180,14 @@ ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不
 ### 检索分块与制品
 
 `jobs/notice-index-publisher` 提供已发布通知的 Chunk Run 与 Embedding Set 集群构建，以及本地结构验证、
-广泛抽样和真实 Embedding dense-retrieval 评测。任务在只读 repeatable-read 快照中只选择
-`is_published=true AND content_text IS NOT NULL` 的通知；`content_text` 是唯一正文输入。Chunk 阶段
-不重新清洗正文，不读取 `content_html`、图片或附件，因此外链通知、纯图片通知和其他 `content_text` 为空的
-通知不会产生 Chunk。
+广泛抽样和真实 Embedding dense-retrieval 评测。任务在只读 repeatable-read 快照中读取已发布站内通知，
+以 `content_text` 加上当时已有的正文图片 OCR 文本作为分块输入，每张图片取最新完成批次并按来源序号、页序追加。
+OCR 失败、未完成或尚无任务都不影响该通知进入构建；无正文文本和识别文本时使用通知标题。
+后续识别完成后，下一次构建才读取新文本。来源适配只读 `ocr.tasks` / `ocr.pages`，Chunk 和 Embedding
+不接收 OCR 状态、不等待 OCR。外链通知和附件不参与，公开通知的两个正文字段不写入 OCR。
 
 当前代码的分块定义为 `notice_text_structure.v10`，使用 Unicode 字符数，目标长度为 800 字符、硬上限为
-1200 字符，硬上限包含返回证据中的章节、局部父项和表头，不使用固定 overlap。图片及图片 `alt` 不进入正文 Chunk 或 Embedding。结构和字段关系优先于长度：
+1200 字符，硬上限包含返回证据中的章节、局部父项和表头，不使用固定 overlap。图片字节、图片引用及 `alt` 不进入正文 Chunk 或 Embedding，已有 OCR 文字和表格可以进入。结构和字段关系优先于长度：
 
 - `一、` 等正式一级标题开启新的硬章节，Chunk 不跨一级标题；
 - `（一）` 等正式二级标题开启独立语义单元，Chunk 不跨正式二级标题；带值、完整叙述或指令语义的

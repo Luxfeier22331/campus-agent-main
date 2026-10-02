@@ -38,6 +38,15 @@ test("internal portal manual Job templates express one fixed operation each", ()
 		const labels = record(podMetadata.labels, `${name} pod labels`);
 		assert.equal(labels["app.kubernetes.io/name"], "internal-portal-collection");
 		assert.deepEqual(container(manifest, name).args, args);
+		const env = container(manifest, name).env;
+		assert.ok(Array.isArray(env));
+		assert.deepEqual(
+			env.find((entry) => entry.name === "OBJECT_STORE_BUCKET_SOURCE"),
+			{
+				name: "OBJECT_STORE_BUCKET_SOURCE",
+				value: "campus-agent-source",
+			},
+		);
 	}
 
 	assert.doesNotMatch(source, /INTERNAL_PORTAL_NOTICE_START_DATE/u);

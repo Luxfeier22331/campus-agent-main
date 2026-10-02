@@ -14,8 +14,6 @@ import {
 	validateNoticeIds,
 } from "notice-classifier-core/source";
 
-const SOURCE_BUCKET = "campus-agent-source";
-
 export interface NoticeSourceObjectStore {
 	close(): void;
 	getObject(key: string): Promise<string>;
@@ -46,9 +44,6 @@ export function createNoticeSourceObjectStoreFromEnv(
 	env: NodeJS.ProcessEnv = process.env,
 ): NoticeSourceObjectStore {
 	const bucket = requiredEnv(env, "OBJECT_STORE_BUCKET_SOURCE");
-	if (bucket !== SOURCE_BUCKET) {
-		throw new Error(`notice classifier only reads ${SOURCE_BUCKET}`);
-	}
 	const client = new S3Client({
 		credentials: {
 			accessKeyId: requiredEnv(env, "OBJECT_STORE_SOURCE_ACCESS_KEY"),

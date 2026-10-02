@@ -74,6 +74,8 @@ spec:
                     secretKeyRef:
                       name: ops-web-internal-secrets
                       key: OPS_WEB_INTERNAL_TOKEN
+                - name: OBJECT_STORE_BUCKET_SOURCE
+                  value: campus-agent-source
                 - name: OBJECT_STORE_ENDPOINT
                   value: http://object-store:9000
                 - name: OBJECT_STORE_SOURCE_ACCESS_KEY
@@ -187,6 +189,8 @@ spec:
                     secretKeyRef:
                       name: ops-web-internal-secrets
                       key: OPS_WEB_INTERNAL_TOKEN
+                - name: OBJECT_STORE_BUCKET_SOURCE
+                  value: campus-agent-source
                 - name: OBJECT_STORE_ENDPOINT
                   value: http://object-store:9000
                 - name: OBJECT_STORE_SOURCE_ACCESS_KEY
@@ -285,6 +289,8 @@ spec:
                     secretKeyRef:
                       name: ops-web-internal-secrets
                       key: OPS_WEB_INTERNAL_TOKEN
+                - name: OBJECT_STORE_BUCKET_SOURCE
+                  value: campus-agent-source
                 - name: OBJECT_STORE_ENDPOINT
                   value: http://object-store:9000
                 - name: OBJECT_STORE_SOURCE_ACCESS_KEY

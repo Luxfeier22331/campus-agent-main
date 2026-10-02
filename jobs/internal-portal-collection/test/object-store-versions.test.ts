@@ -1,5 +1,6 @@
 import {
 	DeleteObjectCommand,
+	GetObjectCommand,
 	ListObjectVersionsCommand,
 	PutObjectCommand,
 	S3Client,
@@ -13,8 +14,39 @@ const env = {
 	OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 	OBJECT_STORE_SOURCE_ACCESS_KEY: "test",
 	OBJECT_STORE_SOURCE_SECRET_KEY: "test",
+	OBJECT_STORE_BUCKET_SOURCE: bucket,
 };
 afterEach(() => vi.restoreAllMocks());
+
+it("reads and writes the source bucket supplied by the local environment", async () => {
+	const localBucket = "campus-agent-source-wt-test";
+	const send = vi.spyOn(S3Client.prototype, "send").mockImplementation(async (command) => {
+		if (command instanceof GetObjectCommand) {
+			expect(command.input.Bucket).toBe(localBucket);
+			return { Body: { transformToByteArray: async () => Buffer.from("{}") } } as never;
+		}
+		expect(command).toBeInstanceOf(PutObjectCommand);
+		expect((command as PutObjectCommand).input.Bucket).toBe(localBucket);
+		return {} as never;
+	});
+	const store = createInternalPortalCollectionObjectStoreFromEnv({
+		...env,
+		OBJECT_STORE_BUCKET_SOURCE: ` ${localBucket} `,
+	});
+	try {
+		await store.putObject({ bucket: store.sourceBucket, key, body: Buffer.from("{}"), contentType: "application/json" });
+		expect(await store.getObject({ bucket: store.sourceBucket, key })).toEqual(Buffer.from("{}"));
+		expect(send).toHaveBeenCalledTimes(2);
+	} finally {
+		await store.close?.();
+	}
+});
+
+it.each([undefined, "", "   "])("requires an explicit source bucket (%s)", (value) => {
+	expect(() => createInternalPortalCollectionObjectStoreFromEnv({
+		...env, OBJECT_STORE_BUCKET_SOURCE: value,
+	})).toThrow("OBJECT_STORE_BUCKET_SOURCE is required");
+});
 
 describe("state version pruning", () => {
 	it("returns the version created by the write", async () => {

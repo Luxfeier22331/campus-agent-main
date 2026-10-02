@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { normalizeImageInput } from "./image-input.ts";
 import { createPaddleClient, downloadResource } from "./provider.ts";
 import { OcrResultError, persistResult } from "./results.ts";
 import type { OcrConfig, OcrObjects, OcrPage, OcrTask, OcrTaskStore } from "./types.ts";
@@ -104,13 +105,17 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 					"Configuration changed before validation started; start a new validation task.",
 				);
 			}
-			const bytes =
+			const sourceBytes =
 				task.input.kind === "validation"
 					? validationDocument()
 					: task.input.kind === "source"
 						? await objects.getSource(task.input.key)
 						: await objects.getDerived(task.input.key);
-			task.inputSha256 = createHash("sha256").update(bytes).digest("hex");
+			const bytes =
+				task.input.kind === "source" && task.input.contentType.startsWith("image/")
+					? (await normalizeImageInput(sourceBytes)).bytes
+					: sourceBytes;
+			task.inputSha256 = createHash("sha256").update(sourceBytes).digest("hex");
 			const directory = await mkdtemp(join(tmpdir(), "document-ocr-"));
 			try {
 				const path = join(directory, `input${fileExtension(bytes)}`);

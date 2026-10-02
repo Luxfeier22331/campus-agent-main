@@ -4,8 +4,6 @@ import { fileURLToPath } from "node:url";
 import { formatRawError } from "ingestion-contracts/raw-error";
 import { loadInternalPortalEnv } from "./config.js";
 import {
-	INTERNAL_PORTAL_STATE_BUCKET,
-	INTERNAL_PORTAL_STATE_KEY,
 	runStateVersionMaintenance,
 	withNoticeMaintenanceLock,
 } from "./state-version-maintenance.js";
@@ -50,8 +48,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
 				...report,
 				mode: options.apply ? "apply" : "dry-run",
 				retained: {
-					bucket: INTERNAL_PORTAL_STATE_BUCKET,
-					key: INTERNAL_PORTAL_STATE_KEY,
+					bucket: report.bucket,
+					key: report.key,
 					versionId: report.currentVersionId,
 				},
 			},

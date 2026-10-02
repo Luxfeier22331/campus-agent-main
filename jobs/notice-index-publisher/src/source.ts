@@ -2,14 +2,30 @@ import type { Pool, PoolClient } from "pg";
 
 import type { NoticeSource } from "./types.ts";
 
-export const PUBLISHED_NOTICE_SOURCE_QUERY = `SELECT notice_id::text, title, content_text, released_at
-FROM notices.notices
-WHERE is_published
-  AND content_text IS NOT NULL
+// Source assembly reads available OCR text in the same snapshot as the notice.
+// Chunking and embedding receive text only; neither knows OCR task states.
+export const PUBLISHED_NOTICE_SOURCE_QUERY = `SELECT notice_id::text, title, content_text, released_at,
+  COALESCE((
+    SELECT string_agg(p.markdown, E'\\n\\n' ORDER BY image.ordinal, p.page_index)
+    FROM (
+      SELECT DISTINCT ON (input->>'key') id,
+        (regexp_match(input->>'key', '/images/([0-9]+)$'))[1]::integer AS ordinal
+      FROM ocr.tasks
+      WHERE input->>'kind' = 'source'
+        AND input->>'noticeId' = n.notice_id::text
+        AND input->>'key' ~ ('^internal_portal/notices/' || n.notice_id || '/images/[0-9]+$')
+        AND status = 'completed'
+      ORDER BY input->>'key', created_at DESC, id DESC
+    ) image
+    JOIN ocr.pages p ON p.task_id = image.id
+  ), '') AS image_text
+FROM notices.notices n
+WHERE is_published AND NOT is_external
 ORDER BY notice_id`;
 
 interface NoticeSourceRow {
-	content_text: string;
+	content_text: string | null;
+	image_text: string;
 	notice_id: string;
 	released_at: Date | string;
 	title: string;
@@ -22,7 +38,12 @@ export async function loadPublishedNoticeSources(
 	signal?.throwIfAborted();
 	const client = await pool.connect();
 	let released = false;
-	const abort = () => { if (!released) { released = true; client.release(true); } };
+	const abort = () => {
+		if (!released) {
+			released = true;
+			client.release(true);
+		}
+	};
 	signal?.addEventListener("abort", abort, { once: true });
 	try {
 		signal?.throwIfAborted();
@@ -49,13 +70,19 @@ async function loadInSnapshot(client: PoolClient): Promise<NoticeSource[]> {
 				!row.notice_id ||
 				typeof row.title !== "string" ||
 				!row.title ||
-				typeof row.content_text !== "string" ||
+				(row.content_text !== null && typeof row.content_text !== "string") ||
+				typeof row.image_text !== "string" ||
 				(row.released_at instanceof Date && Number.isNaN(row.released_at.getTime()))
 			) {
 				throw new Error("published notice source row is invalid");
 			}
+			const imageText = row.image_text
+				.replace(/!\[[^\]]*\]\([^)]*\)/gu, "")
+				.replace(/<img\b[^>]*>/giu, "")
+				.trim();
 			return {
-				contentText: row.content_text,
+				contentText:
+					[row.content_text, imageText].filter((text) => text?.trim()).join("\n\n") || row.title,
 				noticeId: row.notice_id,
 				releasedAt: new Date(String(row.released_at)).toISOString(),
 				title: row.title,

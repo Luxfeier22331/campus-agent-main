@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"ocr": "tsx src/local-cli.ts",
-		"build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:pg --external:@aws-sdk/client-s3 --external:jsdom",
+		"build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:pg --external:@aws-sdk/client-s3 --external:jsdom --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
 		"typecheck": "tsc --noEmit",
 		"test:unit": "vitest run"
 	},

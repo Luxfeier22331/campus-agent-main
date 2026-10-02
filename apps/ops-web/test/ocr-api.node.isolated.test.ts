@@ -6,6 +6,18 @@ import { createProviderConfigAdminClient } from "../src/server/provider-config-c
 
 const launchOcrJob = vi.hoisted(() => vi.fn());
 vi.mock("../src/server/ocr-jobs.ts", () => ({ launchOcrJob }));
+const getSource = vi.hoisted(() => vi.fn());
+vi.mock("@campus-agent/document-ocr", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@campus-agent/document-ocr")>()),
+	createOcrObjects: () => ({ getSource, close: vi.fn() }),
+}));
+const noticeSource = {
+	notice_id: 123,
+	is_external: false,
+	notice_content_html:
+		'<img src="/static/index/UEditor/themes/default/images/spacer.gif"><img src="/a.png"><img src="/b.jpg">',
+	attachments: [{ suffix: "pdf" }],
+};
 const runtime = {
 	schema_version: "model_runtime_config.v1",
 	name: "document_ocr",
@@ -36,6 +48,7 @@ async function app() {
 }
 beforeEach(() => {
 	vi.resetModules();
+	getSource.mockReset().mockResolvedValue(new TextEncoder().encode(JSON.stringify(noticeSource)));
 	launchOcrJob.mockReset().mockResolvedValue(undefined);
 	vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(runtime)));
 });
@@ -77,4 +90,61 @@ it("rejects malformed task ids before querying PostgreSQL", async () => {
 	const response = await instance.request("http://ops.test/api/ops/ocr/tasks/not-a-uuid");
 	expect(response.status).toBe(400);
 	expect(query).not.toHaveBeenCalled();
+});
+
+it("lists only body images with display ordinals independent of source keys", async () => {
+	const { instance, query } = await app();
+	query.mockResolvedValueOnce({ rows: [{ notice_id: 123 }] }).mockResolvedValueOnce({ rows: [] });
+	const response = await instance.request("http://ops.test/api/ops/ocr/notices/123");
+	expect(response.status).toBe(200);
+	const data = await response.json();
+	expect(data.resources).toHaveLength(2);
+	expect(data.resources[0]).toMatchObject({
+		kind: "image",
+		ordinal: 1,
+		displayOrdinal: 0,
+		label: "图片1",
+		sourceKey: "internal_portal/notices/123/images/1",
+	});
+	expect(data.resources[1]).toMatchObject({ ordinal: 2, displayOrdinal: 1 });
+});
+it("queues only the requested display image and excludes attachments", async () => {
+	const { instance, query } = await app();
+	const response = await instance.request("http://ops.test/api/ops/ocr/tasks", {
+		method: "POST",
+		headers: { origin: "http://ops.test", "content-type": "application/json" },
+		body: JSON.stringify({ noticeId: "123", imageOrdinal: 1 }),
+	});
+	expect(response.status).toBe(202);
+	expect(query).toHaveBeenCalledTimes(1);
+	expect(query.mock.calls[0]?.[1]?.[2]).toMatchObject({
+		key: "internal_portal/notices/123/images/2",
+		resource: { kind: "image", ordinal: 2, displayOrdinal: 1 },
+	});
+});
+it("does not create a task for a nonexistent body image", async () => {
+	const { instance, query } = await app();
+	const response = await instance.request("http://ops.test/api/ops/ocr/tasks", {
+		method: "POST",
+		headers: { origin: "http://ops.test", "content-type": "application/json" },
+		body: JSON.stringify({ noticeId: "123", imageOrdinal: 2 }),
+	});
+	expect(response.status).toBe(404);
+	expect(query).not.toHaveBeenCalled();
+	expect(launchOcrJob).not.toHaveBeenCalled();
+});
+it("does not create tasks for external notices", async () => {
+	getSource.mockResolvedValue(
+		new TextEncoder().encode(JSON.stringify({ ...noticeSource, is_external: true })),
+	);
+	const { instance, query } = await app();
+	const response = await instance.request("http://ops.test/api/ops/ocr/tasks", {
+		method: "POST",
+		headers: { origin: "http://ops.test", "content-type": "application/json" },
+		body: JSON.stringify({ noticeId: "123" }),
+	});
+	expect(response.status).toBe(202);
+	expect(await response.json()).toMatchObject({ tasks: [] });
+	expect(query).not.toHaveBeenCalled();
+	expect(launchOcrJob).not.toHaveBeenCalled();
 });

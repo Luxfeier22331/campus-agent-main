@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NoticeInspector, type NoticeInspectorProps } from "../src/app/notices/notice-inspector";
 import { NoticeOcrSection } from "../src/app/notices/notice-ocr";
+import type { NoticeOcr } from "../src/shared/ocr-contract";
 
 function inspectorProps(id: number | null): NoticeInspectorProps {
 	return {
@@ -39,13 +40,14 @@ function inspectorProps(id: number | null): NoticeInspectorProps {
 	};
 }
 
-const pendingOcr = {
+const pendingOcr: NoticeOcr = {
 	noticeId: "1",
 	resources: [
 		{
 			sourceKey: "image-0",
 			kind: "image",
 			ordinal: 0,
+			displayOrdinal: 0,
 			label: "班次表",
 			selectedResultId: null,
 			batches: [
@@ -156,4 +158,51 @@ describe("notice inspector reading", () => {
 		unmount();
 		client.clear();
 	});
+});
+
+it("identifies a single body image, refreshes status, and allows rerunning a failed task", async () => {
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	let batches: NoticeOcr["resources"][number]["batches"] = [];
+	const originalBatch = pendingOcr.resources[0]?.batches[0];
+	if (!originalBatch) {
+		throw new Error("Missing OCR fixture batch");
+	}
+	const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
+		if (init?.method === "POST") {
+			batches = [{ ...originalBatch, status: "failed", error: "识别失败详情" }];
+			return Response.json({ launchError: null });
+		}
+		return Response.json({
+			...pendingOcr,
+			resources: [{ ...pendingOcr.resources[0], ordinal: 2, displayOrdinal: 0, batches }],
+		});
+	});
+	vi.stubGlobal("fetch", fetcher);
+	const { unmount } = render(
+		<QueryClientProvider client={client}>
+			<NoticeOcrSection noticeId={1} />
+		</QueryClientProvider>,
+	);
+	fireEvent.click(await screen.findByRole("button", { name: "识别图片" }));
+	await screen.findByText("识别失败详情");
+	expect(fetcher).toHaveBeenCalledWith(
+		"/api/ops/ocr/tasks",
+		expect.objectContaining({
+			method: "POST",
+			body: JSON.stringify({ noticeId: "1", imageOrdinal: 0 }),
+		}),
+	);
+	expect(screen.getByRole("img", { name: "班次表原图" })).toHaveAttribute(
+		"src",
+		"/api/ops/notices/1/images/0",
+	);
+	fireEvent.click(screen.getByRole("button", { name: "重新识别" }));
+	await waitFor(() =>
+		expect(fetcher).toHaveBeenCalledWith(
+			"/api/ops/ocr/tasks/10000000-0000-4000-8000-000000000001/rerun",
+			expect.objectContaining({ method: "POST" }),
+		),
+	);
+	unmount();
+	client.clear();
 });

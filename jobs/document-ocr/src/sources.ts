@@ -9,7 +9,7 @@ export async function* selectNoticeInputs(pool: Pool, objects: OcrObjects, notic
 	}
 	const { rows } = await pool.query(
 		`select notice_id::text as id from notices.notices where not is_external and
-  ($1::bigint is not null and notice_id=$1 or $1::bigint is null and title ~ '班车|接驳|通勤|社会实践专车')
+  ($1::bigint is null or notice_id=$1)
   order by released_at desc, notice_id desc`,
 		[noticeId ?? null],
 	);
@@ -21,19 +21,14 @@ export async function* selectNoticeInputs(pool: Pool, objects: OcrObjects, notic
 			row.id,
 			source,
 			new URL(portal.portal_base_url).hostname,
-		);
-		for (const resource of resources) {
-			if (
-				resource.kind === "attachment" &&
-				resource.suffix?.toLowerCase().replace(/^\./u, "") !== "pdf"
-			) {
-				continue;
-			}
+		).filter((resource) => resource.kind === "image");
+		for (const [displayOrdinal, resource] of resources.entries()) {
 			yield {
 				kind: "source",
 				noticeId: resource.noticeId,
 				key: resource.sourceKey,
-				contentType: resource.kind === "image" ? "image/*" : "application/pdf",
+				contentType: "image/*",
+				resource: { kind: "image", ordinal: resource.ordinal, displayOrdinal },
 			} satisfies OcrInput;
 		}
 	}

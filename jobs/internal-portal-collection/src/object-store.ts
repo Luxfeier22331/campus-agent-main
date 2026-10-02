@@ -5,9 +5,9 @@ import {
 	ListObjectVersionsCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
-	S3Client,
 } from "@aws-sdk/client-s3";
 import { createOrVerifyS3Object, sha256Hex } from "./s3-create-or-verify.ts";
+import { createSourceObjectStoreConnection } from "./source-object-store.ts";
 
 interface ObjectStoreLocation {
 	bucket: string;
@@ -61,17 +61,7 @@ export interface InternalPortalCollectionObjectStore {
 export function createInternalPortalCollectionObjectStoreFromEnv(
 	env: Record<string, string | undefined> = process.env,
 ): InternalPortalCollectionObjectStore {
-	const endpoint = requiredEnv(env, "OBJECT_STORE_ENDPOINT");
-	const accessKey = requiredEnv(env, "OBJECT_STORE_SOURCE_ACCESS_KEY");
-	const secretKey = requiredEnv(env, "OBJECT_STORE_SOURCE_SECRET_KEY");
-	const sourceBucket = "campus-agent-source";
-	const client = new S3Client({
-		endpoint,
-		region: "us-east-1",
-		credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
-		forcePathStyle: true,
-		maxAttempts: 1,
-	});
+	const { bucket: sourceBucket, client } = createSourceObjectStoreConnection(env);
 	return {
 		sourceBucket,
 		close() {
@@ -239,12 +229,4 @@ function assertSourceBucket(bucket: string, sourceBucket: string): void {
 	if (bucket !== sourceBucket) {
 		throw new Error(`internal portal collection cannot access non-source bucket: ${bucket}`);
 	}
-}
-
-function requiredEnv(env: Record<string, string | undefined>, key: string): string {
-	const value = env[key]?.trim();
-	if (!value) {
-		throw new Error(`${key} is required`);
-	}
-	return value;
 }

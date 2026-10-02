@@ -1,4 +1,5 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -182,6 +183,34 @@ describe("Paddle document parsing", () => {
 		);
 		expect(reportValidation).toHaveBeenCalledWith(config.updatedAt, true, expect.any(String));
 	});
+	it("uploads a normalized source GIF as PNG while hashing the original bytes", async () => {
+		const f = fixture();
+		const source = new Uint8Array(
+			Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"),
+		);
+		f.task.input = {
+			kind: "source",
+			noticeId: "123",
+			key: "internal_portal/notices/123/images/0",
+			contentType: "image/*",
+		};
+		vi.mocked(f.objects.getSource).mockResolvedValue(source);
+		vi.mocked(f.client.submitDocumentParsing).mockImplementation(async ({ filePath }) => {
+			if (!filePath) {
+				throw new Error("Missing uploaded file path");
+			}
+			expect(filePath).toMatch(/\.png$/);
+			expect([...(await readFile(filePath)).subarray(0, 8)]).toEqual([
+				137, 80, 78, 71, 13, 10, 26, 10,
+			]);
+			return { jobId: "provider-1", model: OCR_MODEL, task: "document_parsing" };
+		});
+		await runOcrTask(f.task, f);
+		expect(f.task.status).toBe("completed");
+		expect(f.client.submitDocumentParsing).toHaveBeenCalledOnce();
+		expect(f.task.inputSha256).toBe(createHash("sha256").update(source).digest("hex"));
+	});
+
 	it("never resubmits an interrupted submission without a job id", async () => {
 		const f = fixture();
 		f.task.status = "submitting";

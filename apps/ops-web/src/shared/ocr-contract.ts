@@ -19,8 +19,9 @@ export const NoticeOcrSchema = z
 			z
 				.object({
 					sourceKey: z.string(),
-					kind: z.enum(["image", "attachment"]),
+					kind: z.literal("image"),
 					ordinal: z.number().int().nonnegative(),
+					displayOrdinal: z.number().int().nonnegative(),
 					label: z.string(),
 					selectedResultId: z.string().nullable(),
 					batches: z.array(OcrBatchSchema),

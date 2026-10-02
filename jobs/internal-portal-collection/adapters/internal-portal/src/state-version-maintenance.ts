@@ -5,13 +5,14 @@ import {
 	GetObjectCommand,
 	HeadObjectCommand,
 	ListObjectVersionsCommand,
-	S3Client,
+	type S3Client,
 	type ObjectVersion,
 	type DeleteMarkerEntry,
 } from "@aws-sdk/client-s3";
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 
-export const INTERNAL_PORTAL_STATE_BUCKET = "campus-agent-source";
+import { createSourceObjectStoreConnection } from "../../../src/source-object-store.ts";
+
 export const INTERNAL_PORTAL_STATE_KEY = "internal_portal/notices/_state.json";
 
 const NOTICE_MAINTENANCE_LOCK_NAMESPACE = 1_315_928_137;
@@ -45,23 +46,23 @@ type StateVersionMaintenanceOptions = {
 export async function inspectStateVersions(
 	env: Record<string, string | undefined> = process.env,
 ): Promise<StateVersionReport> {
-	const client = createSourceClient(env);
+	const { bucket, client } = createSourceObjectStoreConnection(env);
 	try {
-		const versions = await listStateVersions(client);
+		const versions = await listStateVersions(client, bucket);
 		const current = versions.find((entry) => entry.isLatest && !entry.isDeleteMarker) ?? null;
 		if (!current) {
-			throw new Error(`current object version not found for s3://${INTERNAL_PORTAL_STATE_BUCKET}/${INTERNAL_PORTAL_STATE_KEY}`);
+			throw new Error(`current object version not found for s3://${bucket}/${INTERNAL_PORTAL_STATE_KEY}`);
 		}
 		const head = await client.send(
 			new HeadObjectCommand({
-				Bucket: INTERNAL_PORTAL_STATE_BUCKET,
+				Bucket: bucket,
 				Key: INTERNAL_PORTAL_STATE_KEY,
 				...(current.versionId !== "null" ? { VersionId: current.versionId } : {}),
 			}),
 		);
 		const body = await client.send(
 			new GetObjectCommand({
-				Bucket: INTERNAL_PORTAL_STATE_BUCKET,
+				Bucket: bucket,
 				Key: INTERNAL_PORTAL_STATE_KEY,
 				...(current.versionId !== "null" ? { VersionId: current.versionId } : {}),
 			}),
@@ -71,7 +72,7 @@ export async function inspectStateVersions(
 		}
 		const bytes = await body.Body.transformToByteArray();
 		return {
-			bucket: INTERNAL_PORTAL_STATE_BUCKET,
+			bucket,
 			key: INTERNAL_PORTAL_STATE_KEY,
 			currentVersionId: current.versionId === "null" ? null : current.versionId,
 			currentETag: head.ETag ?? null,
@@ -92,17 +93,17 @@ export async function pruneStateVersions(
 	if (!normalizedKeepVersionId || normalizedKeepVersionId === "null") {
 		throw new Error("a concrete current version id is required for state cleanup");
 	}
-	const client = createSourceClient(env);
+	const { bucket, client } = createSourceObjectStoreConnection(env);
 	let deleted = 0;
 	try {
-		const versions = await listStateVersions(client);
+		const versions = await listStateVersions(client, bucket);
 		for (const version of versions) {
 			if (version.versionId === normalizedKeepVersionId) {
 				continue;
 			}
 			await client.send(
 				new DeleteObjectCommand({
-					Bucket: INTERNAL_PORTAL_STATE_BUCKET,
+					Bucket: bucket,
 					Key: INTERNAL_PORTAL_STATE_KEY,
 					VersionId: version.versionId,
 				}),
@@ -172,7 +173,7 @@ export async function withNoticeMaintenanceLock<T>(
 }
 
 async function writeBackup(path: string, env: Record<string, string | undefined>, report: StateVersionReport): Promise<void> {
-	const client = createSourceClient(env);
+	const { client } = createSourceObjectStoreConnection(env);
 	try {
 		const response = await client.send(
 			new GetObjectCommand({
@@ -206,14 +207,14 @@ async function writeBackup(path: string, env: Record<string, string | undefined>
 	}
 }
 
-async function listStateVersions(client: S3Client): Promise<VersionEntry[]> {
+async function listStateVersions(client: S3Client, bucket: string): Promise<VersionEntry[]> {
 	const entries: VersionEntry[] = [];
 	let keyMarker: string | undefined;
 	let versionIdMarker: string | undefined;
 	do {
 		const page = await client.send(
 			new ListObjectVersionsCommand({
-				Bucket: INTERNAL_PORTAL_STATE_BUCKET,
+				Bucket: bucket,
 				Prefix: INTERNAL_PORTAL_STATE_KEY,
 				KeyMarker: keyMarker,
 				VersionIdMarker: versionIdMarker,
@@ -240,25 +241,4 @@ function versionEntry(entry: ObjectVersion | DeleteMarkerEntry): VersionEntry {
 		versionId: entry.VersionId ?? "",
 		isDeleteMarker: "IsLatest" in entry && "Size" in entry === false,
 	};
-}
-
-function createSourceClient(env: Record<string, string | undefined>): S3Client {
-	const endpoint = required(env, "OBJECT_STORE_ENDPOINT");
-	const accessKeyId = required(env, "OBJECT_STORE_SOURCE_ACCESS_KEY");
-	const secretAccessKey = required(env, "OBJECT_STORE_SOURCE_SECRET_KEY");
-	return new S3Client({
-		endpoint,
-		region: "us-east-1",
-		credentials: { accessKeyId, secretAccessKey },
-		forcePathStyle: true,
-		maxAttempts: 1,
-	});
-}
-
-function required(env: Record<string, string | undefined>, key: string): string {
-	const value = env[key]?.trim();
-	if (!value) {
-		throw new Error(`${key} is required`);
-	}
-	return value;
 }

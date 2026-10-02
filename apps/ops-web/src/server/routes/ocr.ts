@@ -112,12 +112,8 @@ export function registerOcrRoutes(input: {
 				source,
 				new URL(portal.portal_base_url).hostname,
 			)
-				.filter(
-					(resource) =>
-						resource.kind === "image" ||
-						resource.suffix?.toLowerCase().replace(/^\./u, "") === "pdf",
-				)
-				.map((resource) => {
+				.filter((resource) => resource.kind === "image")
+				.map((resource, displayOrdinal) => {
 					const batches = tasks.filter(
 						(task) => task.input.kind === "source" && task.input.key === resource.sourceKey,
 					);
@@ -125,10 +121,8 @@ export function registerOcrRoutes(input: {
 						sourceKey: resource.sourceKey,
 						kind: resource.kind,
 						ordinal: resource.ordinal,
-						label:
-							resource.kind === "image"
-								? `图片${resource.ordinal + 1}`
-								: `附件${resource.ordinal + 1}`,
+						displayOrdinal,
+						label: `图片${displayOrdinal + 1}`,
 						selectedResultId:
 							batches.find((task) => task.status === "completed" && task.result)?.id ?? null,
 						batches: batches.map((task) => ({
@@ -156,7 +150,10 @@ export function registerOcrRoutes(input: {
 	});
 	app.post("/api/ops/ocr/tasks", async (c) => {
 		const body = z
-			.object({ noticeId: z.string().regex(/^[1-9]\d*$/) })
+			.object({
+				noticeId: z.string().regex(/^[1-9]\d*$/),
+				imageOrdinal: z.number().int().nonnegative().optional(),
+			})
 			.strict()
 			.safeParse(await readBoundedJson(c.req.raw, 4096));
 		if (!body.success) {
@@ -174,18 +171,22 @@ export function registerOcrRoutes(input: {
 				source,
 				new URL(portal.portal_base_url).hostname,
 			)
-				.filter(
-					(resource) =>
-						resource.kind === "image" ||
-						resource.suffix?.toLowerCase().replace(/^\./u, "") === "pdf",
-				)
-				.map((resource) => ({
+				.filter((resource) => resource.kind === "image")
+				.map((resource, displayOrdinal) => ({
 					kind: "source" as const,
 					noticeId: resource.noticeId,
 					key: resource.sourceKey,
-					contentType: resource.kind === "image" ? "image/*" : "application/pdf",
-					resource: { kind: resource.kind, ordinal: resource.ordinal },
-				}));
+					contentType: "image/*",
+					resource: { kind: resource.kind, ordinal: resource.ordinal, displayOrdinal },
+				}))
+				.filter(
+					(input) =>
+						body.data.imageOrdinal === undefined ||
+						input.resource.displayOrdinal === body.data.imageOrdinal,
+				);
+			if (body.data.imageOrdinal !== undefined && inputs.length === 0) {
+				return jsonError("OPS_OCR_NOT_FOUND", "正文图片不存在。", 404);
+			}
 			const runtime = await config();
 			const tasks: OcrTask[] = [];
 			for (const resource of inputs) {

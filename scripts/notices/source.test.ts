@@ -1,11 +1,50 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 
 import {
 	collectObjectKeys,
+	createNoticeSourceObjectStoreFromEnv,
 	loadNoticeClassificationInputs,
 	type NoticeSourceObjectStore,
 } from "./source";
+
+test("reads and lists notices from the configured worktree bucket", async (t) => {
+	const bucket = "campus-agent-source-wt-test";
+	const key = "internal_portal/notices/2.json";
+	t.mock.method(S3Client.prototype, "send", async (command: unknown) => {
+		if (command instanceof ListObjectsV2Command) {
+			assert.equal(command.input.Bucket, bucket);
+			return { Contents: [{ Key: key }] };
+		}
+		assert.ok(command instanceof GetObjectCommand);
+		assert.equal(command.input.Bucket, bucket);
+		assert.equal(command.input.Key, key);
+		return { Body: { transformToString: async () => notice(2, "通知") } };
+	});
+	const store = createNoticeSourceObjectStoreFromEnv({
+		OBJECT_STORE_BUCKET_SOURCE: ` ${bucket} `,
+		OBJECT_STORE_ENDPOINT: "http://localhost:9000",
+		OBJECT_STORE_SOURCE_ACCESS_KEY: "test",
+		OBJECT_STORE_SOURCE_SECRET_KEY: "test",
+	});
+	try {
+		assert.deepEqual(await loadNoticeClassificationInputs(store), [
+			{ noticeId: 2, noticeTitle: "通知" },
+		]);
+	} finally {
+		store.close();
+	}
+});
+
+test("requires an explicit source bucket", () => {
+	for (const value of [undefined, "", "   "]) {
+		assert.throws(
+			() => createNoticeSourceObjectStoreFromEnv({ OBJECT_STORE_BUCKET_SOURCE: value }),
+			/OBJECT_STORE_BUCKET_SOURCE is required/u,
+		);
+	}
+});
 
 test("collects every object-list page", async () => {
 	const tokens: Array<string | undefined> = [];

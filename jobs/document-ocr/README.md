@@ -1,6 +1,6 @@
 # Document OCR Job
 
-班车通知图片与 PDF 的 OCR 消费者。本地和集群使用同一 TypeScript 实现与官方
+站内通知正文图片的 OCR 消费者。本地和集群使用同一 TypeScript 实现与官方
 `@paddleocr/api-sdk@0.2.3`，不需要 Python、离线 OCR 镜像或额外识别服务。
 
 ## 配置与本地运行
@@ -50,8 +50,10 @@ pnpm --filter document-ocr ocr cleanup-page-objects
 
 ## 自动扫描
 
-扫描已采集的内部通知标题：班车、接驳、通勤、社会实践专车。分类和发布不是前提；
-指定通知 ID 时不限制标题。图片选择复用采集器的规范化规则，附件仅处理 PDF，跳过 XLSX。
+扫描所有已采集站内通知的正文图片，分类、发布和标题均不是前提；指定通知 ID 时只扫描该通知。
+图片选择复用采集器的规范化规则，跳过编辑器占位图；附件和外链通知不参与。
+JPEG/PNG 原样提交，GIF 取首帧、BMP 解码后转静态 PNG，原始来源对象保持不变。
+任务按 source key 去重，展示序号单独保存，避免占位图清除后错配正文图片。
 
 通知来源适配由 `@campus-agent/notices` 的 `listNoticeSourceResources()` 提供；本 Job 将资源引用映射为
 OCR 输入，通用 `@campus-agent/document-ocr` 不依赖通知领域。构建保留外部 `jsdom`，由镜像的生产依赖提供。
@@ -63,7 +65,11 @@ OCR 输入，通用 `@campus-agent/document-ocr` 不依赖通知领域。构建�
 
 Ops 的模型配置页管理 OCR 连接；保存不联网验证、清空旧验证状态。验证接口立即返回 202 和
 任务，Job 完成全文识别后才回写结果；回写按配置 `updated_at` 条件更新，旧密钥的结果不能覆盖
-新配置。文档识别页提供列表、结果、按通知发起、恢复和重新识别。
+新配置。文档识别页提供列表、结果、按通知发起、恢复和重新识别；通知维护页支持逐图查看原图、状态、结果及单图识别。
+
+OCR 调度独立于通知流水线。索引源组装在每次构建时读取已有识别文本，不等待 OCR，失败和未完成任务不阻断
+通知进入 embedding；随后完成的识别文本在下一次构建中使用。详见
+[正文图片独立消费](../../.agents/notes/implemented/feature/2026-10-02-notice-body-image-ocr.md)。
 
 交付顺序：先应用统一 schema，再发布 Model Config、OCR 与 Ops 镜像，GitOps 选择真实 revision
 与镜像 digest；保持 OCR 暂停，配置密钥、验证连接、导入已有结果、验收 staging，再启用 schedule。
