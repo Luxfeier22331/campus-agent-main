@@ -79,10 +79,7 @@ beforeEach(() => {
 		rows: [
 			{
 				expected_current: `campus_docs_${"b".repeat(64)}`,
-				docs_embedding_set: `sha256:${"a".repeat(64)}`,
-				notice_embedding_set: `sha256:${"c".repeat(64)}`,
-				producer: "automatic",
-				producer_run_id: "original-run",
+				collection: `campus_docs_${"a".repeat(64)}`,
 			},
 		],
 	});
@@ -169,10 +166,7 @@ describe("native task ownership", () => {
 				args: [
 					{
 						expectedCurrent: `campus_docs_${"b".repeat(64)}`,
-						docsEmbeddingSet: `sha256:${"a".repeat(64)}`,
-						noticeEmbeddingSet: `sha256:${"c".repeat(64)}`,
-						producer: "automatic",
-						producerRunId: "original-run",
+						collection: `campus_docs_${"a".repeat(64)}`,
 					},
 				],
 			}),

@@ -2,11 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type {
-	AgentToolEvalArgumentMode,
-	AgentToolEvalCase,
-	AgentToolEvalToolCall,
-} from "./agent-tool-eval";
+import type { AgentToolEvalCase, AgentToolEvalToolCall } from "./agent-tool-eval";
 import {
 	type JsonObject,
 	loadJsonObject,
@@ -16,7 +12,6 @@ import {
 	writeJsonObject,
 } from "./json";
 import { type AgentProductEvalItem, loadAgentProductEvalResult } from "./product-result";
-import type { ToolTrajectory } from "./tool-trajectory";
 
 export const AGENT_EVAL_SCORE_BATCH_SCHEMA_VERSION = "agent_eval_score_batch.v2";
 
@@ -140,7 +135,6 @@ export function loadAgentEvalScoreBatch(path: string): AgentEvalScoreBatch {
 function agentRagasSample(item: AgentProductEvalItem): JsonObject {
 	return {
 		answer: item.answer,
-		argument_mode: item.case.argument_mode,
 		case_id: item.case.case_id,
 		metadata: {
 			...(item.case.case_family ? { case_family: item.case.case_family } : {}),
@@ -148,11 +142,8 @@ function agentRagasSample(item: AgentProductEvalItem): JsonObject {
 		},
 		query: item.case.query,
 		...(item.case.reference ? { reference: item.case.reference } : {}),
-		reference_tool_calls: toolCallsForArgumentMode(
-			item.case.reference_tool_calls,
-			item.case.argument_mode,
-		),
-		tool_calls: observedToolCalls(item.toolTrajectory, item.case.argument_mode),
+		reference_tool_calls: referenceToolCallNames(item.case.reference_tool_calls),
+		tool_calls: observedToolCallNames(item.toolTrajectory.tool_calls),
 	};
 }
 
@@ -235,22 +226,12 @@ function expectsRetrievedContext(item: AgentToolEvalCase): boolean {
 	return item.reference_context_ids.length > 0 || item.reference_contexts.length > 0;
 }
 
-function observedToolCalls(
-	trajectory: ToolTrajectory,
-	argumentMode: AgentToolEvalArgumentMode,
-): AgentToolEvalToolCall[] {
-	return trajectory.tool_calls.map((call) => ({
-		args: argumentMode === "eval_safe_args" ? { ...(call.eval_safe_args ?? {}) } : {},
-		name: call.tool_name,
-	}));
+function referenceToolCallNames(toolCalls: AgentToolEvalToolCall[]): AgentToolEvalToolCall[] {
+	return toolCalls.map((call) => ({ args: {}, name: call.name }));
 }
 
-function toolCallsForArgumentMode(
-	toolCalls: AgentToolEvalToolCall[],
-	argumentMode: AgentToolEvalArgumentMode,
+function observedToolCallNames(
+	toolCalls: ReadonlyArray<{ tool_name: AgentToolEvalToolCall["name"] }>,
 ): AgentToolEvalToolCall[] {
-	return toolCalls.map((call) => ({
-		args: argumentMode === "eval_safe_args" ? { ...call.args } : {},
-		name: call.name,
-	}));
+	return toolCalls.map((call) => ({ args: {}, name: call.tool_name }));
 }

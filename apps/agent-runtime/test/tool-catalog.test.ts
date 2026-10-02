@@ -201,7 +201,8 @@ describe("tool catalog", () => {
 			parameterSchema: {
 				properties: {
 					search_query: {
-						description: "根据用户当前问题整理出的、面向中央民族大学校内资料的聚焦检索表达。",
+						description:
+							"面向校内资料的检索表达。包含事实维度词（如申请条件、费用、资助、合作院校、流程、材料）和时间范围（如最新、2026）；多个维度用空格分隔。不需要重复学校名称。",
 					},
 				},
 			},

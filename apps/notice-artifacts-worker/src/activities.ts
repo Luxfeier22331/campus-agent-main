@@ -5,13 +5,15 @@ import {
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { Context, heartbeat } from "@temporalio/activity";
 import { ApplicationFailure } from "@temporalio/common";
+import { collectValidatedArtifactClosure } from "campus-rag-index-publisher/artifact-import";
 import {
 	readDocsEmbeddingSetManifest,
 	readNoticeEmbeddingSetManifest,
 } from "campus-rag-index-publisher/artifacts";
 import { createPostgresIndexCatalog } from "campus-rag-index-publisher/catalog";
+import { assembleCandidate } from "campus-rag-index-publisher/publisher";
 import { createQdrantClient } from "campus-rag-index-publisher/qdrant";
-import { runCampusRagPublish } from "campus-rag-index-publisher/run";
+import { runCampusRagPublish, runCampusRagRollback } from "campus-rag-index-publisher/run";
 import type { Sha256Ref } from "campus-rag-index-publisher/types";
 import { cleanupAutomaticObjects, noticeArtifactKeys } from "notice-index-publisher/cleanup";
 import { runStoredNoticeChunkBuild } from "notice-index-publisher/command";
@@ -24,7 +26,7 @@ import { connectTemporal } from "./schedule.ts";
 export interface PreparedRefresh {
 	expectedCurrent: string;
 	docsEmbeddingSet: Sha256Ref;
-	chunkRun: Sha256Ref;
+	chunks: Sha256Ref;
 	modelTargetSha256: string;
 	unchanged: boolean;
 }
@@ -90,9 +92,13 @@ export async function prepareRefresh(): Promise<PreparedRefresh> {
 			return {
 				expectedCurrent: current.collection,
 				docsEmbeddingSet: current.docsEmbeddingSet,
-				chunkRun: chunks.run,
+				chunks: chunks.chunks.sha256,
 				modelTargetSha256: connection.targetSha256,
-				unchanged: previousManifest.chunkRun === chunks.run,
+				unchanged:
+					previousManifest.schemaVersion === "notice_embedding_set.v2"
+						? previousManifest.chunks.sha256 === chunks.chunks.sha256 &&
+							previousManifest.modelTargetSha256 === connection.targetSha256
+						: false,
 			};
 		} finally {
 			store.close();
@@ -118,7 +124,7 @@ export async function embedNotices(input: PreparedRefresh) {
 			}
 			return await buildNoticeEmbeddingSet({
 				artifactStore: store,
-				chunkRun: input.chunkRun,
+				chunks: input.chunks,
 				embedding: createOpenAICompatibleEmbeddingClient(connection, cancelFetch(signal)),
 				modelTargetSha256: input.modelTargetSha256,
 				onEmbeddingProgress: (completed, total) => {
@@ -182,10 +188,22 @@ export async function cleanupVersions() {
 				if (retiredIds.has(version.collection)) {
 					continue;
 				}
-				// Cleanup protects stored references, including manifests published before canonical ordering changed.
-				// Content and vector validation belongs to publication; cleanup only deletes Notice artifacts.
-				for (const key of await noticeArtifactKeys(store, version.noticeEmbeddingSet)) {
-					protectedKeys.add(key);
+				// Protect available references even when an incomplete candidate reused older objects.
+				if (!(version.validated || version.activatedAt) && version.producer === "automatic") {
+					for (const key of await noticeArtifactKeys(store, version.noticeEmbeddingSet)) {
+						protectedKeys.add(key);
+					}
+					continue;
+				}
+				const closure = await collectValidatedArtifactClosure({
+					sourceStore: store,
+					validate: (reader) =>
+						assembleCandidate(reader, version.docsEmbeddingSet, version.noticeEmbeddingSet).then(
+							() => undefined,
+						),
+				});
+				for (const object of closure) {
+					protectedKeys.add(object.key);
 				}
 			}
 			const retiredClosures = new Map<string, Set<string>>();
@@ -252,22 +270,7 @@ export async function cleanupVersions() {
 }
 
 export async function rollbackIndex(input: RollbackInput) {
-	return activity(async (signal) => {
-		const store = createNoticeS3ArtifactStore(process.env, { signal });
-		try {
-			return await runCampusRagPublish({
-				artifactStore: store,
-				docsEmbeddingSet: input.docsEmbeddingSet,
-				noticeEmbeddingSet: input.noticeEmbeddingSet,
-				expectedCurrent: input.expectedCurrent,
-				producer: input.producer,
-				...(input.producerRunId ? { producerRunId: input.producerRunId } : {}),
-				signal,
-			});
-		} finally {
-			store.close();
-		}
-	});
+	return activity((signal) => runCampusRagRollback({ ...input, signal }));
 }
 
 function producingRunId(): string {

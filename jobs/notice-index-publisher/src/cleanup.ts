@@ -10,9 +10,10 @@ export interface CleanupStore {
 }
 
 interface CleanupManifest {
+	schemaVersion?: unknown;
 	embeddings?: { key?: unknown };
 	chunkRun?: unknown;
-	chunks?: { file?: unknown };
+	chunks?: { file?: unknown; key?: unknown };
 	validation?: { file?: unknown };
 	reviewSamples?: { file?: unknown };
 }
@@ -37,6 +38,17 @@ export async function noticeArtifactKeys(
 		throw new Error("Invalid notice embedding data reference during cleanup");
 	}
 	keys.add(dataKey);
+	if (embedding.schemaVersion === "notice_embedding_set.v2") {
+		const key = embedding.chunks?.key;
+		if (
+			typeof key !== "string" ||
+			!/^notices\/rag\/chunk-data\/sha256\/[a-f0-9]{64}\/chunks.ndjson$/u.test(key)
+		) {
+			throw new Error("Invalid notice chunk data reference during cleanup");
+		}
+		keys.add(key);
+		return keys;
+	}
 	const chunkRun = embedding.chunkRun;
 	if (typeof chunkRun !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(chunkRun)) {
 		throw new Error("Invalid notice chunk reference during cleanup");

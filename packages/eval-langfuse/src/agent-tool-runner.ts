@@ -5,7 +5,6 @@ import {
 	type ExecutionRunEvalProjection,
 	parseExecutionRunEvalProjection,
 } from "./execution-projection";
-import { stableId } from "./identifiers";
 import { type JsonObject, mapping, optionalString, stringField } from "./json";
 import { type AgentProductEvalItem, writeAgentProductEvalResult } from "./product-result";
 
@@ -61,7 +60,7 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 		input.executionControlAuthSecret,
 		"executionControlAuthSecret",
 	);
-	const evalRunId = stableId("agent-eval", randomUUID());
+	const evalRunId = `agent-eval:${randomUUID()}`;
 	const items: AgentProductEvalItem[] = [];
 
 	for (const caseItem of cases) {
@@ -119,7 +118,7 @@ async function submitChatStream(input: {
 			accept: "text/event-stream",
 			"content-type": "application/json",
 			cookie: input.cookieHeader,
-			"idempotency-key": stableId("agent-tool-eval", input.prompt, randomUUID()),
+			"idempotency-key": `agent-tool-eval:${randomUUID()}`,
 		},
 		method: "POST",
 		signal: AbortSignal.timeout(PRODUCT_RUN_TIMEOUT_MS),

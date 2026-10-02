@@ -148,12 +148,9 @@ export function selectReviewSample(
 	for (const stratum of strata) {
 		const candidates = documents
 			.filter((document) => stratum.select(document) && !used.has(document.document.docId))
-			.sort((left, right) =>
-				compareCanonicalStrings(
-					sampleKey(sourceProjectionSha256, stratum.name, left.document.docId),
-					sampleKey(sourceProjectionSha256, stratum.name, right.document.docId),
-				),
-			)
+			.map((document) => ({ document, rank: sampleKey(sourceProjectionSha256, stratum.name, document.document.docId) }))
+			.sort((left, right) => compareCanonicalStrings(left.rank, right.rank))
+			.map(({ document }) => document)
 			.slice(0, stratum.target);
 		for (const document of candidates) {
 			used.add(document.document.docId);
@@ -164,12 +161,9 @@ export function selectReviewSample(
 	if (selected.length < CAMPUS_DOCS_CHUNK_GOVERNANCE_DEFINITION.review.sampleTarget) {
 		for (const document of documents
 			.filter((candidate) => !used.has(candidate.document.docId))
-			.sort((left, right) =>
-				compareCanonicalStrings(
-					sampleKey(sourceProjectionSha256, "coverage-fill", left.document.docId),
-					sampleKey(sourceProjectionSha256, "coverage-fill", right.document.docId),
-				),
-			)) {
+			.map((document) => ({ document, rank: sampleKey(sourceProjectionSha256, "coverage-fill", document.document.docId) }))
+			.sort((left, right) => compareCanonicalStrings(left.rank, right.rank))
+			.map(({ document }) => document)) {
 			if (selected.length >= CAMPUS_DOCS_CHUNK_GOVERNANCE_DEFINITION.review.sampleTarget) break;
 			used.add(document.document.docId);
 			primaryStratumByDocumentId.set(document.document.docId, "coverage-fill");

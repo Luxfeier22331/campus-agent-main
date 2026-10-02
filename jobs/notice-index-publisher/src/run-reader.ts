@@ -6,8 +6,8 @@ import {
 	NOTICE_CHUNK_RUN_SCHEMA_VERSION,
 	NOTICE_CHUNK_VALIDATION_SCHEMA_VERSION,
 } from "./definitions.ts";
+import { noticeChunkDataKey } from "./artifacts.ts";
 import { sha256 } from "./encoding.ts";
-import { noticeChunkRunPrefix } from "./artifacts.ts";
 import type {
 	NoticeArtifactReader,
 	NoticeChunk,
@@ -38,15 +38,6 @@ export async function readNoticeChunkRun(
 		artifactHex(run),
 	);
 	return readNoticeChunkRunFiles(run, (file) => readFile(join(directory, file)));
-}
-
-export async function readStoredNoticeChunkRun(
-	store: NoticeArtifactReader,
-	run: Sha256Ref,
-): Promise<NoticeChunkRunData> {
-	assertSha256Ref(run, "notice chunk run");
-	const prefix = noticeChunkRunPrefix(run);
-	return readNoticeChunkRunFiles(run, (file) => store.read(`${prefix}/${file}`));
 }
 
 async function readNoticeChunkRunFiles(
@@ -95,7 +86,7 @@ export function artifactHex(value: Sha256Ref): string {
 
 function parseManifest(bytes: Uint8Array): NoticeChunkRunManifest {
 	const value = parseJson(bytes, "notice chunk run manifest");
-	if (!isRecord(value) || value.schemaVersion !== NOTICE_CHUNK_RUN_SCHEMA_VERSION) {
+	if (!isRecord(value) || (value.schemaVersion !== NOTICE_CHUNK_RUN_SCHEMA_VERSION && value.schemaVersion !== "notice_chunk_run.v1")) {
 		throw new ArtifactValidationError("notice chunk run manifest schema is invalid");
 	}
 	const manifest = value as unknown as NoticeChunkRunManifest;
@@ -112,16 +103,13 @@ function parseManifest(bytes: Uint8Array): NoticeChunkRunManifest {
 	return manifest;
 }
 
-function decodeChunks(bytes: Uint8Array): NoticeChunk[] {
+export function decodeChunks(bytes: Uint8Array): NoticeChunk[] {
 	const chunks = decodeNdjson(bytes, (value, index) => {
 		if (!isRecord(value)) throw new ArtifactValidationError(`notice chunk record ${index} is invalid`);
 		for (const field of ["chunkId", "content", "noticeId", "retrievalText"] as const) {
 			if (!nonEmptyString(value[field])) {
 				throw new ArtifactValidationError(`notice chunk record ${index} has invalid ${field}`);
 			}
-		}
-		if (!isSha256Ref(value.chunkId)) {
-			throw new ArtifactValidationError(`notice chunk record ${index} has invalid chunkId`);
 		}
 		if (!nonNegativeInteger(value.chunkIndex)) {
 			throw new ArtifactValidationError(`notice chunk record ${index} has invalid chunkIndex`);
@@ -258,7 +246,7 @@ function decodeStoredChunk(value: Record<string, unknown>, label: string): Notic
 	for (const field of ["chunkId", "content", "noticeId", "retrievalText"] as const) {
 		if (!nonEmptyString(value[field])) throw new ArtifactValidationError(`${label} has invalid ${field}`);
 	}
-	if (!isSha256Ref(value.chunkId) || !nonNegativeInteger(value.chunkIndex)) {
+	if (!nonEmptyString(value.chunkId) || !nonNegativeInteger(value.chunkIndex)) {
 		throw new ArtifactValidationError(`${label} has invalid identity`);
 	}
 	if (
@@ -386,4 +374,17 @@ function diagnosticCount(value: unknown, legacy: boolean, field: string): number
 		throw new ArtifactValidationError(`notice chunk validation ${field} is invalid`);
 	}
 	return value;
+}
+
+export async function readStoredNoticeChunks(store: NoticeArtifactReader, digest: Sha256Ref) {
+	assertSha256Ref(digest, "notice chunk data");
+	const key = noticeChunkDataKey(digest);
+	const bytes = await store.read(key);
+	if (sha256(bytes) !== digest) {
+		throw new ArtifactValidationError("notice chunk data digest does not match its reference");
+	}
+	return {
+		chunks: decodeChunks(bytes),
+		reference: { key, byteSize: bytes.byteLength, sha256: digest },
+	};
 }

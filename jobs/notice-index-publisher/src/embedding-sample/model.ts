@@ -37,15 +37,15 @@ export type NoticeEmbeddingSampleStratum = ConfiguredSampleStratum | "coverage-f
 export interface NoticeEmbeddingSampleBoundary {
 	boundaryIndex: number;
 	direction: "next" | "previous";
-	nextChunkId: Sha256Ref;
+	nextChunkId: string;
 	nextChunkIndex: number;
-	previousChunkId: Sha256Ref;
+	previousChunkId: string;
 	previousChunkIndex: number;
 }
 
 export interface NoticeEmbeddingSampleRecord {
 	boundaries: NoticeEmbeddingSampleBoundary[];
-	chunkId: Sha256Ref;
+	chunkId: string;
 	chunkIndex: number;
 	content: string;
 	contentChars: number;
@@ -84,7 +84,7 @@ export interface NoticeEmbeddingSampleManifest {
 
 export interface NoticeEmbeddingSampleStatus {
 	cacheStatus: "generated" | "reused";
-	chunkId: Sha256Ref;
+	chunkId: string;
 	retrievalTextSha256: Sha256Ref;
 	valid: true;
 }

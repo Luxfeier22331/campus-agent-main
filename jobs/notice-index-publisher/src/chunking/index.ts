@@ -2,7 +2,6 @@ import {
 	NOTICE_CHUNK_DEFINITION,
 	type NoticeChunkDefinition,
 } from "../definitions.ts";
-import { canonicalJsonBytes, sha256 } from "../encoding.ts";
 import type {
 	BuiltNoticeChunks,
 	NoticeChunkStats,
@@ -25,7 +24,6 @@ export function buildNoticeChunks(
 	if (!(source.noticeId && source.title) || source.contentText.length === 0) {
 		throw new Error(`notice chunk source is invalid: ${source.noticeId || "unknown"}`);
 	}
-	const sourceSha256 = sha256(canonicalJsonBytes(source));
 	const lines = parseSourceLines(source.contentText);
 	const headings = detectHeadings(lines);
 	const stats: NoticeChunkStats = {
@@ -42,12 +40,11 @@ export function buildNoticeChunks(
 	);
 	const chunks = combinePieces(
 		source,
-		sourceSha256,
 		pieces,
 		definition,
 	);
 	if (chunks.length === 0) {
 		throw new Error(`notice produced no chunks: ${source.noticeId}`);
 	}
-	return { chunks, definition, headings, source, sourceSha256, stats };
+	return { chunks, definition, headings, source, stats };
 }

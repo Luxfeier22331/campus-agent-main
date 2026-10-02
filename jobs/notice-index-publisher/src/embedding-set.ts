@@ -16,7 +16,7 @@ import {
 	sortNoticeEmbeddingInputs,
 } from "./embedding-cache.ts";
 import { canonicalJsonBytes, sha256 } from "./encoding.ts";
-import { readStoredNoticeChunkRun } from "./run-reader.ts";
+import { readStoredNoticeChunks } from "./run-reader.ts";
 import type {
 	BuildNoticeEmbeddingSetInput,
 	BuildNoticeEmbeddingSetResult,
@@ -32,8 +32,8 @@ export async function buildNoticeEmbeddingSet(
 	input: BuildNoticeEmbeddingSetInput,
 ): Promise<BuildNoticeEmbeddingSetResult> {
 	assertNoticeEmbeddingModelTargetSha256(input.modelTargetSha256);
-	const chunkRun = await readStoredNoticeChunkRun(input.artifactStore, input.chunkRun);
-	const inputs = sortNoticeEmbeddingInputs(collectNoticeEmbeddingInputs(chunkRun.chunks));
+	const chunkData = await readStoredNoticeChunks(input.artifactStore, input.chunks);
+	const inputs = sortNoticeEmbeddingInputs(collectNoticeEmbeddingInputs(chunkData.chunks));
 	const resolved = await resolveStoredNoticeEmbeddingCache({
 		artifactStore: input.artifactStore,
 		embedding: input.embedding,
@@ -74,12 +74,12 @@ export async function buildNoticeEmbeddingSet(
 			sha256: embeddingDigest,
 		});
 		const manifest: NoticeEmbeddingSetManifest = {
-			chunkRun: input.chunkRun,
+			chunks: chunkData.reference,
 			embeddingCount,
 			embeddingSpace: EMBEDDING_SPACE,
 			embeddings: reference(embeddingKey, byteSize, embeddingDigest),
 			modelTargetSha256: input.modelTargetSha256,
-			schemaVersion: "notice_embedding_set.v1",
+			schemaVersion: "notice_embedding_set.v2",
 		};
 		const manifestBytes = canonicalJsonBytes(manifest);
 		const embeddingSet = sha256(manifestBytes);
@@ -109,11 +109,15 @@ export async function readNoticeEmbeddingSet(
 		throw new ArtifactValidationError(`notice embedding set manifest digest does not match ${id}`);
 	}
 	const value = parseJson(manifestBytes, "notice embedding set manifest");
-	if (!isRecord(value) || value.schemaVersion !== "notice_embedding_set.v1") {
+	if (!isRecord(value) || (value.schemaVersion !== "notice_embedding_set.v1" && value.schemaVersion !== "notice_embedding_set.v2")) {
 		throw new ArtifactValidationError("notice embedding set manifest schema is invalid");
 	}
 	const manifest = value as unknown as NoticeEmbeddingSetManifest;
-	assertSha256Ref(manifest.chunkRun, "notice embedding chunk run");
+	if (manifest.schemaVersion === "notice_embedding_set.v1") {
+		assertSha256Ref(manifest.chunkRun, "notice embedding chunk run");
+	} else {
+		assertObjectReference(manifest.chunks, "notice chunk data");
+	}
 	assertNoticeEmbeddingModelTargetSha256(manifest.modelTargetSha256);
 	if (
 		!positiveInteger(manifest.embeddingCount) ||

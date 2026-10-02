@@ -31,7 +31,8 @@ export function appendTableUnits(
 	const firstRowLines = lines.slice(firstRow.startIndex, firstRow.endIndex);
 	const headerAndFirstRow = [...headerLines, ...firstRowLines];
 	const headerAndFirstRowChars = sourceTextRangeLength(sourceText, headerAndFirstRow);
-	if (headerLines.length > 0 && headerAndFirstRowChars > definition.maxChars) {
+	const contextChars = unicodeLength(table.retrievalHeadingPath.join("\n")) + 1;
+	if (headerLines.length > 0 && headerAndFirstRowChars + contextChars > definition.maxChars) {
 		appendTableUnit(append, headerLines, "table-header", table, segment);
 		appendTableUnit(append, firstRowLines, "table-row", table, segment);
 	} else {
@@ -83,6 +84,7 @@ export function detectTableRegions(
 	let cursor = 0;
 	while (cursor < lines.length) {
 		const candidates = [
+			detectDelimitedTable(lines, cursor, basePath),
 			detectOrdinalTable(lines, cursor, basePath),
 			detectFixedTable(lines, cursor, basePath),
 		].filter((table): table is TableRegion => table !== null);
@@ -92,6 +94,44 @@ export function detectTableRegions(
 		cursor = Math.max(next.endIndex, next.headerStartIndex + 1);
 	}
 	return regions;
+}
+
+function detectDelimitedTable(
+	lines: readonly SourceLine[],
+	start: number,
+	basePath: readonly string[],
+): TableRegion | null {
+	for (let header = start; header < lines.length; header++) {
+		const text = lines[header]!.text.trim();
+		const columns = text.split("；");
+		if (
+			columns[0] !== "序号" ||
+			columns.length < 3 ||
+			columns.some((column) => !column || unicodeLength(column) > 40) ||
+			!columns.slice(1).some((column) => tableHeaderTerms.some((term) => column.includes(term)))
+		)
+			continue;
+		const rows: TableRow[] = [];
+		let previous = 0;
+		for (let index = header + 1; index < lines.length; index++) {
+			const cells = lines[index]!.text.split("；");
+			if (cells.length !== columns.length || !/^\d+$/u.test(cells[0] ?? "")) break;
+			const ordinal = Number(cells[0]);
+			if (ordinal !== previous + 1) break;
+			rows.push({ startIndex: index, endIndex: index + 1 });
+			previous = ordinal;
+		}
+		if (rows.length < 2) continue;
+		return {
+			headerStartIndex: header,
+			firstRowIndex: header + 1,
+			endIndex: rows.at(-1)!.endIndex,
+			rows,
+			compositionKey: contextKey(basePath, ["table", text]),
+			retrievalHeadingPath: withContext(basePath, [`表格列：${text}`]),
+		};
+	}
+	return null;
 }
 
 export function detectOrdinalTable(

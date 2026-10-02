@@ -50,7 +50,6 @@ function casesPayload(): JsonObject {
 	return {
 		cases: [
 			{
-				argument_mode: "name_only",
 				case_id: "case-001",
 				forbidden_context_ids: [],
 				query: "图书馆几点开门？",
@@ -112,25 +111,13 @@ describe("agent eval cases", () => {
 		expect(JSON.stringify(result)).not.toContain("dataset_run");
 	});
 
-	it("rejects duplicate cases and unsafe argument-mode references", () => {
+	it("rejects duplicate cases", () => {
 		const duplicate = casesPayload();
 		duplicate.cases = [
 			...(duplicate.cases as JsonObject[]),
 			{ ...(duplicate.cases as JsonObject[])[0] },
 		];
 		expect(() => validateAgentToolEvalCases(duplicate)).toThrow("case_id is duplicated");
-
-		const unsafe = casesPayload();
-		unsafe.cases = [
-			{
-				...(unsafe.cases as JsonObject[])[0],
-				argument_mode: "eval_safe_args",
-				reference_tool_calls: [{ args: {}, name: "personal_memory_recall" }],
-			},
-		];
-		expect(() => validateAgentToolEvalCases(unsafe)).toThrow(
-			"eval_safe_args requires non-empty reference tool args",
-		);
 	});
 });
 

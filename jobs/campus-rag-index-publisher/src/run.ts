@@ -48,3 +48,28 @@ export async function runCampusRagPublish(
 		await catalog.close();
 	}
 }
+
+export interface CampusRagRollbackRunInput {
+	collection: string;
+	expectedCurrent: string;
+	signal?: AbortSignal;
+	env?: NodeJS.ProcessEnv;
+}
+
+export async function runCampusRagRollback(
+	input: CampusRagRollbackRunInput,
+): Promise<Pick<UnifiedPublishResult, "collection" | "noOp" | "obsolete">> {
+	const catalog = createPostgresIndexCatalog(input.env ?? process.env);
+	try {
+		await catalog.acquirePublisherLock();
+		const signal = AbortSignal.any([catalog.signal, ...(input.signal ? [input.signal] : [])]);
+		signal.throwIfAborted();
+		const result = await catalog.activate({
+			collection: input.collection,
+			expectedCurrent: input.expectedCurrent,
+		});
+		return { collection: input.collection, ...result };
+	} finally {
+		await catalog.close();
+	}
+}

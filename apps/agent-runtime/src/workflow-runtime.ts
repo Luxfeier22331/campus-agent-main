@@ -118,6 +118,7 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"只有目标确实需要多个依赖步骤时才返回 plan；若已经检索，后续计划只安排尚缺事实，不重复已完成工作。机构事实必须来自本轮真实资料，不能凭模型记忆补齐。",
 		"校内资料使用工具返回的 citation_index 写成 [N]；联网资料保留原生来源关联。不要编造编号或手写来源 URL。先直接回答有支持的内容，不解释内部检索范围。",
 		"每次 campus_search 用 search_goal 说明本次要确认的具体事实，补查时聚焦尚缺内容，不重复泛查。已取得的资料可继续引用；工具只返回尚未取得的新片段。",
+		"首次检索时，在 search_query 中包含问题涉及的所有事实维度（如申请条件、费用、资助、合作院校、流程、材料），在 search_goal 中列出这些维度，让单次检索尽量覆盖，减少补查轮次。",
 		"每项结论只引用直接支持它的必要资料，不重复堆叠相同结论的来源；不同年度通知明确适用范围。",
 		"通知的 released_at 只能作为通知发布时间证据；不能据此推断截止日期、适用年度、学期、申请窗口或当前有效性。正文没有适用信息时，明确说明无法确认。",
 		'需要多个相互依赖的目标、多个检索步骤或一次检索无法闭合时，输出 {"result":{"outcome":"plan","plan":{...}}}，不得包含 answer 字段。',
@@ -631,7 +632,7 @@ function synthesisPayload(
 		goal: input.goal,
 		mode: input.mode ?? "planned",
 		...(input.recoveryReason ? { recoveryReason: input.recoveryReason } : {}),
-		materials: normalizeEvidence(input.evidence).map((item) => ({
+		materials: deduplicateSynthesisMaterials(normalizeEvidence(input.evidence)).map((item) => ({
 			...(item.citationIndex === undefined ? {} : { citationIndex: item.citationIndex }),
 			source: userVisibleSourceLabel(item.source),
 			title: item.title,
@@ -1180,6 +1181,29 @@ function normalizeEvidence(evidence: WorkflowEvidence[]): WorkflowEvidence[] {
 			return false;
 		}
 		seen.add(item.id);
+		return true;
+	});
+}
+
+// Remove near-duplicate materials before synthesis: when multiple campus
+// search rounds return chunks from the same source with the same title and
+// section, keep only the first (highest-ranked) one. This reduces redundant
+// context for the synthesizer without dropping unique sources. The source
+// identity (noticeId/documentId) is part of the key so that two different
+// notices or documents that happen to share a title and section title are
+// not incorrectly deduplicated.
+function deduplicateSynthesisMaterials(evidence: WorkflowEvidence[]): WorkflowEvidence[] {
+	const seen = new Set<string>();
+	return evidence.filter((item) => {
+		if (item.source !== "campus_search") {
+			return true;
+		}
+		const sourceId = item.noticeId ?? item.documentId ?? "";
+		const key = `${sourceId}\x00${item.title ?? ""}\x00${item.sectionTitle ?? ""}`;
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
 		return true;
 	});
 }

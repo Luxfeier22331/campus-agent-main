@@ -20,7 +20,6 @@ function productResult(): AgentProductEvalResult {
 	const cases = validateAgentToolEvalCases({
 		cases: [
 			{
-				argument_mode: "name_only",
 				case_id: "case-001",
 				forbidden_context_ids: [],
 				query: "你好",

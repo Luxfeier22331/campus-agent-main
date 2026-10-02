@@ -17,7 +17,8 @@ export const CampusSearchCandidateSchema = z.object({
 			"rerank_below_threshold",
 			"result_limit",
 			"evidence_char_budget",
-			"source_group_limit",
+			"same_notice_cap",
+			"same_section_cap",
 			"already_returned",
 		])
 		.optional(),

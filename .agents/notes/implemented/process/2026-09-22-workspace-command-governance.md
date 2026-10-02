@@ -64,33 +64,19 @@ fixture，不回退到需要对象存储的正式构建。主线新增的两个�
 
 ## 后果
 
-实际 Turbo 图对照迁移前的 manifest：46 个测试叶任务完全等价，每个任务只出现一次；筛选 Campus
-只执行它自己的五组 Node/DOM/Worker 测试。commandless aggregate 的解析、filtered check 的全仓
-静态检查、fail-fast、staged/PR scope、发布 Worker/image 选择与 full E2E 单次构建都有行为验证。
+实际 Turbo 图与迁移前的 manifest 保持测试叶任务等价且每个任务只出现一次；筛选 Campus
+只执行它自己的 Node/DOM/Worker 测试。commandless aggregate 的解析、filtered check 的全仓
+静态检查、fail-fast、staged/PR scope、发布 Worker/image 选择与 full E2E 单次构建均由行为检查覆盖。
 
-Campus TypeScript 仍读取 3,881 个文件；单 checker 冷运行峰值 904,572 KiB（约 883 MiB），墙钟
-3.33 秒，原有测量约 1.4 GiB。未减少 include、strict 或测试覆盖；未启用 TS incremental。
-实际导入的 `config/*.ts`、JSON、fixture 和跨包源码进入缓存；静态地图资产不触发 typecheck。
-相同输入第二次运行命中 Turbo 缓存，Turbo 耗时 307 ms。
+Campus TypeScript 保留完整 include、strict 和测试覆盖，不启用 TS incremental；实际导入的
+`config/*.ts`、JSON、fixture 和跨包源码进入缓存，静态地图资产不触发 typecheck。
 
 Campus fixture、App API、Status、Ops 和三个索引 Job 的七个构建均通过；fixture build 保留本地
 环境，生产 Campus build 保持 `cache:false` 并透传原有对象存储配置。Dockerfile 的原有 build
 调用名称不变，抽出的 package 所属脚本在既有镜像源码范围内，不引入仓外运行依赖。
 
-最终 `pnpm check` 通过：7 组 tooling、62 个 Node/TypeScript 任务、8 个 Go 任务，以及包含
-29 项测试的 Ragas 任务。root filter 的 contracts、Go、Ragas 实际调用均命中先前 check 的缓存；
-五个抽出的开发命令通过临时工具替身验证 cwd、环境加载、带空格参数和非零退出状态。
-新增 shell 脚本、文档格式、链接与决策笔记校验通过。
-
-浏览器验证使用已构建 fixture：Worker 37 项、UI 基线 36 项全部通过。SPA 首轮 59/64 通过；
-在源码检查结束后单独复核失败项，4/5 通过。剩余 `e2e/dining.spec.ts:89` 的地图缩放用例
-读取了 `.react-transform-component` 的 CSS transform 矩阵；当前 Dining 实现按既定决策只用该矩阵
-保存平移，把缩放写入 `--dining-map-scale` 并通过内容尺寸呈现。因此点击放大后界面显示 `125%`、
-内容尺寸为 1.25 倍，但矩阵 `a` 仍为 `1`，原断言读取了错误的观测值。使用 CSS 变量读取缩放后，
-放大、重置和键盘选择流程均通过真实浏览器验证；未修改食堂业务代码或放宽行为阈值。
-随后将该用例改为读取用户可见的缩放比例，完整 `e2e/dining.spec.ts` 的 7 个用例均通过。
-这只修正测试观测方式，不改变食堂业务行为。尚未因此声称完整 SPA E2E 命令已通过；full E2E 的
-构建次数、预构建标记、参数转发和失败停止已由命令行为测试验证。
+根检查覆盖 tooling、Node/TypeScript、Go、Ragas、构建、文档、链接和决策笔记；抽出的开发命令
+另由行为测试检查 cwd、环境加载、参数传递和非零退出状态。浏览器套件继续按既定手动入口验证，
+不把一次运行结果写成长期通过状态。
 
 个人或外部自动化需要迁移旧命令；不保留兼容别名。重命名后首次 cache miss 属于预期。
-真实数据库、部署、发布和生产对象存储读取不用于此次验证。

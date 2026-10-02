@@ -8,24 +8,24 @@ describe("notice production CLI", () => {
 	});
 
 	it("takes the embedding input only from the explicit environment value", () => {
-		const chunkRun = `sha256:${"a".repeat(64)}`;
-		expect(parseCommand(["build-embeddings"], { NOTICE_CHUNK_RUN: chunkRun })).toEqual({
-			chunkRun,
+		const chunks = `sha256:${"a".repeat(64)}`;
+		expect(parseCommand(["build-embeddings"], { NOTICE_CHUNKS: chunks })).toEqual({
+			chunks,
 			kind: "build-embeddings",
 		});
-		expect(() => parseCommand(["build-embeddings"], {})).toThrow("NOTICE_CHUNK_RUN must be");
+		expect(() => parseCommand(["build-embeddings"], {})).toThrow("NOTICE_CHUNKS must be");
 	});
 
 	it("parses the local cache import arguments without model config access", () => {
-		const chunkRun = `sha256:${"a".repeat(64)}`;
+		const chunks = `sha256:${"a".repeat(64)}`;
 		const modelTargetSha256 = "b".repeat(64);
 		expect(
 			parseCommand(
 				[
 					"import-embedding-cache",
 					"--",
-					"--chunk-run",
-					chunkRun,
+					"--chunks",
+					chunks,
 					"--model-target-sha256",
 					modelTargetSha256,
 					"--cache-directory",
@@ -35,7 +35,7 @@ describe("notice production CLI", () => {
 			),
 		).toEqual({
 			cacheDirectory: expect.stringMatching(/var\/cache$/u),
-			chunkRun,
+			chunks,
 			kind: "import-embedding-cache",
 			modelTargetSha256,
 		});

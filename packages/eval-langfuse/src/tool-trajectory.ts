@@ -1,4 +1,4 @@
-import { isRecord, type JsonObject, mappingList, stringField } from "./json";
+import { type JsonObject, mappingList, optionalString, stringField } from "./json";
 
 export const AGENT_RUNTIME_TOOL_NAMES = ["campus_search", "personal_memory_recall"] as const;
 
@@ -6,7 +6,8 @@ export type AgentRuntimeToolName = (typeof AGENT_RUNTIME_TOOL_NAMES)[number];
 export type ToolDecisionKind = "direct_answer" | "fail_closed" | "tool_assisted";
 
 export interface ToolTrajectoryCall {
-	eval_safe_args?: JsonObject;
+	search_goal?: string;
+	search_query?: string;
 	tool_name: AgentRuntimeToolName;
 }
 
@@ -74,11 +75,16 @@ function parseDecisionKind(value: unknown): ToolDecisionKind {
 }
 
 function parseToolCalls(value: unknown): ToolTrajectoryCall[] {
-	return mappingList(value ?? [], "tool_trajectory.tool_calls").map((call, index) => ({
-		...(isRecord(call.eval_safe_args) ? { eval_safe_args: { ...call.eval_safe_args } } : {}),
-		tool_name: parseAgentRuntimeToolName(
-			call.tool_name,
-			`tool_trajectory.tool_calls[${index}].tool_name`,
-		),
-	}));
+	return mappingList(value ?? [], "tool_trajectory.tool_calls").map((call, index) => {
+		const searchQuery = optionalString(call.search_query);
+		const searchGoal = optionalString(call.search_goal);
+		return {
+			...(searchGoal ? { search_goal: searchGoal } : {}),
+			...(searchQuery ? { search_query: searchQuery } : {}),
+			tool_name: parseAgentRuntimeToolName(
+				call.tool_name,
+				`tool_trajectory.tool_calls[${index}].tool_name`,
+			),
+		};
+	});
 }

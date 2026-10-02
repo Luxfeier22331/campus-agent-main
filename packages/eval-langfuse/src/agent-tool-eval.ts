@@ -10,7 +10,6 @@ import {
 import { type AgentRuntimeToolName, parseAgentRuntimeToolName } from "./tool-trajectory";
 
 export const AGENT_TOOL_EVAL_CASES_SCHEMA_VERSION = "agent_routing_eval_cases.v1";
-export type AgentToolEvalArgumentMode = "eval_safe_args" | "name_only";
 
 export interface AgentToolEvalToolCall extends JsonObject {
 	args: JsonObject;
@@ -18,7 +17,6 @@ export interface AgentToolEvalToolCall extends JsonObject {
 }
 
 export interface AgentToolEvalCase extends JsonObject {
-	argument_mode: AgentToolEvalArgumentMode;
 	case_family?: string;
 	case_id: string;
 	forbidden_context_ids: string[];
@@ -80,26 +78,17 @@ function parseCase(
 	defaultSurfaceKey: string | null,
 ): AgentToolEvalCase {
 	const caseId = stringField(item.case_id, `cases[${index}].case_id`);
-	const argumentMode = parseArgumentMode(item.argument_mode, caseId);
 	const referenceToolCalls = mappingList(
 		item.reference_tool_calls ?? [],
 		`${caseId}.reference_tool_calls`,
 	).map((toolCall, toolIndex) =>
 		parseToolCall(toolCall, `${caseId}.reference_tool_calls[${toolIndex}]`),
 	);
-	if (argumentMode === "eval_safe_args") {
-		for (const toolCall of referenceToolCalls) {
-			if (Object.keys(toolCall.args).length === 0) {
-				throw new Error(`${caseId} eval_safe_args requires non-empty reference tool args`);
-			}
-		}
-	}
 	const caseFamily = optionalString(item.case_family);
 	const reference = optionalString(item.reference);
 	const split = optionalString(item.split);
 	const surfaceKey = optionalString(item.surface_key) ?? defaultSurfaceKey;
 	return {
-		argument_mode: argumentMode,
 		...(caseFamily ? { case_family: caseFamily } : {}),
 		case_id: caseId,
 		forbidden_context_ids: stringList(item.forbidden_context_ids),
@@ -122,14 +111,6 @@ function parseSetupTurns(value: unknown, caseId: string): string[] {
 		throw new Error(`${caseId}.setup_turns must be a list`);
 	}
 	return value.map((turn, index) => stringField(turn, `${caseId}.setup_turns[${index}]`));
-}
-
-function parseArgumentMode(value: unknown, caseId: string): AgentToolEvalArgumentMode {
-	const mode = optionalString(value) ?? "name_only";
-	if (mode === "name_only" || mode === "eval_safe_args") {
-		return mode;
-	}
-	throw new Error(`${caseId}.argument_mode must be name_only or eval_safe_args`);
 }
 
 function parseToolCall(value: JsonObject, field: string): AgentToolEvalToolCall {

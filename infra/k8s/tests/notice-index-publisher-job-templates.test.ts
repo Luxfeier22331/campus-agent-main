@@ -38,7 +38,7 @@ test("notice index artifact Job templates are complete and suspended", () => {
 		}
 	}
 
-	assert.doesNotMatch(readFileSync(manifestPath, "utf8"), /NOTICE_CHUNK_RUN/u);
+	assert.doesNotMatch(readFileSync(manifestPath, "utf8"), /NOTICE_CHUNKS/u);
 });
 
 test("notice artifact builders have stage-specific egress", () => {

@@ -89,7 +89,11 @@ function isPunctuatedPrimaryHeading(
 
 function isTrailingHeadingFooter(lines: readonly model.SourceLine[], index: number): boolean {
 	const text = lines[index]?.text ?? "";
-	return model.isSignatureLine(text) || model.isClosingStart(lines, index) || model.isFooterLine(lines, index);
+	return (
+		model.isSignatureLine(text) ||
+		model.isClosingStart(lines, index) ||
+		model.isFooterLine(lines, index)
+	);
 }
 
 function headingLevel(value: string): 1 | 2 | null {
@@ -111,13 +115,23 @@ function isSecondaryHeadingCandidate(value: string): boolean {
 	const body = match?.[1]?.trim() ?? "";
 	if (!body) return false;
 
-	const colonIndex = body.search(/[：:]/u);
-	if (colonIndex >= 0 && body.slice(colonIndex + 1).trim().length > 0) {
+	const mainTitle = body.replace(/[（(][^（）()]*[）)]/gu, "").trim();
+	const colonIndex = mainTitle.search(/[：:]/u);
+	if (colonIndex >= 0 && mainTitle.slice(colonIndex + 1).trim().length > 0) {
 		return false;
 	}
-	if (/[。！？!?；;…]/u.test(body) || /[，,]/u.test(body)) {
+	if (/[。！？!?；;…]/u.test(mainTitle) || /[，,]/u.test(mainTitle)) {
 		return false;
 	}
+	// Short noun headings and dated material-submission phases can contain action words.
+	// Undated instructions remain subject to the existing exclusion rules.
+	if (
+		(/^[^：:]{1,20}(?:内容|时间|形式|方式|要求)$/u.test(mainTitle) ||
+			(/^[^：:]{1,20}(?:材料|提交|填报|报送)$/u.test(mainTitle) &&
+				/[（(][^（）()]*\d{1,2}月\d{1,2}/u.test(body))) &&
+		!/^(?:请|须|应|需|必须|不得|禁止|凡|所有)/u.test(mainTitle)
+	)
+		return true;
 	return !/(?:^(?:请|须|应|需|必须|不得|禁止|凡|所有)|均为|只能|不允许|请于|须于|应于|需于|要在|负责|提交|填写|登录|扫描|报送)/u.test(
 		body,
 	);
@@ -134,22 +148,34 @@ export function buildSemanticUnits(
 	let bodyLines: model.SourceLine[] = [];
 	let hardSectionId = 0;
 	let headingPath: string[] = [];
+	let groupContext: string | undefined;
 	let primaryHeading: DetectedHeading | undefined;
 	const flush = () => {
 		if (bodyLines.some((line) => line.text.length > 0)) {
-			segments.push({ bodyLines, hardSectionId, headingPath: [...headingPath] });
+			segments.push({
+				bodyLines, hardSectionId, headingPath: [...headingPath],
+				...(groupContext ? { groupContext } : {}),
+			});
 		}
 		bodyLines = [];
 	};
 
 	for (const line of lines) {
 		const heading = headingByLine.get(line.index);
+		if (!heading && model.isGroupScopeStart(lines, line.index)) {
+			flush();
+			groupContext = line.text.trim();
+			headingPath = primaryHeading ? [primaryHeading.text] : [];
+			bodyLines.push(line);
+			continue;
+		}
 		if (!heading) {
 			bodyLines.push(line);
 			continue;
 		}
 		flush();
 		if (heading.level === 1) {
+			groupContext = undefined;
 			hardSectionId += 1;
 			primaryHeading = heading;
 			headingPath = [heading.text];
@@ -158,9 +184,20 @@ export function buildSemanticUnits(
 		}
 	}
 	flush();
-	return segments.flatMap((segment) =>
-		buildSegmentUnits(segment, sourceText, definition),
-	);
+	return segments.flatMap((segment) => {
+		const units = buildSegmentUnits(segment, sourceText, definition);
+		if (!segment.groupContext) return units;
+		const primaryLength =
+			segment.headingPath[0] && model.PRIMARY_HEADING.test(segment.headingPath[0]) ? 1 : 0;
+		for (const unit of units) {
+			const path = unit.retrievalHeadingPath ?? unit.headingPath;
+			unit.retrievalHeadingPath = [
+				...path.slice(0, primaryLength), segment.groupContext, ...path.slice(primaryLength),
+			];
+			unit.compositionKey = model.contextKey([segment.groupContext], [unit.compositionKey]);
+		}
+		return units;
+	});
 }
 
 function buildSegmentUnits(
@@ -198,7 +235,29 @@ function buildSegmentUnits(
 			continue;
 		}
 
-		if (model.isRecordStart(line.text)) {
+		const scope = model.localScope(lines, index);
+		if (scope) {
+			const children = buildSegmentUnits(
+				{ ...segment, bodyLines: lines.slice(index + 1, scope.end) },
+				sourceText,
+				definition,
+			);
+			if (children.length > 0) {
+				children[0]!.bodyLines.unshift(line);
+				for (const child of children) {
+					child.retrievalHeadingPath = model.withContext(segment.headingPath, [
+						line.text,
+						...(child.retrievalHeadingPath ?? child.headingPath).slice(segment.headingPath.length),
+					]);
+					child.compositionKey = model.contextKey([line.text], [child.compositionKey]);
+					append(child);
+				}
+				index = scope.end;
+				continue;
+			}
+		}
+
+		if (model.isRecordStart(line.text) || model.isReportStart(lines, index)) {
 			const end = lists.findNextRecordStart(lines, index + 1, tables);
 			for (const unit of lists.buildRecordUnits(
 				lines.slice(index, end),
@@ -442,10 +501,11 @@ function buildFieldGroupUnits(
 	for (const [index, line] of lines.entries()) {
 		const inlineField = model.isInlineLabelLead(line.text);
 		const labelOnly = model.isLabelOnly(line.text) || model.isLocalLabel(lines, index);
-		const blankBefore = model.hasBlankLineBetween(lines[index - 1], line);
-		if (current.length > 0 && inlineField && hasValue) {
+		const parentLabel =
+			current.length > 0 && (model.isLabelOnly(current[0]!.text) || model.isLocalLabel(current, 0));
+		if (current.length > 0 && inlineField && hasValue && !parentLabel) {
 			flush();
-		} else if (current.length > 0 && labelOnly && hasValue && blankBefore) {
+		} else if (current.length > 0 && labelOnly && hasValue) {
 			flush();
 		}
 		current.push(line);
@@ -562,8 +622,11 @@ function findNextBoundary(
 		const text = lines[index]?.text ?? "";
 		if (
 			model.isRecordStart(text) ||
+			model.isReportStart(lines, index) ||
 			model.isTopicLead(text) ||
 			model.isIndependentBracketListStart(lines, index) ||
+			model.isTopLevelListItemStart(text) ||
+			model.localScope(lines, index) !== null ||
 			(model.isFieldLabelStart(lines, index) && !model.isListItemStart(text)) ||
 			model.isSignatureLine(text) ||
 			model.isClosingStart(lines, index) ||
@@ -594,6 +657,7 @@ function findFieldGroupBoundary(
 		const text = lines[index]?.text ?? "";
 		if (
 			model.isRecordStart(text) ||
+			model.isReportStart(lines, index) ||
 			model.isTopicLead(text) ||
 			model.isSignatureLine(text) ||
 			model.isClosingStart(lines, index) ||
@@ -602,6 +666,7 @@ function findFieldGroupBoundary(
 		) {
 			return index;
 		}
+		if (model.localScope(lines, index)) return index;
 		const blankBefore = model.hasBlankLineBetween(lines[index - 1], lines[index]);
 		if (model.isUrlLine(text) || model.isListItemStart(text)) {
 			hasValue = true;

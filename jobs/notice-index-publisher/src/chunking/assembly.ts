@@ -3,8 +3,6 @@ import {
 	type NoticeChunkDefinition,
 } from "../definitions.ts";
 import {
-	canonicalJsonBytes,
-	sha256,
 	unicodeLength,
 } from "../encoding.ts";
 import type {
@@ -28,7 +26,30 @@ export function buildUnitPieces(
 	) {
 		stats.tableRowSplitCount += 1;
 	}
-	const blocks = unit.bodyLines.flatMap((line) => splitting.splitLine(line, stats, definition));
+	const basePath = unit.retrievalHeadingPath ?? unit.headingPath;
+	const lead = unit.bodyLines[0]?.text.trim() ?? "";
+	// Ordinary paragraphs do not share a field merely because the first has a colon.
+	const label =
+		unit.kind === "field" || unit.kind === "list-item" ? continuationFieldLabel(lead) : "";
+	const continuation =
+		unit.kind === "record"
+			? lead
+			: label || (unit.kind === "list-item" && unicodeLength(lead) <= 300 ? lead : "");
+	const continuationPath =
+		continuation && !basePath.includes(continuation) ? [...basePath, continuation] : basePath;
+	const lineLabel = continuationFieldLabel;
+	const extraReserve = Math.max(
+		0,
+		...unit.bodyLines.map((line) => {
+			const value = lineLabel(line.text);
+			return value && !continuationPath.includes(value) ? unicodeLength(value) + 1 : 0;
+		}),
+	);
+	const reserve =
+		(continuationPath.length ? unicodeLength(continuationPath.join("\n")) + 1 : 0) + extraReserve;
+	const bodyDefinition = { ...definition, maxChars: definition.maxChars - reserve };
+	if (bodyDefinition.maxChars < 1) throw new Error("notice context exceeds chunk budget");
+	const blocks = unit.bodyLines.flatMap((line) => splitting.splitLine(line, stats, bodyDefinition));
 	const pieces: Omit<model.UnitPiece, "wholeUnit">[] = [];
 	let current: model.TextBlock[] = [];
 	const flush = () => {
@@ -37,6 +58,12 @@ export function buildUnitPieces(
 		if (!(first && last)) {
 			return;
 		}
+		const path = [...(pieces.length ? continuationPath : basePath)];
+		const sourceLine = unit.bodyLines.find(
+			(line) => line.start < first.range.start && line.end > first.range.start,
+		);
+		const continuationLabel = sourceLine ? lineLabel(sourceLine.text) : "";
+		if (continuationLabel && !path.includes(continuationLabel)) path.push(continuationLabel);
 		pieces.push({
 			atomic: unit.atomic,
 			bodyRanges: current.map((block) => block.range),
@@ -44,12 +71,10 @@ export function buildUnitPieces(
 				compositionKey: unit.compositionKey,
 				hardSectionId: unit.hardSectionId,
 			headingPath: [...unit.headingPath],
-				joinSeparator: unit.joinSeparator ?? "\n\n",
-				kind: unit.kind,
-				unitId: unit.unitId,
-			...(unit.retrievalHeadingPath
-				? { retrievalHeadingPath: [...unit.retrievalHeadingPath] }
-				: {}),
+			joinSeparator: unit.joinSeparator ?? "\n\n",
+			kind: unit.kind,
+			unitId: unit.unitId,
+			retrievalHeadingPath: path,
 		});
 		current = [];
 	};
@@ -66,11 +91,19 @@ export function buildUnitPieces(
 			unit.protectedTailLineCount > 0 && blockIndex >= blocks.length - unit.protectedTailLineCount;
 		if (
 			current.length > 0 &&
-			(unicodeLength(combined) > definition.maxChars ||
-				(!unit.atomic && !protectedTail &&
-					unicodeLength(currentContent) >= definition.targetChars))
+			(unicodeLength(combined) > bodyDefinition.maxChars ||
+				(!unit.atomic && !protectedTail && unicodeLength(currentContent) >= definition.targetChars))
 		) {
+			const tail = current.at(-1);
+			const tailText = tail ? sourceText.slice(tail.range.start, tail.range.end) : "";
+			const carryLabel =
+				current.length > 1 &&
+				model.isLabelOnly(tailText) &&
+				unicodeLength(`${tailText}\n${sourceText.slice(block.range.start, block.range.end)}`) <=
+					bodyDefinition.maxChars;
+			if (carryLabel) current.pop();
 			flush();
+			if (carryLabel && tail) current.push(tail);
 		}
 		current.push(block);
 	}
@@ -84,7 +117,6 @@ export function buildUnitPieces(
 
 export function combinePieces(
 	source: NoticeSource,
-	sourceSha256: `sha256:${string}`,
 	pieces: readonly model.UnitPiece[],
 	definition: NoticeChunkDefinition,
 ): BuiltNoticeChunk[] {
@@ -98,17 +130,7 @@ export function combinePieces(
 		const content = joinPieceContent(current);
 		const headingPath = commonHeadingPath(current.map((piece) => piece.headingPath));
 		const retrievalText = buildRetrievalText(source.title, current);
-		const chunkId = sha256(
-			canonicalJsonBytes({
-				algorithm: definition.algorithm,
-				chunkIndex,
-				parts: current.map((piece) => ({
-					bodyRanges: piece.bodyRanges,
-					headingPath: piece.headingPath,
-				})),
-				sourceSha256,
-			}),
-		);
+		const chunkId = `notice:${source.noticeId}:${chunkIndex}`;
 		chunks.push({
 			bodyRanges: current.flatMap((piece) => piece.bodyRanges),
 			chunkId,
@@ -151,6 +173,13 @@ export function combinePieces(
 		const combinedContent = joinPieceContent([...current, piece]);
 		const sameHardSection = current[0]?.hardSectionId === piece.hardSectionId;
 		const sameComposition = current[0]?.compositionKey === piece.compositionKey;
+		const sameContext =
+			piece.kind === "footer" ||
+			current.every(
+				(item) =>
+					JSON.stringify(item.retrievalHeadingPath ?? item.headingPath) ===
+					JSON.stringify(piece.retrievalHeadingPath ?? piece.headingPath),
+			);
 		const onlyWholeUnits = piece.wholeUnit && current.every((item) => item.wholeUnit);
 		const containsIndependentListItem =
 			piece.kind === "list-item" || current.some((item) => item.kind === "list-item");
@@ -167,12 +196,14 @@ export function combinePieces(
 			current.every((item) => !isIsolatedUnitKind(item.kind)) &&
 			!isIsolatedUnitKind(piece.kind);
 		if (
-			 sameHardSection &&
+			sameHardSection &&
+			sameContext &&
 			(sameComposition || flatTextContext) &&
 			(!containsIndependentListItem || shortListItemRun) &&
 			onlyWholeUnits &&
 			unicodeLength(currentContent) < definition.targetChars &&
-			unicodeLength(combinedContent) <= definition.maxChars
+			unicodeLength(combinedContent) <= definition.maxChars &&
+			unicodeLength(buildRetrievalText("", [...current, piece]).slice(1)) <= definition.maxChars
 		) {
 			current.push(piece);
 			continue;
@@ -218,7 +249,14 @@ function buildRetrievalText(title: string, pieces: readonly model.UnitPiece[]): 
 	for (const piece of pieces) {
 		const path = piece.retrievalHeadingPath ?? piece.headingPath;
 		const shared = commonPrefixLength(previousPath, path);
-		lines.push(...path.slice(shared), piece.content);
+		lines.push(
+			...path
+				.slice(shared)
+				.filter(
+					(context) => !piece.content.startsWith(`${context}\n`) && piece.content !== context,
+				),
+			piece.content,
+		);
 		previousPath = path;
 	}
 	return lines.join("\n");
@@ -239,4 +277,10 @@ function commonPrefixLength(left: readonly string[], right: readonly string[]): 
 		index += 1;
 	}
 	return index;
+}
+
+function continuationFieldLabel(text: string): string {
+	if (model.isUrlLine(text) || /^(?:上午|下午|晚上|中午)?\s*\d{1,2}[:：]\d{2}/u.test(text))
+		return "";
+	return text.match(/^(?:【[^】]+】|[^。！？!?；;：:]{1,100}[：:])/u)?.[0] ?? "";
 }

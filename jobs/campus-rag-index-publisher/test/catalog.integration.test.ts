@@ -9,7 +9,8 @@ describe.skipIf(!enabled)("index activation database contract", () => {
 		try {
 			const catalog = createTransactionalIndexCatalog(client);
 			const input = (letter: string) => ({ collection: `campus_docs_${letter.repeat(64)}`, docsEmbeddingSet: `sha256:${letter.repeat(64)}` as const, noticeEmbeddingSet: `sha256:${letter.repeat(64)}` as const, producer: "automatic" as const });
-			const a = input("a"), b = input("b"), c = input("c");
+			const a = { ...input("a"), noticeEmbeddingSet: "sha256:71d18b5a3745a59072d8338f5229709c8430d47ba3494038ce557a6446b9d891" as const };
+			const b = input("b"), c = input("c");
 			for (const v of [a, b, c]) { await catalog.register(v); await catalog.markValidated(v.collection); }
 			await catalog.activate(a);
 			await catalog.activate({ ...b, expectedCurrent: a.collection });
@@ -23,6 +24,8 @@ describe.skipIf(!enabled)("index activation database contract", () => {
 			expect(await catalog.activate(rollback)).toEqual({ noOp: true });
 			expect((await client.query("SELECT collection, previous_collection FROM campus_docs_serving.current_index WHERE singleton")).rows[0])
 				.toEqual({ collection: a.collection, previous_collection: b.collection });
+			expect((await client.query("SELECT notice_embedding_set, producer, validated FROM campus_docs_serving.index_versions WHERE collection=$1", [a.collection])).rows[0])
+				.toEqual({ notice_embedding_set: a.noticeEmbeddingSet, producer: "automatic", validated: true });
 			await catalog.activate({ collection: c.collection, expectedCurrent: a.collection });
 			expect(await catalog.activate(rollback)).toEqual({ noOp: true, obsolete: true });
 			expect(await catalog.register(b)).toEqual({ rebuildIncomplete: false });

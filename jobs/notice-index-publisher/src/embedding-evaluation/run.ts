@@ -43,7 +43,7 @@ export async function runLocalNoticeEmbeddingEvaluation(input: {
 	const stored = input.embeddingSet
 		? await readNoticeEmbeddingSet({ read: (key) => readFile(join(input.artifactRoot, key)) }, input.embeddingSet)
 		: null;
-	if (stored && (stored.manifest.chunkRun !== input.chunkRun || stored.manifest.modelTargetSha256 !== input.modelTargetSha256)) {
+	if (stored && (stored.manifest.modelTargetSha256 !== input.modelTargetSha256 || (stored.manifest.schemaVersion === "notice_embedding_set.v1" ? stored.manifest.chunkRun !== input.chunkRun : stored.manifest.chunks.sha256 !== chunkManifest.chunks.sha256))) {
 		throw new Error("evaluation embedding set must match chunk run and model target");
 	}
 	const storedVectors = new Map(stored?.embeddings.map((item) => [item.retrievalTextSha256, item.dense]));
@@ -61,7 +61,7 @@ export async function runLocalNoticeEmbeddingEvaluation(input: {
 		textBySha256: missingInputs,
 	});
 	const vectors = new Map([...storedVectors, ...resolved.vectorsByTextSha256]);
-	const documentVectorsByChunkId = new Map<Sha256Ref, number[]>();
+	const documentVectorsByChunkId = new Map<string, number[]>();
 	for (const [chunkId, textSha256] of embeddingInputs.documentTextByChunkId) {
 		const vector = vectors.get(textSha256);
 		if (!vector) throw new Error(`embedding vector is missing for chunk ${chunkId}`);

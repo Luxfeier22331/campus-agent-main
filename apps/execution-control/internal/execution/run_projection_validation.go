@@ -1,8 +1,8 @@
 package execution
 
 import (
+	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -308,7 +308,7 @@ func validateDurableRunFailRequest(request DurableRunFailRequest) error {
 	if err := validateDurableRunEventBase(event); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidDurableRun, err)
 	}
-	if _, err := durableRunEventPayloadFingerprint(event.Payload); err != nil {
+	if _, err := durableRunEventPayloadBytes(event.Payload); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidDurableRun, err)
 	}
 	return nil
@@ -368,9 +368,9 @@ func validateDurableRunExpiryReplay(
 		!storedEvent.OccurredAt.Equal(expected.OccurredAt) {
 		return fmt.Errorf("%w: terminal run or event identity differs", ErrDurableRunExpiryConflict)
 	}
-	storedFingerprint, storedErr := durableRunEventPayloadFingerprint(storedEvent.Payload)
-	expectedFingerprint, expectedErr := durableRunEventPayloadFingerprint(expected.Payload)
-	if storedErr != nil || expectedErr != nil || storedFingerprint != expectedFingerprint {
+	storedFingerprint, storedErr := durableRunEventPayloadBytes(storedEvent.Payload)
+	expectedFingerprint, expectedErr := durableRunEventPayloadBytes(expected.Payload)
+	if storedErr != nil || expectedErr != nil || !bytes.Equal(storedFingerprint, expectedFingerprint) {
 		return fmt.Errorf("%w: terminal event payload differs", ErrDurableRunExpiryConflict)
 	}
 	return nil
@@ -404,27 +404,26 @@ func validateDurableRunFailureReplay(
 		!storedEvent.OccurredAt.Equal(requestedEvent.OccurredAt) {
 		return fmt.Errorf("%w: terminal run or event identity differs", ErrDurableRunFailureConflict)
 	}
-	storedFingerprint, err := durableRunEventPayloadFingerprint(storedEvent.Payload)
+	storedFingerprint, err := durableRunEventPayloadBytes(storedEvent.Payload)
 	if err != nil {
 		return fmt.Errorf("%w: stored terminal event payload is invalid: %v", ErrDurableRunFailureConflict, err)
 	}
-	requestedFingerprint, err := durableRunEventPayloadFingerprint(requestedEvent.Payload)
+	requestedFingerprint, err := durableRunEventPayloadBytes(requestedEvent.Payload)
 	if err != nil {
 		return fmt.Errorf("%w: requested terminal event payload is invalid: %v", ErrDurableRunFailureConflict, err)
 	}
-	if storedFingerprint != requestedFingerprint {
+	if !bytes.Equal(storedFingerprint, requestedFingerprint) {
 		return fmt.Errorf("%w: terminal event payload fingerprint differs", ErrDurableRunFailureConflict)
 	}
 	return nil
 }
 
-func durableRunEventPayloadFingerprint(payload map[string]any) (string, error) {
+func durableRunEventPayloadBytes(payload map[string]any) ([]byte, error) {
 	payloadJSON, err := JSONMapToBytes(payload)
 	if err != nil {
-		return "", fmt.Errorf("encode terminal event payload: %w", err)
+		return nil, fmt.Errorf("encode terminal event payload: %w", err)
 	}
-	sum := sha256.Sum256(payloadJSON)
-	return hex.EncodeToString(sum[:]), nil
+	return payloadJSON, nil
 }
 
 func durableRunStatusValid(status DurableRunStatus) bool {

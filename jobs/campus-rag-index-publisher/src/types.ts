@@ -70,7 +70,7 @@ export interface DocsEmbeddingSetManifest {
 }
 
 export interface NoticeChunk {
-	chunkId: Sha256Ref;
+	chunkId: string;
 	chunkIndex: number;
 	content: string;
 	headingPath: string[];
@@ -85,7 +85,7 @@ export interface NoticeChunkRunManifest {
 	definition: Record<string, unknown>;
 	noticeCount: number;
 	reviewSamples: ArtifactReference;
-	schemaVersion: "notice_chunk_run.v2";
+	schemaVersion: "notice_chunk_run.v1" | "notice_chunk_run.v2";
 	validation: ArtifactReference;
 }
 
@@ -95,14 +95,15 @@ export interface NoticeChunkRunData {
 	manifest: NoticeChunkRunManifest;
 }
 
-export interface NoticeEmbeddingSetManifest {
-	chunkRun: Sha256Ref;
+export type NoticeEmbeddingSetManifest = {
 	embeddingCount: number;
 	embeddingSpace: EmbeddingSpace;
 	embeddings: ObjectReference;
 	modelTargetSha256: string;
-	schemaVersion: "notice_embedding_set.v1";
-}
+} & (
+	| { schemaVersion: "notice_embedding_set.v1"; chunkRun: Sha256Ref }
+	| { schemaVersion: "notice_embedding_set.v2"; chunks: ObjectReference }
+);
 
 export interface NoticeEmbeddingSetData {
 	embeddings: StoredEmbedding[];

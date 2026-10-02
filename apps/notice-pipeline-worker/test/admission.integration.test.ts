@@ -17,10 +17,7 @@ function requiredEnv(name: string): string {
 const workflowsPath = fileURLToPath(new URL("../src/workflows.ts", import.meta.url));
 const input: RollbackInput = {
 	expectedCurrent: "B",
-	docsEmbeddingSet: "sha256:a",
-	noticeEmbeddingSet: "sha256:b",
-	producer: "automatic",
-	producerRunId: "original",
+	collection: "A",
 };
 
 describe.skipIf(!enabled)("atomic maintenance admission", () => {

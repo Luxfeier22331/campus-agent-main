@@ -28,6 +28,35 @@ export function diagnoseBuild(build: BuiltNoticeChunks): ReportBuildDiagnostics 
 		headingLineIndexes,
 		build.definition.maxChars,
 	);
+	const missingTableContexts = new Set(
+		build.chunks.filter((chunk) =>
+			chunk.parts.some(
+				(part) =>
+					(part.kind === "table-row" || part.kind === "table-header") &&
+					!(part.retrievalHeadingPath ?? []).some((path) => path.startsWith("表格列：")),
+			),
+		),
+	);
+	// Inspect the source as well: an unrecognized table has no table parts to inspect.
+	const rawLines = build.source.contentText.split("\n");
+	for (const [index, header] of rawLines.entries()) {
+		if (!header.startsWith("序号；")) continue;
+		const columns = header.split("；").length;
+		const rows: string[] = [];
+		for (const row of rawLines.slice(index + 1)) {
+			if (!/^\d+；/u.test(row) || row.split("；").length !== columns) break;
+			rows.push(row);
+		}
+		if (columns < 3 || rows.length < 2) continue;
+		for (const chunk of build.chunks) {
+			if (
+				rows.some((row) => chunk.content.includes(row)) &&
+				!chunk.retrievalText.includes(header)
+			) {
+				missingTableContexts.add(chunk);
+			}
+		}
+	}
 	return {
 		fieldValueSplitCount,
 		footerOnlyChunkCount: build.chunks.filter((chunk) => footerOnly(chunk.content)).length,
@@ -55,13 +84,7 @@ export function diagnoseBuild(build: BuiltNoticeChunks): ReportBuildDiagnostics 
 			const lines = nonemptyLines(chunk.content);
 			return lines.length > 0 && lines.every(isUrlLine);
 		}).length,
-		tableHeaderContextMissingCount: build.chunks.filter((chunk) =>
-			chunk.parts.some(
-				(part) =>
-					(part.kind === "table-row" || part.kind === "table-header") &&
-					!(part.retrievalHeadingPath ?? []).some((path) => path.startsWith("表格列：")),
-			),
-		).length,
+		tableHeaderContextMissingCount: missingTableContexts.size,
 		tableRowSplitCount: build.stats.tableRowSplitCount,
 		urlOwnerSplitCount,
 	};
@@ -121,7 +144,7 @@ function footerOnly(value: string): boolean {
 				) ||
 				/(?:学院|大学|处|部|室|中心|委员会|研究院|研究生院|办公室|团委|党委|实验室|学校|协会|系)$/u.test(
 					line,
-				)
+				),
 		)
 	);
 }
@@ -294,7 +317,7 @@ function isReportLabelOnly(value: string): boolean {
 	return (
 		text.length > 1 &&
 		text.length <= 100 &&
-		/[：:]$/u.test(text) &&
+		(/[：:]$/u.test(text) || /^【[^】]{1,80}】$/u.test(text)) &&
 		!isSalutation(text) &&
 		!/(?:如下|具体如下)[：:]$/u.test(text)
 	);
@@ -302,6 +325,7 @@ function isReportLabelOnly(value: string): boolean {
 
 function isReportInlineField(value: string): boolean {
 	const text = value.trim();
+	if (/^(?:上午|下午|中午|晚上)?\s*\d{1,2}[:：]\d{2}/u.test(text)) return false;
 	const match = text.match(/^(.{1,80}?)[：:]\s*\S/u);
 	return Boolean(match && !/[。！？!?；;]/u.test(match[1] ?? "") && !isUrlLine(text));
 }

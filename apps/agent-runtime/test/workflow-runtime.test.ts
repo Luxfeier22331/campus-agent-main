@@ -1078,6 +1078,38 @@ describe("workflow operation runtime", () => {
 		expect(content.split(evidence.excerpt)).toHaveLength(2);
 	});
 
+	it("keeps materials from different notices that share a title and section title", async () => {
+		let observed: AgentRunnerInput | undefined;
+		const makeEvidence = (noticeId: string, citationIndex: number): WorkflowEvidence => ({
+			schemaVersion: "workflow_evidence.v1",
+			id: `campus:notice-${noticeId}`,
+			source: "campus_search",
+			title: "关于招聘学生助理的通知",
+			excerpt: `通知 ${noticeId} 的招聘要求。`,
+			citationIndex,
+			noticeId,
+			sectionTitle: "二、招聘要求",
+		});
+		const first = makeEvidence("2025", 1);
+		const second = makeEvidence("2026", 2);
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async (input) => {
+				observed = input;
+				return runnerResult({ finalOutput: "两年要求不同 [1][2]。" });
+			},
+		});
+
+		const result = await runtime.run(
+			synthesizeInput(taskPlan("对比招聘要求", []), [], [first, second]),
+		);
+
+		expect(result.status).toBe("completed");
+		const content = JSON.stringify(observed?.input);
+		expect(content).toContain("通知 2025 的招聘要求。");
+		expect(content).toContain("通知 2026 的招聘要求。");
+	});
+
 	it("rejects an invalid JSON plan instead of silently executing it", async () => {
 		const runtime = createWorkflowOperationRuntime({
 			catalog,

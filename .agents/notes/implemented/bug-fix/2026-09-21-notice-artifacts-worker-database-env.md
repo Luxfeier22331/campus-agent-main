@@ -4,7 +4,8 @@ Status: implemented
 
 ## 背景
 
-真实本地通知流水线在采集和分类完成后进入 `notice-artifacts-worker`，但该 worker 的托管环境只投影了 Qdrant 和对象存储配置，没有投影 `NOTICES_DATABASE_URL`。发布准备 activity 因 `PGHOST is required` 失败。
+`notice-artifacts-worker` 的托管环境只投影了 Qdrant 和对象存储配置，没有投影
+`NOTICES_DATABASE_URL`，因此发布准备 activity 无法连接 owner 数据库。
 
 ## 决策
 
@@ -17,4 +18,5 @@ Status: implemented
 
 ## 后果
 
-重新运行 `dev:init --target notice-artifacts-worker` 后，发布准备阶段可以连接本地 PostgreSQL；真实 workflow 仍需继续验证 Model Config、Embedding、RustFS、Qdrant 和当前索引条件。
+环境投影补齐后，发布准备 activity 可以读取 owner 数据库；Model Config、Embedding、RustFS、Qdrant
+和当前索引仍由 artifact worker 的完整运行合同维护。

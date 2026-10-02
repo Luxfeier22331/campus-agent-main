@@ -43,7 +43,7 @@ Status: implemented
 发布 owner；现有消费者全部改为显式不可变输入时再移除固定键。
 
 迁移保留原始对象 key，声明导出再生成应与既有 canonical manifest 等价。旧 `--source-file` 入口保留
-一个发布周期作迁移恢复，staging 新流程与消费者验证后删除；不能把本地验证当作已完成线上切换。
+一个发布周期作迁移恢复；所有消费者切换到不可变输入后删除旧入口。
 保留的 release 及引用对象受现有人工清理边界保护，不增加自动清理器。
 
 操作、字段和失败处理分别由[维护手册](../../../../docs/runbooks/ingestion/campus-docs.md)、

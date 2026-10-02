@@ -108,9 +108,9 @@ biome 对 fixture 的 ignore 路径同步到 `scripts/dev/product-data/fixtures`
 glob 扩为 `dev/*.test.ts dev/*/*.test.ts`。领域 schema、renderer、builder 与 publisher 仍由原模块拥有。
 根脚本显式声明使用的 embedding 和 dining workspace 依赖，使 CI 仅安装根验证依赖时也能解析复用的 publisher；
 不能依赖开发机器完整安装留下的子包链接。
-本地真实 PostgreSQL/S3/Qdrant 已验证 seed、保留编辑、显式替换，以及 product_data_ro 的正反向权限。
-数据 ready 与模型配置、进程健康、真实 provider 请求分别判断。集群新增身份须先完成 GitOps 凭据和
-Source 角色/迁移交付；本地权限验证不替代线上协作者验收。操作入口见
+seed、保留编辑、显式替换，以及 product_data_ro 的正反向权限由本地数据测试覆盖。数据 ready 与模型配置、
+进程健康、真实 provider 请求分别判断。集群新增身份须先完成 GitOps 凭据和 Source 角色/迁移交付；
+权限测试不替代线上协作者验收。操作入口见
 [本地运行检查](../../../../docs/runbooks/local-verification.md)。
 
 2026-09-30 在 `ops-web-redesign` 的独立本地实例完成实际替换：105 条通知（最近 100 条加 5 条班车引用）、53 个群、6 条线路、28 个时间段、125 个班次、1 个地图发布版本；复制正文 JSON 共 887367 字节，未下载二进制资源。真实 Ops 列表和正文预览返回 200。新增模式与既有产品数据测试 14 项、生命周期测试 40 项通过；图片／附件与检索不属于该次验收覆盖。

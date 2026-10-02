@@ -11,7 +11,6 @@ function payload(): Record<string, unknown> {
 				cited_context_ids: [],
 				cited_contexts: [],
 				case: {
-					argument_mode: "name_only",
 					case_id: "case-001",
 					forbidden_context_ids: [],
 					query: "你好",

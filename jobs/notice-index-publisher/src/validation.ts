@@ -22,7 +22,17 @@ export function assertValidNoticeChunks(build: BuiltNoticeChunks): void {
 			throw new ArtifactValidationError(`notice chunk release time is invalid: ${chunk.chunkId}`);
 		}
 		if (unicodeLength(chunk.content) > build.definition.maxChars) {
-			throw new ArtifactValidationError(`notice chunk exceeds the character limit: ${chunk.chunkId}`);
+			throw new ArtifactValidationError(
+				`notice chunk exceeds the character limit: ${chunk.chunkId}`,
+			);
+		}
+		if (
+			unicodeLength(chunk.retrievalText.slice(build.source.title.length + 1)) >
+			build.definition.maxChars
+		) {
+			throw new ArtifactValidationError(
+				`notice evidence exceeds the character limit: ${chunk.chunkId}`,
+			);
 		}
 		const expectedContent = chunk.parts.reduce((content, part, partIndex) => {
 			if (partIndex === 0) return part.content;
@@ -112,7 +122,12 @@ function expectedRetrievalText(title: string, chunk: BuiltNoticeChunk): string {
 	for (const part of chunk.parts) {
 		const path = part.retrievalHeadingPath ?? part.headingPath;
 		const shared = commonPrefixLength(previousPath, path);
-		lines.push(...path.slice(shared), part.content);
+		lines.push(
+			...path
+				.slice(shared)
+				.filter((context) => !part.content.startsWith(`${context}\n`) && part.content !== context),
+			part.content,
+		);
 		previousPath = path;
 	}
 	return lines.join("\n");

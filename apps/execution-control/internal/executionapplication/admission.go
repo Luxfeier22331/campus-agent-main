@@ -112,8 +112,7 @@ func (s *AdmissionService) ValidateLocalToolContractFingerprintMap(expected map[
 	if err != nil {
 		return fmt.Errorf("build local tool contract fingerprint: %w", err)
 	}
-	if execution.HashAdmissionJSON(expected) !=
-		execution.HashAdmissionJSON(execution.ToolContractFingerprintSnapshotMap(local)) {
+	if !execution.ToolContractFingerprintMapsEqual(expected, execution.ToolContractFingerprintSnapshotMap(local)) {
 		return errors.New("local execution-control tool contract fingerprint does not match admission")
 	}
 	return nil

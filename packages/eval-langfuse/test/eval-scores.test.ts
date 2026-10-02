@@ -15,7 +15,6 @@ function productResult(): AgentProductEvalResult {
 	const validation = validateAgentToolEvalCases({
 		cases: [
 			{
-				argument_mode: "name_only",
 				case_id: "case-with-rag",
 				forbidden_context_ids: [],
 				query: "图书馆几点开门？",
@@ -25,7 +24,6 @@ function productResult(): AgentProductEvalResult {
 				reference_tool_calls: [],
 			},
 			{
-				argument_mode: "name_only",
 				case_id: "case-without-rag",
 				forbidden_context_ids: [],
 				query: "你好",

@@ -101,6 +101,11 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 	points := make([]qdrantPoint, 7)
 	for index := range points {
 		points[index] = validCampusDocsPointAtTest(index)
+		docID := fmt.Sprintf("rules-%d", index)
+		section := fmt.Sprintf("章节%d", index)
+		points[index].Payload["document_id"] = docID
+		points[index].Payload["section_title"] = section
+		points[index].Payload["section_ref"] = fmt.Sprintf("/docs/regulations/student_rules/attendance/v/2026#%s", section)
 	}
 
 	embeddingsCalled := false
@@ -186,7 +191,7 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 	}
 	for index, item := range evidence {
 		want := fmt.Sprintf("chunk-%d", len(points)-index-1)
-		if item.DocumentID != "student-rules" || !strings.Contains(item.Text, want) {
+		if !strings.HasPrefix(item.DocumentID, "rules-") || !strings.Contains(item.Text, want) {
 			t.Fatalf("evidence[%d] = %#v, want %s", index, item, want)
 		}
 	}
@@ -421,6 +426,33 @@ func TestCampusDocsCandidateValidatesPayloadIdentityAndURL(t *testing.T) {
 			mutate(mutated.Payload)
 			if _, err := campusDocsCandidateFromQdrantPoint(index, mutated); err == nil {
 				t.Fatalf("invalid %s was accepted", name)
+			}
+		})
+	}
+}
+
+func TestCampusNoticeCandidatePreservesEvidenceAcrossPublishedVersions(t *testing.T) {
+	index := campusdocs.Index{Collection: "campus_docs_" + strings.Repeat("c", 64)}
+	text := "（二）秋季批次\n第三批、第四批：\n工作周期：9月至次年1月"
+	for _, version := range []string{"campus_rag_point.v1", "campus_rag_point.v2", "campus_rag_point.v3"} {
+		t.Run(version, func(t *testing.T) {
+			point := qdrantPoint{ID: "notice-point", Score: 0.91, Payload: map[string]any{
+				"source_kind": "notice", "schema_version": version, "citation_href": "/notices/355696",
+				"notice_id": "355696", "chunk_id": "autumn", "title": "毕业安排", "section_title": "秋季批次",
+				"text": text, "text_sha256": execution.SHA256TextRef(text),
+				"retrieval_text_sha256": execution.SHA256TextRef("毕业安排\n" + text),
+			}}
+			if version == "campus_rag_point.v3" {
+				point.Payload["released_at"] = "2026-08-23T10:00:00.000Z"
+			}
+			candidate, err := campusDocsCandidateFromQdrantPoint(index, point)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded := campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{candidate.result}, 1)
+			_, decoded, err := campusdocs.DecodeSearchResult(encoded)
+			if err != nil || len(decoded) != 1 || decoded[0].Text != text {
+				t.Fatalf("evidence changed: %#v, %v", decoded, err)
 			}
 		})
 	}

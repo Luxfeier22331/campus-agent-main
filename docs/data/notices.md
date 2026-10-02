@@ -185,12 +185,13 @@ ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不
 不重新清洗正文，不读取 `content_html`、图片或附件，因此外链通知、纯图片通知和其他 `content_text` 为空的
 通知不会产生 Chunk。
 
-当前选定的稳定分块定义为 `notice_text_structure.v8`，使用 Unicode 字符数，目标长度为 800 字符、硬上限为
-1200 字符，不使用 overlap。图片及图片 `alt` 不进入正文 Chunk 或 Embedding。结构和字段关系优先于长度：
+当前代码的分块定义为 `notice_text_structure.v10`，使用 Unicode 字符数，目标长度为 800 字符、硬上限为
+1200 字符，硬上限包含返回证据中的章节、局部父项和表头，不使用固定 overlap。图片及图片 `alt` 不进入正文 Chunk 或 Embedding。结构和字段关系优先于长度：
 
 - `一、` 等正式一级标题开启新的硬章节，Chunk 不跨一级标题；
 - `（一）` 等正式二级标题开启独立语义单元，Chunk 不跨正式二级标题；带值、完整叙述或指令语义的
-  括号序号行不作为二级标题；
+  括号序号行不作为二级标题；字段冒号按标题主干判断，括号时刻中的冒号不取消标题；
+  带明确日期的短材料提交阶段可以作为标题，完整指令仍作为正文；
 - `1.`、`2、` 等阿拉伯编号保留为父章节中的列表正文，不提升为 `headingPath`；
 - 无编号短句不猜测为标题，无正式标题的通知按原始文本顺序形成语义单元；
 - 直接位于章节正文中的括号事实列表按同级项保留语义边界；流程、办理步骤和条件父项下的嵌套列表保持
@@ -201,21 +202,35 @@ ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不
 - 列表项吸收其后属于该项的时间、地点、联系方式、URL 和说明，直到下一个同级列表项或明确结构边界；
 - 条件说明父项只吸收自己的嵌套条件项，不吞并后续同级项；标签型父项与其嵌套值保持为一个语义单元；
   字段标签下的经历、说明列表保持字段组整体，不按编号层级拆分；
-- 连续字段的标签、值和 URL 保持为原子字段组，URL 不脱离其所属标签；长扫码、报送说明不作为章节标题；
+- 冒号标签和 `【标签】` 与后续值绑定；同级新标签开始新字段组，不依赖空行。时刻和 URL 中的冒号
+  不开启字段；日期与其时段绑定，`No.N` 项目、批次、条件父项遇同级项结束；
+- URL 不脱离所属标签；长扫码、报送指令不作为章节标题，短名词型“报送时间及形式”可以作为标题；
 - `姓名：` 包括暂时没有姓名值的形式都可开启人物记录；
-- 序号名单表、分值/标准表、主队/客队赛制表和节次时间表按逻辑行构造；表头只作为
-  `retrievalText` 检索上下文，不写入对外 `headingPath`；
+- `报告题目：` 后有报告人、报告时间时形成报告记录，不与相邻记录拼接；超长记录续块保留原文题目；
+- 明确的“各组别参赛条件如下”引导语及同一行通用条件可覆盖后续正式组别标题，遇下一分组引导语或
+  一级章节结束；该范围只进入证据上下文，不提升为正式标题；
+- 具有明确列名、等列数连续序号行的分号表、序号名单表、分值/标准表、主队/客队赛制表和节次时间表按逻辑行构造；表头只作为
+  `retrievalText` 检索与证据上下文，不写入对外 `headingPath`；
 - `retrievalText` 不向每个列表 Chunk 重复注入通知导语；拆开的嵌套列表值只补充其直接父项上下文，表格行
-  只补充表头上下文，这些检索上下文不写入 `content` 或对外 `headingPath`；人物记录只参与内部组合，
-  不写入对外 `headingPath`；
+  只补充表头上下文，这些检索上下文不写入 `content` 或对外 `headingPath`；人物记录续块保留原文姓名，长字段续块保留原文标签，均不写入对外 `headingPath`；
+- 普通文本单元不将首行冒号标签传播到后续独立段落；同一原文行跨块时仍保留该行标签；
 - 正文中的简短图片或二维码说明附着相邻语义单元，不单独形成低信息量 Chunk；图片占位符和图片 `alt`
   仍不进入 Chunk；
 - 供稿、审核等编辑署名以及尾部组织、日期附着到前一个语义单元，不单独形成落款 Chunk；
 - 表格后的落款使用普通 footer part，不标记为表格行；超长单行依次在句末、分句标点和硬上限拆分。
 
-每个 `notice_chunk.v1` 保存 `noticeId`、`chunkId`、`chunkIndex`、`content`、`headingPath` 和
+每个 Chunk 记录保存 `noticeId`、`chunkId`、`chunkIndex`、`content`、`headingPath` 和
 `retrievalText`。`content` 只保存正文；`headingPath` 只保存识别出的正式章节路径；用于 Embedding 的
-`retrievalText` 由通知标题、章节路径和正文组成。Chunk Run 按实际 Chunk 内容寻址，写入本地：
+`retrievalText` 由通知标题、正式章节、必要的原文局部上下文和正文组成。统一 publisher 将首行标题
+之外的内容写入 Notice point `text`，供重排和模型使用；`text_sha256` 按实际证据计算。point 使用
+`campus_rag_point.v3`，消费端接受 v1/v2/v3 以支持既有集合回滚。
+
+`chunkId` 为 `notice:<noticeId>:<chunkIndex>`，是集合内的位置标识，不是内容摘要。生产 chunks 按完整
+NDJSON 字节寻址于 `notices/rag/chunk-data/sha256/<digest>/chunks.ndjson`；`notice_embedding_set.v2`
+直接引用该对象。模型 target 与 `retrievalText` 摘要决定向量缓存身份；实际 chunks 决定 set 和 collection
+的发布身份。算法标签、review 和 validation 不进入生产依赖链；已有 v1 set 仍可读取和回滚。
+
+本地 `notice_chunk_run.v2` 的身份包含分块定义、chunks、review 和 validation，写入：
 
 ```text
 var/notices/chunking/sha256/<run-digest>/
@@ -227,7 +242,7 @@ var/notices/chunking/sha256/<run-digest>/
 
 `notice_chunk_validation.v3` 保存正文覆盖、字符分布和拆分原因，并诊断章节跨越、footer-only Chunk、
 标题正文重复、非正式 `headingPath`、独立 URL、孤立字段标签、字段和值拆分、列表续行拆分、
-URL 归属拆分、表格表头上下文缺失及超长表格行拆分。review 与 validation 是
+URL 归属拆分、表格表头上下文缺失及超长表格行拆分；表头诊断同时扫描原文分号表，覆盖未识别为 table part 的情况。review 与 validation 是
 离线审阅产物，不进入 serving 读取路径。问题集直接消费与目标 Chunk Run 对齐的 Chunk，
 `notice_question_generation.v8` 只让模型返回 `question`、`answer` 和一个 `chunk_ref`；所选 Chunk 的
 完整 `content` 是唯一 evidence，`evidenceMode` 为 `selected-chunk-content`。生成问题不是人工 gold truth，

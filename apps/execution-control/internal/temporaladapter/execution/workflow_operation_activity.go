@@ -276,9 +276,10 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	if err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_invocation_envelope_invalid", err)
 	}
+	admissionSnapshotSHA256 := execution.HashAdmissionJSON(request.AdmissionSnapshot)
 	invocationID := run.RequestID + ":" + request.StepID
 	envelope := WorkflowOperationInvocationEnvelope{
-		AdmissionSnapshotSHA256: execution.HashAdmissionJSON(request.AdmissionSnapshot),
+		AdmissionSnapshotSHA256: admissionSnapshotSHA256,
 		ExecutionInputSHA256:    strings.TrimSpace(inputMetadata.ExecutionInputSHA256),
 		InvocationID:            invocationID,
 		Operation:               request.Operation,
@@ -493,7 +494,6 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	resultPayload, err := WorkflowOperationResultPayload(
 		request,
 		output,
-		invocationSHA256,
 		activityprojection.TemporalActivityAttempt(ctx),
 		strings.TrimSpace(s.Config.DeploymentRelease),
 	)
@@ -974,7 +974,6 @@ const temporalMemoryTextLimit = 4000
 func WorkflowOperationResultPayload(
 	request WorkflowOperationActivityRequest,
 	output temporalruntime.WorkflowOperationActivityOutput,
-	invocationSHA256 string,
 	activityAttempt int,
 	runtimeRelease string,
 ) (map[string]any, error) {
@@ -1054,6 +1053,14 @@ func (s *Adapter) ProjectWorkflowToolResults(
 		}
 		if result.Failure != nil {
 			payload["failure"] = normalizedRuntimeFailure(result.Failure)
+		}
+		if toolName == activityprojection.WorkflowCampusSearchToolName {
+			if searchQuery := strings.TrimSpace(execution.StringValue(result.ArgumentsJSON["search_query"])); searchQuery != "" {
+				payload["search_query"] = searchQuery
+			}
+			if searchGoal := strings.TrimSpace(execution.StringValue(result.ArgumentsJSON["search_goal"])); searchGoal != "" {
+				payload["search_goal"] = searchGoal
+			}
 		}
 		if toolName == activityprojection.WorkflowCampusSearchToolName && status == "completed" {
 			payload["result"] = execution.CloneAnyMapFromValue(resultPayload)

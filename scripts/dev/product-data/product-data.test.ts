@@ -9,7 +9,7 @@ import {
 	readNoticeEmbeddingSet,
 } from "../../../jobs/campus-rag-index-publisher/src/artifacts.ts";
 import { createTransactionalIndexCatalog } from "../../../jobs/campus-rag-index-publisher/src/catalog.ts";
-import { writeStoredChunkRun } from "../../../jobs/notice-index-publisher/src/artifacts.ts";
+import { writeStoredNoticeChunks } from "../../../jobs/notice-index-publisher/src/artifacts.ts";
 import { buildNoticeChunkRun } from "../../../jobs/notice-index-publisher/src/command.ts";
 import { importProductData, importRetrievalData } from "./product-data-database.ts";
 import { parseProductDataOptions } from "./product-data-options.ts";
@@ -85,6 +85,11 @@ test("committed real seed embeddings match current builders, source resources an
 	const candidate = await readProductSeedIndex(repoRoot);
 	for (const point of candidate.points) {
 		validateProductPoint(point, seed.rows, docs.references);
+		validateProductPoint(
+			{ ...point, payload: { ...point.payload, schema_version: "campus_rag_point.v2" } },
+			seed.rows,
+			docs.references,
+		);
 	}
 	assert(candidate.points.some((point) => point.payload.source_kind === "notice"));
 	assert(candidate.points.every((point) => point.vector.dense.length === 2560));
@@ -109,7 +114,7 @@ test("committed real seed embeddings match current builders, source resources an
 		chunks.chunkSet,
 		(await readDocsEmbeddingSet(artifacts, binding.docsEmbeddingSet)).manifest.chunkSet,
 	);
-	const notices = await writeStoredChunkRun({
+	const notices = await writeStoredNoticeChunks({
 		artifactStore: sink,
 		...buildNoticeChunkRun({
 			sources: seed.rows["notices.notices"]
@@ -122,10 +127,11 @@ test("committed real seed embeddings match current builders, source resources an
 				})),
 		}),
 	});
-	assert.equal(
-		notices.run,
-		(await readNoticeEmbeddingSet(artifacts, binding.noticeEmbeddingSet)).manifest.chunkRun,
-	);
+	const noticeManifest = (await readNoticeEmbeddingSet(artifacts, binding.noticeEmbeddingSet))
+		.manifest;
+	assert.equal(noticeManifest.schemaVersion, "notice_embedding_set.v2");
+	assert(noticeManifest.schemaVersion === "notice_embedding_set.v2");
+	assert.deepEqual(notices.chunks, noticeManifest.chunks);
 	const noticePoint = candidate.points.find((point) => point.payload.source_kind === "notice");
 	assert(noticePoint);
 	const unpublished = { ...noticePoint };

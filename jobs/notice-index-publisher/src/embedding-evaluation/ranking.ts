@@ -8,11 +8,11 @@ import {
 	type RankingCutoffKey,
 	type RetrievalMetricSlice,
 } from "./model.ts";
-import type { NoticeChunk, Sha256Ref } from "../types.ts";
+import type { NoticeChunk } from "../types.ts";
 
 export function evaluateDenseRetrieval(input: {
 	chunks: readonly NoticeChunk[];
-	documentVectorsByChunkId: ReadonlyMap<Sha256Ref, readonly number[]>;
+	documentVectorsByChunkId: ReadonlyMap<string, readonly number[]>;
 	onProgress?: (completedQuestionCount: number, totalQuestionCount: number) => void;
 	questions: readonly NoticeRetrievalQuestion[];
 	queryVectorsByQuestionId: ReadonlyMap<string, readonly number[]>;

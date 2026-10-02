@@ -257,12 +257,9 @@ function sortForStratum(
 	sourceProjectionSha256: Sha256Ref,
 	stratum: CampusDocsReviewItemStratum,
 ): ReviewChunkRecord[] {
-	return [...records].sort((left, right) =>
-		compareCanonicalStrings(
-			sampleKey(sourceProjectionSha256, stratum, left),
-			sampleKey(sourceProjectionSha256, stratum, right),
-		),
-	);
+	return records.map((record) => ({ record, rank: sampleKey(sourceProjectionSha256, stratum, record) }))
+		.sort((left, right) => compareCanonicalStrings(left.rank, right.rank))
+		.map(({ record }) => record);
 }
 
 function sampleKey(

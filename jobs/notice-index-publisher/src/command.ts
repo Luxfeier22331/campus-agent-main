@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import { writeLocalChunkRun, writeStoredChunkRun } from "./artifacts.ts";
+import { writeLocalChunkRun, writeStoredNoticeChunks } from "./artifacts.ts";
 import { buildNoticeChunks } from "./chunking/index.ts";
 import {
 	NOTICE_CHUNK_DEFINITION,
@@ -18,7 +18,7 @@ import type {
 	NoticeChunkValidationReport,
 	NoticeReviewSample,
 	NoticeSource,
-	StoredChunkRunResult,
+	StoredNoticeChunksResult,
 } from "./types.ts";
 import { assertValidChunkRun, storedNoticeChunk } from "./validation.ts";
 
@@ -49,14 +49,15 @@ export async function runStoredNoticeChunkBuild(input: {
 	signal?: AbortSignal;
 	definition?: NoticeChunkDefinition;
 	pool: Pick<Pool, "connect">;
-}): Promise<StoredChunkRunResult> {
+}): Promise<StoredNoticeChunksResult> {
 	const sources = await loadPublishedNoticeSources(input.pool, input.signal);
 	input.signal?.throwIfAborted();
-	const run = buildNoticeChunkRun({
-		...(input.definition ? { definition: input.definition } : {}),
-		sources,
+	const builds = sortNoticeSources(sources).map((source) => buildNoticeChunks(source, input.definition));
+	assertValidChunkRun(builds);
+	return writeStoredNoticeChunks({
+		artifactStore: input.artifactStore,
+		chunks: builds.flatMap((build) => build.chunks.map(storedNoticeChunk)),
 	});
-	return writeStoredChunkRun({ artifactStore: input.artifactStore, ...run });
 }
 
 export function buildNoticeChunkRun(input: {

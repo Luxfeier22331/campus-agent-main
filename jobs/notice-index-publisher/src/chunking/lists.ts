@@ -6,7 +6,8 @@ export function buildRecordUnits(
 	basePath: readonly string[],
 	hardSectionId: number,
 ): Array<Omit<model.SemanticUnit, "unitId">> {
-	const identity = model.recordIdentity(lines[0]?.text ?? "") || "未命名记录";
+	const lead = lines[0]?.text ?? "";
+	const identity = model.recordIdentity(lead) || model.reportTitle(lead) || "未命名记录";
 	const recordPath = model.withContext(basePath, [`记录：${identity}`]);
 	return [
 		{
@@ -29,7 +30,9 @@ export function findNextRecordStart(
 ): number {
 	for (let index = start; index < lines.length; index += 1) {
 		if (tableModule.isInsideTable(index, tables)) continue;
-		if (model.isRecordStart(lines[index]?.text ?? "")) return index;
+		if (
+			model.isRecordStart(lines[index]?.text ?? "") || model.isReportStart(lines, index)
+		) return index;
 	}
 	return lines.length;
 }
@@ -44,7 +47,9 @@ export function findListItemBoundary(
 		if (tableModule.isTableStart(index, tables)) return index;
 		const text = lines[index]?.text ?? "";
 		if (
+			model.localScope(lines, index) !== null ||
 			model.isRecordStart(text) ||
+			model.isReportStart(lines, index) ||
 			model.isTopicLead(text) ||
 			model.isSignatureLine(text) ||
 			model.isClosingStart(lines, index) ||
@@ -66,6 +71,7 @@ export function findListRunBoundary(
 ): number {
 	let cursor = start;
 	while (cursor < lines.length && model.listMarkerLevel(lines[cursor]?.text ?? "") === listLevel) {
+		if (cursor > start && model.localScope(lines, cursor)) break;
 		const end = findListItemBoundary(lines, cursor + 1, tables, listLevel);
 		if (end <= cursor) return cursor + 1;
 		cursor = end;
@@ -228,6 +234,6 @@ export function buildListRetrievalPath(
 ): string[] {
 	return [
 		...basePath,
-		...(listContext ? [`列表项：${model.contextLabel(listContext)}`] : []),
+		...(listContext ? [listContext] : []),
 	];
 }

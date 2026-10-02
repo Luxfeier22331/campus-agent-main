@@ -29,7 +29,8 @@ const labels: Record<string, string> = {
 	rerank_below_threshold: "低于重排阈值",
 	result_limit: "返回数量限制",
 	evidence_char_budget: "正文字符预算",
-	source_group_limit: "同一通知已保留更高分片段",
+	same_notice_cap: "同一来源片段数量限制",
+	same_section_cap: "同一来源同一章节已保留片段",
 	already_returned: "本轮已返回的证据片段",
 	embedding: "Embedding",
 	retrieval: "召回",
@@ -109,7 +110,7 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 									? ` · 重排输入 ${call.snapshot.rerankInputCount} · 重排保留 ${call.snapshot.rerankKeptCount}`
 									: ""}
 								{call.phaseTimes.selected
-									? ` · 通知聚合后 ${call.snapshot.sourceGroupedCount} · 同通知排除 ${call.snapshot.sourceGroupedExcludedCount} · 返回模型 ${call.snapshot.returnedCount} · 排除 ${call.snapshot.excludedCount} · 最终引用 ${call.citedCount ?? "未判定"}`
+									? ` · 来源聚合后 ${call.snapshot.sourceGroupedCount} · 同来源排除 ${call.snapshot.sourceGroupedExcludedCount} · 返回模型 ${call.snapshot.returnedCount} · 排除 ${call.snapshot.excludedCount} · 最终引用 ${call.citedCount ?? "未判定"}`
 									: ""}
 							</p>
 							{call.snapshot.embedding ? (

@@ -38,4 +38,4 @@ PR 关闭清理无需 GitOps checkout、registry login 或组织包枚举；删�
 正式版本保留依据与 #511 Work B 完成；不能把本次 PR 清理修复当作整个 #511 完成。
 
 直查、分页、错误分类、PR 协调、部分删除失败和重复执行由脚本与 workflow 配置测试验证。
-真实 workflow token 的存在包删除验收和 main 构建验收仍需合入后执行；本地测试不替代该结论。
+包删除与 main 构建的真实发布结果由 release owner 按发布记录确认；源码测试不替代环境交接结论。

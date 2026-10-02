@@ -13,7 +13,8 @@ import type {
 	NoticeChunkRunManifest,
 	NoticeChunkValidationReport,
 	NoticeReviewSample,
-	StoredChunkRunResult,
+	ObjectReference,
+	StoredNoticeChunksResult,
 } from "./types.ts";
 
 interface EncodedChunkRun {
@@ -54,33 +55,27 @@ export async function writeLocalChunkRun(input: {
 	};
 }
 
-export async function writeStoredChunkRun(input: {
+export async function writeStoredNoticeChunks(input: {
 	artifactStore: NoticeArtifactStore;
 	chunks: readonly NoticeChunk[];
-	definition: NoticeChunkDefinition;
-	reviewSamples: readonly NoticeReviewSample[];
-	validation: NoticeChunkValidationReport;
-}): Promise<StoredChunkRunResult> {
-	const encoded = encodeChunkRun(input);
-	const prefix = noticeChunkRunPrefix(encoded.run);
-	await Promise.all([
-		input.artifactStore.writeImmutable(`${prefix}/chunks.ndjson`, encoded.chunkBytes),
-		input.artifactStore.writeImmutable(
-			`${prefix}/review-samples.ndjson`,
-			encoded.reviewBytes,
-		),
-		input.artifactStore.writeImmutable(`${prefix}/validation.json`, encoded.validationBytes),
-	]);
-	await input.artifactStore.writeImmutable(`${prefix}/manifest.json`, encoded.manifestBytes);
+}): Promise<StoredNoticeChunksResult> {
+	const bytes = encodeNdjson(input.chunks);
+	const digest = sha256(bytes);
+	const chunks: ObjectReference = {
+		key: noticeChunkDataKey(digest),
+		byteSize: bytes.byteLength,
+		sha256: digest,
+	};
+	await input.artifactStore.writeImmutable(chunks.key, bytes);
 	return {
+		chunks,
 		chunkCount: input.chunks.length,
-		noticeCount: input.validation.noticeCount,
-		run: encoded.run,
+		noticeCount: new Set(input.chunks.map((chunk) => chunk.noticeId)).size,
 	};
 }
 
-export function noticeChunkRunPrefix(run: `sha256:${string}`): string {
-	return `notices/rag/chunk-runs/sha256/${run.slice("sha256:".length)}`;
+export function noticeChunkDataKey(digest: `sha256:${string}`): string {
+	return `notices/rag/chunk-data/sha256/${digest.slice(7)}/chunks.ndjson`;
 }
 
 function encodeChunkRun(input: {

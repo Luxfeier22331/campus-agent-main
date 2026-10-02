@@ -51,22 +51,24 @@ describe("tool trajectory projection", () => {
 		expect(scoreToolSequence(trajectory, [])).toBe(true);
 	});
 
-	it("keeps only scoring-safe tool arguments", () => {
+	it("keeps campus_search query arguments on tool calls", () => {
 		const trajectory = parseToolTrajectory({
 			decision_kind: "tool_assisted",
 			schema_version: "tool_trajectory.v4",
 			tool_calls: [
 				{
-					eval_safe_args: { scope: "current_user" },
-					tool_name: "personal_memory_recall",
+					search_goal: "确认本科生转专业的申请条件",
+					search_query: "本科生转专业 申请条件",
+					tool_name: "campus_search",
 				},
 			],
 		});
 
-		expect(toolSequenceFromTrajectory(trajectory)).toEqual(["personal_memory_recall"]);
+		expect(toolSequenceFromTrajectory(trajectory)).toEqual(["campus_search"]);
 		expect(trajectory.tool_calls[0]).toEqual({
-			eval_safe_args: { scope: "current_user" },
-			tool_name: "personal_memory_recall",
+			search_goal: "确认本科生转专业的申请条件",
+			search_query: "本科生转专业 申请条件",
+			tool_name: "campus_search",
 		});
 	});
 });

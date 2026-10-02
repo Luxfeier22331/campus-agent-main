@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+	rollback: vi.fn(),
 	publish: vi.fn(),
+	store: vi.fn(),
 	catalog: vi.fn(),
-	close: vi.fn(),
 }));
 
 vi.mock("@temporalio/activity", () => ({
@@ -18,9 +19,12 @@ vi.mock("@temporalio/activity", () => ({
 vi.mock("campus-rag-index-publisher/catalog", () => ({
 	createPostgresIndexCatalog: mocks.catalog,
 }));
-vi.mock("campus-rag-index-publisher/run", () => ({ runCampusRagPublish: mocks.publish }));
+vi.mock("campus-rag-index-publisher/run", () => ({
+	runCampusRagPublish: mocks.publish,
+	runCampusRagRollback: mocks.rollback,
+}));
 vi.mock("notice-index-publisher/object-store", () => ({
-	createNoticeS3ArtifactStore: () => ({ close: mocks.close }),
+	createNoticeS3ArtifactStore: mocks.store,
 }));
 
 import { rollbackIndex } from "../src/activities.ts";
@@ -30,20 +34,18 @@ describe("rollback activity", () => {
 	it("reuses the pinned target on retry and never resolves current/previous again", async () => {
 		const input = {
 			expectedCurrent: "B",
-			docsEmbeddingSet: "sha256:a" as const,
-			noticeEmbeddingSet: "sha256:b" as const,
-			producer: "automatic" as const,
-			producerRunId: "original",
+			collection: "A",
 		};
-		mocks.publish
+		mocks.rollback
 			.mockRejectedValueOnce(new Error("acknowledgement lost"))
 			.mockResolvedValueOnce({ collection: "A", noOp: true });
 		await expect(rollbackIndex(input)).rejects.toThrow("acknowledgement lost");
 		expect(await rollbackIndex(input)).toEqual({ collection: "A", noOp: true });
-		for (const [args] of mocks.publish.mock.calls) {
+		for (const [args] of mocks.rollback.mock.calls) {
 			expect(args).toMatchObject(input);
 		}
 		expect(mocks.catalog).not.toHaveBeenCalled();
-		expect(mocks.close).toHaveBeenCalledTimes(2);
+		expect(mocks.publish).not.toHaveBeenCalled();
+		expect(mocks.store).not.toHaveBeenCalled();
 	});
 });

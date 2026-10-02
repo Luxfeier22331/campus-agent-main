@@ -140,3 +140,69 @@ describe("protected artifact references", () => {
 		);
 	});
 });
+it("cleanup preserves shared v2 chunks and accepts v1 rollback references", async () => {
+	const objects = new Map<string, Uint8Array>();
+	const putManifest = (prefix: string, value: unknown) => {
+		const bytes = Buffer.from(JSON.stringify(value));
+		const id = `sha256:${createHash("sha256").update(bytes).digest("hex")}` as const;
+		const key = `notices/rag/${prefix}/sha256/${id.slice(7)}/manifest.json`;
+		objects.set(key, bytes);
+		return { id, key };
+	};
+	const shared = `notices/rag/chunk-data/sha256/${"c".repeat(64)}/chunks.ndjson`;
+	const data = (id: string) =>
+		`notices/rag/embedding-data/sha256/${id.repeat(64)}/embeddings.ndjson`;
+	const current = putManifest("embedding-sets", {
+		schemaVersion: "notice_embedding_set.v2",
+		chunks: { key: shared },
+		embeddings: { key: data("a") },
+	});
+	const retired = putManifest("embedding-sets", {
+		schemaVersion: "notice_embedding_set.v2",
+		chunks: { key: shared },
+		embeddings: { key: data("b") },
+	});
+	const run = putManifest("chunk-runs", {
+		chunks: { file: "chunks.ndjson" },
+		validation: { file: "validation.json" },
+		reviewSamples: { file: "review-samples.ndjson" },
+	});
+	const previous = putManifest("embedding-sets", {
+		schemaVersion: "notice_embedding_set.v1",
+		chunkRun: run.id,
+		embeddings: { key: data("d") },
+	});
+	const store = {
+		read: async (key: string) => {
+			const bytes = objects.get(key);
+			if (!bytes) {
+				throw Object.assign(new Error(key), { name: "NoSuchKey" });
+			}
+			return bytes;
+		},
+		list: async () => [...objects.keys()],
+		inspect: async () => ({ runId: "finished", modifiedAt: new Date(0) }),
+		remove: async (key: string) => {
+			objects.delete(key);
+		},
+	};
+	const protectedKeys = new Set([
+		...(await noticeArtifactKeys(store, current.id)),
+		...(await noticeArtifactKeys(store, previous.id)),
+	]);
+	const retiredKeys = await noticeArtifactKeys(store, retired.id);
+	expect(protectedKeys.has(shared)).toBe(true);
+	expect(protectedKeys.has(run.key)).toBe(true);
+	for (const key of [...protectedKeys, ...retiredKeys]) {
+		if (!objects.has(key)) {
+			objects.set(key, new Uint8Array([1]));
+		}
+	}
+	await cleanupAutomaticObjects({ store, protectedKeys, retiredKeys, activeRunIds: new Set() });
+	expect(objects.has(shared)).toBe(true);
+	expect(objects.has(run.key)).toBe(true);
+	expect(objects.has(retired.key)).toBe(false);
+	expect(objects.has(data("b"))).toBe(false);
+	// Retry enumeration needs only the manifest even after data was removed.
+	expect(await noticeArtifactKeys(store, retired.id)).toEqual(new Set([retired.key]));
+});

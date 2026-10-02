@@ -21,11 +21,12 @@ collection。在线 Agent 不直接选择 collection、索引版本或查询配�
 对象存储固定键 `campus-docs/source.json` 保存规范化的 `campus_docs_source.v4` 完整当前文档集合。
 Campus Web 静态构建和 Docs Chunk/Embedding builder 共享这份清洗后输入，但分别产生静态站候选和
 RAG 制品，不共享发布状态。Notice builder 从 `notice-publisher` 已发布正文的 repeatable-read 快照
-生成自己的 Chunk Run 与 Embedding Set；统一 publisher 不连接 Notices 数据库。
+生成自己的 Chunk 数据与 Embedding Set；统一 publisher 不连接 Notices 数据库。
 
 Docs serving 输入是清单中每份文档的当前 `campus_docs_reader.v3`。reader 引用由 `key`、`byteSize` 和
 `sha256` 固定；历史版本 reader、校历和其他补充资产不进入当前 Docs 索引。Notice serving 输入是显式
-`notice_chunk_run.v2` 与 `notice_embedding_set.v1`。Chunk 记录保留来源通知的 RFC3339 UTC `released_at`；统一 publisher 只读取 serving 所需的 Chunk 数据和
+`notice_embedding_set.v2` 及其直接引用的 chunks 对象；已有 v1 set 仍可读取。Chunk 记录保留来源通知的
+RFC3339 UTC `releasedAt`；统一 publisher 只读取 serving 所需的 Chunk 数据和
 Embedding 数据，不自动发现 bucket 中的对象；title 从 `retrievalText` 首行生成，citation 由
 `noticeId` 固定为 `/notices/<noticeId>`。
 

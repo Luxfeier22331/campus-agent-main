@@ -24,7 +24,6 @@ from campus_ragas_runner.agent_score_batch import (
 def sample_payload(**item_overrides: object) -> dict[str, object]:
     item: dict[str, object] = {
         "answer": "我会查询相关规定。",
-        "argument_mode": "name_only",
         "case_id": "case-001",
         "query": "学生转专业需要什么条件？",
         "reference": "应依据当前规定回答。",
@@ -186,39 +185,6 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
                     provider_config_path=config_path,
                 )
 
-    def test_rejects_args_mode_without_safe_arguments(self) -> None:
-        with tempfile.TemporaryDirectory() as raw_dir:
-            work_dir = Path(raw_dir)
-            input_path = work_dir / "agent-samples.json"
-            output_path = work_dir / "agent-scores.json"
-            config_path = work_dir / "provider-config.json"
-            provider_config(config_path)
-            input_path.write_text(
-                json.dumps(
-                    sample_payload(
-                        argument_mode="eval_safe_args",
-                        tool_calls=[{"args": {}, "name": "personal_memory_recall"}],
-                        reference_tool_calls=[
-                            {"args": {"topic": "转专业"}, "name": "personal_memory_recall"}
-                        ],
-                    )
-                ),
-                encoding="utf-8",
-            )
-
-            with (
-                patch(
-                    "campus_ragas_runner.agent_score_batch.build_ragas_agent_scorer",
-                    return_value=lambda _projection: (),
-                ),
-                self.assertRaisesRegex(ValueError, "eval_safe_args requires non-empty tool args"),
-            ):
-                run_ragas_agent_score_batch(
-                    input_path=input_path,
-                    output_path=output_path,
-                    provider_config_path=config_path,
-                )
-
     def test_closes_agent_llm_client_for_each_scoring_call(self) -> None:
         settings = RagasAgentRunnerSettings(
             llm_api_key="sk-test",
@@ -232,7 +198,6 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
             answer="The library is open from 08:00 to 22:00.",
             tool_calls=(),
             reference_tool_calls=(),
-            argument_mode="name_only",
             reference="The library is open from 08:00 to 22:00.",
         )
         clients: list[object] = []
@@ -292,7 +257,6 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
             answer="The library is open from 08:00 to 22:00.",
             tool_calls=(),
             reference_tool_calls=(),
-            argument_mode="name_only",
             reference="The library is open from 08:00 to 22:00.",
         )
 

@@ -2,9 +2,6 @@ package memory
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"strings"
 	"time"
@@ -22,19 +19,11 @@ import (
 const personalMemoryEraseDrainTimeout = 24 * time.Hour
 
 func PersonalMemoryOwnerScopeHash(ownerSalt string, tenantID string, userID string) string {
-	mac := hmac.New(sha256.New, []byte(strings.TrimSpace(ownerSalt)))
-	_, _ = mac.Write([]byte(strings.TrimSpace(tenantID) + "\x00" + strings.TrimSpace(userID)))
-	return hex.EncodeToString(mac.Sum(nil))
+	return memoryruntime.OwnerScopeHash(ownerSalt, tenantID, userID)
 }
 
 func PersonalMemorySubjectScopeHash(ownerHash string, subjectID string) string {
-	subjectID = strings.TrimSpace(subjectID)
-	if subjectID == "" {
-		return ""
-	}
-	mac := hmac.New(sha256.New, []byte(ownerHash))
-	_, _ = mac.Write([]byte(subjectID))
-	return hex.EncodeToString(mac.Sum(nil))
+	return memoryruntime.SubjectScopeHash(ownerHash, subjectID)
 }
 
 func PersonalMemoryActivityOutput(commandID string, status string, errorCode string) temporalruntime.PersonalMemoryCommandActivityOutput {

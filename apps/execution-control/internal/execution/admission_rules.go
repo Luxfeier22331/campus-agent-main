@@ -160,8 +160,23 @@ func ValidateAgentRuntimeToolContract(expected ToolContractFingerprintSnapshot, 
 		return err
 	}
 	expectedPayload := ToolContractFingerprintSnapshotMap(expected)
-	if len(actual) == 0 || HashAdmissionJSON(expectedPayload) != HashAdmissionJSON(actual) {
+	if len(actual) == 0 || !ToolContractFingerprintMapsEqual(expectedPayload, actual) {
 		return errors.New("agent runtime tool contract does not match admission")
 	}
 	return nil
+}
+
+// ToolContractFingerprintMapsEqual compares the complete three-field contract.
+func ToolContractFingerprintMapsEqual(left, right map[string]any) bool {
+	if len(left) != 3 || len(right) != 3 {
+		return false
+	}
+	for _, key := range []string{"function_schema_sha256", "schema_version", "tools_sha256"} {
+		l, lok := left[key].(string)
+		r, rok := right[key].(string)
+		if !lok || !rok || l != r {
+			return false
+		}
+	}
+	return true
 }

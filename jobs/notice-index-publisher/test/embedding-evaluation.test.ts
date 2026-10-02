@@ -136,7 +136,7 @@ describe("notice embedding evaluation", () => {
 		});
 	});
 
-	it("caches vectors by target and text and reproduces the same evaluation run", async () => {
+	it.each(["v1", "v2"] as const)("caches vectors by target and text and reuses a %s set", async (schema) => {
 		const root = await mkdtemp(join(tmpdir(), "notice-embedding-evaluation-"));
 		try {
 			const chunkRun = await buildLocalNoticeChunkRun({
@@ -205,8 +205,13 @@ describe("notice embedding evaluation", () => {
 				dense: Array.from({length: EMBEDDING_SPACE.dimensions}, (_, i) => i === (chunk.noticeId === "1" ? 0 : 1) ? 1 : 0),
 			})));
 			const vectorKey = noticeEmbeddingDataKey(sha256(vectorBytes));
+			const chunkBytes = await readFile(join(chunkRun.outputDirectory, "chunks.ndjson"));
+			const chunkDigest = sha256(chunkBytes);
 			const manifestBytes = canonicalJsonBytes({
-				schemaVersion: "notice_embedding_set.v1", chunkRun: chunkRun.run,
+				schemaVersion: `notice_embedding_set.${schema}`,
+				...(schema === "v1" ? { chunkRun: chunkRun.run } : {
+					chunks: { key: "notices/rag/chunk-data/sha256/" + chunkDigest.slice(7) + "/chunks.ndjson", sha256: chunkDigest, byteSize: chunkBytes.byteLength },
+				}),
 				embeddingCount: chunks.length, embeddingSpace: EMBEDDING_SPACE,
 				modelTargetSha256: "a".repeat(64),
 				embeddings: {key: vectorKey, sha256: sha256(vectorBytes), byteSize: vectorBytes.byteLength},

@@ -224,16 +224,29 @@ export async function importLocalNoticeEmbeddingCache(input: {
 export function collectNoticeEmbeddingInputs(
 	chunks: readonly NoticeChunk[],
 ): Map<Sha256Ref, string> {
+	const inputs = createNoticeEmbeddingInputs();
+	for (const chunk of chunks) inputs.add(chunk.retrievalText);
+	return inputs.textBySha256;
+}
+
+// One collector owns text identity for each embedding operation.
+export function createNoticeEmbeddingInputs() {
+	const sha256ByText = new Map<string, Sha256Ref>();
 	const textBySha256 = new Map<Sha256Ref, string>();
-	for (const chunk of chunks) {
-		const textSha256 = sha256(chunk.retrievalText);
-		const existing = textBySha256.get(textSha256);
-		if (existing !== undefined && existing !== chunk.retrievalText) {
-			throw new ArtifactValidationError(`notice retrieval text SHA-256 collision: ${textSha256}`);
-		}
-		textBySha256.set(textSha256, chunk.retrievalText);
-	}
-	return textBySha256;
+	return {
+		textBySha256,
+		add(text: string): Sha256Ref {
+			const existing = sha256ByText.get(text);
+			if (existing) return existing;
+			const digest = sha256(text);
+			if (textBySha256.has(digest) && textBySha256.get(digest) !== text) {
+				throw new ArtifactValidationError(`notice embedding text digest collision: ${digest}`);
+			}
+			sha256ByText.set(text, digest);
+			textBySha256.set(digest, text);
+			return digest;
+		},
+	};
 }
 
 export function sortNoticeEmbeddingInputs(

@@ -1,3 +1,4 @@
+import { createNoticeEmbeddingInputs } from "../embedding-cache.ts";
 import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { sha256, unicodeLength } from "../encoding.ts";
 import {
@@ -9,7 +10,7 @@ import {
 	type NoticeEmbeddingSampleStratum,
 	type NoticeEmbeddingSampleStratumSummary,
 } from "./model.ts";
-import type { NoticeChunk, Sha256Ref } from "../types.ts";
+import type { NoticeChunk } from "../types.ts";
 
 interface SelectedSampleChunk {
 	boundaries: NoticeEmbeddingSampleBoundary[];
@@ -32,7 +33,7 @@ export function selectNoticeEmbeddingSample(input: {
 	const chunks = [...input.chunks].sort(compareChunks);
 	const target = Math.min(NOTICE_EMBEDDING_SAMPLE_DEFINITION.sampleTarget, chunks.length);
 	const boundariesByChunkId = buildBoundaries(input.chunksByNoticeId);
-	const selected = new Map<Sha256Ref, SelectedSampleChunk>();
+	const selected = new Map<string, SelectedSampleChunk>();
 	const eligibleByStratum = new Map<NoticeEmbeddingSampleStratum, number>();
 	let selectedBoundaryPairs = 0;
 
@@ -101,6 +102,7 @@ export function selectNoticeEmbeddingSample(input: {
 		remaining,
 	);
 
+	const embeddingInputs = createNoticeEmbeddingInputs();
 	const records = [...selected.values()]
 		.sort((left, right) => compareChunks(left.chunk, right.chunk))
 		.map<NoticeEmbeddingSampleRecord>(({ boundaries, chunk, strata }) => ({
@@ -112,7 +114,7 @@ export function selectNoticeEmbeddingSample(input: {
 			headingPath: [...chunk.headingPath],
 			noticeId: chunk.noticeId,
 			retrievalText: chunk.retrievalText,
-			retrievalTextSha256: sha256(chunk.retrievalText),
+			retrievalTextSha256: embeddingInputs.add(chunk.retrievalText),
 			strata: [...strata].sort(),
 		}));
 	if (records.length !== target) {
@@ -195,9 +197,9 @@ function buildBoundaryPairs(
 
 function buildBoundaries(
 	chunksByNoticeId: ReadonlyMap<string, readonly NoticeChunk[]>,
-): Map<Sha256Ref, NoticeEmbeddingSampleBoundary[]> {
-	const result = new Map<Sha256Ref, NoticeEmbeddingSampleBoundary[]>();
-	const append = (chunkId: Sha256Ref, boundary: NoticeEmbeddingSampleBoundary): void => {
+): Map<string, NoticeEmbeddingSampleBoundary[]> {
+	const result = new Map<string, NoticeEmbeddingSampleBoundary[]>();
+	const append = (chunkId: string, boundary: NoticeEmbeddingSampleBoundary): void => {
 		const current = result.get(chunkId) ?? [];
 		current.push(boundary);
 		result.set(chunkId, current);
@@ -234,23 +236,15 @@ function stableChunkSort(
 	chunks: readonly NoticeChunk[],
 	stratum: NoticeEmbeddingSampleStratum,
 ): NoticeChunk[] {
-	return [...chunks].sort(
-		(left, right) =>
-			compareCanonicalStrings(
-				stableSampleRank(stratum, left.chunkId),
-				stableSampleRank(stratum, right.chunkId),
-			) || compareCanonicalStrings(left.chunkId, right.chunkId),
-	);
+	return chunks.map((chunk) => ({ chunk, rank: stableSampleRank(stratum, chunk.chunkId) }))
+		.sort((left, right) => compareCanonicalStrings(left.rank, right.rank) || compareCanonicalStrings(left.chunk.chunkId, right.chunk.chunkId))
+		.map(({ chunk }) => chunk);
 }
 
 function stableBoundarySort(pairs: readonly BoundaryPair[]): BoundaryPair[] {
-	return [...pairs].sort(
-		(left, right) =>
-			compareCanonicalStrings(
-				stableSampleRank("boundary", left.key),
-				stableSampleRank("boundary", right.key),
-			) || compareCanonicalStrings(left.key, right.key),
-	);
+	return pairs.map((pair) => ({ pair, rank: stableSampleRank("boundary", pair.key) }))
+		.sort((left, right) => compareCanonicalStrings(left.rank, right.rank) || compareCanonicalStrings(left.pair.key, right.pair.key))
+		.map(({ pair }) => pair);
 }
 
 function stableSampleRank(scope: string, value: string): string {

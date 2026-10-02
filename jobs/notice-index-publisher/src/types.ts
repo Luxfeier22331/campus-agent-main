@@ -16,7 +16,7 @@ export interface NoticeSource {
 }
 
 export interface NoticeChunk {
-	chunkId: Sha256Ref;
+	chunkId: string;
 	chunkIndex: number;
 	content: string;
 	headingPath: string[];
@@ -73,7 +73,6 @@ export interface BuiltNoticeChunks {
 	definition: NoticeChunkDefinition;
 	headings: DetectedHeading[];
 	source: NoticeSource;
-	sourceSha256: Sha256Ref;
 	stats: NoticeChunkStats;
 }
 
@@ -108,7 +107,7 @@ export interface NoticeChunkRunManifest {
 	definition: NoticeChunkDefinition;
 	noticeCount: number;
 	reviewSamples: ArtifactReference;
-	schemaVersion: typeof NOTICE_CHUNK_RUN_SCHEMA_VERSION;
+	schemaVersion: typeof NOTICE_CHUNK_RUN_SCHEMA_VERSION | "notice_chunk_run.v1";
 	validation: ArtifactReference;
 }
 
@@ -178,10 +177,10 @@ export interface LocalChunkRunResult {
 	run: Sha256Ref;
 }
 
-export interface StoredChunkRunResult {
+export interface StoredNoticeChunksResult {
 	chunkCount: number;
 	noticeCount: number;
-	run: Sha256Ref;
+	chunks: ObjectReference;
 }
 
 export interface StoredNoticeEmbedding {
@@ -189,14 +188,17 @@ export interface StoredNoticeEmbedding {
 	retrievalTextSha256: Sha256Ref;
 }
 
-export interface NoticeEmbeddingSetManifest {
-	chunkRun: Sha256Ref;
+interface NoticeEmbeddingSetFields {
 	embeddingCount: number;
 	embeddingSpace: typeof EMBEDDING_SPACE;
 	embeddings: ObjectReference;
 	modelTargetSha256: string;
-	schemaVersion: "notice_embedding_set.v1";
 }
+
+export type NoticeEmbeddingSetManifest = NoticeEmbeddingSetFields & (
+	| { schemaVersion: "notice_embedding_set.v2"; chunks: ObjectReference }
+	| { schemaVersion: "notice_embedding_set.v1"; chunkRun: Sha256Ref }
+);
 
 export interface NoticeEmbeddingSetData {
 	embeddings: StoredNoticeEmbedding[];
@@ -205,7 +207,7 @@ export interface NoticeEmbeddingSetData {
 
 export interface BuildNoticeEmbeddingSetInput {
 	artifactStore: NoticeArtifactStore;
-	chunkRun: Sha256Ref;
+	chunks: Sha256Ref;
 	embedding: EmbeddingClient;
 	modelTargetSha256: string;
 	onEmbeddingProgress?: (completedInputCount: number, totalInputCount: number) => void;

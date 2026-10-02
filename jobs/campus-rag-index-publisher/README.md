@@ -64,17 +64,19 @@ campus-docs/rag/chunk-data/sha256/<digest>/chunks.ndjson
 campus-docs/rag/embedding-sets/sha256/<id>/manifest.json
 campus-docs/rag/embedding-data/sha256/<digest>/embeddings.ndjson
 
-notices/rag/chunk-runs/sha256/<id>/manifest.json
-notices/rag/chunk-runs/sha256/<id>/chunks.ndjson
+notices/rag/chunk-data/sha256/<digest>/chunks.ndjson
 notices/rag/embedding-sets/sha256/<id>/manifest.json
 notices/rag/embedding-data/sha256/<digest>/embeddings.ndjson
 ```
 
 Docs 制品使用 `campus_docs_chunk_set.v2` 和 `campus_docs_embedding_set.v3`。Notice 制品使用
-`notice_chunk_run.v2` 和 `notice_embedding_set.v1`。统一 publisher 从 Notice Chunk 的 `retrieval_text`
-首行生成 title，并由 `notice_id` 生成 `/notices/<notice_id>` citation；不连接 live Notices DB。
+`notice_embedding_set.v2`，直接引用 chunks 对象；已有 v1 set 仍通过 chunkRun 读取。统一 publisher 从 Notice
+Chunk 的 `retrievalText` 首行生成 title，并由 `noticeId` 生成 `/notices/<notice_id>` citation；不连接 live Notices DB。
 文档和通知统一写入 `campus_rag_point.v3`。通知 payload 保留 `released_at` 发布时间，但不包含文档版本路由字段；
+`text` 使用 `retrievalText` 首行之后的完整证据，包含章节及必要上下文。
 `packages/contracts/fixtures/campus_rag/notice-point.v3.json` 由发布端输出，发布测试与执行端解析测试共同校验。
+新发布要求 chunks 有真实的 `releasedAt`；缺少日期的旧制品须从来源重建，已有 collection 的回滚由 Ops 固定已验证的目标和预期 current，
+取得既有发布锁后直接激活 catalog；不读取制品或访问 Qdrant，重试保持同一目标。
 
 所有 serving 所需的 manifest、对象引用、NDJSON 记录、向量维度、内容摘要和数量都会在组装前校验。Docs 与 Notice 必须
 使用相同的 embedding space、dimensions 和 Model Target；每个 embedding set 必须精确覆盖对应 Chunk
@@ -101,7 +103,12 @@ Notice point：
 
 - `source_kind=notice`；
 - citation 使用 `/notices/<noticeId>`；
-- 保留 `notice_id`、`chunk_index`、title、heading path、正文和两个文本摘要。
+- 保留 `notice_id`、`chunk_index`、title、heading path 和两个文本摘要；
+- `text` 使用 Chunk `retrievalText` 去掉首行标题后的内容，包含必要的原文章节、父项和表头，
+  `text_sha256` 按该证据正文计算；Chunk `content` 继续用于原文覆盖。
+
+当前 point 为 `campus_rag_point.v3`；collection identity 包含该版本。先部署接受 v1/v2/v3 的
+execution-control，再部署 v9 builder 和统一 publisher，最后通过既有制品发布入口激活候选。
 
 在线 adapter 将 Notice 的 `source_kind=notice` 映射为 UI 使用的 `campus_notice`，不通过额外 collection
 或查询路由区分两类来源。Docs/Notice point ID 使用不同 source namespace，避免 chunk ID 碰撞。

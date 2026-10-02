@@ -7,8 +7,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildLocalNoticeChunkRun } from "../src/command.ts";
 import {
+	createNoticeEmbeddingInputs,
 	NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION,
 	parseCachedNoticeEmbedding,
+	resolveNoticeEmbeddingVectors,
 } from "../src/embedding-cache.ts";
 import {
 		runLocalNoticeEmbeddingSample,
@@ -174,6 +176,26 @@ describe("notice embedding sample execution", () => {
 });
 
 describe("notice embedding cache contract", () => {
+	it("deduplicates input text before resolving and reuses the cache on the next run", async () => {
+		const root = await mkdtemp(join(tmpdir(), "notice-embedding-cache-"));
+		try {
+			const inputs = createNoticeEmbeddingInputs();
+			const digest = inputs.add("text");
+			expect(inputs.add("text")).toBe(digest);
+			expect(inputs.textBySha256.size).toBe(1);
+			const embed = vi.fn(async () => [Array(EMBEDDING_SPACE.dimensions).fill(0.5) as number[]]);
+			const input = { artifactRoot: root, embedding: { embed }, modelTargetSha256: "a".repeat(64), textBySha256: inputs.textBySha256 };
+			const first = await resolveNoticeEmbeddingVectors(input);
+			const second = await resolveNoticeEmbeddingVectors(input);
+			expect(first.generatedInputCount).toBe(1);
+			expect(second.reusedInputCount).toBe(1);
+			expect(second.vectorsByTextSha256).toEqual(first.vectorsByTextSha256);
+			expect(embed).toHaveBeenCalledTimes(1);
+		} finally {
+			await rm(root, { force: true, recursive: true });
+		}
+	});
+
 	it("rejects invalid dimensions, zero norms, and non-canonical cache JSON", () => {
 		const textSha256 = sha256("text");
 		const modelTargetSha256 = "a".repeat(64);

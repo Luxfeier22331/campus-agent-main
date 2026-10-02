@@ -479,8 +479,13 @@ func projectedEvalToolCalls(results []execution.StepResultProjection) []map[stri
 			continue
 		}
 		call := map[string]any{"tool_name": toolName}
-		if evalSafeArgs, ok := payload["eval_safe_args"].(map[string]any); ok && len(evalSafeArgs) > 0 {
-			call["eval_safe_args"] = execution.CloneAnyMap(evalSafeArgs)
+		if toolName == campusSearchToolName {
+			if searchQuery := strings.TrimSpace(execution.StringValue(payload["search_query"])); searchQuery != "" {
+				call["search_query"] = searchQuery
+			}
+			if searchGoal := strings.TrimSpace(execution.StringValue(payload["search_goal"])); searchGoal != "" {
+				call["search_goal"] = searchGoal
+			}
 		}
 		calls = append(calls, call)
 	}

@@ -2,9 +2,28 @@ import { describe, expect, it } from "vitest";
 
 import { buildNoticeChunks } from "../src/chunking/index.ts";
 import { buildValidationReport } from "../src/report/index.ts";
+import { diagnoseBuild } from "../src/report/diagnostics.ts";
 import { assertValidChunkRun, assertValidNoticeChunks } from "../src/validation.ts";
 
 describe("notice chunk validation", () => {
+	it("detects missing table context even when table rows were classified as text", () => {
+		const build = buildNoticeChunks({
+			noticeId: "table",
+			title: "获奖名单",
+			contentText:
+				"序号；姓名；奖项\n" +
+				Array.from({ length: 80 }, (_, i) => `${i + 1}；学生${i + 1}；一等奖`).join("\n"),
+		});
+		expect(diagnoseBuild(build).tableHeaderContextMissingCount).toBe(0);
+		const continuation = build.chunks.at(-1)!;
+		expect(continuation.content).not.toContain("序号；姓名；奖项");
+		continuation.retrievalText = `获奖名单\n${continuation.content}`;
+		for (const part of continuation.parts) {
+			part.kind = "text";
+			part.retrievalHeadingPath = [];
+		}
+		expect(diagnoseBuild(build).tableHeaderContextMissingCount).toBe(1);
+	});
 	it("rejects changed retrieval provenance", () => {
 		const build = buildNoticeChunks({
 			contentText: "一、申请条件\n符合培养要求。",

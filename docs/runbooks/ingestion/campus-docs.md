@@ -312,14 +312,14 @@ Model Target hash；该 hash 直接来自完整配置响应。只有 hash 与检
 Publisher 显式使用日志返回的
 `embedding_set`。`campus_docs_embedding_set.v1` 已退役，不能作为 `--reuse-embedding-set` 输入。
 
-### 3. 构建 Notice Chunk Run
+### 3. 构建 Notice Chunk 数据
 
-执行[通知 Chunk Run 构建](./notice-indexing.md#构建-chunk-run)。记录成功结果中的 `chunk_run`；
+执行[通知 Chunk 数据构建](./notice-indexing.md#构建-chunk-数据)。记录成功结果中的 `chunks`；
 失败时先处理来源或数据库问题，不进入 Embedding 阶段。
 
 ### 4. 构建 Notice Embedding Set
 
-把上一步 `chunk_run` 传给[通知 Embedding 构建](./notice-indexing.md#构建-embedding-set)。
+把上一步 `chunks` 传给[通知 Embedding 构建](./notice-indexing.md#构建-embedding-set)。
 记录成功结果中的 `embedding_set`，作为统一 Publisher 的 `CAMPUS_NOTICE_EMBEDDING_SET`。
 
 ### 5. 发布统一 Campus RAG Index

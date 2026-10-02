@@ -263,6 +263,19 @@ func (client *campusDocsHTTPClient) Search(
 	snapshot.SourceGroupedCount = len(rankedCandidates)
 	results := make([]campusdocs.SearchResultItem, 0, resultLimit)
 	characterCount := 0
+	type sourceCap struct {
+		noticeCount map[string]int
+		sectionSeen map[string]bool
+		deferred    []campusDocsCandidate
+	}
+	caps := &sourceCap{
+		noticeCount: map[string]int{},
+		sectionSeen: map[string]bool{},
+	}
+	// First pass: apply per-source diversity caps. A single notice or document
+	// can occupy at most two result slots; the same section of the same source
+	// can occupy at most one. This prevents multiple chunks from the same
+	// notice's opening section from consuming the entire result budget.
 	for _, candidate := range rankedCandidates {
 		if excluded[candidate.result.ResultRef] {
 			if candidate.diagnostic != nil {
@@ -276,6 +289,27 @@ func (client *campusDocsHTTPClient) Search(
 			}
 			continue
 		}
+		sourceKey := candidate.result.SourceKind + "\x00"
+		if candidate.result.SourceKind == "notice" {
+			sourceKey += candidate.result.NoticeID
+		} else {
+			sourceKey += candidate.result.DocumentID
+		}
+		sectionKey := sourceKey + "\x00" + candidate.result.SectionTitle
+		if caps.noticeCount[sourceKey] >= 2 {
+			if candidate.diagnostic != nil {
+				candidate.diagnostic.ExclusionReason = "same_notice_cap"
+			}
+			caps.deferred = append(caps.deferred, candidate)
+			continue
+		}
+		if caps.sectionSeen[sectionKey] {
+			if candidate.diagnostic != nil {
+				candidate.diagnostic.ExclusionReason = "same_section_cap"
+			}
+			caps.deferred = append(caps.deferred, candidate)
+			continue
+		}
 		textLength := utf8.RuneCountInString(candidate.result.Text)
 		if characterCount+textLength > campusdocs.EvidenceCharBudget {
 			if candidate.diagnostic != nil {
@@ -283,6 +317,8 @@ func (client *campusDocsHTTPClient) Search(
 			}
 			continue
 		}
+		caps.noticeCount[sourceKey]++
+		caps.sectionSeen[sectionKey] = true
 		if candidate.diagnostic != nil {
 			candidate.diagnostic.Returned = true
 			candidate.diagnostic.Text = candidate.result.Text
@@ -292,6 +328,31 @@ func (client *campusDocsHTTPClient) Search(
 		results = append(results, candidate.result)
 		characterCount += textLength
 	}
+	// Second pass: backfill from diversity-capped candidates when the first
+	// pass did not fill the result budget. This ensures the limit is only
+	// reached when there genuinely are not enough distinct sources.
+	for _, candidate := range caps.deferred {
+		if len(results) >= resultLimit {
+			break
+		}
+		textLength := utf8.RuneCountInString(candidate.result.Text)
+		if characterCount+textLength > campusdocs.EvidenceCharBudget {
+			if candidate.diagnostic != nil {
+				candidate.diagnostic.ExclusionReason = "evidence_char_budget"
+			}
+			continue
+		}
+		if candidate.diagnostic != nil {
+			candidate.diagnostic.ExclusionReason = ""
+			candidate.diagnostic.Returned = true
+			candidate.diagnostic.Text = candidate.result.Text
+			citationIndex := snapshot.CitationStart + len(results)
+			candidate.diagnostic.CitationIndex = &citationIndex
+		}
+		results = append(results, candidate.result)
+		characterCount += textLength
+	}
+	snapshot.SourceGroupedExcludedCount = len(caps.deferred)
 	snapshot.ReturnedCount = len(results)
 	snapshot.ExcludedCount = len(candidates) - len(results)
 	snapshot.Durations["selection"] = time.Since(started).Milliseconds()

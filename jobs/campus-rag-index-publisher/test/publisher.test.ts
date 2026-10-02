@@ -12,6 +12,7 @@ import {
 	noticeEmbeddingSetManifestKey,
 	readDocsEmbeddingSetManifest,
 	readNoticeEmbeddingSetManifest,
+	readNoticeChunkRun,
 } from "../src/artifacts.ts";
 import { assembleCandidate, buildNoticePoints, publishCampusRagIndex } from "../src/publisher.ts";
 import type {
@@ -76,6 +77,65 @@ describe("unified Campus RAG publisher", () => {
 			sha256(`通知标题\n${NOTICE_TEXT}`),
 		);
 		expect(candidate.points[0]?.id).not.toBe(candidate.points[1]?.id);
+	});
+
+	it("publishes v2 without review artifacts and v1 sets with release dates", async () => {
+		const modern = await prepareArtifacts({ noticeSchema: "v2" });
+		for (const key of modern.store.objects.keys()) {
+			if (key.includes("/chunk-runs/")) modern.store.objects.delete(key);
+		}
+		const candidate = await assembleCandidate(modern.store, modern.docsEmbeddingSet, modern.noticeEmbeddingSet);
+		expect(candidate.points[1]?.payload.chunk_id).toBe("notice:42:0");
+		const qdrant = fakeQdrant();
+		const catalog = fakeCatalog();
+		await publishCampusRagIndex({ artifactStore: modern.store, docsEmbeddingSet: modern.docsEmbeddingSet, noticeEmbeddingSet: modern.noticeEmbeddingSet, qdrant, catalog });
+		const legacy = await prepareArtifacts();
+		const restored = await publishCampusRagIndex({ artifactStore: legacy.store, docsEmbeddingSet: legacy.docsEmbeddingSet, noticeEmbeddingSet: legacy.noticeEmbeddingSet, qdrant, catalog });
+		expect(restored.collection).not.toBe(candidate.collection);
+		expect(restored.pointCount).toBe(candidate.points.length);
+	});
+
+	it.each(["v1", "v2"] as const)("reads %s chunk runs without inventing publication dates", async (chunkRunSchema) => {
+		const prepared = await prepareArtifacts({ chunkRunSchema, omitReleasedAt: true });
+		const set = await readNoticeEmbeddingSetManifest(prepared.store, prepared.noticeEmbeddingSet);
+		if (set.schemaVersion !== "notice_embedding_set.v1") throw new Error("expected v1 set");
+		const run = await readNoticeChunkRun(prepared.store, set.chunkRun);
+		expect(run.chunks[0]?.releasedAt).toBeUndefined();
+		await expect(assembleCandidate(prepared.store, prepared.docsEmbeddingSet, prepared.noticeEmbeddingSet))
+			.rejects.toThrow("Notice releasedAt is missing or invalid: 42");
+	});
+
+	it("reads serving manifests written with the former English key order", async () => {
+		const prepared = await prepareArtifacts();
+		const rewrite = (key: string, keyForId: (id: Sha256Ref) => string, pretty: boolean) => {
+			const value = JSON.parse(new TextDecoder().decode(prepared.store.objects.get(key)!));
+			const order = (entry: unknown): unknown => {
+				if (Array.isArray(entry)) return entry.map(order);
+				if (!entry || typeof entry !== "object") return entry;
+				return Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b, "en")).map(([k, v]) => [k, order(v)]));
+			};
+			const bytes = new TextEncoder().encode(`${JSON.stringify(order(value), undefined, pretty ? 2 : undefined)}\n`);
+			const id = sha256(bytes);
+			prepared.store.put(keyForId(id), bytes);
+			return id;
+		};
+		const docs = rewrite(embeddingSetManifestKey(prepared.docsEmbeddingSet), embeddingSetManifestKey, true);
+		const notice = rewrite(noticeEmbeddingSetManifestKey(prepared.noticeEmbeddingSet), noticeEmbeddingSetManifestKey, false);
+		expect(docs).not.toBe(prepared.docsEmbeddingSet);
+		expect(notice).not.toBe(prepared.noticeEmbeddingSet);
+		await expect(assembleCandidate(prepared.store, docs, notice)).resolves.toMatchObject({ points: expect.any(Array) });
+		const bytes = prepared.store.objects.get(embeddingSetManifestKey(docs))!;
+		prepared.store.put(embeddingSetManifestKey(docs), new TextEncoder().encode(new TextDecoder().decode(bytes).replace('"embeddingCount": 1', '"embeddingCount": 2')));
+		await expect(assembleCandidate(prepared.store, docs, notice)).rejects.toThrow("digest does not match");
+	});
+
+	it("rejects noncanonical manifests even when their digest matches", async () => {
+		const prepared = await prepareArtifacts();
+		const bytes = prepared.store.objects.get(embeddingSetManifestKey(prepared.docsEmbeddingSet))!;
+		const altered = new TextEncoder().encode(` ${new TextDecoder().decode(bytes)}`);
+		const id = sha256(altered);
+		prepared.store.put(embeddingSetManifestKey(id), altered);
+		await expect(assembleCandidate(prepared.store, id, prepared.noticeEmbeddingSet)).rejects.toThrow("not canonical JSON");
 	});
 
 	it("does not reread immutable artifacts after materialization", async () => {
@@ -262,8 +322,22 @@ describe("unified Campus RAG publisher", () => {
 			chunk_index: 2,
 			heading_path: ["通知", "办理要求"],
 			section_title: "办理要求",
-			text: "正文段落",
+			text: "通知\n办理要求\n正文段落",
 		});
+	});
+
+	it("publishes local parents and table columns as evidence without changing formal headings", () => {
+		const chunk = {
+			chunkId: sha256("notice-table-context"), chunkIndex: 1,
+			content: "30；毕冉；否；三等奖", headingPath: [], noticeId: "355829",
+			releasedAt: "2026-08-23T10:00:00.000Z",
+			retrievalText: "获奖名单\n软笔专业组\n表格列：序号；姓名；是否推荐参赛；奖项\n30；毕冉；否；三等奖",
+		};
+		const point = buildNoticePoints([chunk], [{ dense: vector(3), retrievalTextSha256: sha256(chunk.retrievalText) }])[0]!;
+		expect(point.payload.text).toBe(chunk.retrievalText.slice("获奖名单\n".length));
+		expect(point.payload.text_sha256).toBe(sha256(String(point.payload.text)));
+		expect(point.payload.heading_path).toEqual([]);
+		expect(point.payload.title).toBe("获奖名单");
 	});
 
 	it("rejects inconsistent titles within one Notice", () => {
@@ -311,6 +385,9 @@ async function prepareArtifacts(input: {
 	docsEmbeddingMode?: "missing" | "extra" | "duplicate";
 	noticeModelTarget?: string;
 	noticeText?: string;
+	noticeSchema?: "v1" | "v2";
+	chunkRunSchema?: "v1" | "v2";
+	omitReleasedAt?: boolean;
 } = {}): Promise<PreparedArtifacts> {
 	const store = new MemoryStore();
 	const docsChunk = {
@@ -371,12 +448,12 @@ async function prepareArtifacts(input: {
 	const noticeText = input.noticeText ?? NOTICE_TEXT;
 	const noticeRetrievalText = `通知标题\n${noticeText}`;
 	const noticeChunk = {
-		chunkId: sha256("notice-chunk-1"),
+		chunkId: input.noticeSchema === "v2" ? "notice:42:0" : sha256("notice-chunk-1"),
 		chunkIndex: 0,
 		content: noticeText,
 		headingPath: [],
 		noticeId: "42",
-		releasedAt: "2026-08-23T10:00:00.000Z",
+		...(input.omitReleasedAt ? {} : { releasedAt: "2026-08-23T10:00:00.000Z" }),
 		retrievalText: noticeRetrievalText,
 	};
 	const noticeChunkBytes = encodeNdjson([noticeChunk]);
@@ -397,7 +474,7 @@ async function prepareArtifacts(input: {
 		},
 		noticeCount: 1,
 		reviewSamples: reference("review-samples.ndjson", noticeReviewBytes),
-		schemaVersion: "notice_chunk_run.v2",
+		schemaVersion: `notice_chunk_run.${input.chunkRunSchema ?? "v2"}`,
 		validation: reference("validation.json", noticeValidationBytes),
 	};
 	const noticeRunBytes = canonicalJson(noticeManifest);
@@ -418,12 +495,12 @@ async function prepareArtifacts(input: {
 	const noticeEmbeddingBytes = encodeNdjson([noticeEmbedding]);
 	const noticeEmbeddingRef = putObject(store, `notices/rag/embedding-data/sha256/${hex(sha256(noticeEmbeddingBytes))}/embeddings.ndjson`, noticeEmbeddingBytes);
 	const noticeEmbeddingSet = putManifest(store, noticeEmbeddingSetManifestKey, {
-		chunkRun: noticeRun,
+		...(input.noticeSchema === "v2" ? { chunks: putObject(store, `notices/rag/chunk-data/sha256/${hex(sha256(noticeChunkBytes))}/chunks.ndjson`, noticeChunkBytes) } : { chunkRun: noticeRun }),
 		embeddingCount: 1,
 		embeddingSpace: EMBEDDING_SPACE,
 		embeddings: noticeEmbeddingRef,
 		modelTargetSha256: input.noticeModelTarget ?? "a".repeat(64),
-		schemaVersion: "notice_embedding_set.v1",
+		schemaVersion: input.noticeSchema === "v2" ? "notice_embedding_set.v2" : "notice_embedding_set.v1",
 	});
 	return { docsChunkKey, docsEmbeddingSet, noticeEmbeddingSet, store };
 }

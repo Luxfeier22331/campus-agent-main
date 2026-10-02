@@ -29,7 +29,6 @@ AGENT_METRIC_NAMES = (
     "tool_call_f1",
     "agent_goal_accuracy_with_reference",
 )
-ARGUMENT_MODES = frozenset({"name_only", "eval_safe_args"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +38,6 @@ class RagasAgentProjection:
     answer: str
     tool_calls: tuple[dict[str, object], ...]
     reference_tool_calls: tuple[dict[str, object], ...]
-    argument_mode: str
     reference: str = ""
     metadata: dict[str, object] = field(default_factory=dict)
 
@@ -166,21 +164,16 @@ def _score_agent_item(item: object, *, scorer: RagasAgentScorer) -> dict[str, ob
     case_id = _required_str(item.get("case_id"), "items[].case_id")
     _assert_allowed_sample_fields(item, case_id)
     metadata = _optional_mapping(item.get("metadata"))
-    argument_mode = _argument_mode(item.get("argument_mode"), case_id)
     tool_calls = tuple(_tool_call_list(item.get("tool_calls"), f"{case_id}.tool_calls"))
     reference_tool_calls = tuple(
         _tool_call_list(item.get("reference_tool_calls"), f"{case_id}.reference_tool_calls")
     )
-    if argument_mode == "eval_safe_args":
-        _require_eval_safe_args(tool_calls, f"{case_id}.tool_calls")
-        _require_eval_safe_args(reference_tool_calls, f"{case_id}.reference_tool_calls")
     projection = RagasAgentProjection(
         case_id=case_id,
         query=_required_str(item.get("query"), f"{case_id}.query"),
         answer=_string_value(item.get("answer"), f"{case_id}.answer"),
         tool_calls=tool_calls,
         reference_tool_calls=reference_tool_calls,
-        argument_mode=argument_mode,
         reference=_optional_str(item.get("reference")) or "",
         metadata=metadata,
     )
@@ -210,10 +203,7 @@ def _score_agent_item(item: object, *, scorer: RagasAgentScorer) -> dict[str, ob
         "case_id": case_id,
         "scores": scores,
         "errors": errors,
-        "metadata": {
-            **metadata,
-            "argument_mode": argument_mode,
-        },
+        "metadata": metadata,
     }
 
 
@@ -231,14 +221,13 @@ async def _score_with_official_ragas_metrics(
     messages = _ragas_messages(projection)
     reference_tool_calls = list(_ragas_tool_calls(projection.reference_tool_calls))
     results: list[RagasAgentResult] = []
-    suffix = "name_only" if projection.argument_mode == "name_only" else "args"
     for metric_name in AGENT_METRIC_NAMES:
         try:
             if metric_name == "tool_call_accuracy":
                 score = await ToolCallAccuracy().ascore(messages, reference_tool_calls)
                 results.append(
                     RagasAgentResult(
-                        metric_name=f"tool_call_accuracy.{suffix}",
+                        metric_name="tool_call_accuracy.name_only",
                         score=_metric_value(score),
                         rationale=_metric_reason(score),
                     )
@@ -247,7 +236,7 @@ async def _score_with_official_ragas_metrics(
                 score = await ToolCallF1().ascore(messages, reference_tool_calls)
                 results.append(
                     RagasAgentResult(
-                        metric_name=f"tool_call_f1.{suffix}",
+                        metric_name="tool_call_f1.name_only",
                         score=_metric_value(score),
                         rationale=_metric_reason(score),
                     )
@@ -268,7 +257,7 @@ async def _score_with_official_ragas_metrics(
             output_name = (
                 "agent_goal_accuracy.with_reference"
                 if metric_name == "agent_goal_accuracy_with_reference"
-                else f"{metric_name}.{suffix}"
+                else f"{metric_name}.name_only"
             )
             results.append(
                 RagasAgentResult(
@@ -328,23 +317,9 @@ def _tool_call(value: object, field: str) -> dict[str, object]:
     }
 
 
-def _argument_mode(value: object, case_id: str) -> str:
-    mode = _optional_str(value) or "name_only"
-    if mode not in ARGUMENT_MODES:
-        raise ValueError(f"{case_id}.argument_mode must be name_only or eval_safe_args")
-    return mode
-
-
-def _require_eval_safe_args(tool_calls: tuple[dict[str, object], ...], field: str) -> None:
-    for item in tool_calls:
-        if not item["args"]:
-            raise ValueError(f"{field} eval_safe_args requires non-empty tool args")
-
-
 def _assert_allowed_sample_fields(value: dict[str, object], case_id: str) -> None:
     allowed = {
         "answer",
-        "argument_mode",
         "case_id",
         "metadata",
         "query",

@@ -235,7 +235,7 @@ export function createTaskService(input: {
 				throw new TaskError("索引目录数据库暂不可用");
 			}
 			const target = await input.pool.query(`SELECT c.collection AS expected_current,
-				v.docs_embedding_set, v.notice_embedding_set, v.producer, v.producer_run_id
+				c.previous_collection AS collection
 				FROM campus_docs_serving.current_index c
 				JOIN campus_docs_serving.index_versions current_version ON current_version.collection=c.collection
 				JOIN campus_docs_serving.index_versions v ON v.collection=c.previous_collection
@@ -246,10 +246,7 @@ export function createTaskService(input: {
 			}
 			const args = {
 				expectedCurrent: row.expected_current,
-				docsEmbeddingSet: row.docs_embedding_set,
-				noticeEmbeddingSet: row.notice_embedding_set,
-				producer: row.producer,
-				...(row.producer_run_id ? { producerRunId: row.producer_run_id } : {}),
+				collection: row.collection,
 			};
 			return temporal(async (client) => {
 				const schedule = client.schedule.getHandle("notice-pipeline");

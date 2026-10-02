@@ -10,9 +10,8 @@ Status: implemented
 `do update set ${updates}`，而 `notices.categories` 的唯一列就是键 `category`，updates 为空，
 SQL 以 `do update set` 截断。seed 路径的 upsert 列集不同，从未触发该分支，只有 cluster 导入命中。
 其二：`probeLocalTemporalNamespace` 通过 `docker compose exec` 内的 Temporal CLI 以主机名
-`temporal:7233` 拨号。Docker Desktop 的内嵌 DNS 代理对容器名的解析存在首查停顿（本机实测
-6-8s，同负载下直连容器 IP 150ms 且 8/8 成功），超过 CLI 内部约 5s 的 RPC deadline，
-单次探针即以 `unknown` 失败，`ensureLocalTemporalNamespace` 抛错中断 init/doctor。
+`temporal:7233` 拨号。Docker Desktop 的内嵌 DNS 代理可能让容器名解析超过 CLI 的 RPC deadline，
+单次探针因此以 `unknown` 失败，`ensureLocalTemporalNamespace` 抛错中断 init/doctor。
 Compose healthcheck 同样使用主机名但配有 retries:60，因此从未暴露该差异。
 
 ## 决策
@@ -33,7 +32,6 @@ Temporal 探针改为先用 `docker compose ps -q temporal` 与 `docker inspect`
 
 ## 后果
 
-`dev:init -- --data cluster` 与 `dev:doctor` 在本机稳定通过（exit 0、status ready）；
-cluster 导入完成后本地 `campus_docs_serving.current_index` 与集群一致（e97be7fd、producer manual、
-validated），notices 7241 行。探针每次多两个 docker 进程调用（约 200ms）。容器 IP 由 inspect
-动态解析，重建容器后仍正确；仓库不依赖固定 IP。
+`dev:init -- --data cluster` 与 `dev:doctor` 复用同一显式容器地址解析路径；cluster 导入继续校验
+`campus_docs_serving.current_index` 与集群引用一致。容器 IP 由 inspect 动态解析，重建容器后仍正确；
+仓库不依赖固定 IP。

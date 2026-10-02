@@ -14,17 +14,17 @@ import {
 import { fetchNoticeEmbeddingConnection } from "./embedding.ts";
 import { buildNoticeEmbeddingSet } from "./embedding-set.ts";
 import { createNoticeS3ArtifactStore } from "./object-store.ts";
-import { readStoredNoticeChunkRun } from "./run-reader.ts";
+import { readStoredNoticeChunks } from "./run-reader.ts";
 import type { Sha256Ref } from "./types.ts";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 type Command =
 	| { kind: "build-chunks" }
-	| { chunkRun: Sha256Ref; kind: "build-embeddings" }
+	| { chunks: Sha256Ref; kind: "build-embeddings" }
 	| {
 		cacheDirectory: string;
-		chunkRun: Sha256Ref;
+		chunks: Sha256Ref;
 		kind: "import-embedding-cache";
 		modelTargetSha256: string;
 	};
@@ -39,7 +39,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 			const result = await runStoredNoticeChunkBuild({ artifactStore, pool });
 			writeResult({
 				chunk_count: result.chunkCount,
-				chunk_run: result.run,
+				chunks: result.chunks.sha256,
 				notice_count: result.noticeCount,
 			});
 		} finally {
@@ -49,17 +49,17 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 	}
 	if (command.kind === "import-embedding-cache") {
 		writeProgress({
-			chunk_run: command.chunkRun,
+			chunks: command.chunks,
 			model_target_sha256: command.modelTargetSha256,
 			stage: "embedding-cache-import",
 			status: "started",
 		});
-		const chunkRun = await readStoredNoticeChunkRun(artifactStore, command.chunkRun);
+		const chunks = await readStoredNoticeChunks(artifactStore, command.chunks);
 		const result = await importLocalNoticeEmbeddingCache({
 			artifactStore,
 			cacheDirectory: command.cacheDirectory,
 			modelTargetSha256: command.modelTargetSha256,
-			textBySha256: collectNoticeEmbeddingInputs(chunkRun.chunks),
+			textBySha256: collectNoticeEmbeddingInputs(chunks.chunks),
 		});
 		writeResult({
 			imported_embedding_input_count: result.importedEmbeddingInputCount,
@@ -68,11 +68,11 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 		});
 		return;
 	}
-	writeProgress({ chunk_run: command.chunkRun, stage: "embeddings", status: "started" });
+	writeProgress({ chunks: command.chunks, stage: "embeddings", status: "started" });
 	const connection = await fetchNoticeEmbeddingConnection();
 	const result = await buildNoticeEmbeddingSet({
 		artifactStore,
-		chunkRun: command.chunkRun,
+		chunks: command.chunks,
 		embedding: createOpenAICompatibleEmbeddingClient(connection),
 		modelTargetSha256: connection.targetSha256,
 		onEmbeddingProgress(completedInputCount, totalInputCount) {
@@ -99,13 +99,13 @@ export function parseCommand(
 	const [kind, ...args] = argv;
 	if (kind === "build-chunks" && args.length === 0) return { kind };
 	if (kind === "build-embeddings" && args.length === 0) {
-		return { chunkRun: requiredEnvRef(env, "NOTICE_CHUNK_RUN"), kind };
+		return { chunks: requiredEnvRef(env, "NOTICE_CHUNKS"), kind };
 	}
 	if (kind === "import-embedding-cache") {
 		const flags = parseFlags(args[0] === "--" ? args.slice(1) : args);
 		return {
 			cacheDirectory: resolve(REPOSITORY_ROOT, requiredFlag(flags, "--cache-directory")),
-			chunkRun: requiredFlag(flags, "--chunk-run") as Sha256Ref,
+			chunks: requiredFlag(flags, "--chunks") as Sha256Ref,
 			kind,
 			modelTargetSha256: requiredFlag(flags, "--model-target-sha256"),
 		};
@@ -125,12 +125,12 @@ function parseFlags(args: readonly string[]): Map<string, string> {
 		flags.set(name, value);
 	}
 	for (const name of flags.keys()) {
-		if (!["--cache-directory", "--chunk-run", "--model-target-sha256"].includes(name)) usage();
+		if (!["--cache-directory", "--chunks", "--model-target-sha256"].includes(name)) usage();
 	}
 	if (flags.size !== 3) usage();
-	const chunkRun = flags.get("--chunk-run");
-	if (!chunkRun || !/^sha256:[0-9a-f]{64}$/u.test(chunkRun)) {
-		throw new Error("--chunk-run must be sha256:<64 lowercase hex characters>");
+	const chunks = flags.get("--chunks");
+	if (!chunks || !/^sha256:[0-9a-f]{64}$/u.test(chunks)) {
+		throw new Error("--chunks must be sha256:<64 lowercase hex characters>");
 	}
 	const modelTargetSha256 = flags.get("--model-target-sha256");
 	if (!modelTargetSha256 || !/^[0-9a-f]{64}$/u.test(modelTargetSha256)) {
@@ -147,7 +147,7 @@ function requiredFlag(flags: ReadonlyMap<string, string>, name: string): string 
 
 function usage(): never {
 	throw new Error(
-		"Usage: notice-index-publisher import-embedding-cache --chunk-run sha256:<id> --model-target-sha256 <sha256> --cache-directory <path>",
+		"Usage: notice-index-publisher import-embedding-cache --chunks sha256:<id> --model-target-sha256 <sha256> --cache-directory <path>",
 	);
 }
 

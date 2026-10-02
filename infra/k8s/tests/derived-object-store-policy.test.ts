@@ -214,7 +214,7 @@ test("bootstrap provisions source, derived and backup identities without dining-
 });
 
 test("automatic Notice RAG cleanup can remove versioned artifacts while caches and sources stay protected", () => {
-	for (const prefix of ["chunk-runs", "embedding-data", "embedding-sets"]) {
+	for (const prefix of ["chunk-runs", "chunk-data", "embedding-data", "embedding-sets"]) {
 		const key = `notices/rag/${prefix}/sha256/id/manifest.json`;
 		assert(allows("derived-policy.json", "s3:ListBucketVersions", bucket, key));
 		for (const action of ["DeleteObject", "DeleteObjectVersion"]) {

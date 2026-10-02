@@ -36,10 +36,11 @@ reader 引用，是 Campus Web 构建与检索 publisher 共享的控制清单�
 blockquote 和 table。Docs builder 只消费来源清单选中的当前 reader；统一 serving publisher 不直接读取
 reader。
 
-### Notice Chunk Run
+### Notice Chunk 数据与本地 Run
 
-已发布 Notice 的正文由 `notice-index-publisher` 生成 `notice_chunk_run.v2`。统一 publisher 只消费 Chunk
-数据；title 取 `retrieval_text` 首行，citation 由 `noticeId` 固定生成 `/notices/<noticeId>`，不访问 live
+已发布 Notice 的正文由 `notice-index-publisher` 生成 Chunk 数据，`notice_embedding_set.v2` 直接引用它。
+本地 `notice_chunk_run.v2` 另存审查和诊断。Chunk 保留来源发布时间 `releasedAt`。统一 publisher 的 title
+取 `retrievalText` 首行，citation 由 `noticeId` 固定生成 `/notices/<noticeId>`，不访问 live
 Notices DB。`review-samples.ndjson` 和 `validation.json` 是离线诊断产物，不是 serving 输入。
 
 ## Agent 与离线知识数据

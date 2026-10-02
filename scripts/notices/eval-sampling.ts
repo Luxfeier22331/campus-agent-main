@@ -100,12 +100,12 @@ export function buildEvalSample(
 		.map(({ input, reviewGroup }) =>
 			toEvalSample(input, reviewGroup === "random" ? "random" : "balanced", reviewGroup),
 		)
+		.map((sample) => ({ sample, rank: hashRank(options.seed, "review-order", sample.notice_id) }))
 		.sort(
 			(left, right) =>
-				hashRank(options.seed, "review-order", left.notice_id).localeCompare(
-					hashRank(options.seed, "review-order", right.notice_id),
-				) || left.notice_id - right.notice_id,
-		);
+				left.rank.localeCompare(right.rank) || left.sample.notice_id - right.sample.notice_id,
+		)
+		.map(({ sample }) => sample);
 }
 export function selectRandomDiagnosticIds(
 	sourceIds: readonly number[],
@@ -128,11 +128,9 @@ export function selectRandomDiagnosticIds(
 	}
 	const selected = [...uniqueIds]
 		.filter((noticeId) => !excludedIds.has(noticeId))
-		.sort(
-			(left, right) =>
-				hashRank(seed, "random", left).localeCompare(hashRank(seed, "random", right)) ||
-				left - right,
-		)
+		.map((noticeId) => ({ noticeId, rank: hashRank(seed, "random", noticeId) }))
+		.sort((left, right) => left.rank.localeCompare(right.rank) || left.noticeId - right.noticeId)
+		.map(({ noticeId }) => noticeId)
 		.slice(0, count);
 	if (selected.length !== count) {
 		throw new Error(`expected ${count} unseen notices, found ${selected.length}`);
@@ -149,12 +147,12 @@ export function buildRandomDiagnosticSample(
 	}
 	return inputs
 		.map((input) => toEvalSample(input, "random", "random"))
+		.map((sample) => ({ sample, rank: hashRank(seed, "review-order", sample.notice_id) }))
 		.sort(
 			(left, right) =>
-				hashRank(seed, "review-order", left.notice_id).localeCompare(
-					hashRank(seed, "review-order", right.notice_id),
-				) || left.notice_id - right.notice_id,
-		);
+				left.rank.localeCompare(right.rank) || left.sample.notice_id - right.sample.notice_id,
+		)
+		.map(({ sample }) => sample);
 }
 
 export function parseCategoryCountOverrides(
@@ -273,11 +271,13 @@ function rankByHash(
 	seed: string,
 	scope: string,
 ): NoticeClassificationTask[] {
-	return [...values].sort(
-		(left, right) =>
-			hashRank(seed, scope, left.noticeId).localeCompare(hashRank(seed, scope, right.noticeId)) ||
-			left.noticeId - right.noticeId,
-	);
+	return values
+		.map((value) => ({ value, rank: hashRank(seed, scope, value.noticeId) }))
+		.sort(
+			(left, right) =>
+				left.rank.localeCompare(right.rank) || left.value.noticeId - right.value.noticeId,
+		)
+		.map(({ value }) => value);
 }
 
 function hashRank(seed: string, scope: string, noticeId: number): string {

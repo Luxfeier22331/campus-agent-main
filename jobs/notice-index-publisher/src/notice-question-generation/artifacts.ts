@@ -6,7 +6,7 @@ import { artifactHex } from "../run-reader.ts";
 import type { NoticeChunk, Sha256Ref } from "../types.ts";
 
 export interface BroadSampleChunk {
-	chunkId: Sha256Ref;
+	chunkId: string;
 	chunkIndex: number;
 	content: string;
 }
@@ -117,7 +117,7 @@ function decodeBroadSampleNotice(value: unknown, index: number): BroadSampleNoti
 		throw new Error(`notice broad sample record ${index} has no chunks`);
 	}
 	const chunks = value.chunks.map((raw, chunkIndex) => {
-		if (!isRecord(raw) || !isSha256Ref(raw.chunkId) || !nonEmptyString(raw.content)) {
+		if (!isRecord(raw) || !nonEmptyString(raw.chunkId) || !nonEmptyString(raw.content)) {
 			throw new Error(`notice broad sample ${index} chunk ${chunkIndex} is invalid`);
 		}
 		if (!nonNegativeInteger(raw.chunkIndex)) {
@@ -166,10 +166,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function nonEmptyString(value: unknown): value is string {
 	return typeof value === "string" && value.trim() !== "";
-}
-
-function isSha256Ref(value: unknown): value is Sha256Ref {
-	return typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value);
 }
 
 function nonNegativeInteger(value: unknown): value is number {

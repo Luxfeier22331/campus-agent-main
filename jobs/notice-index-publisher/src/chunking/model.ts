@@ -46,6 +46,7 @@ export interface BodySegment {
 	bodyLines: SourceLine[];
 	hardSectionId: number;
 	headingPath: string[];
+	groupContext?: string;
 }
 
 export interface TableRegion {
@@ -103,12 +104,45 @@ export function recordIdentity(value: string): string | null {
 	return match?.[1]?.trim() || null;
 }
 
+export function reportTitle(value: string): string | null {
+	return (
+		value.trim().match(/^(?:\d+\s*[.．、，,）)]\s*)?报告题目\s*[:：]\s*(\S.*)$/u)?.[1] ?? null
+	);
+}
+
+export function isReportStart(lines: readonly SourceLine[], index: number): boolean {
+	if (!reportTitle(lines[index]?.text ?? "")) return false;
+	let speaker = false;
+	let time = false;
+	for (const line of lines.slice(index + 1)) {
+		const text = line.text.trim();
+		if (
+			reportTitle(text) || isRecordStart(text) ||
+			PRIMARY_HEADING.test(text) || SECONDARY_HEADING.test(text)
+		) break;
+		speaker ||= /^报告人\s*[:：]\s*\S/u.test(text);
+		time ||= /^报告时间\s*[:：]\s*\S/u.test(text);
+		if (speaker && time) return true;
+	}
+	return false;
+}
+
+/** A group-wide introduction may own several following formal subheadings. */
+export function isGroupScopeStart(lines: readonly SourceLine[], index: number): boolean {
+	const text = lines[index]?.text.trim() ?? "";
+	if (
+		!/^[^。！？!?；;：:]{1,80}各组别(?:具体)?(?:参赛|申报)?(?:条件|要求)如下[：:]/u.test(text)
+	) return false;
+	const next = lines.slice(index + 1).find(line => line.text.trim());
+	return Boolean(next && SECONDARY_HEADING.test(next.text.trim()));
+}
+
 export function isLabelOnly(value: string): boolean {
 	const text = value.trim();
 	return (
 		text.length > 1 &&
 		text.length <= 100 &&
-		/[：:]$/u.test(text) &&
+		(/[：:]$/u.test(text) || /^【[^】]{1,80}】$/u.test(text)) &&
 		!isSalutationLine(text) &&
 		!isNarrativeLead(text) &&
 		!isUrlLine(text)
@@ -122,6 +156,8 @@ export function isNarrativeLead(value: string): boolean {
 export function isInlineLabelLead(value: string): boolean {
 	const text = value.trim();
 	if (!text || text.length > 180 || isUrlLine(text)) return false;
+	if (/^(?:上午|下午|晚上|中午)?\s*\d{1,2}[:：]\d{2}/u.test(text)) return false;
+	if (/^【[^】]{1,80}】\s*\S/u.test(text)) return true;
 	const match = text.match(/^(.{1,80}?)[：:]\s*\S/u);
 	if (!match || /[。！？!?；;]/u.test(match[1] ?? "")) return false;
 	const label = match[1]?.trim() ?? "";
@@ -179,7 +215,7 @@ export function isTopLevelListItemStart(value: string): boolean {
 
 export function listMarkerLevel(value: string): 1 | 2 | null {
 	const text = value.trim();
-	if (/^\d{1,3}\s*[.．、）)]\s*\S/u.test(text)) return 1;
+	if (/^\d{1,3}\s*[.．、）)](?:\s*\S.*)?$/u.test(text)) return 1;
 	if (
 		/^[（(](?:\d{1,3}|[一二三四五六七八九十百]+)[）)]\s*\S/u.test(text) ||
 		/^[①②③④⑤⑥⑦⑧⑨⑩]\s*\S/u.test(text)
@@ -284,7 +320,13 @@ export function isDateLine(value: string): boolean {
 
 export function isOrganizationLine(value: string): boolean {
 	const text = value.trim();
-	return text.length > 0 && text.length <= 30 && /(?:学院|大学|处|部|室|中心|委员会|研究院|研究生院|办公室|团委|党委|实验室|学校|协会|系)$/u.test(text);
+	return (
+		text.length > 0 &&
+		text.length <= 30 &&
+		/(?:学院|大学|处|部|室|中心|委员会|研究院|研究生院|办公室|团委|党委|实验室|学校|协会|系)$/u.test(
+			text,
+		)
+	);
 }
 
 export function isTableTerminator(value: string): boolean {
@@ -319,4 +361,38 @@ export function unicodeLetterOrNumber(value: string): boolean {
 
 export function unicodeNumber(value: string): boolean {
 	return /^\p{N}$/u.test(value);
+}
+
+/** Local parents remain source text, rather than becoming formal headingPath entries. */
+export function localScope(lines: readonly SourceLine[], index: number): { end: number } | null {
+	const text = lines[index]?.text.trim() ?? "";
+	const next = lines[index + 1]?.text.trim() ?? "";
+	let sibling: RegExp;
+	if (/^No\.\s*\d+\s+\S/iu.test(text)) sibling = /^No\.\s*\d+\s+\S/iu;
+	else if (/^第[一二三四五六七八九十]+批(?:[、，]第[一二三四五六七八九十]+批)*[：:]$/u.test(text))
+		sibling = /^第[一二三四五六七八九十]+批/u;
+	else if (
+		/^(?:\d{4}年)?\d{1,2}月\d{1,2}日(?:[（(][^）)]*[）)])?(?:分两场进行)?$/u.test(text) &&
+		/(?:\d{1,2}[:：]\d{2}|时间[：:])/u.test(next)
+	)
+		sibling = /^(?:\d{4}年)?\d{1,2}月\d{1,2}日/u;
+	else if (
+		/^[（(][一二三四五六七八九十]+[）)].*[：:]$/u.test(text) &&
+		isTopLevelListItemStart(next)
+	)
+		sibling = /^[（(][一二三四五六七八九十]+[）)]/u;
+	else if (
+		/(?:满足|符合|具备).*(?:以下|下列).*(?:条件|要求).*?[：:]$/u.test(text) &&
+		isTopLevelListItemStart(next)
+	)
+		sibling = /^[（(][一二三四五六七八九十]+[）)]/u;
+	else return null;
+	let end = index + 1;
+	while (
+		end < lines.length &&
+		!sibling.test(lines[end]!.text.trim()) &&
+		!isClosingStart(lines, end)
+	)
+		end++;
+	return end > index + 1 ? { end } : null;
 }

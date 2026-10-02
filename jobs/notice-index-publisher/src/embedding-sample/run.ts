@@ -38,23 +38,9 @@ export async function runLocalNoticeEmbeddingSample(input: {
 		chunks: runData.chunks,
 		chunksByNoticeId: runData.chunksByNoticeId,
 	});
-	const chunksById = new Map(runData.chunks.map((chunk) => [chunk.chunkId, chunk]));
-	const textBySha256 = new Map<Sha256Ref, string>();
-	for (const record of selection.records) {
-		const chunk = chunksById.get(record.chunkId);
-		if (!chunk) throw new Error(`notice embedding sample references missing chunk ${record.chunkId}`);
-		if (record.retrievalText !== chunk.retrievalText) {
-			throw new Error(`notice embedding sample retrieval text differs: ${record.chunkId}`);
-		}
-		if (record.retrievalTextSha256 !== sha256(record.retrievalText)) {
-			throw new Error(`notice embedding sample retrieval text hash is invalid: ${record.chunkId}`);
-		}
-		const existing = textBySha256.get(record.retrievalTextSha256);
-		if (existing !== undefined && existing !== record.retrievalText) {
-			throw new Error(`notice embedding text SHA-256 collision: ${record.retrievalTextSha256}`);
-		}
-		textBySha256.set(record.retrievalTextSha256, record.retrievalText);
-	}
+	const textBySha256 = new Map(
+		selection.records.map((record) => [record.retrievalTextSha256, record.retrievalText]),
+	);
 
 	const sampleArtifact = buildNoticeEmbeddingSampleManifest({
 		chunkDefinition: runData.manifest.definition,

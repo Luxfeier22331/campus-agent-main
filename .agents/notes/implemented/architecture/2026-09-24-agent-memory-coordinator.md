@@ -87,7 +87,7 @@ gated，不在此修复。
 mental model（中文 source query，`refresh_after_consolidation`）把全部已准入记忆合成一份
 自然语言 profile；用户提交自然语言纠正（`POST /corrections`），纠正作为普通记忆写入并随
 下次合成进入画像。逐条 list/get/create/update 路由从 app-api 与 campus-web 合同中移除；
-staging 阶段无历史失败行依赖，`memory_update` 命令 kind 与其 item 编辑载荷
+硬切前需确认没有历史失败行依赖；`memory_update` 命令 kind 与其 item 编辑载荷
 （`state`/`memoryId`）、`items/list`、`items/get` 管理 read 路由及对应错误码
 （`profile_memory_item_not_found`、`memory_edit_rejected`）一并从合同与实现中删除。
 

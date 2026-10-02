@@ -37,6 +37,7 @@ const DOCS_CHUNK_SET_SCHEMA_VERSION = "campus_docs_chunk_set.v2";
 const DOCS_EMBEDDING_SET_SCHEMA_VERSION = "campus_docs_embedding_set.v3";
 const NOTICE_EMBEDDING_SET_SCHEMA_VERSION = "notice_embedding_set.v1";
 const NOTICE_CHUNK_RUN_SCHEMA_VERSION = "notice_chunk_run.v2";
+const NOTICE_CHUNK_DATA_KEY_PREFIX = "notices/rag/chunk-data/sha256/";
 
 export function assertSha256Ref(value: string, label: string): Sha256Ref {
 	if (!/^sha256:[a-f0-9]{64}$/u.test(value)) {
@@ -100,6 +101,16 @@ export async function readDocsEmbeddingSet(
 		);
 	}
 	return { embeddings, manifest };
+}
+
+export async function readNoticeChunks(store: ReaderObjectStore, reference: ObjectReference): Promise<NoticeChunk[]> {
+	assertObjectReference(reference, "notice chunk data");
+	if (reference.key !== `${NOTICE_CHUNK_DATA_KEY_PREFIX}${artifactHex(reference.sha256)}/chunks.ndjson`) {
+		throw new ArtifactValidationError("notice chunk data key is invalid");
+	}
+	const chunks = decodeNoticeChunks(await readVerifiedObject(store, reference, "notice chunk data"));
+	if (chunks.length === 0) throw new ArtifactValidationError("notice chunk data is empty");
+	return chunks;
 }
 
 export async function readNoticeChunkRun(
@@ -192,20 +203,24 @@ function parseDocsEmbeddingSetManifest(value: unknown): DocsEmbeddingSetManifest
 function parseNoticeEmbeddingSetManifest(value: unknown): NoticeEmbeddingSetManifest {
 	if (
 		!isRecord(value) ||
-		value.schemaVersion !== NOTICE_EMBEDDING_SET_SCHEMA_VERSION ||
+		(value.schemaVersion !== NOTICE_EMBEDDING_SET_SCHEMA_VERSION && value.schemaVersion !== "notice_embedding_set.v2") ||
 		!isDeepStrictEqual(value.embeddingSpace, EMBEDDING_SPACE) ||
 		!positiveInteger(value.embeddingCount) ||
 		!isModelTarget(value.modelTargetSha256)
 	) {
 		throw new ArtifactValidationError("notice embedding set manifest is invalid");
 	}
-	assertSha256Ref(String(value.chunkRun ?? ""), "notice chunk run reference");
+	if (value.schemaVersion === "notice_embedding_set.v1") {
+		assertSha256Ref(String(value.chunkRun ?? ""), "notice chunk run reference");
+	} else {
+		assertObjectReference(value.chunks, "notice chunk data");
+	}
 	assertObjectReference(value.embeddings, "notice embedding data");
 	return value as unknown as NoticeEmbeddingSetManifest;
 }
 
 function parseNoticeChunkRunManifest(value: unknown): NoticeChunkRunManifest {
-	if (!isRecord(value) || value.schemaVersion !== NOTICE_CHUNK_RUN_SCHEMA_VERSION) {
+	if (!isRecord(value) || (value.schemaVersion !== NOTICE_CHUNK_RUN_SCHEMA_VERSION && value.schemaVersion !== "notice_chunk_run.v1")) {
 		throw new ArtifactValidationError("notice chunk run manifest schema is invalid");
 	}
 	if (
@@ -279,7 +294,7 @@ function decodeNoticeChunks(bytes: Uint8Array): NoticeChunk[] {
 				throw new ArtifactValidationError(`notice chunk record ${index} has invalid ${field}`);
 			}
 		}
-		if (!isSha256Ref(value.chunkId) || !nonNegativeInteger(value.chunkIndex)) {
+		if (!nonEmptyString(value.chunkId) || !nonNegativeInteger(value.chunkIndex)) {
 			throw new ArtifactValidationError(`notice chunk record ${index} has invalid identity`);
 		}
 		if (
@@ -414,11 +429,17 @@ function canonicalJsonBytes(value: unknown): Uint8Array {
 function isCanonicalManifest(key: string, value: unknown, bytes: Uint8Array): boolean {
 	const compact = canonicalJsonBytes(value);
 	if (Buffer.from(compact).equals(Buffer.from(bytes))) return true;
-	if (key.startsWith("campus-docs/rag/")) {
+	const isDocs = key.startsWith("campus-docs/rag/");
+	if (isDocs) {
 		const pretty = encoder.encode(`${JSON.stringify(sortJson(value), undefined, 2)}\n`);
-		return Buffer.from(pretty).equals(Buffer.from(bytes));
+		if (Buffer.from(pretty).equals(Buffer.from(bytes))) return true;
 	}
-	return false;
+	// Serving artifacts written before canonical-order used ICU's English key
+	// ordering (e.g. embeddings before embeddingSpace). Keep their immutable
+	// bytes readable; writers continue to use compareCanonicalStrings.
+	const legacy = sortJson(value, (left, right) => left.localeCompare(right, "en"));
+	const legacyBytes = encoder.encode(`${JSON.stringify(legacy, undefined, isDocs ? 2 : undefined)}\n`);
+	return Buffer.from(legacyBytes).equals(Buffer.from(bytes));
 }
 
 function parseJson(bytes: Uint8Array, label: string): unknown {
@@ -433,13 +454,13 @@ function sha256(value: Uint8Array | string): Sha256Ref {
 	return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
-function sortJson(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map(sortJson);
+function sortJson(value: unknown, compare = compareCanonicalStrings): unknown {
+	if (Array.isArray(value)) return value.map((child) => sortJson(child, compare));
 	if (!isRecord(value)) return value;
 	return Object.fromEntries(
 		Object.entries(value)
-			.sort(([left], [right]) => compareCanonicalStrings(left, right))
-			.map(([key, child]) => [key, sortJson(child)]),
+			.sort(([left], [right]) => compare(left, right))
+			.map(([key, child]) => [key, sortJson(child, compare)]),
 	);
 }
 

@@ -137,13 +137,9 @@ function stableNoticeSort(
 	notices: readonly BroadReviewNotice[],
 	stratum: BroadReviewStratum,
 ): BroadReviewNotice[] {
-	return [...notices].sort(
-		(left, right) =>
-			compareCanonicalStrings(
-				stableNoticeRank(stratum, left.noticeId),
-				stableNoticeRank(stratum, right.noticeId),
-			) || compareNoticeIds(left, right),
-	);
+	return notices.map((notice) => ({ notice, rank: stableNoticeRank(stratum, notice.noticeId) }))
+		.sort((left, right) => compareCanonicalStrings(left.rank, right.rank) || compareNoticeIds(left.notice, right.notice))
+		.map(({ notice }) => notice);
 }
 
 function stableNoticeRank(stratum: BroadReviewStratum, noticeId: string): string {

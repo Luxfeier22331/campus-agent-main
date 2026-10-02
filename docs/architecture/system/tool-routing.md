@@ -84,7 +84,7 @@ provider、top-k 或向量参数。
 ## 禁止形态
 
 - 由浏览器或 app-api 选择工具、索引、collection 或检索参数；
-- 把非工具能力伪装成 SDK tool call 或 `eval_safe_args`；
+- 把非工具能力伪装成 SDK tool call；
 - 为每个 SDK 工具创建 Temporal Activity 或专用队列；
 - 绕过 Agent Workflow 直接在 SDK 终态之后启动额外规划、反思或答案改写；
 - 函数工具失败时由代码自动回退到 hosted Web Search、未注册供应商搜索、旧工具或现场采集。

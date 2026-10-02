@@ -8,9 +8,9 @@ collection 或维护在线绑定，生产 serving 由 `jobs/campus-rag-index-pub
 
 ```text
 已发布 notice 的 content_text
-  -> Chunk Run
+  -> Chunk 数据
   ├-> Notice Embedding Set -> Campus RAG unified publisher
-  └-> 本地问题生成、Embedding 抽样或 Recall 评测、两次结果对比
+  └-> 本地 Chunk Run（含审查/诊断）-> 问题生成、抽样与评测
 ```
 
 Chunk Run 是问题生成和 Embedding 评测的唯一正文输入；本地评测不是制品发布的前置步骤。
@@ -22,8 +22,8 @@ Chunk Run 是问题生成和 Embedding 评测的唯一正文输入；本地评�
 
 ```text
 notice-chunk-builder
-  -> notices/rag/chunk-runs/sha256/<run-id>/
-  -> NOTICE_CHUNK_RUN=sha256:<run-id>
+  -> notices/rag/chunk-data/sha256/<chunks-digest>/chunks.ndjson
+  -> NOTICE_CHUNKS=sha256:<chunks-digest>
   -> notice-embedding-builder
   -> notices/rag/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
   -> notices/rag/embedding-sets/sha256/<set-id>/manifest.json
@@ -31,12 +31,13 @@ notice-chunk-builder
   -> campus-rag-index-publisher
 ```
 
-`build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v8 实现并写入 Chunk
-Run。`build-embeddings` 只读取显式 Chunk Run，从 Model Config 的 `campus_docs_embedding` 槽位读取完整
-连接，按 `retrievalText` 摘要去重。已有且通过校验的线上 cache 会复用，缺失输入才调用 Provider；每个
-成功 batch 立即写入 cache，最终仍写入 `notice_embedding_set.v1`。两个阶段不自动串联，不维护 `latest`
-指针，不写入 Qdrant 或通知数据库。统一 publisher 只读取该 Embedding Set 和其 Chunk Run，不连接 live
-Notices DB，也不重新 embedding。
+`build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v10 实现并写入 Chunk
+数据。`build-embeddings` 只读取显式 chunks 摘要，从 Model Config 的 `campus_docs_embedding` 槽位读取完整
+连接；同一操作先按原文去重，每个唯一 `retrievalText` 计算一次摘要。已有且通过校验的线上 cache 会复用，
+缺失输入才调用 Provider；每个成功 batch 立即写入 cache，最终写入 `notice_embedding_set.v2`。
+该 manifest 直接引用 chunks 对象，不引用审查 Run。算法标签、validation 和 review 变化不会改变 serving
+身份；实际 Chunk 数据变化会产生新 set，并由统一 publisher 发布新 collection。两个手动阶段不自动串联，
+不维护 `latest` 指针，不写入 Qdrant 或通知数据库。统一 publisher 不连接 live Notices DB，也不重新 embedding。
 
 完整运行步骤见 [通知 Chunk 与 Embedding 制品](../../docs/runbooks/ingestion/notice-indexing.md)。
 
@@ -60,7 +61,7 @@ pnpm dev:init -- --target notice-index-publisher
 pnpm --dir jobs/notice-index-publisher build-chunks-local
 ```
 
-当前使用 `notice_text_structure.v8`；[通知数据](../../docs/data/notices.md#检索分块与制品)维护分块、
+当前使用 `notice_text_structure.v10`；[通知数据](../../docs/data/notices.md#检索分块与制品)维护分块、
 字段归属与正文边界，不在模块入口复制规则清单。
 
 本地 Chunk Run 写入：
@@ -73,10 +74,12 @@ var/notices/chunking/sha256/<run-digest>/
 └── validation.json
 ```
 
-Chunk Run 使用 `notice_chunk_run.v2`。每个 Chunk 保留通知来源的 RFC3339 UTC `released_at`，但不把发布时间拼入
-`retrievalText`。builder 在同一次 repeatable-read 快照中生成 Chunk、review sample
-和 validation 诊断；统一 publisher 只消费 Chunk 数据，使用 `retrievalText` 首行生成 Notice title，并由
-`noticeId` 生成 `/notices/<noticeId>` citation，不读取 live Notices DB。
+本地 Chunk Run 使用 `notice_chunk_run.v2`，保留分块定义、review sample 和 validation 诊断；仍可读取 v1
+供已有本地评测使用。`chunkId` 是 `notice:<noticeId>:<chunkIndex>`，只表示该数据集内的位置；Embedding
+身份由模型 target 和文本摘要决定。每个 Chunk 保留来源通知的 RFC3339 UTC `releasedAt`，不把发布时间拼入
+`retrievalText`。builder 在同一次 repeatable-read 快照中生成 Chunk、review sample 和 validation 诊断。
+统一 publisher 使用 `retrievalText` 首行生成 Notice title，并由 `noticeId` 生成 `/notices/<noticeId>` citation，
+不读取 live Notices DB。
 
 ## Chunk 抽样与验证
 
@@ -172,13 +175,13 @@ collection 组装、reranker 或在线 RAG 回答效果。
 已有发布向量时可追加 `--embedding-set sha256:<id>`，复用完整向量而只生成问题 Embedding。
 先把该 set 的 manifest 和它引用的 embeddings 对象按原对象键导出到 worktree `var/`，把对应
 完整 Chunk Run（manifest、chunks、validation、review-samples）放到上述本地 chunking 目录。
-命令要求 set 的 chunkRun 和 modelTargetSha256 与评测输入一致；缺失或错配直接报错，不静默
+命令要求 set 的 chunks 数据摘要和 modelTargetSha256 与评测输入一致（旧 v1 set 比较 chunkRun）；缺失或错配直接报错，不静默
 重算整库。评测 manifest 记录显式 set，生成/复用数反映实际调用。
 使用固定问题、noticeId 和正文 evidence 分别看 Notice Recall、目标 Chunk Recall、答案证据
 Recall 和 MRR；缺少标签或正文锚点是无效样本，不计为零召回。分层指标同时查看 questionCount，
 singleChunkAnswerQuestionCount 为零时单块 Recall/MRR 及对比 delta 返回 null，表示不适用，不伪造 0 分。
-真实来源问题和产物只保留在
-忽略的 var，不提交受限通知正文。线上单次候选数和 rerank score 不可当作 Recall。
+全量来源快照和评测产物保留在忽略的 var；本轮已确认边界样例和固定问题在
+`test/fixtures/` 维护，其他真实通知不随评测产物提交。线上单次候选数和 rerank score 不可当作 Recall。
 
 ## 对比两次 Chunk 与 Embedding 结果
 
@@ -203,6 +206,8 @@ var/notices/chunking/comparisons/sha256/<comparison-run>/comparison.json
 证据落块和 rank 变化。证据落块只按 `noticeId + evidence.text` 在两次 Chunk 产物中定位，不复用旧
 `chunkId`。该命令只产出离线对比数据，不设置阈值或阻断任何流程。
 
+v9 当前规则与本轮验证见
+[通知分块 v9 与完整证据发布](../../.agents/notes/implemented/architecture/2026-09-29-notice-chunk-v9.md)。
 策略选择、v6→v8 同题集对照、扩大问题集结果及已接受限制见
 [通知结构分块决策](../../.agents/notes/implemented/architecture/2026-08-31-notice-chunk-strategy.md)。
 这些历史记录不表示当前数据集、线上索引或生产效果。

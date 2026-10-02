@@ -20,6 +20,10 @@ const appendOperationHTTPTimeout = 300 * time.Second
 func (e hindsightExecutor) appendOperationID(request memoryruntime.AppendConversationTurnRequest) string {
 	bankID := e.scopedBankIDForGeneration(request.TenantID, request.UserID, request.OwnerGeneration)
 	documentID := e.conversationMessageDocumentID(bankID, request.ThreadID, request.UserMessageID)
+	return appendOperationID(bankID, documentID)
+}
+
+func appendOperationID(bankID, documentID string) string {
 	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(bankID+"/retain/"+documentID)).String()
 }
 
@@ -33,8 +37,9 @@ func (e hindsightExecutor) SubmitConversationTurn(ctx context.Context, request m
 	if err := e.ensureBankForWrite(ctx, bankID); err != nil {
 		return memoryruntime.AppendOperation{}, err
 	}
-	operationID := e.appendOperationID(request)
-	payload := e.conversationRetainRequest(bankID, request)
+	documentID := e.conversationMessageDocumentID(bankID, request.ThreadID, request.UserMessageID)
+	operationID := appendOperationID(bankID, documentID)
+	payload := e.conversationRetainRequest(bankID, documentID, request)
 	payload.Async = boolPointer(true)
 	payload.OperationID = operationID
 	result, err := e.client.RetainMemories(ctx, bankID, payload)
@@ -57,7 +62,8 @@ func (e hindsightExecutor) GetConversationTurnOperation(ctx context.Context, req
 	ctx, cancel := context.WithTimeout(ctx, appendOperationHTTPTimeout)
 	defer cancel()
 	bankID := e.scopedBankIDForGeneration(request.TenantID, request.UserID, request.OwnerGeneration)
-	return e.client.GetOperation(ctx, bankID, e.appendOperationID(request))
+	documentID := e.conversationMessageDocumentID(bankID, request.ThreadID, request.UserMessageID)
+	return e.client.GetOperation(ctx, bankID, appendOperationID(bankID, documentID))
 }
 
 func (c hindsightHTTPClient) GetOperation(ctx context.Context, bankID, operationID string) (memoryruntime.AppendOperation, error) {

@@ -10,7 +10,9 @@ Status: implemented
 
 ## 决策
 
-- Notice Chunk Run 升级为 `notice_chunk_run.v2`，每个 chunk 保留来源通知的 RFC3339 UTC `released_at`。
+- 本地 Notice Chunk Run 使用 `notice_chunk_run.v2`，每个 chunk 以 `releasedAt` 保留来源通知的 RFC3339 UTC 发布时间。
+  Serving 沿用[分块与完整证据发布](../architecture/2026-09-29-notice-chunk-v9.md)的 `notice_embedding_set.v2`，
+  直接引用 chunks；完整证据和发布时间同时传递到 point。
 - Unified RAG point 升级为 `campus_rag_point.v3`，Notice payload 传递 `released_at`；发布时间不进入
   `retrievalText`，不触发单独的 embedding 输入，也不作为通知过滤条件。
 - `campus-search-tool-contracts.v5`、WorkflowEvidence 和 finalization source card 继续传递该字段；旧的

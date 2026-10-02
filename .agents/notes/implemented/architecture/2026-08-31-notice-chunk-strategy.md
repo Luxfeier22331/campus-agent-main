@@ -8,6 +8,10 @@ Status: implemented
 v6、v7 与 v8 迭代使用广泛抽样和真实 Embedding 对比，判断是否继续增加局部规则。
 本话题在 2026-08-31 的仓库记录中已出现；本篇汇总既有策略与实验记录，未重新运行实验。
 
+2026-09-29 的当前语料调查发现新的字段归属、章节错挂和表格上下文缺陷，相关规则已由
+[通知分块 v9 与完整证据发布](./2026-09-29-notice-chunk-v9.md)部分取代。
+本篇保留 v8 的历史选择及仍有效原则；历史离线结果不能代替 v9 的语料及在线验收。
+
 ## 决策
 
 采用 `notice_text_structure.v8`，优先保持结构与字段归属，接受合法短块，不继续该轮局部合并或
@@ -45,23 +49,17 @@ v6→v8 的 Recall@1/@3/@5/@10 分别变化 +0.002857/+0.008571/+0.005714/+0.000
 条件父项边界、标签父项归属和重复通知导语问题得到修复。当时选定 v8 作为 notice 的稳定本地 Chunk
 策略，不再继续此前的局部规则实验。
 
-对应本地产物为 Chunk Run `sha256:87b98fabaf78009e119be7ef8ea84980dfb25bc6f48824cc297dd43a0111cef5`、
-Embedding Evaluation `sha256:6eda19d5e6096f0bc25c78d503e2a05c2135c330019f62a0960fd42747c5424c` 和
-v6→v8 Comparison `sha256:9cc8c946629eb2921fc7e6980e4edcf1c1d02c1768ab1e4a0a2bd4565a5e8b9f`。
-
-扩大验证使用同一 v8 Chunk Run：broad review 在 `broad-sample-v2` 中抽取 350/754 条通知，覆盖
+扩大验证使用同一 v8 Chunk Run：broad review 抽取 350/754 条通知，覆盖
 2569/3924 个 Chunk；Embedding 分层抽样选择 400 个 Chunk，缓存全部存在且向量维度均为 2560。问题集
-`sha256:c583208dc9053525b910f0b2e94eda96f86ea0e092a081a0ade64bb10bb10f76` 为每条通知生成两道问题，
+为每条通知生成两道问题，
 共 700 题，每题恰好一个完整 Chunk evidence，invalid 和 unanchored evidence 均为 0。
 700 题覆盖 610 个唯一目标 Chunk，90 条通知的两题选择了同一 Chunk；另有 2 组完全相同的问题，
 来自重复或相邻阶段通知，属于问题生成质量观察。
 
-Embedding 分层抽样产物为
-`sha256:971c087f9672cde7099165d0977f230eb952ccf1ee7e7e81dbae487c72aa2fb9`，
-覆盖长度、标题层级、导语、边界对和随机对照；模型为 `Qwen3-Embedding-4B`。
+Embedding 分层抽样覆盖长度、标题层级、导语、边界对和随机对照；模型为 `Qwen3-Embedding-4B`。
 
 完整 Embedding Evaluation
-`sha256:546c9dd2b8780d43098383243bc9b2875d3c473e7e6d64cc6cf50794b0abc849` 使用全部 3924 个 Chunk：
+使用全部 3924 个 Chunk：
 
 | 问题数 | Recall@1 | Recall@3 | Recall@5 | Recall@10 | MRR | Notice Recall@1 |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

@@ -4,12 +4,8 @@ Status: implemented
 
 ## 背景
 
-staging 激活通知流水线后，`notice-pipeline-worker` 在加载 `dist/worker.js` 时找不到 `pg`。
-本地运行构建产物进一步复现了 S3 SDK 缺失和打包后 CommonJS 调用 `require` 失败。
-TypeScript 检查与 esbuild 构建成功没有覆盖 Node 加载阶段。
-
-修复 PR 的 Go 检查还暴露出 `ci-go` 缺少 C 编译器；在 sq-nixos 的同一 Nix 环境执行
-`go build net`，明确报出 `gcc` 不存在。
+TypeScript 检查与 esbuild 构建没有覆盖 Node 加载阶段，构建产物的第三方依赖和 CommonJS
+运行时边界因此可能在启动时才暴露；Go 检查也依赖其 Nix 环境提供 C 编译器。
 
 ## 决策
 
@@ -33,5 +29,5 @@ CommonJS 语义。验证包含构建产物连接本地 Temporal、进入 RUNNING
 Worker 维护者须同时维护 external 列表和直接生产依赖；新增第三方依赖时以真实启动
 结果确认可用性。未新增运行时安装、集群补丁或重试机制。
 
-本地构建产物已经成功进入 RUNNING 并停止，`ci-go` 中 `go build net` 通过；
-镜像发布和 staging 健康状态仍由既有 Source 与 GitOps 流程验收。
+构建产物启动和 Go 编译的验证由对应 package/CI 检查维护；镜像发布与环境健康由既有 Source
+与 GitOps 流程验收。

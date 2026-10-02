@@ -180,7 +180,8 @@ func (e hindsightExecutor) AppendConversationTurn(
 	if err := e.ensureBankForWrite(ctx, bankID); err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
-	retainResult, err := e.client.RetainMemories(ctx, bankID, e.conversationRetainRequest(bankID, request))
+	documentID := e.conversationMessageDocumentID(bankID, request.ThreadID, request.UserMessageID)
+	retainResult, err := e.client.RetainMemories(ctx, bankID, e.conversationRetainRequest(bankID, documentID, request))
 	if err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
@@ -190,8 +191,7 @@ func (e hindsightExecutor) AppendConversationTurn(
 	return memoryruntime.AppendConversationTurnResult{AppendedMessageCount: 1}, nil
 }
 
-func (e hindsightExecutor) conversationRetainRequest(bankID string, request memoryruntime.AppendConversationTurnRequest) hindsightRetainRequest {
-	documentID := e.conversationMessageDocumentID(bankID, request.ThreadID, request.UserMessageID)
+func (e hindsightExecutor) conversationRetainRequest(bankID, documentID string, request memoryruntime.AppendConversationTurnRequest) hindsightRetainRequest {
 	return hindsightRetainRequest{
 		Async: boolPointer(false),
 		Items: []hindsightMemoryItem{{

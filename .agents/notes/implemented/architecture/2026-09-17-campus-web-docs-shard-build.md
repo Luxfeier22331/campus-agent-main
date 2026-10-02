@@ -4,15 +4,8 @@ Status: implemented
 
 ## 背景
 
-`staging-candidate-publish` 从 `1e0d88590`（2026-09-15）起连续失败，
-失败点固定在 `Build Campus Web staging candidate`：
-
-```text
-FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
-```
-
-`build-campus-web.ts` 先后运行两次 `vite build`：`app` 目标构建学生端 SPA，
-`docs` 目标构建文档站。日志显示 app 目标正常完成，OOM 发生在随后的 docs 目标。
+单进程构建完整文档站时会在 docs 目标超过内存上限；app 目标和 docs 目标连续构建，
+使失败只在文档目标暴露。
 
 `docs` 目标由 `findHtmlInputs` 把每个文档页面注册为独立的 Rollup 入口，
 当前为 373 页、HTML 合计约 89 MB，单次构建需要同时持有全部页面的模块图与产物。

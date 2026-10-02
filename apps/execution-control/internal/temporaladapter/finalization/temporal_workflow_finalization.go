@@ -769,7 +769,7 @@ func (s *Adapter) ValidateCompletedWorkflowFinalizationStep(
 		}
 		expected := execution.CloneAnyMapFromValue(expectedPayload)
 		expected["activity_attempt"] = activityAttempt
-		if activityprojection.Sha256AnyValue(result.SanitizedPayload) != activityprojection.Sha256AnyValue(expected) {
+		if !execution.JSONMapsEquivalent(result.SanitizedPayload, expected) {
 			return activityprojection.SanitizedTemporalApplicationError(
 				"finalization_replay_conflict",
 				errors.New("completed finalization result fingerprint differs"),
@@ -824,7 +824,7 @@ func ValidateWorkflowResultSucceeded(agentResult map[string]any) (string, string
 	if len(expectedFingerprint) > 0 {
 		actualFingerprint := execution.CloneAnyMapFromValue(agentResult["tool_contract_fingerprint"])
 		if len(actualFingerprint) == 0 ||
-			execution.HashAdmissionJSON(expectedFingerprint) != execution.HashAdmissionJSON(actualFingerprint) {
+			!execution.ToolContractFingerprintMapsEqual(expectedFingerprint, actualFingerprint) {
 			return "", "tool_contract_mismatch", errors.New(
 				"persisted workflow runtime tool contract does not match admission",
 			)

@@ -65,11 +65,11 @@ export interface Distribution {
 
 export interface ReviewBoundary {
 	boundaryIndex: number;
-	nextChunkId: Sha256Ref;
+	nextChunkId: string;
 	nextChunkIndex: number;
 	nextFirstLine: string;
 	nextStart: string;
-	previousChunkId: Sha256Ref;
+	previousChunkId: string;
 	previousChunkIndex: number;
 	previousEnd: string;
 	previousLastLine: string;

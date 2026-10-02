@@ -17,8 +17,8 @@ status: active
 
 - `schema_version=tool_trajectory.v4`；
 - `decision_kind=direct_answer|tool_assisted|fail_closed`；
-- 同一个 Primary Agent 实际执行的有序 `tool_calls[]`，每项只含 `tool_name` 和可选
-  `eval_safe_args`。
+- 同一个 Primary Agent 实际执行的有序 `tool_calls[]`，每项含 `tool_name`；`campus_search`
+  调用额外携带当次检索的 `search_query` 和 `search_goal`。
 
 该投影从有界 run/step/result 数据派生，不读取原始 prompt、Provider response、知识内容或
 Temporal history。
@@ -33,14 +33,14 @@ v4 只接受当前本地函数工具注册表中的名称：
 `tool_calls[]` 按真实发生顺序记录。没有调用的已暴露工具不进入评测轨迹。
 
 Agents SDK 原生 hosted `web_search` 没有本地执行结果，不进入该轨迹。其他非本地函数工具能力也不得
-派生 `tool_name`、`eval_safe_args` 或 `selected_tool`。
+派生 `tool_name`、`search_query`、`search_goal` 或 `selected_tool`。
 
 ## 工具调用
 
-每次调用必须携带 `tool_name`。只有用例明确选择 `eval_safe_args` 模式且生产投影已提供安全参数时，
-调用才携带 `eval_safe_args`。
+每次调用必须携带 `tool_name`。`campus_search` 调用携带当次模型生成的 `search_query` 和
+`search_goal`，供评测确认每次检索意图；这是模型生成的检索表达，不属于用户隐私数据。
 
-Campus Search query、evidence 正文、collection 标识、provider 凭据和原始结果均不属于轨迹；个人
+Campus Search evidence 正文、collection 标识、provider 凭据和原始结果均不属于轨迹；个人
 记忆 query、`memory_text`、Hindsight 标识和原始结果也不属于轨迹。状态、耗时、调用 ID、运行时版本
 和 Provider 标识属于执行诊断，不复制进评测轨迹。
 

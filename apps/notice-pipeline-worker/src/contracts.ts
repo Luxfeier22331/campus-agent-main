@@ -19,8 +19,5 @@ export interface NoticePipelineInput {
 
 export interface RollbackInput {
 	expectedCurrent: string;
-	docsEmbeddingSet: `sha256:${string}`;
-	noticeEmbeddingSet: `sha256:${string}`;
-	producer: "automatic" | "manual";
-	producerRunId?: string;
+	collection: string;
 }

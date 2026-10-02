@@ -391,7 +391,7 @@ describe("notice semantic chunking", () => {
 		expect(() => assertValidNoticeChunks(build)).not.toThrow();
 	});
 
-	it("keeps a compact unstructured requirement notice together", () => {
+	it("preserves each recruitment item when ordinary prose precedes its numbered list", () => {
 		const contentText = [
 			"招聘勤工助学助理，具体要求如下：",
 			"1、岗位设置",
@@ -407,8 +407,16 @@ describe("notice semantic chunking", () => {
 		].join("\n");
 		const build = buildNoticeChunks(source(contentText));
 
-		expect(build.chunks).toHaveLength(1);
-		expect(build.chunks[0]?.content).toBe(contentText);
+		for (const value of ["（1）身体健康；", "（2）每周三个半天在岗。"])
+			expect(build.chunks.find((chunk) => chunk.content.includes(value))?.retrievalText).toContain(
+				"2、招聘要求",
+			);
+		expect(
+			build.chunks.some((chunk) => chunk.content.includes("3、应聘\n请于8月31日前提交报名表。")),
+		).toBe(true);
+		expect(
+			build.chunks.find((chunk) => chunk.content.includes("3、应聘"))?.retrievalText,
+		).not.toContain("2、招聘要求");
 		expect(() => assertValidNoticeChunks(build)).not.toThrow();
 	});
 
@@ -816,11 +824,11 @@ describe("notice semantic chunking", () => {
 					"基本符合课程目标",
 				].join("\n"),
 			),
-			{ algorithm: "notice_test.v1", maxChars: 20, overlapChars: 0, targetChars: 12 },
+			{ algorithm: "notice_test.v1", maxChars: 40, overlapChars: 0, targetChars: 12 },
 		);
 
-		expect(build.definition.maxChars).toBe(20);
-		expect(build.chunks.every((chunk) => [...chunk.content].length <= 20)).toBe(true);
+		expect(build.definition.maxChars).toBe(40);
+		expect(build.chunks.every((chunk) => [...chunk.content].length <= 40)).toBe(true);
 		expect(
 			build.chunks.some((chunk) =>
 				chunk.parts.some((part) => part.kind === "table-header" && part.content === "分值\n标准"),

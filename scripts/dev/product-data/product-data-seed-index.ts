@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	createLocalEmbeddingConnection,
@@ -11,7 +11,7 @@ import {
 } from "../../../jobs/campus-docs-index-publisher/src/publisher.ts";
 import { assembleCandidate } from "../../../jobs/campus-rag-index-publisher/src/publisher.ts";
 import type { Sha256Ref } from "../../../jobs/campus-rag-index-publisher/src/types.ts";
-import { writeStoredChunkRun } from "../../../jobs/notice-index-publisher/src/artifacts.ts";
+import { writeStoredNoticeChunks } from "../../../jobs/notice-index-publisher/src/artifacts.ts";
 import { buildNoticeChunkRun } from "../../../jobs/notice-index-publisher/src/command.ts";
 import { buildNoticeEmbeddingSet } from "../../../jobs/notice-index-publisher/src/embedding-set.ts";
 import { createProductSeed } from "./product-data-seed.ts";
@@ -44,7 +44,7 @@ export async function buildProductSeedIndex(
 	const connection = createLocalEmbeddingConnection(input);
 	const embedding = createOpenAICompatibleEmbeddingClient(connection);
 	const docs = await buildCampusDocsChunkSet({ sourceStore, artifactStore: store });
-	const notices = await writeStoredChunkRun({
+	const notices = await writeStoredNoticeChunks({
 		artifactStore: store,
 		...buildNoticeChunkRun({
 			sources: seed.rows["notices.notices"]
@@ -65,7 +65,7 @@ export async function buildProductSeedIndex(
 	});
 	const noticeEmbedding = await buildNoticeEmbeddingSet({
 		artifactStore: store,
-		chunkRun: notices.run,
+		chunks: notices.chunks.sha256,
 		embedding,
 		modelTargetSha256: connection.targetSha256,
 	});

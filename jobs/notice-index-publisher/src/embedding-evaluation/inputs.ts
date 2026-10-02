@@ -1,4 +1,4 @@
-import { sha256 } from "../encoding.ts";
+import { createNoticeEmbeddingInputs } from "../embedding-cache.ts";
 import {
 	NOTICE_QUERY_INSTRUCTION,
 	type NoticeEmbeddingInputSet,
@@ -40,10 +40,6 @@ export function decodeNoticeQuestionNdjson(bytes: Uint8Array): NoticeRetrievalQu
 						`notice question record ${index} evidence ${evidenceIndex} chunk id is invalid`,
 					);
 				}
-				assertSha256Ref(
-					evidence.chunkId,
-					`notice question record ${index} evidence ${evidenceIndex} chunk id`,
-				);
 			}
 		}
 		return value as unknown as NoticeRetrievalQuestion;
@@ -91,17 +87,8 @@ export function buildEmbeddingInputSet(
 	chunks: readonly NoticeChunk[],
 	questions: readonly NoticeRetrievalQuestion[],
 ): NoticeEmbeddingInputSet {
-	const textBySha256 = new Map<Sha256Ref, string>();
-	const addText = (text: string): Sha256Ref => {
-		const digest = sha256(text);
-		const existing = textBySha256.get(digest);
-		if (existing !== undefined && existing !== text) {
-			throw new Error(`embedding text SHA-256 collision: ${digest}`);
-		}
-		textBySha256.set(digest, text);
-		return digest;
-	};
-	const documentTextByChunkId = new Map<Sha256Ref, Sha256Ref>();
+	const { textBySha256, add: addText } = createNoticeEmbeddingInputs();
+	const documentTextByChunkId = new Map<string, Sha256Ref>();
 	for (const chunk of chunks) {
 		documentTextByChunkId.set(chunk.chunkId, addText(chunk.retrievalText));
 	}
@@ -125,11 +112,6 @@ function decodeNdjson<T>(
 	return lines.map((line, index) => parse(JSON.parse(line) as unknown, index));
 }
 
-function assertSha256Ref(value: string, label: string): asserts value is Sha256Ref {
-	if (!/^sha256:[0-9a-f]{64}$/u.test(value)) {
-		throw new Error(`${label} must be sha256:<64 lowercase hex characters>`);
-	}
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value && typeof value === "object" && !Array.isArray(value));

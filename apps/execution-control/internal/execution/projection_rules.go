@@ -311,3 +311,10 @@ func cloneStepResultJSONReflect(value reflect.Value) reflect.Value {
 		return value
 	}
 }
+
+// JSONValuesEquivalent keeps wire JSON equality for typed and decoded values.
+func JSONValuesEquivalent(left, right any) bool {
+	leftJSON, leftErr := json.Marshal(left)
+	rightJSON, rightErr := json.Marshal(right)
+	return leftErr == nil && rightErr == nil && bytes.Equal(leftJSON, rightJSON)
+}

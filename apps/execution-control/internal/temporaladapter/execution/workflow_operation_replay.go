@@ -50,7 +50,6 @@ func (s *Adapter) RepairWorkflowOperationReplayProjection(
 		resultPayload, payloadErr := WorkflowOperationResultPayload(
 			request,
 			output,
-			receipt.InputSHA256,
 			identity.ActivityAttempt,
 			strings.TrimSpace(s.Config.DeploymentRelease),
 		)

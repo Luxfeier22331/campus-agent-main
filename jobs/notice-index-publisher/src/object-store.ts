@@ -60,7 +60,7 @@ export function createNoticeS3ArtifactStore(
             }
 		},
 		async remove(key) {
-            if (!/^notices\/rag\/(?:chunk-runs|embedding-data|embedding-sets)\/sha256\/[a-f0-9]{64}\/[a-z.-]+$/u.test(key)) {
+            if (!/^notices\/rag\/(?:chunk-data|chunk-runs|embedding-data|embedding-sets)\/sha256\/[a-f0-9]{64}\/[a-z.-]+$/u.test(key)) {
                 throw new Error("Automatic cleanup only removes Notice RAG artifact keys");
             }
             const versions: string[] = [];

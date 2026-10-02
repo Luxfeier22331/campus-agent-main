@@ -97,7 +97,7 @@ describe("Campus Search Ops display", () => {
 								text: "登录说明",
 								citationIndex: null,
 								cited: false,
-								exclusionReason: "source_group_limit",
+								exclusionReason: "same_notice_cap",
 							},
 						],
 					},
@@ -111,8 +111,8 @@ describe("Campus Search Ops display", () => {
 		expect(screen.getByText(/actual-reranker/)).toBeInTheDocument();
 		expect(screen.getByText(/actual_collection/)).toBeInTheDocument();
 		expect(screen.getByText(/Qdrant 服务端 未记录.*解码 0 ms/)).toBeInTheDocument();
-		expect(screen.getByText(/同通知排除 1.*返回模型 1.*最终引用 1/)).toBeInTheDocument();
-		expect(screen.getByText("同一通知已保留更高分片段")).toBeInTheDocument();
+		expect(screen.getByText(/同来源排除 1.*返回模型 1.*最终引用 1/)).toBeInTheDocument();
+		expect(screen.getByText("同一来源片段数量限制")).toBeInTheDocument();
 		expect(screen.getByText("已引用")).toBeInTheDocument();
 		expect(screen.getByText("未引用")).toBeInTheDocument();
 	});

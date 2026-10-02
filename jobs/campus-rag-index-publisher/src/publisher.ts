@@ -9,6 +9,7 @@ import {
 	readDocsChunkSet,
 	readDocsEmbeddingSet,
 	readNoticeChunkRun,
+	readNoticeChunks,
 	readNoticeEmbeddingSet,
 } from "./artifacts.ts";
 import { COLLECTION_DEFINITION, COLLECTION_PREFIX } from "./definitions.ts";
@@ -70,7 +71,9 @@ export async function assembleCandidate(
 	const docs = await readDocsEmbeddingSet(store, docsEmbeddingSetId);
 	const docsChunks = await readDocsChunkSet(store, docs.manifest.chunkSet);
 	const notices = await readNoticeEmbeddingSet(store, noticeEmbeddingSetId);
-	const noticeRun = await readNoticeChunkRun(store, notices.manifest.chunkRun);
+	const noticeChunks = notices.manifest.schemaVersion === "notice_embedding_set.v1"
+		? (await readNoticeChunkRun(store, notices.manifest.chunkRun)).chunks
+		: await readNoticeChunks(store, notices.manifest.chunks);
 	if (
 		docs.manifest.embeddingSpace.dimensions !== EMBEDDING_SPACE.dimensions ||
 		notices.manifest.embeddingSpace.dimensions !== EMBEDDING_SPACE.dimensions
@@ -85,7 +88,7 @@ export async function assembleCandidate(
 	}
 	const docsPoints = buildDocsPoints(docsChunks.chunks, docs.embeddings);
 	const noticePoints = buildNoticePoints(
-		noticeRun.chunks,
+		noticeChunks,
 		notices.embeddings,
 	);
 	if (docsPoints.length === 0 || noticePoints.length === 0) {
@@ -161,6 +164,7 @@ export function buildNoticePoints(
 	return chunksWithDigest.map(({ chunk, retrievalTextSha256 }) => {
 		const vector = dense.get(retrievalTextSha256);
 		if (!vector) throw new ArtifactValidationError(`Notice embedding is missing chunk ${chunk.chunkId}`);
+		const evidence = chunk.retrievalText.slice(chunk.retrievalText.indexOf("\n") + 1);
 		const title = titles.get(chunk.noticeId);
 		if (!title) throw new ArtifactValidationError(`Notice title is missing: ${chunk.noticeId}`);
 		if (!chunk.releasedAt || Number.isNaN(Date.parse(chunk.releasedAt))) {
@@ -179,8 +183,8 @@ export function buildNoticePoints(
 				schema_version: COLLECTION_DEFINITION.pointSchemaVersion,
 				section_title: chunk.headingPath.at(-1) ?? "正文",
 				source_kind: "notice",
-				text: chunk.content,
-				text_sha256: sha256(chunk.content),
+				text: evidence,
+				text_sha256: sha256(evidence),
 				title,
 			},
 			vector: { dense: vector, sparse: buildSparseVector(chunk.retrievalText) },

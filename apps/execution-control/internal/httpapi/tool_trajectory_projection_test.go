@@ -106,8 +106,8 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 	if calls[0]["tool_name"] != "personal_memory_recall" {
 		t.Fatalf("tool call = %#v", calls[0])
 	}
-	if _, exists := calls[0]["eval_safe_args"]; exists {
-		t.Fatalf("personal memory call must not expose eval_safe_args: %#v", calls[0])
+	if _, exists := calls[0]["search_query"]; exists {
+		t.Fatalf("personal memory call must not expose search args: %#v", calls[0])
 	}
 	if len(calls[0]) != 1 {
 		t.Fatalf("tool call contains non-eval fields: %#v", calls[0])
@@ -145,6 +145,8 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 			SanitizedPayload: map[string]any{
 				"activity_attempt": 2,
 				"parent_step_id":   "task.step.lookup",
+				"search_query":     "本科生转专业 申请条件",
+				"search_goal":      "确认本科生转专业的申请条件",
 				"result": campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{{
 					ResultRef:    "result://" + strings.Repeat("c", 64),
 					SourceKind:   "document",
@@ -185,8 +187,13 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 	if len(calls) != 2 {
 		t.Fatalf("tool_calls = %#v", trajectory["tool_calls"])
 	}
-	if _, exists := calls[0]["eval_safe_args"]; exists {
-		t.Fatalf("personal memory call must not expose eval_safe_args: %#v", calls[0])
+	if _, exists := calls[0]["search_query"]; exists {
+		t.Fatalf("personal memory call must not expose search args: %#v", calls[0])
+	}
+	if calls[1]["tool_name"] != "campus_search" ||
+		calls[1]["search_query"] != "本科生转专业 申请条件" ||
+		calls[1]["search_goal"] != "确认本科生转专业的申请条件" {
+		t.Fatalf("campus_search call must expose search args: %#v", calls[1])
 	}
 }
 

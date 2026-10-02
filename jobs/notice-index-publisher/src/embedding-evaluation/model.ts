@@ -24,7 +24,7 @@ export type RankingCutoff =
 export type RankingCutoffKey = `${RankingCutoff}`;
 
 export interface NoticeQuestionEvidence {
-	chunkId?: Sha256Ref;
+	chunkId?: string;
 	text: string;
 }
 
@@ -38,7 +38,7 @@ export interface NoticeRetrievalQuestion {
 }
 
 export interface RankedNoticeChunk {
-	chunkId: Sha256Ref;
+	chunkId: string;
 	chunkIndex: number;
 	content: string;
 	headingPath: string[];
@@ -51,7 +51,7 @@ export interface NoticeQuestionRanking {
 	allEvidenceRank: number;
 	answer: string;
 	answerEvidenceRank: number;
-	evidenceChunkIds: Sha256Ref[];
+	evidenceChunkIds: string[];
 	evidenceChunkRanks: Record<string, number>;
 	firstEvidenceRank: number;
 	firstNoticeRank: number;
@@ -123,7 +123,7 @@ export interface NoticeEmbeddingEvaluationArtifact {
 }
 
 export interface NoticeEmbeddingInputSet {
-	documentTextByChunkId: Map<Sha256Ref, Sha256Ref>;
+	documentTextByChunkId: Map<string, Sha256Ref>;
 	queryTextByQuestionId: Map<string, Sha256Ref>;
 	textBySha256: Map<Sha256Ref, string>;
 }

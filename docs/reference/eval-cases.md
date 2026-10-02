@@ -21,8 +21,7 @@ contexts 或其他正文。一次性执行也可以直接提供其他输入文�
 每个仓库用例必须包含：
 
 - `case_id`、`query`，以及评测需要的 `reference`；
-- `reference_tool_calls[]`，表示当前真实工具 exposure 下的预期调用；
-- `argument_mode`，未提供时默认为 `name_only`。
+- `reference_tool_calls[]`，表示当前真实工具 exposure 下的预期调用。
 
 可选字段：
 
@@ -39,10 +38,7 @@ contexts 或其他正文。一次性执行也可以直接提供其他输入文�
 
 ## Agent 工具用例
 
-工具用例使用 `query`、`reference_tool_calls[]` 和 `argument_mode`：
-
-- `name_only`：只评测 direct/function 选择；
-- `eval_safe_args`：仅在当前真实工具具有稳定且可公开参数时使用。
+工具用例使用 `query` 和 `reference_tool_calls[]`，只评测 direct/function 选择（按工具名比对）。
 
 当前在线 Agent 用例只标注已经开放的真实工具；不为文档问题伪造工具或固定证据上下文。只有 RAG
 用例提供 `reference_context_ids[]` 或 `reference_contexts[]` 时，runner 才把离线

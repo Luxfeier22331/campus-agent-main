@@ -1,10 +1,12 @@
-import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 
 import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 import { describe, expect, it, vi } from "vitest";
 
-import { writeStoredChunkRun } from "../src/artifacts.ts";
+import { writeLocalChunkRun, writeStoredNoticeChunks } from "../src/artifacts.ts";
 import { buildNoticeChunkRun } from "../src/command.ts";
 import {
 	collectNoticeEmbeddingInputs,
@@ -19,7 +21,7 @@ import {
 	readNoticeEmbeddingSet,
 } from "../src/embedding-set.ts";
 import { canonicalJsonBytes, encodeNdjson, sha256 } from "../src/encoding.ts";
-import { readStoredNoticeChunkRun } from "../src/run-reader.ts";
+import { readStoredNoticeChunks } from "../src/run-reader.ts";
 import type { NoticeArtifactStore } from "../src/types.ts";
 
 describe("cluster notice artifacts", () => {
@@ -44,7 +46,7 @@ describe("cluster notice artifacts", () => {
 			expect(decode.mock.calls.every(([input]) => !input || input.byteLength < data.byteLength)).toBe(true);
 		} finally { decode.mockRestore(); }
 	});
-	it("writes and reads the existing chunk run contract in the derived prefix", async () => {
+	it("writes only serving chunks and reads them by content digest", async () => {
 		const store = memoryStore();
 		const prepared = buildNoticeChunkRun({
 			sources: [
@@ -52,19 +54,11 @@ describe("cluster notice artifacts", () => {
 				{ contentText: "正文二。", noticeId: "2", title: "通知二" },
 			],
 		});
-		const result = await writeStoredChunkRun({ artifactStore: store, ...prepared });
-		const read = await readStoredNoticeChunkRun(store, result.run);
-
-		expect(read.manifest).toMatchObject({
-			chunkCount: 2,
-			noticeCount: 2,
-			schemaVersion: "notice_chunk_run.v2",
-		});
-		expect([...store.objects.keys()]).toEqual(
-			expect.arrayContaining([
-				`notices/rag/chunk-runs/sha256/${result.run.slice("sha256:".length)}/manifest.json`,
-			]),
-		);
+		const result = await writeStoredNoticeChunks({ artifactStore: store, ...prepared });
+		const read = await readStoredNoticeChunks(store, result.chunks.sha256);
+		expect(read.chunks).toEqual(prepared.chunks);
+		expect(result).toMatchObject({ chunkCount: 2, noticeCount: 2 });
+		expect([...store.objects.keys()]).toEqual([result.chunks.key]);
 	});
 
 	it("builds one embedding for repeated retrieval text and writes an explicit set", async () => {
@@ -75,11 +69,11 @@ describe("cluster notice artifacts", () => {
 				{ contentText: "同一正文。", noticeId: "2", title: "同一通知" },
 			],
 		});
-		const chunkRun = await writeStoredChunkRun({ artifactStore: store, ...prepared });
+		const chunkRun = await writeStoredNoticeChunks({ artifactStore: store, ...prepared });
 		const requests: string[][] = [];
 		const result = await buildNoticeEmbeddingSet({
 			artifactStore: store,
-			chunkRun: chunkRun.run,
+			chunks: chunkRun.chunks.sha256,
 			embedding: {
 				async embed(input) {
 					requests.push(input.texts);
@@ -93,15 +87,60 @@ describe("cluster notice artifacts", () => {
 		expect(requests).toEqual([["同一通知\n同一正文。"]]);
 		expect(result.embeddingCount).toBe(1);
 		expect(read.manifest).toMatchObject({
-			chunkRun: chunkRun.run,
+			chunks: chunkRun.chunks,
 			embeddingCount: 1,
 			modelTargetSha256: "a".repeat(64),
-			schemaVersion: "notice_embedding_set.v1",
+			schemaVersion: "notice_embedding_set.v2",
 		});
 		expect(store.objects.has(noticeEmbeddingDataKey(read.manifest.embeddings.sha256))).toBe(true);
 		expect(store.objects.has(noticeEmbeddingSetManifestKey(result.embeddingSet))).toBe(true);
 		expect(result.generatedEmbeddingInputCount).toBe(1);
 		expect(result.reusedEmbeddingInputCount).toBe(0);
+	});
+
+	it("keeps serving identity independent of review and algorithm metadata", async () => {
+		const root = await mkdtemp(join(tmpdir(), "notice-serving-identity-"));
+		try {
+			const store = memoryStore();
+			const prepared = buildNoticeChunkRun({ sources: [{ noticeId: "42", title: "通知", contentText: "原文。" }] });
+			const firstRun = await writeLocalChunkRun({ artifactRoot: root, ...prepared });
+			const changedReview = { ...prepared, reviewSamples: prepared.reviewSamples.map((sample) => ({ ...sample, reviewOnly: true })), validation: { ...prepared.validation, reviewOnly: true } };
+			const secondRun = await writeLocalChunkRun({ artifactRoot: root, ...changedReview });
+			expect(firstRun.run).not.toBe(secondRun.run);
+			const firstChunks = await writeStoredNoticeChunks({ artifactStore: store, ...prepared });
+			const secondChunks = await writeStoredNoticeChunks({ artifactStore: store, ...changedReview });
+			expect(firstChunks.chunks).toEqual(secondChunks.chunks);
+			const otherDefinition = buildNoticeChunkRun({ sources: [{ noticeId: "42", title: "通知", contentText: "原文。" }], definition: { ...prepared.definition, algorithm: "metadata-only-change" } });
+			expect(otherDefinition.chunks).toEqual(prepared.chunks);
+			const embed = vi.fn(async (input: { texts: string[] }) => input.texts.map(() => vector()));
+			const input = { artifactStore: store, chunks: firstChunks.chunks.sha256, embedding: { embed }, modelTargetSha256: "a".repeat(64) };
+			const first = await buildNoticeEmbeddingSet(input);
+			const second = await buildNoticeEmbeddingSet({ ...input, chunks: secondChunks.chunks.sha256 });
+			expect(first.embeddingSet).toBe(second.embeddingSet);
+			expect(embed).toHaveBeenCalledTimes(1);
+			expect([...store.objects.keys()].some((key) => key.includes("chunk-runs"))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("selects new vectors for changed text even when the chunk location stays the same", async () => {
+		const store = memoryStore();
+		const prepare = (contentText: string) => buildNoticeChunkRun({ sources: [{ noticeId: "42", title: "通知", contentText }] });
+		const before = prepare("旧正文。");
+		const after = prepare("新正文。");
+		expect(before.chunks[0]?.chunkId).toBe("notice:42:0");
+		expect(after.chunks[0]?.chunkId).toBe(before.chunks[0]?.chunkId);
+		const embed = vi.fn(async (input: { texts: string[] }) => input.texts.map(() => vector()));
+		const results = [];
+		for (const prepared of [before, after, before]) {
+			const chunks = await writeStoredNoticeChunks({ artifactStore: store, ...prepared });
+			results.push(await buildNoticeEmbeddingSet({ artifactStore: store, chunks: chunks.chunks.sha256, embedding: { embed }, modelTargetSha256: "a".repeat(64) }));
+		}
+		expect(results.map((result) => result.generatedEmbeddingInputCount)).toEqual([1, 1, 0]);
+		expect(results[0]?.embeddingSet).not.toBe(results[1]?.embeddingSet);
+		expect(results[0]?.embeddingSet).toBe(results[2]?.embeddingSet);
+		expect(embed.mock.calls.map(([input]) => input.texts)).toEqual([["通知\n旧正文。"], ["通知\n新正文。"]]);
 	});
 
 	it("reuses complete online cache without calling the provider", async () => {
@@ -112,7 +151,7 @@ describe("cluster notice artifacts", () => {
 				{ contentText: "第二段正文。", noticeId: "2", title: "第二条通知" },
 			],
 		});
-		const chunkRun = await writeStoredChunkRun({ artifactStore: store, ...prepared });
+		const chunkRun = await writeStoredNoticeChunks({ artifactStore: store, ...prepared });
 		const modelTargetSha256 = "b".repeat(64);
 		for (const textSha256 of collectNoticeEmbeddingInputs(prepared.chunks).keys()) {
 			await store.writeImmutable(
@@ -132,7 +171,7 @@ describe("cluster notice artifacts", () => {
 		};
 		const result = await buildNoticeEmbeddingSet({
 			artifactStore: store,
-			chunkRun: chunkRun.run,
+			chunks: chunkRun.chunks.sha256,
 			embedding: { embed: provider },
 			modelTargetSha256,
 		});
@@ -150,7 +189,7 @@ describe("cluster notice artifacts", () => {
 				{ contentText: "第二段正文。", noticeId: "2", title: "第二条通知" },
 			],
 		});
-		const chunkRun = await writeStoredChunkRun({ artifactStore: store, ...prepared });
+		const chunkRun = await writeStoredNoticeChunks({ artifactStore: store, ...prepared });
 		const modelTargetSha256 = "d".repeat(64);
 		const inputTexts = [...collectNoticeEmbeddingInputs(prepared.chunks)].sort(([left], [right]) =>
 			compareCanonicalStrings(left, right),
@@ -169,7 +208,7 @@ describe("cluster notice artifacts", () => {
 		}
 		const result = await buildNoticeEmbeddingSet({
 			artifactStore: store,
-			chunkRun: chunkRun.run,
+			chunks: chunkRun.chunks.sha256,
 			embedding: { embed: async () => { throw new Error("provider should not run"); } },
 			modelTargetSha256,
 		});
