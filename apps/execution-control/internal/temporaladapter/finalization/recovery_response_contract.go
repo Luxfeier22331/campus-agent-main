@@ -44,6 +44,7 @@ type recoverySource struct {
 	VersionID         string   `json:"version_id"`
 	VersionSlug       string   `json:"version_slug"`
 	RootUnitIDs       []string `json:"root_unit_ids"`
+	ReleasedAt        string   `json:"released_at,omitempty"`
 	URL               string   `json:"url"`
 	Hostname          string   `json:"hostname"`
 }
