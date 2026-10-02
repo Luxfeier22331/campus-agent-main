@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: formal-release
+  group: campus-agent-ghcr-mutation
   cancel-in-progress: false
   queue: max
 

@@ -490,14 +490,11 @@ jobs:
     permissions:
       contents: read
       packages: read
-      pull-requests: read
     uses: ./.github/workflows/pr-image-evidence.yml
     with:
       images: ${{ needs.repository-validation.outputs.images }}
       source_sha: ${{ needs.repository-validation.outputs.head }}
-      cache_write: false
       cache_read: true
-      pull_request_number: ${{ github.event.pull_request.number }}
 
   image-evidence-readonly:
     needs: repository-validation
@@ -515,9 +512,7 @@ jobs:
     with:
       images: ${{ needs.repository-validation.outputs.images }}
       source_sha: ${{ needs.repository-validation.outputs.head }}
-      cache_write: false
       cache_read: false
-      pull_request_number: ${{ github.event.pull_request.number }}
 
   repo-checks:
     needs: [repository-validation, image-evidence-trusted, image-evidence-readonly]

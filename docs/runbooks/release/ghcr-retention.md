@@ -4,76 +4,78 @@ owner_boundary: runtime-release
 status: active
 ---
 
-# GHCR 缓存清理
+# GHCR 镜像保留与清理
 
-## 当前边界
+## 边界
 
-`ghcr-retention` 的 PR 关闭入口只清理 `campus-agent/pr-cache-<number>/<image>`，现有行为保持不变。
-full 入口只生成报告，全量删除和 schedule 由 #511 Work B 后续交付。
+Source 的 `ghcr-retention` 管理登记的 active/retired 镜像包，以及指定编号的历史 PR 缓存。
+PR CI 只读取 canonical main cache，不再导出 PR cache，也不在 PR 关闭时启动清理。
+full 支持手动 report/apply；定时执行须在真实 workflow token 的首次删除与复查通过后启用。
 
-full report 的保护根来自 GitOps exporter：未退役正式 Release 的不可变 `release.json`、当前环境
-期望状态、滚动候选、最后成功的 Deployment、在途/失败恢复 Deployment，再加当前 canonical cache。
-正式版本没有独立的 SHA 数量窗口，普通候选也没有七天或 90 天的保留承诺。所有根与 OCI child
-manifest 取并集；一个版本退役不会删除仍被其他版本或环境引用的 digest。已退役组件包只要还有根
-就继续保留，不能整包删除。
+full 的保护根来自 GitOps exporter：未退役正式 Release 的不可变 `release.json`、当前环境期望状态、
+滚动候选、最后成功的 Deployment、在途/失败恢复 Deployment，以及 Source 可恢复候选和当前
+canonical cache。所有根与 OCI child manifest 取并集；版本退役不会删除仍被其他版本或环境引用
+的 digest。已退役组件包只要还有根就继续保留，不能整包删除。
 
-Release/asset、Deployment、GitOps revision 或 registry 查询错误必须使报告失败，不能当作空根。
-环境仓 `releases/retired.json` 只解除该正式版本的历史回滚保留资格，不解除实际部署和恢复引用。
+正式版本没有独立的 SHA 数量窗口，普通候选也没有默认七天保留承诺。未知 tag 保留；active 包
+保留包本身，清理无引用版本。Release/asset、Deployment、GitOps revision 或 registry 查询失败
+不能当作空根。active 包缺失会阻止 apply；历史 PR 缓存或 retired 包的 metadata 404 仅在可见权限
+正确时视为缺失，其他读取、传输和解析错误均失败。
 
-## 自动清理
+## 前置条件
 
-同仓非 Dependabot PR 关闭或合并时，`pull_request_target: closed` 使用默认分支代码自动 apply。
-清理先确认 PR 已关闭且属于本仓，再取消其未完成的 `pr` workflow runs，每 5 秒检查一次，最多
-等待 10 分钟。run 关联缺失时沿用分支和提交归属检查；无法确认、超时或 API 失败就停止。
+使用 main 上的 workflow。Source token 需要读取 contents、Actions 候选和 commit statuses，
+并对已登记 package 具备读取与删除权限；PR scope 另需读取 PR 状态。GitOps App token 只读环境仓
+contents 和 deployments。不能用本地凭据成功替代真实 workflow token 的删除验收。
 
-随后直接读取目标缓存包，复查 PR 状态，整包删除并直查确认消失。不同 PR 使用不同并发组；同一
-PR 的自动和手动清理共享并发组。构建登录缓存前检查实时 PR 状态，关闭或查询失败时禁止远程
-缓存读写，避免清理后重写。
+候选发布、正式版本创建和 full apply 共用 workflow 级 `campus-agent-ghcr-mutation` 并发组，
+`cancel-in-progress: false`、`queue: max`，按队列执行。full report 使用独立组；历史 PR 缓存按编号
+隔离。不再授予清理 workflow 取消 PR 构建的 Actions 写权限。
 
-包 metadata 直查的 HTTP 404 视为缺失，前提是 workflow 对目标 package 的可见权限正确。
-versions、PR 查询、删除和复查的其他错误不会被当作空库存。全部目标已经不存在时，PR 资格检查
-通过后可以成功重复执行。
+## 操作步骤
 
-## 手动补做
+在 `ghcr-retention` 的 Run workflow 中选择 main 并填写：
 
-在 `ghcr-retention` 的 Run workflow 中填写：
+- `scope=full`（默认）：管理登记的正式镜像/cache；`scope=pr`：清理一个已关闭的同仓非 Dependabot PR。
+- `mode=report`（默认）：生成只读计划；`mode=apply`：重新计算计划、复查并执行删除。
+- `pr_number`：仅 PR scope 填写。
 
-- `scope`：`pr`（默认）清理一个已关闭 PR；`full` 只生成已登记 package 范围的正式镜像/cache report。
-- `pr_number`：scope 为 `pr` 时填写已关闭的同仓非 Dependabot PR 编号。
-- `mode`：`report` 只读计划；`apply` 执行删除。PR apply 还会先停止该 PR 的未完成构建。
+先运行 report 检查删除范围，再运行 apply。apply 不消费先前报告：full 会刷新 GitOps main 和
+`deploy/staging`、重新导出正式版本/部署/恢复根并读取 registry inventory；删除前再做一次完整刷新，
+仅执行两次计划中都允许删除的相同 version ID/digest，整包删除也不覆盖新出现的版本。随后重新
+读取 inventory，确认目标消失、active 包及受保护根和子 manifest 仍在。
 
-手动运行使用所选 ref 的代码；日常操作选择默认分支。report 不取消构建，也不删除缓存。
-CLI 等价入口如下：
+PR scope 先检查 PR 资格、直查对应缓存包，删除前复查 PR 状态，删除后确认包消失；不会取消构建。
+目标已经不存在时可重复执行，不为了验收重新生成 PR 缓存。
+
+CLI 调试入口如下；full 会 fetch 并切换 GitOps checkout，因此只使用专用、干净的临时 checkout，
+先安装其冻结依赖。`GH_TOKEN`/`SOURCE_TOKEN` 用于 Source，`GITHUB_TOKEN` 用于 GitOps。workflow
+已准备这些环境及 registry 登录；本地 apply 不能获得 Actions 并发锁，实际删除使用 workflow。
 
 ```bash
-# Full report: export immutable releases and deployment roots first.
-pnpm --dir gitops-retention exec tsx tools/release-command.ts roots \
-  --root "$PWD/gitops-retention" --output "$PWD/release-roots.json"
 node --experimental-strip-types scripts/release/ghcr-retention.mts \
-  --scope full --gitops-root ./gitops-retention --gitops-refs main,deploy/staging \
+  --scope full --gitops-root ./gitops-retention \
   --release-roots ./release-roots.json --mode report --output ghcr-retention.json
 
-# Closed PR cache report.
 node --experimental-strip-types scripts/release/ghcr-retention.mts \
   --scope pr --pr-cache-pr 508 --mode report --output ghcr-retention.json
 ```
 
-full scope 在 workflow 和 CLI 均只允许 `report`。失败时修复读取、权限或保护根的实际问题，
-再生成报告；本轮不启用全量 apply，也不创建定时清理入口。
+首次 full apply 必须存在真实删除对象；零删除报告不算删除验收。检查 workflow 成功、删除对象确实
+消失、保护对象仍可用后，再以同一 full apply 路径启用每日定时清理。尚未完成这一步时不宣称自动
+清理已上线，也不关闭 #511 Work B。
 
-## 结果与权限
+## 失败处理
 
-沿用 JSON report 和 Actions summary。apply 前保存计划，读取、删除或复查失败后更新报告，
-标明失败操作并返回非零退出码；删除失败可能已完成部分操作，报告中的计划不代表全部执行成功。
-脚本运行前的环境初始化失败由原步骤日志说明，不追加报告文件缺失的上传错误。
+JSON report 与 Actions summary 标明失败阶段，进程返回非零退出码。报告中的计划不表示所有删除
+均已执行；失败可能发生在部分删除之后。修复实际读取、权限或保护根问题后，重新 report/apply，
+使用当前状态计算剩余范围。报告 artifact 保留七天，不新增长期报告归档。
 
-workflow 使用 `contents: read`、`pull-requests: read`、`actions: write`、`packages: write`；full
-scope 额外使用 GitHub App token 读取 `campus-agent-gitops` 的 contents 和 deployments，Source token
-读取正式 Release 及不可变 asset。
-API 删除还要求 token 对目标 package 具备相应权限；失败时报告原因，不切换个人 PAT 或扩大组织权限。
-本地凭据的成功不能替代真实 workflow token 的验收。
+环境初始化失败由原步骤日志说明，不追加报告文件缺失的上传错误。package 权限不足时修复现有
+workflow 的 package access，不切换个人 PAT、不扩大组织枚举权限。
 
 ## 相关文档
 
+- [运行时发布架构](../../architecture/system/runtime-release.md)
+- [候选复用与镜像清理边界](../../../.agents/notes/implemented/process/2026-10-03-source-publication-retention.md)
 - [PR 缓存直查与暂停全量清理](../../../.agents/notes/implemented/process/2026-09-17-ghcr-pr-cache-direct-cleanup.md)
-- [原镜像保留与退役决策](../../../.agents/notes/implemented/process/2026-09-04-ghcr-retention.md)

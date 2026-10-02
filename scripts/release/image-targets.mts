@@ -195,7 +195,7 @@ export function imageTargetsForScope(
 					return (
 						relative === "go.mod" ||
 						relative === "go.sum" ||
-						relative.startsWith("cmd/") ||
+						relative.startsWith(image === "model-config" ? "cmd/model-config/" : "cmd/") ||
 						relative.startsWith("internal/")
 					);
 				}

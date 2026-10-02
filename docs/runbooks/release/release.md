@@ -36,11 +36,23 @@ main 中已验证的源码
 
 普通 PR 不发布最终候选物，也不访问私有环境、供应商状态、集群或真实私有数据。涉及镜像的 PR
 可以执行 `cacheonly` 的 `linux/arm64` build-only 证据，不发布运行镜像或加载本地镜像。同仓 PR 的
-独立镜像 job 默认只读取主线 canonical 缓存，不写入该 PR 的 `pr-cache-<number>` 命名空间；只有
-reusable workflow 显式启用 `cache_write` 时才执行该导出；fork、Dependabot job 也可以只读主线
-canonical cache，但仍不会写入任何 PR cache。
+独立镜像 job 只读取主线 canonical 缓存，不提供 PR cache 导出输入；fork 和 Dependabot 不使用
+认证缓存。历史 PR cache 通过[手动清理入口](./ghcr-retention.md)处理。
 主线发布仍只读写 canonical 缓存。特殊制品和手动
 验证入口只有在明确选择时运行，不提供隐式全量发布或全量验证开关。
+
+同 SHA 的重复自动 push 在写 pending 前检查既有 workflow jobs：发布及 Source promotion 已完成
+时直接跳过；制品已完整发布但状态收尾或 promotion 失败时，验证现有 artifact 并复用，不重新构建
+或上传。复用后按当前累计计划筛选制品，继续交给 GitOps。`topology-required` 仍表示需要先修复
+环境拓扑，不表示完成交接或部署；重复自动事件可复用候选再尝试，也可在修复后用显式 recovery 继续。
+
+artifact 过期或不完整时失败并指向手动入口，不自动重建。显式 `workflow_dispatch` 不受自动去重
+限制；配置刷新使用 `candidate_scope=app-api-config`。App API staging 上传只允许在 GitHub Actions
+执行，在本地运行会在 preflight 和配置读取前失败。显式 promotion recovery 同时填写原始发布 run ID
+和 Source SHA，缺少任一项都会在查询远端状态或写入候选状态前失败。
+恢复使用原始 Worker artifact 中的候选，保留 `app-api-config` 与 `campus-web-docs` 的同 SHA 刷新
+结果；`candidate_scope` 使用默认 `affected` 即可，不必重新选择刷新入口，也不会重新上传 Worker。
+当前累计计划需要的其他制品仍须完整可用；真实发布失败仍可以重跑发布。
 
 ## 正式版本
 

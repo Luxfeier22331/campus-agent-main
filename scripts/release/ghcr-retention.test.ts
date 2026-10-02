@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,9 +8,9 @@ import {
 	ACTIVE_PACKAGE_NAMES,
 	applyRetentionPlan,
 	type CommandRunner,
-	cancelAndWaitForPrRuns,
 	extractGitopsImageDigests,
 	fetchManifestClosure,
+	intersectRetentionPlans,
 	mergeReleaseRoots,
 	type PackageInventory,
 	parseArgs,
@@ -21,12 +21,141 @@ import {
 	RETIRED_PACKAGE_NAMES,
 	readCachePullRequests,
 	readPackageInventory,
+	refreshedFullPlan,
+	runFullRetention,
 	runPrCacheCleanup,
+	verifyRetentionDeletion,
 } from "./ghcr-retention.mts";
 
 const NOW = new Date("2026-09-04T00:00:00.000Z");
 const digest = (character: string) => `sha256:${character.repeat(64)}`;
 const tag = (character: string) => character.repeat(40);
+
+test("full apply intersects plans, excluding new deletes and protecting newly selected digests", () => {
+	const name = "campus-agent/agent-runtime";
+	const before = planRetention({
+		mode: "apply",
+		packages: inventory({ [name]: [version(1, "a", [tag("a")]), version(2, "b", [tag("b")])] }),
+	});
+	const fresh = planRetention({
+		mode: "apply",
+		packages: inventory({
+			[name]: [
+				version(1, "a", [tag("a")]),
+				version(2, "b", [tag("b")]),
+				version(3, "c", [tag("c")]),
+			],
+		}),
+		gitopsDigests: { [name]: [digest("b")] },
+	});
+	const plan = intersectRetentionPlans(before, fresh);
+	assert.deepEqual(
+		plan.packages
+			.find((p) => p.name === name)
+			?.versions.map((v) => [v.id, v.action])
+			.sort(),
+		[
+			[1, "delete"],
+			[2, "keep"],
+			[3, "keep"],
+		],
+	);
+});
+
+test("deletion verification checks both deletion and protected manifest children", () => {
+	const name = "campus-agent/agent-runtime";
+	const plan = planRetention({
+		mode: "apply",
+		packages: inventory({
+			[name]: [version(1, "a", [tag("a")]), version(2, "b", [tag("b")]), version(3, "c", [])],
+		}),
+		gitopsDigests: { [name]: [digest("b")] },
+		manifestClosure: { [name]: [digest("b"), digest("c")] },
+	});
+	const after = inventory({ [name]: [version(2, "b", [tag("b")]), version(3, "c", [])] });
+	assert.doesNotThrow(() => verifyRetentionDeletion(plan, after));
+	assert.throws(
+		() =>
+			verifyRetentionDeletion(
+				plan,
+				inventory({
+					[name]: [
+						version(1, "a", [tag("a")]),
+						...(after.find((p) => p.name === name)?.versions ?? []),
+					],
+				}),
+			),
+		/did not complete/,
+	);
+	assert.throws(
+		() => verifyRetentionDeletion(plan, inventory({ [name]: [version(2, "b", [tag("b")])] })),
+		/Protected digest disappeared/,
+	);
+});
+
+test("full cleanup refreshes before deletion, records failures, and never deletes in report mode", async (t) => {
+	const directory = await mkdtemp(path.join(os.tmpdir(), "full-retention-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	for (const scenario of [
+		"success",
+		"report",
+		"refresh-error",
+		"delete-error",
+		"verify-error",
+		"protected",
+	]) {
+		const name = "campus-agent/agent-runtime";
+		const packages = inventory({ [name]: [version(1, "a", [tag("a")])] });
+		const mode = scenario === "report" ? "report" : "apply";
+		const options = parseArgs([
+			"--scope",
+			"full",
+			"--mode",
+			mode,
+			"--gitops-root",
+			directory,
+			"--release-roots",
+			path.join(directory, "roots.json"),
+			"--output",
+			path.join(directory, `${scenario}.json`),
+		]);
+		let reads = 0;
+		let deletes = 0;
+		const operation = runFullRetention(options, {
+			async readPlan() {
+				reads++;
+				if (scenario === "refresh-error" && reads === 2) {
+					throw new Error("roots unavailable");
+				}
+				return planRetention({
+					mode,
+					packages,
+					...(scenario === "protected" && reads === 2
+						? { gitopsDigests: { [name]: [digest("a")] } }
+						: {}),
+				});
+			},
+			async runner(_command, args) {
+				assert.equal(reads, 2);
+				assert(args.includes("DELETE"));
+				deletes++;
+				return scenario === "delete-error" ? failedResult : jsonResult({});
+			},
+			async readInventory() {
+				return scenario === "verify-error" || scenario === "protected" ? packages : inventory();
+			},
+		});
+		if (scenario.endsWith("-error")) {
+			await assert.rejects(operation);
+		} else {
+			await operation;
+		}
+		assert.equal(deletes, ["success", "delete-error", "verify-error"].includes(scenario) ? 1 : 0);
+		assert.equal(reads, scenario === "report" ? 1 : 2);
+		const result = JSON.parse(await readFile(options.output, "utf8"));
+		assert.equal(result.errors.length > 0, scenario.endsWith("-error"));
+	}
+});
 
 test("PR caches protect the current tag, expire history and delete only after closure grace", () => {
 	const name = "campus-agent/pr-cache-442/ops-web";
@@ -189,7 +318,7 @@ function version(
 	id: number,
 	character: string,
 	tags: string[],
-	updatedAt: string,
+	updatedAt = "2026-09-01T00:00:00Z",
 ): PackageInventory["versions"][number] {
 	return {
 		createdAt: updatedAt,
@@ -471,249 +600,9 @@ const SOURCE_PR = {
 	closed_at: "2026-09-04T00:00:00Z",
 	head: { ref: "fix/cache", repo: { full_name: REPOSITORY } },
 };
-const RUN = {
-	id: 1,
-	run_attempt: 1,
-	status: "in_progress",
-	event: "pull_request",
-	head_branch: "fix/cache",
-	head_sha: "a".repeat(40),
-	head_repository: { full_name: REPOSITORY },
-	pull_requests: [{ number: 442 }],
-};
 const jsonResult = (value: unknown) => ({ code: 0, stderr: "", stdout: JSON.stringify(value) });
+const absentResult = { code: 1, stderr: "gh: Not Found (HTTP 404)", stdout: "" };
 const failedResult = { code: 1, stderr: "API unavailable", stdout: "" };
-
-function clock() {
-	let elapsed = 0;
-	return {
-		now: () => elapsed,
-		sleep: async (milliseconds: number) => {
-			elapsed += milliseconds;
-		},
-	};
-}
-
-test("cancellation waits for terminal runs, includes older heads, and never cancels another PR", async () => {
-	const cancellations: string[] = [];
-	let polls = 0;
-	const runner: CommandRunner = async (_command, args) => {
-		const endpoint = args.at(-1) ?? "";
-		if (endpoint.endsWith("/pulls/442")) {
-			return jsonResult(SOURCE_PR);
-		}
-		if (endpoint.includes("/workflows/pr.yml/runs?")) {
-			polls++;
-			return jsonResult([
-				{
-					workflow_runs: [
-						...["queued", "requested", "waiting", "pending", "in_progress"].map((status, i) => ({
-							...RUN,
-							id: i + 1,
-							status: polls >= 3 ? "completed" : status,
-							head_sha: String(i).repeat(40),
-						})),
-						{ ...RUN, id: 6, pull_requests: [{ number: 443 }] },
-						{ ...RUN, id: 7, head_repository: { full_name: "fork/campus-agent" } },
-					],
-				},
-			]);
-		}
-		if (endpoint.endsWith("/cancel")) {
-			cancellations.push(endpoint);
-			return jsonResult({});
-		}
-		throw new Error(`Unexpected API call: ${args.join(" ")}`);
-	};
-	await cancelAndWaitForPrRuns(REPOSITORY, "442", { runner, ...clock() });
-	assert.equal(polls, 3);
-	assert.deepEqual(
-		cancellations,
-		[1, 2, 3, 4, 5].map((id) => `repos/${REPOSITORY}/actions/runs/${id}/cancel`),
-	);
-});
-
-test("missing run association resolves closed unmerged PRs and pre-force-push heads by branch", async () => {
-	for (const sha of [RUN.head_sha, "b".repeat(40)]) {
-		let stopped = false;
-		const runner: CommandRunner = async (_command, args) => {
-			const endpoint = args.at(-1) ?? "";
-			if (endpoint.endsWith("/pulls/442")) {
-				return jsonResult(SOURCE_PR);
-			}
-			if (endpoint.includes("/workflows/pr.yml/runs?")) {
-				return jsonResult([{ workflow_runs: stopped ? [] : [{ ...RUN, pull_requests: [] }] }]);
-			}
-			if (endpoint.includes("/pulls?")) {
-				assert(args.includes("--paginate"));
-				const query = new URL(`https://api.github.com/${endpoint}`).searchParams;
-				assert.equal(query.get("state"), "all");
-				assert.equal(query.get("head"), "MUC-WIKI:fix/cache");
-				return jsonResult([
-					[
-						{
-							number: 443,
-							head: { ref: "fix/cache", sha, repo: { full_name: "fork/campus-agent" } },
-						},
-					],
-					[
-						{ number: 442, state: "closed", merged_at: null, head: { ...SOURCE_PR.head, sha } },
-						{ number: 444, head: { ...SOURCE_PR.head, ref: "different-branch", sha } },
-					],
-				]);
-			}
-			if (endpoint.endsWith("/cancel")) {
-				stopped = true;
-				return jsonResult({});
-			}
-			assert.fail(`Unexpected API call: ${args.join(" ")}`);
-		};
-		await cancelAndWaitForPrRuns(REPOSITORY, "442", { runner, ...clock() });
-		assert.equal(stopped, true);
-	}
-});
-
-test("reused branches require a unique commit match and leave unrelated runs alone", async () => {
-	for (const scenario of [
-		"target-head",
-		"target-commit",
-		"other",
-		"shared",
-		"missing",
-		"api-error",
-	] as const) {
-		let stopped = false;
-		const runner: CommandRunner = async (_command, args) => {
-			const endpoint = args.at(-1) ?? "";
-			if (endpoint.endsWith("/pulls/442")) {
-				return jsonResult(SOURCE_PR);
-			}
-			if (endpoint.includes("/workflows/pr.yml/runs?")) {
-				return jsonResult([{ workflow_runs: stopped ? [] : [{ ...RUN, pull_requests: [] }] }]);
-			}
-			if (endpoint.includes("/pulls?")) {
-				return jsonResult([
-					[442, 443].map((number) => ({
-						number,
-						head: {
-							...SOURCE_PR.head,
-							sha: scenario === "target-head" && number === 442 ? RUN.head_sha : "b".repeat(40),
-						},
-					})),
-				]);
-			}
-			if (endpoint.includes("/commits?")) {
-				if (scenario === "api-error") {
-					return failedResult;
-				}
-				const target = endpoint.includes("/442/");
-				const matches =
-					scenario === "shared" ||
-					(scenario === "target-commit" && target) ||
-					(scenario === "other" && !target);
-				return jsonResult([[], matches ? [{ sha: RUN.head_sha }] : []]);
-			}
-			if (endpoint.endsWith("/cancel")) {
-				stopped = true;
-				return jsonResult({});
-			}
-			assert.fail(`Unexpected API call: ${args.join(" ")}`);
-		};
-		const result = cancelAndWaitForPrRuns(REPOSITORY, "442", { runner, ...clock() });
-		if (["shared", "missing", "api-error"].includes(scenario)) {
-			await assert.rejects(result, /Cannot identify PR|API unavailable/);
-		} else {
-			await result;
-		}
-		assert.equal(stopped, scenario === "target-head" || scenario === "target-commit", scenario);
-	}
-});
-
-test("cancellation tolerates a run finishing just before the cancel request", async () => {
-	let finished = false;
-	const runner: CommandRunner = async (_command, args) => {
-		const endpoint = args.at(-1) ?? "";
-		if (endpoint.endsWith("/pulls/442")) {
-			return jsonResult(SOURCE_PR);
-		}
-		if (endpoint.includes("/workflows/pr.yml/runs?")) {
-			return jsonResult([{ workflow_runs: finished ? [] : [RUN] }]);
-		}
-		if (endpoint.endsWith("/cancel")) {
-			finished = true;
-			return failedResult;
-		}
-		if (endpoint.endsWith("/runs/1")) {
-			return jsonResult({ ...RUN, status: "completed" });
-		}
-		throw new Error(`Unexpected API call: ${args.join(" ")}`);
-	};
-	await cancelAndWaitForPrRuns(REPOSITORY, "442", { runner, ...clock() });
-});
-
-test("scoped apply stops before inventory/deletion on cancellation errors and preserves a policy report", async (t) => {
-	const directory = await mkdtemp(path.join(os.tmpdir(), "ghcr-cleanup-"));
-	t.after(() => rm(directory, { recursive: true, force: true }));
-	for (const scenario of [
-		"timeout",
-		"cancel-error",
-		"list-error",
-		"unidentified",
-		"reopened",
-		"fork",
-	] as const) {
-		let cancelled = false;
-		const runner: CommandRunner = async (_command, args) => {
-			const endpoint = args.at(-1) ?? "";
-			if (endpoint.endsWith("/pulls/442")) {
-				return jsonResult({
-					...SOURCE_PR,
-					...(scenario === "reopened" && cancelled ? { state: "open" } : {}),
-					...(scenario === "fork"
-						? { head: { ref: "fix/cache", repo: { full_name: "fork/campus-agent" } } }
-						: {}),
-				});
-			}
-			if (endpoint.includes("/workflows/pr.yml/runs?")) {
-				return scenario === "list-error"
-					? failedResult
-					: jsonResult([
-							{
-								workflow_runs: [
-									{ ...RUN, pull_requests: scenario === "unidentified" ? [] : RUN.pull_requests },
-								],
-							},
-						]);
-			}
-			if (endpoint.includes("/pulls?")) {
-				return jsonResult([[]]);
-			}
-			if (endpoint.endsWith("/cancel")) {
-				cancelled = true;
-				return scenario === "cancel-error" ? failedResult : jsonResult({});
-			}
-			if (endpoint.endsWith("/runs/1")) {
-				return jsonResult(RUN);
-			}
-			assert.fail(`Must not access packages after coordination error: ${args.join(" ")}`);
-		};
-		const output = path.join(directory, `${scenario}.json`);
-		await assert.rejects(
-			runPrCacheCleanup(
-				{ owner: "MUC-WIKI", repository: REPOSITORY, mode: "apply", output },
-				"442",
-				{ runner, ...clock() },
-			),
-			/policy errors/,
-		);
-		const report = JSON.parse(await readFile(output, "utf8"));
-		assert.equal(report.errors.length, 1, scenario);
-		assert.equal(report.totals.deletePackages, 0, scenario);
-		assert(!report.errors[0].includes("Must not access packages"), report.errors[0]);
-	}
-});
-
-const absentResult = { code: 1, stderr: "gh: Package not found. (HTTP 404)", stdout: "" };
 
 test("scoped inventory directly probes candidates and never reads outside the PR", async () => {
 	const name = "campus-agent/pr-cache-442/ops-web";
@@ -732,12 +621,11 @@ test("scoped inventory directly probes candidates and never reads outside the PR
 	assert.equal(calls.length, ACTIVE_PACKAGE_NAMES.length + 1);
 });
 
-test("scoped cleanup cancels before inventory, rechecks PR state, and report mode never cancels", async (t) => {
+test("manual cleanup rechecks PR state and never queries or cancels builds", async (t) => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "ghcr-cleanup-order-"));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	for (const scenario of ["apply", "report", "reopened-after-wait"] as const) {
 		const calls: string[] = [];
-		let finished = false;
 		let deleted = false;
 		let inventoried = false;
 		const name = "campus-agent/pr-cache-442/ops-web";
@@ -750,13 +638,6 @@ test("scoped cleanup cancels before inventory, rechecks PR state, and report mod
 					state: scenario === "reopened-after-wait" && inventoried ? "open" : "closed",
 				});
 			}
-			if (endpoint.includes("/workflows/pr.yml/runs?")) {
-				return jsonResult([{ workflow_runs: finished ? [] : [RUN] }]);
-			}
-			if (endpoint.endsWith("/cancel")) {
-				finished = true;
-				return jsonResult({});
-			}
 			if (endpoint.includes("/versions?")) {
 				return jsonResult([[]]);
 			}
@@ -765,7 +646,6 @@ test("scoped cleanup cancels before inventory, rechecks PR state, and report mod
 				return jsonResult({});
 			}
 			if (endpoint.includes("/packages/container/")) {
-				assert(scenario === "report" || finished, "inventory must follow cancellation completion");
 				inventoried = true;
 				return !deleted && endpoint.endsWith(encodeURIComponent(name))
 					? jsonResult([{ name }])
@@ -781,7 +661,7 @@ test("scoped cleanup cancels before inventory, rechecks PR state, and report mod
 				output: path.join(directory, `${scenario}.json`),
 			},
 			"442",
-			{ runner, ...clock() },
+			{ runner },
 		);
 		if (scenario === "reopened-after-wait") {
 			await assert.rejects(cleanup, /Source PR is not closed/);
@@ -789,9 +669,7 @@ test("scoped cleanup cancels before inventory, rechecks PR state, and report mod
 			await cleanup;
 		}
 		assert.equal(deleted, scenario === "apply");
-		if (scenario === "report") {
-			assert(!calls.some((call) => call.includes("/actions/")));
-		}
+		assert(!calls.some((call) => call.includes("/actions/")));
 	}
 });
 
@@ -982,4 +860,87 @@ test("release roots union shared digests with in-flight and recoverable candidat
 		/Invalid release roots/,
 	);
 	assert.throws(() => mergeReleaseRoots({}, {}, []));
+});
+
+test("full plan refreshes GitOps refs and dependencies, exports roots, then inspects the registry", async (t) => {
+	const root = await mkdtemp(path.join(os.tmpdir(), "retention-roots-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	const rootsFile = path.join(root, "roots.json");
+	const options = parseArgs([
+		"--scope",
+		"full",
+		"--gitops-root",
+		root,
+		"--release-roots",
+		rootsFile,
+	]);
+	const calls: string[] = [];
+	const name = "campus-agent/agent-runtime";
+	const plan = await refreshedFullPlan(options, async (command, args) => {
+		calls.push(`${command} ${args.join(" ")}`);
+		if (command === "gh" && args.includes("repos/MUC-WIKI/campus-agent-gitops/commits/main")) {
+			return jsonResult({ sha: tag("b") });
+		}
+		if (command === "git") {
+			if (args.includes("rev-parse")) {
+				return { ...jsonResult({}), stdout: tag("a") };
+			}
+			if (args.includes("for-each-ref")) {
+				return { ...jsonResult({}), stdout: "refs/remotes/origin/deploy/staging" };
+			}
+			return { ...jsonResult({}), stdout: "" };
+		}
+		if (command === "pnpm") {
+			if (args.includes("roots")) {
+				await writeFile(
+					rootsFile,
+					JSON.stringify({ images: { [name]: [digest("a")] }, candidateSourceShas: [] }),
+				);
+			}
+			return jsonResult({});
+		}
+		if (command === "gh") {
+			const endpoint = args.at(-1) ?? "";
+			const packageName = decodeURIComponent(
+				endpoint.split("/container/")[1].split("/versions")[0],
+			);
+			if (RETIRED_PACKAGE_NAMES.includes(packageName)) {
+				return absentResult;
+			}
+			return endpoint.includes("/versions")
+				? jsonResult([
+						[
+							{
+								id: 1,
+								name: digest("a"),
+								created_at: NOW.toISOString(),
+								updated_at: NOW.toISOString(),
+								metadata: { container: { tags: [tag("a")] } },
+							},
+						],
+					])
+				: jsonResult([{ name: packageName }]);
+		}
+		if (command === "docker") {
+			return jsonResult({ manifest: { mediaType: "application/vnd.oci.image.manifest.v1+json" } });
+		}
+		throw new Error(`Unexpected ${command}`);
+	});
+	assert.deepEqual(plan.errors, []);
+	assert.equal(plan.packages.find((p) => p.name === name)?.versions[0].action, "keep");
+	const order = [
+		"fetch --prune",
+		"checkout --detach",
+		"install --frozen-lockfile",
+		"tools/release-command.ts roots",
+		"gh api --paginate",
+		"docker buildx",
+	];
+	const positions = order.map((pattern) => calls.findIndex((call) => call.includes(pattern)));
+	assert(positions.every((position) => position >= 0));
+	assert.deepEqual(
+		positions,
+		[...positions].sort((a, b) => a - b),
+	);
+	assert(calls.some((call) => call.includes("ls-tree -r --name-only origin/deploy/staging")));
 });

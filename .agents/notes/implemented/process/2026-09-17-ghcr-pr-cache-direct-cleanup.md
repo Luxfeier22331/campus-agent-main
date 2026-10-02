@@ -10,6 +10,9 @@ Status: implemented
 
 ## 决策
 
+PR-close 自动协调和暂停 full apply 的部分已由新决定取代；已知包直查、错误分类与手动历史 PR 清理仍有效。
+见[候选复用与镜像清理边界](./2026-10-03-source-publication-retention.md)。
+
 正式版本的保留根现由[正式版本与环境选择](./2026-10-02-formal-release-versioning.md)维护；
 原有 SHA 数量/年龄窗口不再作为 full report 策略，PR 缓存清理与暂停全量删除继续有效。
 

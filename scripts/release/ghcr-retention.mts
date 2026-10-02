@@ -1,7 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { appendFile, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
@@ -957,7 +956,7 @@ function markdownSummary(plan: RetentionPlan): string {
 		`- Packages: ${plan.totals.packages}; versions: ${plan.totals.versions}`,
 		`- Planned package deletes: ${plan.totals.deletePackages}`,
 		`- Planned version deletes: ${plan.totals.deleteVersions}`,
-		"- Policy: protect non-retired formal releases, deployment/recovery roots, manifest children and current caches; full deletion disabled",
+		"- Policy: protect non-retired formal releases, deployment/recovery roots, manifest children and current caches",
 		`- Result: ${plan.errors.length > 0 ? "failed; planned actions may be incomplete" : "completed"}`,
 		"",
 		"| Package | Class | Versions | Action | Delete versions | Protected roots |",
@@ -991,7 +990,6 @@ interface CliOptions {
 	repository: string;
 	gitopsRoot: string;
 	releaseRoots: string;
-	gitopsRefs: string[];
 	untaggedGraceDays: number;
 	summary?: string;
 }
@@ -1006,7 +1004,6 @@ export function parseArgs(args: string[]): CliOptions {
 		repository: DEFAULT_REPOSITORY,
 		gitopsRoot: "",
 		releaseRoots: "",
-		gitopsRefs: ["main"],
 		untaggedGraceDays: DEFAULT_UNTAGGED_GRACE_DAYS,
 	};
 	for (let index = 0; index < args.length; index += 1) {
@@ -1055,20 +1052,6 @@ export function parseArgs(args: string[]): CliOptions {
 				options.gitopsRoot = valueAfter(args, index, argument);
 				index += 1;
 				break;
-			case "--gitops-refs": {
-				const value = valueAfter(args, index, argument);
-				const refs = value
-					.split(",")
-					.map((ref) => ref.trim())
-					.filter(Boolean);
-				if (refs.length === 0) {
-					throw new Error("--gitops-refs must contain at least one ref");
-				}
-				refs.forEach(validateGitRef);
-				options.gitopsRefs = [...new Set(refs)];
-				index += 1;
-				break;
-			}
 			case "--untagged-grace-days": {
 				const value = valueAfter(args, index, argument);
 				if (!/^[0-9]+$/u.test(value)) {
@@ -1099,17 +1082,14 @@ export function parseArgs(args: string[]): CliOptions {
 	if (options.scope === "pr" && !options.prCachePr) {
 		throw new Error("--pr-cache-pr is required for --scope pr");
 	}
-	if (options.scope === "full" && options.mode === "apply") {
-		throw new Error("Full image deletion remains disabled pending #511 Work B");
-	}
 	if (options.scope === "full" && options.prCachePr) {
 		throw new Error("--pr-cache-pr cannot be used with --scope full");
 	}
 	if (options.scope === "full" && options.untaggedGraceDays !== 0) {
 		throw new Error("Full retention uses release and deployment roots, not an age window");
 	}
-	if (options.scope === "full" && !options.gitopsRoot) {
-		throw new Error("--gitops-root is required for --scope full");
+	if (options.scope === "full" && !(options.gitopsRoot && options.releaseRoots)) {
+		throw new Error("--gitops-root and --release-roots are required for --scope full");
 	}
 	return options;
 }
@@ -1150,60 +1130,194 @@ export function mergeReleaseRoots(
 	}
 }
 
-async function main(args: string[]): Promise<void> {
-	const options = parseArgs(args);
-	if (options.scope === "pr") {
-		await runPrCacheCleanup(options, options.prCachePr);
-		return;
-	}
-	const runner = runCommand;
-	let plan = planRetention({
-		mode: options.mode,
-		packages: [],
-		untaggedGraceDays: options.untaggedGraceDays,
-	});
-	let phase = "read GHCR inventory";
-	try {
-		const packages = await readKnownPackageInventory(options.owner, runner);
-		phase = "read GitOps references";
-		const gitopsDigests = await readGitopsImageDigests(
-			options.gitopsRoot,
-			options.gitopsRefs,
-			runner,
-		);
-		phase = "read formal release and deployment roots";
-		if (!options.releaseRoots) {
-			throw new Error(
-				"--release-roots from the GitOps release exporter is required for full reports",
-			);
+export function intersectRetentionPlans(
+	before: RetentionPlan,
+	fresh: RetentionPlan,
+): RetentionPlan {
+	const plan = structuredClone(fresh);
+	plan.errors = [...new Set([...before.errors, ...fresh.errors])];
+	for (const pkg of plan.packages) {
+		const previous = before.packages.find((entry) => entry.name === pkg.name);
+		if (
+			pkg.packageAction === "delete" &&
+			(previous?.packageAction !== "delete" ||
+				pkg.versions.some(
+					(version) =>
+						!previous.versions.some(
+							(old) => old.id === version.id && old.digest === version.digest,
+						),
+				))
+		) {
+			pkg.packageAction = "retain";
 		}
-		mergeReleaseRoots(
-			gitopsDigests,
-			parseObject(await readFile(options.releaseRoots, "utf8"), "release roots"),
-			packages,
+		for (const version of pkg.versions) {
+			if (
+				version.action === "delete" &&
+				!previous?.versions.some(
+					(old) =>
+						old.id === version.id && old.digest === version.digest && old.action === "delete",
+				)
+			) {
+				version.action = "keep";
+				version.reason = "not-in-initial-deletion-plan";
+			}
+		}
+	}
+	plan.totals.deletePackages = plan.packages.filter((pkg) => pkg.packageAction === "delete").length;
+	plan.totals.deleteVersions = plan.packages
+		.flatMap((pkg) => pkg.versions)
+		.filter((v) => v.action === "delete").length;
+	plan.totals.keepVersions = plan.totals.versions - plan.totals.deleteVersions;
+	return plan;
+}
+
+export function verifyRetentionDeletion(plan: RetentionPlan, inventory: PackageInventory[]): void {
+	const inventoryErrors = expectedPackageErrors(inventory);
+	if (inventoryErrors.length > 0) {
+		throw new Error(inventoryErrors.join("\n"));
+	}
+	const deleted = planDeletions(plan);
+	for (const name of deleted.packages) {
+		if (inventory.some((pkg) => pkg.name === name)) {
+			throw new Error(`Package deletion did not complete: ${name}`);
+		}
+	}
+	for (const version of deleted.versions) {
+		if (
+			inventory
+				.find((pkg) => pkg.name === version.packageName)
+				?.versions.some((item) => item.id === version.id)
+		) {
+			throw new Error(`Version deletion did not complete: ${version.packageName}/${version.id}`);
+		}
+	}
+	for (const pkg of plan.packages) {
+		const remaining = new Set(
+			inventory.find((item) => item.name === pkg.name)?.versions.map((v) => v.name),
 		);
-		phase = "inspect protected manifests";
-		const protectedRoots = protectedRootsForInventory({
-			gitopsDigests,
-			packages,
-		});
-		const manifestClosure = await fetchManifestClosure(
-			protectedRoots.byPackage,
-			options.repository,
-			runner,
-		);
-		phase = "write retention plan";
-		plan = planRetention({
-			gitopsDigests,
-			manifestClosure,
-			mode: options.mode,
-			packages,
-			untaggedGraceDays: options.untaggedGraceDays,
-		});
+		for (const digest of new Set([...pkg.protectedRootDigests, ...pkg.protectedManifestDigests])) {
+			if (!remaining.has(digest)) {
+				throw new Error(`Protected digest disappeared: ${pkg.name}@${digest}`);
+			}
+		}
+	}
+}
+
+export async function refreshedFullPlan(
+	options: CliOptions,
+	runner: CommandRunner,
+): Promise<RetentionPlan> {
+	const root = path.resolve(options.gitopsRoot);
+	const execute = async (command: string, args: string[], env?: NodeJS.ProcessEnv) => {
+		const result = await runner(command, args, { env });
+		if (result.code !== 0) {
+			throw commandError(command, args, result);
+		}
+		return result.stdout;
+	};
+	// Source publication and deletion share one workflow lock. GitOps is a separate
+	// owner, so refresh its selection and recovery references on every plan read.
+	const gitopsEnv = { ...process.env, GH_TOKEN: process.env.GITHUB_TOKEN };
+	const main = parseObject(
+		await execute("gh", ["api", "repos/MUC-WIKI/campus-agent-gitops/commits/main"], gitopsEnv),
+		"GitOps main",
+	);
+	if (typeof main.sha !== "string" || !/^[a-f0-9]{40}$/u.test(main.sha)) {
+		throw new Error("Invalid GitOps main SHA");
+	}
+	await execute(
+		"git",
+		[
+			"-C",
+			root,
+			"-c",
+			"credential.helper=",
+			"-c",
+			"credential.helper=!gh auth git-credential",
+			"fetch",
+			"--prune",
+			"origin",
+		],
+		gitopsEnv,
+	);
+	const previous = (await execute("git", ["-C", root, "rev-parse", "HEAD"])).trim();
+	await execute("git", ["-C", root, "checkout", "--detach", main.sha]);
+	if (previous !== main.sha) {
+		await execute("pnpm", ["--dir", root, "install", "--frozen-lockfile"]);
+	}
+	await execute("pnpm", [
+		"--dir",
+		root,
+		"exec",
+		"tsx",
+		"tools/release-command.ts",
+		"roots",
+		"--root",
+		root,
+		"--output",
+		path.resolve(options.releaseRoots),
+	]);
+	const refs = ["HEAD"];
+	const branches = await execute("git", [
+		"-C",
+		root,
+		"for-each-ref",
+		"--format=%(refname)",
+		"refs/remotes/origin/deploy/staging",
+	]);
+	if (branches.trim()) {
+		refs.push("origin/deploy/staging");
+	}
+	const packages = await readKnownPackageInventory(options.owner, runner);
+	const gitopsDigests = await readGitopsImageDigests(root, refs, runner);
+	mergeReleaseRoots(
+		gitopsDigests,
+		parseObject(await readFile(options.releaseRoots, "utf8"), "release roots"),
+		packages,
+	);
+	const roots = protectedRootsForInventory({ gitopsDigests, packages });
+	if (roots.errors.length > 0) {
+		throw new Error(roots.errors.join("\n"));
+	}
+	const manifestClosure = await fetchManifestClosure(roots.byPackage, options.repository, runner);
+	return planRetention({
+		gitopsDigests,
+		manifestClosure,
+		mode: options.mode,
+		packages,
+		untaggedGraceDays: 0,
+	});
+}
+
+export async function runFullRetention(
+	options: CliOptions,
+	runtime: {
+		runner?: CommandRunner;
+		readPlan?: () => Promise<RetentionPlan>;
+		readInventory?: () => Promise<PackageInventory[]>;
+	} = {},
+): Promise<void> {
+	const runner = runtime.runner ?? runCommand;
+	const readPlan = runtime.readPlan ?? (() => refreshedFullPlan(options, runner));
+	let plan = planRetention({ mode: options.mode, packages: [] });
+	let phase = "read retention plan";
+	try {
+		plan = await readPlan();
+		if (plan.errors.length > 0) {
+			throw new Error(plan.errors.join("\n"));
+		}
 		await writeFile(path.resolve(options.output), `${JSON.stringify(plan, null, 2)}\n`);
 		if (options.mode === "apply") {
+			phase = "refresh deletion references";
+			plan = intersectRetentionPlans(plan, await readPlan());
+			await writeFile(path.resolve(options.output), `${JSON.stringify(plan, null, 2)}\n`);
 			phase = "apply retention plan";
 			await applyRetentionPlan(plan, options.owner, runner);
+			phase = "verify deletion and retained digests";
+			verifyRetentionDeletion(
+				plan,
+				await (runtime.readInventory?.() ?? readKnownPackageInventory(options.owner, runner)),
+			);
 		}
 	} catch (error) {
 		plan.errors.push(`${phase}: ${error instanceof Error ? error.message : String(error)}`);
@@ -1213,150 +1327,21 @@ async function main(args: string[]): Promise<void> {
 		await appendFile(path.resolve(options.summary), markdownSummary(plan));
 	}
 	if (plan.errors.length > 0) {
-		throw new Error(`GHCR retention policy errors:\n${plan.errors.join("\n")}`);
+		throw new Error(`GHCR retention failed:\n${plan.errors.join("\n")}`);
+	}
+}
+
+async function main(args: string[]): Promise<void> {
+	const options = parseArgs(args);
+	if (options.scope === "pr") {
+		await runPrCacheCleanup(options, options.prCachePr);
+	} else {
+		await runFullRetention(options);
 	}
 }
 
 interface CleanupRuntime {
 	runner?: CommandRunner;
-	now?: () => number;
-	sleep?: (milliseconds: number) => Promise<unknown>;
-}
-
-async function identifyRunPullRequest(
-	repository: string,
-	run: { id: number; head_branch: string; head_sha: string },
-	runner: CommandRunner,
-): Promise<{ number: number }> {
-	const headFilter = encodeURIComponent(`${repository.split("/")[0]}:${run.head_branch}`);
-	const candidates = (
-		parsePagedJson(
-			JSON.stringify(
-				await ghJson(
-					[`repos/${repository}/pulls?state=all&head=${headFilter}&per_page=100`],
-					runner,
-				),
-			),
-			"Branch pull requests",
-		) as Array<{
-			number: number;
-			head: { ref: string; sha: string; repo: { full_name: string } | null };
-		}>
-	).filter((pr) => pr.head?.repo?.full_name === repository && pr.head.ref === run.head_branch);
-	// A unique branch owner also covers runs from before a force-push.
-	if (candidates.length === 1) {
-		return candidates[0];
-	}
-	const matches: Array<{ number: number }> = [];
-	for (const candidate of candidates) {
-		if (candidate.head.sha === run.head_sha) {
-			matches.push(candidate);
-			continue;
-		}
-		const commits = parsePagedJson(
-			JSON.stringify(
-				await ghJson(
-					[`repos/${repository}/pulls/${candidate.number}/commits?per_page=100`],
-					runner,
-				),
-			),
-			"Pull request commits",
-		) as Array<{ sha: string }>;
-		if (commits.some((commit) => commit.sha === run.head_sha)) {
-			matches.push(candidate);
-		}
-	}
-	if (matches.length !== 1) {
-		throw new Error(`Cannot identify PR for active run ${run.id}`);
-	}
-	return matches[0];
-}
-
-export async function cancelAndWaitForPrRuns(
-	repository: string,
-	prNumber: string,
-	runtime: CleanupRuntime = {},
-): Promise<void> {
-	const runner = runtime.runner ?? runCommand;
-	const now = runtime.now ?? Date.now;
-	const wait = runtime.sleep ?? sleep;
-	const deadline = now() + 10 * 60 * 1000;
-	const cancelled = new Set<string>();
-	while (true) {
-		if (now() >= deadline) {
-			throw new Error(`Timed out waiting for PR ${prNumber} runs to stop`);
-		}
-		const prResult = await runner("gh", ["api", `repos/${repository}/pulls/${prNumber}`]);
-		if (prResult.code !== 0) {
-			throw commandError("gh", ["api", `repos/${repository}/pulls/${prNumber}`], prResult);
-		}
-		const pr = parseObject(prResult.stdout, "Source PR");
-		if (pr.state !== "closed") {
-			throw new Error(`Source PR is not closed for cache cleanup: ${prNumber}`);
-		}
-		const head = pr.head as { ref?: string; repo?: { full_name?: string } } | undefined;
-		if (!head?.ref || head.repo?.full_name !== repository) {
-			throw new Error(`Source PR is not from this repository: ${prNumber}`);
-		}
-		const endpoint = `repos/${repository}/actions/workflows/pr.yml/runs?event=pull_request&branch=${encodeURIComponent(head.ref)}&per_page=100`;
-		const pages = await ghJson([endpoint], runner);
-		const runs = (Array.isArray(pages) ? pages : [pages]).flatMap((page) => {
-			if (!Array.isArray(page?.workflow_runs)) {
-				throw new Error("Invalid PR workflow run list");
-			}
-			return page.workflow_runs as Array<{
-				id: number;
-				run_attempt: number;
-				status: string;
-				event: string;
-				head_branch: string;
-				head_sha: string;
-				head_repository: { full_name: string };
-				pull_requests: Array<{ number: number }>;
-			}>;
-		});
-		let active = false;
-		for (const run of runs) {
-			if (
-				run.status === "completed" ||
-				run.event !== "pull_request" ||
-				run.head_branch !== head.ref ||
-				run.head_repository?.full_name !== repository
-			) {
-				continue;
-			}
-			let requests = run.pull_requests;
-			// Closed/merged PRs can disappear from the run's pull_requests array.
-			if (!requests?.length) {
-				requests = [await identifyRunPullRequest(repository, run, runner)];
-			}
-			if (!requests.some((request) => String(request.number) === prNumber)) {
-				continue;
-			}
-			active = true;
-			const attempt = `${run.id}:${run.run_attempt}`;
-			if (cancelled.has(attempt)) {
-				continue;
-			}
-			const args = ["api", "--method", "POST", `repos/${repository}/actions/runs/${run.id}/cancel`];
-			const result = await runner("gh", args);
-			if (result.code !== 0) {
-				// Completion may race the cancellation request; only a confirmed terminal run is safe.
-				const latest = await runner("gh", ["api", `repos/${repository}/actions/runs/${run.id}`]);
-				if (
-					latest.code !== 0 ||
-					parseObject(latest.stdout, "Workflow run").status !== "completed"
-				) {
-					throw commandError("gh", args, result);
-				}
-			}
-			cancelled.add(attempt);
-		}
-		if (!active) {
-			return;
-		}
-		await wait(5000);
-	}
 }
 
 async function readEligiblePr(
@@ -1396,10 +1381,6 @@ export async function runPrCacheCleanup(
 			throw new Error("Invalid PR number");
 		}
 		await readEligiblePr(options.repository, prNumber, runner);
-		if (options.mode === "apply") {
-			phase = "stop PR builds";
-			await cancelAndWaitForPrRuns(options.repository, prNumber, runtime);
-		}
 		phase = "read PR cache packages";
 		const packages = await readPackageInventory(options.owner, runner, prNumber);
 		phase = "recheck PR";

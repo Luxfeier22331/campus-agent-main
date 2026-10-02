@@ -14,6 +14,9 @@ Node workspace 的 host `build` 会在 PR 镜像的 Dockerfile 中再次编译�
 
 ## 决策
 
+保留 `cache_write` 专用入口及 PR 关闭清理的部分已由新决定取代；host build 去重、缓存 warning 和 GitOps 校验所有权仍有效。
+见[候选复用与镜像清理边界](./2026-10-03-source-publication-retention.md)。
+
 - trusted 同仓 PR image evidence 默认只导入每镜像的 main canonical cache，不导出
   `pr-cache-<number>`；fork 和 Dependabot 继续不使用认证缓存。reusable workflow 保留显式
   `cache_read=true` / `cache_write=true` 作为专用调用入口。

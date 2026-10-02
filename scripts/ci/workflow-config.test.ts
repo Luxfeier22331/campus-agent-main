@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -41,8 +41,10 @@ function condition(expression: unknown, context: Record<string, unknown>): boole
 		String(expression)
 			.replaceAll(".cache-matched-key", '["cache-matched-key"]')
 			.replaceAll(".cache-hit", '["cache-hit"]')
+			.replaceAll(/\.(release-plan|candidate-status|publish-images|publish-workers)/gu, '["$1"]')
 			.replaceAll(".repository-validation", '["repository-validation"]'),
 		{
+			always: () => true,
 			cancelled: () => false,
 			contains: (values: string[], value: string) => values.includes(value),
 			fromJSON: JSON.parse,
@@ -60,7 +62,7 @@ test("image cache permissions are confined to mutually exclusive reusable jobs",
 	assert.equal((trusted.permissions as Record<string, string>).packages, "read");
 	assert.equal((readonly.permissions as Record<string, string>).packages, "read");
 	assert.equal(trusted.uses, readonly.uses);
-	assert.equal(trusted.with.cache_write, false);
+	assert.equal(trusted.with.cache_write, undefined);
 	assert.equal(trusted.with.cache_read, true);
 	assert.equal(readonly.with.cache_read, false);
 	for (const [sameRepo, actor, author, cancelled, result, selected, expected] of [
@@ -94,8 +96,7 @@ test("image cache permissions are confined to mutually exclusive reusable jobs",
 	const build = workflowJob(reusable, "build");
 	const cacheWrite = reusable.on.workflow_call.inputs.cache_write;
 	const cacheRead = reusable.on.workflow_call.inputs.cache_read;
-	assert.equal(cacheWrite.required, false);
-	assert.equal(cacheWrite.default, false);
+	assert.equal(cacheWrite, undefined);
 	assert.equal(cacheRead.required, false);
 	assert.equal(cacheRead.default, false);
 	const builder = namedStep(build, "Setup Docker Buildx");
@@ -749,18 +750,23 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.deepEqual(workflow.permissions, { contents: "read" });
 	assert.deepEqual(workflow.concurrency, {
 		"cancel-in-progress": false,
-		group: "staging-candidate-publish",
+		group: "campus-agent-ghcr-mutation",
+		queue: "max",
 	});
 
 	const releasePlan = workflowJob(workflow, "release-plan");
 	assert.equal(releasePlan["runs-on"], runnerSelector("ubuntu-24.04"));
 	assert.equal(namedStep(releasePlan, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.equal(releasePlan.environment, undefined);
-	assert.deepEqual(releasePlan.permissions, { contents: "read", statuses: "write" });
+	assert.deepEqual(releasePlan.permissions, {
+		contents: "read",
+		statuses: "write",
+		actions: "read",
+	});
 
 	const publishImages = workflowJob(workflow, "publish-images");
 	assert.equal(publishImages.needs, "release-plan");
-	assert.match(String(publishImages.if), /promotion_recovery_run_id/u);
+	assert.match(String(publishImages.if), /outputs\.action/u);
 	assert.equal(publishImages["runs-on"], runnerSelector("ubuntu-24.04-arm"));
 	assert.equal(namedStep(publishImages, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.deepEqual(publishImages.permissions, { contents: "read", packages: "write" });
@@ -778,7 +784,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 
 	const publishWorkers = workflowJob(workflow, "publish-workers");
 	assert.equal(publishWorkers.needs, "release-plan");
-	assert.match(String(publishWorkers.if), /promotion_recovery_run_id/u);
+	assert.match(String(publishWorkers.if), /outputs\.action/u);
 	assert.equal(publishWorkers["runs-on"], runnerSelector("ubuntu-24.04"));
 	assert.equal(namedStep(publishWorkers, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.deepEqual(publishWorkers.environment, {
@@ -806,12 +812,14 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.match(String(promote.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
 	assert.match(String(promote.if), /github\.ref == 'refs\/heads\/main'/u);
 	assert.match(String(promote.if), /inputs\.promote/u);
-	assert.match(String(promote.if), /inputs\.promotion_recovery_run_id != ''/u);
+	assert.match(String(promote.if), /outputs\.action == 'reuse'/u);
 	const releaseRevision = namedStep(releasePlan, "Verify current main revision");
 	assert.match(String(releaseRevision.env.RECOVERY_RUN_ID), /promotion_recovery_run_id/u);
 	assert.match(String(releaseRevision.run), /promotion_recovery_run_id is required/u);
 	const promoteRevision = namedStep(promote, "Verify current main revision before promotion");
-	assert.match(String(promoteRevision.run), /promotion_recovery_run_id is required/u);
+	assert.match(String(promoteRevision.run), /git merge-base --is-ancestor/u);
+	assert.match(String(releaseRevision.run), /promotion_recovery_source_sha is required/u);
+	assert.equal(releasePlan.outputs.workers, githubExpression("steps.publication.outputs.workers"));
 	assert.equal(namedStep(publishImages, "Upload image digests").with["retention-days"], 7);
 	assert.equal(namedStep(publishWorkers, "Upload Worker candidates").with["retention-days"], 7);
 	assert(isObject(workflow.on));
@@ -832,16 +840,16 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	);
 	assert.match(String(promotion.env.PROMOTION_SOURCE_SHA), /promotion_recovery_source_sha/u);
 	const recoveryImageDownload = namedStep(promote, "Download image digests");
-	assert.match(String(recoveryImageDownload.if), /promotion_recovery_run_id/u);
+	assert.match(String(recoveryImageDownload.if), /outputs\.action/u);
 	assert.equal(
 		recoveryImageDownload.with["run-id"],
-		githubExpression("inputs.promotion_recovery_run_id || github.run_id"),
+		githubExpression("needs.release-plan.outputs.publication_run_id"),
 	);
 	const recoveryWorkerDownload = namedStep(promote, "Download Worker candidates");
-	assert.match(String(recoveryWorkerDownload.if), /promotion_recovery_run_id/u);
+	assert.match(String(recoveryWorkerDownload.if), /outputs\.action/u);
 	assert.equal(
 		recoveryWorkerDownload.with["run-id"],
-		githubExpression("inputs.promotion_recovery_run_id || github.run_id"),
+		githubExpression("needs.release-plan.outputs.publication_run_id"),
 	);
 	assert.doesNotMatch(String(promotion.run), /--kubernetes/u);
 	assert(!jobSteps(promote).some((step) => step.name === "Preflight GitOps promotion render"));
@@ -947,158 +955,57 @@ test("Worker publication matches the candidate registry and secret boundaries", 
 	assert.equal(statusWeb.env.STATUS_SNAPSHOT_KV_ID, githubExpression("vars.STATUS_SNAPSHOT_KV_ID"));
 });
 
-test("closed PR cleanup uses trusted code, scoped concurrency, and explicit cancellation permissions", async () => {
+test("retention is manual, uses trusted main and serializes mutations with publication", async () => {
 	const workflow = await loadWorkflow("ghcr-retention.yml");
-	assert(isObject(workflow.on));
-	assert.deepEqual(workflow.on.pull_request_target, { types: ["closed"] });
+	assert.equal(workflow.on.pull_request_target, undefined);
 	assert.equal(workflow.on.pull_request, undefined);
-	const job = workflowJob(workflow, "pr-cache");
-	assert.deepEqual(job.permissions, {
+	assert.equal(workflow.on.schedule, undefined);
+	assert.equal(workflow.on.workflow_dispatch.inputs.scope.default, "full");
+	assert.equal(workflow.on.workflow_dispatch.inputs.mode.default, "report");
+	const pr = workflowJob(workflow, "pr-cache");
+	assert.deepEqual(pr.permissions, {
 		contents: "read",
-		actions: "write",
 		packages: "write",
 		"pull-requests": "read",
 	});
-	const report = workflowJob(workflow, "project-report");
-	assert.deepEqual(report.permissions, {
-		contents: "read",
-		actions: "read",
-		statuses: "read",
-		packages: "read",
-	});
-	const checkout = namedStep(job, "Checkout Source");
-	assert(isObject(checkout.with));
-	assert.equal(
-		checkout.with.ref,
-		githubExpression(
-			"github.event_name == 'pull_request_target' && github.event.repository.default_branch || github.ref",
-		),
-	);
-	assert.equal(checkout.with["persist-credentials"], false);
-	assert(isObject(workflow.concurrency));
+	assert.equal(namedStep(pr, "Checkout Source").with.ref, "main");
+	const full = workflowJob(workflow, "project-retention");
+	assert.equal(full.permissions.packages, "write");
+	assert.equal(full.permissions.actions, "read");
 	const expression = String(workflow.concurrency.group).slice(3, -2);
-	const evaluate = (event: string, number: number) =>
+	const group = (scope: string, mode: string) =>
 		runInNewContext(expression, {
-			github: { event_name: event, event: { pull_request: { number } } },
-			inputs: { pr_number: "442" },
-			format: (pattern: string, value?: number | string) =>
-				pattern.replace("{0}", value === undefined ? "" : String(value)),
+			inputs: { scope, mode, pr_number: "442" },
+			github: { run_id: 10 },
+			format: (pattern: string, value: string | number) => pattern.replace("{0}", String(value)),
 		});
-	assert.equal(evaluate("pull_request_target", 442), "campus-agent-ghcr-pr-cache-442");
-	assert.equal(evaluate("pull_request_target", 443), "campus-agent-ghcr-pr-cache-443");
-	assert.equal(evaluate("workflow_dispatch", 0), "campus-agent-ghcr-retention-full");
-	assert.equal(workflow.on.schedule, undefined);
-	const dispatch = workflow.on.workflow_dispatch as {
-		inputs: Record<string, { required: boolean; type: string }>;
-	};
-	assert.deepEqual(Object.keys(dispatch.inputs).sort(), ["mode", "pr_number", "scope"]);
-	assert.equal(dispatch.inputs.pr_number.required, false);
-	assert.equal(dispatch.inputs.pr_number.type, "string");
-	assert.equal(dispatch.inputs.scope.required, true);
-	assert.equal(dispatch.inputs.scope.type, "choice");
-	assert.equal(dispatch.inputs.scope.default, "pr");
-	assert.equal(
-		jobSteps(job).find((step) => step.name === "Login to GHCR for manifest inspection"),
-		undefined,
-	);
-	const manifestLogin = namedStep(report, "Login to GHCR for manifest inspection");
-	assert.equal(manifestLogin.if, undefined);
-	for (const [headRepository, author, mergeable, allowed] of [
-		["MUC-WIKI/campus-agent", "developer", true, true],
-		["MUC-WIKI/campus-agent", "developer", false, true],
-		["fork/campus-agent", "developer", true, false],
-		["MUC-WIKI/campus-agent", "dependabot[bot]", true, false],
-	] as const) {
-		const github = {
-			event_name: "pull_request_target",
-			repository: "MUC-WIKI/campus-agent",
-			event: {
-				pull_request: {
-					mergeable,
-					head: { repo: { full_name: headRepository } },
-					user: { login: author },
-				},
-			},
-		};
-		assert.equal(condition(job.if, { github }), allowed);
-		for (const name of [
-			"Create GitOps read token",
-			"Checkout GitOps",
-			"Fetch open GitOps pull request refs",
-		]) {
-			const step = jobSteps(job).find((candidate) => candidate.name === name);
-			assert(!step || String(step.if).includes("inputs.scope == 'full'"));
-		}
-	}
+	assert.equal(group("full", "apply"), "campus-agent-ghcr-mutation");
+	assert.equal(group("full", "report"), "campus-agent-ghcr-report-10");
+	assert.equal(group("pr", "apply"), "campus-agent-ghcr-pr-cache-442");
 	assert.match(
-		String(
-			condition(report.if, {
-				github: { event_name: "workflow_dispatch" },
-				inputs: { scope: "full" },
-			}),
-		),
-		/true/u,
+		String(namedStep(full, "Plan and optionally apply project retention").run),
+		/--mode "\$RETENTION_MODE"/u,
 	);
-	assert.match(String(namedStep(report, "Require report mode").run), /RETENTION_MODE/u);
-	const generate = namedStep(job, "Generate and optionally apply GHCR retention plan");
-	assert(isObject(generate.env));
-	assert.match(String(generate.env.RETENTION_MODE), /pull_request_target/u);
-	assert.match(String(generate.run), /--pr-cache-pr/u);
-	assert.match(
-		String(namedStep(report, "Require report mode").run),
-		/test "\$RETENTION_MODE" = report/u,
-	);
-	assert.match(String(generate.env.RETENTION_PR_NUMBER), /inputs.pr_number/u);
-	assert.match(String(namedStep(job, "Upload GHCR retention report").if), /hashFiles/u);
 });
 
-test("cache permission queries current PR state and disables cache on closed or failed lookup", async (t) => {
-	const directory = await mkdtemp(path.join(os.tmpdir(), "pr-cache-permission-"));
-	t.after(() => rm(directory, { recursive: true, force: true }));
-	const build = workflowJob(await loadWorkflow("pr-image-evidence.yml"), "build");
-	const check = namedStep(build, "Check PR cache write permission");
-	const login = namedStep(build, "Login for image caches");
-	assert.equal(check.if, "inputs.cache_write");
-	assert.match(String(login.if), /inputs\.cache_read == true/u);
-	assert.match(String(login.if), /inputs\.cache_write == true/u);
-	assert(jobSteps(build).indexOf(check) < jobSteps(build).indexOf(login));
+test("PR image evidence only imports caches and requires no PR write coordination", async () => {
+	const reusable = await loadWorkflow("pr-image-evidence.yml");
+	assert.equal(reusable.on.workflow_call.inputs.cache_write, undefined);
+	assert.equal(reusable.on.workflow_call.inputs.pull_request_number, undefined);
+	const build = workflowJob(reusable, "build");
+	assert.equal(namedStep(build, "Login for image caches").if, "inputs.cache_read");
+	assert.doesNotMatch(
+		String(namedStep(build, "Run image evidence").run),
+		/cache-export-registry|pr-cache-/u,
+	);
 	const trusted = workflowJob(await loadWorkflow("pr.yml"), "image-evidence-trusted");
-	assert.equal((trusted.permissions as Record<string, string>)["pull-requests"], "read");
-	for (const state of ["open", "closed", "unknown", "error"]) {
-		const output = path.join(directory, state);
-		execFileSync(
-			"bash",
-			[
-				"-e",
-				"-c",
-				`
-			gh() {
-				test "$2" = "repos/MUC-WIKI/campus-agent/pulls/442" || return 2
-				if [[ "$TEST_STATE" == error ]]; then return 1; fi
-				printf '%s\n' "$TEST_STATE"
-			}
-			${String(check.run)}
-		`,
-			],
-			{
-				env: {
-					...process.env,
-					GITHUB_OUTPUT: output,
-					GITHUB_REPOSITORY: "MUC-WIKI/campus-agent",
-					PR_NUMBER: "442",
-					TEST_STATE: state,
-				},
-				stdio: "pipe",
-			},
-		);
-		assert.equal(await readFile(output, "utf8"), `allowed=${state === "open"}\n`);
-	}
+	assert.equal(trusted.permissions["pull-requests"], undefined);
 });
 
 test("formal release serializes publication and separates read and write credentials", async () => {
 	const workflow = await loadWorkflow("formal-release.yml");
 	assert.deepEqual(workflow.concurrency, {
-		group: "formal-release",
+		group: "campus-agent-ghcr-mutation",
 		"cancel-in-progress": false,
 		queue: "max",
 	});
@@ -1111,4 +1018,125 @@ test("formal release serializes publication and separates read and write credent
 	assert.equal(publication.with["permission-workflows"], "write");
 	const run = namedStep(publish, "Publish verified snapshot without rebuilding");
 	assert.match(String(run.env?.SOURCE_TOKEN), /publication-token/u);
+});
+
+test("duplicate publication never marks pending or publishes, while reuse can promote", async () => {
+	const workflow = await loadWorkflow("execution-runtime-publish.yml");
+	const plan = workflowJob(workflow, "release-plan");
+	for (const action of ["publish", "reuse", "skip"]) {
+		const outputs = {
+			action,
+			images: '["model-config"]',
+			workers: "[]",
+			source_bases: "[]",
+			topology_migrations: "[]",
+			pending_written: action === "publish" ? "true" : "",
+		};
+		const context = {
+			steps: { publication: { outputs }, plan: { outputs } },
+			needs: {
+				"release-plan": { result: "success", outputs },
+				"candidate-status": {
+					result: action === "skip" ? "skipped" : "success",
+					outputs: { approved: "true" },
+				},
+				"publish-images": { result: action === "publish" ? "success" : "skipped" },
+				"publish-workers": { result: "skipped" },
+			},
+			github: { ref: "refs/heads/main", event_name: "push" },
+			inputs: { promote: false },
+		};
+		assert.equal(
+			condition(namedStep(plan, "Mark staging candidate pending").if, context),
+			action === "publish",
+		);
+		assert.equal(
+			condition(workflowJob(workflow, "publish-images").if, context),
+			action === "publish",
+		);
+		assert.equal(
+			condition(workflowJob(workflow, "candidate-status").if, context),
+			action !== "skip",
+		);
+		assert.equal(condition(workflowJob(workflow, "promote").if, context), action !== "skip");
+	}
+	assert.equal(
+		condition(workflowJob(workflow, "candidate-status").if, {
+			needs: { "release-plan": { outputs: { action: "publish", pending_written: "" } } },
+		}),
+		false,
+	);
+});
+
+test("promotion narrows reused artifacts to the current selection", async (t) => {
+	const root = await mkdtemp(path.join(os.tmpdir(), "selected-candidates-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	await mkdir(path.join(root, "worker-candidates"));
+	await writeFile(
+		path.join(root, "image-digests.json"),
+		JSON.stringify({ "model-config": "keep", "agent-runtime": "drop" }),
+	);
+	for (const name of ["app-api-staging", "campus-web-staging"]) {
+		await writeFile(
+			path.join(root, "worker-candidates", `${name}.json`),
+			JSON.stringify({ workerName: name }),
+		);
+	}
+	const step = namedStep(
+		workflowJob(await loadWorkflow("execution-runtime-publish.yml"), "promote"),
+		"Keep only selected candidates",
+	);
+	execFileSync("bash", ["-e", "-c", String(step.run)], {
+		cwd: root,
+		env: { ...process.env, IMAGES: '["model-config"]', WORKERS: '["app-api-staging"]' },
+	});
+	assert.deepEqual(JSON.parse(await readFile(path.join(root, "image-digests.json"), "utf8")), {
+		"model-config": "keep",
+	});
+	assert.deepEqual(await readdir(path.join(root, "worker-candidates")), ["app-api-staging.json"]);
+});
+
+test("recovery requires both identity inputs before remote queries or candidate status writes", async () => {
+	const job = workflowJob(await loadWorkflow("execution-runtime-publish.yml"), "release-plan");
+	const guard = namedStep(job, "Verify current main revision");
+	const steps = jobSteps(job);
+	assert(steps.indexOf(guard) < steps.indexOf(namedStep(job, "Resolve publication reuse")));
+	assert(steps.indexOf(guard) < steps.indexOf(namedStep(job, "Mark staging candidate pending")));
+	for (const [id, sha, message] of [
+		["10", "", "promotion_recovery_source_sha is required"],
+		["", "a".repeat(40), "promotion_recovery_run_id is required"],
+		["", "", ""],
+		["10", "a".repeat(40), ""],
+	]) {
+		const result = spawnSync(
+			"bash",
+			[
+				"-e",
+				"-c",
+				`
+			gh() { echo "remote-query" >&2; echo "$GITHUB_SHA"; }
+			git() { return 0; }
+			${String(guard.run)}
+		`,
+			],
+			{
+				env: {
+					...process.env,
+					GITHUB_REPOSITORY: "MUC-WIKI/campus-agent",
+					GITHUB_SHA: "a".repeat(40),
+					RECOVERY_RUN_ID: id,
+					RECOVERY_SOURCE_SHA: sha,
+				},
+				encoding: "utf8",
+			},
+		);
+		if (message) {
+			assert.notEqual(result.status, 0);
+			assert(result.stderr.includes(message));
+			assert(!result.stderr.includes("remote-query"));
+		} else {
+			assert.equal(result.status, 0, result.stderr);
+			assert(result.stderr.includes("remote-query"));
+		}
+	}
 });

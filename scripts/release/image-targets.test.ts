@@ -11,6 +11,27 @@ function targets(changedFiles: string[], tasks: Array<{ package: string; task: s
 	return imageTargetsForScope({ changedFiles, tasks });
 }
 
+test("model-config local CLI does not select the service image", () => {
+	assert.deepEqual(targets(["apps/model-config/cmd/model-config-local/main.go"]), []);
+	assert.deepEqual(targets(["apps/model-config/cmd/model-config-local/main_test.go"]), []);
+	for (const file of [
+		"cmd/model-config/main.go",
+		"internal/server/server.go",
+		"go.mod",
+		"go.sum",
+		"Dockerfile",
+	]) {
+		assert.deepEqual(targets([`apps/model-config/${file}`]), ["model-config"]);
+	}
+	assert.deepEqual(
+		targets([
+			"apps/model-config/cmd/model-config-local/main.go",
+			"apps/execution-control/cmd/execution-worker/main.go",
+		]),
+		["execution-control"],
+	);
+});
+
 test("active image target registry excludes the historical schema image", () => {
 	assert.deepEqual(ACTIVE_IMAGE_TARGETS, [
 		"agent-runtime",

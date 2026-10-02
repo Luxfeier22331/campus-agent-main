@@ -9,6 +9,12 @@ import {
 	buildAppApiStagingUploadSecrets,
 } from "./staging-upload-config.ts";
 
+if (process.env.GITHUB_ACTIONS !== "true") {
+	throw new Error(
+		"App API staging upload is CI-only. Run staging-candidate-publish on main; use candidate_scope=app-api-config to republish environment configuration.",
+	);
+}
+
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function requiredEnv(name: string): string {
