@@ -11,8 +11,8 @@
 		"test:unit": "vitest run -c vitest.config.mts"
 	},
 	"dependencies": {
-		"@arizeai/openinference-instrumentation-openai-agents": "^0.2.14",
-		"@google/genai": "2.22.0",
+		"@arizeai/openinference-instrumentation-openai-agents": "^0.3.2",
+		"@google/genai": "2.26.0",
 		"@langfuse/otel": "^5.11.1",
 		"@langfuse/tracing": "^5.11.1",
 		"@openai/agents": "0.18.0",
@@ -23,17 +23,17 @@
 		"@opentelemetry/sdk-trace-base": "^2.11.0",
 		"@opentelemetry/sdk-trace-node": "^2.11.0",
 		"@opentelemetry/semantic-conventions": "^1.43.0",
-		"htmlparser2": "8.0.2",
-		"ipaddr.js": "2.2.0",
-		"openai": "7.15.0",
-		"undici": "8.10.2",
+		"htmlparser2": "12.0.0",
+		"ipaddr.js": "2.5.0",
+		"openai": "7.27.0",
+		"undici": "8.11.2",
 		"zod": "^4.6.5",
 		"campus-contracts": "workspace:*"
 	},
 	"devDependencies": {
-		"@types/node": "^24.13.4",
+		"@types/node": "^24.19.1",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.0"
+		"vitest": "^5.0.3"
 	},
 	"license": "Apache-2.0"
 }

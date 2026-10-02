@@ -16,15 +16,15 @@
 		"campus-contracts": "workspace:*",
 		"ingestion-contracts": "workspace:*",
 		"notice-classifier-core": "workspace:*",
-		"pg": "^8.22.0"
+		"pg": "^8.23.1"
 	},
 	"devDependencies": {
-		"@types/node": "^24.13.4",
+		"@types/node": "^24.19.1",
 		"@types/pg": "^8.23.1",
 		"esbuild": "^0.28.2",
-		"tsx": "^4.23.13",
+		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.0"
+		"vitest": "^5.0.3"
 	},
 	"license": "Apache-2.0",
 	"exports": {

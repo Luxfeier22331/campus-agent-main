@@ -11,10 +11,10 @@ overrides:
   "@xmldom/xmldom@<0.9.12": "0.9.12"
   # minimatch 通过 Testcontainers 和 React Email 仍请求 brace-expansion；
   # 这些链路不再落入受影响范围后删除。
-  "brace-expansion@>=5.0.0 <5.0.9": "5.0.9"
+  "brace-expansion@>=5.0.0 <5.0.12": "5.0.12"
   # AJV 及 schema-utils 仍由 contracts、Campus Web、ingestion 和 webpack 链路消费；
   # 它们不再请求旧 fast-uri 后删除。
-  "fast-uri@<3.1.6": "3.1.6"
+  "fast-uri@<3.1.8": "3.1.8"
   # Testcontainers、React Email 和 archiver/glob 链仍请求旧 minimatch；
   # 其依赖范围收敛后删除。
   "minimatch@>=5.0.0 <10.2.5": "10.2.5"
@@ -23,8 +23,8 @@ overrides:
   # Cloudflare 本地开发与 Worker 测试使用的 Miniflare 固定旧 sharp；
   # 上游依赖不再请求受影响版本后删除。
   "sharp@<0.35.4": "0.35.4"
-  # markdownlint-cli2 固定 smol-toml 1.7.0；上游升级到修复版本后删除。
-  "smol-toml@<1.7.1": "1.8.0"
+  # Miniflare 固定 undici 7.29.0；上游更新到安全版本后删除，不影响 undici 8 链路。
+  "miniflare>undici@7.29.0": "7.29.1"
 
 minimumReleaseAge: 0
 

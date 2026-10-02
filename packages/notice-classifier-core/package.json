@@ -20,12 +20,12 @@
 	"dependencies": {
 		"@campus-agent/notices": "workspace:*",
 		"campus-contracts": "workspace:*",
-		"openai": "7.15.0",
+		"openai": "7.27.0",
 		"zod": "^4.6.5"
 	},
 	"devDependencies": {
-		"@types/node": "^24.13.4",
-		"tsx": "^4.23.13",
+		"@types/node": "^24.19.1",
+		"tsx": "^4.23.15",
 		"typescript": "^7.0.2"
 	},
 	"license": "Apache-2.0"

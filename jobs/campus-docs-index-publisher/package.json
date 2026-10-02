@@ -2,7 +2,7 @@
 	"name": "campus-docs-index-publisher",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Campus Web \u6587\u6863\u5f53\u524d\u7248\u672c\u7684\u4e0d\u53ef\u53d8 Qdrant \u7d22\u5f15\u53d1\u5e03\u4efb\u52a1\u3002",
+	"description": "Campus Web 文档当前版本的不可变 Qdrant 索引发布任务。",
 	"license": "Apache-2.0",
 	"type": "module",
 	"scripts": {
@@ -17,15 +17,15 @@
 		"test:unit": "vitest run"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.1132.0",
+		"@aws-sdk/client-s3": "^3.1145.0",
 		"@campus-agent/embedding-runtime": "workspace:*",
 		"campus-contracts": "workspace:*"
 	},
 	"devDependencies": {
-		"@types/node": "^24.13.4",
+		"@types/node": "^24.19.1",
 		"esbuild": "^0.28.2",
-		"tsx": "^4.23.13",
+		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.0"
+		"vitest": "^5.0.3"
 	}
 }
