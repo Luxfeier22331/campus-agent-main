@@ -10,6 +10,9 @@ Status: implemented
 
 每个 worktree profile 独立拥有四类本地基础设施：PostgreSQL、RustFS、Qdrant 和 Temporal。profile 为每类服务分配不重叠的 loopback 端口、Compose project、卷、网络、凭据、数据库、source bucket、derived bucket 和 Temporal namespace。`dev:init` 只启动当前 profile 的 Compose project；`dev:destroy` 只删除当前 project 及其卷，不再执行共享 reconcile 或跨 worktree清理。
 
+本地 source 隔离取代[对象存储](./2026-07-16-object-storage.md)原先仅覆盖 derived bucket 的约定；
+集群 source/derived 分工与默认名称继续有效。采集器与其他消费者读取 profile 生成的 bucket 配置。
+
 真实集群同步写入当前 worktree 的独立数据库、对象存储和 Qdrant。同步闭包包括 Docs source 引用闭包、当前混合 Campus RAG collection、current index，以及 Qdrant notice points 引用的通知详情、分类、类型、组织和资产；不复制用户、session、Dining、Transport 或 Groups 业务数据。候选 Docs 对象和 Qdrant collection 完成完整校验后才激活 current index，失败时保留旧 pointer。
 
 检索表同步使用 upsert；只删除没有本地 Transport 通知链接或处理失败记录依赖的过期通知，并保留这些本地依赖所需的通知与资产，避免 PostgreSQL 级联删除改变未同步的业务状态。

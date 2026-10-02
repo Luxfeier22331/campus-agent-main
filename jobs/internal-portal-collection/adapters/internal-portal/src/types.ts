@@ -1,5 +1,6 @@
 export interface NoticeItem {
 	notice_id?: number | string | null;
+	notice_stick?: number | string | null;
 	notice_type?: number | string | null;
 	notice_release_time?: string | null;
 	organization_id?: string | null;

@@ -41,7 +41,11 @@ export function createOcrTaskStore(db: Pool | PoolClient): OcrTaskStore {
 			};
 			// Config rotation is deliberately absent: completed inputs aren't re-billed.
 			const dedupKey =
-				input.kind === "validation" || rerun ? task.id : `${input.kind}:${input.key}`;
+				input.kind === "validation" || rerun
+					? task.id
+					: input.kind === "source" && input.key.startsWith("internal_portal/resources/sha256/")
+						? `source:${input.noticeId}:${input.key}`
+						: `${input.kind}:${input.key}`;
 			const inserted = await db.query(
 				`insert into ocr.tasks(id,dedup_key,input,target,config_updated_at) values($1,$2,$3,$4,$5) on conflict(dedup_key) do nothing returning ${projection}`,
 				[task.id, dedupKey, input, task.target, config.updatedAt],

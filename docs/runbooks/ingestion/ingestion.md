@@ -77,6 +77,10 @@ pnpm --dir jobs/internal-portal-collection auth:check
 - `notice-backfill --start-date S` 采集 `[S,start)`，成功后把状态扩展到 `[S,end)`。
 - `notice-rescan --from F --to T` 补查已有维护范围内的遗漏，不改变边界，也不重新抓取已有通知详情。
 
+因旧通知置顶导致上界停滞时，部署修复后运行现有 `notice-pipeline`，由 sync 从已有上界继续补采，
+再完成分类、发布和索引刷新；不要手改 `_state.json` 或用仅覆盖已有区间的 rescan 代替向后补齐。
+按缺失通知 ID 核对数据库、Campus 和当前索引，流水线成功或 `upToDate=true` 不能代替数据恢复确认。
+
 首次初始化必须先从约定起点 `2025-12-01` 回填，再运行 sync。根据目标数据范围明确日期边界，先完成
 小范围验证，再扩大同一来源范围：
 

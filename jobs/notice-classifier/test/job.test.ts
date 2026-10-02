@@ -39,8 +39,8 @@ describe("notice classification job", () => {
 		});
 		expect(result).toEqual({ classified: 1, failed: 0, outcome: "success", requested: 1, skipped: 0 });
 		expect(database.query).toHaveBeenLastCalledWith(
-			expect.stringContaining("WHERE notice_id=$1 AND category IS NULL RETURNING notice_id"),
-			[1, "campus_operations"],
+			expect.stringContaining("WHERE notice_id=$1 AND category IS NULL AND title=$3 RETURNING notice_id"),
+			[1, "campus_operations", "临时关闭校园南门"],
 		);
 	});
 
@@ -77,8 +77,8 @@ describe("notice classification job", () => {
 			noticeIds: [2],
 		});
 		expect(database.query).toHaveBeenLastCalledWith(
-			expect.stringContaining("WHERE notice_id=$1 RETURNING notice_id"),
-			[2, "research_affairs"],
+			expect.stringContaining("WHERE notice_id=$1 AND title=$3 RETURNING notice_id"),
+			[2, "research_affairs", "测试通知"],
 		);
 	});
 

@@ -87,21 +87,21 @@ export async function runNoticeClassificationJob(
 			options.signal?.throwIfAborted();
 			const updated = explicit
 				? await options.database.query(
-						`WITH updated AS (UPDATE notices.notices SET category=$2 WHERE notice_id=$1 RETURNING notice_id),
+						`WITH updated AS (UPDATE notices.notices SET category=$2 WHERE notice_id=$1 AND title=$3 RETURNING notice_id),
                          cleared AS (DELETE FROM notices.processing_failures WHERE stage='classification' AND notice_id IN (SELECT notice_id FROM updated))
                          SELECT notice_id FROM updated`,
-						[input.noticeId, category],
+						[input.noticeId, category, input.noticeTitle],
 					)
 				: await options.database.query(
-						`WITH updated AS (UPDATE notices.notices SET category=$2 WHERE notice_id=$1 AND category IS NULL RETURNING notice_id),
+						`WITH updated AS (UPDATE notices.notices SET category=$2 WHERE notice_id=$1 AND category IS NULL AND title=$3 RETURNING notice_id),
                          cleared AS (DELETE FROM notices.processing_failures WHERE stage='classification' AND notice_id IN (SELECT notice_id FROM updated))
                          SELECT notice_id FROM updated`,
-						[input.noticeId, category],
+						[input.noticeId, category, input.noticeTitle],
 					);
 			if (updated.rowCount === 1) {
 				classified += 1;
 			} else if (explicit) {
-				throw new Error(`notice does not exist: ${input.noticeId}`);
+				throw new Error(`notice disappeared or its title changed during classification: ${input.noticeId}`);
 			} else {
 				skipped += 1;
 			}

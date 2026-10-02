@@ -20,6 +20,8 @@ Status: implemented
 - 状态由字段推导：空分类为待分类，已有分类且未发布为待发布，已发布为已发布；
 - 通知采集维护状态使用 `internal_portal_notice_sync_state.v3` 的 [covered_from, covered_until) 半开区间；
   sync 只推进排他上界，backfill 只扩展包含下界，旧 v2 不推断缺失的上界；
+- 门户未过滤列表的 `notice_stick=1` 记录可以排在较新的普通通知之前；上界探测检查置顶标记和已检查记录中的最大发布日期，
+  整页置顶时继续分页，不把列表首条当作最新边界；
 - 门户闭区间日期参数只在适配器内部转换，详情发布时间负责最终范围校验；sync/backfill 使用固定
   PostgreSQL advisory lock 串行执行；
 - 在线分类器从数据库读取 ID 与标题并写回分类；publisher 读取待发布项，写正文与资源后标记发布；
@@ -52,3 +54,4 @@ Job 诊断保留应用 Pod 输出中的原始错误与结构化进度，并把 K
 ## 相关文档
 
 - 部分取代 [内部门户通知来源合同](./2026-08-14-internal-portal-notice-source.md)的纯来源采集范围与 [规范化通知存储](2026-08-14-normalized-notice-storage.md)的分类、发布状态；来源身份和内容所有权边界继续有效。
+- [通知置顶导致增量采集水位停滞](../../../../docs/postmortem/0003-notice-pinned-boundary.md)记录列表首条假设造成的漏采与回归缺口。

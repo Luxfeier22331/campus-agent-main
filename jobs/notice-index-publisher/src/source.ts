@@ -6,18 +6,22 @@ import type { NoticeSource } from "./types.ts";
 // Chunking and embedding receive text only; neither knows OCR task states.
 export const PUBLISHED_NOTICE_SOURCE_QUERY = `SELECT notice_id::text, title, content_text, released_at,
   COALESCE((
-    SELECT string_agg(p.markdown, E'\\n\\n' ORDER BY image.ordinal, p.page_index)
-    FROM (
-      SELECT DISTINCT ON (input->>'key') id,
-        (regexp_match(input->>'key', '/images/([0-9]+)$'))[1]::integer AS ordinal
-      FROM ocr.tasks
-      WHERE input->>'kind' = 'source'
-        AND input->>'noticeId' = n.notice_id::text
-        AND input->>'key' ~ ('^internal_portal/notices/' || n.notice_id || '/images/[0-9]+$')
-        AND status = 'completed'
-      ORDER BY input->>'key', created_at DESC, id DESC
-    ) image
+    SELECT string_agg(p.markdown, E'\\n\\n' ORDER BY asset.ordinal, p.page_index)
+    FROM notices.notice_assets asset
+    JOIN LATERAL (
+      SELECT t.id
+      FROM ocr.tasks t
+      WHERE t.input->>'kind' = 'source'
+        AND t.input->>'noticeId' = n.notice_id::text
+        AND t.input_sha256 = asset.content_sha256
+        AND (t.input #>> '{resource,kind}' = 'image'
+          OR t.input->>'key' ~ ('^internal_portal/notices/' || n.notice_id || '/images/[0-9]+$'))
+        AND t.status = 'completed'
+      ORDER BY t.created_at DESC, t.id DESC
+      LIMIT 1
+    ) image ON true
     JOIN ocr.pages p ON p.task_id = image.id
+    WHERE asset.notice_id = n.notice_id AND asset.asset_kind = 'image'
   ), '') AS image_text
 FROM notices.notices n
 WHERE is_published AND NOT is_external

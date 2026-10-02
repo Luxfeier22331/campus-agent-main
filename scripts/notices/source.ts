@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
-
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import type { NoticeClassificationTask } from "notice-classifier-core/batch";
 import { mapWithConcurrency } from "notice-classifier-core/concurrency";
@@ -13,9 +12,12 @@ import {
 	parseNoticeClassificationSourceJson,
 	validateNoticeIds,
 } from "notice-classifier-core/source";
+import { Pool } from "pg";
 
 export interface NoticeSourceObjectStore {
 	close(): void;
+	listNoticeIds?(): Promise<number[]>;
+	getNoticeKey?(noticeId: number): Promise<string>;
 	getObject(key: string): Promise<string>;
 	listObjectKeys(prefix: string): Promise<string[]>;
 }
@@ -44,6 +46,7 @@ export function createNoticeSourceObjectStoreFromEnv(
 	env: NodeJS.ProcessEnv = process.env,
 ): NoticeSourceObjectStore {
 	const bucket = requiredEnv(env, "OBJECT_STORE_BUCKET_SOURCE");
+	const database = new Pool({ connectionString: requiredEnv(env, "NOTICES_DATABASE_URL"), max: 1 });
 	const client = new S3Client({
 		credentials: {
 			accessKeyId: requiredEnv(env, "OBJECT_STORE_SOURCE_ACCESS_KEY"),
@@ -57,6 +60,23 @@ export function createNoticeSourceObjectStoreFromEnv(
 	return {
 		close() {
 			client.destroy();
+			void database.end();
+		},
+		async listNoticeIds() {
+			const result = await database.query(
+				"SELECT notice_id FROM notices.notices ORDER BY notice_id",
+			);
+			return result.rows.map((row) => Number(row.notice_id));
+		},
+		async getNoticeKey(noticeId) {
+			const result = await database.query(
+				"SELECT source_ref FROM notices.notices WHERE notice_id=$1",
+				[noticeId],
+			);
+			if (!result.rows[0]) {
+				throw new Error(`notice does not exist: ${noticeId}`);
+			}
+			return result.rows[0].source_ref ?? noticeSourceKey(noticeId);
 		},
 		async getObject(key) {
 			const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
@@ -115,7 +135,7 @@ export async function loadNoticeClassificationInputs(
 		throw new Error("notice input concurrency must be a positive integer");
 	}
 	return mapWithConcurrency(ids, concurrency, async (noticeId) => {
-		const key = noticeSourceKey(noticeId);
+		const key = (await objectStore.getNoticeKey?.(noticeId)) ?? noticeSourceKey(noticeId);
 		const notice = await loadNotice(objectStore, key);
 		if (notice.notice_id !== noticeId) {
 			throw new Error(`${key} contains notice_id ${notice.notice_id}`);
@@ -125,6 +145,9 @@ export async function loadNoticeClassificationInputs(
 }
 
 export async function listNoticeSourceIds(objectStore: NoticeSourceObjectStore): Promise<number[]> {
+	if (objectStore.listNoticeIds) {
+		return objectStore.listNoticeIds();
+	}
 	const ids = new Set<number>();
 	for (const key of await objectStore.listObjectKeys(NOTICE_SOURCE_PREFIX)) {
 		const noticeId = noticeSourceIdFromKey(key);

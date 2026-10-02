@@ -37,8 +37,8 @@ ingestion runtime base 为通知增量、通知回填和文件发布分别提供
 数据库。凭据由 Ops Web 候选池解析，本地写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内
 使用，不形成 TGC Secret。
 
-notice-publisher 读取数据库中已有分类且未发布的通知，显式物化正文与资源并打开学生端可见边界；对已发布站内通知也可通过独立的
-重新发布操作重新物化正文投影，但保持学生端可见边界不变。本地 CLI 与默认暂停的 Kubernetes Job 模板使用同一实现，不提供自动
+notice-publisher 读取数据库中已有分类且未发布的通知，显式物化正文与资源并打开学生端可见边界；对已发布通知也可通过独立的
+重新发布操作重新物化当前来源的 metadata、正文和资源，但保持学生端可见边界不变。本地 CLI 与默认暂停的 Kubernetes Job 模板使用同一实现，不提供自动
 schedule。App API 和 Campus Web 只读取 `is_published=true` 的投影。完整
 数据结构和操作顺序分别由 [通知数据](../../data/notices.md) 和
 [采集运行](../../runbooks/ingestion/ingestion.md) 维护。

@@ -13,7 +13,9 @@
 		"covered_until": {
 			"oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }]
 		},
-		"updated_at": { "type": "string", "format": "date-time" }
+		"updated_at": { "type": "string", "format": "date-time" },
+		"recent_reviewed_at": { "type": ["string", "null"], "format": "date-time" },
+		"full_reviewed_at": { "type": ["string", "null"], "format": "date-time" }
 	},
 	"oneOf": [
 		{

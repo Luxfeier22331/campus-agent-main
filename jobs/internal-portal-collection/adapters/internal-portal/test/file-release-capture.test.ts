@@ -156,6 +156,9 @@ function createMemoryObjectStore(): InternalPortalCollectionObjectStore & {
 			}
 			return value;
 		},
+		async hasObject(input) {
+			return (await this.getObjectIfExists(input)) !== null;
+		},
 		async getObjectIfExists(input) {
 			return objects.get(input.key) ?? null;
 		},

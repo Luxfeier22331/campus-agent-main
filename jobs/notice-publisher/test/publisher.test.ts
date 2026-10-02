@@ -42,10 +42,11 @@ describe("notice publisher", () => {
 		expect(database.query).toHaveBeenCalledTimes(1);
 	});
 
-	it("rolls back the notice when asset insertion fails", async () => {
+	it("rolls back the notice when asset replacement fails", async () => {
 		const database = { query: vi.fn(async (sql: string) => {
 			if (sql.includes("SELECT notice_id::text")) return { rows: [candidate()], rowCount: 1 };
-			if (sql.includes("SELECT asset_kind")) throw new Error("database unavailable");
+			if (sql.includes("SELECT asset_kind")) return { rows: [{ asset_kind: "image", ordinal: 0 }], rowCount: 1 };
+			if (sql.includes("DELETE FROM notices.notice_assets")) throw new Error("database unavailable");
 			return { rows: [], rowCount: 1 };
 		}) } as unknown as PoolClient;
 		await expect(publishNotices({ client: database, objectStore: fakeStore(), portalHost: "my.muc.edu.cn" })).rejects.toThrow("database unavailable");
@@ -143,13 +144,17 @@ describe("notice publisher", () => {
 		});
 
 		const update = queries.find((text) => text.includes("UPDATE notices.notices"));
-		expect(update).toContain("SET content_html=$2, content_text=$3");
+		expect(update).toContain("content_html=$8, content_text=$9");
 		expect(update).not.toContain("SET is_published");
 		expect(update).not.toContain("category");
 	});
 
-	it("does not clear a published notice when the source has no body", async () => {
-		const client = fakeClient([{ rows: [candidate({ is_published: true })] }]);
+	it("clears a published notice when the source has no body", async () => {
+		const client = {query: vi.fn(async (sql: string) => {
+			if (sql.includes("SELECT notice_id::text")) return {rows:[candidate({is_published:true})],rowCount:1};
+			if (sql.includes("SELECT content_html")) return {rows:[{is_published:true,content_html:"old",content_text:"old"}],rowCount:1};
+			return {rows:[],rowCount:1};
+		})} as unknown as PoolClient;
 		const store = fakeStore();
 		vi.spyOn(store, "getSource").mockImplementation(async (key: string) => ({
 			body: Buffer.from(
@@ -184,8 +189,8 @@ describe("notice publisher", () => {
 			objectStore: store,
 			portalHost: "my.muc.edu.cn",
 		}),
-		).resolves.toMatchObject({ assets: 0, notices: 0, skipped: 1, unchanged: 0, updated: 0, failed: 0 });
-		expect(client.query).not.toHaveBeenCalledWith("BEGIN");
+		).resolves.toMatchObject({ assets: 0, notices: 1, skipped: 0, unchanged: 0, updated: 1, failed: 0 });
+		expect(client.query).toHaveBeenCalledWith(expect.stringContaining("content_html=$8"), expect.arrayContaining([null, null]));
 	});
 
 	it("rejects republishing an unpublished notice by ID", async () => {
@@ -323,8 +328,8 @@ describe("notice publisher", () => {
 						],
 					};
 				}
-				if (text.includes("SELECT asset_kind")) return { rowCount: 0, rows: [] };
-				return { rowCount: 0, rows: [] };
+				if (text.includes("SELECT asset_kind")) return { rowCount: 1, rows: [] };
+				return { rowCount: 1, rows: [] };
 			}),
 		} as unknown as PoolClient;
 
@@ -339,7 +344,7 @@ describe("notice publisher", () => {
 			unchanged: 1,
 			updated: 0,
 		});
-		expect(queries.find((text) => text.includes("UPDATE notices.notices"))).toBeUndefined();
+		expect(queries.find((text) => text.includes("UPDATE notices.notices"))).toContain("source_ref IS NOT DISTINCT FROM");
 		expect(client.query).toHaveBeenCalledWith(
 			expect.stringContaining("DELETE FROM notices.processing_failures"),
 			expect.arrayContaining([358159]),

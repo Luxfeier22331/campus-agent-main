@@ -103,7 +103,7 @@ OCR 文本只在 Ops 页面显示，不写入公开通知正文。Embedding 读�
 （采集使用其本地 adapter 入口加载自身环境）；本地任务只保存在 Ops Web 进程内，服务重启后消失。
 两种执行方式都不接受浏览器提交 command、环境变量或执行路径，也不在失败后切换到另一种执行方式。
 
-`notice-republish-one` 只用于已发布的站内通知，重新读取 source bucket 并更新正文投影，保持已发布状态和分类不变；
+`notice-republish-one` 用于已发布通知，重新读取当前来源快照并原子更新可见 metadata、正文和资源，保持已发布状态和分类不变；
 后台不提供批量重新发布入口，批量更新由 notice-publisher 运维命令显式执行。
 
 每个 Job 还返回以下诊断字段：

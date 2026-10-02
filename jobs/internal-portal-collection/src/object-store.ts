@@ -2,6 +2,7 @@ import type { Readable } from "node:stream";
 import {
 	DeleteObjectCommand,
 	GetObjectCommand,
+	HeadObjectCommand,
 	ListObjectVersionsCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
@@ -33,6 +34,7 @@ export interface InternalPortalCollectionObjectStore {
 	getObjectIfExists(
 		input: ObjectStoreLocation & { abortSignal?: AbortSignal },
 	): Promise<Uint8Array | null>;
+	hasObject(input: ObjectStoreLocation & { abortSignal?: AbortSignal }): Promise<boolean>;
 	listObjectKeys?(input: { bucket: string; prefix: string }): Promise<string[]>;
 	putObject(
 		input: ArtifactWriteInput & { abortSignal?: AbortSignal },
@@ -93,6 +95,19 @@ export function createInternalPortalCollectionObjectStoreFromEnv(
 				if (isNotFound(error)) {
 					return null;
 				}
+				throw error;
+			}
+		},
+		async hasObject(input) {
+			assertSourceBucket(input.bucket, sourceBucket);
+			try {
+				await client.send(
+					new HeadObjectCommand({ Bucket: input.bucket, Key: input.key }),
+					input.abortSignal ? { abortSignal: input.abortSignal } : {},
+				);
+				return true;
+			} catch (error) {
+				if (isNotFound(error)) return false;
 				throw error;
 			}
 		},

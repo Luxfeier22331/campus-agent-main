@@ -114,6 +114,8 @@ export async function executeCollectionCommand(
 				noticesFailed: counts.failures.length,
 				noticesProcessed: counts.noticesProcessed,
 				noticesAdded: counts.noticesAdded,
+				noticesUpdated: counts.noticesUpdated,
+				noticesUnchanged: counts.noticesUnchanged,
 				objectsReused: counts.objectsReused,
 				objectsWritten: counts.objectsWritten,
 				pagesFetched: counts.pagesFetched,

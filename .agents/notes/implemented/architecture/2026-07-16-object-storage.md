@@ -17,10 +17,10 @@ Status: implemented
 source 与 derived 使用不同凭据。运行时合同传递不依赖 bucket 的 `s3://` 产物引用、
 digest 和字节数，不传递主机挂载路径或供应商 SDK 类型。
 
-两个逻辑 bucket 名称是源码合同，S3 client region 固定为兼容值 `us-east-1`。部署环境只提供
-endpoint 和消费者所属身份的凭据，不重复配置固定名称与 region。需要隔离本地 worktree 时，只有
-对应本地开发入口可以显式覆盖其派生 bucket。Campus Web 的 reader/writer 同样读取该本地覆盖；
-旧共享 source 先复制引用闭包，具体流程见[产品数据初始化](../process/2026-09-17-product-data-initialization.md)。
+集群沿用上述两个 bucket 名称，S3 client region 固定为兼容值 `us-east-1`。部署环境提供
+endpoint 和消费者所属身份的凭据。按照[独立本地数据平面](./2026-09-24-independent-worktree-data-plane.md)，
+本地初始化通过 `OBJECT_STORE_BUCKET_SOURCE` 与 `OBJECT_STORE_BUCKET_DERIVED` 指定当前 worktree 的
+source 与 derived bucket；采集器、publisher 和 reader 必须消费同一 profile 配置。采集器及状态版本操作要求显式配置 source bucket；集群 Job 模板提供部署桶名，代码不提供默认桶。
 
 本地开发使用 RustFS。部署环境使用环境仓管理的同名 S3 兼容派生桶，不依赖开发机存储。
 文档发布、Campus Web 构建和其他派生产物通过同一 derived bucket 消费；不因为文档阅读器再创建

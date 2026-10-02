@@ -16,6 +16,7 @@ interface AttachmentRow {
 	noticeId: number;
 	ordinal: number;
 	portalAnnexId: string | null;
+	sourceRef: string | null;
 }
 
 interface AttachmentUpdate {
@@ -39,7 +40,7 @@ export async function backfillAttachmentLinks(input: {
 	for (const row of rows) {
 		noticeIds.add(row.noticeId);
 		try {
-			const source = await loadSourceCached(input.objectStore, sourcePromises, row.noticeId);
+			const source = await loadSourceCached(input.objectStore, sourcePromises, row.noticeId, row.sourceRef);
 			const attachment = source.attachments[row.ordinal];
 			if (!attachment) {
 				throw new Error(`attachment ordinal ${row.ordinal} is absent from source`);
@@ -106,20 +107,21 @@ async function loadAttachmentRows(
 ): Promise<AttachmentRow[]> {
 	const result = noticeIds && noticeIds.length > 0
 		? await client.query(
-				`SELECT notice_id::text, ordinal, portal_annex_id
+				`SELECT notice_id::text, ordinal, portal_annex_id, (SELECT published_source_ref FROM notices.notices n WHERE n.notice_id=notice_assets.notice_id) AS source_ref
 				 FROM notices.notice_assets
 				 WHERE asset_kind = 'attachment' AND notice_id = ANY($1::bigint[])
 				 ORDER BY notice_id, ordinal`,
 				[[...noticeIds]],
 			)
 		: await client.query(
-				`SELECT notice_id::text, ordinal, portal_annex_id
+				`SELECT notice_id::text, ordinal, portal_annex_id, (SELECT published_source_ref FROM notices.notices n WHERE n.notice_id=notice_assets.notice_id) AS source_ref
 				 FROM notices.notice_assets
 				 WHERE asset_kind = 'attachment'
 				 ORDER BY notice_id, ordinal`,
 			);
 	return result.rows.map((row) => ({
 		noticeId: Number(row.notice_id),
+		sourceRef: row.source_ref ?? null,
 		ordinal: Number(row.ordinal),
 		portalAnnexId: row.portal_annex_id === null ? null : String(row.portal_annex_id),
 	}));
@@ -128,8 +130,9 @@ async function loadAttachmentRows(
 async function loadSource(
 	objectStore: PublisherObjectStore,
 	noticeId: number,
+	sourceRef: string | null,
 ): Promise<InternalPortalNoticeSource> {
-	const key = `internal_portal/notices/${noticeId}.json`;
+	const key = sourceRef ?? `internal_portal/notices/${noticeId}.json`;
 	const source = parseNoticeSource((await objectStore.getSource(key)).body, key);
 	if (source.notice_id !== noticeId) {
 		throw new Error(`source notice_id is ${source.notice_id}`);
@@ -141,12 +144,13 @@ function loadSourceCached(
 	objectStore: PublisherObjectStore,
 	cache: Map<number, Promise<InternalPortalNoticeSource>>,
 	noticeId: number,
+	sourceRef: string | null,
 ): Promise<InternalPortalNoticeSource> {
 	const existing = cache.get(noticeId);
 	if (existing) {
 		return existing;
 	}
-	const source = loadSource(objectStore, noticeId);
+	const source = loadSource(objectStore, noticeId, sourceRef);
 	cache.set(noticeId, source);
 	return source;
 }

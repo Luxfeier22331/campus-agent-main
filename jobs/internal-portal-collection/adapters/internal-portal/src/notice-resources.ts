@@ -1,5 +1,6 @@
 import { normalizeNoticeContent } from "@campus-agent/notices";
-import type { InternalPortalNoticeSource } from "ingestion-contracts";
+import type { InternalPortalNoticeResource, InternalPortalNoticeSource } from "ingestion-contracts";
+import { createHash } from "node:crypto";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
 import { fetchAttachmentBinary, PortalHttpError } from "./api.js";
@@ -22,6 +23,7 @@ export interface NoticeResourceEnsureResult {
 	images: NoticeResourceKindResult;
 	missing: number;
 	resources: number;
+	resourceRefs: InternalPortalNoticeResource[];
 }
 
 export type NoticeResourceKind = "attachments" | "images";
@@ -58,6 +60,7 @@ export async function ensureNoticeResources(input: {
 	abortSignal?: AbortSignal;
 	apiContext?: ApiRequestContextLike;
 	dryRun: boolean;
+	refresh?: boolean;
 	notices: readonly InternalPortalNoticeSource[];
 	objectStore: InternalPortalCollectionObjectStore;
 	portalHost: string;
@@ -76,15 +79,42 @@ export async function ensureNoticeResources(input: {
 		images: 0,
 	};
 	const missing: ResourceCandidate[] = [];
+	const resourceRefs: InternalPortalNoticeResource[] = [];
 
 	for (const resource of resources) {
+		if (input.refresh) {
+			missing.push(resource);
+			continue;
+		}
+		const previous = input.notices.find((notice) => notice.notice_id === resource.noticeId)?.resources?.find((ref) => ref.kind === resource.kind && ref.ordinal === resource.ordinal);
+		if (previous) {
+			if (previous.object_key) {
+				const exists = await input.objectStore.hasObject({
+					bucket: input.objectStore.sourceBucket,
+					key: previous.object_key,
+					...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
+				});
+				if (exists) {
+					existingByKind[resource.kind] += 1;
+					resourceRefs.push(previous);
+					continue;
+				}
+			} else {
+				permanentlyMissingByKind[resource.kind] += 1;
+				resourceRefs.push(previous);
+				continue;
+			}
+		}
 		const bytes = await input.objectStore.getObjectIfExists({
 			...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
 			bucket: input.objectStore.sourceBucket,
 			key: resourceKey(resource),
 		});
 		if (bytes) {
+			const sha256 = createHash("sha256").update(bytes).digest("hex");
+			if (!input.dryRun) await input.objectStore.createOrVerifyObject({ body: bytes, bucket: input.objectStore.sourceBucket, contentType: "application/octet-stream", key: resourceContentKey(sha256) });
 			existingByKind[resource.kind] += 1;
+			resourceRefs.push({ kind: resource.kind, ordinal: resource.ordinal, object_key: resourceContentKey(sha256), content_type: "application/octet-stream", byte_size: bytes.byteLength, sha256 });
 		} else {
 			missing.push(resource);
 		}
@@ -114,6 +144,14 @@ export async function ensureNoticeResources(input: {
 					error.status === 404
 				) {
 					permanentlyMissingByKind.attachments += 1;
+					resourceRefs.push({
+						kind: resource.kind,
+						ordinal: resource.ordinal,
+						object_key: null,
+						content_type: null,
+						byte_size: null,
+						sha256: null,
+					});
 					console.log(
 						JSON.stringify({
 							noticeResource: {
@@ -138,11 +176,19 @@ export async function ensureNoticeResources(input: {
 					byteSize: file.byteSize,
 					contentSha256: file.contentSha256,
 					contentType: file.contentType ?? "application/octet-stream",
-					key: resourceKey(resource),
+					key: resourceContentKey(file.contentSha256),
 				});
 			} finally {
 				await file.remove();
 			}
+			resourceRefs.push({
+				kind: resource.kind,
+				ordinal: resource.ordinal,
+				object_key: resourceContentKey(file.contentSha256),
+				content_type: file.contentType ?? "application/octet-stream",
+				byte_size: file.byteSize,
+				sha256: file.contentSha256,
+			});
 			downloadedByKind[resource.kind] += 1;
 		}
 	}
@@ -165,6 +211,7 @@ export async function ensureNoticeResources(input: {
 		),
 		missing: missingByKind.attachments + missingByKind.images,
 		resources: resources.length,
+		resourceRefs,
 	};
 }
 
@@ -211,6 +258,10 @@ function resourceCandidates(
 function attachmentDownloadPath(noticeId: number, attachmentId: string): string {
 	const search = new URLSearchParams({ id: attachmentId, notice_id: String(noticeId) });
 	return `/comsys-portal-notice-web/download?${search.toString()}`;
+}
+
+function resourceContentKey(sha256: string): string {
+	return `internal_portal/resources/sha256/${sha256}`;
 }
 
 function resourceKey(resource: ResourceCandidate): string {

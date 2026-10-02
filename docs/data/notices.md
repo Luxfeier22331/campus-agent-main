@@ -21,8 +21,10 @@ bucket 写入 `internal_portal_notice_source.v2`。选择器返回的类型集�
 提供跨类型增量顺序，其中不属于选择器范围的条目不会落桶：
 
 ```text
-internal_portal/notices/<notice-id>.json
+internal_portal/notices/<notice-id>/sources/<sha256>.json
 ```
+
+迁移前的固定 key `internal_portal/notices/<notice-id>.json` 只作为旧数据兼容入口；新采集不会覆盖它。
 
 来源对象保存 `notice_id`、`notice_type`、`organization_id`、原始标题、发布时间、外链标记与 URL、
 门户 HTML 正文和附件 metadata。类型和组织名称不在每条通知重复，集中保存在：
@@ -38,10 +40,7 @@ internal_portal/meta.json
 `is_external=true` 并保留该 URL。采集器不请求外部页面，`notice_content_html` 只表示门户详情接口
 返回的正文。
 
-门户合同约定同一 `notice_id` 的通知正文不变。已有合法来源对象因此只按固定 key 复用，不重新请求
-详情、不覆盖 source，也不维护同 ID 内容版本。`notice-rescan` 只补查维护区间内遗漏的通知和资源，
-不承担内容刷新；若上游需要发布修订正文，应使用新的通知身份，或由维护者依据上游合同单独处理，
-不在采集器中隐式引入版本链。
+同一 `notice_id` 表示门户当前通知。发布时间、标题、正文、外链和资源都可能更新；采集器在列表变化或周期复核时重新请求详情，并为当前完整来源保存内容寻址快照。`notice-rescan` 和周期复核承担同 ID 内容更新发现。`released_at` 是当前门户发布时间，不是首次发布时间或正文修改时间。
 
 同步边界保存在：
 
@@ -63,12 +62,14 @@ internal_portal/notices/_state.json
 一个不完整的 head。
 
 `notice-rescan --from F --to T` 显式补查已有维护区间内的遗漏，区间仍为半开区间；不修改维护边界。
-sync、backfill、rescan 都复用已有合法 source，不重新请求旧通知详情或维护同 ID 版本。
+sync、backfill、rescan 和周期复核都可刷新已有通知详情；无变化时复用同一快照引用。
 `noticesAdded` 统计本轮新登记的通知，sync 的 `upToDate=true` 只表示本轮没有新增，不宣称历史绝无遗漏。
 
 门户列表的 `end_date` 是闭区间参数，适配器把内部排他上界转换为前一天；详情中的门户发布时间会再次按
-`[start,end)` 校验，以排除边界泄漏。门户最新边界由未过滤列表第一条通知的发布时间，或其详情发布时间，
-推导为该日期的下一天；空门户使用运行时的门户日期下一天。
+`[start,end)` 校验，以排除边界泄漏。门户最新边界由未过滤列表中已检查通知的最大 `notice_release_time`，
+或其详情发布时间，推导为该日期的下一天。门户列表可能把 `notice_stick=1` 的旧通知置于新通知之前；适配器至少检查
+包含非置顶记录的页，若整页均为置顶则继续分页；非置顶记录按发布时间倒序。置顶标记只参与上界探测，
+不改变内部通知的展示排序。标记缺失或不合法时探测失败，不推进维护区间。空门户使用运行时的门户日期下一天。
 
 通知对象、其引用的图片和非永久缺失附件、以及 `meta.json` 全部成功后才推进状态；已有合法 source 对象仍会检查并
 补齐缺失资源，明确返回 HTTP 404 的通知附件除外。增量同步、历史回填与遗漏补查通过 PostgreSQL advisory lock 串行执行。旧
@@ -88,16 +89,14 @@ sync、backfill、rescan 都复用已有合法 source，不重新请求旧通知
 `notice-sync` 和 `notice-backfill` 在详情采集后下载资源，把门户图片和附件原始字节写入：
 
 ```text
-internal_portal/notices/<notice-id>/images/<ordinal>
-internal_portal/notices/<notice-id>/attachments/<ordinal>
+internal_portal/resources/sha256/<digest>
 ```
 
 图片 source ordinal 按来源 HTML 中可采集门户图片的原始顺序计算。编辑器占位图不下载，因此图片 key
 可以不连续；publisher 使用 source ordinal 读取正确字节，再为正文占位符和 PostgreSQL 生成连续的
 展示 ordinal。附件 ordinal 与来源 metadata 顺序一致。
 
-附件的 `notice_annex_id` 是门户资源身份，`notice_annex_path` 只作为来源 metadata 保留。正常采集按
-通知 ID、资源类型和序号 create-or-verify，不改写通知 JSON，也不抓取外部正文。通知附件下载明确返回 HTTP 404
+附件的 `notice_annex_id` 是门户资源身份，`notice_annex_path` 只作为来源 metadata 保留。正常采集按内容摘要保存资源并在来源快照中记录对象引用，不抓取外部正文。通知附件下载明确返回 HTTP 404
 时，保留 source 中的附件 metadata，但不创建资源对象；该附件不会生成 `notice_assets` 投影，发布时省略它。
 附件的其他下载错误仍使通知采集失败；图片 404 也仍然是失败。仓库不再提供独立的资源维护或状态查看入口。
 
@@ -147,10 +146,12 @@ chunk/embedding 制品，正文变化在下一次完整检索刷新进入 AI 搜
 外链标记与 URL、可空 `category`、`is_published` 以及发布后写入的 `content_html`、`content_text`。
 
 状态只由现有字段推导：`category IS NULL` 为待分类；已有分类且 `is_published=false` 为待发布；
-`is_published=true` 为已发布。已发布行必须具有分类，不增加独立工作流、审计历史或派生库存表。已发布站内通知
-可以通过 notice-publisher 的重新发布行为重新物化正文投影，但不会改变 `is_published` 或分类；当前状态
+`is_published=true` 为已发布。已发布行必须具有分类，不增加独立工作流、审计历史或派生库存表。已发布通知
+可以通过 notice-publisher 的重新发布行为重新物化当前来源的 metadata、正文和资源，但不会改变 `is_published` 或分类；当前状态
 选择及重新评估条件见
 [通知维护状态收敛](../../.agents/notes/implemented/architecture/2026-08-25-notice-maintenance-state.md)。
+
+`notices.notices` 另保存当前来源 `source_ref` 和已发布来源 `published_source_ref`。publisher 以当前来源为条件，在同一事务中切换可见 metadata、正文和资源集合。
 
 `notices.notice_assets` 按通知和资源类型保存名称、媒体类型、字节数、SHA-256 和附件的
 `portal_annex_id`。图片使用从零开始的连续展示 ordinal；附件保留 source metadata ordinal，永久缺失附件会留下
@@ -181,7 +182,7 @@ ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不
 
 `jobs/notice-index-publisher` 提供已发布通知的 Chunk Run 与 Embedding Set 集群构建，以及本地结构验证、
 广泛抽样和真实 Embedding dense-retrieval 评测。任务在只读 repeatable-read 快照中读取已发布站内通知，
-以 `content_text` 加上当时已有的正文图片 OCR 文本作为分块输入，每张图片取最新完成批次并按来源序号、页序追加。
+以 `content_text` 加上当时已有的正文图片 OCR 文本作为分块输入，按已发布图片资产摘要匹配同通知的 OCR 输入摘要，每张图片取最新完成批次并按已发布序号、页序追加。
 OCR 失败、未完成或尚无任务都不影响该通知进入构建；无正文文本和识别文本时使用通知标题。
 后续识别完成后，下一次构建才读取新文本。来源适配只读 `ocr.tasks` / `ocr.pages`，Chunk 和 Embedding
 不接收 OCR 状态、不等待 OCR。外链通知和附件不参与，公开通知的两个正文字段不写入 OCR。
@@ -288,7 +289,7 @@ notices/assets/sha256/<digest>
 
 - `internal-portal-collection` 写 source bucket，并在必需资源齐备后登记通知与来源映射；
 - `notice-classifier` 读取数据库中的 ID 与标题，并更新同一行的 `category`；
-- `notice-publisher` 读取数据库中的待发布项、校验来源、写 derived 图片和正文并设置 `is_published`；也可重新读取已发布站内通知
+- `notice-publisher` 读取数据库中的待发布项、校验来源、写 derived 图片和正文并设置 `is_published`；也可重新读取已发布通知
   的 source，更新 `content_html` 和 `content_text` 而保持已发布状态；
 - `notice-index-publisher` 在显式本地或默认暂停的集群任务中以只读快照读取已发布正文；集群任务生成
   derived bucket 中内容寻址的 Chunk Run 与 Embedding Set，本地任务继续生成问题集与评测制品；它不更新

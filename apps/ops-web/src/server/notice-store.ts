@@ -19,6 +19,7 @@ export interface NoticeListInput {
 
 export interface NoticeStore {
 	get(noticeId: number): Promise<NoticeDetail | null>;
+	getSourceKey?(noticeId: number): Promise<string>;
 	list(input: NoticeListInput): Promise<{
 		items: NoticeSummary[];
 		page: number;
@@ -66,6 +67,7 @@ const NOTICE_SELECT = `
 
 export function createPgNoticeStore(pool: Pick<Pool, "query" | "connect">): NoticeStore {
 	return {
+		getSourceKey: (noticeId) => resolveNoticeSourceKey(pool, noticeId),
 		async get(noticeId) {
 			return withDatabaseError(async () => {
 				const result = await pool.query<NoticeRow>(
@@ -231,4 +233,17 @@ async function withDatabaseError<T>(operation: () => Promise<T>): Promise<T> {
 		}
 		throw new NoticeStoreUnavailableError(undefined, { cause: error });
 	}
+}
+
+export async function resolveNoticeSourceKey(
+	pool: Pick<Pool, "query">,
+	noticeId: string | number,
+): Promise<string> {
+	const result = await pool.query("SELECT source_ref FROM notices.notices WHERE notice_id=$1", [
+		noticeId,
+	]);
+	if (!result.rows[0]) {
+		throw new NoticeNotFoundError();
+	}
+	return result.rows[0].source_ref ?? `internal_portal/notices/${noticeId}.json`;
 }

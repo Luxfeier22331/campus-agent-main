@@ -42,6 +42,22 @@
 					"type": { "$ref": "#/$defs/nullableText" }
 				}
 			}
+		},
+		"resources": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["kind", "ordinal", "object_key", "content_type", "byte_size", "sha256"],
+				"properties": {
+					"kind": { "enum": ["images", "attachments"] },
+					"ordinal": { "type": "integer", "minimum": 0 },
+					"object_key": { "type": ["string", "null"] },
+					"content_type": { "type": ["string", "null"] },
+					"byte_size": { "type": ["integer", "null"], "minimum": 0 },
+					"sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+				}
+			}
 		}
 	},
 	"allOf": [

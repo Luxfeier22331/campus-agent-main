@@ -6,6 +6,7 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
+		"./notice-source-ref": "./src/notice-source-ref.ts",
 		"./raw-error": "./src/raw-error.ts"
 	},
 	"scripts": {

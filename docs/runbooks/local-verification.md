@@ -82,21 +82,35 @@ pnpm dev:doctor -- --scope data
 pnpm dev:sync-notices -- --context <context> --namespace campus-agent-staging
 ```
 
+按通知发布时间选取日期范围时，成对传入 `--released-from` 和 `--released-to`：
+
+```bash
+pnpm dev:sync-notices -- --context <context> --namespace campus-agent-staging \
+  --released-from 2026-09-01 --released-to 2026-10-03
+```
+
+日期使用北京时间 `YYYY-MM-DD`，按 `released_at` 筛选半开区间 `[from,to)`；上述命令包含
+2026-09-01 至 2026-10-02 全天。只传一侧、日期无效或起点不早于终点时，在连接集群前报错。
+不传日期参数则全量同步。范围内的已发布和未发布通知均包含在内。
+
 命令要求当前 worktree 的 profile、PostgreSQL 和通知 schema 已存在；只读取集群
-`pg-product-data-ro`，按一致快照导出全部通知及其引用的分类、类型和组织，在本地事务中按原 ID
+`pg-product-data-ro`，按一致快照导出选中通知及其引用的分类、类型和组织，在本地事务中按原 ID
 插入或更新四张表。它不执行 core 初始化，不要求应用离线；不读取对象存储或 Qdrant，不同步
 图片、附件记录及文件、Docs、旧向量或索引指针，也不重新生成 Embedding。通知正文阅读可以验证，
 图片与附件的完整阅读体验不在这个入口的交付范围。
 
-同步保留本地独有通知及关联数据，输出 `source_notices`、`source_chunk_eligible`、`inserted`、
+同步保留本次导入之外的本地通知及关联数据，包括范围外记录；空结果不删除任何记录。
+输出 `selection`（全量时为 `null`，范围同步时为带 `+08:00` 的起止边界）、`source_notices`、`source_chunk_eligible`、`inserted`、
 `updated`、`unchanged`、`mismatched`、`related_rows`、`local_extra_count`、`local_extra_ids` 和
-`local_extra_chunk_eligible`。提交前逐字段核对导入结果，外键或内容验证失败时整批回滚。
+`local_extra_chunk_eligible`。`local_extra_*` 按本地全库统计未参与此次导入的通知，包括范围外记录，
+不表示同步失败。提交前逐字段核对导入结果，外键或内容验证失败时整批回滚。
 重复执行同一命令可更新集群通知；本地总量可能比集群多，不能仅凭总数判断同步是否成功。
 后续全库分块也会读取符合条件的本地独有通知，执行前应结合额外记录报告确定评测语料范围。
 
 通知源数据同步验证使用临时空数据库，可通过 `NOTICE_SYNC_TEST_DATABASE_URL` 显式指定并运行
 `pnpm exec tsx --test scripts/dev/product-data/notice-sync.test.ts`；测试从既有 migration 提取通知表
-及约束，覆盖重复导入、正文更新、本地记录保留和关系错误时的事务回滚。
+及约束，覆盖北京时间起止边界、关联记录筛选、空结果、重复导入、正文更新、本地记录保留和关系错误时的事务回滚。
+日期参数与 CLI 前置校验测试通过 `pnpm exec tsx --test scripts/dev/product-data/notice-sync-options.test.ts` 运行。
 
 同步失败时当前 profile 的 current pointer 不会激活候选 collection；修复集群连接或对象后重试同一条同步命令。
 

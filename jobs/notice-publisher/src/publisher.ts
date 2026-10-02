@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { extname } from "node:path";
 
-import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import {
 	normalizeNoticeContent,
 	parsePortalReleaseTime,
@@ -14,6 +13,7 @@ import {
 	validateInternalPortalMeta,
 	validateInternalPortalNoticeSource,
 } from "ingestion-contracts";
+import { noticeSourceRef } from "ingestion-contracts/notice-source-ref";
 import type { PoolClient } from "pg";
 import { recordNoticeProcessingFailure } from "@campus-agent/notice-database";
 
@@ -46,6 +46,8 @@ interface DatabaseNotice {
 	organizationId: string | null;
 	releasedAt: string;
 	title: string;
+	sourceRef: string | null;
+	publishedSourceRef: string | null;
 }
 
 interface RegisteredNotice extends Omit<DatabaseNotice, "category"> {
@@ -56,6 +58,7 @@ interface PublishedNotice extends RegisteredNotice {
 	assets: AssetRow[];
 	contentHtml: string | null;
 	contentText: string | null;
+	source: InternalPortalNoticeSource;
 }
 
 export async function publishNotices(input: {
@@ -142,23 +145,17 @@ export async function republishNotices(input: {
 		input.signal?.throwIfAborted();
 		input.onProgress?.({ phase: "processing", processed: index, total: candidates.length });
 		try {
-			const record = await loadRecord(input.objectStore, meta, candidate, input.portalHost, {
-				skipAssetsWhenNoText: true,
-			});
-			if (record.contentText === null) {
-				if (input.noticeIds?.length) {
-					throw new Error(`notice ${record.noticeId} has no source body to republish`);
-				}
-				result.skipped += 1;
-			} else {
+			const record = await loadRecord(input.objectStore, meta, candidate, input.portalHost);
+
+			{
 				await input.client.query("BEGIN");
 				try {
-					if (await updatePublishedContent(input.client, record)) {
+					if (await updatePublishedContent(input.client, record, noticeSourceRef(record.source))) {
 						result.updated += 1;
 					} else {
 						result.unchanged += 1;
 					}
-					await insertOrVerifyAssets(input.client, record);
+					await replaceAssets(input.client, record);
 					await input.client.query(
 						"DELETE FROM notices.processing_failures WHERE notice_id=$1 AND stage='publication'",
 						[record.noticeId],
@@ -199,7 +196,7 @@ async function loadCandidates(
 	const result = explicit
 		? await client.query(
 				`SELECT notice_id::text, notice_type, organization_id, title, released_at,
-				        is_external, external_url, category, is_published
+				        is_external, external_url, category, is_published, source_ref, published_source_ref
 				 FROM notices.notices
 				 WHERE notice_id = ANY($1::bigint[])
 				 ORDER BY notice_id`,
@@ -207,9 +204,9 @@ async function loadCandidates(
 			)
 		: await client.query(
 				`SELECT notice_id::text, notice_type, organization_id, title, released_at,
-				        is_external, external_url, category, is_published
+				        is_external, external_url, category, is_published, source_ref, published_source_ref
 				 FROM notices.notices
-				 WHERE ${mode === "republish" ? "is_published AND NOT is_external" : "category IS NOT NULL AND NOT is_published AND NOT EXISTS (SELECT 1 FROM notices.processing_failures f WHERE f.notice_id=notices.notices.notice_id AND f.stage='publication')"}
+				 WHERE ${mode === "republish" ? "is_published" : "category IS NOT NULL AND (NOT is_published OR (source_ref IS NOT NULL AND source_ref IS DISTINCT FROM published_source_ref))"}
 				 ORDER BY notice_id`,
 			);
 	const rows = result.rows.map(toDatabaseNotice);
@@ -226,9 +223,6 @@ async function loadCandidates(
 			if (mode === "republish" && !row.isPublished) {
 				throw new Error(`notice ${noticeId} is not published`);
 			}
-			if (mode === "republish" && row.isExternal) {
-				throw new Error(`notice ${noticeId} is external and cannot be republished`);
-			}
 		}
 	}
 	return rows.map((row) => {
@@ -237,9 +231,6 @@ async function loadCandidates(
 		}
 		if (mode === "republish" && !row.isPublished) {
 			throw new Error(`notice ${row.noticeId} is not published`);
-		}
-		if (mode === "republish" && row.isExternal) {
-			throw new Error(`notice ${row.noticeId} is external and cannot be republished`);
 		}
 		return { ...row, category: row.category };
 	});
@@ -262,6 +253,8 @@ function registeredNoticeFields(row: Record<string, unknown>) {
 		organizationId: row.organization_id === null ? null : String(row.organization_id),
 		releasedAt: new Date(String(row.released_at)).toISOString(),
 		title: String(row.title),
+		sourceRef: row.source_ref == null ? null : String(row.source_ref),
+		publishedSourceRef: row.published_source_ref == null ? null : String(row.published_source_ref),
 	};
 }
 
@@ -309,13 +302,15 @@ async function loadRecord(
 	meta: InternalPortalMeta,
 	registered: RegisteredNotice,
 	portalHost: string,
-	options: { skipAssetsWhenNoText?: boolean } = {},
 ): Promise<PublishedNotice> {
-	const key = `internal_portal/notices/${registered.noticeId}.json`;
+	const key = registered.sourceRef ?? `internal_portal/notices/${registered.noticeId}.json`;
 	const stored = await requiredNoticeSource(store, key);
 	const source = parseNoticeSource(stored.body, key);
 	if (source.notice_id !== registered.noticeId) {
 		throw new NoticePublicationDataError(`${key} has mismatched notice_id`);
+	}
+	if (registered.sourceRef && noticeSourceRef(source) !== registered.sourceRef) {
+		throw new NoticePublicationDataError(`${key} does not match registered source: ${registered.noticeId}`);
 	}
 	if (!meta.notice_types[String(source.notice_type)]) {
 		throw new NoticePublicationDataError(`${key} references unknown notice_type ${source.notice_type}`);
@@ -323,7 +318,6 @@ async function loadRecord(
 	if (source.organization_id !== null && !meta.organizations[source.organization_id]) {
 		throw new NoticePublicationDataError(`${key} references unknown organization_id ${source.organization_id}`);
 	}
-	assertRegisteredSourceMatches(registered, source, key);
 	if (!source.is_external) {
 		for (const [ordinal, attachment] of source.attachments.entries()) {
 			if (!attachment.notice_annex_id) {
@@ -339,11 +333,12 @@ async function loadRecord(
 		title: source.notice_title,
 	});
 	const assets: AssetRow[] = [];
-	if (!source.is_external && !(options.skipAssetsWhenNoText && content.contentText === null)) {
+	if (!source.is_external) {
 		for (const image of content.images) {
 			const stored = await requiredNoticeSource(store,
-				assetSourceKey(source.notice_id, "image", image.sourceOrdinal),
+				sourceResourceKey(source, "images", image.sourceOrdinal)!,
 			);
+			verifyResource(source, stored.body, "images", image.sourceOrdinal);
 			assets.push(
 				await projectAsset({
 					contentTypeSource: image.normalizedUrl,
@@ -357,12 +352,13 @@ async function loadRecord(
 			);
 		}
 		for (const [ordinal, attachment] of source.attachments.entries()) {
-			const stored = await store.getSourceIfExists(
-				assetSourceKey(source.notice_id, "attachment", ordinal),
-			);
+			const resourceKey = sourceResourceKey(source, "attachments", ordinal);
+			if (resourceKey === null) continue;
+			const stored = source.resources ? await requiredNoticeSource(store, resourceKey) : await store.getSourceIfExists(resourceKey);
 			if (!stored) {
 				continue;
 			}
+			verifyResource(source, stored.body, "attachments", ordinal);
 			assets.push(
 				await projectAsset({
 					contentTypeSource: attachment.notice_annex_name ?? attachment.notice_annex_path,
@@ -379,64 +375,70 @@ async function loadRecord(
 
 	return {
 		...registered,
+		externalUrl: source.external_url,
+		isExternal: source.is_external,
+		noticeType: source.notice_type,
+		organizationId: source.organization_id,
+		releasedAt: parsePortalReleaseTime(source.notice_release_time, key),
+		title: source.notice_title,
+		source,
 		assets,
 		contentHtml: content.contentHtml,
 		contentText: content.contentText,
 	};
 }
 
-async function updatePublishedContent(client: PoolClient, record: PublishedNotice): Promise<boolean> {
+async function updatePublishedContent(client: PoolClient, record: PublishedNotice, sourceRef: string): Promise<boolean> {
 	const existing = await client.query(
-		"SELECT content_html, content_text, is_published FROM notices.notices WHERE notice_id=$1 FOR UPDATE",
+		"SELECT content_html, content_text, is_published, source_ref, published_source_ref FROM notices.notices WHERE notice_id=$1 FOR UPDATE",
 		[record.noticeId],
 	);
 	const row = existing.rows[0] as Record<string, unknown> | undefined;
-	if (!row || row.is_published !== true) {
-		throw new Error(`notice is no longer published: ${record.noticeId}`);
-	}
-	const unchanged =
-		(row.content_html ?? null) === record.contentHtml &&
-		(row.content_text ?? null) === record.contentText;
-	if (unchanged) {
-		return false;
-	}
-	const updatedResult = await client.query(
-		`UPDATE notices.notices
-		 SET content_html=$2, content_text=$3
-		 WHERE notice_id=$1 AND is_published`,
-		[record.noticeId, record.contentHtml, record.contentText],
-	);
-	if (updatedResult.rowCount !== 1) {
-		throw new Error(`notice is no longer published: ${record.noticeId}`);
-	}
-	return true;
+	if (!row || row.is_published !== true) throw new NoticePublicationDataError(`notice is no longer published: ${record.noticeId}`);
+	if ((row.source_ref ?? null) !== record.sourceRef) throw new NoticePublicationDataError(`notice source changed during publication: ${record.noticeId}`);
+	const unchanged = record.sourceRef !== null ? row.published_source_ref === sourceRef :
+		(row.content_html ?? null) === record.contentHtml && (row.content_text ?? null) === record.contentText;
+	await publishProjection(client, record);
+	return !unchanged;
 }
 
-function assertRegisteredSourceMatches(
-	registered: RegisteredNotice,
-	source: InternalPortalNoticeSource,
-	key: string,
-): void {
-	const actual = [
-		source.notice_id,
-		source.notice_type,
-		source.organization_id,
-		source.notice_title,
-		parsePortalReleaseTime(source.notice_release_time, key),
-		source.is_external,
-		source.external_url,
-	];
-	const expected = [
-		registered.noticeId,
-		registered.noticeType,
-		registered.organizationId,
-		registered.title,
-		registered.releasedAt,
-		registered.isExternal,
-		registered.externalUrl,
-	];
-	if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-		throw new NoticePublicationDataError(`registered notice conflicts with source: ${registered.noticeId}`);
+async function replaceAssets(client: PoolClient, record: PublishedNotice): Promise<void> {
+	const existing = await client.query(
+		"SELECT asset_kind, ordinal, original_name, content_type, byte_size, content_sha256, portal_annex_id FROM notices.notice_assets WHERE notice_id=$1",
+		[record.noticeId],
+	);
+	const byKey = new Map(
+		record.assets.map((asset) => [`${asset.assetKind}/${asset.ordinal}`, asset]),
+	);
+	const unchanged =
+		existing.rows.length === record.assets.length &&
+		existing.rows.every((row) => {
+			const asset = byKey.get(`${row.asset_kind}/${Number(row.ordinal)}`);
+			return (
+				asset !== undefined &&
+				asset.originalName === (row.original_name ?? null) &&
+				asset.contentType === row.content_type &&
+				asset.byteSize === Number(row.byte_size) &&
+				asset.contentSha256 === row.content_sha256 &&
+				asset.portalAnnexId === (row.portal_annex_id ?? null)
+			);
+		});
+	if (unchanged) return;
+	await client.query("DELETE FROM notices.notice_assets WHERE notice_id=$1", [record.noticeId]);
+	for (const asset of record.assets) {
+		await client.query(
+			"INSERT INTO notices.notice_assets(notice_id, asset_kind, ordinal, original_name, content_type, byte_size, content_sha256, portal_annex_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+			[
+				record.noticeId,
+				asset.assetKind,
+				asset.ordinal,
+				asset.originalName,
+				asset.contentType,
+				asset.byteSize,
+				asset.contentSha256,
+				asset.portalAnnexId,
+			],
+		);
 	}
 }
 
@@ -454,6 +456,12 @@ export function normalizePublishedNoticeContent(input: {
 		portalHost: input.portalHost,
 		title: input.title,
 	});
+}
+
+function verifyResource(source: InternalPortalNoticeSource, body: Uint8Array, kind: "images" | "attachments", ordinal: number): void {
+	if (!source.resources) return;
+	const ref = source.resources.find((item) => item.kind === kind && item.ordinal === ordinal);
+	if (!ref || ref.sha256 !== createHash("sha256").update(body).digest("hex") || ref.byte_size !== body.byteLength) throw new NoticePublicationDataError(`notice ${source.notice_id} resource does not match snapshot: ${kind}/${ordinal}`);
 }
 
 async function projectAsset(input: {
@@ -485,103 +493,33 @@ async function projectAsset(input: {
 	};
 }
 
-function assetSourceKey(
-	noticeId: number,
-	kind: NoticeAssetKind,
-	sourceOrdinal: number,
-): string {
-	return `internal_portal/notices/${noticeId}/${
-		kind === "image" ? "images" : "attachments"
-	}/${sourceOrdinal}`;
+function sourceResourceKey(source: InternalPortalNoticeSource, kind: "images" | "attachments", ordinal: number): string | null {
+	if (source.resources) {
+		const ref = source.resources.find((resource) => resource.kind === kind && resource.ordinal === ordinal);
+		if (!ref || (kind === "images" && ref.object_key === null)) throw new NoticePublicationDataError(`notice ${source.notice_id} has no ${kind} resource ${ordinal}`);
+		return ref.object_key;
+	}
+	return `internal_portal/notices/${source.notice_id}/${kind}/${ordinal}`;
 }
 
 async function publishOrVerify(client: PoolClient, record: PublishedNotice): Promise<void> {
-	if (record.isPublished) {
-		await verifyPublishedContent(client, record);
-	} else {
-		const updated = await client.query(
-			`UPDATE notices.notices
-			 SET content_html=$2, content_text=$3, is_published=true
-			 WHERE notice_id=$1 AND NOT is_published`,
-			[record.noticeId, record.contentHtml, record.contentText],
-		);
-		if (updated.rowCount !== 1) {
-			await verifyPublishedContent(client, record);
-		}
-	}
-	await insertOrVerifyAssets(client, record);
+	await publishProjection(client, record);
+	await replaceAssets(client, record);
 }
 
-async function verifyPublishedContent(client: PoolClient, record: PublishedNotice): Promise<void> {
-	const existing = await client.query(
-		"SELECT content_html, content_text, is_published FROM notices.notices WHERE notice_id=$1",
-		[record.noticeId],
+async function publishProjection(client: PoolClient, record: PublishedNotice): Promise<void> {
+	const sourceRef = record.sourceRef;
+	const updated = await client.query(
+		`UPDATE notices.notices SET
+		 notice_type=$2, organization_id=$3, title=$4, released_at=$5,
+		 is_external=$6, external_url=$7, content_html=$8, content_text=$9,
+		 is_published=true, published_source_ref=$10
+		 WHERE notice_id=$1 AND source_ref IS NOT DISTINCT FROM $11`,
+		[record.noticeId, record.noticeType, record.organizationId, record.title, record.releasedAt, record.isExternal, record.externalUrl, record.contentHtml, record.contentText, sourceRef, record.sourceRef],
 	);
-	const row = existing.rows[0] as Record<string, unknown> | undefined;
-	if (
-		!row ||
-		row.is_published !== true ||
-		(row.content_html ?? null) !== record.contentHtml ||
-		(row.content_text ?? null) !== record.contentText
-	) {
-		throw new NoticePublicationDataError(`published notice conflicts: ${record.noticeId}`);
-	}
+	if (updated.rowCount !== 1) throw new NoticePublicationDataError(`notice source changed during publication: ${record.noticeId}`);
 }
 
-async function insertOrVerifyAssets(client: PoolClient, record: PublishedNotice): Promise<void> {
-	const storedAssets = await client.query(
-		"SELECT asset_kind, ordinal, original_name, content_type, byte_size, content_sha256, portal_annex_id FROM notices.notice_assets WHERE notice_id=$1 ORDER BY asset_kind, ordinal",
-		[record.noticeId],
-	);
-	if (storedAssets.rows.length) {
-		const actual = storedAssets.rows.map((row) => [
-			row.asset_kind,
-			Number(row.ordinal),
-			row.original_name ?? null,
-			row.content_type,
-			Number(row.byte_size),
-			row.content_sha256,
-			row.portal_annex_id ?? null,
-		]);
-		const expected = record.assets
-			.map((asset) => [
-				asset.assetKind,
-				asset.ordinal,
-				asset.originalName,
-				asset.contentType,
-				asset.byteSize,
-				asset.contentSha256,
-				asset.portalAnnexId,
-			])
-			.sort(compareAssetRows);
-		if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-			throw new NoticePublicationDataError(`published notice assets conflict: ${record.noticeId}`);
-		}
-	} else {
-		for (const asset of record.assets) {
-			await client.query(
-				"INSERT INTO notices.notice_assets(notice_id, asset_kind, ordinal, original_name, content_type, byte_size, content_sha256, portal_annex_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-				[
-					record.noticeId,
-					asset.assetKind,
-					asset.ordinal,
-					asset.originalName,
-					asset.contentType,
-					asset.byteSize,
-					asset.contentSha256,
-					asset.portalAnnexId,
-				],
-			);
-		}
-	}
-}
-
-function compareAssetRows(left: unknown[], right: unknown[]): number {
-	return (
-		compareCanonicalStrings(String(left[0]), String(right[0])) ||
-		Number(left[1]) - Number(right[1])
-	);
-}
 
 export function resolveAssetContentType(
 	sourceContentType: string | null,

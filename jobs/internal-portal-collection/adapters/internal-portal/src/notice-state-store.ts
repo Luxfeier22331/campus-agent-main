@@ -11,6 +11,8 @@ export interface InternalPortalNoticeSyncState {
 	coveredFrom: string | null;
 	coveredUntil: string | null;
 	updatedAt: string;
+	recentReviewedAt?: string | null;
+	fullReviewedAt?: string | null;
 }
 
 export interface InternalPortalNoticeSyncStateStore {
@@ -84,6 +86,8 @@ function toStoredState(state: InternalPortalNoticeSyncState): StoredNoticeSyncSt
 	const base = {
 		schema_version: "internal_portal_notice_sync_state.v3" as const,
 		updated_at: state.updatedAt,
+		...(Object.hasOwn(state, "recentReviewedAt") ? { recent_reviewed_at: state.recentReviewedAt ?? null } : {}),
+		...(Object.hasOwn(state, "fullReviewedAt") ? { full_reviewed_at: state.fullReviewedAt ?? null } : {}),
 	};
 	if (state.coveredFrom === null && state.coveredUntil === null) {
 		return { ...base, covered_from: null, covered_until: null };
@@ -103,6 +107,8 @@ function fromStoredState(state: StoredNoticeSyncState): InternalPortalNoticeSync
 		coveredFrom: state.covered_from,
 		coveredUntil: state.covered_until,
 		updatedAt: state.updated_at,
+		...(Object.hasOwn(state, "recent_reviewed_at") ? { recentReviewedAt: state.recent_reviewed_at ?? null } : {}),
+		...(Object.hasOwn(state, "full_reviewed_at") ? { fullReviewedAt: state.full_reviewed_at ?? null } : {}),
 	};
 }
 

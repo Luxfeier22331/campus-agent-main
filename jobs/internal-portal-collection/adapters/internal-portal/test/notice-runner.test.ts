@@ -1,3 +1,8 @@
+import { createHash } from "node:crypto";
+import { noticeSourceRef } from "ingestion-contracts/notice-source-ref";
+import { createNoticeInventoryStore } from "../src/notice-inventory-store.js";
+import { buildInternalPortalNoticeSource, createInternalPortalNoticeSourceStore } from "../src/notice-source.js";
+import type { Pool } from "pg";
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
 import { describe, expect, it, vi } from "vitest";
 
@@ -34,6 +39,108 @@ const apiContext = {} as ApiRequestContextLike;
 const now = "2026-08-26T02:30:07.000Z";
 
 describe("notice runner maintenance ranges", () => {
+	it.each(["sync", "backfill"] as const)(
+		"ignores old pinned ordering during %s discovery",
+		async (mode) => {
+			const pinned = { ...notice(1, 5, "2026-08-10 09:00"), notice_stick: 1 };
+			const latest = notice(2, 5, "2026-08-26 09:00");
+			const sourceStore = new MemorySourceStore();
+			const input = runnerInput({
+				stateStore: new MemoryStateStore(
+					mode === "sync"
+						? state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-11" })
+						: undefined,
+				),
+				sourceStore,
+				fetchNoticePage: async () => page([pinned, latest], 2),
+				fetchNoticeDetail: async ({ noticeId }) =>
+					detail(noticeId, noticeId === 1 ? "2026-08-10 09:00" : "2026-08-26 09:00"),
+			});
+			const result =
+				mode === "sync"
+					? await syncInternalPortalNotices(input)
+					: await backfillInternalPortalNotices({ ...input, startDate: "2026-08-01" });
+			expect(result.processedRange?.to).toBe("2026-08-27");
+			expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([1, 2]);
+		},
+	);
+
+	it.each([false, true])(
+		"discovers beyond a full pinned page (all pinned: %s)",
+		async (allPinned) => {
+			const old = Array.from({ length: 20 }, (_, i) => ({
+				...notice(i + 1, 5, "2026-08-10 09:00"),
+				notice_stick: "1",
+			}));
+			const latest = { ...notice(21, 5, "2026-08-26 09:00"), notice_stick: allPinned ? "1" : "0" };
+			const fetchNoticePage = vi.fn(
+				async ({ startDate, currentPage }: { startDate: string; currentPage: number }) =>
+					startDate === "" ? page(currentPage === 1 ? old : [latest], 21) : page([latest], 1),
+			);
+			const result = await syncInternalPortalNotices(
+				runnerInput({
+					stateStore: new MemoryStateStore(
+						state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-11" }),
+					),
+					fetchNoticePage,
+					fetchNoticeDetail: async ({ noticeId }) => detail(noticeId, "2026-08-26 09:00"),
+				}),
+			);
+			expect(result.processedRange?.to).toBe("2026-08-27");
+			expect(result.pagesFetched).toBe(3);
+			expect(fetchNoticePage.mock.calls).toHaveLength(3);
+		},
+	);
+
+	it("includes newer pinned dates and resolves missing list dates from details", async () => {
+		const result = await syncInternalPortalNotices(
+			runnerInput({
+				stateStore: new MemoryStateStore(
+					state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-11" }),
+				),
+				fetchNoticePage: async ({ startDate }) =>
+					startDate === ""
+						? page([{ ...notice(1, 5, ""), notice_stick: 1 }, notice(2, 5, "2026-08-25 09:00")], 2)
+						: page([], 0),
+				fetchNoticeDetail: async ({ noticeId }) => detail(noticeId, "2026-08-26 09:00"),
+			}),
+		);
+		expect(result.processedRange?.to).toBe("2026-08-27");
+	});
+
+	it.each([undefined, null, 2, "bad"])(
+		"does not advance state for invalid pinned flag %s",
+		async (notice_stick) => {
+			const stateStore = new MemoryStateStore(
+				state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-11" }),
+			);
+			const item = notice(1, 5, "2026-08-26 09:00");
+			if (notice_stick === undefined) {
+				delete item.notice_stick;
+			} else {
+				item.notice_stick = notice_stick;
+			}
+			await expect(
+				syncInternalPortalNotices(
+					runnerInput({ stateStore, fetchNoticePage: async () => page([item], 1) }),
+				),
+			).rejects.toThrow("notice_stick");
+			expect(stateStore.saveCalls).toBe(0);
+		},
+	);
+
+	it("keeps the empty portal bound in Beijing time", async () => {
+		const result = await syncInternalPortalNotices(
+			runnerInput({
+				now: () => "2026-08-26T17:00:00Z",
+				stateStore: new MemoryStateStore(
+					state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-11" }),
+				),
+			}),
+		);
+		expect(result.processedRange?.to).toBe("2026-08-28");
+	});
+
 	it("initializes a complete range from the explicit backfill date to the portal latest date", async () => {
 		const stateStore = new MemoryStateStore();
 		const sourceStore = new MemorySourceStore();
@@ -111,10 +218,10 @@ describe("notice runner maintenance ranges", () => {
 			upToDate: true,
 		});
 		expect(progress.at(-1)).toMatchObject({ phase: "finalizing", processed: 1 });
-		expect(sourceStore.sources).toHaveLength(1);
+		expect(sourceStore.sources).toHaveLength(2);
 	});
 
-	it("collects an afternoon notice without refetching the morning source", async () => {
+	it("collects an afternoon notice and reviews the morning source", async () => {
 		const stateStore = new MemoryStateStore(state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-26" }));
 		let ids = [301];
 		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) => detail(noticeId, "2026-08-26 09:00"));
@@ -161,8 +268,10 @@ describe("notice runner maintenance ranges", () => {
 
 	it("enforces the half-open boundary using the detail release date", async () => {
 		const sourceStore = new MemorySourceStore();
-		const fetchNoticePage = vi.fn(async () =>
-			page([notice(1, 5, "2026-08-10 00:01"), notice(2, 5, "2026-08-11 00:01")], 2),
+		const fetchNoticePage = vi.fn(async ({ startDate }: { startDate: string }) =>
+			startDate === ""
+				? page([notice(3, 5, "2026-08-10 00:01")], 1)
+				: page([notice(1, 5, "2026-08-10 00:01"), notice(2, 5, "2026-08-11 00:01")], 2),
 		);
 		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) =>
 			detail(noticeId, noticeId === 1 ? "2026-08-10 00:01" : "2026-08-11 00:01"),
@@ -265,10 +374,10 @@ describe("notice runner maintenance ranges", () => {
 			resourceOrdinal: 0,
 		});
 		expect(inventoryStore.registered).toEqual([1, 3]);
-		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([1, 2, 3]);
+		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([1, 3]);
 		expect(stateStore.saveCalls).toBe(0);
 		expect(objectStore.streamWrites).toEqual([
-			"internal_portal/notices/1/attachments/0",
+			expect.stringMatching(/^internal_portal\/resources\/sha256\/[a-f0-9]{64}$/),
 		]);
 
 		failNoticeTwo = false;
@@ -281,10 +390,9 @@ describe("notice runner maintenance ranges", () => {
 		expect(requested).toEqual([
 			"/comsys-portal-notice-web/download?id=attachment-2&notice_id=2",
 		]);
-		expect(objectStore.streamWrites).toEqual([
-			"internal_portal/notices/1/attachments/0",
-			"internal_portal/notices/2/attachments/0",
-		]);
+		expect(objectStore.streamWrites).toHaveLength(2);
+		expect(objectStore.streamWrites[0]).toMatch(/^internal_portal\/resources\/sha256\/[a-f0-9]{64}$/);
+		expect(objectStore.streamWrites[1]).toMatch(/^internal_portal\/resources\/sha256\/[a-f0-9]{64}$/);
 	});
 
 	it("isolates a notice whose detail is missing notice_info and keeps processing later notices", async () => {
@@ -720,7 +828,7 @@ describe("notice runner maintenance ranges", () => {
 			},
 		});
 		expect(inventoryStore.registered).toEqual([1]);
-		expect(objectStore.streamWrites).toEqual(["internal_portal/notices/1/attachments/1"]);
+		expect(objectStore.streamWrites).toEqual([expect.stringMatching(/^internal_portal\/resources\/sha256\/[a-f0-9]{64}$/)]);
 		expect(stateStore.saveCalls).toBe(1);
 		expect(missingResourceLog).toEqual({
 			noticeResource: {
@@ -1019,6 +1127,8 @@ class MemoryInventoryStore implements NoticeInventoryStore {
 	readonly mappings: NoticeInventoryMappings[] = [];
 	readonly registered: number[] = [];
 
+	async getSourceRefs(): Promise<Map<number, string | null>> { return new Map(); }
+
 	async register(source: InternalPortalNoticeSource): Promise<"written" | "reused"> {
 		if (this.registered.includes(source.notice_id)) return "reused";
 		this.registered.push(source.notice_id);
@@ -1076,7 +1186,7 @@ class MemoryObjectStore implements InternalPortalCollectionObjectStore {
 	readonly sourceBucket = "campus-agent-source";
 	readonly streamWrites: string[] = [];
 
-	async createOrVerifyObject(): Promise<{ byteSize: number; contentSha256: string }> {
+	async createOrVerifyObject(_input: Parameters<InternalPortalCollectionObjectStore["createOrVerifyObject"]>[0]): Promise<{ byteSize: number; contentSha256: string }> {
 		return { byteSize: 0, contentSha256: "a" };
 	}
 
@@ -1097,6 +1207,8 @@ class MemoryObjectStore implements InternalPortalCollectionObjectStore {
 	async getObject(): Promise<Uint8Array> {
 		return new Uint8Array();
 	}
+
+	async hasObject(input: { key: string }): Promise<boolean> { return this.objects.has(input.key); }
 
 	async getObjectIfExists(input: { key: string }): Promise<Uint8Array | null> {
 		return this.objects.has(input.key) ? new Uint8Array([1]) : null;
@@ -1139,6 +1251,7 @@ function page(items: NoticeItem[], totalItems: number): NoticeListResponse {
 function notice(noticeId: number, noticeType: number, releaseTime: string): NoticeItem {
 	return {
 		notice_id: noticeId,
+		notice_stick: 0,
 		notice_link: null,
 		notice_release_time: releaseTime,
 		notice_type: noticeType,
@@ -1264,3 +1377,321 @@ function state(
 		...overrides,
 	};
 }
+
+// Exercise the real inventory/source adapters so request counts include adapter I/O.
+function ioFixture() {
+	const releaseTime = "2026-08-26 09:00";
+	const initialBody = Buffer.from("initial attachment");
+	const digest = createHash("sha256").update(initialBody).digest("hex");
+	const resourceKey = `internal_portal/resources/sha256/${digest}`;
+	const sources = [1, 2].map((noticeId) => ({
+		...buildInternalPortalNoticeSource({
+			detailInfo: detailWithAttachment(noticeId, releaseTime).datas!.notice_info!,
+			listItem: notice(noticeId, 5, releaseTime),
+			noticeId,
+			noticeType: 5,
+		}),
+		resources: [
+			{
+				kind: "attachments" as const,
+				ordinal: 0,
+				object_key: resourceKey,
+				content_type: "application/pdf",
+				byte_size: initialBody.length,
+				sha256: digest,
+			},
+		],
+	}));
+	const refs = new Map(sources.map((source) => [source.notice_id, noticeSourceRef(source)]));
+	const objects = new Map<string, Uint8Array>(
+		sources.map((source) => [noticeSourceRef(source), Buffer.from(JSON.stringify(source))]),
+	);
+	objects.set(resourceKey, initialBody);
+	const objectStore = new MemoryObjectStore();
+	const get = vi
+		.spyOn(objectStore, "getObjectIfExists")
+		.mockImplementation(async ({ key }) => objects.get(key) ?? null);
+	const head = vi
+		.spyOn(objectStore, "hasObject")
+		.mockImplementation(async ({ key }) => objects.has(key));
+	const put = vi.fn(async (value: { key: string; body: Uint8Array }) => {
+		objects.set(value.key, value.body);
+		return {
+			byteSize: value.body.byteLength,
+			contentSha256: createHash("sha256").update(value.body).digest("hex"),
+		};
+	});
+	objectStore.createOrVerifyObject = put;
+	const stream = vi.spyOn(objectStore, "createOrVerifyStream");
+	const query = vi.fn(async (sql: string, values: unknown[] = []) => {
+		if (sql.startsWith("SELECT notice_id, source_ref"))
+			return {
+				rows: [...refs].map(([notice_id, source_ref]) => ({ notice_id, source_ref })),
+				rowCount: refs.size,
+			};
+		if (sql.startsWith("SELECT notice_id, notice_type"))
+			return {
+				rows: sources.map((source) => ({
+					notice_id: source.notice_id,
+					notice_type: 5,
+					organization_id: source.organization_id,
+				})),
+				rowCount: sources.length,
+			};
+		if (sql.startsWith("INSERT INTO notices.notices")) {
+			const id = values[0] as number;
+			const ref = values[7] as string;
+			const exists = refs.has(id);
+			const changed = refs.get(id) !== ref;
+			refs.set(id, ref);
+			return {
+				rows: changed ? [{ notice_id: id, inserted: !exists }] : [],
+				rowCount: changed ? 1 : 0,
+			};
+		}
+		return { rows: [], rowCount: 1 };
+	});
+	const inventoryStore = createNoticeInventoryStore({ query } as unknown as Pick<Pool, "query">);
+	const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) =>
+		detailWithAttachment(noticeId, releaseTime),
+	);
+	const fetchNoticePage = vi.fn(async () =>
+		page([notice(1, 5, releaseTime), notice(2, 5, releaseTime)], 2),
+	);
+	const download = vi.fn(async () => attachmentResponse(bytes("updated attachment")));
+	const stateStore = new MemoryStateStore(
+		state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-27" }),
+	);
+	const input = runnerInput({
+		inventoryStore,
+		objectStore,
+		sourceStore: createInternalPortalNoticeSourceStore({ objectStore }),
+		stateStore,
+		fetchNoticeDetail,
+		fetchNoticePage,
+		apiContext: {
+			get: download,
+			post: async () => {
+				throw new Error("unexpected POST");
+			},
+		},
+	});
+	return {
+		input,
+		sources,
+		refs,
+		objects,
+		resourceKey,
+		get,
+		head,
+		put,
+		stream,
+		query,
+		download,
+		fetchNoticeDetail,
+		fetchNoticePage,
+		stateStore,
+	};
+}
+
+describe("notice collection I/O", () => {
+	it("batch resolves refs and reads each unchanged source once, checking resources with HEAD", async () => {
+		const f = ioFixture();
+		const result = await syncInternalPortalNotices(f.input);
+		expect(result).toMatchObject({
+			noticesProcessed: 2,
+			noticesUnchanged: 2,
+			objectsReused: 2,
+			failures: [],
+		});
+		expect(
+			f.query.mock.calls.filter(([sql]) => sql.startsWith("SELECT notice_id, source_ref")),
+		).toHaveLength(1);
+		expect(
+			f.query.mock.calls.filter(([sql]) => sql.startsWith("INSERT INTO notices.notices")),
+		).toHaveLength(2);
+		expect(f.get).toHaveBeenCalledTimes(2);
+		expect(f.head).toHaveBeenCalledTimes(2);
+		expect(f.put).not.toHaveBeenCalled();
+		expect(f.download).not.toHaveBeenCalled();
+		expect(f.fetchNoticeDetail).not.toHaveBeenCalled();
+	});
+
+	it("merges incremental and full review candidates and detects same-URL byte changes once", async () => {
+		const f = ioFixture();
+		const previousRefs = [...f.refs.values()];
+		const result = await syncInternalPortalNotices({ ...f.input, enablePeriodicReview: true });
+		expect(result).toMatchObject({
+			noticesProcessed: 2,
+			noticesUpdated: 2,
+			failures: [],
+			resources: { attachmentsDownloaded: 2 },
+		});
+		expect(f.fetchNoticeDetail).toHaveBeenCalledTimes(2);
+		expect(f.download).toHaveBeenCalledTimes(2);
+		expect(f.stream).toHaveBeenCalledTimes(2);
+		expect(f.get).toHaveBeenCalledTimes(2); // Only old sources; no discarded legacy resource GETs.
+		expect(f.put).toHaveBeenCalledTimes(2);
+		expect([...f.refs.values()]).not.toEqual(previousRefs);
+		expect(
+			f.query.mock.calls.filter(([sql]) => sql.startsWith("INSERT INTO notices.notices")),
+		).toHaveLength(2);
+		expect(result.state).toMatchObject({ recentReviewedAt: now, fullReviewedAt: now });
+	});
+
+	it("reviews a database-only notice even after its release date moves outside the review range", async () => {
+		const f = ioFixture();
+		f.fetchNoticePage.mockResolvedValue(page([notice(1, 5, "2026-08-26 09:00")], 1));
+		f.fetchNoticeDetail.mockImplementation(async ({ noticeId }) =>
+			detailWithAttachment(noticeId, noticeId === 2 ? "2026-07-01 09:00" : "2026-08-26 09:00"),
+		);
+		const result = await syncInternalPortalNotices({ ...f.input, enablePeriodicReview: true });
+		expect(result.failures).toEqual([]);
+		expect(f.fetchNoticeDetail).toHaveBeenCalledTimes(2);
+		const registered = f.query.mock.calls.find(
+			([sql, values]) => sql.startsWith("INSERT INTO notices.notices") && values?.[0] === 2,
+		)!;
+		expect(registered[1]![4]).toBe("2026-07-01T01:00:00.000Z");
+	});
+
+	it.each(["scan", "detail"])(
+		"does not advance state on %s failures or retry candidates within a run",
+		async (failure) => {
+			const f = ioFixture();
+			if (failure === "detail")
+				f.fetchNoticeDetail.mockImplementation(async ({ noticeId }) => {
+					if (noticeId === 2) throw new Error("detail failed");
+					return detailWithAttachment(noticeId, "2026-08-26 09:00");
+				});
+			else
+				f.fetchNoticePage.mockResolvedValue(
+					page(
+						[
+							notice(1, 5, "2026-08-26 09:00"),
+							{ ...notice(2, 5, "2026-08-26 09:00"), notice_type: 0 },
+						],
+						2,
+					),
+				);
+			const result = await syncInternalPortalNotices({ ...f.input, enablePeriodicReview: true });
+			expect(result.failures.length).toBeGreaterThan(0);
+			expect(f.stateStore.saveCalls).toBe(0);
+			expect(result.state?.recentReviewedAt).toBeUndefined();
+			expect(result.state?.fullReviewedAt).toBeUndefined();
+			expect(f.fetchNoticeDetail.mock.calls.filter(([value]) => value.noticeId === 2)).toHaveLength(
+				1,
+			);
+		},
+	);
+
+	it.each(["source", "resource"])("recovers missing %s objects", async (missing) => {
+		const f = ioFixture();
+		f.objects.delete(missing === "source" ? f.refs.get(1)! : f.resourceKey);
+		const result = await syncInternalPortalNotices(f.input);
+		expect(result.failures).toEqual([]);
+		expect(f.download).toHaveBeenCalledTimes(missing === "source" ? 1 : 2);
+		expect(f.stream).toHaveBeenCalledTimes(missing === "source" ? 1 : 2);
+		expect(f.fetchNoticeDetail).toHaveBeenCalledTimes(missing === "source" ? 1 : 0);
+		expect(f.put).toHaveBeenCalledTimes(missing === "source" ? 1 : 2);
+	});
+
+	it("materializes a legacy source into a snapshot even when its content is unchanged", async () => {
+		const f = ioFixture();
+		const source = f.sources[0]!;
+		f.refs.delete(1);
+		f.objects.delete(noticeSourceRef(source));
+		f.objects.set(`internal_portal/notices/1.json`, Buffer.from(JSON.stringify(source)));
+		const result = await syncInternalPortalNotices(f.input);
+		expect(result.failures).toEqual([]);
+		expect(f.put).toHaveBeenCalledTimes(1);
+		expect(f.objects.has(noticeSourceRef(source))).toBe(true);
+		expect(f.download).not.toHaveBeenCalled();
+	});
+
+	it("migrates legacy resource bytes instead of redownloading them", async () => {
+		const f = ioFixture();
+		for (const original of f.sources) {
+			const { resources: _resources, ...source } = original;
+			const ref = noticeSourceRef(source);
+			f.refs.set(source.notice_id, ref);
+			f.objects.set(ref, Buffer.from(JSON.stringify(source)));
+			f.objects.set(
+				`internal_portal/notices/${source.notice_id}/attachments/0`,
+				f.objects.get(f.resourceKey)!,
+			);
+		}
+		const result = await syncInternalPortalNotices(f.input);
+		expect(result).toMatchObject({
+			failures: [],
+			noticesUpdated: 2,
+			resources: { attachmentsReused: 2 },
+		});
+		expect(f.download).not.toHaveBeenCalled();
+		for (const source of f.sources) {
+			const migrated = {
+				...source,
+				resources: source.resources.map((ref) => ({
+					...ref,
+					content_type: "application/octet-stream",
+				})),
+			};
+			expect(f.refs.get(source.notice_id)).toBe(noticeSourceRef(migrated));
+		}
+	});
+
+	it("prefers review list metadata over incremental metadata", async () => {
+		const f = ioFixture();
+		f.fetchNoticePage
+			.mockResolvedValueOnce(page([notice(1, 5, "2026-08-26 09:00")], 1))
+			.mockResolvedValueOnce(
+				page([{ ...notice(1, 5, "2026-08-26 09:00"), notice_link: "https://example.edu/old" }], 1),
+			)
+			.mockResolvedValueOnce(
+				page(
+					[{ ...notice(1, 5, "2026-08-26 09:00"), notice_link: "https://example.edu/current" }],
+					1,
+				),
+			);
+		const result = await syncInternalPortalNotices({ ...f.input, enablePeriodicReview: true });
+		expect(result.failures).toEqual([]);
+		const registered = f.query.mock.calls.find(
+			([sql, values]) => sql.startsWith("INSERT INTO notices.notices") && values?.[0] === 1,
+		)!;
+		expect(registered[1]![6]).toBe("https://example.edu/current");
+		expect(f.fetchNoticeDetail.mock.calls.filter(([value]) => value.noticeId === 1)).toHaveLength(
+			1,
+		);
+	});
+
+	it("discovers silent body changes during review with unchanged list metadata", async () => {
+		const f = ioFixture();
+		f.fetchNoticeDetail.mockImplementation(async ({ noticeId }) => {
+			const value = detailWithAttachment(noticeId, "2026-08-26 09:00");
+			value.datas!.notice_info!.notice_content = "<p>edited silently</p>";
+			return value;
+		});
+		f.download.mockImplementation(async () => attachmentResponse(bytes("initial attachment")));
+		const result = await syncInternalPortalNotices({ ...f.input, enablePeriodicReview: true });
+		expect(result).toMatchObject({ failures: [], noticesUpdated: 2 });
+		expect(f.download).toHaveBeenCalledTimes(2);
+		for (const ref of f.refs.values()) {
+			expect(JSON.parse(Buffer.from(f.objects.get(ref)!).toString()).notice_content_html).toBe(
+				"<p>edited silently</p>",
+			);
+		}
+	});
+
+	it("does not query source refs for an empty candidate set", async () => {
+		const f = ioFixture();
+		await expect(f.input.inventoryStore.getSourceRefs([])).resolves.toEqual(new Map());
+		expect(f.query).not.toHaveBeenCalled();
+	});
+
+	it("propagates object-store HEAD failures instead of treating them as missing", async () => {
+		const f = ioFixture();
+		f.head.mockRejectedValue(new Error("storage unavailable"));
+		await expect(syncInternalPortalNotices(f.input)).rejects.toThrow("storage unavailable");
+		expect(f.download).not.toHaveBeenCalled();
+		expect(f.stateStore.saveCalls).toBe(0);
+	});
+});

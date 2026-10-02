@@ -23,6 +23,11 @@ export function listNoticeSourceResources(
 		notice_content_html: string | null;
 		notice_title?: string;
 		attachments: readonly { suffix: string | null }[];
+		resources?: readonly {
+			kind: "images" | "attachments";
+			ordinal: number;
+			object_key: string | null;
+		}[];
 	},
 	portalHost: string,
 ): NoticeSourceResource[] {
@@ -40,14 +45,22 @@ export function listNoticeSourceResources(
 		kind: "image",
 		noticeId,
 		ordinal: image.sourceOrdinal,
-		sourceKey: `internal_portal/notices/${noticeId}/images/${image.sourceOrdinal}`,
+		sourceKey:
+			source.resources?.find((ref) => ref.kind === "images" && ref.ordinal === image.sourceOrdinal)
+				?.object_key ?? `internal_portal/notices/${noticeId}/images/${image.sourceOrdinal}`,
 	}));
 	for (const [ordinal, attachment] of source.attachments.entries()) {
+		const ref = source.resources?.find(
+			(ref) => ref.kind === "attachments" && ref.ordinal === ordinal,
+		);
+		if (source.resources && !ref?.object_key) {
+			continue;
+		}
 		resources.push({
 			kind: "attachment",
 			noticeId,
 			ordinal,
-			sourceKey: `internal_portal/notices/${noticeId}/attachments/${ordinal}`,
+			sourceKey: ref?.object_key ?? `internal_portal/notices/${noticeId}/attachments/${ordinal}`,
 			suffix: attachment.suffix,
 		});
 	}

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createOcrTaskStore, OCR_MODEL, OCR_OPTIONS, withOcrLock } from "../src/index.ts";
@@ -92,4 +92,41 @@ it("grants Ops task reads/writes but no schema creation", async () => {
   has_table_privilege('ops_web','ocr.tasks','INSERT') as create,
   has_table_privilege('ops_web','ocr.tasks','UPDATE') as update`);
 	expect(result.rows[0]).toEqual({ ddl: false, read: true, create: true, update: true });
+});
+
+it("keeps shared content-addressed resources owned by each notice while reusing its own task", async () => {
+	const digest = createHash("sha256").update(randomUUID()).digest("hex");
+	const input = {
+		kind: "source" as const,
+		key: `internal_portal/resources/sha256/${digest}`,
+		noticeId: "123",
+		contentType: "image/png",
+		resource: { kind: "image" as const, ordinal: 0, displayOrdinal: 0 },
+	};
+	const first = await store.create(input, config);
+	ids.push(first.id);
+	const repeated = await store.create(
+		{ ...input, resource: { kind: "image", ordinal: 2, displayOrdinal: 1 } },
+		config,
+	);
+	const other = await store.create({ ...input, noticeId: "456" }, config);
+	ids.push(other.id);
+	expect(repeated.id).toBe(first.id);
+	expect(other.id).not.toBe(first.id);
+	expect(first.input).toMatchObject({ noticeId: "123" });
+	expect(other.input).toMatchObject({ noticeId: "456" });
+	expect((await store.listNotice("456")).filter((task) => task.id === first.id)).toEqual([]);
+	const rerun = await store.create(input, config, true);
+	ids.push(rerun.id);
+	expect(rerun.id).not.toBe(first.id);
+});
+
+it("preserves the dedup key for legacy notice-specific image paths", async () => {
+	const key = `internal_portal/notices/${Date.now()}/images/0`;
+	const input = { kind: "source" as const, key, noticeId: "123", contentType: "image/png" };
+	const first = await store.create(input, config);
+	ids.push(first.id);
+	const existing = await pool.query("SELECT dedup_key FROM ocr.tasks WHERE id=$1", [first.id]);
+	expect(existing.rows[0].dedup_key).toBe(`source:${key}`);
+	expect((await store.create(input, config)).id).toBe(first.id);
 });

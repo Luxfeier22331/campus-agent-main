@@ -26,6 +26,15 @@ export interface InternalPortalNoticeSourceAttachment {
 	type: string | null;
 }
 
+export interface InternalPortalNoticeResource {
+	kind: "images" | "attachments";
+	ordinal: number;
+	object_key: string | null;
+	content_type: string | null;
+	byte_size: number | null;
+	sha256: string | null;
+}
+
 interface InternalPortalNoticeSourceBase {
 	schema_version: "internal_portal_notice_source.v2";
 	notice_id: number;
@@ -35,6 +44,7 @@ interface InternalPortalNoticeSourceBase {
 	notice_release_time: string | null;
 	notice_content_html: string | null;
 	attachments: InternalPortalNoticeSourceAttachment[];
+	resources?: InternalPortalNoticeResource[];
 }
 
 export type InternalPortalNoticeSource = InternalPortalNoticeSourceBase &
@@ -46,7 +56,13 @@ interface InternalPortalNoticeSyncStateBase {
 }
 
 export type InternalPortalNoticeSyncState = InternalPortalNoticeSyncStateBase &
-	({ covered_from: null; covered_until: null } | { covered_from: string; covered_until: string });
+	(
+		| { covered_from: null; covered_until: null }
+		| { covered_from: string; covered_until: string }
+	) & {
+		recent_reviewed_at?: string | null;
+		full_reviewed_at?: string | null;
+	};
 
 export interface LegacyInternalPortalNoticeSyncState {
 	schema_version: "internal_portal_notice_sync_state.v2";

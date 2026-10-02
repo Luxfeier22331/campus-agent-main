@@ -1,5 +1,6 @@
 import { parsePortalReleaseTime } from "@campus-agent/notices";
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
+import { noticeSourceRef } from "ingestion-contracts/notice-source-ref";
 import type { Pool } from "pg";
 
 import { NoticeIngestionDataError } from "./notice-ingestion-errors.js";
@@ -10,12 +11,35 @@ export interface NoticeInventoryMappings {
 }
 
 export interface NoticeInventoryStore {
-	register(source: InternalPortalNoticeSource): Promise<"reused" | "written">;
+	getSourceRefs(noticeIds: readonly number[]): Promise<Map<number, string | null>>;
+	register(source: InternalPortalNoticeSource): Promise<"reused" | "written" | "updated">;
+	listExisting?(from: string, to: string): Promise<NoticeCandidateRecord[]>;
 	upsertMappings(mappings: NoticeInventoryMappings): Promise<void>;
+}
+
+export interface NoticeCandidateRecord {
+	notice_id: number;
+	notice_type: number;
+	organization_id: string | null;
 }
 
 export function createNoticeInventoryStore(pool: Pick<Pool, "query">): NoticeInventoryStore {
 	return {
+		async getSourceRefs(noticeIds) {
+			if (noticeIds.length === 0) return new Map();
+			const result = await pool.query(
+				"SELECT notice_id, source_ref FROM notices.notices WHERE notice_id = ANY($1::bigint[])",
+				[[...noticeIds]],
+			);
+			return new Map(result.rows.map((row) => [Number(row.notice_id), row.source_ref ?? null]));
+		},
+		async listExisting(from, to) {
+			const result = await pool.query(
+				"SELECT notice_id, notice_type, organization_id FROM notices.notices WHERE released_at >= $1::date AT TIME ZONE 'Asia/Shanghai' AND released_at < $2::date AT TIME ZONE 'Asia/Shanghai' ORDER BY notice_id",
+				[from, to],
+			);
+			return result.rows.map((row) => ({ notice_id: Number(row.notice_id), notice_type: Number(row.notice_type), organization_id: row.organization_id ?? null }));
+		},
 		async upsertMappings(mappings) {
 			for (const [id, name] of Object.entries(mappings.noticeTypes)) {
 				await pool.query(
@@ -45,13 +69,22 @@ export function createNoticeInventoryStore(pool: Pick<Pool, "query">): NoticeInv
 					operation: "inventory",
 				});
 			}
+			const sourceRef = noticeSourceRef(source);
 			const inserted = await pool.query(
 				`INSERT INTO notices.notices(
 					notice_id, notice_type, organization_id, title, released_at,
-					is_external, external_url
-				 ) VALUES ($1,$2,$3,$4,$5,$6,$7)
-				 ON CONFLICT (notice_id) DO NOTHING
-				 RETURNING notice_id`,
+					is_external, external_url, source_ref
+				 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+				 ON CONFLICT (notice_id) DO UPDATE SET
+					notice_type=CASE WHEN notices.notices.is_published THEN notices.notices.notice_type ELSE EXCLUDED.notice_type END,
+					organization_id=CASE WHEN notices.notices.is_published THEN notices.notices.organization_id ELSE EXCLUDED.organization_id END,
+					title=CASE WHEN notices.notices.is_published THEN notices.notices.title ELSE EXCLUDED.title END,
+					released_at=CASE WHEN notices.notices.is_published THEN notices.notices.released_at ELSE EXCLUDED.released_at END,
+					is_external=CASE WHEN notices.notices.is_published THEN notices.notices.is_external ELSE EXCLUDED.is_external END,
+					external_url=CASE WHEN notices.notices.is_published THEN notices.notices.external_url ELSE EXCLUDED.external_url END,
+					source_ref=EXCLUDED.source_ref
+				 WHERE notices.notices.source_ref IS DISTINCT FROM EXCLUDED.source_ref
+				 RETURNING notice_id, (xmax = 0) AS inserted`,
 				[
 					source.notice_id,
 					source.notice_type,
@@ -59,42 +92,12 @@ export function createNoticeInventoryStore(pool: Pick<Pool, "query">): NoticeInv
 					source.notice_title,
 					releasedAt,
 					source.is_external,
-					source.external_url,
-				],
+				source.external_url,
+				sourceRef,
+			],
 			);
 			if (inserted.rowCount === 1) {
-				return "written";
-			}
-			const existing = await pool.query(
-				`SELECT notice_type, organization_id, title, released_at, is_external, external_url
-				 FROM notices.notices WHERE notice_id=$1`,
-				[source.notice_id],
-			);
-			const row = existing.rows[0] as Record<string, unknown> | undefined;
-			const actual = row
-				? [
-						Number(row.notice_type),
-						row.organization_id ?? null,
-						row.title,
-						new Date(String(row.released_at)).toISOString(),
-						row.is_external,
-						row.external_url ?? null,
-					]
-				: [];
-			const expected = [
-				source.notice_type,
-				source.organization_id,
-				source.notice_title,
-				releasedAt,
-				source.is_external,
-				source.external_url,
-			];
-			if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-				throw new NoticeIngestionDataError({
-					message: `registered notice conflicts with source: ${source.notice_id}`,
-					noticeId: source.notice_id,
-					operation: "inventory",
-				});
+				return inserted.rows[0]?.inserted === false ? "updated" : "written";
 			}
 			return "reused";
 		},

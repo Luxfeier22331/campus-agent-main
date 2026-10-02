@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import { Pool } from "pg";
 
 import {
 	collectObjectKeys,
@@ -11,7 +12,11 @@ import {
 
 test("reads and lists notices from the configured worktree bucket", async (t) => {
 	const bucket = "campus-agent-source-wt-test";
-	const key = "internal_portal/notices/2.json";
+	const key = `internal_portal/notices/2/sources/${"a".repeat(64)}.json`;
+	t.mock.method(Pool.prototype, "query", async (sql: string) => ({
+		rows: sql.includes("source_ref") ? [{ source_ref: key }] : [{ notice_id: 2 }],
+	}));
+	t.mock.method(Pool.prototype, "end", async () => undefined);
 	t.mock.method(S3Client.prototype, "send", async (command: unknown) => {
 		if (command instanceof ListObjectsV2Command) {
 			assert.equal(command.input.Bucket, bucket);
@@ -24,6 +29,7 @@ test("reads and lists notices from the configured worktree bucket", async (t) =>
 	});
 	const store = createNoticeSourceObjectStoreFromEnv({
 		OBJECT_STORE_BUCKET_SOURCE: ` ${bucket} `,
+		NOTICES_DATABASE_URL: "postgres://test:test@localhost/test",
 		OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 		OBJECT_STORE_SOURCE_ACCESS_KEY: "test",
 		OBJECT_STORE_SOURCE_SECRET_KEY: "test",

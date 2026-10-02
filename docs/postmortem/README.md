@@ -7,8 +7,7 @@ status: active
 # 事故复盘
 
 仅为机制隐蔽、暴露测试／工具／流程缺口且重新发现成本高的真实故障写复盘，不要求每个 bug 都记录。
-本分区解释故障经过与漏检原因；长期选择及理由由[决策笔记](../../.agents/notes/README.md)维护，二者互链。
-实现和操作步骤链接到所属代码、测试或操作文档，不复制它们的当前合同。
+本分区解释故障经过与漏检原因，并与承载长期选择的[决策笔记](../../.agents/notes/README.md)互链；实现和操作链接所属代码、测试或操作文档，不复制合同。
 
 ## 写作规则
 
@@ -22,3 +21,4 @@ status: active
 
 - [0001 归档命令失效，却被报告为已完成](./0001-note-archive-false-completion.md)
 - [0002 staging PostgreSQL 与通知流水线恢复](./0002-staging-postgres-pipeline-recovery.md)
+- [0003 通知置顶导致增量采集水位停滞](./0003-notice-pinned-boundary.md)

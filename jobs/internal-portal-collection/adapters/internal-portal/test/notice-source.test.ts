@@ -5,6 +5,7 @@ import {
 	buildInternalPortalNoticeSource,
 	createInternalPortalNoticeSourceStore,
 	internalPortalNoticeSourceObjectKey,
+	noticeSourceRef,
 } from "../src/notice-source.js";
 
 describe("internal portal notice source", () => {
@@ -119,7 +120,7 @@ describe("internal portal notice source", () => {
 		).toThrow("notice external URL must be an absolute HTTP or HTTPS URL");
 	});
 
-	it("writes and reuses the fixed notice key without a site layer", async () => {
+	it("writes an immutable snapshot without replacing the legacy migration input", async () => {
 		const createOrVerifyObject = vi.fn(async () => ({ byteSize: 1, contentSha256: "a" }));
 		const source = sourceFixture();
 		const store = createInternalPortalNoticeSourceStore({
@@ -131,7 +132,7 @@ describe("internal portal notice source", () => {
 		expect(createOrVerifyObject).toHaveBeenCalledWith(
 			expect.objectContaining({
 				bucket: "campus-agent-source",
-				key: "internal_portal/notices/358159.json",
+				key: noticeSourceRef(source),
 			}),
 		);
 		expect(internalPortalNoticeSourceObjectKey(358159)).toBe("internal_portal/notices/358159.json");
@@ -181,6 +182,7 @@ function objectStore(
 		},
 		getObject: async () => new Uint8Array(),
 		getObjectIfExists: async () => null,
+		hasObject: async () => false,
 		pruneObjectVersions: async () => undefined,
 		putObject: async () => ({ byteSize: 0, contentSha256: "a" }),
 		sourceBucket: "campus-agent-source",

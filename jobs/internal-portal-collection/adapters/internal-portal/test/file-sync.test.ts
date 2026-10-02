@@ -19,6 +19,7 @@ function objectStore(): InternalPortalCollectionObjectStore {
 		createOrVerifyStream: vi.fn(),
 		getObject: vi.fn(),
 		getObjectIfExists: vi.fn(),
+		hasObject: vi.fn(),
 		pruneObjectVersions: vi.fn(),
 		putObject: vi.fn(),
 	};

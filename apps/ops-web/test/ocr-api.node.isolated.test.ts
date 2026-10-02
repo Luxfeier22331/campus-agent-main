@@ -94,7 +94,10 @@ it("rejects malformed task ids before querying PostgreSQL", async () => {
 
 it("lists only body images with display ordinals independent of source keys", async () => {
 	const { instance, query } = await app();
-	query.mockResolvedValueOnce({ rows: [{ notice_id: 123 }] }).mockResolvedValueOnce({ rows: [] });
+	query
+		.mockResolvedValueOnce({ rows: [{ notice_id: 123 }] })
+		.mockResolvedValueOnce({ rows: [{ source_ref: null }] })
+		.mockResolvedValueOnce({ rows: [] });
 	const response = await instance.request("http://ops.test/api/ops/ocr/notices/123");
 	expect(response.status).toBe(200);
 	const data = await response.json();
@@ -116,8 +119,8 @@ it("queues only the requested display image and excludes attachments", async () 
 		body: JSON.stringify({ noticeId: "123", imageOrdinal: 1 }),
 	});
 	expect(response.status).toBe(202);
-	expect(query).toHaveBeenCalledTimes(1);
-	expect(query.mock.calls[0]?.[1]?.[2]).toMatchObject({
+	expect(query).toHaveBeenCalledTimes(2);
+	expect(query.mock.calls[1]?.[1]?.[2]).toMatchObject({
 		key: "internal_portal/notices/123/images/2",
 		resource: { kind: "image", ordinal: 2, displayOrdinal: 1 },
 	});
@@ -130,7 +133,7 @@ it("does not create a task for a nonexistent body image", async () => {
 		body: JSON.stringify({ noticeId: "123", imageOrdinal: 2 }),
 	});
 	expect(response.status).toBe(404);
-	expect(query).not.toHaveBeenCalled();
+	expect(query.mock.calls.some(([sql]) => sql.includes("insert into ocr.tasks"))).toBe(false);
 	expect(launchOcrJob).not.toHaveBeenCalled();
 });
 it("does not create tasks for external notices", async () => {
@@ -145,6 +148,41 @@ it("does not create tasks for external notices", async () => {
 	});
 	expect(response.status).toBe(202);
 	expect(await response.json()).toMatchObject({ tasks: [] });
-	expect(query).not.toHaveBeenCalled();
+	expect(query.mock.calls.some(([sql]) => sql.includes("insert into ocr.tasks"))).toBe(false);
 	expect(launchOcrJob).not.toHaveBeenCalled();
+});
+
+it("queues the requested body image from the current source snapshot", async () => {
+	const sourceKey = `internal_portal/notices/123/sources/${"a".repeat(64)}.json`;
+	const imageKey = `internal_portal/resources/sha256/${"b".repeat(64)}`;
+	const { instance, query } = await app();
+	query.mockResolvedValueOnce({ rows: [{ source_ref: sourceKey }] });
+	getSource.mockResolvedValue(
+		new TextEncoder().encode(
+			JSON.stringify({
+				...noticeSource,
+				resources: [
+					{ kind: "images", ordinal: 1, object_key: imageKey },
+					{
+						kind: "images",
+						ordinal: 2,
+						object_key: `internal_portal/resources/sha256/${"c".repeat(64)}`,
+					},
+				],
+			}),
+		),
+	);
+	const response = await instance.request("http://ops.test/api/ops/ocr/tasks", {
+		method: "POST",
+		headers: { origin: "http://ops.test", "content-type": "application/json" },
+		body: JSON.stringify({ noticeId: "123", imageOrdinal: 0 }),
+	});
+	expect(response.status).toBe(202);
+	expect(getSource).toHaveBeenCalledWith(sourceKey);
+	expect(query.mock.calls[1]?.[1]?.[2]).toMatchObject({
+		noticeId: "123",
+		key: imageKey,
+		resource: { kind: "image", ordinal: 1, displayOrdinal: 0 },
+	});
+	expect(query.mock.calls[1]?.[1]?.[1]).toBe(`source:123:${imageKey}`);
 });

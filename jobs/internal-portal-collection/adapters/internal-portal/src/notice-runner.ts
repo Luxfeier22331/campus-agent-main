@@ -1,5 +1,6 @@
 import { parsePortalReleaseTime } from "@campus-agent/notices";
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
+import { noticeSourceRef } from "ingestion-contracts/notice-source-ref";
 import { formatRawError } from "ingestion-contracts/raw-error";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
@@ -11,6 +12,7 @@ import {
 import type { InternalPortalNoticeMetaStore } from "./notice-meta-store.js";
 import { NoticeIngestionDataError, type NoticeIngestionOperation } from "./notice-ingestion-errors.js";
 import type { NoticeInventoryStore } from "./notice-inventory-store.js";
+import type { NoticeCandidateRecord } from "./notice-inventory-store.js";
 import {
 	ensureNoticeResources,
 	type NoticeResourceEnsureResult,
@@ -68,6 +70,7 @@ export interface NoticeRunnerInput {
 	now?: () => string;
 	onProgress?: (progress: NoticeRunnerProgress) => void;
 	objectStore: InternalPortalCollectionObjectStore;
+	enablePeriodicReview?: boolean;
 	portalHost: string;
 	sourceStore: InternalPortalNoticeSourceStore;
 	stateStore: InternalPortalNoticeSyncStateStore;
@@ -94,6 +97,8 @@ export interface NoticeRunnerResult {
 	maintenanceRange: NoticeMaintenanceRange | null;
 	mode: "backfill" | "sync" | "rescan";
 	noticesAdded: number;
+	noticesUpdated: number;
+	noticesUnchanged: number;
 	noticesProcessed: number;
 	objectsReused: number;
 	objectsWritten: number;
@@ -108,6 +113,7 @@ interface NoticeCandidate {
 	item: NoticeItem;
 	noticeId: number;
 	noticeType: number;
+	refresh?: boolean;
 }
 
 interface NoticeMappings {
@@ -130,7 +136,8 @@ export async function syncInternalPortalNotices(
 			"notice sync requires a complete maintenance range; run notice-backfill --start-date YYYY-MM-DD first",
 		);
 	}
-	const latestEnd = await discoverPortalLatestEnd(input);
+	const latest = await discoverPortalLatestEnd(input);
+	const latestEnd = latest.exclusiveEnd;
 	// The final covered day can still receive new notices after the previous run.
 	const processedRange = noticeRange(
 		[current.coveredFrom, previousDate(current.coveredUntil)].sort().at(-1) as string,
@@ -139,16 +146,47 @@ export async function syncInternalPortalNotices(
 	const mappings = await fetchMappings(input);
 	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
 	const scan = await scanNotices(input, processedRange, allowedTypes);
-	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
+	const reviewKind = input.enablePeriodicReview ? dueReview(current, now(input)) : null;
+	let reviewed = false;
+	let candidates = scan.candidates;
+	if (reviewKind && input.inventoryStore.listExisting) {
+		const reviewTo = latestEnd;
+		const reviewFrom =
+			reviewKind === "full"
+				? current.coveredFrom
+				: [current.coveredFrom, dateDaysBefore(reviewTo, 30)].sort().at(-1)!;
+		const existing = await input.inventoryStore.listExisting(reviewFrom, reviewTo);
+		const reviewScan = await scanNotices(input, noticeRange(reviewFrom, reviewTo), allowedTypes);
+		const byId = new Map<number, NoticeCandidate>();
+		for (const candidate of [
+			...existing.map(toReviewCandidate),
+			...scan.candidates,
+			...reviewScan.candidates.map((candidate) => ({ ...candidate, refresh: true })),
+		]) {
+			byId.set(candidate.noticeId, {
+				...candidate,
+				refresh: candidate.refresh === true || byId.get(candidate.noticeId)?.refresh === true,
+			});
+		}
+		candidates = [...byId.values()];
+		scan.pagesFetched += reviewScan.pagesFetched;
+		scan.failures.push(...reviewScan.failures);
+		reviewed = true;
+	}
+	const completeMappings = withObservedOrganizations(mappings, candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
-	const counts = await writeCandidates(input, scan.candidates, processedRange);
+	const counts = await writeCandidates(input, candidates, processedRange);
 	counts.failures = [...scan.failures, ...counts.failures];
+	if (reviewed && counts.failures.length === 0) {
+		current.recentReviewedAt = now(input);
+		if (reviewKind === "full") current.fullReviewedAt = now(input);
+	}
 	const updatedAt = now(input);
 	emitProgress(input, {
 		phase: "finalizing",
-		processed: scan.candidates.length,
+		processed: candidates.length,
 		processedRange,
-		total: scan.candidates.length,
+		total: candidates.length,
 	});
 	if (counts.failures.length > 0) {
 		return result(
@@ -156,7 +194,7 @@ export async function syncInternalPortalNotices(
 			current,
 			processedRange,
 			null,
-			scan.pagesFetched + 1,
+			scan.pagesFetched + latest.pagesFetched,
 			counts,
 		);
 	}
@@ -167,10 +205,39 @@ export async function syncInternalPortalNotices(
 		state,
 		processedRange,
 		maintenanceRangeFromState(state),
-		scan.pagesFetched + 1,
+		scan.pagesFetched + latest.pagesFetched,
 		counts,
-		counts.noticesAdded === 0,
+		counts.noticesAdded === 0 && counts.noticesUpdated === 0,
 	);
+}
+
+function toReviewCandidate(record: NoticeCandidateRecord): NoticeCandidate {
+	return {
+		item: { notice_id: record.notice_id, notice_type: record.notice_type, organization_id: record.organization_id },
+		noticeId: record.notice_id,
+		noticeType: record.notice_type,
+		refresh: true,
+	};
+}
+
+function noticeListMetadataChanged(existing: InternalPortalNoticeSource, candidate: NoticeCandidate): boolean {
+	return existing.notice_type !== candidate.noticeType ||
+		existing.organization_id !== (candidate.item.organization_id ?? null) ||
+		existing.notice_release_time !== (candidate.item.notice_release_time?.trim() || null) ||
+		existing.external_url !== (candidate.item.notice_link?.trim() || null);
+}
+
+export function dueReview(state: InternalPortalNoticeSyncState, current: string): "recent" | "full" | null {
+	if (!state.coveredFrom || !state.coveredUntil) return null;
+	if (!state.fullReviewedAt || Date.parse(current) - Date.parse(state.fullReviewedAt) >= 7 * 86400000) return "full";
+	if (!state.recentReviewedAt || Date.parse(current) - Date.parse(state.recentReviewedAt) >= 86400000) return "recent";
+	return null;
+}
+
+function dateDaysBefore(value: string, days: number): string {
+	const date = new Date(`${value}T00:00:00Z`);
+	date.setUTCDate(date.getUTCDate() - days);
+	return date.toISOString().slice(0, 10);
 }
 
 export async function rescanInternalPortalNotices(
@@ -189,10 +256,8 @@ export async function rescanInternalPortalNotices(
 	await input.inventoryStore.upsertMappings(completeMappings);
 	const counts = await writeCandidates(input, scan.candidates, range);
 	counts.failures = [...scan.failures, ...counts.failures];
-	if (counts.failures.length === 0) {
-		await saveMappings(input, completeMappings, now(input));
-	}
 	emitProgress(input, { phase: "finalizing", processed: counts.noticesProcessed, processedRange: range, total: scan.candidates.length });
+	if (counts.failures.length === 0) await saveMappings(input, completeMappings, now(input));
 	return result("rescan", current, range, counts.failures.length ? null : maintenanceRangeFromState(current), scan.pagesFetched, counts);
 }
 
@@ -217,10 +282,10 @@ export async function backfillInternalPortalNotices(
 		);
 	}
 	const completeCurrent = hasCompleteRange(current) ? current : null;
-	const processedRange = noticeRange(
-		startDate,
-		completeCurrent?.coveredFrom ?? (await discoverPortalLatestEnd(input)),
-	);
+	const latest = completeCurrent
+		? { exclusiveEnd: completeCurrent.coveredFrom, pagesFetched: 0 }
+		: await discoverPortalLatestEnd(input);
+	const processedRange = noticeRange(startDate, latest.exclusiveEnd);
 
 	const mappings = await fetchMappings(input);
 	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
@@ -242,7 +307,7 @@ export async function backfillInternalPortalNotices(
 			current,
 			processedRange,
 			null,
-			scan.pagesFetched + (completeCurrent ? 0 : 1),
+			scan.pagesFetched + latest.pagesFetched,
 			counts,
 		);
 	}
@@ -261,7 +326,7 @@ export async function backfillInternalPortalNotices(
 		updated,
 		processedRange,
 		maintenanceRangeFromState(updated),
-		scan.pagesFetched + (completeCurrent ? 0 : 1),
+		scan.pagesFetched + latest.pagesFetched,
 		counts,
 	);
 }
@@ -385,26 +450,68 @@ async function fetchPage(
 	});
 }
 
-async function discoverPortalLatestEnd(input: NoticeRunnerInput): Promise<string> {
-	const page = await fetchPage(input, 1, "", "");
-	parsePagination(page);
-	const firstItem = page.datas?.tables?.[0];
-	if (!firstItem) {
-		return nextDate(portalDateFromInstant(now(input)));
+async function discoverPortalLatestEnd(input: NoticeRunnerInput): Promise<{
+	exclusiveEnd: string;
+	pagesFetched: number;
+}> {
+	let latestReleaseDate: string | null = null;
+	let pagesFetched = 0;
+	let totalPages = 0;
+	let currentPage = 1;
+	let foundUnpinned = false;
+	while (currentPage <= totalPages || currentPage === 1) {
+		const page = await fetchPage(input, currentPage, "", "");
+		pagesFetched += 1;
+		const pagination = parsePagination(page);
+		totalPages = pagination.totalPages;
+		const items = page.datas?.tables ?? [];
+		for (const item of items) {
+			const pinned = parseNoticeStick(item.notice_stick);
+			const releaseDate = await resolveNoticeReleaseDate(input, item);
+			if (latestReleaseDate === null || releaseDate > latestReleaseDate) {
+				latestReleaseDate = releaseDate;
+			}
+			if (!pinned) {
+				foundUnpinned = true;
+			}
+		}
+		// Pinned notices precede the ordinary notices, which are newest first.
+		if (foundUnpinned || currentPage >= totalPages) {
+			break;
+		}
+		currentPage += 1;
 	}
-	const listReleaseTime = normalizeOptionalText(firstItem.notice_release_time);
+	return {
+		exclusiveEnd: nextDate(latestReleaseDate ?? portalDateFromInstant(now(input))),
+		pagesFetched,
+	};
+}
+
+function parseNoticeStick(value: number | string | null | undefined): boolean {
+	const normalized =
+		typeof value === "number"
+			? value
+			: typeof value === "string" && /^[01]$/u.test(value.trim())
+				? Number(value.trim())
+				: Number.NaN;
+	if (normalized !== 0 && normalized !== 1) {
+		throw new Error("internal portal notice response returned an invalid notice_stick");
+	}
+	return normalized === 1;
+}
+
+async function resolveNoticeReleaseDate(input: NoticeRunnerInput, item: NoticeItem): Promise<string> {
+	const listReleaseTime = normalizeOptionalText(item.notice_release_time);
 	if (listReleaseTime) {
-		return nextDate(portalReleaseDate(listReleaseTime, "latest portal notice"));
+		return portalReleaseDate(listReleaseTime, "latest portal notice");
 	}
-	const noticeId = parsePositiveInteger(firstItem.notice_id, "notice_id");
+	const noticeId = parsePositiveInteger(item.notice_id, "notice_id");
 	const detail = await input.fetchNoticeDetail({ apiContext: input.apiContext, noticeId });
 	const detailInfo = detail.datas?.notice_info;
 	if (!detailInfo) {
 		throw new Error(`notice ${noticeId} detail is missing notice_info`);
 	}
-	return nextDate(
-		portalReleaseDate(detailInfo.notice_release_time, `latest portal notice ${noticeId}`),
-	);
+	return portalReleaseDate(detailInfo.notice_release_time, `latest portal notice ${noticeId}`);
 }
 
 async function fetchMappings(input: NoticeRunnerInput): Promise<NoticeMappings> {
@@ -480,6 +587,8 @@ async function writeCandidates(
 ): Promise<{
 	failures: NoticeRunnerFailure[];
 	noticesAdded: number;
+	noticesUpdated: number;
+	noticesUnchanged: number;
 	noticesProcessed: number;
 	objectsReused: number;
 	objectsWritten: number;
@@ -490,6 +599,8 @@ async function writeCandidates(
 	let objectsWritten = 0;
 	let noticesProcessed = 0;
 	let noticesAdded = 0;
+	let noticesUpdated = 0;
+	let noticesUnchanged = 0;
 	let candidatesProcessed = 0;
 	let candidatesWritten = 0;
 	const resources = emptyResourceCounts();
@@ -499,15 +610,15 @@ async function writeCandidates(
 		processedRange: range,
 		total: candidates.length,
 	});
+	const sourceRefs = await input.inventoryStore.getSourceRefs(
+		candidates.map((candidate) => candidate.noticeId),
+	);
 	for (const candidate of candidates) {
 		try {
-			const existing = await input.sourceStore.get(candidate.noticeId);
-			let source: InternalPortalNoticeSource;
-			if (existing) {
-				source = existing;
-			} else {
-				source = await buildNoticeSource(input, candidate);
-			}
+			const sourceRef = sourceRefs.get(candidate.noticeId) ?? null;
+			const existing = await input.sourceStore.get(candidate.noticeId, sourceRef);
+			const needsRefresh = candidate.refresh === true || !existing || noticeListMetadataChanged(existing, candidate);
+			let source = needsRefresh ? await buildNoticeSource(input, candidate) : existing!;
 			candidatesProcessed += 1;
 			emitProgress(input, {
 				phase: "processing",
@@ -515,7 +626,7 @@ async function writeCandidates(
 				processedRange: range,
 				total: candidates.length,
 			});
-			if (!isSourceInRange(source, range)) {
+			if (!candidate.refresh && !isSourceInRange(source, range)) {
 				candidatesWritten += 1;
 				emitProgress(input, {
 					phase: "writing",
@@ -525,32 +636,28 @@ async function writeCandidates(
 				});
 				continue;
 			}
-			if (existing) {
-				objectsReused += 1;
-			} else {
-				const outcome = await input.sourceStore.put(source);
-				if (outcome === "reused") {
-					objectsReused += 1;
-				} else {
-					objectsWritten += 1;
-				}
-			}
-			emitProgress(input, {
-				phase: "writing",
-				processed: candidatesWritten,
-				processedRange: range,
-				total: candidates.length,
-			});
 			const resourceResult = await ensureNoticeResources({
 				apiContext: input.apiContext,
 				dryRun: false,
+				refresh: needsRefresh,
 				notices: [source],
 				objectStore: input.objectStore,
 				portalHost: input.portalHost,
 			});
-			if (await input.inventoryStore.register(source) === "written") {
-				noticesAdded += 1;
+			source = { ...source, resources: resourceResult.resourceRefs };
+			const outcome =
+				existing && sourceRef === noticeSourceRef(source)
+					? "reused"
+					: await input.sourceStore.put(source);
+			if (outcome === "reused" || (existing && JSON.stringify(existing) === JSON.stringify(source))) {
+				objectsReused += 1;
+			} else {
+				objectsWritten += 1;
 			}
+			const registration = await input.inventoryStore.register(source);
+			if (registration === "written") noticesAdded += 1;
+			else if (registration === "updated") noticesUpdated += 1;
+			else noticesUnchanged += 1;
 			noticesProcessed += 1;
 			addResourceCounts(resources, resourceResult);
 			candidatesWritten += 1;
@@ -575,7 +682,7 @@ async function writeCandidates(
 			});
 		}
 	}
-	return { failures, noticesAdded, noticesProcessed, objectsReused, objectsWritten, resources };
+	return { failures, noticesAdded, noticesUpdated, noticesUnchanged, noticesProcessed, objectsReused, objectsWritten, resources };
 }
 
 async function buildNoticeSource(
@@ -742,10 +849,12 @@ function result(
 	pagesFetched: number,
 	counts: Pick<
 		NoticeRunnerResult,
-		"failures" | "noticesAdded" | "noticesProcessed" | "objectsReused" | "objectsWritten" | "resources"
+		"failures" | "noticesAdded" | "noticesUpdated" | "noticesUnchanged" | "noticesProcessed" | "objectsReused" | "objectsWritten" | "resources"
 	> = {
 		failures: [],
 		noticesAdded: 0,
+		noticesUpdated: 0,
+		noticesUnchanged: 0,
 		noticesProcessed: 0,
 		objectsReused: 0,
 		objectsWritten: 0,

@@ -8,14 +8,16 @@ export async function* selectNoticeInputs(pool: Pool, objects: OcrObjects, notic
 		throw new Error("noticeId must be a positive integer");
 	}
 	const { rows } = await pool.query(
-		`select notice_id::text as id from notices.notices where not is_external and
+		`select notice_id::text as id, source_ref from notices.notices where not is_external and
   ($1::bigint is null or notice_id=$1)
   order by released_at desc, notice_id desc`,
 		[noticeId ?? null],
 	);
 	for (const row of rows) {
 		const source = JSON.parse(
-			new TextDecoder().decode(await objects.getSource(`internal_portal/notices/${row.id}.json`)),
+			new TextDecoder().decode(
+				await objects.getSource(row.source_ref ?? `internal_portal/notices/${row.id}.json`),
+			),
 		);
 		const resources = listNoticeSourceResources(
 			row.id,

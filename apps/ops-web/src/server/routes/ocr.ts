@@ -10,6 +10,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import portal from "../../../../../configs/sources/internal-portal.json" with { type: "json" };
 import { NoticeOcrSchema } from "../../shared/ocr-contract.ts";
+import { resolveNoticeSourceKey } from "../notice-store.ts";
 import { launchOcrJob } from "../ocr-jobs.ts";
 import { ocrMarkdownForBrowser } from "../ocr-results.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
@@ -103,7 +104,7 @@ export function registerOcrRoutes(input: {
 		try {
 			const source = JSON.parse(
 				new TextDecoder().decode(
-					await objects.getSource(`internal_portal/notices/${noticeId}.json`),
+					await objects.getSource(await resolveNoticeSourceKey(pool, noticeId)),
 				),
 			);
 			const tasks = await store().listNotice(noticeId);
@@ -163,7 +164,7 @@ export function registerOcrRoutes(input: {
 		try {
 			const source = JSON.parse(
 				new TextDecoder().decode(
-					await objects.getSource(`internal_portal/notices/${body.data.noticeId}.json`),
+					await objects.getSource(await resolveNoticeSourceKey(pool!, body.data.noticeId)),
 				),
 			);
 			const inputs = listNoticeSourceResources(

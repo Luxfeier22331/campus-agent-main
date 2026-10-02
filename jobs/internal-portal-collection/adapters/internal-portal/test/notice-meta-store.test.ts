@@ -84,6 +84,7 @@ function objectStore(
 		},
 		getObject: async () => new Uint8Array(),
 		getObjectIfExists: async () => null,
+		hasObject: async () => false,
 		pruneObjectVersions: async () => undefined,
 		putObject: async () => ({ byteSize: 0, contentSha256: "a" }),
 		sourceBucket: "campus-agent-source",

@@ -2,12 +2,13 @@ import {
 	type InternalPortalNoticeSource,
 	validateInternalPortalNoticeSource,
 } from "ingestion-contracts";
+import { noticeSourceRef } from "ingestion-contracts/notice-source-ref";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
 import type { NoticeDetailInfo, NoticeItem } from "./types.js";
 
 export interface InternalPortalNoticeSourceStore {
-	get(noticeId: number): Promise<InternalPortalNoticeSource | null>;
+	get(noticeId: number, sourceRef?: string | null): Promise<InternalPortalNoticeSource | null>;
 	has(noticeId: number): Promise<boolean>;
 	put(source: InternalPortalNoticeSource): Promise<"reused" | "written">;
 }
@@ -35,7 +36,7 @@ export function buildInternalPortalNoticeSource(input: {
 		notice_title: requireText(input.detailInfo.notice_title, "notice_title"),
 		notice_type: input.noticeType,
 		organization_id: normalizeText(
-			input.listItem.organization_id ?? input.detailInfo.organization_id,
+			input.detailInfo.organization_id ?? input.listItem.organization_id,
 		),
 		schema_version: "internal_portal_notice_source.v2" as const,
 	};
@@ -53,8 +54,8 @@ export function createInternalPortalNoticeSourceStore(input: {
 	objectStore: InternalPortalCollectionObjectStore;
 }): InternalPortalNoticeSourceStore {
 	return {
-		async get(noticeId) {
-			const key = internalPortalNoticeSourceObjectKey(noticeId);
+		async get(noticeId, sourceRef) {
+			const key = sourceRef ?? internalPortalNoticeSourceObjectKey(noticeId);
 			const existingBytes = await input.objectStore.getObjectIfExists({
 				bucket: input.objectStore.sourceBucket,
 				key,
@@ -72,17 +73,20 @@ export function createInternalPortalNoticeSourceStore(input: {
 			return (await this.get(noticeId)) !== null;
 		},
 		async put(source) {
-			const key = internalPortalNoticeSourceObjectKey(source.notice_id);
-			await input.objectStore.createOrVerifyObject({
-				body: Buffer.from(`${JSON.stringify(source, null, 2)}\n`, "utf-8"),
+			const key = noticeSourceRef(source);
+			const body = Buffer.from(`${JSON.stringify(source, null, 2)}\n`, "utf-8");
+			const existing = await input.objectStore.hasObject({
 				bucket: input.objectStore.sourceBucket,
-				contentType: "application/json",
 				key,
 			});
+			if (existing) return "reused";
+			await input.objectStore.createOrVerifyObject({ body, bucket: input.objectStore.sourceBucket, contentType: "application/json", key });
 			return "written";
 		},
 	};
 }
+
+export { noticeSourceRef };
 
 export function internalPortalNoticeSourceObjectKey(noticeId: number): string {
 	return `internal_portal/notices/${noticeId}.json`;

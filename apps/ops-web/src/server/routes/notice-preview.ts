@@ -36,7 +36,11 @@ export function registerNoticePreviewRoutes(input: {
 			if (!(await input.store.get(noticeId))) {
 				return jsonError("OPS_NOTICE_NOT_FOUND", "通知不存在。", 404);
 			}
-			const source = await readNoticeSource(input.source, noticeId);
+			const source = await readNoticeSource(
+				input.source,
+				noticeId,
+				await input.store.getSourceKey?.(noticeId),
+			);
 			const { preview, images } = prepareNoticePreview(source);
 			if (kind === "preview") {
 				return c.json(NoticePreviewSchema.parse(preview));
@@ -49,8 +53,15 @@ export function registerNoticePreviewRoutes(input: {
 			if (!(image || attachment)) {
 				return jsonError("OPS_NOTICE_RESOURCE_NOT_FOUND", "通知中没有该资源。", 404);
 			}
+			const ref = source.resources?.find(
+				(ref) => ref.kind === kind && ref.ordinal === (image?.sourceOrdinal ?? ordinal),
+			);
+			if (source.resources && !ref?.object_key) {
+				return jsonError("OPS_NOTICE_RESOURCE_NOT_FOUND", "通知中没有该资源。", 404);
+			}
 			const object = await input.source.get(
-				`internal_portal/notices/${noticeId}/${kind}/${image?.sourceOrdinal ?? ordinal}`,
+				ref?.object_key ??
+					`internal_portal/notices/${noticeId}/${kind}/${image?.sourceOrdinal ?? ordinal}`,
 			);
 			const mime =
 				object.contentType.split(";")[0]?.trim().toLowerCase() ?? "application/octet-stream";

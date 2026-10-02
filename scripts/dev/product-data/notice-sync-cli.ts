@@ -1,10 +1,15 @@
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { Client } from "pg";
+import { createS3ObjectStore } from "../../../apps/campus-web/src/docs-reader-build/published-reader-object-store.ts";
 import { localDatabaseUrls } from "../lifecycle/environment.ts";
 import { withLifecycleLock } from "../lifecycle/locks.ts";
 import { loadLocalDevProfile, resolveLocalDevRegistryPath } from "../lifecycle/profile.ts";
 import { exportNoticeSources, importNoticeSources } from "./notice-sync.ts";
+import { copyNoticeSourceClosure } from "./notice-sync-objects.ts";
+import { parseNoticeSyncSelection } from "./notice-sync-options.ts";
+import { localProductStoreEnv } from "./product-data.ts";
+import { connectProductContentCluster } from "./product-data-cluster.ts";
 import { connectProductDatabase } from "./product-data-cluster-database.ts";
 import { DEFAULT_CLUSTER_NAMESPACE } from "./product-data-options.ts";
 
@@ -15,7 +20,14 @@ async function main() {
 		options: {
 			context: { type: "string" },
 			namespace: { type: "string", default: DEFAULT_CLUSTER_NAMESPACE },
+			"released-from": { type: "string" },
+			"released-to": { type: "string" },
+			"with-sources": { type: "boolean", default: false },
 		},
+	});
+	const selection = parseNoticeSyncSelection({
+		releasedFrom: values["released-from"],
+		releasedTo: values["released-to"],
 	});
 	const repoRoot = resolve(import.meta.dirname, "../../..");
 	const profile = loadLocalDevProfile(repoRoot);
@@ -36,27 +48,59 @@ async function main() {
 	process.once("SIGTERM", interrupt);
 	try {
 		await withLifecycleLock(lock, "notice-sync", async () => {
-			const remote = await connectProductDatabase(values.context, namespace, controller.signal);
+			const remote = await (values["with-sources"]
+				? connectProductContentCluster
+				: connectProductDatabase)(values.context, namespace, controller.signal);
 			const local = new Client({ connectionString: localDatabaseUrls(profile).owner });
 			const cancelLocal = () => {
 				void local.end().catch(() => undefined);
 			};
 			try {
 				console.log(
-					JSON.stringify({ event: "reading_notices", namespace, database: profile.databaseName }),
+					JSON.stringify({
+						event: "reading_notices",
+						namespace,
+						database: profile.databaseName,
+						selection,
+					}),
 				);
-				const rows = await exportNoticeSources(remote.database);
+				const rows = await exportNoticeSources(remote.database, selection);
+				if (values["with-sources"]) {
+					const sourceRemote = remote as Awaited<ReturnType<typeof connectProductContentCluster>>;
+					const target = createS3ObjectStore({
+						...localProductStoreEnv(repoRoot, profile),
+						OBJECT_STORE_BUCKET_DERIVED: profile.sourceBucketName,
+					});
+					const copied = await copyNoticeSourceClosure({
+						rows,
+						read: (key) => sourceRemote.sourceStore.read(key),
+						write: async (key, body, contentType) => {
+							controller.signal.throwIfAborted();
+							await target.writeBytesObject({ key, body, contentType });
+						},
+					});
+					console.log(JSON.stringify({ event: "copied_notice_sources", ...copied }));
+				}
 				await remote.close();
 				controller.signal.throwIfAborted();
 				console.log(
-					JSON.stringify({ event: "importing_notices", count: rows["notices.notices"].length }),
+					JSON.stringify({
+						event: "importing_notices",
+						count: rows["notices.notices"].length,
+						selection,
+					}),
 				);
 				await local.connect();
 				controller.signal.addEventListener("abort", cancelLocal, { once: true });
 				controller.signal.throwIfAborted();
-				const result = await importNoticeSources(local, rows);
+				const result = await importNoticeSources(local, rows, {
+					withSources: values["with-sources"],
+				});
 				console.log(
-					JSON.stringify({ event: "result", database: profile.databaseName, ...result }, null, 2),
+					JSON.stringify(
+						{ event: "result", database: profile.databaseName, selection, ...result },
+						null,
+					),
 				);
 			} finally {
 				controller.signal.removeEventListener("abort", cancelLocal);

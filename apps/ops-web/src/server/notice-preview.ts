@@ -113,8 +113,12 @@ export function createNoticePreviewStore(env: NoticePreviewEnv): NoticePreviewSt
 	};
 }
 
-export async function readNoticeSource(store: NoticePreviewStore, noticeId: number) {
-	const object = await store.get(`internal_portal/notices/${noticeId}.json`);
+export async function readNoticeSource(
+	store: NoticePreviewStore,
+	noticeId: number,
+	sourceKey = `internal_portal/notices/${noticeId}.json`,
+) {
+	const object = await store.get(sourceKey);
 	let value: unknown;
 	try {
 		value = await new Response(object.body).json();

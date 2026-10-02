@@ -1,4 +1,5 @@
 import type { Client } from "pg";
+import type { NoticeSyncSelection } from "./notice-sync-options.ts";
 import { serializeProductRows, upsertRetrievalRows } from "./product-data-database.ts";
 import { PRODUCT_DATA_TABLES, productDataProjection } from "./product-data-tables.ts";
 
@@ -10,21 +11,34 @@ const NOTICE_SOURCE_KEYS = {
 } as const;
 type NoticeSourceTable = keyof typeof NOTICE_SOURCE_KEYS;
 export type NoticeSourceRows = Record<NoticeSourceTable, Record<string, unknown>[]>;
+const noticeColumns = [
+	...PRODUCT_DATA_TABLES["notices.notices"],
+	"source_ref",
+	"published_source_ref",
+];
 const tables = Object.keys(NOTICE_SOURCE_KEYS) as NoticeSourceTable[];
 
-export async function exportNoticeSources(client: Client): Promise<NoticeSourceRows> {
+export async function exportNoticeSources(
+	client: Client,
+	selection: NoticeSyncSelection | null = null,
+): Promise<NoticeSourceRows> {
 	await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
 	try {
 		const rows = {} as NoticeSourceRows;
+		const noticeWhere = selection
+			? "where released_at >= $1::timestamptz and released_at < $2::timestamptz"
+			: "";
+		const params = selection ? [selection.releasedFrom, selection.releasedTo] : [];
 		for (const table of tables) {
 			const key = NOTICE_SOURCE_KEYS[table];
 			const filter =
 				table === "notices.notices"
-					? ""
-					: `where "${key}" in (select "${key}" from notices.notices)`;
+					? noticeWhere
+					: `where "${key}" in (select "${key}" from notices.notices ${noticeWhere})`;
 			const result = await client.query<{ row: Record<string, unknown> }>(
 				`select row_to_json(projected) as row from
-				 (select ${productDataProjection(table)} from ${table} ${filter} order by "${key}") projected`,
+				 (select ${table === "notices.notices" ? noticeColumns.map((column) => (["source_ref", "published_source_ref"].includes(column) ? `"${column}"` : `"${column}"`)).join(", ") : productDataProjection(table)} from ${table} ${filter} order by "${key}") projected`,
+				params,
 			);
 			rows[table] = result.rows.map(({ row }) => row);
 		}
@@ -38,7 +52,7 @@ export async function exportNoticeSources(client: Client): Promise<NoticeSourceR
 
 async function compareRows(client: Client, table: NoticeSourceTable, json: string) {
 	const key = NOTICE_SOURCE_KEYS[table];
-	const columns = PRODUCT_DATA_TABLES[table];
+	const columns = table === "notices.notices" ? noticeColumns : PRODUCT_DATA_TABLES[table];
 	const projection = (alias: string) => columns.map((column) => `${alias}."${column}"`).join(", ");
 	const result = await client.query<{ missing: number; changed: number; unchanged: number }>(
 		`with incoming as (select * from json_populate_recordset(null::${table}, $1::json))
@@ -53,9 +67,32 @@ async function compareRows(client: Client, table: NoticeSourceTable, json: strin
 	return result.rows[0];
 }
 
-export async function importNoticeSources(client: Client, rows: NoticeSourceRows) {
+export async function importNoticeSources(
+	client: Client,
+	rows: NoticeSourceRows,
+	options: { withSources?: boolean } = {},
+) {
+	const incomingRows = options.withSources
+		? rows
+		: {
+				...rows,
+				"notices.notices": rows["notices.notices"].map((row) => ({
+					...row,
+					source_ref: null,
+					published_source_ref: null,
+				})),
+			};
 	const encoded = Object.fromEntries(
-		tables.map((table) => [table, serializeProductRows(table, rows[table])]),
+		tables.map((table) => [
+			table,
+			table === "notices.notices"
+				? JSON.stringify(
+						incomingRows[table].map((row) =>
+							Object.fromEntries(noticeColumns.map((column) => [column, row[column] ?? null])),
+						),
+					)
+				: serializeProductRows(table, incomingRows[table]),
+		]),
 	) as Record<NoticeSourceTable, string>;
 	await client.query("BEGIN");
 	try {
@@ -63,7 +100,18 @@ export async function importNoticeSources(client: Client, rows: NoticeSourceRows
 		await client.query(`LOCK TABLE ${tables.join(", ")} IN SHARE ROW EXCLUSIVE MODE`);
 		const before = await compareRows(client, "notices.notices", encoded["notices.notices"]);
 		for (const table of tables) {
-			await upsertRetrievalRows(client, table, encoded[table], [NOTICE_SOURCE_KEYS[table]]);
+			if (table === "notices.notices") {
+				const columns = noticeColumns.map((column) => `"${column}"`).join(", ");
+				await client.query(
+					`INSERT INTO notices.notices (${columns}) SELECT ${columns} FROM json_populate_recordset(null::notices.notices, $1::json) ON CONFLICT (notice_id) DO UPDATE SET ${noticeColumns
+						.filter((column) => column !== "notice_id")
+						.map((column) => `"${column}"=EXCLUDED."${column}"`)
+						.join(", ")}`,
+					[encoded[table]],
+				);
+			} else {
+				await upsertRetrievalRows(client, table, encoded[table], [NOTICE_SOURCE_KEYS[table]]);
+			}
 		}
 		for (const table of tables) {
 			const checked = await compareRows(client, table, encoded[table]);

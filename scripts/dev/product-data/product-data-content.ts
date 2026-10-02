@@ -28,7 +28,7 @@ export async function exportProductContent(
 			const sampled = table === "notices.notices" || table === "notices.notice_assets";
 			const result = await client.query<{ row: Record<string, unknown> }>(
 				`select row_to_json(projected) as row from (
-					select ${productDataProjection(table)} from ${table}
+					select ${productDataProjection(table)}${table === "notices.notices" ? ", source_ref" : ""} from ${table}
 					${sampled ? "where notice_id = any($1::bigint[])" : ""}
 				) projected`,
 				sampled ? [ids] : [],
@@ -52,7 +52,7 @@ export async function copyNoticeSources(
 	let bytes = 0;
 	for (const notice of rows["notices.notices"]) {
 		const key = `internal_portal/notices/${notice.notice_id}.json`;
-		const body = await source.read(key);
+		const body = await source.read(typeof notice.source_ref === "string" ? notice.source_ref : key);
 		const value = JSON.parse(Buffer.from(body).toString("utf8"));
 		if (
 			!validateInternalPortalNoticeSource(value).ok ||

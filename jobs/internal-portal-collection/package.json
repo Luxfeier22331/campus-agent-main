@@ -11,7 +11,8 @@
 		"collect": "tsx adapters/internal-portal/src/collection-cli.ts",
 		"state-versions": "tsx adapters/internal-portal/src/state-version-maintenance-cli.ts",
 		"typecheck": "tsc --noEmit",
-		"test:unit": "vitest run -c vitest.fast.config.mts"
+		"test:unit": "vitest run -c vitest.fast.config.mts",
+		"migrate-notice-sources": "tsx adapters/internal-portal/src/notice-source-migration-cli.ts"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1145.0",

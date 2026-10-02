@@ -1,6 +1,7 @@
 import {
 	DeleteObjectCommand,
 	GetObjectCommand,
+	HeadObjectCommand,
 	ListObjectVersionsCommand,
 	PutObjectCommand,
 	S3Client,
@@ -8,50 +9,62 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createInternalPortalCollectionObjectStoreFromEnv } from "../src/object-store.js";
 
-const bucket = "campus-agent-source";
 const key = "internal_portal/notices/_state.json";
-const env = {
+const baseEnv = {
 	OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 	OBJECT_STORE_SOURCE_ACCESS_KEY: "test",
 	OBJECT_STORE_SOURCE_SECRET_KEY: "test",
-	OBJECT_STORE_BUCKET_SOURCE: bucket,
 };
 afterEach(() => vi.restoreAllMocks());
 
-it("reads and writes the source bucket supplied by the local environment", async () => {
-	const localBucket = "campus-agent-source-wt-test";
-	const send = vi.spyOn(S3Client.prototype, "send").mockImplementation(async (command) => {
-		if (command instanceof GetObjectCommand) {
-			expect(command.input.Bucket).toBe(localBucket);
-			return { Body: { transformToByteArray: async () => Buffer.from("{}") } } as never;
-		}
-		expect(command).toBeInstanceOf(PutObjectCommand);
-		expect((command as PutObjectCommand).input.Bucket).toBe(localBucket);
-		return {} as never;
-	});
-	const store = createInternalPortalCollectionObjectStoreFromEnv({
-		...env,
-		OBJECT_STORE_BUCKET_SOURCE: ` ${localBucket} `,
-	});
-	try {
-		await store.putObject({ bucket: store.sourceBucket, key, body: Buffer.from("{}"), contentType: "application/json" });
-		expect(await store.getObject({ bucket: store.sourceBucket, key })).toEqual(Buffer.from("{}"));
-		expect(send).toHaveBeenCalledTimes(2);
-	} finally {
+describe.each([
+	{ name: "cluster bucket", bucket: "campus-agent-source", sourceBucket: "campus-agent-source" },
+	{
+		name: "worktree override",
+		bucket: "campus-agent-source-wt-1-deadbeef",
+		sourceBucket: "campus-agent-source-wt-1-deadbeef",
+	},
+])("state object storage ($name)", ({ bucket, sourceBucket }) => {
+	const env = { ...baseEnv, OBJECT_STORE_BUCKET_SOURCE: sourceBucket };
+
+	it("reads the state from the selected source bucket", async () => {
+		const body = Buffer.from("{}");
+		vi.spyOn(S3Client.prototype, "send").mockImplementation(async (command) => {
+			expect(command).toBeInstanceOf(GetObjectCommand);
+			expect(command.input).toMatchObject({ Bucket: bucket, Key: key });
+			return { Body: { transformToByteArray: async () => body } } as never;
+		});
+		const store = createInternalPortalCollectionObjectStoreFromEnv(env);
+		expect(store.sourceBucket).toBe(bucket);
+		expect(await store.getObjectIfExists({ bucket: store.sourceBucket, key })).toEqual(body);
 		await store.close?.();
-	}
-});
+	});
 
-it.each([undefined, "", "   "])("requires an explicit source bucket (%s)", (value) => {
-	expect(() => createInternalPortalCollectionObjectStoreFromEnv({
-		...env, OBJECT_STORE_BUCKET_SOURCE: value,
-	})).toThrow("OBJECT_STORE_BUCKET_SOURCE is required");
-});
+	it("checks existence with HEAD and forwards cancellation", async () => {
+		const send = vi.spyOn(S3Client.prototype, "send").mockResolvedValue({} as never);
+		const store = createInternalPortalCollectionObjectStoreFromEnv(env);
+		const abortSignal = new AbortController().signal;
+		expect(await store.hasObject({ bucket, key, abortSignal })).toBe(true);
+		expect(send.mock.calls[0]?.[0]).toBeInstanceOf(HeadObjectCommand);
+		expect(send.mock.calls[0]?.[0].input).toEqual({ Bucket: bucket, Key: key });
+		expect(send).toHaveBeenCalledWith(expect.any(HeadObjectCommand), { abortSignal });
+		await store.close?.();
+	});
 
-describe("state version pruning", () => {
+	it.each([404, 403, 503])("only treats HTTP %s as absent when it is 404", async (status) => {
+		const error = Object.assign(new Error("storage response"), { $metadata: { httpStatusCode: status } });
+		vi.spyOn(S3Client.prototype, "send").mockRejectedValue(error);
+		const store = createInternalPortalCollectionObjectStoreFromEnv(env);
+		const result = store.hasObject({ bucket, key });
+		if (status === 404) await expect(result).resolves.toBe(false);
+		else await expect(result).rejects.toBe(error);
+		await store.close?.();
+	});
+
 	it("returns the version created by the write", async () => {
 		vi.spyOn(S3Client.prototype, "send").mockImplementation(async (command) => {
 			expect(command).toBeInstanceOf(PutObjectCommand);
+			expect(command.input).toMatchObject({ Bucket: bucket, Key: key });
 			return { VersionId: "new" } as never;
 		});
 		const store = createInternalPortalCollectionObjectStoreFromEnv(env);
@@ -70,6 +83,7 @@ describe("state version pruning", () => {
 		const commands: unknown[] = [];
 		vi.spyOn(S3Client.prototype, "send").mockImplementation(async (command) => {
 			commands.push(command);
+			expect(command.input).toMatchObject({ Bucket: bucket });
 			if (command instanceof ListObjectVersionsCommand) {
 				if (!command.input.KeyMarker) {
 					return {
@@ -116,4 +130,10 @@ describe("state version pruning", () => {
 		expect(send.mock.calls.every(([command]) => command instanceof ListObjectVersionsCommand)).toBe(true);
 		await store.close?.();
 	});
+});
+
+it.each([undefined, "", "   "])("requires an explicit source bucket (%s)", (value) => {
+	expect(() => createInternalPortalCollectionObjectStoreFromEnv({
+		...baseEnv, OBJECT_STORE_BUCKET_SOURCE: value,
+	})).toThrow("OBJECT_STORE_BUCKET_SOURCE is required");
 });

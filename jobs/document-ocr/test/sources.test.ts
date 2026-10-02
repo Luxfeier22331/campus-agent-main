@@ -56,3 +56,37 @@ it("scans all internal notices, without a title restriction", async () => {
 	expect(query).toHaveBeenCalledWith(expect.stringContaining("where not is_external"), [null]);
 	expect(query.mock.calls[0]?.[0]).not.toMatch(/title|is_published|category/);
 });
+
+it("reads the current snapshot and maps hashed resources to source and display ordinals", async () => {
+	const sourceKey = `internal_portal/notices/123/sources/${"a".repeat(64)}.json`;
+	const imageKey = `internal_portal/resources/sha256/${"b".repeat(64)}`;
+	const query = vi.fn().mockResolvedValue({ rows: [{ id: "123", source_ref: sourceKey }] });
+	const objects = {
+		getSource: vi.fn().mockResolvedValue(
+			Buffer.from(
+				JSON.stringify({
+					notice_id: 123,
+					is_external: false,
+					notice_content_html:
+						'<img src="/static/index/UEditor/themes/default/images/spacer.gif"><img src="/a.png">',
+					attachments: [],
+					resources: [{ kind: "images", ordinal: 1, object_key: imageKey }],
+				}),
+			),
+		),
+	} as unknown as OcrObjects;
+	const inputs: OcrInput[] = [];
+	for await (const input of selectNoticeInputs({ query } as unknown as Pool, objects)) {
+		inputs.push(input);
+	}
+	expect(objects.getSource).toHaveBeenCalledWith(sourceKey);
+	expect(inputs).toEqual([
+		{
+			kind: "source",
+			noticeId: "123",
+			key: imageKey,
+			contentType: "image/*",
+			resource: { kind: "image", ordinal: 1, displayOrdinal: 0 },
+		},
+	]);
+});
