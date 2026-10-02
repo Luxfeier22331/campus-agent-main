@@ -47,6 +47,22 @@ let
   ];
 in
 rec {
+  # Remove this compatibility patch once upstream validates concurrency.queue.
+  actionlint = pkgs.actionlint.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ./actionlint-concurrency-queue.patch ];
+    doInstallCheck = true;
+    postInstallCheck = (old.postInstallCheck or "") + ''
+      for queue in single max; do
+        printf 'on: push\nconcurrency:\n  group: release\n  queue: %s\njobs:\n  check:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n' "$queue" > queue.yml
+        "$out/bin/actionlint" -shellcheck= -pyflakes= queue.yml
+      done
+      sed 's/queue: max/queue: invalid/' queue.yml > invalid.yml
+      if "$out/bin/actionlint" -shellcheck= -pyflakes= invalid.yml; then exit 1; fi
+      sed '/queue: max/a\  cancel-in-progress: true' queue.yml > invalid.yml
+      if "$out/bin/actionlint" -shellcheck= -pyflakes= invalid.yml; then exit 1; fi
+    '';
+  });
+
   # Use the official binary while nixpkgs lags the repository Node version.
   # Return to nixpkgs when the matching version has Linux binary substitutes.
   nodejs = stdenvNoCC.mkDerivation rec {

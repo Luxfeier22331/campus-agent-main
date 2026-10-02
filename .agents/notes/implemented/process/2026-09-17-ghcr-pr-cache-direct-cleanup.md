@@ -10,6 +10,9 @@ Status: implemented
 
 ## 决策
 
+正式版本的保留根现由[正式版本与环境选择](./2026-10-02-formal-release-versioning.md)维护；
+原有 SHA 数量/年龄窗口不再作为 full report 策略，PR 缓存清理与暂停全量删除继续有效。
+
 部分取代[原镜像保留与退役决策](./2026-09-04-ghcr-retention.md)：PR 关闭协调仍有效；组织枚举、
 定时 report、旧全量手动入口及其最近 5 个 release / 七天规则停止执行。原策略函数暂存供后续改造，
 不作为当前 CLI 或 workflow 能力。

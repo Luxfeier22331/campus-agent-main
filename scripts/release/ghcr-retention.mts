@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { appendFile, writeFile } from "node:fs/promises";
+import { appendFile, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
@@ -10,7 +10,7 @@ import { ACTIVE_IMAGE_TARGETS } from "./image-targets.mts";
 const execFile = promisify(execFileCallback);
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
-const RELEASE_TAG_PATTERN = /^[0-9a-f]{40}$/u;
+const CANDIDATE_TAG_PATTERN = /^[0-9a-f]{40}$/u;
 const PACKAGE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/u;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 const GIT_REF_PATTERN = /^[A-Za-z0-9._/-]+$/u;
@@ -18,8 +18,7 @@ const CACHE_TAG = "buildcache-arm64";
 const PACKAGE_PREFIX = "campus-agent/";
 const DEFAULT_OWNER = "MUC-WIKI";
 const DEFAULT_REPOSITORY = "MUC-WIKI/campus-agent";
-const DEFAULT_KEEP_RELEASES = 10;
-const DEFAULT_UNTAGGED_GRACE_DAYS = 90;
+const DEFAULT_UNTAGGED_GRACE_DAYS = 0;
 const GITOPS_SCAN_ROOT = "clusters";
 
 export const RETIRED_IMAGE_NAMES = [
@@ -96,7 +95,6 @@ export interface RetentionPlan {
 	packages: PackageRetentionPlan[];
 	policy: {
 		cacheTag: string;
-		keepLatestReleases: number;
 		untaggedGraceDays: number;
 	};
 	protectedDigests: Record<string, string[]>;
@@ -125,7 +123,6 @@ export type CommandRunner = (
 
 interface ProtectedRootSelection {
 	byPackage: Record<string, string[]>;
-	latestByPackage: Record<string, string[]>;
 	gitopsByPackage: Record<string, string[]>;
 	cacheByPackage: Record<string, string[]>;
 	errors: string[];
@@ -138,7 +135,6 @@ interface RetentionPlanningInput {
 	now?: Date;
 	packages: readonly PackageInventory[];
 	gitopsDigests?: Record<string, readonly string[]>;
-	keepLatestReleases?: number;
 	untaggedGraceDays?: number;
 }
 
@@ -258,7 +254,7 @@ export async function readPackageInventory(
 ): Promise<PackageInventory[]> {
 	if (!(prNumber && /^[1-9][0-9]*$/u.test(prNumber))) {
 		throw new Error(
-			"PR cache cleanup requires a positive PR number; full retention is paused pending #512.",
+			"PR cache cleanup requires a positive PR number; full inventory requires the registered-package reader.",
 		);
 	}
 	const packageNames = ACTIVE_IMAGE_TARGETS.map(
@@ -488,16 +484,6 @@ function packageKind(name: string): ImagePackageKind {
 	return "unmanaged";
 }
 
-function sortedReleaseVersions(versions: readonly PackageVersion[]): PackageVersion[] {
-	return versions
-		.filter((version) => version.tags.some((tag) => RELEASE_TAG_PATTERN.test(tag)))
-		.sort((left, right) => {
-			const rightTime = Date.parse(right.updatedAt);
-			const leftTime = Date.parse(left.updatedAt);
-			return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-		});
-}
-
 function packageDigests(packages: readonly PackageInventory[], packageName: string): Set<string> {
 	const inventory = packages.find((candidate) => candidate.name === packageName);
 	return new Set(inventory?.versions.map((version) => version.name) ?? []);
@@ -505,30 +491,18 @@ function packageDigests(packages: readonly PackageInventory[], packageName: stri
 
 export function protectedRootsForInventory(input: {
 	gitopsDigests?: Record<string, readonly string[]>;
-	keepLatestReleases?: number;
 	packages: readonly PackageInventory[];
 }): ProtectedRootSelection {
-	const keepLatestReleases = input.keepLatestReleases ?? DEFAULT_KEEP_RELEASES;
-	if (!Number.isSafeInteger(keepLatestReleases) || keepLatestReleases < 0) {
-		throw new Error("keepLatestReleases must be a non-negative integer");
-	}
 	const gitops = input.gitopsDigests ?? {};
 	const byPackage = new Map<string, Set<string>>();
-	const latestByPackage = new Map<string, Set<string>>();
 	const gitopsByPackage = new Map<string, Set<string>>();
 	const cacheByPackage = new Map<string, Set<string>>();
 	const errors: string[] = [];
 
 	for (const inventory of input.packages) {
-		if (!["active", "pr-cache"].includes(packageKind(inventory.name))) {
+		if (!["active", "retired", "pr-cache"].includes(packageKind(inventory.name))) {
 			continue;
 		}
-		const latest = new Set(
-			sortedReleaseVersions(packageKind(inventory.name) === "active" ? inventory.versions : [])
-				.slice(0, keepLatestReleases)
-				.map((version) => version.name),
-		);
-		latestByPackage.set(inventory.name, latest);
 		const cache = new Set(
 			inventory.versions
 				.filter((version) => version.tags.includes(CACHE_TAG))
@@ -537,17 +511,13 @@ export function protectedRootsForInventory(input: {
 		cacheByPackage.set(inventory.name, cache);
 		const selectedGitops = new Set(gitops[inventory.name] ?? []);
 		gitopsByPackage.set(inventory.name, selectedGitops);
-		byPackage.set(inventory.name, new Set([...latest, ...cache, ...selectedGitops]));
+		byPackage.set(inventory.name, new Set([...cache, ...selectedGitops]));
 	}
 
-	for (const [name, digests] of Object.entries(gitops)) {
+	for (const [name] of Object.entries(gitops)) {
 		const kind = packageKind(name);
 		if (kind === "unmanaged") {
 			errors.push(`GitOps references unmanaged package ${name}`);
-			continue;
-		}
-		if (kind === "retired" && digests.length > 0) {
-			errors.push(`GitOps still references retired package ${name}`);
 			continue;
 		}
 		if (!input.packages.some((inventory) => inventory.name === name)) {
@@ -576,9 +546,6 @@ export function protectedRootsForInventory(input: {
 		errors,
 		gitopsByPackage: Object.fromEntries(
 			[...gitopsByPackage.entries()].map(([name, digests]) => [name, [...digests].sort()]),
-		),
-		latestByPackage: Object.fromEntries(
-			[...latestByPackage.entries()].map(([name, digests]) => [name, [...digests].sort()]),
 		),
 	};
 }
@@ -716,19 +683,14 @@ function expectedPackageErrors(packages: readonly PackageInventory[]): string[] 
 }
 
 export function planRetention(input: RetentionPlanningInput): RetentionPlan {
-	const keepLatestReleases = input.keepLatestReleases ?? DEFAULT_KEEP_RELEASES;
 	const untaggedGraceDays = input.untaggedGraceDays ?? DEFAULT_UNTAGGED_GRACE_DAYS;
 	const mode = input.mode ?? "report";
 	const now = input.now ?? new Date();
-	if (!Number.isSafeInteger(keepLatestReleases) || keepLatestReleases < 0) {
-		throw new Error("keepLatestReleases must be a non-negative integer");
-	}
 	if (!Number.isSafeInteger(untaggedGraceDays) || untaggedGraceDays < 0) {
 		throw new Error("untaggedGraceDays must be a non-negative integer");
 	}
 	const roots = protectedRootsForInventory({
 		gitopsDigests: input.gitopsDigests,
-		keepLatestReleases,
 		packages: input.packages,
 	});
 	const cutoff = now.getTime() - untaggedGraceDays * 24 * 60 * 60 * 1_000;
@@ -753,7 +715,6 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 				manifestDigests.add(digest);
 			}
 			const gitopsDigests = new Set(roots.gitopsByPackage[inventory.name] ?? []);
-			const latestDigests = new Set(roots.latestByPackage[inventory.name] ?? []);
 			const cacheDigests = new Set(roots.cacheByPackage[inventory.name] ?? []);
 			const versions = inventory.versions
 				.slice()
@@ -768,7 +729,7 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 								: "source-pr-state-unavailable",
 						);
 					}
-					if (classification === "retired") {
+					if (classification === "retired" && manifestDigests.size === 0) {
 						return decision(version, "keep", "retired-package-will-be-deleted-as-a-whole");
 					}
 					if (classification === "unmanaged") {
@@ -781,25 +742,22 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 						return decision(version, "keep", "invalid-digest-policy-error");
 					}
 					if (gitopsDigests.has(version.name)) {
-						return decision(version, "keep", "gitops-desired-state");
+						return decision(version, "keep", "release-or-deployment-root");
 					}
 					if (cacheDigests.has(version.name)) {
 						return decision(version, "keep", "current-build-cache");
-					}
-					if (latestDigests.has(version.name)) {
-						return decision(version, "keep", "latest-release-window");
 					}
 					if (manifestDigests.has(version.name)) {
 						return decision(version, "keep", "child-of-protected-manifest");
 					}
 					const unknownTags = version.tags.filter(
-						(tag) => tag !== CACHE_TAG && !RELEASE_TAG_PATTERN.test(tag),
+						(tag) => tag !== CACHE_TAG && !CANDIDATE_TAG_PATTERN.test(tag),
 					);
 					if (unknownTags.length > 0) {
 						return decision(version, "keep", `unknown-tag:${unknownTags.join(",")}`);
 					}
-					if (version.tags.some((tag) => RELEASE_TAG_PATTERN.test(tag))) {
-						return decision(version, "delete", "outside-release-window");
+					if (version.tags.some((tag) => CANDIDATE_TAG_PATTERN.test(tag))) {
+						return decision(version, "delete", "unreferenced-candidate");
 					}
 					if (isRecent(version, cutoff)) {
 						return decision(version, "keep", "untagged-grace-period");
@@ -807,7 +765,7 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 					return decision(version, "delete", "expired-untagged-version");
 				});
 			const packageAction =
-				classification === "retired" || expiredPr
+				(classification === "retired" && manifestDigests.size === 0) || expiredPr
 					? "delete"
 					: classification === "unmanaged" || (classification === "pr-cache" && !validPr)
 						? "hold"
@@ -847,7 +805,6 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 		packages,
 		policy: {
 			cacheTag: CACHE_TAG,
-			keepLatestReleases,
 			untaggedGraceDays,
 		},
 		protectedDigests: Object.fromEntries(
@@ -919,7 +876,6 @@ export function planPrCacheCleanup(input: PrCacheCleanupInput): RetentionPlan {
 		packages,
 		policy: {
 			cacheTag: CACHE_TAG,
-			keepLatestReleases: 0,
 			untaggedGraceDays: 0,
 		},
 		protectedDigests: {},
@@ -1001,7 +957,7 @@ function markdownSummary(plan: RetentionPlan): string {
 		`- Packages: ${plan.totals.packages}; versions: ${plan.totals.versions}`,
 		`- Planned package deletes: ${plan.totals.deletePackages}`,
 		`- Planned version deletes: ${plan.totals.deleteVersions}`,
-		`- Policy: keep ${plan.policy.keepLatestReleases} releases; untagged grace ${plan.policy.untaggedGraceDays} days`,
+		"- Policy: protect non-retired formal releases, deployment/recovery roots, manifest children and current caches; full deletion disabled",
 		`- Result: ${plan.errors.length > 0 ? "failed; planned actions may be incomplete" : "completed"}`,
 		"",
 		"| Package | Class | Versions | Action | Delete versions | Protected roots |",
@@ -1034,8 +990,8 @@ interface CliOptions {
 	scope: "full" | "pr";
 	repository: string;
 	gitopsRoot: string;
+	releaseRoots: string;
 	gitopsRefs: string[];
-	keepLatestReleases: number;
 	untaggedGraceDays: number;
 	summary?: string;
 }
@@ -1049,8 +1005,8 @@ export function parseArgs(args: string[]): CliOptions {
 		owner: DEFAULT_OWNER,
 		repository: DEFAULT_REPOSITORY,
 		gitopsRoot: "",
+		releaseRoots: "",
 		gitopsRefs: ["main"],
-		keepLatestReleases: DEFAULT_KEEP_RELEASES,
 		untaggedGraceDays: DEFAULT_UNTAGGED_GRACE_DAYS,
 	};
 	for (let index = 0; index < args.length; index += 1) {
@@ -1091,6 +1047,10 @@ export function parseArgs(args: string[]): CliOptions {
 				index += 1;
 				break;
 			}
+			case "--release-roots":
+				options.releaseRoots = valueAfter(args, index, argument);
+				index += 1;
+				break;
 			case "--gitops-root":
 				options.gitopsRoot = valueAfter(args, index, argument);
 				index += 1;
@@ -1106,15 +1066,6 @@ export function parseArgs(args: string[]): CliOptions {
 				}
 				refs.forEach(validateGitRef);
 				options.gitopsRefs = [...new Set(refs)];
-				index += 1;
-				break;
-			}
-			case "--keep-releases": {
-				const value = valueAfter(args, index, argument);
-				if (!/^[0-9]+$/u.test(value)) {
-					throw new Error("--keep-releases must be a non-negative integer");
-				}
-				options.keepLatestReleases = Number(value);
 				index += 1;
 				break;
 			}
@@ -1148,13 +1099,55 @@ export function parseArgs(args: string[]): CliOptions {
 	if (options.scope === "pr" && !options.prCachePr) {
 		throw new Error("--pr-cache-pr is required for --scope pr");
 	}
+	if (options.scope === "full" && options.mode === "apply") {
+		throw new Error("Full image deletion remains disabled pending #511 Work B");
+	}
 	if (options.scope === "full" && options.prCachePr) {
 		throw new Error("--pr-cache-pr cannot be used with --scope full");
+	}
+	if (options.scope === "full" && options.untaggedGraceDays !== 0) {
+		throw new Error("Full retention uses release and deployment roots, not an age window");
 	}
 	if (options.scope === "full" && !options.gitopsRoot) {
 		throw new Error("--gitops-root is required for --scope full");
 	}
 	return options;
+}
+
+export function mergeReleaseRoots(
+	gitopsDigests: Record<string, string[]>,
+	exportedRoots: Record<string, unknown>,
+	packages: readonly PackageInventory[],
+): void {
+	const releaseRoots = parseObject(JSON.stringify(exportedRoots.images), "release image roots");
+	const candidates = exportedRoots.candidateSourceShas;
+	if (
+		!Array.isArray(candidates) ||
+		candidates.some((sha) => typeof sha !== "string" || !CANDIDATE_TAG_PATTERN.test(sha))
+	) {
+		throw new Error("Invalid candidate recovery Source SHAs");
+	}
+	for (const inventory of packages) {
+		const pending = inventory.versions
+			.filter((version) => version.tags.some((tag) => candidates.includes(tag)))
+			.map((version) => version.name);
+		if (pending.length > 0) {
+			gitopsDigests[inventory.name] = [
+				...new Set([...(gitopsDigests[inventory.name] ?? []), ...pending]),
+			];
+		}
+	}
+	for (const [name, values] of Object.entries(releaseRoots)) {
+		if (
+			!Array.isArray(values) ||
+			values.some((value) => typeof value !== "string" || !DIGEST_PATTERN.test(value))
+		) {
+			throw new Error(`Invalid release roots for ${name}`);
+		}
+		gitopsDigests[name] = [
+			...new Set([...(gitopsDigests[name] ?? []), ...(values as string[])]),
+		].sort();
+	}
 }
 
 async function main(args: string[]): Promise<void> {
@@ -1167,7 +1160,6 @@ async function main(args: string[]): Promise<void> {
 	let plan = planRetention({
 		mode: options.mode,
 		packages: [],
-		keepLatestReleases: options.keepLatestReleases,
 		untaggedGraceDays: options.untaggedGraceDays,
 	});
 	let phase = "read GHCR inventory";
@@ -1179,10 +1171,20 @@ async function main(args: string[]): Promise<void> {
 			options.gitopsRefs,
 			runner,
 		);
+		phase = "read formal release and deployment roots";
+		if (!options.releaseRoots) {
+			throw new Error(
+				"--release-roots from the GitOps release exporter is required for full reports",
+			);
+		}
+		mergeReleaseRoots(
+			gitopsDigests,
+			parseObject(await readFile(options.releaseRoots, "utf8"), "release roots"),
+			packages,
+		);
 		phase = "inspect protected manifests";
 		const protectedRoots = protectedRootsForInventory({
 			gitopsDigests,
-			keepLatestReleases: options.keepLatestReleases,
 			packages,
 		});
 		const manifestClosure = await fetchManifestClosure(
@@ -1196,7 +1198,6 @@ async function main(args: string[]): Promise<void> {
 			manifestClosure,
 			mode: options.mode,
 			packages,
-			keepLatestReleases: options.keepLatestReleases,
 			untaggedGraceDays: options.untaggedGraceDays,
 		});
 		await writeFile(path.resolve(options.output), `${JSON.stringify(plan, null, 2)}\n`);

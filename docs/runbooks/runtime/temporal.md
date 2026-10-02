@@ -154,3 +154,10 @@ Temporal persistence 与 visibility database 是 platform data。backup、restor
 
 - [Temporal 执行面](../../../.agents/notes/implemented/architecture/2026-06-06-temporal.md)
 - [Kubernetes 运行时](../../architecture/system/k8s-runtime.md)
+
+## 仓库版本与执行兼容
+
+仓库正式版本记录发布组合，不引入 Temporal Worker Versioning、Worker Controller 或版本路由。
+现有 Deployment 和 task queue owner 保持不变。选择历史正式版本前仍要审查运行中 Workflow 的
+history replay、Activity/DTO 与工具合同兼容；不兼容时按既有维护与排空流程处理。
+版本号或镜像回退不会回退已经写入的 history。发布入口见[发布](../release/release.md)。

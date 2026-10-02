@@ -67,6 +67,35 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 兼容性判断。已部署进程必须取得自身的非空发布标识，不能以本地默认值或环境名称补齐。工具兼容性
 只由 `tool_contract_fingerprint.v1` 判断，精确合同见 [执行合同](../../contracts/tool-execution.md)。
 
+## 仓库正式版本
+
+仓库使用一个手动指定的 `v0.minor.patch` 版本，从 `v0.1.0` 开始。0.x 的功能或破坏性变化递增
+minor，兼容修复递增 patch；不批量改写各 package 的版本，不把版本号作为服务兼容性判断。
+`main` 仍自动产生增量候选物并进入 staging。
+
+Source 的 `formal-release` workflow 从一个已完整成功的 GitOps staging Deployment 确认正式版本。
+GitOps 工具读取该 Deployment 的精确 revision，导出所有活跃第一方镜像 digest、Source base ref、
+Application revision、实际 execution runtime identity、三个目标 Worker 的 `versionId/sourceSha`
+以及 schema 镜像和其 producer SHA。未变化的组件保留其原始提交，不要求全部制品来自一个 SHA。
+
+GitHub Immutable Release 的 tag 绑定 Source SHA，机器合同是随 draft 上传后一起发布锁定的
+`release.json`；release notes 不参与机器决策。创建正式版本不构建、不重新上传 Worker，不依赖
+七天后过期的 Actions candidate artifact。同版本同内容重复执行不重写资产，内容冲突失败。
+
+正式版本只提供常规历史选择身份。GitOps 通过普通评审 PR 选择应用版本，保留当前平台配置、
+Secret、网络和能识别已应用 migration 的 schema owner。目标 schema 依赖比当前 owner 更新或
+分叉、组件拓扑不同、制品不可用或版本已退役时，普通选择失败。服务合同、数据库前后兼容和
+运行中 Temporal history 由维护者结合完整 diff 与已有测试评审；不兼容时使用已有维护、排空和恢复
+流程，不能将切回镜像当作撤销迁移或历史。
+
+Cloudflare 回滚仅选择平台仍可部署的原生 version；不保存长期 Worker 构建包，不重建或重传以替代
+原版本。原生回滚有最近 100 个版本与绑定/资源兼容限制；应用代码回退不回退连接资源，最终应用由
+现有 traffic Terraform root 验证。仓库版本不引入 Temporal Worker Versioning，也不承诺不停机更新。
+
+未退役正式版本、环境当前选择、最后成功部署、在途和恢复目标共同构成 GHCR 保留根；共享 digest
+与 OCI 子 manifest 取并集。退役只写 GitOps 中的版本及原因，不删除、修改或复用 Release/tag。
+本轮只接入保留报告，全量删除和定时清理由 #511 Work B 负责。
+
 ## 配置与密钥
 
 - 环境仓维护可审查的非密配置和资源引用；

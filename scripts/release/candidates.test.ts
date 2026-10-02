@@ -531,3 +531,19 @@ test("App API configuration refresh preserves other affected candidates", async 
 	const plan = await planCandidates({ ...options(root), refreshAppApi: true }, runner);
 	assert.deepEqual(plan.workers, ["app-api-staging", "campus-web-staging"]);
 });
+
+test("candidate planning resumes from a formal selection without treating its version as a build input", async (t) => {
+	const root = await fixture(t);
+	await writeFile(
+		path.join(root, "selection.json"),
+		JSON.stringify({
+			repository: "MUC-WIKI/campus-agent",
+			sourceSha: BASE,
+			formalVersion: "v0.1.0",
+		}),
+	);
+	const plan = await planCandidates(options(root), syntheticScopeRunner("", []));
+	assert.equal(plan.base, BASE);
+	assert.deepEqual(plan.images, []);
+	assert.deepEqual(plan.workers, []);
+});

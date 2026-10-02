@@ -42,6 +42,29 @@ canonical cache，但仍不会写入任何 PR cache。
 主线发布仍只读写 canonical 缓存。特殊制品和手动
 验证入口只有在明确选择时运行，不提供隐式全量发布或全量验证开关。
 
+## 正式版本
+
+先合并 GitOps 的版本工具，再合并 Source workflow。首次使用前，由仓库维护者启用 Source
+GitHub Immutable Releases；发布入口检查设置，未开启就失败。正式发布 job 的默认 `GITHUB_TOKEN` 只读；发布使用
+单独限制到 Source 的 App token（contents write、workflows write），并使用 packages read 读取已选镜像。检查
+immutable 设置使用另一个仅有 Source administration read 的 App token，不拥有 settings 写权限。GitOps 选择入口按
+操作签发最小 App token：plan 只读，select/retire 才写 contents 与 pull requests，resume 才写 actions 并读取
+部署状态；Source 读取正式版本或 dispatch 恢复也使用对应的只读或 actions write token。第一方 GHCR package 的
+Actions access 必须允许这些 job 读取。权限由现有 promoter App 与 package owner 配置，不自动扩大。
+
+1. 找到 GitOps 中 `environment=staging`、`task=release`、owner 为 `staging-release` 且完整成功的
+   Deployment ID。不要使用候选构建或单个 Application 成功记录代替。
+2. 在 Source `main` 运行 `formal-release.yml`，填写版本（首次 `v0.1.0`）和
+   `gitops_deployment_id`。功能或破坏性变化递增 minor，兼容修复递增 patch。
+3. 工具按精确 GitOps revision 导出完整组合，检查镜像、schema producer 和原生 Worker 可用性，
+   创建 draft、上传 `release.json` 后发布。没有镜像构建或 Worker 上传步骤。
+4. 中断后用相同输入重跑：匹配的 draft 继续，已发布相同内容成功返回；不同内容拒绝，不覆盖资产。
+5. 版本选择、兼容性评审、回滚和退役使用 GitOps `formal-release-selection` workflow；具体命令见
+   环境仓交付手册。选择 PR 不等于实际部署完成，仍等待其 Deployment 完整成功。
+
+`release.json` 是完整应用组合及验证来源，不是历史环境备份。普通 SHA 构建不自动成为正式版本。
+正式版本仍受 Cloudflare 原生回滚窗口限制；版本不可用时正常选择失败，不重建原 Worker。
+
 ## 环境交接
 
 环境仓从自身当前选择计算版本变化，并拒绝基于过期游标覆盖已经前进的环境状态。机器版本变更只修改

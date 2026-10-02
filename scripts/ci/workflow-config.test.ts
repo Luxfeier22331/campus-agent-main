@@ -952,12 +952,19 @@ test("closed PR cleanup uses trusted code, scoped concurrency, and explicit canc
 	assert(isObject(workflow.on));
 	assert.deepEqual(workflow.on.pull_request_target, { types: ["closed"] });
 	assert.equal(workflow.on.pull_request, undefined);
-	const job = workflowJob(workflow, "retention");
+	const job = workflowJob(workflow, "pr-cache");
 	assert.deepEqual(job.permissions, {
 		contents: "read",
 		actions: "write",
 		packages: "write",
 		"pull-requests": "read",
+	});
+	const report = workflowJob(workflow, "project-report");
+	assert.deepEqual(report.permissions, {
+		contents: "read",
+		actions: "read",
+		statuses: "read",
+		packages: "read",
 	});
 	const checkout = namedStep(job, "Checkout Source");
 	assert(isObject(checkout.with));
@@ -990,8 +997,12 @@ test("closed PR cleanup uses trusted code, scoped concurrency, and explicit canc
 	assert.equal(dispatch.inputs.scope.required, true);
 	assert.equal(dispatch.inputs.scope.type, "choice");
 	assert.equal(dispatch.inputs.scope.default, "pr");
-	const manifestLogin = namedStep(job, "Login to GHCR for manifest inspection");
-	assert.match(String(manifestLogin.if), /inputs\.scope == 'full'/u);
+	assert.equal(
+		jobSteps(job).find((step) => step.name === "Login to GHCR for manifest inspection"),
+		undefined,
+	);
+	const manifestLogin = namedStep(report, "Login to GHCR for manifest inspection");
+	assert.equal(manifestLogin.if, undefined);
 	for (const [headRepository, author, mergeable, allowed] of [
 		["MUC-WIKI/campus-agent", "developer", true, true],
 		["MUC-WIKI/campus-agent", "developer", false, true],
@@ -1019,11 +1030,24 @@ test("closed PR cleanup uses trusted code, scoped concurrency, and explicit canc
 			assert(!step || String(step.if).includes("inputs.scope == 'full'"));
 		}
 	}
+	assert.match(
+		String(
+			condition(report.if, {
+				github: { event_name: "workflow_dispatch" },
+				inputs: { scope: "full" },
+			}),
+		),
+		/true/u,
+	);
+	assert.match(String(namedStep(report, "Require report mode").run), /RETENTION_MODE/u);
 	const generate = namedStep(job, "Generate and optionally apply GHCR retention plan");
 	assert(isObject(generate.env));
 	assert.match(String(generate.env.RETENTION_MODE), /pull_request_target/u);
 	assert.match(String(generate.run), /--pr-cache-pr/u);
-	assert.match(String(generate.run), /test "\$RETENTION_MODE" = report/u);
+	assert.match(
+		String(namedStep(report, "Require report mode").run),
+		/test "\$RETENTION_MODE" = report/u,
+	);
 	assert.match(String(generate.env.RETENTION_PR_NUMBER), /inputs.pr_number/u);
 	assert.match(String(namedStep(job, "Upload GHCR retention report").if), /hashFiles/u);
 });
@@ -1069,4 +1093,22 @@ test("cache permission queries current PR state and disables cache on closed or 
 		);
 		assert.equal(await readFile(output, "utf8"), `allowed=${state === "open"}\n`);
 	}
+});
+
+test("formal release serializes publication and separates read and write credentials", async () => {
+	const workflow = await loadWorkflow("formal-release.yml");
+	assert.deepEqual(workflow.concurrency, {
+		group: "formal-release",
+		"cancel-in-progress": false,
+		queue: "max",
+	});
+	const publish = workflowJob(workflow, "publish");
+	assert.deepEqual(publish.permissions, { contents: "read", packages: "read" });
+	const settings = namedStep(publish, "Create Source settings read token");
+	assert.equal(settings.with["permission-administration"], "read");
+	const publication = namedStep(publish, "Create Source publication token");
+	assert.equal(publication.with["permission-contents"], "write");
+	assert.equal(publication.with["permission-workflows"], "write");
+	const run = namedStep(publish, "Publish verified snapshot without rebuilding");
+	assert.match(String(run.env?.SOURCE_TOKEN), /publication-token/u);
 });

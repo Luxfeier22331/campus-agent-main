@@ -75,7 +75,7 @@
             ripgrep
           ];
           lightPackages = corePackages ++ (with pkgs; [
-            actionlint
+            tools.actionlint
             
             python312
             shellcheck

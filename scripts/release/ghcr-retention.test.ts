@@ -11,6 +11,7 @@ import {
 	cancelAndWaitForPrRuns,
 	extractGitopsImageDigests,
 	fetchManifestClosure,
+	mergeReleaseRoots,
 	type PackageInventory,
 	parseArgs,
 	parseManifestInspection,
@@ -246,7 +247,7 @@ test("parses an OCI index and retains every child manifest digest", () => {
 	]);
 });
 
-test("protects GitOps roots, recent releases, cache and OCI children", () => {
+test("protects release/deployment roots, cache and OCI children", () => {
 	const current = version(1, "a", [tag("a")], "2026-08-10T00:00:00.000Z");
 	const recent = version(2, "b", [tag("b")], "2026-09-03T00:00:00.000Z");
 	const previous = version(3, "c", [tag("c")], "2026-09-02T00:00:00.000Z");
@@ -281,8 +282,7 @@ test("protects GitOps roots, recent releases, cache and OCI children", () => {
 		},
 		now: NOW,
 		packages,
-		gitopsDigests: { "campus-agent/agent-runtime": [current.name] },
-		keepLatestReleases: 2,
+		gitopsDigests: { "campus-agent/agent-runtime": [current.name, recent.name, previous.name] },
 		untaggedGraceDays: 7,
 	});
 	const runtime = plan.packages.find(
@@ -290,9 +290,9 @@ test("protects GitOps roots, recent releases, cache and OCI children", () => {
 	);
 	assert(runtime);
 	const byDigest = new Map(runtime.versions.map((candidate) => [candidate.digest, candidate]));
-	assert.equal(byDigest.get(current.name)?.reason, "gitops-desired-state");
-	assert.equal(byDigest.get(recent.name)?.reason, "latest-release-window");
-	assert.equal(byDigest.get(previous.name)?.reason, "latest-release-window");
+	assert.equal(byDigest.get(current.name)?.reason, "release-or-deployment-root");
+	assert.equal(byDigest.get(recent.name)?.reason, "release-or-deployment-root");
+	assert.equal(byDigest.get(previous.name)?.reason, "release-or-deployment-root");
 	assert.equal(byDigest.get(cache.name)?.reason, "current-build-cache");
 	assert.equal(byDigest.get(protectedChild.name)?.reason, "child-of-protected-manifest");
 	assert.equal(byDigest.get(recentUntagged.name)?.reason, "untagged-grace-period");
@@ -348,7 +348,6 @@ test("applies only the planned package and version deletions", async () => {
 		manifestClosure: { "campus-agent/agent-runtime": [digest("a")] },
 		now: NOW,
 		packages,
-		keepLatestReleases: 1,
 		mode: "apply",
 	});
 	const calls: Array<{ args: string[]; command: string }> = [];
@@ -421,7 +420,7 @@ test("walks nested OCI indexes when protecting a manifest closure", async () => 
 	]);
 });
 
-test("reports retired or unmanaged GitOps references as policy errors", () => {
+test("retains referenced retired packages and rejects unmanaged references", () => {
 	const packages = [
 		...inventory(),
 		{
@@ -437,11 +436,18 @@ test("reports retired or unmanaged GitOps references as policy errors", () => {
 			"campus-agent/not-registered": [digest("7")],
 		},
 	});
-	assert(plan.errors.some((error) => error.includes("retired package")));
+	assert.equal(
+		plan.packages.find((entry) => entry.name === RETIRED_PACKAGE_NAMES[0])?.packageAction,
+		"retain",
+	);
+	assert.equal(
+		plan.packages.find((entry) => entry.name === RETIRED_PACKAGE_NAMES[0])?.versions[0]?.action,
+		"keep",
+	);
 	assert(plan.errors.some((error) => error.includes("unmanaged package")));
 });
 
-test("selects the latest releases and cache tag as protected roots", () => {
+test("only selects explicit roots and the current cache; a recent SHA is not a release", () => {
 	const packages = inventory({
 		"campus-agent/agent-runtime": [
 			version(1, "a", [tag("a")], "2026-09-01T00:00:00.000Z"),
@@ -450,13 +456,12 @@ test("selects the latest releases and cache tag as protected roots", () => {
 		],
 	});
 	const roots = protectedRootsForInventory({
-		keepLatestReleases: 1,
 		packages,
 		gitopsDigests: { "campus-agent/agent-runtime": [digest("a")] },
 	});
 	assert.deepEqual(
 		roots.byPackage["campus-agent/agent-runtime"],
-		[digest("a"), digest("b"), digest("c")].sort(),
+		[digest("a"), digest("c")].sort(),
 	);
 });
 
@@ -797,15 +802,18 @@ test("CLI validates PR and full retention scopes", () => {
 		["--pr-cache-pr", "0"],
 		["--pr-cache-pr", "-1"],
 		["--scope", "full"],
+		["--scope", "full", "--mode", "apply", "--gitops-root", "."],
 		["--scope", "full", "--pr-cache-pr", "1", "--gitops-root", "."],
 		["--scope", "pr", "--gitops-root", "."],
 	]) {
 		assert.throws(() => parseArgs(args));
 	}
 	assert.equal(parseArgs(["--scope", "pr", "--pr-cache-pr", "442"]).mode, "report");
+	assert.throws(() => parseArgs(["--scope", "full", "--gitops-root", ".", "--keep-releases", "5"]));
 	assert.equal(
-		parseArgs(["--scope", "full", "--gitops-root", ".", "--keep-releases", "5"]).keepLatestReleases,
-		5,
+		parseArgs(["--scope", "full", "--gitops-root", ".", "--release-roots", "roots.json"])
+			.releaseRoots,
+		"roots.json",
 	);
 });
 
@@ -949,4 +957,29 @@ test("cleanup reports failures across inventory, deletion and verification; repe
 		}
 		assert.match(await readFile(summary, "utf8"), /Result:/);
 	}
+});
+
+test("release roots union shared digests with in-flight and recoverable candidate tags", () => {
+	const roots = { "campus-agent/agent-runtime": [digest("a")] };
+	mergeReleaseRoots(
+		roots,
+		{
+			images: { "campus-agent/agent-runtime": [digest("a"), digest("b")] },
+			candidateSourceShas: [tag("c")],
+		},
+		inventory({ "campus-agent/agent-runtime": [version(3, "c", [tag("c")], NOW.toISOString())] }),
+	);
+	assert.deepEqual(
+		roots["campus-agent/agent-runtime"],
+		[digest("a"), digest("b"), digest("c")].sort(),
+	);
+	assert.throws(
+		() => mergeReleaseRoots({}, { images: {}, candidateSourceShas: ["bad"] }, []),
+		/Invalid candidate/,
+	);
+	assert.throws(
+		() => mergeReleaseRoots({}, { images: { bad: ["not-a-digest"] }, candidateSourceShas: [] }, []),
+		/Invalid release roots/,
+	);
+	assert.throws(() => mergeReleaseRoots({}, {}, []));
 });

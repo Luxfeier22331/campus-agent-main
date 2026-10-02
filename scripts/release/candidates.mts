@@ -53,13 +53,18 @@ async function releaseBase(file: string): Promise<string> {
 		typeof value !== "object" ||
 		value === null ||
 		Array.isArray(value) ||
-		Object.keys(value).sort().join("\n") !== "repository\nsourceSha"
+		!["repository\nsourceSha", "formalVersion\nrepository\nsourceSha"].includes(
+			Object.keys(value).sort().join("\n"),
+		)
 	) {
 		throw new Error(`Invalid GitOps release selection: ${file}`);
 	}
 	const selection = value as Record<string, unknown>;
 	if (
 		selection.repository !== SOURCE_REPOSITORY ||
+		(selection.formalVersion !== undefined &&
+			(typeof selection.formalVersion !== "string" ||
+				!/^v0\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.test(selection.formalVersion))) ||
 		typeof selection.sourceSha !== "string" ||
 		!SHA_PATTERN.test(selection.sourceSha)
 	) {
