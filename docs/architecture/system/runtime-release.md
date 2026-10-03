@@ -95,7 +95,7 @@ Cloudflare 回滚仅选择平台仍可部署的原生 version；不保存长期 
 未退役正式版本、环境当前选择、最后成功部署、在途和恢复目标共同构成 GHCR 保留根；共享 digest
 与 OCI 子 manifest 取并集。退役只写 GitOps 中的版本及原因，不删除、修改或复用 Release/tag。
 Source 的 full report/apply 按保护根清理无引用版本，并与候选和正式版本发布串行。
-定时清理在真实 workflow token 的首次删除复查通过后启用，操作见[GHCR 清理](../../runbooks/release/ghcr-retention.md)。
+每日定时清理复用同一 full apply 路径，操作见[GHCR 清理](../../runbooks/release/ghcr-retention.md)。
 
 ## 配置与密钥
 

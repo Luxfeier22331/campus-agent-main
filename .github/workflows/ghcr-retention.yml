@@ -1,6 +1,8 @@
 name: ghcr-retention
 
 on:
+  schedule:
+    - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -35,7 +37,7 @@ env:
     cores = 2
 
 concurrency:
-  group: ${{ inputs.scope == 'pr' && format('campus-agent-ghcr-pr-cache-{0}', inputs.pr_number) || inputs.mode == 'apply' && 'campus-agent-ghcr-mutation' || format('campus-agent-ghcr-report-{0}', github.run_id) }}
+  group: ${{ inputs.scope == 'pr' && format('campus-agent-ghcr-pr-cache-{0}', inputs.pr_number) || (github.event_name == 'schedule' || inputs.mode == 'apply') && 'campus-agent-ghcr-mutation' || format('campus-agent-ghcr-report-{0}', github.run_id) }}
   cancel-in-progress: false
   queue: max
 
@@ -93,7 +95,7 @@ jobs:
           retention-days: 7
 
   project-retention:
-    if: github.ref == 'refs/heads/main' && inputs.scope == 'full'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.scope == 'full')
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
     timeout-minutes: 60
     permissions:
@@ -153,7 +155,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SOURCE_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ steps.gitops-token.outputs.token }}
-          RETENTION_MODE: ${{ inputs.mode }}
+          RETENTION_MODE: ${{ github.event_name == 'schedule' && 'apply' || inputs.mode }}
         run: |
           node --experimental-strip-types scripts/release/ghcr-retention.mts \
             --scope full --mode "$RETENTION_MODE" \

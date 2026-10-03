@@ -10,7 +10,8 @@ status: active
 
 Source 的 `ghcr-retention` 管理登记的 active/retired 镜像包，以及指定编号的历史 PR 缓存。
 PR CI 只读取 canonical main cache，不再导出 PR cache，也不在 PR 关闭时启动清理。
-full 支持手动 report/apply；定时执行须在真实 workflow token 的首次删除与复查通过后启用。
+full 每日执行 apply，同时支持手动 report/apply；执行时间由
+[workflow schedule](../../../.github/workflows/ghcr-retention.yml) 维护。
 
 full 的保护根来自 GitOps exporter：未退役正式 Release 的不可变 `release.json`、当前环境期望状态、
 滚动候选、最后成功的 Deployment、在途/失败恢复 Deployment，以及 Source 可恢复候选和当前
@@ -25,8 +26,9 @@ canonical cache。所有根与 OCI child manifest 取并集；版本退役不会
 ## 前置条件
 
 使用 main 上的 workflow。Source token 需要读取 contents、Actions 候选、commit statuses，并对组织 Packages
-具备读取与删除权限；PR scope 另需读取 PR 状态。full workflow 使用 GitHub App 的组织级 Packages 权限访问
-组织级 package inventory 和删除接口，GitOps App token 仍只读环境仓 contents 和 deployments。不能用本地
+具备读取与删除权限；PR scope 另需读取 PR 状态。full workflow 使用任务声明 `packages: write` 的
+`GITHUB_TOKEN` 访问已授权给 Source 仓库的 package inventory 和删除接口；包须向该仓库授予 Admin
+Actions access。GitOps App token 仍只读环境仓 contents 和 deployments。不能用本地
 凭据成功替代真实 workflow token 的删除验收。
 
 Retention 的 active package 注册表独立于 Source 的镜像构建目标：除构建目标外，还登记当前 GitOps
@@ -67,15 +69,17 @@ node --experimental-strip-types scripts/release/ghcr-retention.mts \
   --scope pr --pr-cache-pr 508 --mode report --output ghcr-retention.json
 ```
 
-首次 full apply 必须存在真实删除对象；零删除报告不算删除验收。检查 workflow 成功、删除对象确实
-消失、保护对象仍可用后，再以同一 full apply 路径启用每日定时清理。尚未完成这一步时不宣称自动
-清理已上线，也不关闭 #511 Work B。
+定时事件在 main 上执行同一 full apply 路径并持有发布 mutation 锁；不会进入历史 PR 缓存清理。
+手动入口仍默认 report。判断一次 apply 成功需要 workflow 成功及删除后复查通过，不能只查看计划数量。
 
 ## 失败处理
 
 JSON report 与 Actions summary 标明失败阶段，进程返回非零退出码。报告中的计划不表示所有删除
 均已执行；失败可能发生在部分删除之后。修复实际读取、权限或保护根问题后，重新 report/apply，
 使用当前状态计算剩余范围。报告 artifact 保留七天，不新增长期报告归档。
+
+大批历史积压可能超过 job 的 60 分钟上限。超时上传的 JSON 仍可能是删除前计划，不能据此判断完成；
+重新运行 report 审查剩余对象与保护集合，再运行 apply。已删除版本不在新 inventory 中，不会重放旧计划。
 
 环境初始化失败由原步骤日志说明，不追加报告文件缺失的上传错误。package 权限不足时修复现有
 workflow 的 package access，不切换个人 PAT、不扩大组织枚举权限。

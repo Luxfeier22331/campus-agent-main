@@ -28,11 +28,12 @@ Status: implemented
   删除前刷新 GitOps refs、根和 inventory，只删除两次计划的交集；删除后验证目标消失及保护对象
   仍在。无法读取完整保留依据就失败，部分删除失败保留阶段诊断，重跑重新计算范围。
 - GHCR retention 的 active package 注册表独立于 Source 镜像构建目标；GitOps 仍选择的通知采集、分类、
-  索引和发布 Job 镜像也必须登记为 active。full workflow 使用具备组织 Packages 读取与删除权限的
-  GitHub App token 读取组织 package inventory；GitOps token 继续只读环境仓和 deployments；两个身份不能
+  索引和发布 Job 镜像也必须登记为 active。full workflow 使用已获得包访问授权、声明 `packages: write`
+  的工作流 `GITHUB_TOKEN` 读取和删除包版本；GitOps App token 继续只读环境仓和 deployments；两个身份不能
   互换。缺少登记包或 Packages 权限时在 report 阶段停止，不把 404 或空 inventory 当作可删除事实。
 - 清理执行 owner 仍是 Source；GitOps 提供选择和保留事实。全量定时执行在真实 workflow token 的
-  首次删除与复查通过后启用，不把报告或 fixture 成功当作删除验收。报告沿用短期 Actions artifact。
+  首次删除与复查通过后启用，每日复用同一 full apply 路径和发布 mutation 锁，手动入口仍默认 report。
+  不把报告或 fixture 成功当作删除验收。报告沿用短期 Actions artifact。
 
 本篇部分取代[Source CI 缓存与镜像构建边界](./2026-09-24-source-ci-cache-and-build-boundaries.md)
 中保留 `cache_write` 专用入口的决定；该篇 host build 去重、缓存 warning 与 GitOps 校验所有权仍有效。
