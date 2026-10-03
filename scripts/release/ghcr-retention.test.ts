@@ -18,6 +18,7 @@ import {
 	planPrCacheCleanup,
 	planRetention,
 	protectedRootsForInventory,
+	RETENTION_ACTIVE_PACKAGE_NAMES,
 	RETIRED_PACKAGE_NAMES,
 	readCachePullRequests,
 	readPackageInventory,
@@ -330,11 +331,25 @@ function version(
 }
 
 function inventory(overrides: Partial<Record<string, PackageInventory["versions"]>> = {}) {
-	return ACTIVE_PACKAGE_NAMES.map((name) => ({
+	return RETENTION_ACTIVE_PACKAGE_NAMES.map((name) => ({
 		name,
 		versions: overrides[name] ?? [],
 	}));
 }
+
+test("retention registers GitOps runtime images outside the build target list", () => {
+	const packages = inventory();
+	const plan = planRetention({ now: NOW, packages });
+	assert.equal(
+		plan.packages.find((entry) => entry.name === "campus-agent/internal-portal-collection")
+			?.classification,
+		"active",
+	);
+	assert.equal(
+		plan.errors.some((error) => error.includes("internal-portal-collection")),
+		false,
+	);
+});
 
 test("extracts inline and Kustomize image digests from deployable GitOps text", () => {
 	assert.deepEqual(

@@ -972,6 +972,8 @@ test("retention is manual, uses trusted main and serializes mutations with publi
 	const full = workflowJob(workflow, "project-retention");
 	assert.equal(full.permissions.packages, "write");
 	assert.equal(full.permissions.actions, "read");
+	const sourcePackage = namedStep(full, "Create Source package token");
+	assert.equal(sourcePackage.with["permission-organization-packages"], "write");
 	const expression = String(workflow.concurrency.group).slice(3, -2);
 	const group = (scope: string, mode: string) =>
 		runInNewContext(expression, {
@@ -985,6 +987,10 @@ test("retention is manual, uses trusted main and serializes mutations with publi
 	assert.match(
 		String(namedStep(full, "Plan and optionally apply project retention").run),
 		/--mode "\$RETENTION_MODE"/u,
+	);
+	assert.match(
+		String(namedStep(full, "Plan and optionally apply project retention").env?.GH_TOKEN),
+		/source-package-token/u,
 	);
 });
 

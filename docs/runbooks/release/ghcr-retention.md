@@ -24,9 +24,15 @@ canonical cache。所有根与 OCI child manifest 取并集；版本退役不会
 
 ## 前置条件
 
-使用 main 上的 workflow。Source token 需要读取 contents、Actions 候选和 commit statuses，
-并对已登记 package 具备读取与删除权限；PR scope 另需读取 PR 状态。GitOps App token 只读环境仓
-contents 和 deployments。不能用本地凭据成功替代真实 workflow token 的删除验收。
+使用 main 上的 workflow。Source token 需要读取 contents、Actions 候选、commit statuses，并对组织
+Packages 具备读取与删除权限；PR scope 另需读取 PR 状态。full workflow 使用 GitHub App token 访问
+组织级 package inventory 和删除接口，GitOps App token 只读环境仓 contents 和 deployments。不能用本地
+凭据成功替代真实 workflow token 的删除验收。
+
+Retention 的 active package 注册表独立于 Source 的镜像构建目标：除构建目标外，还登记当前 GitOps
+仍选择的 `internal-portal-collection`、`notice-classifier`、`notice-index-publisher` 和
+`notice-publisher`。只要 GitOps 仍引用这些包，它们就属于 active 保留边界；不把构建目标清单当作
+GHCR inventory 的完整事实来源。
 
 候选发布、正式版本创建和 full apply 共用 workflow 级 `campus-agent-ghcr-mutation` 并发组，
 `cancel-in-progress: false`、`queue: max`，按队列执行。full report 使用独立组；历史 PR 缓存按编号

@@ -33,6 +33,21 @@ export const ACTIVE_PACKAGE_NAMES = ACTIVE_IMAGE_TARGETS.map(
 	(image) => `${PACKAGE_PREFIX}${image}`,
 );
 
+// These jobs are still selected by the current GitOps runtime but are not part
+// of the Source image build target list. They remain retention-managed while
+// their GitOps references exist.
+export const RETENTION_ACTIVE_IMAGE_NAMES = [
+	"internal-portal-collection",
+	"notice-classifier",
+	"notice-index-publisher",
+	"notice-publisher",
+] as const;
+
+export const RETENTION_ACTIVE_PACKAGE_NAMES = [
+	...ACTIVE_PACKAGE_NAMES,
+	...RETENTION_ACTIVE_IMAGE_NAMES.map((image) => `${PACKAGE_PREFIX}${image}`),
+] as const;
+
 export const RETIRED_PACKAGE_NAMES = RETIRED_IMAGE_NAMES.map(
 	(image) => `${PACKAGE_PREFIX}${image}`,
 );
@@ -302,7 +317,9 @@ export async function readKnownPackageInventory(
 	owner = DEFAULT_OWNER,
 	runner: CommandRunner = runCommand,
 ): Promise<PackageInventory[]> {
-	const packageNames = [...new Set([...ACTIVE_PACKAGE_NAMES, ...RETIRED_PACKAGE_NAMES])].sort();
+	const packageNames = [
+		...new Set([...RETENTION_ACTIVE_PACKAGE_NAMES, ...RETIRED_PACKAGE_NAMES]),
+	].sort();
 	const inventories: PackageInventory[] = [];
 	for (const packageName of packageNames) {
 		const encoded = encodeURIComponent(packageName);
@@ -474,7 +491,7 @@ function packageKind(name: string): ImagePackageKind {
 	if (cachePullRequest(name) !== undefined) {
 		return "pr-cache";
 	}
-	if (ACTIVE_PACKAGE_NAMES.includes(name)) {
+	if ((RETENTION_ACTIVE_PACKAGE_NAMES as readonly string[]).includes(name)) {
 		return "active";
 	}
 	if (RETIRED_PACKAGE_NAMES.includes(name)) {
@@ -668,7 +685,7 @@ function isRecent(version: PackageVersion, cutoff: number): boolean {
 function expectedPackageErrors(packages: readonly PackageInventory[]): string[] {
 	const observed = new Set(packages.map((inventory) => inventory.name));
 	const errors: string[] = [];
-	for (const name of ACTIVE_PACKAGE_NAMES) {
+	for (const name of RETENTION_ACTIVE_PACKAGE_NAMES) {
 		if (!observed.has(name)) {
 			errors.push(`Active package is absent from GHCR inventory: ${name}`);
 		}
