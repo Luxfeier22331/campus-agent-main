@@ -128,15 +128,6 @@ jobs:
           repositories: campus-agent-gitops
           permission-contents: read
           permission-deployments: read
-      - name: Create Source package token
-        id: source-package-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
-        with:
-          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
-          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
-          owner: MUC-WIKI
-          repositories: campus-agent
-          permission-organization-packages: write
       - name: Checkout GitOps references
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -159,7 +150,7 @@ jobs:
 
       - name: Plan and optionally apply project retention
         env:
-          GH_TOKEN: ${{ steps.source-package-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           SOURCE_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ steps.gitops-token.outputs.token }}
           RETENTION_MODE: ${{ inputs.mode }}
