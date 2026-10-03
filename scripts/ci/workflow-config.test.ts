@@ -973,7 +973,7 @@ test("retention is manual, uses trusted main and serializes mutations with publi
 	assert.equal(full.permissions.packages, "write");
 	assert.equal(full.permissions.actions, "read");
 	const sourcePackage = namedStep(full, "Create Source package token");
-	assert.equal(sourcePackage.with["permission-organization-packages"], "write");
+	assert.equal(sourcePackage.with["permission-packages"], "write");
 	const expression = String(workflow.concurrency.group).slice(3, -2);
 	const group = (scope: string, mode: string) =>
 		runInNewContext(expression, {

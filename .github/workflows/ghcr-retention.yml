@@ -136,7 +136,7 @@ jobs:
           private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
           owner: MUC-WIKI
           repositories: campus-agent
-          permission-organization-packages: write
+          permission-packages: write
       - name: Checkout GitOps references
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:

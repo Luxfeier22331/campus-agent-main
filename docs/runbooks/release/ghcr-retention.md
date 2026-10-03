@@ -24,9 +24,9 @@ canonical cache。所有根与 OCI child manifest 取并集；版本退役不会
 
 ## 前置条件
 
-使用 main 上的 workflow。Source token 需要读取 contents、Actions 候选、commit statuses，并对组织
-Packages 具备读取与删除权限；PR scope 另需读取 PR 状态。full workflow 使用 GitHub App token 访问
-组织级 package inventory 和删除接口，GitOps App token 只读环境仓 contents 和 deployments。不能用本地
+使用 main 上的 workflow。Source token 需要读取 contents、Actions 候选、commit statuses，并对 Packages
+具备读取与删除权限；PR scope 另需读取 PR 状态。full workflow 使用 GitHub App token 访问组织级 package
+inventory 和删除接口，GitOps App token 只读环境仓 contents 和 deployments。不能用本地
 凭据成功替代真实 workflow token 的删除验收。
 
 Retention 的 active package 注册表独立于 Source 的镜像构建目标：除构建目标外，还登记当前 GitOps
