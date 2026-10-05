@@ -6,6 +6,8 @@ import {
 	renderDiningMapAssets,
 } from "@campus-agent/dining/publisher";
 import { NOTICE_CATEGORIES } from "@campus-agent/notices";
+import type { InternalPortalNoticeSource } from "ingestion-contracts";
+import { noticeSourceRef } from "ingestion-contracts/notice-source-ref";
 import { canonicalJsonBytes } from "../../../jobs/campus-docs-index-publisher/src/indexing/content-digest.ts";
 import { normalizeSourceManifest } from "../../../packages/contracts/src/campus-docs/node/index.ts";
 import { createDocsSourceSiteFixture } from "../../../packages/contracts/test/campus-docs/index.ts";
@@ -125,6 +127,56 @@ export function createProductSeed(now: Date) {
 			portal_annex_id: "local-seed-attachment",
 		},
 	];
+	const sourceObjects = new Map<string, { body: Uint8Array; contentType: string }>();
+	sourceObjects.set("internal_portal/meta.json", {
+		body: Buffer.from(
+			JSON.stringify({
+				schema_version: "internal_portal_meta.v1",
+				notice_types: { "1": "校园通知" },
+				organizations: Object.fromEntries(
+					rows["notices.organizations"].map((row) => [row.organization_id, row.name]),
+				),
+				updated_at: timestamp,
+			}),
+		),
+		contentType: "application/json",
+	});
+	for (const row of rows["notices.notices"]) {
+		const source: InternalPortalNoticeSource = {
+			schema_version: "internal_portal_notice_source.v2",
+			notice_id: Number(row.notice_id),
+			notice_type: Number(row.notice_type),
+			organization_id: String(row.organization_id),
+			notice_title: String(row.title),
+			notice_release_time: timestamp,
+			notice_content_html: row.content_html as string | null,
+			...(row.is_external
+				? { is_external: true, external_url: String(row.external_url) }
+				: { is_external: false, external_url: null }),
+			attachments: [],
+			resources:
+				row.notice_id === 900003
+					? [
+							{
+								kind: "images",
+								ordinal: 0,
+								object_key: `internal_portal/assets/sha256/${imageSha}`,
+								content_type: image.contentType,
+								byte_size: image.body.byteLength,
+								sha256: imageSha,
+							},
+						]
+					: [],
+		};
+		const ref = noticeSourceRef(source);
+		row.source_ref = ref;
+		row.published_source_ref = row.is_published ? ref : null;
+		sourceObjects.set(ref, {
+			body: Buffer.from(JSON.stringify(source)),
+			contentType: "application/json",
+		});
+	}
+	sourceObjects.set(`internal_portal/assets/sha256/${imageSha}`, image);
 	rows["campus_groups.sections"] = [{ id: "seed-study", name: "学习与交流", position: 0 }];
 	rows["campus_groups.groups"] = [
 		{
@@ -286,5 +338,5 @@ export function createProductSeed(now: Date) {
 			updated_by: actor,
 		},
 	];
-	return { rows, objects, reviews };
+	return { rows, objects, sourceObjects, reviews };
 }

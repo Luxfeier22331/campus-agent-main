@@ -63,8 +63,8 @@ describe("tasks page", () => {
 				<TasksPage />
 			</QueryClientProvider>,
 		);
-		await screen.findByText(/first · completed/);
-		expect(screen.getByText(/second · completed/)).toBeTruthy();
+		await screen.findByText(/first · 已完成/);
+		expect(screen.getByText(/second · 已完成/)).toBeTruthy();
 		expect(view.container.querySelectorAll("details")).toHaveLength(2);
 		client.clear();
 	});

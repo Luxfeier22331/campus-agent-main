@@ -9,9 +9,10 @@ import type { Hono } from "hono";
 import type { Pool } from "pg";
 import { z } from "zod";
 import portal from "../../../../../configs/sources/internal-portal.json" with { type: "json" };
-import { NoticeOcrSchema } from "../../shared/ocr-contract.ts";
+import { NoticeOcrSchema, type OcrImage, OcrImageSchema } from "../../shared/ocr-contract.ts";
 import { resolveNoticeSourceKey } from "../notice-store.ts";
 import { launchOcrJob } from "../ocr-jobs.ts";
+import { projectOcrResource } from "../ocr-projection.ts";
 import { ocrMarkdownForBrowser } from "../ocr-results.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
 import type { createProviderConfigAdminClient } from "../provider-config-client.ts";
@@ -85,7 +86,74 @@ export function registerOcrRoutes(input: {
 		const task = await store().create({ kind: "validation" }, await config());
 		return c.json({ task, launchError: await launch() }, 202);
 	});
-	app.get("/api/ops/ocr/tasks", async (c) => c.json({ tasks: await store().list() }));
+	app.get("/api/ops/ocr/tasks", async (c) => {
+		const [tasks, images] = await Promise.all([store().list(), store().listRecentImages()]);
+		const groups = new Map<string, OcrTask[]>();
+		for (const task of images) {
+			if (task.input.kind !== "source") {
+				continue;
+			}
+			const key = JSON.stringify([task.input.noticeId, task.input.key]);
+			const group = groups.get(key) ?? [];
+			group.push(task);
+			groups.set(key, group);
+		}
+		const objects = createOcrObjects(env);
+		const sources = new Map<string, ReturnType<typeof listNoticeSourceResources>>();
+		try {
+			const resources: OcrImage[] = [];
+			for (const group of groups.values()) {
+				const task = group[0];
+				if (task?.input.kind !== "source") {
+					continue;
+				}
+				const input = task.input;
+				let ordinal = input.resource?.ordinal;
+				let displayOrdinal = input.resource?.displayOrdinal;
+				if (displayOrdinal === undefined || ordinal === undefined) {
+					let source = sources.get(input.noticeId);
+					if (!source) {
+						const raw = JSON.parse(
+							new TextDecoder().decode(
+								await objects.getSource(await resolveNoticeSourceKey(pool!, input.noticeId)),
+							),
+						);
+						source = listNoticeSourceResources(
+							input.noticeId,
+							raw,
+							new URL(portal.portal_base_url).hostname,
+						).filter((resource) => resource.kind === "image");
+						sources.set(input.noticeId, source);
+					}
+					const index = source.findIndex((resource) => resource.sourceKey === input.key);
+					const resource = source[index];
+					if (!resource) {
+						continue;
+					}
+					ordinal = resource.ordinal;
+					displayOrdinal = index;
+				}
+				resources.push(
+					OcrImageSchema.parse({
+						noticeId: input.noticeId,
+						...projectOcrResource(
+							{
+								sourceKey: input.key,
+								kind: "image",
+								ordinal,
+								displayOrdinal,
+								label: `图片${displayOrdinal + 1}`,
+							},
+							group,
+						),
+					}),
+				);
+			}
+			return c.json({ tasks, images: resources });
+		} finally {
+			objects.close();
+		}
+	});
 	app.get("/api/ops/ocr/notices/:noticeId", async (c) => {
 		const noticeId = c.req.param("noticeId");
 		if (!/^[1-9]\d*$/.test(noticeId)) {
@@ -114,29 +182,18 @@ export function registerOcrRoutes(input: {
 				new URL(portal.portal_base_url).hostname,
 			)
 				.filter((resource) => resource.kind === "image")
-				.map((resource, displayOrdinal) => {
-					const batches = tasks.filter(
-						(task) => task.input.kind === "source" && task.input.key === resource.sourceKey,
-					);
-					return {
-						sourceKey: resource.sourceKey,
-						kind: resource.kind,
-						ordinal: resource.ordinal,
-						displayOrdinal,
-						label: `图片${displayOrdinal + 1}`,
-						selectedResultId:
-							batches.find((task) => task.status === "completed" && task.result)?.id ?? null,
-						batches: batches.map((task) => ({
-							id: task.id,
-							status: task.status,
-							createdAt: task.createdAt,
-							pageCount: task.pageCount,
-							missingImageCount: task.result?.missingImages.length ?? 0,
-							error: task.error,
-							hasResult: task.status === "completed" && task.result !== null,
-						})),
-					};
-				});
+				.map((resource, displayOrdinal) =>
+					projectOcrResource(
+						{
+							sourceKey: resource.sourceKey,
+							kind: "image",
+							ordinal: resource.ordinal,
+							displayOrdinal,
+							label: `图片${displayOrdinal + 1}`,
+						},
+						tasks,
+					),
+				);
 			return c.json(NoticeOcrSchema.parse({ noticeId, resources }));
 		} finally {
 			objects.close();

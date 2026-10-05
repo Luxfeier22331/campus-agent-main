@@ -1,20 +1,23 @@
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { Client } from "pg";
 import { createS3ObjectStore } from "../../../apps/campus-web/src/docs-reader-build/published-reader-object-store.ts";
 import { localDatabaseUrls } from "../lifecycle/environment.ts";
 import { withLifecycleLock } from "../lifecycle/locks.ts";
 import { loadLocalDevProfile, resolveLocalDevRegistryPath } from "../lifecycle/profile.ts";
+import { localProductStoreEnv } from "./connections.ts";
 import { exportNoticeSources, importNoticeSources } from "./notice-sync.ts";
 import { copyNoticeSourceClosure } from "./notice-sync-objects.ts";
 import { parseNoticeSyncSelection } from "./notice-sync-options.ts";
-import { localProductStoreEnv } from "./product-data.ts";
 import { connectProductContentCluster } from "./product-data-cluster.ts";
 import { connectProductDatabase } from "./product-data-cluster-database.ts";
 import { DEFAULT_CLUSTER_NAMESPACE } from "./product-data-options.ts";
 
-async function main() {
-	const args = process.argv.slice(2);
+export async function syncNotices(
+	args: string[],
+	repoRoot = resolve(import.meta.dirname, "../../.."),
+) {
 	const { values } = parseArgs({
 		args: args[0] === "--" ? args.slice(1) : args,
 		options: {
@@ -29,7 +32,6 @@ async function main() {
 		releasedFrom: values["released-from"],
 		releasedTo: values["released-to"],
 	});
-	const repoRoot = resolve(import.meta.dirname, "../../..");
 	const profile = loadLocalDevProfile(repoRoot);
 	const namespace = values.namespace;
 	if (!namespace.trim()) {
@@ -114,7 +116,9 @@ async function main() {
 	}
 }
 
-main().catch((error: unknown) => {
-	console.error(error instanceof Error ? error.message : String(error));
-	process.exitCode ||= 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+	syncNotices(process.argv.slice(2)).catch((error: unknown) => {
+		console.error(error instanceof Error ? error.message : String(error));
+		process.exitCode ||= 1;
+	});
+}

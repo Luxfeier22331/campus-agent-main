@@ -18,6 +18,39 @@ const input = {
 };
 
 describe("Campus RAG Qdrant write completion", () => {
+	it("creates payload indexes with synchronous completion", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+			Response.json({ result: { operation_id: 16, status: "completed" }, status: "ok" }),
+		);
+		await expect(
+			createQdrantClient(env, fetchMock).createPayloadIndex({
+				collection: "candidate",
+				fieldName: "is_current",
+				fieldSchema: "bool",
+			}),
+		).resolves.toBeUndefined();
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://qdrant.local/collections/candidate/index?wait=true",
+			expect.objectContaining({
+				method: "PUT",
+				body: JSON.stringify({ field_name: "is_current", field_schema: "bool" }),
+			}),
+		);
+	});
+
+	it("rejects a payload index that remains asynchronous", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+			Response.json({ result: { operation_id: 16, status: "acknowledged" }, status: "ok" }),
+		);
+		await expect(
+			createQdrantClient(env, fetchMock).createPayloadIndex({
+				collection: "candidate",
+				fieldName: "source_kind",
+				fieldSchema: "keyword",
+			}),
+		).rejects.toThrow("Qdrant payload index source_kind did not complete: acknowledged");
+	});
+
 	it("accepts a completed write and requests synchronous completion", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({ result: { operation_id: 15, status: "completed" }, status: "ok" }),

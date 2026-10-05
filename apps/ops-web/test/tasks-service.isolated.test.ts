@@ -236,3 +236,121 @@ describe("native task ownership", () => {
 		expect(await service().getRun("internal-portal-credential-checker", "old-job")).toBeNull();
 	});
 });
+
+it("keeps only actual child runs, while preserving skipped and failed schedules across visibility pages", async () => {
+	const execution = (runId: string, type: string, parent?: string) => ({
+		workflowId: runId,
+		runId,
+		type,
+		status: { name: "COMPLETED" },
+		startTime: new Date(),
+		closeTime: new Date(),
+		...(parent ? { parentExecution: { workflowId: parent, runId: parent } } : {}),
+	});
+	native.list.mockImplementation(async function* () {
+		yield execution("wrapper", "noticePipelineScheduled");
+		yield execution("skipped", "noticePipelineScheduled");
+		yield { ...execution("start-failed", "noticePipelineScheduled"), status: { name: "FAILED" } };
+		for (let index = 0; index < 17; index++) {
+			yield execution(`manual-${index}`, "noticePipelineRun");
+		}
+		yield execution("child", "noticePipelineRun", "wrapper");
+	});
+	native.getHandle.mockImplementation((_workflowId, runId) => ({
+		describe: async () => ({ status: { name: "FAILED" }, raw: { pendingActivities: [] } }),
+		fetchHistory: async () => ({
+			events:
+				runId === "wrapper"
+					? [
+							{
+								childWorkflowExecutionStartedEventAttributes: {
+									workflowExecution: { workflowId: "child", runId: "child" },
+								},
+							},
+						]
+					: [],
+		}),
+		result: async () => {
+			if (runId === "start-failed") {
+				throw new Error("Unable to start child");
+			}
+			return { outcome: runId === "skipped" ? "skipped" : "success" };
+		},
+	}));
+	const runs = await service().runs("notice-pipeline");
+	expect(runs).toHaveLength(20);
+	expect(runs.map((run) => run.id)).not.toContain("wrapper");
+	expect(runs.find((run) => run.id === "child")).toMatchObject({
+		parentExecution: { runId: "wrapper" },
+	});
+	expect(runs.find((run) => run.id === "skipped")).toMatchObject({ outcome: "skipped" });
+	expect(runs.find((run) => run.id === "start-failed")).toMatchObject({
+		outcome: "failed",
+		error: "Unable to start child",
+	});
+});
+it.each([
+	[
+		{ succeeded: 1, failed: 1, conditions: [{ type: "Complete", status: "True" }] },
+		"succeeded",
+		"success",
+	],
+	[
+		{ active: 1, conditions: [{ type: "Failed", status: "True", message: "deadline" }] },
+		"failed",
+		"failed",
+	],
+	[{ active: 1, failed: 1 }, "running", "unknown"],
+	[{}, "pending", "unknown"],
+])(
+	"uses the same Kubernetes status in list and detail: %j",
+	async (status, expectedStatus, outcome) => {
+		const job = {
+			metadata: { name: "ocr-run", ownerReferences: [{ kind: "CronJob", name: "document-ocr" }] },
+			status,
+		};
+		native.readJob.mockResolvedValue(job);
+		native.listJobs.mockResolvedValue({ items: [job] });
+		const detail = await service().getRun("document-ocr", "ocr-run");
+		expect(detail).toMatchObject({ status: expectedStatus, outcome });
+		expect(await service().runs("document-ocr")).toEqual([detail]);
+	},
+);
+
+it("exposes actual activity scheduling state even before the first heartbeat", async () => {
+	const execution = {
+		workflowId: "notice-pipeline-workflow",
+		runId: "waiting-run",
+		type: "noticePipelineRun",
+		status: { name: "RUNNING" },
+		startTime: new Date("2026-10-03T14:00:00Z"),
+	};
+	native.list.mockImplementation(async function* () {
+		yield execution;
+	});
+	native.getHandle.mockReturnValue({
+		fetchHistory: async () => ({ events: [] }),
+		describe: async () => ({
+			status: { name: "RUNNING" },
+			raw: {
+				pendingActivities: [
+					{
+						activityType: { name: "collectNotices" },
+						state: 1,
+						attempt: 1,
+						lastHeartbeatTime: null,
+						heartbeatDetails: { payloads: [] },
+					},
+				],
+			},
+		}),
+	});
+	const runs = await service().runs("notice-pipeline");
+	expect(runs[0]?.stages).toMatchObject([
+		{
+			id: "collectNotices",
+			counts: {},
+			activity: { state: "waiting", attempt: 1, lastHeartbeatAt: null },
+		},
+	]);
+});

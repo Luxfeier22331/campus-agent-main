@@ -275,6 +275,11 @@ test("投稿列表筛选分页和治理详情在桌面与手机可用", async ({
 	await expect(page.getByRole("heading", { name: "用户投稿详情" })).toBeVisible();
 	await page.getByRole("tab", { name: "作者与处理信息", exact: true }).click();
 	await expect(page.getByText("内部用户标识：internal-user")).toBeVisible();
+	const detailUrl = page.url();
+	await page.getByRole("link", { name: "internal-user", exact: true }).click();
+	await expect(page).toHaveURL(/users\/internal-user/);
+	await page.getByRole("link", { name: "返回", exact: true }).click();
+	await expect(page).toHaveURL(detailUrl);
 	await page.getByRole("tab", { name: "编辑历史", exact: true }).click();
 	await expect(page.getByText("历史照片已到期或清理，不可回放。").first()).toBeVisible();
 	await expect(page.getByRole("img", { name: "投稿当前照片", exact: true })).toBeVisible();

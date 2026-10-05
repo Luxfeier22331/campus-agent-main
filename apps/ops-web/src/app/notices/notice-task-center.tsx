@@ -15,8 +15,10 @@ import {
 import { DatabaseZap, History, Send, Sparkles } from "lucide-react";
 import { useState } from "react";
 import type { NoticeJob, NoticeJobCreate } from "../../shared/ops-contract";
+import { taskOutcomeLabels } from "../../shared/task-stages";
 import { formatTimestamp } from "../format";
 import { InlineError } from "../ops-display";
+import { TaskStageSummary } from "../task-stage-summary";
 import { NoticeJobDiagnostics } from "./notice-job-diagnostics";
 import type { NoticeJobFamily } from "./notice-status";
 import {
@@ -367,13 +369,24 @@ function TaskList({
 						<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
 							<span>{noticeJobScopeLabel(job)}</span>
 							<span>{job.trigger === "scheduled" ? "自动触发" : "手动触发"}</span>
-							<span className="min-w-0 break-all font-mono">{job.jobName}</span>
+							<span className="min-w-0 break-all font-mono">{job.jobName.slice(0, 8)}</span>
 						</div>
 						<div className="mt-2 grid gap-1 text-muted-foreground text-xs">
 							<span>创建于 {formatTimestamp(job.createdAt)}</span>
 							{job.completedAt ? <span>完成于 {formatTimestamp(job.completedAt)}</span> : null}
 						</div>
-						{summary ? <p className="mt-2 text-xs">{summary}</p> : null}
+						{job.summary?.outcome ? (
+							<p className="mt-2 text-xs">业务结果：{taskOutcomeLabels[job.summary.outcome]}</p>
+						) : null}
+						{job.stages?.length ? (
+							<TaskStageSummary stages={job.stages} />
+						) : summary ? (
+							<p className="mt-2 text-xs">{summary}</p>
+						) : null}
+						<Disclosure className="mt-2 text-xs">
+							<DisclosureSummary>技术信息</DisclosureSummary>
+							<p className="break-all">运行 ID：{job.jobName}</p>
+						</Disclosure>
 						<NoticeJobDiagnostics job={job} />
 					</li>
 				);

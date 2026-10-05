@@ -21,9 +21,12 @@ import {
 	Textarea,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff, FileClock, MessageSquarePlus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
 import { DiningTaskNavigation, diningWindowOptions } from "./dining-navigation";
+import type { DiningReviewsSearch } from "./dining-review-navigation";
 import { formatTimestamp } from "./format";
 import {
 	createDiningReview,
@@ -41,25 +44,30 @@ import { useConfirmCommand } from "./use-confirm-command";
 
 type ReviewVisibility = "deleted" | "hidden" | "visible";
 
-export function DiningReviewsPage({
-	initialSubmissionId,
-}: {
-	initialSubmissionId?: string | undefined;
-} = {}) {
+export function DiningReviewsPage({ search = {} }: { search?: DiningReviewsSearch } = {}) {
 	const confirmCommand = useConfirmCommand();
-
 	const queryClient = useQueryClient();
-	const [cursor, setCursor] = useState<string | undefined>();
-	const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([]);
-	const [queryInput, setQueryInput] = useState("");
-	const [query, setQuery] = useState("");
-	const [menuItemId, setMenuItemId] = useState("");
-	const [targetType, setTargetType] = useState<"menu_item" | "submission" | "">(
-		initialSubmissionId ? "submission" : "",
-	);
-	const [submissionId, setSubmissionId] = useState(initialSubmissionId ?? "");
-	const [visibility, setVisibility] = useState<ReviewVisibility>("visible");
-	const [detailReviewId, setDetailReviewId] = useState<string | null>(null);
+	const navigate = useNavigate({ from: "/dining/reviews" });
+	const {
+		cursor,
+		q: query = "",
+		menuItemId = "",
+		targetType = "",
+		submission_id: submissionId = "",
+		visibility = "visible",
+		reviewId: detailReviewId,
+	} = search;
+	const previousCursors = decodeCursorHistory(search.history);
+	const [queryInput, setQueryInput] = useState(query);
+	const [submissionInput, setSubmissionInput] = useState(submissionId);
+	useEffect(() => setQueryInput(query), [query]);
+	useEffect(() => setSubmissionInput(submissionId), [submissionId]);
+	const changeFilters = (next: DiningReviewsSearch) =>
+		void navigate({
+			search: { ...search, cursor: undefined, history: undefined, reviewId: undefined, ...next },
+		});
+	const setDetailReviewId = (id: string | null) =>
+		void navigate({ search: { ...search, reviewId: id ?? undefined } });
 	const [creating, setCreating] = useState(false);
 	const menu = useQuery({
 		queryFn: ({ signal }) => fetchDiningMenuItems({ signal }),
@@ -111,10 +119,6 @@ export function DiningReviewsPage({
 		mutationFn: deleteDiningOperatorReview,
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dining", "reviews"] }),
 	});
-	const resetPage = () => {
-		setCursor(undefined);
-		setPreviousCursors([]);
-	};
 
 	const activeMenuItems = menu.data?.items.filter((item) => item.archivedAt === null) ?? [];
 
@@ -204,8 +208,10 @@ export function DiningReviewsPage({
 				className="ops-filter-bar mb-4 grid grid-cols-2 items-end gap-3 xl:grid-cols-[10rem_9rem_minmax(12rem,1fr)_minmax(12rem,18rem)_auto]"
 				onSubmit={(event) => {
 					event.preventDefault();
-					setQuery(queryInput.trim());
-					resetPage();
+					changeFilters({
+						q: queryInput.trim() || undefined,
+						submission_id: submissionInput.trim() || undefined,
+					});
 				}}
 			>
 				<Field label="评价目标">
@@ -213,10 +219,12 @@ export function DiningReviewsPage({
 						id="review-target"
 						value={targetType}
 						onValueChange={(nextValue) => {
-							setTargetType(nextValue as "menu_item" | "submission" | "");
-							setMenuItemId("");
-							setSubmissionId("");
-							resetPage();
+							changeFilters({
+								targetType: (nextValue as "menu_item" | "submission") || undefined,
+								menuItemId: undefined,
+								submission_id: undefined,
+							});
+							setSubmissionInput("");
 						}}
 						options={[
 							{ value: "", label: "全部目标" },
@@ -230,8 +238,7 @@ export function DiningReviewsPage({
 						className="min-h-11"
 						id="dining-review-visibility"
 						onValueChange={(nextValue) => {
-							setVisibility(nextValue as ReviewVisibility);
-							resetPage();
+							changeFilters({ visibility: nextValue as ReviewVisibility });
 						}}
 						value={visibility}
 						options={[
@@ -245,10 +252,9 @@ export function DiningReviewsPage({
 					<Field label="投稿标识" className="col-span-2 min-w-0 xl:col-span-1">
 						<Input
 							id="review-submission"
-							value={submissionId}
+							value={submissionInput}
 							onChange={(event) => {
-								setSubmissionId(event.target.value);
-								resetPage();
+								setSubmissionInput(event.target.value);
 							}}
 						/>
 					</Field>
@@ -269,8 +275,7 @@ export function DiningReviewsPage({
 							className="min-h-11"
 							id="dining-review-menu-item"
 							onValueChange={(nextValue) => {
-								setMenuItemId(nextValue);
-								resetPage();
+								changeFilters({ menuItemId: nextValue || undefined });
 							}}
 							value={menuItemId}
 							options={[
@@ -316,8 +321,14 @@ export function DiningReviewsPage({
 					disabled={previousCursors.length === 0 || reviews.isFetching}
 					onClick={() => {
 						const previous = [...previousCursors];
-						setCursor(previous.pop());
-						setPreviousCursors(previous);
+						void navigate({
+							search: {
+								...search,
+								cursor: previous.pop() || undefined,
+								history: encodeCursorHistory(previous),
+								reviewId: undefined,
+							},
+						});
 					}}
 					variant="ghost"
 				>
@@ -326,8 +337,14 @@ export function DiningReviewsPage({
 				<Button
 					disabled={!reviews.data?.nextCursor || reviews.isFetching}
 					onClick={() => {
-						setPreviousCursors((values) => [...values, cursor]);
-						setCursor(reviews.data?.nextCursor ?? undefined);
+						void navigate({
+							search: {
+								...search,
+								cursor: reviews.data?.nextCursor ?? undefined,
+								history: encodeCursorHistory([...previousCursors, cursor ?? ""]),
+								reviewId: undefined,
+							},
+						});
 					}}
 					variant="ghost"
 				>

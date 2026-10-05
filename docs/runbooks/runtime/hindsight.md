@@ -47,9 +47,10 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 
 ## 本地业务验证
 
-先在目标 worktree 执行 `pnpm dev:init -- --target core`，使用初始化账号登录，不另行注册。
-core 初始化会启动当前 Compose project 的 Hindsight 与独立 PostgreSQL，生成并复用 tenant key
-和 bank salt，向 Execution Control 写入连接配置；端口取当前 dev profile。初始化前在根 `.env`
+先在目标 worktree 执行 `pnpm dev:init -- --target core`，配置 Hindsight provider 后显式运行
+`pnpm dev:local -- infra --service hindsight`；使用初始化账号登录，不另行注册。
+core 初始化生成并复用 tenant key 和 bank salt，向 Execution Control 写入连接配置；
+显式 `infra --service hindsight` 启动当前 Compose project 的 Hindsight 与独立 PostgreSQL，端口取当前 dev profile。启动前在根 `.env`
 独立配置 `HINDSIGHT_API_LLM_API_KEY`、`HINDSIGHT_API_LLM_BASE_URL`、`HINDSIGHT_API_LLM_MODEL`、
 `HINDSIGHT_API_LLM_PROVIDER` 及 `HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY`、
 `HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL`、`HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL`。

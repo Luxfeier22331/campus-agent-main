@@ -47,6 +47,12 @@ export async function seedLocalTestUser(
 				[LOCAL_TEST_USER, LOCAL_TEST_USER_ID, LOCAL_TEST_ACCOUNT_ID],
 				[LOCAL_ADMIN_TEST_USER, LOCAL_ADMIN_TEST_USER_ID, LOCAL_ADMIN_TEST_ACCOUNT_ID],
 			] as const) {
+				const existing = await pool.query('select 1 from app_auth."user" where email = $1', [
+					user.email,
+				]);
+				if (existing.rows.length > 0) {
+					continue;
+				}
 				const passwordHash = await hashAppPassword(user.password);
 				const users = await pool.query<{ id: string }>(
 					`insert into app_auth."user"

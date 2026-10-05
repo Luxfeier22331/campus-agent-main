@@ -12,6 +12,7 @@ import { NOTICE_CATEGORIES } from "campus-contracts/notices";
 import { z } from "zod";
 import { CampusSearchDiagnosticsSchema } from "./campus-search-diagnostics.ts";
 import { ModelOutputDiagnosticSchema } from "./model-output-diagnostic.ts";
+import { TaskStageSchema } from "./task-stages.ts";
 import { WebSearchDiagnosticSchema } from "./web-search-diagnostic.ts";
 
 export {
@@ -127,6 +128,7 @@ export const NoticeJobSchema = z
 		startedAt: IsoDateTimeSchema.nullable(),
 		status: NoticeJobStatusSchema,
 		summary: NoticeJobSummarySchema.nullable(),
+		stages: z.array(TaskStageSchema).optional(),
 	})
 	.strict();
 export type NoticeJob = z.infer<typeof NoticeJobSchema>;

@@ -22,6 +22,7 @@ export type LocalDevCapability =
 	| "temporal";
 
 export type LocalDevEnvironmentProjection =
+	| "app-api"
 	| "document-ocr"
 	| "core"
 	| "model-config"
@@ -35,7 +36,7 @@ export type LocalDevEnvironmentProjection =
 	| "campus-rag-index-publisher"
 	| "notice-index-publisher";
 
-export type LocalDevRuntimeDependency = "core" | "model-config" | "ops-web";
+export type LocalDevRuntimeDependency = "core" | "model-config" | "ops-web" | "app-api";
 
 export type LocalModelConfigName =
 	| "document_ocr"
@@ -61,195 +62,123 @@ export interface LocalDevTargetPlan {
 	readonly target: LocalDevTarget;
 }
 
-interface LocalDevTargetDefinition
-	extends Omit<LocalDevTargetPlan, "environmentProjections" | "target"> {
-	directEnvironmentProjections: readonly LocalDevEnvironmentProjection[];
-	environmentDependencies: readonly LocalDevTarget[];
-	target: LocalDevTarget;
+// Every target is a composition of consumer-owned requirements. Preparing a
+// consumer does not recursively start its runtime dependencies.
+interface Consumer {
+	projections: readonly LocalDevEnvironmentProjection[];
+	capabilities: readonly LocalDevCapability[];
+	bootstrap?: readonly LocalBootstrapStep[];
+	models?: readonly LocalModelConfigName[];
+	runtime?: readonly LocalDevRuntimeDependency[];
 }
-
-const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
-	"document-ocr": {
-		bootstrapSteps: ["campus-agent-schema", "model-config-seed", "model-config-check"],
-		capabilities: ["postgres", "source-bucket", "derived-bucket"],
-		directEnvironmentProjections: ["model-config", "document-ocr"],
-		environmentDependencies: [],
-		modelConfigNames: ["document_ocr"],
-		runtimeDependencies: ["model-config"],
-		target: "document-ocr",
+const consumers = {
+	appApi: {
+		projections: ["app-api"],
+		capabilities: ["postgres", "derived-bucket"],
+		bootstrap: ["campus-agent-schema", "app-api-seed-local-test-user"],
+		runtime: ["app-api"],
+	},
+	modelConfig: {
+		projections: ["model-config"],
+		capabilities: ["postgres"],
+		bootstrap: ["campus-agent-schema"],
+		runtime: ["model-config"],
+	},
+	ops: {
+		projections: ["ops-web"],
+		capabilities: ["postgres", "derived-bucket", "source-bucket", "temporal"],
+		bootstrap: ["campus-agent-schema", "temporal-namespace"],
+		runtime: ["ops-web"],
 	},
 	core: {
-		bootstrapSteps: [
-			"campus-agent-schema",
-			"model-config-seed",
-			"app-api-seed-local-test-user",
-			"model-config-check",
-			"temporal-namespace",
-		],
-		capabilities: ["postgres", "docs-bucket", "docs-source", "temporal", "qdrant", "hindsight"],
-		directEnvironmentProjections: ["core"],
-		environmentDependencies: [],
-		modelConfigNames: ["primary_agent", "campus_docs_embedding", "campus_docs_reranker"],
-		runtimeDependencies: [],
-		target: "core",
+		projections: ["core"],
+		capabilities: ["postgres", "derived-bucket", "source-bucket", "temporal", "qdrant"],
+		bootstrap: ["campus-agent-schema", "app-api-seed-local-test-user", "temporal-namespace"],
+		models: ["primary_agent", "campus_docs_embedding", "campus_docs_reranker"],
+		runtime: ["core"],
 	},
-	"ops-web": {
-		bootstrapSteps: [
-			"campus-agent-schema",
-			"model-config-seed",
-			"app-api-seed-local-test-user",
-			"model-config-check",
-			"temporal-namespace",
-		],
-		capabilities: [
-			"postgres",
-			"derived-bucket",
-			"source-bucket",
-			"qdrant",
-			"temporal",
-			"hindsight",
-		],
-		directEnvironmentProjections: [
-			"ops-web",
-			"internal-portal-collection",
-			"notice-classifier",
-			"notice-publisher",
-			"document-ocr",
-		],
-		environmentDependencies: ["core"],
-		modelConfigNames: [
-			"primary_agent",
-			"campus_docs_embedding",
-			"campus_docs_reranker",
-			"notice_classification",
-		],
-		runtimeDependencies: ["core"],
-		target: "ops-web",
-	},
-	"notice-publisher": {
-		bootstrapSteps: ["campus-agent-schema", "notice-publisher-seed-local"],
-		capabilities: ["postgres", "source-bucket", "derived-bucket"],
-		directEnvironmentProjections: ["notice-publisher"],
-		environmentDependencies: [],
-		modelConfigNames: [],
-		runtimeDependencies: [],
-		target: "notice-publisher",
-	},
-	"internal-portal-collection": {
-		bootstrapSteps: ["campus-agent-schema", "notice-publisher-seed-local"],
+	collection: {
+		projections: ["internal-portal-collection"],
 		capabilities: ["postgres", "source-bucket"],
-		directEnvironmentProjections: ["ops-web", "internal-portal-collection"],
-		environmentDependencies: [],
-		modelConfigNames: [],
-		runtimeDependencies: ["ops-web"],
-		target: "internal-portal-collection",
+		bootstrap: ["campus-agent-schema", "notice-publisher-seed-local"],
+		runtime: ["ops-web"],
 	},
-	"notice-classifier": {
-		bootstrapSteps: [
-			"campus-agent-schema",
-			"model-config-seed",
-			"notice-publisher-seed-local",
-			"model-config-check",
-		],
+	classifier: {
+		projections: ["notice-classifier"],
 		capabilities: ["postgres"],
-		directEnvironmentProjections: ["model-config", "notice-classifier"],
-		environmentDependencies: [],
-		modelConfigNames: ["notice_classification"],
-		runtimeDependencies: ["model-config"],
-		target: "notice-classifier",
+		bootstrap: ["campus-agent-schema", "notice-publisher-seed-local"],
+		models: ["notice_classification"],
 	},
-	"campus-docs-index-publisher": {
-		bootstrapSteps: [],
-		capabilities: ["postgres", "docs-bucket", "docs-source"],
-		directEnvironmentProjections: ["campus-docs-index-publisher"],
-		environmentDependencies: [],
-		modelConfigNames: [],
-		runtimeDependencies: [],
-		target: "campus-docs-index-publisher",
+	ocr: {
+		projections: ["document-ocr"],
+		capabilities: ["postgres", "source-bucket", "derived-bucket"],
+		bootstrap: ["campus-agent-schema"],
+		models: ["document_ocr"],
 	},
-	"notice-pipeline-worker": {
-		bootstrapSteps: [
-			"campus-agent-schema",
-			"model-config-seed",
-			"model-config-check",
-			"temporal-namespace",
-		],
+	publisher: {
+		projections: ["notice-publisher"],
+		capabilities: ["postgres", "source-bucket", "derived-bucket"],
+		bootstrap: ["campus-agent-schema", "notice-publisher-seed-local"],
+	},
+	docs: {
+		projections: ["campus-docs-index-publisher"],
+		capabilities: ["derived-bucket"],
+		bootstrap: [],
+	},
+	pipeline: {
+		projections: ["notice-pipeline-worker"],
 		capabilities: ["postgres", "source-bucket", "derived-bucket", "temporal"],
-		directEnvironmentProjections: [
-			"model-config",
-			"internal-portal-collection",
-			"notice-pipeline-worker",
-		],
-		environmentDependencies: [],
-		modelConfigNames: ["notice_classification", "campus_docs_embedding"],
-		runtimeDependencies: ["model-config"],
-		target: "notice-pipeline-worker",
+		bootstrap: ["campus-agent-schema", "notice-publisher-seed-local", "temporal-namespace"],
+		models: ["notice_classification"],
 	},
-	"notice-artifacts-worker": {
-		bootstrapSteps: [
-			"campus-agent-schema",
-			"model-config-seed",
-			"model-config-check",
-			"temporal-namespace",
-		],
+	artifacts: {
+		projections: ["notice-artifacts-worker"],
 		capabilities: ["postgres", "derived-bucket", "qdrant", "temporal"],
-		directEnvironmentProjections: ["model-config", "notice-artifacts-worker"],
-		environmentDependencies: [],
-		modelConfigNames: ["campus_docs_embedding"],
-		runtimeDependencies: ["model-config"],
-		target: "notice-artifacts-worker",
+		bootstrap: ["campus-agent-schema", "temporal-namespace"],
+		models: ["campus_docs_embedding"],
 	},
-	"campus-rag-index-publisher": {
-		bootstrapSteps: [],
+	rag: {
+		projections: ["campus-rag-index-publisher"],
 		capabilities: ["postgres", "derived-bucket", "qdrant"],
-		directEnvironmentProjections: ["campus-rag-index-publisher"],
-		environmentDependencies: [],
-		modelConfigNames: [],
-		runtimeDependencies: [],
-		target: "campus-rag-index-publisher",
+		bootstrap: ["campus-agent-schema"],
 	},
-	"notice-index-publisher": {
-		bootstrapSteps: ["campus-agent-schema"],
+	noticeIndex: {
+		projections: ["notice-index-publisher"],
 		capabilities: ["postgres"],
-		directEnvironmentProjections: ["notice-index-publisher"],
-		environmentDependencies: [],
-		modelConfigNames: [],
-		runtimeDependencies: [],
-		target: "notice-index-publisher",
+		bootstrap: ["campus-agent-schema"],
 	},
+} satisfies Record<string, Consumer>;
+const TARGET_CONSUMERS: Record<LocalDevTarget, readonly Consumer[]> = {
+	core: [consumers.core],
+	"ops-web": [consumers.appApi, consumers.modelConfig, consumers.ops],
+	"document-ocr": [consumers.modelConfig, consumers.ocr],
+	"internal-portal-collection": [consumers.ops, consumers.collection],
+	"notice-classifier": [consumers.modelConfig, consumers.classifier],
+	"notice-publisher": [consumers.publisher],
+	"campus-docs-index-publisher": [consumers.docs],
+	"notice-pipeline-worker": [
+		consumers.modelConfig,
+		consumers.ops,
+		consumers.collection,
+		consumers.pipeline,
+	],
+	"notice-artifacts-worker": [consumers.modelConfig, consumers.artifacts],
+	"campus-rag-index-publisher": [consumers.rag],
+	"notice-index-publisher": [consumers.noticeIndex],
 };
-
-export const LOCAL_DEV_TARGETS = Object.keys(TARGET_DEFINITIONS) as LocalDevTarget[];
-
+export const LOCAL_DEV_TARGETS = Object.keys(TARGET_CONSUMERS) as LocalDevTarget[];
 export function resolveLocalDevTargetPlan(target: LocalDevTarget): LocalDevTargetPlan {
-	const definition = TARGET_DEFINITIONS[target];
-	if (!definition) {
+	const definitions = TARGET_CONSUMERS[target];
+	if (!definitions) {
 		throw new Error(`Unknown local development target: ${target}`);
 	}
-	const projections: LocalDevEnvironmentProjection[] = [];
-	const visited = new Set<LocalDevTarget>();
-	const visit = (current: LocalDevTarget): void => {
-		if (visited.has(current)) {
-			return;
-		}
-		visited.add(current);
-		const currentDefinition = TARGET_DEFINITIONS[current];
-		for (const dependency of currentDefinition.environmentDependencies) {
-			visit(dependency);
-		}
-		for (const projection of currentDefinition.directEnvironmentProjections) {
-			if (!projections.includes(projection)) {
-				projections.push(projection);
-			}
-		}
-	};
-	visit(target);
+	const unique = <T>(values: T[]) => [...new Set(values)];
 	return {
-		bootstrapSteps: definition.bootstrapSteps,
-		capabilities: definition.capabilities,
-		environmentProjections: projections,
-		modelConfigNames: definition.modelConfigNames,
-		runtimeDependencies: definition.runtimeDependencies,
 		target,
+		environmentProjections: unique(definitions.flatMap((d) => [...d.projections])),
+		capabilities: unique(definitions.flatMap((d) => [...d.capabilities])),
+		bootstrapSteps: unique(definitions.flatMap((d) => [...(d.bootstrap ?? [])])),
+		modelConfigNames: unique(definitions.flatMap((d) => [...(d.models ?? [])])),
+		runtimeDependencies: unique(definitions.flatMap((d) => [...(d.runtime ?? [])])),
 	};
 }

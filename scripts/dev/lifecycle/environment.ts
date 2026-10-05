@@ -28,7 +28,7 @@ import {
 export const MANAGED_LOCAL_ENV_MARKER = "# Managed by pnpm dev:init. Do not edit.";
 const LOCAL_MODEL_CONFIG_ENCRYPTION_KEY_PATH = "var/dev/model-config-encryption.key";
 const IMPORTED_EXTERNAL_ENV_MARKER =
-	"# External development credentials imported from the main checkout by pnpm dev:init.";
+	"# External development credentials imported from the main checkout by pnpm dev:local credentials import.";
 
 const SHARED_EXTERNAL_PROVIDER_ENV_KEYS = [
 	"HINDSIGHT_API_LLM_API_KEY",
@@ -108,6 +108,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	readonly ManagedLocalEnvironment[]
 > = {
 	"document-ocr": ["documentOcr"],
+	"app-api": ["appApi", "appApiVars"],
 	core: [
 		"appApi",
 		"appApiVars",
@@ -339,16 +340,17 @@ export function renderLocalEnvironmentFiles(input: {
 	const noProxy = localNoProxyEnvironment(repoRoot, input.environment ?? process.env);
 	const runtimePorts = calculateLocalDevRuntimePorts(profile.slot);
 	const rendersCore = projections.includes("core");
+	const rendersAppApi = rendersCore || projections.includes("app-api");
 	const rendersOpsWeb = projections.includes("ops-web");
 	const rendersInternalPortalCollection = projections.includes("internal-portal-collection");
-	const existingSecrets = rendersCore ? readManagedEnv(paths.appApiVars) : {};
+	const existingSecrets = rendersAppApi ? readManagedEnv(paths.appApiVars) : {};
 	const executionControlEnvironment = rendersCore ? readManagedEnv(paths.executionControl) : {};
 	const opsWebEnvironment = rendersOpsWeb ? readManagedEnv(paths.opsWeb) : {};
 	const existingInternalPortalCollectionEnvironment = rendersInternalPortalCollection
 		? readManagedEnv(paths.internalPortalCollection)
 		: {};
 	const localSecrets =
-		rendersCore || rendersOpsWeb || rendersInternalPortalCollection
+		rendersAppApi || rendersOpsWeb || rendersInternalPortalCollection
 			? ensureLocalDevSecrets(repoRoot, {
 					appApiSafetyIdentifierHmacSecret: [existingSecrets.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET],
 					betterAuthSecret: [existingSecrets.BETTER_AUTH_SECRET],
@@ -546,6 +548,7 @@ export function renderLocalEnvironmentFiles(input: {
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
+			OBJECT_STORE_BUCKET_SOURCE: profile.sourceBucketName,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			...objectStore,
 		});
@@ -562,6 +565,7 @@ export function renderLocalEnvironmentFiles(input: {
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
+			OBJECT_STORE_BUCKET_SOURCE: profile.sourceBucketName,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			...objectStore,
 			QDRANT_URL: input.qdrant.url,

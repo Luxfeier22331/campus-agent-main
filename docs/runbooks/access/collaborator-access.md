@@ -194,7 +194,7 @@ Secret。该组同时提供产品同步所需的 PostgreSQL、对象存储和 Qd
 Source 的 data-postgres DatabaseRole 创建 product_data_ro，schema migration 只授予通知、群组、交通、
 食堂基础表和 current_index 的 SELECT；不设置覆盖整个 schema 的默认 SELECT 权限。
 凭据由 GitOps data-postgres overlay 投递；交付顺序为凭据/角色、schema grants、协作者访问验收。
-新增 Source revision 和 schema image 必须交付后再执行 `dev:init --data cluster`，不能用管理员身份
+新增 Source revision 和 schema image 必须交付后再执行 `dev:local -- data sync --domain retrieval`，不能用管理员身份
 读取应用 Secret 来替代。具体数据与替换规则见[本地运行检查](../local-verification.md)。
 
 ## 相关文档

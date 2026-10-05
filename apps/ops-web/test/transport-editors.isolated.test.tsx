@@ -578,6 +578,20 @@ describe("班车时间段编辑器", () => {
 		expect(screen.getByLabelText("状态")).toHaveValue("suspended");
 	});
 
+	it("历史安排默认折叠，展开后可读取并再次收起", async () => {
+		await renderWorkspace({
+			periods: [
+				source,
+				{ ...source, scheduleId: "history", validFrom: "2026-04-28", validTo: "2026-05-05" },
+			],
+		});
+		expect(screen.queryByRole("region", { name: "已结束" })).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "显示已结束安排（1）" }));
+		expect(screen.getByRole("region", { name: "已结束" })).toHaveTextContent("2026-04-28");
+		fireEvent.click(screen.getByRole("button", { name: "收起已结束安排" }));
+		expect(screen.queryByRole("region", { name: "已结束" })).not.toBeInTheDocument();
+	});
+
 	it("有效链接打开历史安排，刷新不重置草稿，关闭清理参数并保留日期", async () => {
 		const history = {
 			...source,
@@ -602,6 +616,7 @@ describe("班车时间段编辑器", () => {
 		await waitFor(() => expect(router.state.location.search).toEqual({ kind: "commute" }));
 		expect(screen.getByRole("region", { name: "当天有效班次" })).toHaveTextContent("2026-04-28");
 		expect(screen.getByRole("heading", { name: "2026年4月" })).toBeVisible();
+		expect(screen.getByRole("region", { name: "已结束" })).toBeVisible();
 	});
 
 	it("切换链接先保护草稿，确认后准确打开另一个时间段", async () => {

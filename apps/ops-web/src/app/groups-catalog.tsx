@@ -18,6 +18,7 @@ import {
 
 export function SortableGroupSection({
 	disabled,
+	dragDisabled = false,
 	onAddGroup,
 	onEditGroup,
 	onRemoveGroup,
@@ -26,6 +27,7 @@ export function SortableGroupSection({
 	section,
 }: {
 	disabled: boolean;
+	dragDisabled?: boolean;
 	onAddGroup: () => void;
 	onEditGroup: (group: CampusGroup) => void;
 	onRemoveGroup: (group: CampusGroup) => void;
@@ -35,7 +37,7 @@ export function SortableGroupSection({
 }) {
 	const sortable = useSortable({
 		data: { type: "section" satisfies CatalogDragItemType },
-		disabled,
+		disabled: disabled || dragDisabled,
 		id: sectionDndId(section.id),
 	});
 	const droppable = useDroppable({
@@ -43,7 +45,7 @@ export function SortableGroupSection({
 			empty: section.groups.length === 0,
 			type: "group-container" satisfies CatalogDragItemType,
 		},
-		disabled,
+		disabled: disabled || dragDisabled,
 		id: groupContainerDndId(section.id),
 	});
 	const style: CSSProperties = {
@@ -66,7 +68,7 @@ export function SortableGroupSection({
 					size="icon"
 					aria-label={`调整分组“${section.name}”的顺序`}
 					className="shrink-0 touch-none text-muted-foreground"
-					disabled={disabled}
+					disabled={disabled || dragDisabled}
 					title="调整分组顺序"
 					type="button"
 					{...sortable.attributes}
@@ -124,6 +126,7 @@ export function SortableGroupSection({
 					{section.groups.length > 0 ? (
 						section.groups.map((group) => (
 							<SortableGroupRow
+								dragDisabled={dragDisabled}
 								disabled={disabled}
 								group={group}
 								key={group.id}
@@ -144,18 +147,20 @@ export function SortableGroupSection({
 
 function SortableGroupRow({
 	disabled,
+	dragDisabled = false,
 	group,
 	onEdit,
 	onRemove,
 }: {
 	disabled: boolean;
+	dragDisabled?: boolean;
 	group: CampusGroup;
 	onEdit: () => void;
 	onRemove: () => void;
 }) {
 	const sortable = useSortable({
 		data: { type: "group" satisfies CatalogDragItemType },
-		disabled,
+		disabled: disabled || dragDisabled,
 		id: groupDndId(group.id),
 	});
 	const style: CSSProperties = {
@@ -177,7 +182,7 @@ function SortableGroupRow({
 				size="icon"
 				aria-label={`调整“${group.name}”的顺序`}
 				className="shrink-0 touch-none text-muted-foreground"
-				disabled={disabled}
+				disabled={disabled || dragDisabled}
 				title="调整群顺序"
 				type="button"
 				{...sortable.attributes}

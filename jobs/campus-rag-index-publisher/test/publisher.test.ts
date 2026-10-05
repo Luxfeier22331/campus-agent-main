@@ -14,7 +14,13 @@ import {
 	readNoticeEmbeddingSetManifest,
 	readNoticeChunkRun,
 } from "../src/artifacts.ts";
-import { assembleCandidate, buildNoticePoints, publishCampusRagIndex } from "../src/publisher.ts";
+import { RETRIEVAL_PAYLOAD_INDEXES } from "../src/definitions.ts";
+import {
+	assembleCandidate,
+	buildNoticePoints,
+	materializeCollection,
+	publishCampusRagIndex,
+} from "../src/publisher.ts";
 import type {
 	CurrentIndexBinding,
 	NoticeChunk,
@@ -161,6 +167,38 @@ describe("unified Campus RAG publisher", () => {
 		expect(catalog.activations).toHaveLength(1);
 		expect(qdrant.deletedCollections).toHaveLength(0);
 		expect(stages).toEqual(["assemble", "materialize", "activate"]);
+	});
+
+	it("writes points before creating payload indexes", async () => {
+		const prepared = await prepareArtifacts();
+		const candidate = await assembleCandidate(
+			prepared.store,
+			prepared.docsEmbeddingSet,
+			prepared.noticeEmbeddingSet,
+		);
+		const events: string[] = [];
+		const qdrant = fakeQdrant();
+		qdrant.createCollection = async () => {
+			events.push("create");
+		};
+		qdrant.upsert = async () => {
+			events.push("upsert");
+		};
+		qdrant.createPayloadIndex = async ({ fieldName }) => {
+			events.push(`index:${fieldName}`);
+		};
+		qdrant.validate = async () => {
+			events.push("validate");
+		};
+
+		await materializeCollection(qdrant, candidate);
+
+		expect(events).toEqual([
+			"create",
+			"upsert",
+			...RETRIEVAL_PAYLOAD_INDEXES.map(({ fieldName }) => `index:${fieldName}`),
+			"validate",
+		]);
 	});
 
 	it("does not require review or validation files to assemble serving points", async () => {
@@ -570,6 +608,7 @@ function fakeQdrant(input: {
 			return input.existing ?? false;
 		},
 		async createCollection() {},
+		async createPayloadIndex() {},
 		async deleteCollection(collection) {
 			deletedCollections.push(collection);
 		},

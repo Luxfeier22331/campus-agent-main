@@ -16,6 +16,8 @@ import {
 	NoticeJobUnavailableError,
 	parseNoticeJobDiagnostics,
 } from "./notice-jobs.ts";
+import { projectTaskStages } from "./task-stages.ts";
+import { projectTemporalStages, taskFailureMessage } from "./temporal-task-stages.ts";
 
 const workflowId = "notice-pipeline-workflow";
 type WithClient = <T>(run: (client: Client) => Promise<T>) => Promise<T>;
@@ -150,9 +152,10 @@ export async function projectNoticeJob(
 	execution: WorkflowExecutionDescription,
 ): Promise<NoticeJob> {
 	const handle = client.workflow.getHandle(workflowId, execution.runId, { followRuns: false });
+	let history: Awaited<ReturnType<typeof handle.fetchHistory>> | undefined;
 	let input = NoticeJobCreateSchema.safeParse(execution.memo?.noticeJob);
 	if (!input.success) {
-		const history = await handle.fetchHistory();
+		history = await handle.fetchHistory();
 		const payload =
 			history.events?.[0]?.workflowExecutionStartedEventAttributes?.input?.payloads?.[0];
 		const args = record(
@@ -197,7 +200,7 @@ export async function projectNoticeJob(
 			if (failure instanceof WorkflowNotFoundError) {
 				throw failure;
 			}
-			error = failure instanceof Error ? failure.message : String(failure);
+			error = taskFailureMessage(failure);
 		}
 	}
 	const collection = record(result.collection);
@@ -215,6 +218,10 @@ export async function projectNoticeJob(
 			processedRange: collection.processedRange,
 		}),
 	);
+	const stages =
+		running || error
+			? projectTemporalStages(client, history ?? (await handle.fetchHistory()), execution)
+			: projectTaskStages(result);
 	for (const activity of execution.raw.pendingActivities ?? []) {
 		for (const payload of activity.heartbeatDetails?.payloads ?? []) {
 			const value = record(
@@ -250,6 +257,7 @@ export async function projectNoticeJob(
 		status: running ? "running" : completed ? "succeeded" : "failed",
 		...diagnostics,
 		error,
-		controllerError: error,
+		controllerError: null,
+		stages,
 	};
 }

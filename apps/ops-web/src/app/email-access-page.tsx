@@ -10,13 +10,16 @@ import {
 	StateMessage,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import type {
 	EmailAccessGrant,
 	EmailAccessGrantKind,
 	EmailAccessGrantState,
 } from "campus-contracts/email-access";
 import { MailPlus, RefreshCw, RotateCw, ShieldX } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
+import type { EmailAccessSearch } from "./email-access-navigation";
 import { formatTimestamp } from "./format";
 import {
 	commandEmailAccessGrant,
@@ -27,6 +30,7 @@ import { ErrorState, InlineError, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
 import { FilterSelect } from "./ui/filter-select";
 import { useConfirmCommand } from "./use-confirm-command";
+import { UserLink } from "./user-link";
 
 const stateLabels: Record<EmailAccessGrantState, string> = {
 	active: "有效",
@@ -47,20 +51,23 @@ const environmentLabels: Record<EmailAccessGrant["environment"], string> = {
 	test: "测试环境",
 };
 
-export function EmailAccessPage() {
+export function EmailAccessPage({ search = {} }: { search?: EmailAccessSearch }) {
 	const queryClient = useQueryClient();
 	const confirmCommand = useConfirmCommand();
-	const [emailFilter, setEmailFilter] = useState("");
-	const [draft, setDraft] = useState({
-		email: "",
-		kind: "" as EmailAccessGrantKind | "",
-		state: "" as EmailAccessGrantState | "",
-	});
+	const navigate = useNavigate({ from: "/email-access" });
+	const {
+		email: emailFilter = "",
+		kind: kindFilter = "",
+		state: stateFilter = "",
+		cursor,
+	} = search;
+	const previousCursors = decodeCursorHistory(search.history);
+	const [draft, setDraft] = useState({ email: emailFilter, kind: kindFilter, state: stateFilter });
+	useEffect(
+		() => setDraft({ email: emailFilter, kind: kindFilter, state: stateFilter }),
+		[emailFilter, kindFilter, stateFilter],
+	);
 	const [environment, setEnvironment] = useState<EmailAccessGrant["environment"]>();
-	const [kindFilter, setKindFilter] = useState<EmailAccessGrantKind | "">("");
-	const [stateFilter, setStateFilter] = useState<EmailAccessGrantState | "">("");
-	const [cursor, setCursor] = useState<string | undefined>();
-	const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([]);
 	const [commandError, setCommandError] = useState<unknown>(null);
 	const [rowErrors, setRowErrors] = useState<Record<string, unknown>>({});
 	const grants = useQuery({
@@ -172,11 +179,13 @@ export function EmailAccessPage() {
 					className="ops-filter-bar mb-4 grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto]"
 					onSubmit={(event) => {
 						event.preventDefault();
-						setEmailFilter(draft.email.trim());
-						setKindFilter(draft.kind);
-						setStateFilter(draft.state);
-						setCursor(undefined);
-						setPreviousCursors([]);
+						void navigate({
+							search: {
+								email: draft.email.trim() || undefined,
+								kind: draft.kind || undefined,
+								state: draft.state || undefined,
+							},
+						});
 					}}
 				>
 					<Field label="按邮箱筛选">
@@ -230,11 +239,7 @@ export function EmailAccessPage() {
 							variant="ghost"
 							onClick={() => {
 								setDraft({ email: "", kind: "", state: "" });
-								setEmailFilter("");
-								setKindFilter("");
-								setStateFilter("");
-								setCursor(undefined);
-								setPreviousCursors([]);
+								void navigate({ search: {} });
 							}}
 						>
 							清除筛选
@@ -286,8 +291,13 @@ export function EmailAccessPage() {
 					disabled={grants.isFetching || previousCursors.length === 0}
 					onClick={() => {
 						const previous = [...previousCursors];
-						setCursor(previous.pop());
-						setPreviousCursors(previous);
+						void navigate({
+							search: {
+								...search,
+								cursor: previous.pop() || undefined,
+								history: encodeCursorHistory(previous),
+							},
+						});
 					}}
 					variant="ghost"
 				>
@@ -296,8 +306,13 @@ export function EmailAccessPage() {
 				<Button
 					disabled={grants.isFetching || !data?.nextCursor}
 					onClick={() => {
-						setPreviousCursors((current) => [...current, cursor]);
-						setCursor(data?.nextCursor ?? undefined);
+						void navigate({
+							search: {
+								...search,
+								cursor: data?.nextCursor ?? undefined,
+								history: encodeCursorHistory([...previousCursors, cursor ?? ""]),
+							},
+						});
 					}}
 					variant="ghost"
 				>
@@ -433,7 +448,11 @@ function GrantMobileList({
 							label="访问期限"
 							value={grant.accessExpiresAt ? formatTimestamp(grant.accessExpiresAt) : "撤销前有效"}
 						/>
-						<GrantFact className="col-span-2" label="绑定" value={grant.userId ?? "未绑定"} />
+						<GrantFact
+							className="col-span-2"
+							label="绑定"
+							value={grant.userId ? <UserLink userId={grant.userId} /> : "未绑定"}
+						/>
 					</dl>
 					<GrantActions
 						command={command}
@@ -456,7 +475,7 @@ function GrantFact({
 }: {
 	className?: string;
 	label: string;
-	value: string;
+	value: ReactNode;
 }) {
 	return (
 		<div className={className}>
@@ -559,8 +578,7 @@ function buildColumns(input: {
 		},
 		{
 			header: "绑定",
-			cell: (row: EmailAccessGrant) =>
-				row.userId ? <span className="font-mono text-xs">{row.userId}</span> : "未绑定",
+			cell: (row: EmailAccessGrant) => (row.userId ? <UserLink userId={row.userId} /> : "未绑定"),
 		},
 		{
 			header: "操作",

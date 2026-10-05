@@ -130,9 +130,9 @@ Worker source map 由 Wrangler 在 Worker 发布链路中上传给 Cloudflare，
 - 本地 Secret 进入所属模块的忽略文件或开发者密钥管理器；`pnpm --dir jobs/internal-portal-collection auth:pull` 使用当前
   Kubernetes 权限读取既有 `OPS_WEB_INTERNAL_TOKEN`，通过临时 port-forward Ops Web
   取得 TGC，只写入内部门户采集任务受 `dev:init` 管理的 `.env.local`，不创建机器级缓存或 TGC
-  Secret；linked worktree 初始化时可从 main checkout 的同一受管文件首次导入已有 TGC，后续本地值
+  Secret；linked worktree 显式执行 `dev:local credentials import` 时可从 main checkout 的同一受管文件首次导入已有 TGC，后续本地值
   优先；
-- main checkout 根 `.env` 中白名单化的 provider 外部开发连接可由 `dev:init` 补充到 linked worktree；
+- main checkout 根 `.env` 中白名单化的 provider 外部开发连接可由 `dev:local credentials import` 补充到 linked worktree；
   不复制整份环境文件、数据库连接、观测配置或 provider 配置加密 key；
 - Kubernetes 非敏感启动值使用 ConfigMap，敏感材料使用 Secret 交付机制；
 - Cloudflare 应用分别维护自己的 Worker vars 和 secrets；

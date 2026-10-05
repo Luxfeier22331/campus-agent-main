@@ -21,6 +21,7 @@ test("桌面选择菜单展开时页面仍能滚动，键盘和外部关闭保�
 	await expect(page.getByRole("listbox")).toBeHidden();
 	await expect(control).toBeFocused();
 	await control.click();
+	await expect(page.getByRole("option", { selected: true })).toBeFocused();
 	await page.keyboard.press("Tab");
 	await expect(page.getByRole("listbox")).toBeHidden();
 	await expect(control).not.toBeFocused();

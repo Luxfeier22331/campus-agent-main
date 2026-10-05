@@ -186,3 +186,57 @@ it("queues the requested body image from the current source snapshot", async () 
 	});
 	expect(query.mock.calls[1]?.[1]?.[1]).toBe(`source:123:${imageKey}`);
 });
+
+it("aggregates images per notice and keeps the older usable result alongside the latest failure", async () => {
+	const { instance, query } = await app();
+	const completed = {
+		id: "10000000-0000-4000-8000-000000000001",
+		input: {
+			kind: "source",
+			noticeId: "123",
+			key: "shared-image",
+			contentType: "image/png",
+			resource: { kind: "image", ordinal: 1, displayOrdinal: 0 },
+		},
+		status: "completed",
+		createdAt: "2026-01-01T00:00:00.000Z",
+		pageCount: 1,
+		error: null,
+		result: { rawKey: "result", missingImages: [] },
+	};
+	const failed = {
+		...completed,
+		id: "10000000-0000-4000-8000-000000000002",
+		status: "failed",
+		createdAt: "2026-01-02T00:00:00.000Z",
+		error: "provider failed",
+		result: null,
+	};
+	const otherNotice = {
+		...failed,
+		id: "10000000-0000-4000-8000-000000000003",
+		input: { ...failed.input, noticeId: "456" },
+	};
+	query
+		.mockResolvedValueOnce({ rows: [failed, otherNotice] })
+		.mockResolvedValueOnce({ rows: [failed, otherNotice, completed] });
+	const response = await instance.request("http://ops.test/api/ops/ocr/tasks");
+	expect(response.status).toBe(200);
+	const data = await response.json();
+	expect(data.images).toHaveLength(2);
+	expect(data.images[0]).toMatchObject({
+		noticeId: "123",
+		label: "图片1",
+		selectedResultId: completed.id,
+		batches: [
+			{ id: failed.id, hasResult: false },
+			{ id: completed.id, hasResult: true },
+		],
+	});
+	expect(data.images[1]).toMatchObject({
+		noticeId: "456",
+		selectedResultId: null,
+		batches: [{ id: otherNotice.id }],
+	});
+	expect(getSource).not.toHaveBeenCalled();
+});

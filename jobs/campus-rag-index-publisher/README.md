@@ -34,7 +34,6 @@ publish-index
 
 ```bash
 pnpm dev:init -- --target campus-rag-index-publisher
-pnpm dev:init -- --target notice-index-publisher
 pnpm --dir jobs/campus-rag-index-publisher import-artifacts-local -- \
   --context <协作者-context> --namespace campus-agent-staging \
   --docs-embedding-set sha256:<docs-id> \
@@ -44,9 +43,8 @@ pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
   --notice-embedding-set sha256:<notice-id>
 ```
 
-`notice-index-publisher` target 只用于补齐本地 schema owner 的 baseline；它不参与发布。RAG publisher 的
-`dev:init` 从正在运行的本地 Qdrant Compose 容器读取 writer key 和 HTTP 映射端口，通过认证检查后写入
-当前 worktree 的托管 `.env.local`。重跑初始化会刷新该连接；容器不可用或认证失败时初始化报错。
+`campus-rag-index-publisher` target 独立准备所需 PostgreSQL、统一 schema、derived bucket 和 Qdrant。
+环境渲染直接读取当前 profile 的私有 writer key 和端口；基础设施操作验证连接，不要求先初始化 core 或其他 publisher。
 本地发布读取已导入的对象，不调用 provider。
 
 `import-artifacts-local` 使用协作者 `objectstore-ro` Secret，通过临时 `kubectl port-forward` 读取集群的 `campus-agent-derived` bucket，按两个
@@ -118,8 +116,9 @@ execution-control，再部署 v9 builder 和统一 publisher，最后通过既�
 1. 读取并验证两个 Embedding Set 及其 serving 所需的 Chunk/Chunk Run 对象；
 2. 生成 Docs/Notice points 和 sparse vectors；
 3. 若 collection 已存在，完整核对配置、数量、point payload 和 dense/sparse vectors；
-4. 若 collection 不存在，创建并批量写入，再执行同样的完整核对；
-5. 在 PostgreSQL advisory lock 下原子更新 `campus_docs_serving.current_index`。
+4. 若 collection 不存在，先创建 dense/sparse collection 并批量写入 points，再创建检索过滤所需的 payload indexes；
+5. 等待 payload indexes 完成后执行同样的完整核对；
+6. 在 PostgreSQL advisory lock 下原子更新 `campus_docs_serving.current_index`。
 
 本次新建 collection 在写入或校验失败时删除，current pointer 不变。已存在但内容不匹配
 的 collection 不删除，避免误删可能属于其他发布或回滚候选的资源。数据库激活失败时保留已验证
@@ -148,7 +147,7 @@ Publisher 只需要 derived object-store read credentials、Qdrant 连接和 cur
 
 ## 产品开发数据
 
-完整产品初始化使用根 `pnpm dev:init -- --target core`。cluster 模式从当前数据库绑定读取真实
+检索数据同步使用根 `pnpm dev:local -- data sync --domain retrieval`，从当前数据库绑定读取真实
 Qdrant points，不要求人工找到两个 Embedding Set；复用本包 collection 校验和事务内 catalog 激活。
 本地发布与初始化共用 registry 目录中的 Qdrant materialization lock，避免多个 worktree 并发创建同名集合。
 数据范围与替换规则见[本地运行检查](../../docs/runbooks/local-verification.md)。

@@ -74,9 +74,7 @@ function Form({ config }: { config: OcrConfigView | null }) {
 				<UnsavedChangesGuard dirty={dirty} />
 				<div>
 					<h2 className="font-semibold">文档 OCR · PaddleOCR-VL-1.6</h2>
-					<p className="text-sm text-muted-foreground">
-						识别通知图片与 PDF。保存后可单独验证连接。
-					</p>
+					<p className="text-sm text-muted-foreground">识别通知正文图片。保存后可单独验证连接。</p>
 				</div>
 				<form
 					onSubmit={(e) => {

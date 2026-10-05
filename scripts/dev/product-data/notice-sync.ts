@@ -72,7 +72,7 @@ export async function importNoticeSources(
 	rows: NoticeSourceRows,
 	options: { withSources?: boolean } = {},
 ) {
-	const incomingRows = options.withSources
+	const incomingRows: NoticeSourceRows = options.withSources
 		? rows
 		: {
 				...rows,

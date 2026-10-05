@@ -155,7 +155,7 @@ export async function probeLocalBootstrapStep(
 			repoRoot,
 			localDatabaseUrls(profile).owner,
 			`select count(*) from app_auth."user" where email in ('test@muc.edu.cn', 'admin@muc.edu.cn')`,
-			{ emptyIsMissing: true, exact: 2 },
+			{ minimum: 2 },
 		);
 	}
 	if (step === "notice-publisher-seed-local") {

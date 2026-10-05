@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TaskStage } from "./task-stages.ts";
 export const TaskIdSchema = z.enum([
 	"notice-pipeline",
 	"document-ocr",
@@ -22,6 +23,8 @@ export interface TaskRun {
 	completedAt: string | null;
 	error: string | null;
 	details: unknown;
+	stages?: TaskStage[];
+	parentExecution?: { workflowId: string | null; runId: string | null };
 }
 export interface OpsTask {
 	id: TaskId;

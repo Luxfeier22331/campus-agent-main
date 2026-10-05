@@ -15,6 +15,13 @@ export function createOcrTaskStore(db: Pool | PoolClient): OcrTaskStore {
 			return (await select("where id=$1", [id]))[0] ?? null;
 		},
 		list: (limit = 100) => select("order by created_at desc limit $1", [limit]),
+		listRecentImages: () =>
+			select(`where input->>'kind'='source' and (input->>'noticeId', input->>'key') in (
+          select input->>'noticeId', input->>'key' from ocr.tasks
+          where input->>'kind'='source' and (input->'resource'->>'kind'='image' or input->>'contentType' like 'image/%' or input->>'key' like 'internal_portal/notices/%/images/%')
+          group by input->>'noticeId', input->>'key'
+          order by max(created_at) desc, input->>'noticeId', input->>'key' limit 100
+        ) order by created_at desc, id desc`),
 		listNotice: (noticeId) =>
 			select(
 				"where input->>'kind'='source' and input->>'noticeId'=$1 order by created_at desc, id desc",

@@ -32,8 +32,7 @@ API Key，因此仅轮换 API Key 不会改变目标 hash。
 诊断消息，供 Ops Web 显示和排查。验证状态、时间和操作者全部为空表示未验证；部分缺失的验证记录
 返回读取错误，不转换成未验证。
 
-本地 `dev:init` 可以把已配置但尚未验证的连接写入当前配置；这一步不访问 Provider，也不产生验证
-记录，因此 `validation`、`validated_at` 和 `validated_by` 可以为 `null`。
+本地初始化不会导入 provider 凭据或写入模型配置。维护者可先运行 `pnpm dev:local -- credentials import --target <target>`，再运行 `pnpm dev:local -- models seed --target <target>`；模型 seed 只写入缺失的配置，不访问 Provider，也不产生验证记录，因此 `validation`、`validated_at` 和 `validated_by` 可以为 `null`。
 
 `document_ocr` 使用 PaddleOCR 的 `paddleocr.jobs` 协议和 `PaddleOCR-VL-1.6`：`PUT` 只检查配置字段
 并加密保存，重置验证状态，不在 HTTP 请求里等待 OCR。Ops 发起异步验证任务，Document OCR Job 完成后

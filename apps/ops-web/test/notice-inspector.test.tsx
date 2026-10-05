@@ -184,7 +184,7 @@ it("identifies a single body image, refreshes status, and allows rerunning a fai
 		</QueryClientProvider>,
 	);
 	fireEvent.click(await screen.findByRole("button", { name: "识别图片" }));
-	await screen.findByText("识别失败详情");
+	expect(await screen.findAllByText("识别失败详情")).toHaveLength(2);
 	expect(fetcher).toHaveBeenCalledWith(
 		"/api/ops/ocr/tasks",
 		expect.objectContaining({

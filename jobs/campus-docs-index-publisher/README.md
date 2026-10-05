@@ -110,7 +110,7 @@ worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 与 `EMBEDDING_API_KEY`，直接
 
 Notice citation 由 Notice Chunk Run v1 的 `noticeId` 固定生成，形如 `/notices/<noticeId>`；统一 publisher
 不连接 live Notices DB。它拥有 `campus_docs_serving.current_index` 的激活逻辑。
-产品初始化使用根 `dev:init` 并复用该逻辑；显式制品发布使用统一 RAG publisher。
+检索数据初始化使用根 `dev:local data seed --domain retrieval` 或 `dev:local data sync --domain retrieval` 并复用该逻辑；显式制品发布使用统一 RAG publisher。
 
 统一 publisher 在完成 point 数、payload 和双向量校验后原子替换 PostgreSQL `campus_docs_serving.current_index`。
 目标 collection 已存在时先做完整校验；内容不匹配时停止且不删除。仅当本次新建 collection 的写入或校验失败时删除该 collection；

@@ -12,6 +12,7 @@ export default defineProject({
 			"test/dining-submission-store.integration.test.ts",
 			"test/ops-web-database.integration.test.ts",
 			"test/transport-store.integration.test.ts",
+			"test/ocr-projection.integration.test.ts",
 		],
 		maxWorkers: 1,
 		name: "ops-web-postgres-integration",

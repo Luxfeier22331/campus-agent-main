@@ -23,7 +23,10 @@ export function normalizeUsersReturnPath(value: string | undefined): string {
 	try {
 		const url = new URL(value, "https://ops-web.local");
 		return url.origin === "https://ops-web.local" &&
-			(url.pathname === "/users" || url.pathname === "/users/activity")
+			(url.pathname === "/users" ||
+				url.pathname === "/users/activity" ||
+				url.pathname === "/email-access" ||
+				/^\/dining\/submissions\/[^/]+$/.test(url.pathname))
 			? `${url.pathname}${url.search}`
 			: "/users";
 	} catch {

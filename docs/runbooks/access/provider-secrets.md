@@ -47,17 +47,18 @@ Model Config 的内部管理接口完成；候选设置会调用 PaddleOCR `padd
 ## 本地开发
 
 包含 `core` 或 `model-config` 投影的 `pnpm dev:init -- --target <target>` 为每个 worktree 维护 `var/dev/model-config-encryption.key`，供 Model Config 当前密文
-使用，并按 target 从当前进程环境或根 `.env` 读取所需 provider 字段，显式 seed 缺失的配置。seed
+使用。凭据与模型通过 `pnpm dev:local -- credentials import --target <target>` 和
+`pnpm dev:local -- models seed --target <target>` 显式准备。seed
 只写入缺失 name，不覆盖已有配置，不访问 Provider，也不产生 validation 记录。它不再生成旧的
 Provider Config 密钥文件；加密密钥仅使用 `model-config-encryption.key`。
 `core`、`ops-web` 和 `notice-classifier` projection 会在实际消费者需要时生成同一
 worktree 的 `MODEL_CONFIG_URL`，不生成 Model Config 调用 token。加密密钥文件不得打印、复制到其他 worktree
 或提交。
 
-linked worktree 首次运行 `pnpm dev:init -- --target <target>` 时，仅在 target 包含 `core` 或 `model-config`
+linked worktree 显式运行 `pnpm dev:local -- credentials import --target <target>` 时，仅在 target 包含 `core` 或 `model-config`
 投影时从 main checkout 根 `.env` 按白名单导入尚未存在的 provider 外部连接字段；仅在包含
 `internal-portal-collection` 投影时首次导入可用的门户 TGC。它不复制数据库连接、在线配置密文或 encryption key；
-之后该 target 的 `dev:init` 会把所需的缺失连接显式写入当前 worktree 的 Model Config。
+再执行 `models seed` 才会写入当前 worktree 的缺失模型配置；已有名称不再要求 provider 环境变量。
 这一步仍不访问 Provider。在线 Ops Web 保存或重新验证才会产生 validation 记录。
 
 ## 轮换

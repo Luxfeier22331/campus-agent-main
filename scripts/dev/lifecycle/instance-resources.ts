@@ -2,10 +2,10 @@ import { existsSync } from "node:fs";
 
 import {
 	inspectLocalInfrastructure,
-	type LocalResourceProbe,
 	localComposeArgs,
 	removeLocalInfrastructure,
 } from "./local-infrastructure";
+import type { LocalResourceProbe } from "./local-object-store";
 import { captureCommandResult, runCommand } from "./process";
 import {
 	calculateLocalDevRuntimePorts,

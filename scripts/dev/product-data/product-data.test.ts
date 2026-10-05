@@ -11,8 +11,8 @@ import {
 import { createTransactionalIndexCatalog } from "../../../jobs/campus-rag-index-publisher/src/catalog.ts";
 import { writeStoredNoticeChunks } from "../../../jobs/notice-index-publisher/src/artifacts.ts";
 import { buildNoticeChunkRun } from "../../../jobs/notice-index-publisher/src/command.ts";
-import { importProductData, importRetrievalData } from "./product-data-database.ts";
-import { parseProductDataOptions } from "./product-data-options.ts";
+import { applyDomainRows } from "./domain-database.ts";
+import { importRetrievalData } from "./product-data-database.ts";
 import {
 	copyDocsClosure,
 	copyProductAssets,
@@ -22,46 +22,6 @@ import { createProductSeed } from "./product-data-seed.ts";
 import { readProductSeedIndex } from "./product-data-seed-index.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../../..");
-
-test("cluster import defaults namespace to staging and allows kubectl current-context fallback", () => {
-	assert.deepEqual(parseProductDataOptions([]), {
-		data: "seed",
-		replace: false,
-		context: undefined,
-		namespace: undefined,
-	});
-	// cluster without flags: namespace defaults to staging, context falls back to
-	// the developer's own kubectl current-context (undefined here).
-	assert.deepEqual(parseProductDataOptions(["--data", "cluster"]), {
-		data: "cluster",
-		replace: false,
-		context: undefined,
-		namespace: "campus-agent-staging",
-	});
-	// explicit namespace overrides the staging default; explicit context wins too.
-	assert.deepEqual(
-		parseProductDataOptions(["--data", "cluster", "--context", "prod", "--namespace", "other"]),
-		{ data: "cluster", replace: false, context: "prod", namespace: "other" },
-	);
-	// seed mode still rejects cluster-only flags.
-	assert.throws(() => parseProductDataOptions(["--context", "staging"]), /require --data cluster/u);
-	assert.throws(
-		() => parseProductDataOptions(["--namespace", "staging"]),
-		/require --data cluster/u,
-	);
-	assert.equal(
-		parseProductDataOptions([
-			"--data",
-			"cluster",
-			"--context",
-			"collaborator",
-			"--namespace",
-			"staging",
-			"--replace",
-		]).replace,
-		true,
-	);
-});
 
 test("committed real seed embeddings match current builders, source resources and citations", async () => {
 	const seed = createProductSeed(new Date("2026-09-18T00:00:00Z"));
@@ -200,13 +160,7 @@ test("failed foundation import rolls back and never activates the index", async 
 		return { rows: [], rowCount: 0 };
 	};
 	await assert.rejects(
-		importProductData({ query } as never, {
-			rows: createProductSeed(new Date()).rows,
-			collection: `campus_docs_${"a".repeat(64)}`,
-			replace: true,
-			docsEmbeddingSet: `sha256:${"a".repeat(64)}`,
-			noticeEmbeddingSet: `sha256:${"b".repeat(64)}`,
-		}),
+		applyDomainRows({ query } as never, ["notices"], createProductSeed(new Date()).rows, true),
 		/foreign key/u,
 	);
 	assert.equal(statements.at(-1), "ROLLBACK");

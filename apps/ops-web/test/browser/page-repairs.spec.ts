@@ -15,7 +15,7 @@ test("邮箱查询保留输入焦点和创建草稿，撤销失败保留确认�
 		environment: "staging",
 		kind: "invitation",
 		state: "pending",
-		userId: null,
+		userId: "user_1",
 		createdAt: at,
 		updatedAt: at,
 		createdBy: "operator",
@@ -65,6 +65,15 @@ test("邮箱查询保留输入焦点和创建草稿，撤销失败保留确认�
 	await expect(dialog.getByRole("alert")).toContainText("授权服务暂不可用");
 	await expect(dialog).toBeVisible();
 	expect(commands).toBe(1);
+	await dialog.getByRole("button", { name: "取消" }).click();
+	await page.reload();
+	await expect(filter).toHaveValue("visitor@example.com");
+	const returnUrl = page.url();
+	await page.getByRole("link", { name: "user_1", exact: true }).filter({ visible: true }).click();
+	await expect(page).toHaveURL(/users\/user_1/);
+	await page.getByRole("link", { name: "返回", exact: true }).click();
+	await expect(page).toHaveURL(returnUrl);
+	await expect(filter).toHaveValue("visitor@example.com");
 });
 
 test("OCR 重跑保留失败和待处理状态，结果支持页码跳转", async ({ page }) => {
@@ -74,10 +83,15 @@ test("OCR 重跑保留失败和待处理状态，结果支持页码跳转", asyn
 		finish = resolve;
 	});
 	const task = {
-		id: "ocr-1",
+		id: "00000000-0000-4000-8000-000000000001",
 		status: "completed",
 		createdAt: at,
-		input: { kind: "source", noticeId: 354516, key: "notices/354516/images/0" },
+		input: {
+			kind: "source",
+			noticeId: "354516",
+			key: "notices/354516/images/0",
+			contentType: "image/png",
+		},
 		result: {},
 		pageCount: 2,
 		error: null,
@@ -105,7 +119,34 @@ test("OCR 重跑保留失败和待处理状态，结果支持页码跳转", asyn
 				},
 			});
 		} else {
-			await route.fulfill({ json: { tasks: [task] } });
+			await route.fulfill({
+				json: {
+					tasks: [task],
+					images: [
+						{
+							noticeId: "354516",
+							sourceKey: task.input.key,
+							kind: "image",
+							ordinal: 0,
+							displayOrdinal: 0,
+							label: "图片1",
+							selectedResultId: task.id,
+							batches: [
+								{
+									id: task.id,
+									status: task.status,
+									createdAt: at,
+									pageCount: 2,
+									missingImageCount: 0,
+									error: null,
+									hasResult: true,
+									canResume: false,
+								},
+							],
+						},
+					],
+				},
+			});
 		}
 	});
 	await page.goto("/ocr");

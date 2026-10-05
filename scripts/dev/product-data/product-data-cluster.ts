@@ -197,3 +197,34 @@ export async function connectProductCluster(
 		throw error;
 	}
 }
+
+/** Object-only consumers do not require PostgreSQL or Qdrant credentials. */
+export async function connectProductObjects(
+	context: string | undefined,
+	namespace: string,
+	kind: "source" | "derived",
+	signal?: AbortSignal,
+) {
+	const objects = await readProductClusterSecret(context, namespace, "objectstore-ro", signal);
+	const forward = await startKubectlPortForward({
+		context,
+		namespace,
+		kubectlPath: "kubectl",
+		service: "object-store",
+		remotePort: 9000,
+		signal,
+	});
+	const upper = kind.toUpperCase();
+	return {
+		store: createS3ReaderStoreFromConfig(
+			{
+				endpoint: `http://127.0.0.1:${forward.port}`,
+				bucket: `campus-agent-${kind}`,
+				accessKeyId: objects[`OBJECT_STORE_HUMANS_${upper}_ACCESS_KEY`] ?? "",
+				secretAccessKey: objects[`OBJECT_STORE_HUMANS_${upper}_SECRET_KEY`] ?? "",
+			},
+			signal,
+		),
+		close: () => forward.close(),
+	};
+}

@@ -6,8 +6,7 @@
 
 ## 本地分类
 
-先从 canonical checkout 运行 `pnpm dev:init -- --target core`，再运行
-`pnpm dev:init -- --target internal-portal-collection` 生成 source bucket 的本地配置。该入口只读取来源对象；
+在当前 worktree 运行 `pnpm dev:init -- --target internal-portal-collection` 生成 source bucket 的本地配置。该入口只读取来源对象；
 在线数据库分类 Job 使用 `pnpm dev:init -- --target notice-classifier` 和 `pnpm --dir jobs/notice-classifier classify:local`。
 
 source bucket 必须由 `OBJECT_STORE_BUCKET_SOURCE` 提供，读取当前 worktree 的 bucket，不限制固定桶名。

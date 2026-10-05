@@ -13,8 +13,7 @@ import {
 	calculateLocalDevPorts,
 	type LocalDevProfile,
 } from "../lifecycle/profile.ts";
-import { diagnoseProductData, initializeProductData } from "./product-data.ts";
-import { parseProductDataOptions } from "./product-data-options.ts";
+import { diagnoseProductData, initializeRetrievalData } from "./product-data.ts";
 import { createProductSeed } from "./product-data-seed.ts";
 import { readProductSeedIndex } from "./product-data-seed-index.ts";
 
@@ -195,13 +194,9 @@ test("repeated seed initialization preserves edits without object traversal or i
 	const f = await fixture(t);
 	f.seed.rows["notices.notices"][0].title = "Local edit";
 	const before = structuredClone(f.seed.rows);
-	await initializeProductData(f.directory, f.profile, parseProductDataOptions([]));
+	await initializeRetrievalData(f.directory, f.profile, { data: "seed", replace: false });
 	assert.deepEqual(f.seed.rows, before);
 	assert(f.reads.every((key) => key === "campus-docs/source.json"));
 	assert(!f.requests.some((path) => path.endsWith("/scroll")));
 	assert(!f.queries.some((sql) => sql.startsWith("select row_to_json")));
-	assert.throws(
-		() => parseProductDataOptions(["--data", "cluster", "--namespace", "other", "--context"]),
-		/--context requires a value/u,
-	);
 });

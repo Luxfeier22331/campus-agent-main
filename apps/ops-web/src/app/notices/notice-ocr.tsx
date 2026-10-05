@@ -1,11 +1,11 @@
-import { Button, Field, StateMessage } from "@campus-agent/ui";
+import { Button, StateMessage } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type NoticeOcr, NoticeOcrSchema } from "../../shared/ocr-contract";
+import { OcrHistory } from "../ocr-history";
 import { OcrResultDialog } from "../ocr-result-dialog";
 import { fetchJson } from "../ops-api/core";
 import { ErrorState } from "../ops-display";
-import { FilterSelect } from "../ui/filter-select";
 
 const labels = {
 	pending: "等待识别",
@@ -23,7 +23,6 @@ export function NoticeOcrSection({
 	active?: boolean;
 }) {
 	const [selected, setSelected] = useState<string | null>(null);
-	const [batch, setBatch] = useState<Record<string, string>>({});
 	const query = useQuery({
 		enabled: active,
 		queryKey: ["ocr", "notice", noticeId],
@@ -99,10 +98,9 @@ export function NoticeOcrSection({
 			) : null}
 			<ul className="min-w-0 divide-y">
 				{query.data?.resources.map((resource) => {
-					const available = resource.batches.filter((item) => item.hasResult);
-					const selectedId =
-						batch[resource.sourceKey] ?? resource.selectedResultId ?? available[0]?.id;
-					const selectedBatch = available.find((item) => item.id === selectedId);
+					const selectedBatch = resource.batches.find(
+						(item) => item.id === resource.selectedResultId,
+					);
 					const latest = resource.batches[0];
 					return (
 						<li key={resource.sourceKey} className="flex min-w-0 flex-wrap items-center gap-3 py-3">
@@ -121,8 +119,11 @@ export function NoticeOcrSection({
 							<div className="min-w-0 flex-1 basis-40">
 								<p className="break-words text-sm">{resource.label}</p>
 								<p className="text-xs text-muted-foreground">
-									{latest ? labels[latest.status] : "未识别"}
-									{selectedBatch ? ` · ${selectedBatch.pageCount} 页` : ""}
+									最新尝试：<span>{latest ? labels[latest.status] : "未识别"}</span>
+								</p>
+								<p className="text-xs text-muted-foreground">
+									当前结果：
+									{selectedBatch ? `可用 · ${selectedBatch.pageCount} 页` : "暂无可用文本"}
 								</p>
 							</div>
 							<Button
@@ -140,30 +141,15 @@ export function NoticeOcrSection({
 							{latest?.error ? (
 								<p className="w-full break-words text-sm text-destructive">{latest.error}</p>
 							) : null}
-							{available.length > 1 ? (
-								<Field label={`${resource.label}识别批次`}>
-									<FilterSelect
-										aria-label={`${resource.label}识别批次`}
-										className="w-full sm:w-auto"
-										value={selectedId ?? ""}
-										onValueChange={(nextValue) =>
-											setBatch((previous) => ({
-												...previous,
-												[resource.sourceKey]: nextValue,
-											}))
-										}
-										options={available.map((item) => ({
-											value: item.id,
-											label: item.createdAt,
-										}))}
-									/>
-								</Field>
-							) : null}
+
 							{selectedBatch ? (
 								<Button size="sm" variant="ghost" onClick={() => setSelected(selectedBatch.id)}>
 									查看结果
 								</Button>
 							) : null}
+							<div className="w-full">
+								<OcrHistory resource={resource} onResult={setSelected} />
+							</div>
 						</li>
 					);
 				})}

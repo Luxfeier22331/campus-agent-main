@@ -52,7 +52,7 @@ import {
 	resolveLocalDevProfilePath,
 	resolveLocalDevRegistryPath,
 } from "./profile";
-import { resolveLocalDevTargetPlan } from "./targets";
+import { LOCAL_DEV_TARGETS, resolveLocalDevTargetPlan } from "./targets";
 
 const temporaryDirectories: string[] = [];
 const qdrant = {
@@ -914,8 +914,8 @@ describe("managed worktree environment", () => {
 		assert.ok(first.HINDSIGHT_OWNER_SALT);
 		assert.equal(next.HINDSIGHT_OWNER_SALT, first.HINDSIGHT_OWNER_SALT);
 		assert.equal(next.HINDSIGHT_API_TENANT_API_KEY, first.HINDSIGHT_API_TENANT_API_KEY);
-		assert.ok(resolveLocalDevTargetPlan("core").capabilities.includes("hindsight"));
-		assert.ok(resolveLocalDevTargetPlan("ops-web").capabilities.includes("hindsight"));
+		assert.ok(!resolveLocalDevTargetPlan("core").capabilities.includes("hindsight"));
+		assert.ok(!resolveLocalDevTargetPlan("ops-web").capabilities.includes("hindsight"));
 	});
 	it("creates a stable per-worktree Model Config encryption key with private permissions", () => {
 		const repoRoot = createRepositoryShape();
@@ -972,30 +972,15 @@ describe("managed worktree environment", () => {
 		assert.equal(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")), false);
 	});
 
-	it("renders the complete local notice job environment for Ops Web", () => {
+	it("prepares Ops without the question runtime or background jobs", () => {
 		const repoRoot = createRepositoryShape();
-		const rendered = renderLocalEnvironmentFiles({
-			profile: createProfile(repoRoot),
-			repoRoot,
-			target: "ops-web",
-		});
-		assert.deepEqual(
-			rendered.sort(),
-			[
-				resolve(repoRoot, "apps/agent-runtime/.env.local"),
-				resolve(repoRoot, "apps/app-api/.dev.vars.local"),
-				resolve(repoRoot, "apps/app-api/.env.local"),
-				resolve(repoRoot, "apps/campus-web/.dev.vars.local"),
-				resolve(repoRoot, "apps/campus-search/.env.local"),
-				resolve(repoRoot, "apps/execution-control/.env.local"),
-				resolve(repoRoot, "apps/model-config/.env.local"),
-				resolve(repoRoot, "apps/ops-web/.env.local"),
-				resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal/.env.local"),
-				resolve(repoRoot, "jobs/notice-classifier/.env.local"),
-				resolve(repoRoot, "jobs/notice-publisher/.env.local"),
-				resolve(repoRoot, "jobs/document-ocr/.env.local"),
-			].sort(),
-		);
+		const profile = createProfile(repoRoot);
+		const written = renderLocalEnvironmentFiles({ repoRoot, profile, target: "ops-web" });
+		assert.equal(written.length, 4);
+		assert(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")));
+		assert(existsSync(resolve(repoRoot, "apps/model-config/.env.local")));
+		assert(!existsSync(resolve(repoRoot, "apps/execution-control/.env.local")));
+		assert(!existsSync(resolve(repoRoot, "jobs/document-ocr/.env.local")));
 	});
 
 	it("does not create core secrets for a target without a core projection", () => {
@@ -1190,92 +1175,30 @@ describe("local development lifecycle guards", () => {
 		assert.equal(result.timedOut, true);
 		assert.notEqual(result.error, undefined);
 	});
-	it("computes target projections and bootstrap owners", () => {
-		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").environmentProjections, [
-			"core",
-			"ops-web",
-			"internal-portal-collection",
-			"notice-classifier",
-			"notice-publisher",
-			"document-ocr",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").environmentProjections, [
-			"model-config",
-			"notice-classifier",
-		]);
-		assert.deepEqual(
-			resolveLocalDevTargetPlan("internal-portal-collection").environmentProjections,
-			["ops-web", "internal-portal-collection"],
+	it("composes consumer requirements without starting their runtime dependencies", () => {
+		const ops = resolveLocalDevTargetPlan("ops-web");
+		assert.deepEqual(ops.environmentProjections, ["app-api", "model-config", "ops-web"]);
+		assert(!ops.capabilities.includes("qdrant"));
+		assert(!ops.capabilities.includes("hindsight"));
+		assert.deepEqual(ops.modelConfigNames, []);
+		assert.deepEqual(resolveLocalDevTargetPlan("document-ocr").modelConfigNames, ["document_ocr"]);
+		assert(
+			resolveLocalDevTargetPlan("campus-rag-index-publisher").bootstrapSteps.includes(
+				"campus-agent-schema",
+			),
 		);
-		assert.deepEqual(resolveLocalDevTargetPlan("internal-portal-collection").bootstrapSteps, [
-			"campus-agent-schema",
-			"notice-publisher-seed-local",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("core").modelConfigNames, [
-			"primary_agent",
-			"campus_docs_embedding",
-			"campus_docs_reranker",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("core").bootstrapSteps, [
-			"campus-agent-schema",
-			"model-config-seed",
-			"app-api-seed-local-test-user",
-			"model-config-check",
-			"temporal-namespace",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").modelConfigNames, [
-			"notice_classification",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").bootstrapSteps, [
-			"campus-agent-schema",
-			"model-config-seed",
-			"notice-publisher-seed-local",
-			"model-config-check",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").modelConfigNames, [
-			"primary_agent",
-			"campus_docs_embedding",
-			"campus_docs_reranker",
-			"notice_classification",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").bootstrapSteps, [
-			"campus-agent-schema",
-			"model-config-seed",
-			"app-api-seed-local-test-user",
-			"model-config-check",
-			"temporal-namespace",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("campus-docs-index-publisher").capabilities, [
-			"postgres",
-			"docs-bucket",
-			"docs-source",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("campus-docs-index-publisher").bootstrapSteps, []);
-		assert.deepEqual(resolveLocalDevTargetPlan("campus-rag-index-publisher").capabilities, [
-			"postgres",
-			"derived-bucket",
-			"qdrant",
-		]);
-		assert.deepEqual(resolveLocalDevTargetPlan("campus-rag-index-publisher").bootstrapSteps, []);
-		assert.deepEqual(resolveLocalDevTargetPlan("notice-index-publisher").bootstrapSteps, [
-			"campus-agent-schema",
-		]);
-		for (const target of [
-			"notice-publisher",
-			"internal-portal-collection",
-			"campus-docs-index-publisher",
-			"campus-rag-index-publisher",
-			"notice-index-publisher",
-		] as const) {
+		assert(
+			!resolveLocalDevTargetPlan("notice-artifacts-worker").environmentProjections.includes(
+				"notice-pipeline-worker",
+			),
+		);
+		for (const target of LOCAL_DEV_TARGETS) {
 			const plan = resolveLocalDevTargetPlan(target);
-			assert.deepEqual(plan.modelConfigNames, []);
-			assert.equal(plan.bootstrapSteps.includes("model-config-seed"), false);
-			assert.equal(plan.bootstrapSteps.includes("model-config-check"), false);
+			assert(!plan.bootstrapSteps.includes("model-config-seed"));
+			assert(!plan.bootstrapSteps.includes("model-config-check"));
 		}
-		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").runtimeDependencies, [
-			"model-config",
-		]);
 	});
+
 	it("keeps the lifecycle facade limited to init, diagnosis, and destruction", () => {
 		assert.deepEqual(Object.keys(lifecycle).sort(), [
 			"destroyLocalDevelopment",
@@ -1312,32 +1235,11 @@ describe("local development lifecycle guards", () => {
 		);
 		assert.deepEqual(
 			coreCommands.map(({ step }) => step),
-			[
-				"campus-agent-schema",
-				"model-config-seed",
-				"app-api-seed-local-test-user",
-				"model-config-check",
-			],
+			["campus-agent-schema", "app-api-seed-local-test-user"],
 		);
-		assert.deepEqual(coreCommands[1]?.args, [
-			"--silent",
-			"--dir",
-			"apps/model-config",
-			"local:seed",
-			"--name",
-			"primary_agent",
-			"--name",
-			"campus_docs_embedding",
-			"--name",
-			"campus_docs_reranker",
-		]);
 		assert.equal(
-			coreCommands[1]?.options.env?.MODEL_CONFIG_DATABASE_URL,
-			`postgresql://model_config:campus-agent-local-model-config@127.0.0.1:${createProfile("/repo").infraPorts.postgres}/campus_agent_wt_1_deadbeef`,
-		);
-		assert.match(
-			coreCommands[1]?.options.env?.MODEL_CONFIG_ENCRYPTION_KEY_FILE ?? "",
-			/model-config-encryption\.key$/u,
+			coreCommands.some(({ step }) => step.startsWith("model-config-")),
+			false,
 		);
 
 		const classifierPlan = resolveLocalDevTargetPlan("notice-classifier");
@@ -1347,22 +1249,10 @@ describe("local development lifecycle guards", () => {
 			classifierPlan.bootstrapSteps,
 			classifierPlan.modelConfigNames,
 		);
-		assert.deepEqual(classifierCommands[1]?.args, [
-			"--silent",
-			"--dir",
-			"apps/model-config",
-			"local:seed",
-			"--name",
-			"notice_classification",
-		]);
-		assert.deepEqual(classifierCommands[3]?.args, [
-			"--silent",
-			"--dir",
-			"apps/model-config",
-			"local:check",
-			"--name",
-			"notice_classification",
-		]);
+		assert.equal(
+			classifierCommands.some(({ step }) => step.startsWith("model-config-")),
+			false,
+		);
 		const opsWebPlan = resolveLocalDevTargetPlan("ops-web");
 		assert.deepEqual(
 			localApplicationBootstrapCommands(
@@ -1371,12 +1261,7 @@ describe("local development lifecycle guards", () => {
 				opsWebPlan.bootstrapSteps.filter((step) => step !== "temporal-namespace"),
 				opsWebPlan.modelConfigNames,
 			).map(({ step }) => step),
-			[
-				"campus-agent-schema",
-				"model-config-seed",
-				"app-api-seed-local-test-user",
-				"model-config-check",
-			],
+			["campus-agent-schema", "app-api-seed-local-test-user"],
 		);
 	});
 

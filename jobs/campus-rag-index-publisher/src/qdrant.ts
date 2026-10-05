@@ -1,6 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type { IndexPoint, QdrantIndexClient } from "./types.ts";
+import type {
+	IndexPoint,
+	QdrantIndexClient,
+	QdrantPayloadIndexSchema,
+} from "./types.ts";
 
 const SCROLL_PAGE_SIZE = 256;
 
@@ -63,12 +67,31 @@ export function createQdrantClient(
 				}),
 				method: "PUT",
 			});
-			for (const field of input.payloadIndexes ?? []) {
-				const fieldSchema = field === "is_current" ? "bool" : field.includes("year") ? "integer" : "keyword";
-				await request(`/collections/${encodeURIComponent(input.collection)}/index`, {
-					body: JSON.stringify({ field_name: field, field_schema: fieldSchema }),
+		},
+		async createPayloadIndex(input: {
+			collection: string;
+			fieldName: string;
+			fieldSchema: QdrantPayloadIndexSchema;
+		}) {
+			const response = await request(
+				`/collections/${encodeURIComponent(input.collection)}/index?wait=true`,
+				{
+					body: JSON.stringify({
+						field_name: input.fieldName,
+						field_schema: input.fieldSchema,
+					}),
 					method: "PUT",
-				});
+				},
+			);
+			if (
+				isRecord(response) &&
+				isRecord(response.result) &&
+				typeof response.result.status === "string" &&
+				response.result.status !== "completed"
+			) {
+				throw new Error(
+					`Qdrant payload index ${input.fieldName} did not complete: ${response.result.status}`,
+				);
 			}
 		},
 		async deleteCollection(collection) {

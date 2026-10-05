@@ -18,7 +18,7 @@ status: active
 ### 仓库根环境
 
 根 `.env` 只保存维护者共享的外部开发连接，不是应用运行时配置。linked worktree 的 target 包含 `core`、
-`model-config`、`campus-docs-index-publisher`、`campus-rag-index-publisher` 或 `notice-index-publisher` 投影时，`dev:init` 才从 main
+`model-config`、`campus-docs-index-publisher`、`campus-rag-index-publisher` 或 `notice-index-publisher` 投影时，`dev:local credentials import` 才从 main
 checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离线通知分类 provider 连接；包含
 `internal-portal-collection` 投影时，才首次导入已有门户 TGC。它只补充
 当前 worktree 尚不存在的字段，不覆盖已有值，也不复制数据库 DSN、对象存储身份、观测配置或整份环境文件。
@@ -26,8 +26,7 @@ checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离�
 
 ### 应用本地环境
 
-应用只读取自身目录声明的环境文件。根目录的 `dev:init` 是唯一初始化入口；它根据 target 的实际消费者投影
-及其声明的环境依赖，为当前 worktree 原子生成所需的 `0600` 文件。默认 target 是 `core`：
+应用只读取自身目录声明的环境文件。根目录的 `dev:init` 根据 target 的实际消费者投影及其声明的环境依赖，为当前 worktree 原子生成所需的 `0600` 文件；它只准备环境、基础设施、schema 和必要账号。模型配置、凭据导入、调度及产品数据由 `dev:local` 的显式命令负责。默认 target 是 `core`：
 
 - App API：`.env.local` 和 `.dev.vars.local`；
 - Campus Web：`.dev.vars.local`；
@@ -37,7 +36,7 @@ checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离�
 
 需要其他边界时显式选择 target：
 
-- `pnpm dev:init -- --target ops-web`：Ops Web 及其本地通知采集、分类、发布任务；
+- `pnpm dev:init -- --target ops-web`：Ops Web 实际运行所需的 app-api、Model Config 服务、数据库、对象存储和 Temporal；
 - `pnpm dev:init -- --target notice-publisher`：notice-publisher；
 - `pnpm dev:init -- --target internal-portal-collection`：internal-portal-collection adapter；
 - `pnpm dev:init -- --target notice-classifier`：notice-classifier；
@@ -47,12 +46,11 @@ checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离�
 - `pnpm dev:init -- --target campus-rag-index-publisher`：统一 Campus RAG publisher 本地连接环境；
 - `pnpm dev:init -- --target notice-index-publisher`：已发布通知 Chunk 本地任务。
 
-target 会自动生成其运行依赖的环境投影；例如 `internal-portal-collection` 生成 Ops Web 和采集器所需的
-文件，`notice-classifier` 只生成 Model Config 与分类器所需的文件。schema、seed 和 Temporal namespace
-由各自 owner 的 readiness probe 判断，只有缺失的步骤才执行；不存在第二份 lifecycle journal。
+target 按实际消费边界生成环境投影；例如 `internal-portal-collection` 组合 Ops Web 与采集器所需的
+文件，`notice-classifier` 组合 Model Config 与分类器所需的文件。初始化不会自动导入 provider 凭据、seed 模型或产品数据；需要时分别运行 `pnpm dev:local -- credentials import --target <target>`、`pnpm dev:local -- models seed --target <target>`，以及 `pnpm dev:local -- data seed --domain <domain>` 或 `pnpm dev:local -- data sync --domain <domain>`。schema、必要账号和 Temporal namespace 由各自 owner 的 readiness probe 判断，只有缺失步骤才执行；不存在第二份 lifecycle journal。
 
-`notice-publisher` target 通过 `campus-agent-schema` 安装统一 baseline 并写入通知分类；`ops-web` target
-还生成通知采集、分类和发布任务环境，写入 `notice_classification` Model Config 与 Dining 基线。
+`notice-publisher` target 通过 `campus-agent-schema` 安装统一 baseline 并写入必要的通知分类 lookup；`ops-web` target
+只安装 schema 和 Ops 所需的必要账号，不启动通知任务、不 seed 模型配置，也不初始化 Dining 或通知业务数据。
 `internal-portal-collection` 和 `notice-classifier` 不重复执行 DDL。`notice-index-publisher` target 通过
 同一 schema owner 补齐数据库 baseline；`campus-docs-index-publisher` 只生成任务环境，不执行应用 bootstrap。
 两个 notice Worker target 同样通过 `campus-agent-schema` 补齐数据库 baseline，seed 并校验各自所需的
@@ -192,9 +190,8 @@ PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGE
 ## Worktree
 
 Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次显式运行 `pnpm dev:init` 时获得独立
-profile、按 target 选择的应用文件、端口、数据库和所需的实例资源；linked worktree 同时按上述白名单从
-main checkout 补充维护者共享的 provider 连接和已有门户 TGC。PostgreSQL、RustFS、Qdrant 与 Temporal 容器、网络和数据卷按 worktree 独立，由当前 worktree 的 `dev:init` 启动和检查。真实检索数据由
-当前 worktree 的 `pnpm dev:init -- --target core --data cluster` 同步；namespace 默认 `campus-agent-staging`，`--namespace` 可覆盖，`--context` 缺省时回落到本机 kubectl current-context，跨集群时显式补 `--context <context>`。
+profile、按 target 选择的应用文件、端口、数据库和所需的实例资源；linked worktree 通过显式 `credentials import` 按上述白名单从
+main checkout 补充维护者共享的 provider 连接和已有门户 TGC。PostgreSQL、RustFS、Qdrant 与 Temporal 容器、网络和数据卷按 worktree 独立，由当前 worktree 的 `dev:init` 启动和检查。真实检索数据由 `pnpm dev:local -- data sync --domain retrieval` 同步；namespace 默认 `campus-agent-staging`，`--namespace` 可覆盖，`--context` 缺省时回落到本机 kubectl current-context，跨集群时显式补 `--context <context>`。
 每个 worktree 可显式请求集群只读 Secret，并只写自己的 Qdrant 和 current index。
 
 每个 worktree 都由自己的 profile 供应并探测本地依赖。execution-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享

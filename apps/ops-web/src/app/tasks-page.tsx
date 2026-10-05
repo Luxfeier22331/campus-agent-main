@@ -12,9 +12,11 @@ import {
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { OpsTask, TaskScheduleInput } from "../shared/tasks-contract";
-import { formatTimestamp } from "./format";
+import { taskOutcomeLabels, taskStatusLabels } from "../shared/task-stages";
+import type { OpsTask, TaskRun, TaskScheduleInput } from "../shared/tasks-contract";
+import { formatHumanDuration, formatTimestamp } from "./format";
 import { PageHeader } from "./ops-display";
+import { TaskStageSummary } from "./task-stage-summary";
 import { FilterSelect } from "./ui/filter-select";
 import { useConfirmCommand } from "./use-confirm-command";
 
@@ -25,6 +27,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 		throw new Error(result.message ?? result.error?.message ?? "任务请求失败");
 	}
 	return result as T;
+}
+function runStatusLabel(run: TaskRun) {
+	if (run.status !== "running") {
+		return taskStatusLabels[run.status] ?? run.status;
+	}
+	const active = run.stages?.filter((stage) => stage.outcome === "running") ?? [];
+	if (active.length > 0 && active.every((stage) => stage.activity?.state === "waiting")) {
+		return active.some((stage) => stage.activity?.lastFailure) ? "等待重试" : "排队中";
+	}
+	return "运行中";
 }
 export function TasksPage() {
 	const query = useQuery({
@@ -58,13 +70,13 @@ export function TasksPage() {
 			) : null}
 			<div className="grid items-start gap-5 xl:grid-cols-2">
 				{query.data?.tasks.map((task) => (
-					<TaskCard key={task.id} task={task} />
+					<TaskCard key={task.id} task={task} observedAt={query.dataUpdatedAt} />
 				))}
 			</div>
 		</section>
 	);
 }
-function TaskCard({ task }: { task: OpsTask }) {
+function TaskCard({ task, observedAt }: { task: OpsTask; observedAt: number }) {
 	const client = useQueryClient();
 	const confirmCommand = useConfirmCommand();
 	const [notice, setNotice] = useState("");
@@ -104,21 +116,16 @@ function TaskCard({ task }: { task: OpsTask }) {
 	});
 	return (
 		<section
-			className="min-w-0 space-y-4 rounded-lg border border-border bg-background p-4 sm:p-5"
+			className={`min-w-0 space-y-4 rounded-lg border border-border bg-background p-4 sm:p-5 ${task.id === "notice-pipeline" ? "xl:col-span-2" : ""}`}
 			aria-label={task.label}
 		>
 			<h2 className="text-lg font-medium">{task.label}</h2>
 			<p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-				<Badge tone={task.running ? "info" : task.enabled ? "success" : "neutral"}>
-					{task.running
-						? "运行中"
-						: task.enabled === null
-							? "调度状态未知"
-							: task.enabled
-								? "自动运行已开启"
-								: "已暂停"}
+				<Badge tone={task.enabled ? "success" : "neutral"}>
+					{task.enabled === null ? "调度状态未知" : task.enabled ? "自动运行已开启" : "已暂停"}
 				</Badge>
-				· {task.schedule ?? "无可用周期"}
+				{task.running ? <Badge tone="info">有任务运行中</Badge> : null}·{" "}
+				{task.intervalMinutes ? `每 ${task.intervalMinutes} 分钟` : (task.schedule ?? "无可用周期")}
 			</p>
 			{task.error && (
 				<Alert tone="danger">
@@ -204,26 +211,46 @@ function TaskCard({ task }: { task: OpsTask }) {
 				<StateMessage layout="inline" description="暂无运行记录。" />
 			) : null}
 			{task.runs.map((item) => (
-				<Disclosure className="border-t border-border pt-3 text-sm" key={item.id}>
-					<DisclosureSummary className="break-words text-muted-foreground">
-						{formatTimestamp(item.startedAt)} · {item.status} · 业务结果：
-						{
-							{
-								success: "成功",
-								partial: "部分失败",
-								failed: "失败",
-								skipped: "跳过",
-								unknown: "未知",
-							}[item.outcome]
-						}
-					</DisclosureSummary>
-					<pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">
-						{JSON.stringify(item.details, null, 2)}
-					</pre>
-					{item.error && (
+				<section className="border-t border-border pt-3 text-sm" key={item.id}>
+					<p>
+						{formatTimestamp(item.startedAt)} · {runStatusLabel(item)} ·{" "}
+						{item.status === "running" || item.status === "pending"
+							? "结果待完成"
+							: `${task.runtime === "kubernetes" ? "执行结果" : "业务结果"}：${taskOutcomeLabels[item.outcome]}`}
+					</p>
+					<p className="mt-1 text-muted-foreground">
+						{item.completedAt ? `结束于 ${formatTimestamp(item.completedAt)} · ` : ""}
+						{item.status === "running" ? "本轮已耗时" : "耗时"}：
+						{formatHumanDuration(
+							item.startedAt && (item.completedAt || item.status === "running")
+								? (item.completedAt ? Date.parse(item.completedAt) : observedAt) -
+										Date.parse(item.startedAt)
+								: null,
+						)}
+					</p>
+					{item.status === "running" && !item.stages?.length ? (
+						<p className="mt-2 text-muted-foreground">当前阶段尚未提供。</p>
+					) : null}
+					<TaskStageSummary stages={item.stages} observedAt={observedAt} />
+					{item.error ? (
 						<StateMessage layout="inline" tone="danger" role="alert" description={item.error} />
-					)}
-				</Disclosure>
+					) : null}
+					<Disclosure className="mt-2">
+						<DisclosureSummary className="text-muted-foreground">
+							技术信息 · {item.id.slice(0, 8)}
+						</DisclosureSummary>
+						<p className="break-all">运行 ID：{item.id}</p>
+						{item.workflowId ? <p className="break-all">Workflow：{item.workflowId}</p> : null}
+						{item.parentExecution ? (
+							<p className="break-all">
+								调度执行：{item.parentExecution.workflowId} / {item.parentExecution.runId}
+							</p>
+						) : null}
+						<pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">
+							{JSON.stringify(item.details, null, 2)}
+						</pre>
+					</Disclosure>
+				</section>
 			))}
 		</section>
 	);

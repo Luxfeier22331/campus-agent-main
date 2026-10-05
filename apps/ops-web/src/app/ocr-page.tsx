@@ -4,9 +4,6 @@ import {
 	Card,
 	CardContent,
 	ConfirmDialog,
-	Dialog,
-	DialogContent,
-	DialogTitle,
 	Field,
 	Input,
 	StateMessage,
@@ -18,15 +15,15 @@ import {
 	TableRow,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { useState } from "react";
+import { type OcrImage, OcrImageSchema } from "../shared/ocr-contract";
+import type { OpsTask } from "../shared/tasks-contract";
 import { formatTimestamp } from "./format";
+import { OcrHistory, ocrStatusLabels } from "./ocr-history";
+import { OcrResultDialog } from "./ocr-result-dialog";
 import { fetchJson } from "./ops-api/core";
 import { ErrorState, PageHeader } from "./ops-display";
-import { FilterSelect } from "./ui/filter-select";
 import { useConfirmCommand } from "./use-confirm-command";
 
 const tasksKey = ["ocr", "tasks"] as const;
@@ -51,14 +48,23 @@ export function OcrPage() {
 	const [noticeId, setNoticeId] = useState("");
 	const [selected, setSelected] = useState<string | null>(null);
 	const confirmCommand = useConfirmCommand();
-	const pageTarget = useRef<HTMLElement | null>(null);
+	const from = useRouterState({ select: (state) => state.location.href });
 	const [message, setMessage] = useState("");
 	const tasks = useQuery({
 		queryKey: tasksKey,
-		queryFn: ({ signal }) =>
-			fetchJson("/api/ops/ocr/tasks", { signal }) as Promise<{ tasks: OcrTask[] }>,
+		queryFn: async ({ signal }) => {
+			const data = (await fetchJson("/api/ops/ocr/tasks", { signal })) as {
+				tasks: OcrTask[];
+				images: OcrImage[];
+			};
+			return { ...data, images: data.images.map((image) => OcrImageSchema.parse(image)) };
+		},
 		refetchInterval: (query) =>
-			query.state.data?.tasks.some((t) => !["completed", "failed"].includes(t.status))
+			query.state.data &&
+			[
+				...query.state.data.tasks,
+				...query.state.data.images.flatMap((image) => image.batches),
+			].some((t) => !["completed", "failed"].includes(t.status))
 				? 5000
 				: false,
 	});
@@ -72,7 +78,10 @@ export function OcrPage() {
 						? "该通知没有可识别的正文图片。"
 						: "识别任务已提交。",
 			);
-			await client.invalidateQueries({ queryKey: tasksKey });
+			await Promise.all([
+				client.invalidateQueries({ queryKey: tasksKey }),
+				client.invalidateQueries({ queryKey: ["ocr", "notice"] }),
+			]);
 		},
 	});
 	const action = useMutation({
@@ -80,18 +89,30 @@ export function OcrPage() {
 			post(`/api/ops/ocr/tasks/${id}/${action}`),
 		onSuccess: async (result) => {
 			setMessage(result.launchError ? `启动失败：${result.launchError}` : "任务已提交。");
-			await client.invalidateQueries({ queryKey: tasksKey });
+			await Promise.all([
+				client.invalidateQueries({ queryKey: tasksKey }),
+				client.invalidateQueries({ queryKey: ["ocr", "notice"] }),
+			]);
 		},
 	});
-	const result = useQuery({
-		queryKey: ["ocr", "result", selected],
+	const schedule = useQuery({
+		queryKey: ["ops-tasks"],
 		queryFn: ({ signal }) =>
-			fetchJson(`/api/ops/ocr/tasks/${selected}/result`, { signal }) as Promise<{
-				pages: { index: number; markdown: string }[];
-				missingImages: string[];
-			}>,
-		enabled: selected !== null,
+			fetchJson("/api/ops/tasks", { signal }) as Promise<{ tasks: OpsTask[] }>,
 	});
+	const ocrSchedule = schedule.data?.tasks.find((task) => task.id === "document-ocr");
+	const otherTasks =
+		tasks.data?.tasks.filter(
+			(task) =>
+				task.input.kind !== "source" ||
+				task.input.resource?.kind === "attachment" ||
+				!(
+					task.input.contentType.startsWith("image/") ||
+					task.input.resource?.kind === "image" ||
+					task.input.key.includes("/images/")
+				),
+		) ?? [];
+
 	return (
 		<section className="space-y-4">
 			<PageHeader title="文档识别" description="识别已采集通知中的正文图片，查看或恢复处理任务。" />
@@ -117,7 +138,7 @@ export function OcrPage() {
 							</Field>
 						</div>
 						<Button disabled={create.isPending} type="submit">
-							{create.isPending ? "提交中…" : "识别通知附件"}
+							{create.isPending ? "提交中…" : "识别正文图片"}
 						</Button>
 						<Button type="button" variant="ghost" onClick={() => void tasks.refetch()}>
 							刷新
@@ -137,17 +158,107 @@ export function OcrPage() {
 					) : null}
 				</CardContent>
 			</Card>
-			<h2 className="ui-section-title">识别任务</h2>
+			<div className="flex flex-wrap gap-2 text-sm">
+				<span>
+					{schedule.isPending
+						? "正在读取自动识别调度…"
+						: schedule.isError || ocrSchedule?.error
+							? "自动识别调度读取失败"
+							: ocrSchedule?.enabled === true
+								? "自动识别已开启"
+								: ocrSchedule?.enabled === false
+									? "自动识别已暂停"
+									: "自动识别调度未提供"}
+				</span>
+				<Link to="/tasks" className="text-info underline">
+					查看定时任务
+				</Link>
+			</div>
+			<h2 className="ui-section-title">正文图片 · 最近 100 组</h2>
+			{tasks.data?.images.length === 0 ? (
+				<StateMessage description="暂无正文图片识别记录。" />
+			) : null}
+			<ul className="grid gap-3">
+				{tasks.data?.images.map((resource) => {
+					const latest = resource.batches[0];
+					const selectedResult = resource.batches.find(
+						(batch) => batch.id === resource.selectedResultId,
+					);
+					return (
+						<li
+							key={JSON.stringify([resource.noticeId, resource.sourceKey])}
+							className="min-w-0 rounded-lg border p-4"
+						>
+							<Link
+								to="/notices"
+								search={{ q: resource.noticeId, from }}
+								className="text-info underline"
+							>
+								通知 {resource.noticeId} · {resource.label}
+							</Link>
+							<p className="mt-2 text-sm">
+								当前结果：
+								{selectedResult ? `可用 · ${selectedResult.pageCount} 页` : "暂无可用文本"}
+							</p>
+							<p className="text-sm">
+								最新尝试：{latest ? ocrStatusLabels[latest.status] : "未识别"}
+							</p>
+							{latest?.error ? (
+								<p className="whitespace-pre-wrap break-words text-sm text-danger">
+									{latest.error}
+								</p>
+							) : null}
+							<div className="mt-2 flex flex-wrap gap-2">
+								{selectedResult ? (
+									<Button size="sm" variant="ghost" onClick={() => setSelected(selectedResult.id)}>
+										查看结果
+									</Button>
+								) : null}
+								{latest?.canResume ? (
+									<Button
+										size="sm"
+										variant="secondary"
+										disabled={action.isPending}
+										onClick={() => action.mutate({ id: latest.id, action: "resume" })}
+									>
+										恢复
+									</Button>
+								) : null}
+								{latest && ["completed", "failed"].includes(latest.status) ? (
+									<ConfirmDialog
+										title="重新识别？"
+										description="这会再次调用 Paddle 并产生用量，现有结果仍会保留。"
+										confirmLabel="确认重新识别"
+										confirmVariant="primary"
+										{...confirmCommand(latest.id, () =>
+											action.mutateAsync({ id: latest.id, action: "rerun" }),
+										)}
+										trigger={
+											<Button size="sm" variant="secondary" disabled={action.isPending}>
+												重新识别
+											</Button>
+										}
+									/>
+								) : null}
+							</div>
+							{action.isError && action.variables?.id === latest?.id ? (
+								<ErrorState error={action.error} title="识别任务提交失败" />
+							) : null}
+							<OcrHistory resource={resource} onResult={setSelected} />
+						</li>
+					);
+				})}
+			</ul>
 			{tasks.isPending ? (
 				<StateMessage layout="inline" role="status" description={<> 正在读取任务… </>} />
 			) : null}
 			{tasks.isError ? (
 				<ErrorState error={tasks.error} onRetry={() => tasks.refetch()} title="识别任务读取失败" />
 			) : null}
-			{tasks.data?.tasks.length === 0 ? (
+			{tasks.data?.tasks.length === 0 && tasks.data.images.length === 0 ? (
 				<StateMessage description="还没有识别任务。输入通知 ID 开始识别。" />
 			) : null}
-			{tasks.data && tasks.data.tasks.length > 0 ? (
+			{otherTasks.length > 0 ? (
 				<div className="ops-ocr-tasks min-w-0 max-w-full overflow-x-auto rounded-lg border border-border">
 					<Table className="w-full text-left text-sm">
 						<TableHeader className="bg-muted">
@@ -159,13 +270,13 @@ export function OcrPage() {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{tasks.data.tasks.map((task) => (
+							{otherTasks.map((task) => (
 								<TableRow key={task.id} className="border-t align-top">
 									<TableCell className="p-3">
 										{task.input.kind === "validation"
 											? "模型连接验证"
 											: task.input.kind === "source"
-												? `通知 ${task.input.noticeId} · ${task.input.key.includes("/images/") ? "图片" : "附件"} ${Number(task.input.key.split("/").at(-1)) + 1}`
+												? `通知 ${task.input.noticeId} · 其他资源`
 												: "本地上传文件"}
 										<div className="text-xs text-muted-foreground">
 											{formatTimestamp(task.createdAt)}
@@ -235,87 +346,10 @@ export function OcrPage() {
 					</Table>
 				</div>
 			) : null}
-			<Dialog
-				open={selected !== null}
-				onOpenChange={(open) => {
-					if (!open) {
-						setSelected(null);
-					}
-				}}
-			>
-				<DialogContent
-					className="max-h-[85vh] overflow-y-auto sm:max-w-5xl"
-					aria-describedby={undefined}
-				>
-					<DialogTitle>识别结果</DialogTitle>
-					{result.isPending ? <StateMessage layout="inline" description="正在读取结果…" /> : null}
-					{result.isError ? (
-						<ErrorState
-							error={result.error}
-							onRetry={() => result.refetch()}
-							title="结果读取失败"
-						/>
-					) : null}
-					{result.data && result.data.missingImages.length > 0 ? (
-						<p>历史结果中有 {result.data.missingImages.length} 张图片未能下载；文字已保留。</p>
-					) : null}
-					{result.data && result.data.pages.length > 1 ? (
-						<div className="sticky top-0 z-10 border-b border-border bg-background py-2">
-							<Field label={`跳转页码（共 ${result.data.pages.length} 页）`}>
-								<FilterSelect
-									value=""
-									onCloseAutoFocus={(event) => {
-										const target = pageTarget.current;
-										if (target) {
-											event.preventDefault();
-											target.focus({ preventScroll: true });
-											target.scrollIntoView({ block: "start" });
-											pageTarget.current = null;
-										}
-									}}
-									onValueChange={(value) => {
-										const target = document.getElementById(`ocr-result-page-${value}`);
-										pageTarget.current = target;
-										target?.focus({ preventScroll: true });
-										target?.scrollIntoView({ block: "start" });
-									}}
-									options={[
-										{ value: "", label: "选择页码" },
-										...result.data.pages.map((page) => ({
-											value: String(page.index),
-											label: `第 ${page.index + 1} 页`,
-										})),
-									]}
-								/>
-							</Field>
-						</div>
-					) : null}
-					{result.data?.pages.map((page) => (
-						<article
-							id={`ocr-result-page-${page.index}`}
-							key={page.index}
-							tabIndex={-1}
-							className="scroll-mt-24 space-y-3 overflow-auto border-t pt-4"
-						>
-							<h3 className="text-sm text-muted-foreground">第 {page.index + 1} 页</h3>
-							<div className="prose max-w-none dark:prose-invert [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2">
-								<ReactMarkdown
-									remarkPlugins={[remarkGfm]}
-									rehypePlugins={[rehypeRaw, rehypeSanitize]}
-									components={{
-										img: ({ src, alt }) =>
-											src?.startsWith("/api/ops/ocr/tasks/") ? (
-												<img src={src} alt={alt ?? ""} />
-											) : null,
-									}}
-								>
-									{page.markdown}
-								</ReactMarkdown>
-							</div>
-						</article>
-					))}
-				</DialogContent>
-			</Dialog>
+			<OcrResultDialog
+				url={selected ? `/api/ops/ocr/tasks/${selected}/result` : null}
+				onClose={() => setSelected(null)}
+			/>
 		</section>
 	);
 }

@@ -121,6 +121,8 @@ export interface UnifiedPoint {
 
 export type IndexPoint = UnifiedPoint;
 
+export type QdrantPayloadIndexSchema = "bool" | "integer" | "keyword";
+
 export interface QdrantIndexClient {
 	collectionExists(collection: string): Promise<boolean>;
 	createCollection(input: {
@@ -129,7 +131,11 @@ export interface QdrantIndexClient {
 		denseDimensions: number;
 		denseVectorName: string;
 		sparseVectorName: string;
-		payloadIndexes?: string[];
+	}): Promise<void>;
+	createPayloadIndex(input: {
+		collection: string;
+		fieldName: string;
+		fieldSchema: QdrantPayloadIndexSchema;
 	}): Promise<void>;
 	deleteCollection(collection: string): Promise<void>;
 	upsert(input: {

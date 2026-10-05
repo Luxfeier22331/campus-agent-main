@@ -10,6 +10,7 @@ import {
 	Sheet,
 	SheetContent,
 } from "@campus-agent/ui";
+import { Link, useSearch } from "@tanstack/react-router";
 import { RefreshCw, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ErrorState, PageHeader, StaleDataWarning } from "../ops-display";
@@ -21,6 +22,7 @@ import { useNoticeMaintenance } from "./use-notice-maintenance";
 
 export function NoticeMaintenancePage() {
 	const model = useNoticeMaintenance();
+	const search = useSearch({ from: "/notices" });
 	const desktop = useDesktopLayout();
 	const inspector = useRef<HTMLElement>(null);
 	useLayoutEffect(() => {
@@ -86,6 +88,11 @@ export function NoticeMaintenancePage() {
 
 	return (
 		<section className="min-w-0">
+			{search.from === "/ocr" ? (
+				<Link to="/ocr" className="mb-3 inline-flex min-h-11 items-center text-info underline">
+					返回正文图片识别
+				</Link>
+			) : null}
 			<PageHeader
 				actions={
 					<ActionGroup>

@@ -1,4 +1,4 @@
-import { Button, Card, CardContent, StateMessage } from "@campus-agent/ui";
+import { Button, Card, CardContent, Field, Input, StateMessage } from "@campus-agent/ui";
 import {
 	DndContext,
 	type KeyboardCoordinateGetter,
@@ -47,6 +47,7 @@ export function GroupsPage() {
 	const [editingSection, setEditingSection] = useState<SectionEditorState | null>(null);
 	const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
 	const [feedback, setFeedback] = useState<CatalogMutationKind | null>(null);
+	const [search, setSearch] = useState("");
 	const catalog = useQuery({
 		queryFn: ({ signal }) => fetchCampusGroupsCatalog({ signal }),
 		queryKey: CATALOG_QUERY_KEY,
@@ -121,6 +122,22 @@ export function GroupsPage() {
 
 	const data = catalog.data ?? emptyCatalog();
 	const totalGroups = countGroups(data);
+	const normalizedSearch = search.trim().toLocaleLowerCase();
+	const visibleSections = normalizedSearch
+		? data.sections
+				.map((section) => ({
+					...section,
+					groups: section.groups.filter((group) =>
+						[group.name, group.qqGroupNumber, group.summary, ...group.tags]
+							.filter(Boolean)
+							.join(" ")
+							.toLocaleLowerCase()
+							.includes(normalizedSearch),
+					),
+				}))
+				.filter((section) => section.groups.length > 0)
+		: data.sections;
+
 	const mutationKind = mutation.variables?.kind;
 
 	return (
@@ -161,13 +178,29 @@ export function GroupsPage() {
 					</Button>
 				</div>
 
-				{data.sections.length > 0 ? (
+				<Field label="搜索同好群">
+					<Input
+						placeholder="群名、QQ、标签或说明"
+						value={search}
+						onChange={(event) => setSearch(event.target.value)}
+					/>
+				</Field>
+				{normalizedSearch ? (
+					<p className="text-xs text-muted-foreground">
+						匹配 {visibleSections.reduce((count, section) => count + section.groups.length, 0)} 个群
+						· 清除搜索后可调整顺序
+					</p>
+				) : null}
+				{visibleSections.length > 0 ? (
 					<DndContext
 						collisionDetection={catalogCollisionDetection}
 						onDragCancel={() => {
 							preferredDragTarget.current = null;
 						}}
 						onDragEnd={(event) => {
+							if (normalizedSearch) {
+								return;
+							}
 							const next = reorderCatalog(data, event, preferredDragTarget.current);
 							preferredDragTarget.current = null;
 							if (next) {
@@ -177,13 +210,14 @@ export function GroupsPage() {
 						sensors={sensors}
 					>
 						<SortableContext
-							items={data.sections.map((section) => sectionDndId(section.id))}
+							items={visibleSections.map((section) => sectionDndId(section.id))}
 							strategy={verticalListSortingStrategy}
 						>
 							<div className="grid gap-4">
-								{data.sections.map((section) => (
+								{visibleSections.map((section) => (
 									<SortableGroupSection
 										disabled={mutation.isPending}
+										dragDisabled={Boolean(normalizedSearch)}
 										key={section.id}
 										onAddGroup={() => {
 											mutation.reset();
@@ -207,11 +241,17 @@ export function GroupsPage() {
 										}}
 										onRemoveSection={() => {
 											mutation.reset();
-											setPendingRemoval({ kind: "section", section });
+											setPendingRemoval({
+												kind: "section",
+												section: data.sections.find((item) => item.id === section.id) ?? section,
+											});
 										}}
 										onRenameSection={() => {
 											mutation.reset();
-											setEditingSection({ kind: "rename", section });
+											setEditingSection({
+												kind: "rename",
+												section: data.sections.find((item) => item.id === section.id) ?? section,
+											});
 										}}
 										section={section}
 									/>
@@ -222,7 +262,10 @@ export function GroupsPage() {
 				) : (
 					<Card>
 						<CardContent className="p-4 text-muted-foreground text-sm md:p-5">
-							<StateMessage layout="inline" description="目录中还没有分组。" />
+							<StateMessage
+								layout="inline"
+								description={normalizedSearch ? "没有匹配的同好群。" : "目录中还没有分组。"}
+							/>
 						</CardContent>
 					</Card>
 				)}

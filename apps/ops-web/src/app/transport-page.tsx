@@ -550,6 +550,7 @@ function TransportWorkspace({
 									<RouteDetails
 										route={selected}
 										periods={routePeriods}
+										selectedScheduleId={initialScheduleId}
 										onNotices={(period) => begin({ type: "notices", source: period })}
 										today={today}
 										onChanged={onChanged}
@@ -607,6 +608,7 @@ function TransportWorkspace({
 }
 
 function RouteDetails({
+	selectedScheduleId,
 	route,
 	periods,
 	today,
@@ -618,6 +620,7 @@ function RouteDetails({
 	onEnd,
 	onNotices,
 }: {
+	selectedScheduleId?: string | undefined;
 	route: TransportOpsRoute;
 	periods: TransportOpsSchedulePeriod[];
 	today: string;
@@ -632,6 +635,26 @@ function RouteDetails({
 	const confirmCommand = useConfirmCommand();
 
 	const remove = useMutation({ mutationFn: deleteTransportRoute, onSuccess: onChanged });
+	const [showHistorical, setShowHistorical] = useState(
+		Boolean(
+			selectedScheduleId &&
+				periods.some(
+					(period) =>
+						period.scheduleId === selectedScheduleId && period.validTo && period.validTo < today,
+				),
+		),
+	);
+	useEffect(() => {
+		if (
+			selectedScheduleId &&
+			periods.some(
+				(period) =>
+					period.scheduleId === selectedScheduleId && period.validTo && period.validTo < today,
+			)
+		) {
+			setShowHistorical(true);
+		}
+	}, [selectedScheduleId, periods, today]);
 	const groups = [
 		{
 			label: "当前适用",
@@ -690,8 +713,20 @@ function RouteDetails({
 			{periods.length === 0 ? (
 				<StateMessage layout="inline" description="这条线路还没有时间安排。" />
 			) : null}
+			{groups.find((group) => group.label === "已结束")?.entries.length ? (
+				<Button
+					size="sm"
+					variant="ghost"
+					aria-expanded={showHistorical}
+					onClick={() => setShowHistorical((value) => !value)}
+				>
+					{showHistorical
+						? "收起已结束安排"
+						: `显示已结束安排（${groups.find((group) => group.label === "已结束")?.entries.length}）`}
+				</Button>
+			) : null}
 			{groups
-				.filter((group) => group.entries.length)
+				.filter((group) => group.entries.length > 0 && (group.label !== "已结束" || showHistorical))
 				.map((group) => (
 					<section key={group.label} className="grid gap-2" aria-label={group.label}>
 						<h4 className="text-sm text-muted-foreground">{group.label}</h4>

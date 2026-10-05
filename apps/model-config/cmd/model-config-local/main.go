@@ -117,19 +117,44 @@ func parseOptions(
 }
 
 func runSeed(ctx context.Context, options localCommandOptions, stdout io.Writer) error {
-	configs, missing := localSeedConfigs(options.names, options.storeEnvironment)
-	if len(missing) > 0 {
-		return fmt.Errorf("missing required local model config environment variables: %s", strings.Join(missing, ", "))
-	}
 	store, err := openStore(ctx, options.storeEnvironment)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	checks, err := store.Check(ctx, options.names)
+	if err != nil {
+		return err
+	}
+	names, err := missingSeedNames(checks)
+	if err != nil {
+		return err
+	}
+	if len(names) == 0 {
+		return writeJSON(stdout, seedOutput{Seeded: []modelconfig.ConfigName{}})
+	}
+	configs, missing := localSeedConfigs(names, options.storeEnvironment)
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required local model config environment variables: %s", strings.Join(missing, ", "))
+	}
 	if err := store.Seed(ctx, configs); err != nil {
 		return errors.New("local model config seed failed")
 	}
-	return writeJSON(stdout, seedOutput{Seeded: options.names})
+	return writeJSON(stdout, seedOutput{Seeded: names})
+}
+
+func missingSeedNames(checks []modelconfig.LocalConfigCheck) ([]modelconfig.ConfigName, error) {
+	names := []modelconfig.ConfigName{}
+	for _, check := range checks {
+		switch check.State {
+		case modelconfig.LocalConfigCheckReady:
+		case modelconfig.LocalConfigCheckMissing:
+			names = append(names, check.Name)
+		default:
+			return nil, fmt.Errorf("cannot seed %s: %s", check.Name, check.State)
+		}
+	}
+	return names, nil
 }
 
 func runCheck(ctx context.Context, options localCommandOptions, stdout io.Writer) error {

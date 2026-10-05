@@ -56,7 +56,9 @@ function readLocalDevSecrets(path: string): LocalDevSecretsV1 | null {
 	if (!existsSync(path)) {
 		return null;
 	}
-	const value = JSON.parse(readFileSync(path, "utf8")) as Partial<LocalDevSecretsV1>;
+	const value = JSON.parse(readFileSync(path, "utf8")) as Partial<
+		Omit<LocalDevSecretsV1, "schemaVersion">
+	> & { schemaVersion?: number };
 	if (
 		(value.schemaVersion !== 1 && value.schemaVersion !== 2) ||
 		!nonEmpty(value.appApiSafetyIdentifierHmacSecret) ||

@@ -71,6 +71,7 @@ export const DINING_ZH_CN_TLDRAW_MESSAGES = {
 	"comments.link-copied": "链接已复制",
 	"page-menu.max-pages-reached": "已达到页面数量上限",
 	"page-menu.resize": "调整页面大小",
+	"shortcuts-dialog.disabled-notice": "键盘快捷键已关闭。可在“偏好设置 > 无障碍”中重新开启。",
 } as const;
 
 export const DINING_TLDRAW_UI_OVERRIDES: TLUiOverrides = {

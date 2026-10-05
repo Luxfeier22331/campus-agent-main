@@ -39,8 +39,8 @@ status: active
 ## 当前基线
 
 基线数据与初始化代码位于 `apps/ops-web/ops/db/transport-baseline.ts` 和
-`apps/ops-web/ops/db/bootstrap-transport.ts`。本地 `pnpm dev:init` 和生产 `ops-web-bootstrap` Job
-都通过 Ops Web bootstrap 写入空数据库；migration 只负责表结构、索引和授权，不内置业务数据。
+`apps/ops-web/ops/db/bootstrap-transport.ts`。生产 `ops-web-bootstrap` Job
+通过 Ops Web bootstrap 写入空数据库；本地样例通过 `pnpm dev:local -- data seed --domain transport` 显式写入，`dev:init` 不导入业务数据；migration 只负责表结构、索引和授权，不内置业务数据。
 
 当前基线包含两校区通勤、五棵松和篱笆房地铁接驳线路，以及丰台至海淀线路的持续乘车点。后续调整直接在
 Ops Web 修改结构化线路、完整时间段或班次明细。

@@ -35,7 +35,7 @@ consumer token、consumer 注册或 name 权限矩阵。任意能够访问 liste
 - 支持的 provider、协议与槽位组合由 [Model Config 模块合同](../../../../apps/model-config/README.md)
   和服务校验实现维护；主模型已支持 OpenAI 与 Gemini，不把旧的 OpenAI-only 范围作为当前限制；
 - 每个 name 只有一个当前配置，不提供历史、fallback、router、activation、profile 或在线 rollback；
-- 本地 `dev:init` 可以显式写入缺失的已配置连接，不访问 Provider，也不产生 validation 记录；
+- 本地 `dev:local models seed` 可以显式写入缺失的已配置连接，不访问 Provider，也不产生 validation 记录；
 - 同步模型更新先验证后原子替换；目标 hash 不匹配返回冲突，consumer 不静默读取新目标；
 - OCR 识别超过管理请求时限，由 OCR Job 异步验证。OCR 配置保存时重置验证，结果按
   `updated_at` 条件回写，覆盖密钥轮换而非只比较 target hash；Model Config 不拥有 OCR 任务。

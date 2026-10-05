@@ -36,9 +36,11 @@ import { DiningMenuPage } from "./dining-menu-page";
 import { DiningPage } from "./dining-page";
 import { readDiningReportsSearch } from "./dining-report-navigation";
 import { DiningReportsPage } from "./dining-reports-page";
+import { readDiningReviewsSearch } from "./dining-review-navigation";
 import { DiningReviewsPage } from "./dining-reviews-page";
 import { readDiningSubmissionsSearch } from "./dining-submission-navigation";
 import { DiningSubmissionDetailPage, DiningSubmissionsPage } from "./dining-submissions-page";
+import { readEmailAccessSearch } from "./email-access-navigation";
 import { EmailAccessPage } from "./email-access-page";
 import { GroupsPage } from "./groups-page";
 import { InternalPortalPage } from "./internal-portal-page";
@@ -169,7 +171,8 @@ const providerConfigRoute = createRoute({
 const emailAccessRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/email-access",
-	component: EmailAccessPage,
+	validateSearch: readEmailAccessSearch,
+	component: () => <EmailAccessPage search={emailAccessRoute.useSearch()} />,
 });
 
 const internalPortalRoute = createRoute({
@@ -213,7 +216,7 @@ const userDetailRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/users/$userId",
 	validateSearch: (search: Record<string, unknown>) => ({
-		from: optionalBoundedSearchString(search.from, 4096),
+		from: optionalBoundedSearchString(search.from, 20000),
 	}),
 	component: UserDetailRoute,
 });
@@ -269,15 +272,8 @@ const diningSubmissionDetailRoute = createRoute({
 const diningReviewsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining/reviews",
-	validateSearch: (search: Record<string, unknown>) => ({
-		submission_id: optionalBoundedSearchString(search.submission_id, 200),
-	}),
-	component: () => (
-		<DiningReviewsPage
-			key={diningReviewsRoute.useSearch().submission_id}
-			initialSubmissionId={diningReviewsRoute.useSearch().submission_id}
-		/>
-	),
+	validateSearch: readDiningReviewsSearch,
+	component: () => <DiningReviewsPage search={diningReviewsRoute.useSearch()} />,
 });
 
 const diningReportsRoute = createRoute({

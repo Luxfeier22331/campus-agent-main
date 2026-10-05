@@ -16,6 +16,7 @@ function fixture(status = "RUNNING") {
 		raw: { pendingActivities: [] },
 	} as unknown as WorkflowExecutionDescription;
 	const handle = {
+		fetchHistory: vi.fn(async () => ({ events: [] })),
 		describe: vi.fn(async () => description),
 		result: vi.fn(async () => ({
 			outcome: "partial",
@@ -112,7 +113,11 @@ describe("Temporal notice maintenance", () => {
 		async (status) => {
 			const { handle, store } = fixture(status);
 			handle.result.mockRejectedValueOnce(new Error(status));
-			expect(await store.get(runId)).toMatchObject({ status: "failed", error: status });
+			expect(await store.get(runId)).toMatchObject({
+				status: "failed",
+				error: status,
+				controllerError: null,
+			});
 		},
 	);
 	it("returns null for missing runs", async () => {

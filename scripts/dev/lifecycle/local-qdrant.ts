@@ -6,20 +6,27 @@ export interface LocalQdrantConnection {
 	readOnlyApiKey: string;
 	url: string;
 }
-export async function resolveLocalQdrantConnection(
+export function localQdrantConnection(
 	repoRoot: string,
 	profile: LocalDevProfile,
-): Promise<LocalQdrantConnection>;
+): LocalQdrantConnection {
+	const secrets = loadLocalInfrastructureSecrets(repoRoot, profile);
+	return {
+		apiKey: secrets.qdrantApiKey,
+		readOnlyApiKey: secrets.qdrantReadOnlyApiKey,
+		url: `http://127.0.0.1:${profile.infraPorts.qdrantHttp}`,
+	};
+}
 export async function resolveLocalQdrantConnection(
 	repoRoot: string,
 	profile: LocalDevProfile,
 ): Promise<LocalQdrantConnection> {
-	const secrets = loadLocalInfrastructureSecrets(repoRoot, profile);
-	const url = `http://127.0.0.1:${profile.infraPorts.qdrantHttp}`;
+	const connection = localQdrantConnection(repoRoot, profile);
+	const { url, apiKey } = connection;
 	let response: Response;
 	try {
 		response = await fetch(`${url}/collections`, {
-			headers: { "api-key": secrets.qdrantApiKey },
+			headers: { "api-key": apiKey },
 			signal: AbortSignal.timeout(5_000),
 		});
 	} catch {
@@ -29,5 +36,5 @@ export async function resolveLocalQdrantConnection(
 	if (!response.ok) {
 		throw new Error(`Local Qdrant credential check failed: HTTP ${response.status} at ${url}.`);
 	}
-	return { apiKey: secrets.qdrantApiKey, readOnlyApiKey: secrets.qdrantReadOnlyApiKey, url };
+	return connection;
 }

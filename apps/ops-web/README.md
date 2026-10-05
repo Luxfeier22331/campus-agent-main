@@ -27,12 +27,12 @@
 - `/conversations/:conversationId`：从运行或反馈进入的会话只读详情，可定位消息并查看各轮运行；
 - `/chat-feedback`：当前回答反馈的紧凑列表和响应式详情，通过 App API 读取；数量忽略评价类型与分页、保留时间及请求条件；
 - `/providers`：在线模型配置；
-- `/ocr`：通知图片/PDF 识别任务与连续结果、页码跳转；Paddle 连接在模型配置页维护。
+- `/ocr`：通知正文图片按来源聚合的当前结果、最新尝试和历史记录；支持连续结果阅读、页码跳转和通知维护跳转；Paddle 连接在模型配置页维护。
 - `/internal-portal`：门户凭据与自动化 token；
 - `/email-access`、`/users`、`/users/:userId`、`/users/activity`：账号管理；
 - `/dining`：食堂内容维护；
 - `/groups`：同好群目录维护。
-- `/tasks`：通过唯一的通知流水线入口查看采集、分类、发布和索引刷新，不再列出三个旧兼容任务；调整启停与 15/30/60 分钟周期，查看业务结果、当前问题；索引回滚操作明确为暂停后续调度并提交回滚任务，提交失败保留确认框。OCR 与凭据检查只读。
+- `/tasks`：通过唯一的通知流水线入口查看采集、分类、发布和索引刷新，不再列出三个旧兼容任务；调整启停与 15/30/60 分钟周期；合并定时父子执行，区分排队、执行与终态，展示步骤进度、心跳及重试信息；后续阶段执行或失败时仍保留已完成阶段的业务结果，异常终止保留最后进度与原因链；索引回滚操作明确为暂停后续调度并提交回滚任务，提交失败保留确认框。OCR 与凭据检查只读。
 - `/notices`：查看通知库存与已采集正文、图片及附件，维护分类，并启动固定的采集、分类和发布任务。
 - `/transport`：维护班车线路、完整时间段和班次明细。线路表单可独立编辑默认乘车点、下车点和乘车指引；
   后两项可留空，指引支持换行。时间段备注用于运行说明，不承担通知审核或自动提取。
@@ -40,7 +40,7 @@
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器 DTO 位于 `src/shared/`，HTTP 入口位于
 `src/server/app.ts`。
 
-通知 OCR 入口从通知领域读取来源资源引用，再选择图片/PDF 创建 OCR 任务；通用 OCR 包不负责解析通知。
+通知 OCR 入口从通知领域读取来源资源引用，再选择正文图片创建 OCR 任务；通用 OCR 包不负责解析通知。
 Node 构建内联通知 workspace 源码，但外部加载生产依赖 `jsdom`，不将其文件资源读取逻辑打入 ESM bundle。
 镜像构建在独立 production deploy 目录检查所有服务端 JavaScript 的依赖边界，并实际加载和实例化 `jsdom`。
 
@@ -87,7 +87,6 @@ Ops Web 的内部解析接口。
 ## 本地命令
 
 ```bash
-pnpm dev:init -- --target core
 pnpm dev:init -- --target ops-web
 pnpm --filter ops-web dev:api
 pnpm --filter ops-web dev:web
@@ -99,9 +98,7 @@ pnpm --dir apps/ops-web test:browser
 pnpm --dir apps/ops-web test:database-integration
 ```
 
-`pnpm dev:init -- --target ops-web` 会生成 core、Ops Web 和通知相关实际消费者所需的环境投影，通过
-`campus-agent-schema` 安装统一 schema 和授权，再写入班车 baseline、通知分类与 Dining 本地 seed；
-新的本地 profile 不需要单独初始化 notice-publisher。`test:database-integration` 验证当前统一 schema 拓扑。
+`pnpm dev:init -- --target ops-web` 只准备 Ops Web 实际调用服务所需的环境、基础设施和 schema，不自动导入模型配置或业务数据。需要本地页面样例时运行 `pnpm dev:local -- data seed --domain notices --domain transport --domain dining`；各已有数据域会保留并跳过。`test:database-integration` 验证当前统一 schema 拓扑。
 
 根 `pnpm test --filter=ops-web` 按 Node（`.test.ts`）和 DOM（`.test.tsx`）执行分组任务；有模块 mock 的文件以
 `.isolated.test.*` 保留隔离，其余文件共享环境并在每个测试后清理。四组分别缓存；只有 DOM 测试
@@ -117,15 +114,13 @@ pnpm --dir apps/ops-web test:database-integration
 前者是 HTTP(S) 根地址，令牌不下发到浏览器。
 
 `pnpm dev:init -- --target ops-web` 为当前 worktree 创建独立 PostgreSQL database 和所需 source/derived
-bucket，生成 Ops Web 及通知采集、分类、发布任务实际读取的环境文件，并通过统一 schema 和 seed owner 补齐
-班车 baseline、Notice、分类模型与 Dining 本地基线。班车由 Ops Web 直接维护，使用统一 `ops_web` 角色；Dining
+bucket，并生成 Ops Web 实际读取的环境文件。它不会初始化通知采集、分类和发布任务，也不会写入班车、Notice、模型或 Dining 数据；这些操作分别通过 `dev:local` 的 `schedule`、`models` 和 `data` 命令显式执行。班车由 Ops Web 直接维护，使用统一 `ops_web` 角色；Dining
 不创建专属角色、连接、桶或凭据。
 
 Ops Web 的 Dining schema 位于 `packages/domains/dining/src/schema.ts`；内部门户凭据与
 automation token 表与 Dining 表的 DDL 一起由 `jobs/campus-agent-schema/` 管理，并记录在
-`drizzle.campus_agent_migrations`。产品基础数据统一通过 `pnpm dev:init -- --target ops-web`
-初始化；默认 seed 与 core 相同，支持 `--data cluster --context <context> --namespace <namespace>`。
-已有数据要求显式 `--replace` 才会替换；应用离线，共享基础设施继续运行。seed 不创建表，
+`drizzle.campus_agent_migrations`。环境通过 `pnpm dev:init -- --target ops-web`
+初始化；数据 seed 与 cluster sync 通过独立的 `dev:local data` 命令按域执行。已有数据域默认保留；显式指定该域及 `--replace` 才会替换。seed 不创建表，
 食堂 SVG 由现有领域 renderer 生成。详细边界见[本地运行检查](../../docs/runbooks/local-verification.md)。
 
 ## 相关文档

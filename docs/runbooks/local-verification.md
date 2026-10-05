@@ -16,15 +16,14 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.e
 模型链路；验证个人记忆时再显式启动并配置 Hindsight。
 
 产品页面本地开发使用 worktree profile 和应用本地托管环境文件，不读取根 `.env`。仓库生成 loopback
-数据库凭据和应用本地随机 secret；linked worktree 的 target 按 projection 白名单补充尚未存在的 provider
+数据库凭据和应用本地随机 secret；linked worktree 通过显式 `dev:local credentials import` 按 projection 白名单补充尚未存在的 provider
 外部开发连接，并在 `internal-portal-collection` projection 下首次导入 main 已有的门户 TGC。数据库、
 对象存储资源、应用内部 secret 和 provider 配置加密 key 仍按 worktree 独立。其他外部凭据由开发者进程环境显式提供。
 
 默认诊断 compose 使用 debug OTel Collector。只有验证本地 Agent trace 到 Langfuse 的转发时加入
 `docker-compose.execution-runtime.langfuse.yml`。
 
-独立数据平面决策见[每个 worktree 的独立本地数据平面](../../.agents/notes/implemented/architecture/2026-09-24-independent-worktree-data-plane.md)；seed 与基础
-验证仍见[协作开发产品数据初始化](../../.agents/notes/implemented/process/2026-09-17-product-data-initialization.md)。
+独立数据平面决策见[每个 worktree 的独立本地数据平面](../../.agents/notes/implemented/architecture/2026-09-24-independent-worktree-data-plane.md)；数据域与初始化命令边界见[本地开发初始化与数据域 owner](../../.agents/notes/implemented/architecture/2026-10-03-local-development-initialization-ownership.md)。
 
 ## Node 工具链
 
@@ -57,24 +56,36 @@ pnpm --dir apps/campus-web test:node:fast
 pnpm --dir apps/campus-web test:dom:fast
 pnpm --dir apps/campus-web build:fixture
 pnpm dev:init -- --target core
+pnpm dev:local -- data seed --domain docs
 pnpm dev
 ```
 
 `build:fixture` 只供浏览器回归使用确定性测试内容。Campus Web 的正常开发和构建读取当前 worktree 对象存储中的 `campus-docs/source.json`。
-`pnpm dev:init -- --target core` 为当前 worktree 供应 PostgreSQL、RustFS、Qdrant、Temporal，安装 schema、测试账号和 namespace。
+`pnpm dev:init -- --target core` 为当前 worktree 供应 PostgreSQL、RustFS、Qdrant、Temporal，安装 schema、测试账号和 namespace；不会导入 provider 凭据、seed 模型或业务数据。
 测试账号由 [`apps/app-api/ops/db/seed-local-test-user.ts`](../../apps/app-api/ops/db/seed-local-test-user.ts) 种入：`test@muc.edu.cn` / `password123`（普通用户）、`admin@muc.edu.cn` / `admin123`（管理员）。
 
-初始化前停止当前 worktree 的应用。`core` 先初始化自己的运行数据库，再同步当前 worktree 的检索数据：
+`dev:init` 只准备所选 target 的环境、基础设施、schema 和必要账号。按需显式准备模型、调度和数据：
 
 ```bash
 pnpm dev:init -- --target core
-pnpm dev:init -- --target core --data cluster [--context <context> --namespace <namespace>]
-pnpm dev:doctor -- --scope data
+pnpm dev:local -- credentials import --target core
+pnpm dev:local -- models seed --target core
+pnpm dev:local -- data seed --domain all
+pnpm dev:doctor -- --target core --scope startup
 ```
 
-`--data cluster` 的 namespace 默认 `campus-agent-staging`，`--context` 缺省时回落到本机 kubectl current-context；跨集群同步时才需显式给两个 flag。
+`data seed` 支持 `notices`、`groups`、`dining`、`transport`、`docs`、`retrieval`，可重复传入 `--domain`；`all` 仅用于 seed。每个已有数据域默认保留并跳过，空域独立初始化。替换必须指明域并传 `--replace`，例如 `pnpm dev:local -- data seed --domain dining --replace`。食堂评价随食堂替换清理；通知有班车引用时，替换必须同时选择 `notices` 和 `transport`。
 
-`dev:init --data cluster` 不复制集群的完整业务数据库，只同步 Docs source 引用闭包、当前混合 Qdrant collection、检索所需通知表和当前 profile 的 `current_index`，不复制用户、session、Dining、Transport、Groups 或 reviews。基础 UI 验证仍可使用 seed 和 fixture；seed 是本地完整基础数据路径。模型连接仍由开发者提供；数据 ready 不等于模型配置或真实查询成功。
+集群同步使用 `data sync --domain <domain>`，namespace 默认 `campus-agent-staging`，可用 `--namespace` 覆盖；`--context` 省略时使用 kubectl 当前 context。检索同步把 Docs、通知源和当前索引作为一个 owner 闭包，其他业务域分别从既有只读导出 owner 同步。示例：
+
+```bash
+pnpm dev:local -- data sync --domain notices --context <context>
+pnpm dev:local -- data sync --domain dining --context <context> --namespace campus-agent-staging
+pnpm dev:local -- data sync --domain retrieval --context <context>
+pnpm dev:doctor -- --scope data --domain notices --domain docs
+```
+
+通知日期范围和 `--with-sources` 仅用于选择了 `notices` 的同步；`--with-sources` 复制正文和其图片/附件对象闭包，不带该参数只同步关系数据。日期范围用于 upsert，不与 `--replace` 组合。`data sync --domain notices` 保留本地额外通知并按既有 upsert 路径报告额外记录。`dev:sync-notices` 保留为同一通知同步 owner 的快捷入口。
 
 需要自行验证通知分块和 Embedding 时，使用仅通知源数据同步入口：
 
@@ -114,30 +125,13 @@ pnpm dev:sync-notices -- --context <context> --namespace campus-agent-staging \
 
 同步失败时当前 profile 的 current pointer 不会激活候选 collection；修复集群连接或对象后重试同一条同步命令。
 
-只验收 Ops 内容页面时，可用轻量内容模式替换本地内容：
-
-```bash
-pnpm dev:init -- --target ops-web --data cluster-content --notice-limit 100 --replace \
-  --context nc-arm-6c --namespace campus-agent-staging
-```
-
-`cluster-content` 默认取最新 100 条通知，并补齐所导入班车时段引用的通知；`--notice-limit` 可调整近期通知数。
-群目录、班车和食堂地图／菜单使用现有产品数据列投影全量导入。通知资产只保留元数据，复制选中通知的原始
-正文 JSON 到本地 source bucket，使 Ops 正文预览可用；不复制图片、附件文件、食堂 SVG、Docs 或 Qdrant 索引。
-图片预览、附件下载和依赖这些文件的 OCR 不在此模式覆盖范围内。集群只使用 `product_data_ro` 和
-`objectstore-ro` 的 source 只读身份，不需要 Qdrant 连接。
-
-与 seed 替换一致，现有基础内容及其依赖的食堂评价会被替换，用户、会话和模型配置保留。由于部分通知不再
-匹配原索引，内容替换事务同时清除本地 `current_index` 绑定；本地检索不可用，完整检索验收需再运行
-`--data cluster`。导入前停止当前 worktree 应用，保留本地基础设施；已有本地内容需显式 `--replace`。
-
 浏览器验收按需使用 MCP，不增加 smoke 命令或 PR CI。
 
 初始化成功后不再自动进行全量诊断。默认 doctor 与启动检查只核对必要入口；业务表为空不代表损坏。
-需要检查全部对象、图片及检索点引用时显式运行 `pnpm dev:doctor -- --scope data`，它会读取全部相关
+需要检查全部对象、图片及检索点引用时显式运行 `pnpm dev:doctor -- --scope data --domain retrieval`，它会读取全部相关
 对象并分页扫描当前 collection，诊断成本随数据量增长。数据库约束和实际引用检查仍然有效。
 
-`pnpm dev` 随后只读取就绪状态，并由 Turbo 并行启动
+`pnpm dev` 随后检查 startup scope（所选服务的配置、基础设施、schema 与必要数据入口），再由 Turbo 并行启动
 Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行初始化、迁移或 seed。
 直接执行 `pnpm --dir apps/campus-web build` 也会读取当前 worktree 的托管配置。只有显式访问其他对象
 存储时才通过 `env/commands/campus-docs-source.env` 或进程环境覆盖，进程环境优先级最高。
@@ -240,22 +234,20 @@ pnpm dev:init -- --target internal-portal-collection
 pnpm dev:init -- --target notice-classifier
 pnpm dev:init -- --target campus-docs-index-publisher
 pnpm dev:init -- --target campus-rag-index-publisher
-pnpm dev:init -- --target notice-index-publisher
 ```
 
 `notice-publisher` target 是通知 schema/category seed 的 owner；`internal-portal-collection` 只生成
 Ops Web 和采集器实际读取的环境投影，`notice-classifier` 只生成 Model Config 与分类器实际读取的环境投影。
 两者都通过 readiness 检查复用统一 schema 和通知分类 seed，但不重复执行 DDL。
-`ops-web` target 额外生成全部本地通知 Job 环境，并补齐分类模型与 Dining 基线。
+`ops-web` target 只组合 app-api、Model Config 服务和 Ops 自身环境，不准备通知任务、分类模型或 Dining 数据。
 `notice-index-publisher` 复用 schema owner 安装数据库 baseline；`campus-docs-index-publisher` 只生成其 Docs
-builder 环境；`campus-rag-index-publisher` 只生成统一 publisher 读取 derived bucket、Qdrant 和当前索引
-数据库所需的环境，不上传本地 `var/` 制品。
+builder 环境；`campus-rag-index-publisher` 独立准备统一 publisher 读取 derived bucket、Qdrant 和当前索引
+数据库所需的环境及统一 schema，不上传本地 `var/` 制品。
 
-验证统一 Campus RAG 发布时，除 `campus-rag-index-publisher` 环境外还需要同一 worktree 的 schema baseline：
+验证统一 Campus RAG 发布时，独立初始化 publisher 即可：
 
 ```bash
 pnpm dev:init -- --target campus-rag-index-publisher
-pnpm dev:init -- --target notice-index-publisher
 ```
 
 统一 publisher 的本地入口是：
@@ -268,9 +260,9 @@ pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
 
 运行上述命令前，先用 `import-artifacts-local` 从集群 derived object store 导入两个 Embedding Set 的 serving
 引用闭包。导入使用临时 object-store port-forward，并写入当前 worktree 的隔离本地 bucket；不会复制整个
-bucket，也不会写入当前 profile bucket。发布验证使用本地 PostgreSQL/Qdrant 和本地 S3，不调用 embedding provider，
-也不形成线上前置状态。`dev:init -- --target campus-rag-index-publisher` 从正在运行的本地 Qdrant Compose
-容器读取 writer key 和 HTTP 映射端口，经认证检查后写入本 worktree 的托管环境文件。容器由当前 worktree 的 `pnpm dev:init -- --target core` 启动；连接或认证失败时初始化报错，凭据变化后重跑初始化即可更新。
+bucket，也不会写入集群 bucket。发布验证使用本地 PostgreSQL/Qdrant 和本地 S3，不调用 embedding provider，
+也不形成线上前置状态。`dev:init -- --target campus-rag-index-publisher` 独立准备所需 PostgreSQL、统一 schema、derived bucket 与 Qdrant。
+环境渲染使用当前 profile 的端口和私有 key，不依赖先启动其他 target；基础设施检查再验证连接。
 
 ## Ops Web API
 
@@ -307,10 +299,30 @@ pnpm --filter ops-web dev:fixture
 和固定测试响应，不读取真实门户凭据，也不代表 staging 或 production 状态。MCP 调用应与该进程
 处于同一网络命名空间，并使用输出的 loopback endpoint。
 
+## 独立操作与诊断
+
+初始化的组成步骤可单独重跑：`pnpm dev:local -- env --target <target>`、`infra --target <target>` 和 `schema`。
+需要 Hindsight 时先配置其独立 provider 环境变量，再运行 `pnpm dev:local -- infra --service hindsight`。
+通知采集 schedule 由 pipeline owner 显式创建：先 `dev:init --target notice-pipeline-worker`，再
+`pnpm dev:local -- schedule init --target notice-pipeline-worker`。artifacts worker 初始化不会调用 pipeline schedule。
+
+`dev:doctor --target <target> --scope <scope>` 的范围如下：
+
+| scope | 检查范围 |
+| --- | --- |
+| config | 当前 target 的托管环境字段、worktree 资源身份与私有模型密钥，不访问服务 |
+| infra | 当前 target 的基础设施和 Temporal namespace，不检查业务数据或模型 |
+| schema | 统一 schema 与 target 的必要记录 |
+| data | 必须显式 `--domain`，按领域校验资源引用；retrieval 才扫描向量 |
+| startup | 配置、基础设施、schema；core 额外检查 Docs 构建输入 |
+| runtime | startup 所需服务、目标模型配置、进程健康；core 额外检查检索 |
+
+旧 `dev:init --data/--replace` 参数会在创建资源前报错；初始化不再执行数据操作。只在按域替换和检索源同步时停止相关数据消费者，普通初始化和通知 upsert 不要求全体应用离线。
+
 ## Model Config
 
 在线配置由当前 worktree 的独立 Model Config 数据库、role 和 `model-config-encryption.key` 持有。
-`pnpm dev:init -- --target core` 或 `--target notice-classifier` 会按 target 从当前进程环境或根 `.env` 显式
+`pnpm dev:local -- models seed --target core` 或 `--target notice-classifier` 按 target 从当前进程环境或根 `.env` 显式
 seed 缺失的 Model Config；它不访问 Provider、不覆盖已有配置，也不产生 validation 记录。需要在线修改或
 验证时，启动本地 `pnpm dev` 与 `pnpm --filter ops-web dev:api`、`pnpm --filter ops-web dev:web`，按
 [在线模型密钥操作](./access/provider-secrets.md) 操作。应用启动不能静默 seed 在线配置。main checkout 导入的 provider 字段只是
@@ -339,7 +351,7 @@ decode/postprocess 可区分；同一通知的互补片段可同时返回，跨�
 schema 0008 只清除旧诊断；先停止本 worktree 的旧 execution-control，执行统一 schema migration，
 再启动新版与 Ops API。不要在仍有旧生产者的 staging 单独提前应用这次硬切。
 `pnpm dev:init -- --target core` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline。
-启动前会在 seed 后检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
+显式模型 seed 和 runtime doctor 会检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
 同一个本地实例。不要复制其他 worktree、staging 或 production 的 encryption key；使用
 `pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>` 显式销毁该实例后重新运行
 `pnpm dev:init -- --target core`，再通过 Ops Web 配置本地模型。

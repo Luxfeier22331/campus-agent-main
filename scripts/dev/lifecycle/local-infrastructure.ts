@@ -102,16 +102,15 @@ export async function inspectLocalInfrastructure(
 	profile: LocalDevProfile,
 	required: readonly LocalDevCapability[] = [],
 ): Promise<LocalInfrastructureDiagnosis> {
+	const relevantServices = servicesForCapabilities(required).flatMap((service) =>
+		service === "temporal"
+			? ["temporal-postgres", "temporal"]
+			: service === "hindsight-api"
+				? ["hindsight-postgres", "hindsight-api"]
+				: [service],
+	);
 	const services = Object.fromEntries(
-		[
-			"postgres",
-			"object-store",
-			"temporal-postgres",
-			"temporal",
-			"qdrant",
-			"hindsight-api",
-			"hindsight-postgres",
-		].map((service) => [service, inspectService(repoRoot, profile, service)]),
+		relevantServices.map((service) => [service, inspectService(repoRoot, profile, service)]),
 	);
 	const capabilities: LocalCapabilityDiagnosis = { required: [...new Set(required)] };
 	const secrets = safeLoadSecrets(repoRoot, profile);
@@ -166,13 +165,7 @@ export async function inspectLocalInfrastructure(
 			);
 		}
 	}
-	const relevantServices = servicesForCapabilities(required).flatMap((service) =>
-		service === "temporal"
-			? ["temporal-postgres", "temporal"]
-			: service === "hindsight-api"
-				? ["hindsight-postgres", "hindsight-api"]
-				: [service],
-	);
+
 	const serviceValues = relevantServices.map((service) => services[service]);
 	const states = [
 		...serviceValues.map((value) => value.probe),

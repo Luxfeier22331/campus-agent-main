@@ -16,7 +16,7 @@ import { buildNoticeChunkRun } from "../../../jobs/notice-index-publisher/src/co
 import { buildNoticeEmbeddingSet } from "../../../jobs/notice-index-publisher/src/embedding-set.ts";
 import { createProductSeed } from "./product-data-seed.ts";
 
-/** Maintainer regeneration only; dev:init consumes committed artifacts without provider calls. */
+/** Maintainer regeneration only; data seed consumes committed artifacts without provider calls. */
 export async function buildProductSeedIndex(
 	root: string,
 	input: { apiKey: string; baseUrl: string },

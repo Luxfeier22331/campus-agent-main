@@ -133,22 +133,25 @@ func TestLocalSeedConfigsDoesNotModifyNames(t *testing.T) {
 	}
 }
 
-func TestRunSeedRejectsMissingProviderInputBeforeOpeningStore(t *testing.T) {
-	var stdout bytes.Buffer
-	err := run(context.Background(), []string{"seed", "--name", string(modelconfig.ConfigPrimaryAgent)}, &stdout, nil, func(key string) (string, bool) {
-		if key == "LLM_BASE_URL" || key == "LLM_MODEL" {
-			return "configured", true
-		}
-		if key == "MODEL_CONFIG_DATABASE_URL" || key == "MODEL_CONFIG_ENCRYPTION_KEY_FILE" {
-			t.Fatalf("store lookup %s occurred before provider validation", key)
-		}
-		return "", false
+func TestMissingSeedNamesSelectsOnlyMissingConfigs(t *testing.T) {
+	names, err := missingSeedNames([]modelconfig.LocalConfigCheck{
+		{Name: modelconfig.ConfigPrimaryAgent, State: modelconfig.LocalConfigCheckReady},
+		{Name: modelconfig.ConfigNoticeClassification, State: modelconfig.LocalConfigCheckMissing},
 	})
-	if err == nil || !strings.Contains(err.Error(), "LLM_API_KEY") {
-		t.Fatalf("error = %v, want missing LLM_API_KEY", err)
+	if err != nil {
+		t.Fatalf("missingSeedNames() error = %v", err)
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
+	if want := []modelconfig.ConfigName{modelconfig.ConfigNoticeClassification}; !reflect.DeepEqual(names, want) {
+		t.Fatalf("names = %v, want only missing config %v", names, want)
+	}
+}
+
+func TestMissingSeedNamesRejectsUnknownConfigState(t *testing.T) {
+	_, err := missingSeedNames([]modelconfig.LocalConfigCheck{{
+		Name: modelconfig.ConfigPrimaryAgent, State: modelconfig.LocalConfigCheckUnknown,
+	}})
+	if err == nil || !strings.Contains(err.Error(), "unknown") {
+		t.Fatalf("error = %v, want unknown state", err)
 	}
 }
 

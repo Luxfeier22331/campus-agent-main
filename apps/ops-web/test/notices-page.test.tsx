@@ -431,7 +431,9 @@ describe("notice maintenance page", () => {
 			),
 		);
 		await waitFor(() =>
-			expect(within(taskCenter).getByText("notice-classify-missing-created")).toBeInTheDocument(),
+			expect(
+				within(taskCenter).getByText("运行 ID：notice-classify-missing-created"),
+			).toBeInTheDocument(),
 		);
 		expect(within(taskCenter).queryByText("正在创建任务")).not.toBeInTheDocument();
 		expect(within(taskCenter).getByRole("button", { name: "分类缺失通知" })).toBeDisabled();

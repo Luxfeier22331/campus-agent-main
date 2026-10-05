@@ -19,6 +19,8 @@ function subscribeDesktop(callback: () => void) {
 }
 const isDesktop = () => window.matchMedia?.(desktopQuery).matches ?? false;
 
+import { MarkdownPreview } from "./markdown-preview";
+
 export function ConversationsPage({ search }: { search: TimeSearch & Record<string, unknown> }) {
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -163,12 +165,14 @@ export function ConversationsPage({ search }: { search: TimeSearch & Record<stri
 												{c.latestQuestionPreview && c.latestQuestionPreview !== c.title ? (
 													<p className="line-clamp-1 break-words text-sm">
 														<span className="mr-2 text-muted-foreground">问</span>
-														{c.latestQuestionPreview}
+														<MarkdownPreview>{c.latestQuestionPreview}</MarkdownPreview>
 													</p>
 												) : null}
 												<p className="line-clamp-1 break-words text-sm text-muted-foreground">
 													<span className="mr-2">答</span>
-													{c.latestAnswerPreview ?? "最新一轮尚无回答"}
+													<MarkdownPreview>
+														{c.latestAnswerPreview ?? "最新一轮尚无回答"}
+													</MarkdownPreview>
 												</p>
 												<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
 													<span className="sr-only">最新一轮状态：</span>

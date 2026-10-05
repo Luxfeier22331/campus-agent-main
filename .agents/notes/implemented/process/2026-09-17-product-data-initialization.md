@@ -2,6 +2,10 @@
 
 Status: implemented
 
+`dev:init` 自动导入产品数据、全局替换和隐式模型/Hindsight 初始化已由
+[本地开发初始化与数据域 owner](../architecture/2026-10-03-local-development-initialization-ownership.md) 部分取代。
+以下关于只读身份、检索原子发布、真实样例制品、独立通知同步与对象合同的理由继续有效。
+
 ## 背景
 
 UI worktree 曾有空通知表和不完整的检索绑定，初始化流程却只检查分类、群组或独立领域计数。

@@ -12,7 +12,10 @@ import {
 	readNoticeChunks,
 	readNoticeEmbeddingSet,
 } from "./artifacts.ts";
-import { COLLECTION_DEFINITION, COLLECTION_PREFIX } from "./definitions.ts";
+import {
+	COLLECTION_DEFINITION,
+	COLLECTION_PREFIX,
+} from "./definitions.ts";
 import { buildSparseVector } from "./sparse-vector.ts";
 import type {
 	NoticeChunk,
@@ -217,7 +220,6 @@ export async function materializeCollection(
 		denseDimensions: EMBEDDING_SPACE.dimensions,
 		denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
 		sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
-		payloadIndexes: ["source_kind", "document_id", "version_slug", "is_current", "corpus", "applicable_from_admission_year", "applicable_to_admission_year"],
 	});
 	try {
 		let batch: UnifiedPoint[] = [];
@@ -233,6 +235,13 @@ export async function materializeCollection(
 			if (batch.length === QDRANT_UPSERT_BATCH_SIZE) await write();
 		}
 		if (batch.length) await write();
+		for (const index of COLLECTION_DEFINITION.payloadIndexes) {
+			signal?.throwIfAborted();
+			await qdrant.createPayloadIndex({
+				collection: candidate.collection,
+				...index,
+			});
+		}
 		await validate(qdrant, candidate);
 	} catch (error) {
 		await qdrant.deleteCollection(candidate.collection).catch(() => undefined);

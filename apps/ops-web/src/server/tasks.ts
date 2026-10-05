@@ -1,4 +1,4 @@
-import { BatchV1Api, KubeConfig } from "@kubernetes/client-node";
+import { BatchV1Api, KubeConfig, type V1Job } from "@kubernetes/client-node";
 import {
 	Client,
 	Connection,
@@ -8,6 +8,10 @@ import {
 } from "@temporalio/client";
 import type { Pool } from "pg";
 import type { OpsTask, TaskId, TaskRun, TaskScheduleInput } from "../shared/tasks-contract.ts";
+
+import { projectTaskStages } from "./task-stages.ts";
+
+import { projectTemporalStages, taskFailureMessage } from "./temporal-task-stages.ts";
 
 const maintenanceWorkflowId = "notice-pipeline-workflow";
 const ragTypes = ["noticePipelineRun", "noticePipelineRollback", "noticePipelineScheduled"];
@@ -71,6 +75,18 @@ export function createTaskService(input: {
 						'WorkflowType IN ("noticePipelineRun", "noticePipelineRollback", "noticePipelineScheduled")',
 					pageSize: 20,
 				})) {
+					// Scheduled wrappers with a started child are represented by that child.
+					// Read the wrapper history so a child outside this visibility page is not lost.
+					if (execution.type === "noticePipelineScheduled") {
+						const history = await client.workflow
+							.getHandle(execution.workflowId, execution.runId, { followRuns: false })
+							.fetchHistory();
+						if (
+							history.events?.some((event) => event.childWorkflowExecutionStartedEventAttributes)
+						) {
+							continue;
+						}
+					}
 					result.push(await temporalRun(client, execution));
 					if (result.length >= 20) {
 						break;
@@ -97,25 +113,7 @@ export function createTaskService(input: {
 						(left.metadata?.creationTimestamp?.getTime() ?? 0),
 				)
 				.slice(0, 20)
-				.map((job) => ({
-					id: String(job.metadata?.name),
-					workflowId: null,
-					runId: null,
-					status: job.status?.active
-						? "running"
-						: job.status?.succeeded
-							? "succeeded"
-							: job.status?.failed
-								? "failed"
-								: "pending",
-					outcome: job.status?.failed ? ("failed" as const) : ("unknown" as const),
-					startedAt: job.status?.startTime?.toISOString() ?? null,
-					completedAt: job.status?.completionTime?.toISOString() ?? null,
-					error:
-						job.status?.conditions?.find((condition) => condition.type === "Failed")?.message ??
-						null,
-					details: job.status,
-				}));
+				.map((job) => kubernetesRun(job, String(job.metadata?.name)));
 		}
 		return [];
 	};
@@ -204,25 +202,7 @@ export function createTaskService(input: {
 				) {
 					return null;
 				}
-				return {
-					id: runId,
-					workflowId: null,
-					runId: null,
-					status: job.status?.active
-						? "running"
-						: job.status?.succeeded
-							? "succeeded"
-							: job.status?.failed
-								? "failed"
-								: "pending",
-					outcome: job.status?.failed ? "failed" : "unknown",
-					startedAt: job.status?.startTime?.toISOString() ?? null,
-					completedAt: job.status?.completionTime?.toISOString() ?? null,
-					error:
-						job.status?.conditions?.find((condition) => condition.type === "Failed")?.message ??
-						null,
-					details: job.status,
-				};
+				return kubernetesRun(job, runId);
 			} catch (error) {
 				if (error && typeof error === "object" && "code" in error && error.code === 404) {
 					return null;
@@ -309,8 +289,10 @@ async function temporalRun(client: Client, execution: WorkflowExecutionInfo): Pr
 		obsolete?: boolean;
 	} | null = null;
 	let error: string | null = null;
+	let stages: TaskRun["stages"] = [];
 	if (execution.status.name === "RUNNING") {
 		const description = await handle.describe();
+		stages = projectTemporalStages(client, await handle.fetchHistory(), description);
 		details = {
 			activities:
 				description.raw.pendingActivities?.map((activity) => ({
@@ -327,11 +309,14 @@ async function temporalRun(client: Client, execution: WorkflowExecutionInfo): Pr
 	} else {
 		try {
 			details = (await handle.result()) as typeof details;
+			stages = projectTaskStages(details);
 		} catch (failure) {
 			if (failure instanceof WorkflowNotFoundError) {
 				throw failure;
 			}
-			error = message(failure);
+			error = taskFailureMessage(failure);
+			const description = await handle.describe();
+			stages = projectTemporalStages(client, await handle.fetchHistory(), description);
 		}
 	}
 	return {
@@ -345,12 +330,45 @@ async function temporalRun(client: Client, execution: WorkflowExecutionInfo): Pr
 				? details?.noOp || details?.obsolete
 					? "skipped"
 					: "success"
-				: execution.status.name === "FAILED"
+				: ["FAILED", "CANCELLED", "CANCELED", "TERMINATED", "TIMED_OUT"].includes(
+							execution.status.name,
+						)
 					? "failed"
 					: "unknown"),
 		startedAt: execution.startTime.toISOString(),
 		completedAt: execution.closeTime?.toISOString() ?? null,
 		error,
 		details,
+		stages,
+		...(execution.parentExecution ? { parentExecution: execution.parentExecution } : {}),
+	};
+}
+
+function kubernetesRun(job: V1Job, id: string): TaskRun {
+	const conditions = job.status?.conditions ?? [];
+	const complete = conditions.some((c) => c.type === "Complete" && c.status === "True");
+	const failed = conditions.find((c) => c.type === "Failed" && c.status === "True");
+	const status = complete
+		? "succeeded"
+		: failed
+			? "failed"
+			: job.status?.active
+				? "running"
+				: job.status?.succeeded
+					? "succeeded"
+					: job.status?.failed
+						? "failed"
+						: "pending";
+	return {
+		id,
+		workflowId: null,
+		runId: null,
+		status,
+		outcome: status === "succeeded" ? "success" : status === "failed" ? "failed" : "unknown",
+		startedAt: job.status?.startTime?.toISOString() ?? null,
+		completedAt: job.status?.completionTime?.toISOString() ?? null,
+		error: failed?.message ?? null,
+		details: job.status,
+		stages: [],
 	};
 }

@@ -48,6 +48,7 @@ import { ErrorState, InlineError, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
 import { FilterSelect } from "./ui/filter-select";
 import { useConfirmCommand } from "./use-confirm-command";
+import { UserLink } from "./user-link";
 
 export function DiningSubmissionsPage({ search = {} }: { search?: DiningSubmissionsSearch }) {
 	const navigate = useNavigate({ from: "/dining/submissions" });
@@ -401,6 +402,18 @@ export function DiningSubmissionDetailPage({
 			}
 		},
 	});
+	const state = useQuery({
+		queryKey: ["dining", "state"],
+		queryFn: ({ signal }) => fetchDiningState({ signal }),
+	});
+	const windowLabels = new Map(
+		state.data
+			? diningWindowOptions(state.data.draft.bundle).map((window) => [
+					window.windowId,
+					window.label,
+				])
+			: [],
+	);
 	const submission = detail.data?.submission;
 	const reportSearch = reportReturnSearch(from);
 	return (
@@ -604,8 +617,13 @@ export function DiningSubmissionDetailPage({
 								<div className="min-w-0 space-y-2 text-sm">
 									<h2 className="font-semibold">作者与处理信息</h2>
 									<p>展示名：{submission.authorDisplayName ?? "身份已清理"}</p>
-									<p className="break-all">内部用户标识：{submission.authorId ?? "身份已清理"}</p>
-									<p className="break-all">窗口：{submission.windowId}</p>
+									<p className="break-all">
+										内部用户标识：
+										{submission.authorId ? <UserLink userId={submission.authorId} /> : "身份已清理"}
+									</p>
+									<p className="break-all">
+										窗口：{windowLabels.get(submission.windowId) ?? submission.windowId}
+									</p>
 									<p>创建：{formatTimestamp(submission.createdAt)}</p>
 									<p>更新：{formatTimestamp(submission.updatedAt)}</p>
 									<p>最近操作者：{submission.updatedBy ?? "身份已清理"}</p>
