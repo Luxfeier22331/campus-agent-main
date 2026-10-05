@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
@@ -74,7 +74,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 		SanitizedPayload: map[string]any{
 			"activity_attempt": 1,
 			"parent_step_id":   "task.step.scholarship",
-			"result": campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{
+			"result": campussearch.EncodeSearchResult([]campussearch.SearchResultItem{
 				{ResultRef: "result://" + strings.Repeat("a", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026#eligibility", SectionTitle: "申请条件", RootUnitIDs: []string{"scholarship-eligibility"}, VersionID: "version-scholarship-2026", VersionSlug: "2026", Text: "国家奖学金评审需要满足学习成绩和综合测评要求。"},
 				{ResultRef: "result://" + strings.Repeat("b", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026#award", SectionTitle: "奖励标准", RootUnitIDs: []string{"scholarship-award"}, VersionID: "version-scholarship-2026", VersionSlug: "2026", Text: "国家奖学金奖励标准按照学校当年评审办法执行。"},
 			}, 1),

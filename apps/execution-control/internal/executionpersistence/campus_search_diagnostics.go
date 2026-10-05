@@ -8,7 +8,12 @@ import (
 )
 
 func (s *PostgresRunProjectionStore) ObserveCampusSearch(ctx context.Context, o campusdiagnostics.Observation) error {
-	times, err := json.Marshal(map[string]any{o.Phase: o.At.UTC()})
+	phaseTimes := make(map[string]any, len(o.PhaseTimes)+1)
+	for phase, at := range o.PhaseTimes {
+		phaseTimes[phase] = at.UTC()
+	}
+	phaseTimes[o.Phase] = o.At.UTC()
+	times, err := json.Marshal(phaseTimes)
 	if err != nil {
 		return err
 	}

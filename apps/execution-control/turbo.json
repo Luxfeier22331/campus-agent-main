@@ -14,7 +14,8 @@
 				"$TURBO_ROOT$/configs/runtime/**",
 				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**",
 				"$TURBO_ROOT$/packages/contracts/fixtures/citation-diagnostic.v1.json",
-				"$TURBO_ROOT$/packages/contracts/fixtures/citation-markers.v1.json"
+				"$TURBO_ROOT$/packages/contracts/fixtures/citation-markers.v1.json",
+				"$TURBO_ROOT$/apps/campus-search/campussearch/**"
 			]
 		},
 		"test:database-integration": {

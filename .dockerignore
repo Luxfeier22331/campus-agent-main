@@ -21,6 +21,8 @@ apps/campus-web/**
 !apps/campus-web/src/
 !apps/campus-web/src/docs-reader-build/
 !apps/campus-web/src/docs-reader-build/**
+!apps/campus-search/
+!apps/campus-search/**
 !apps/execution-control/
 !apps/execution-control/**
 !apps/model-config/

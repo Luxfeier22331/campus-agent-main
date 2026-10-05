@@ -14,24 +14,13 @@ Thanks for sending a pull request. Before review:
 
 ## What changed?
 
-<!-- Include user-facing, API, contract, migration, documentation, or operational impact when relevant. -->
-<!-- 非平凡改动：链接本 PR 新增或更新的决策笔记；适用范围与豁免见 .agents/notes/README.md。 -->
+<!-- 写法要求见 .github/CONTRIBUTING.md 的 Pull Request 节：描述变更形状，不逐文件复述 diff。 -->
+<!-- 本 PR 新增或更新了决策笔记时，在此链接对应笔记。 -->
 
 ## Verification
 
-<!-- List checks actually run and their key results. Mention an omitted check only when it changes review scope. -->
-<!-- Do not describe deployment or external environment health here unless this PR actually performed that operation. -->
+<!-- 测试覆盖能随上面叙述写明时删除本节；写法要求见 CONTRIBUTING。 -->
 
 ## Related issue(s)
 
-<!--
-Use "Fixes" when merging this Pull Request resolves the Issue's stated outcome.
-Use "Refs" when the Pull Request is partial work or the Issue is context only.
-
-Examples:
-Refs #<issue number>
-Refs MUC-WIKI/campus-agent-gitops#<issue number>
-Fixes #<issue number>
-
-If there is no associated issue, then write "N/A".
--->
+<!-- Fixes 仅当合并即解决 Issue 声明的结果且本 PR 以 main 为 base；否则用 Refs；无关联写 N/A。 -->

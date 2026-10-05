@@ -58,6 +58,9 @@ type Config struct {
 	TemporalWorkflowExecutionTimeoutSeconds int
 	AgentRuntimeBaseURL                     string
 	AgentRuntimeSharedSecret                string
+	RetrievalBaseURL                        string
+	RetrievalInternalToken                  string
+	CampusSearchTimeoutMS                   int
 	AgentRuntimeDeadlineMS                  int
 	AgentRuntimeMaxOutputTokens             int
 	AgentRuntimeInputCharLimit              int
@@ -66,9 +69,6 @@ type Config struct {
 	ProductCallbackBaseURL                  string
 	ProductCallbackTimeoutMS                int
 	ModelConfigBaseURL                      string
-	QdrantURL                               string
-	QdrantReadOnlyAPIKey                    string
-	QdrantTLSCACertPath                     string
 	WorkerProfiles                          map[string]WorkerProfile
 	PersonalMemoryBaseURL                   string
 	PersonalMemoryAPISecret                 string
@@ -101,12 +101,11 @@ type envValues struct {
 	TemporalWorkerIdentity      string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
 	AgentRuntimeBaseURL         string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
 	AgentRuntimeSharedSecret    string `env:"EXECUTION_AGENT_RUNTIME_SHARED_SECRET"`
+	RetrievalBaseURL            string `env:"RETRIEVAL_BASE_URL"`
+	RetrievalInternalToken      string `env:"RETRIEVAL_INTERNAL_TOKEN"`
 	ModelConfigBaseURL          string `env:"MODEL_CONFIG_URL"`
 	AnswerTransport             string `env:"EXECUTION_CONTROL_ANSWER_TRANSPORT"`
 	ProductCallbackBaseURL      string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
-	QdrantURL                   string `env:"QDRANT_URL"`
-	QdrantReadOnlyAPIKey        string `env:"QDRANT_READ_ONLY_API_KEY"`
-	QdrantTLSCACertPath         string `env:"QDRANT_TLS_CA_CERT_PATH"`
 	PersonalMemoryBaseURL       string `env:"HINDSIGHT_API_BASE_URL"`
 	PersonalMemoryAPISecret     string `env:"HINDSIGHT_API_TENANT_API_KEY"`
 	PersonalMemoryOwnerSalt     string `env:"HINDSIGHT_OWNER_SALT"`
@@ -167,6 +166,9 @@ func loadFromEnv(workerRole bool) (Config, error) {
 		TemporalWorkflowExecutionTimeoutSeconds: fixedTemporalWorkflowTimeoutSec,
 		AgentRuntimeBaseURL:                     strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
 		AgentRuntimeSharedSecret:                values.AgentRuntimeSharedSecret,
+		RetrievalBaseURL:                        strings.TrimRight(strings.TrimSpace(values.RetrievalBaseURL), "/"),
+		RetrievalInternalToken:                  strings.TrimSpace(values.RetrievalInternalToken),
+		CampusSearchTimeoutMS:                   60_000,
 		AgentRuntimeDeadlineMS:                  defaultAgentRuntimeDeadlineMS,
 		// Zero means no application-imposed output-token limit. Provider defaults
 		// remain authoritative until a model-specific limit is configured.
@@ -177,9 +179,6 @@ func loadFromEnv(workerRole bool) (Config, error) {
 		ProductCallbackBaseURL:          strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
 		ProductCallbackTimeoutMS:        defaultProductCallbackTimeoutMS,
 		ModelConfigBaseURL:              strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
-		QdrantURL:                       strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
-		QdrantReadOnlyAPIKey:            strings.TrimSpace(values.QdrantReadOnlyAPIKey),
-		QdrantTLSCACertPath:             strings.TrimSpace(values.QdrantTLSCACertPath),
 		WorkerProfiles:                  workerProfiles,
 		PersonalMemoryBaseURL:           strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
 		PersonalMemoryAPISecret:         strings.TrimSpace(values.PersonalMemoryAPISecret),
@@ -216,9 +215,8 @@ func validateDeployedRuntime(values envValues, workerRole bool) error {
 		}{
 			{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
 			{"MODEL_CONFIG_URL", values.ModelConfigBaseURL},
-			{"QDRANT_URL", values.QdrantURL},
-			{"QDRANT_READ_ONLY_API_KEY", values.QdrantReadOnlyAPIKey},
-			{"QDRANT_TLS_CA_CERT_PATH", values.QdrantTLSCACertPath},
+			{"RETRIEVAL_BASE_URL", values.RetrievalBaseURL},
+			{"RETRIEVAL_INTERNAL_TOKEN", values.RetrievalInternalToken},
 		}...)
 	}
 	for _, item := range required {

@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: campus-search-service
+  labels:
+    app.kubernetes.io/name: campus-search-service
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  selector:
+    app.kubernetes.io/name: campus-search-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: campus-search-service
+  labels:
+    app.kubernetes.io/name: campus-search-service
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: campus-search-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: campus-search-service
+        app.kubernetes.io/component: campus-search
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: campus-search-service
+          image: ghcr.io/muc-wiki/campus-agent/campus-search-service:replace-me
+          command: ["/usr/local/bin/campus-search-service"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_ENVIRONMENT
+            - name: CAMPUS_SEARCH_MODEL_CONFIG_URL
+              value: http://model-config:8000
+            - name: CAMPUS_SEARCH_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: campus-search-service-database-secrets
+                  key: CAMPUS_SEARCH_DATABASE_URL
+            - name: CAMPUS_SEARCH_QDRANT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: QDRANT_URL
+            - name: CAMPUS_SEARCH_QDRANT_TLS_CA_CERT_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: QDRANT_TLS_CA_CERT_PATH
+            - name: CAMPUS_SEARCH_QDRANT_READ_ONLY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-server-secrets
+                  key: QDRANT_READ_ONLY_API_KEY
+            - name: RETRIEVAL_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: campus-search-service-secrets
+                  key: RETRIEVAL_INTERNAL_TOKEN
+            - name: CAMPUS_MCP_CLIENT_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: campus-search-service-secrets
+                  key: CAMPUS_MCP_CLIENT_TOKENS
+          volumeMounts:
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
+            - name: qdrant-tls-ca
+              mountPath: /etc/campus-agent/qdrant/tls
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt
+        - name: qdrant-tls-ca
+          configMap:
+            name: execution-runtime-qdrant-tls-ca

@@ -64,6 +64,7 @@ spec:
                 values:
                   - agent-runtime
                   - execution-control
+                  - campus-search-service
       ports:
         - protocol: TCP
           port: 8000
@@ -109,15 +110,50 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: execution-control-qdrant-egress
-  annotations:
-    argocd.argoproj.io/sync-wave: "-2"
+  name: campus-search-service-ingress
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: execution-control
+      app.kubernetes.io/name: campus-search-service
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: execution-control
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: private-service-connector
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: campus-search-service-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: campus-search-service
   policyTypes: ["Egress"]
   egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: model-config
+      ports:
+        - protocol: TCP
+          port: 8000
     - to:
         - podSelector:
             matchLabels:
@@ -125,6 +161,19 @@ spec:
       ports:
         - protocol: TCP
           port: 6333
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

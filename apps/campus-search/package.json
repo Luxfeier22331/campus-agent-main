@@ -1,0 +1,11 @@
+{
+	"name": "campus-search-service",
+	"private": true,
+	"scripts": {
+		"dev": "bash scripts/dev.sh",
+		"native:format": "golangci-lint fmt --diff",
+		"native:lint": "golangci-lint run ./...",
+		"native:test": "go test ./...",
+		"native:vet": "go vet ./..."
+	}
+}

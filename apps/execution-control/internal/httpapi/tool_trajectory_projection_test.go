@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
@@ -147,7 +147,7 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 				"parent_step_id":   "task.step.lookup",
 				"search_query":     "本科生转专业 申请条件",
 				"search_goal":      "确认本科生转专业的申请条件",
-				"result": campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{{
+				"result": campussearch.EncodeSearchResult([]campussearch.SearchResultItem{{
 					ResultRef:    "result://" + strings.Repeat("c", 64),
 					SourceKind:   "document",
 					DocumentID:   "curriculum-document",

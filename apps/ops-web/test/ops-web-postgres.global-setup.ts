@@ -18,7 +18,12 @@ const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "campus_agent";
 const OPS_WEB_ROLE = "ops_web";
 const APP_API_ROLE = "app_api";
-const NOLOGIN_ROLES = ["execution_control", "model_config", "product_data_ro"] as const;
+const NOLOGIN_ROLES = [
+	"execution_control",
+	"campus_search",
+	"model_config",
+	"product_data_ro",
+] as const;
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
 export interface OpsWebPostgresContext {

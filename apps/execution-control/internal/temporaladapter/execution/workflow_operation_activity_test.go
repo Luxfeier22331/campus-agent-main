@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -140,11 +140,11 @@ func TestCampusSearchOutputCompactsOnlyExecuteResults(t *testing.T) {
 		for _, status := range []string{"completed", "failed"} {
 			for _, matched := range []bool{false, true} {
 				t.Run(string(operation)+"/"+status+"/"+map[bool]string{true: "matched", false: "no_match"}[matched], func(t *testing.T) {
-					items := []campusdocs.SearchResultItem{}
+					items := []campussearch.SearchResultItem{}
 					if matched {
-						items = append(items, campusdocs.SearchResultItem{ResultRef: "result://sha256:" + strings.Repeat("a", 64), SourceKind: "notice", NoticeID: "notice-1", CitationHref: "/notices/notice-1", Title: "校园服务", SectionTitle: "办理说明", Text: "唯一检索正文"})
+						items = append(items, campussearch.SearchResultItem{ResultRef: "result://sha256:" + strings.Repeat("a", 64), SourceKind: "notice", NoticeID: "notice-1", CitationHref: "/notices/notice-1", Title: "校园服务", SectionTitle: "办理说明", Text: "唯一检索正文"})
 					}
-					full := campusdocs.EncodeSearchResult(items, 1)
+					full := campussearch.EncodeSearchResult(items, 1)
 					response := AgentRuntimeResponse{Status: status, SolveOutcome: "answer", FinalOutput: "办理说明[1]", ToolResults: []AgentToolResult{{ToolName: "campus_search", Status: "completed", InvocationID: "search-1", DurationMS: 12, Result: full}}}
 					if status == "failed" {
 						response.Failure = &temporalruntime.ExecutionFailure{Code: "model_output_invalid", Operation: string(operation)}
@@ -199,7 +199,7 @@ func TestExecuteReceiptAcceptsOnlyFullResultOrOutcome(t *testing.T) {
 	}{
 		{"matched", map[string]any{"outcome": "matched"}, true},
 		{"no_match", map[string]any{"outcome": "no_match"}, true},
-		{"legacy", campusdocs.EncodeSearchResult(nil, 1), true},
+		{"legacy", campussearch.EncodeSearchResult(nil, 1), true},
 		{"invalid outcome", map[string]any{"outcome": "unknown"}, false},
 		{"extra field", map[string]any{"outcome": "matched", "text": "unexpected"}, false},
 		{"invalid full result", map[string]any{"outcome": "matched", "results": []any{}}, false},

@@ -20,6 +20,7 @@ status: active
 | `status-web` | 独立的产品可用性状态页、公共状态快照和第一方入口黑盒探测 | 校园业务状态、用户账号、聊天、内部运行时和观测平台原始数据 |
 | `ops-web` | 自托管运行记录、运行概况、在线模型配置、Dining 内容运营和固定通知 Job 操作入口 | 学生账号、聊天和请求写入，任意工作流控制或通用 Kubernetes 资源管理 |
 | `execution-control` | 持久运行准入、工作流业务逻辑、内部查询和执行投影 | 浏览器认证、页面合同和模型凭据所有权 |
+| `campus-search-service` | 共享 Campus Docs/Notice 检索、当前索引读取和 MCP 客户端 HTTP 合同 | Agent run 生命周期、个人记忆、通知采集和 Bot 写操作 |
 | `model-config` | 具名在线模型配置、Provider 凭据、验证和内部读取合同 | 模型流量代理、执行编排和产品页面 |
 | `agent-runtime` | 单次 Primary Agent SDK run 与获准工具调用 | 持久编排和产品数据持久化 |
 
@@ -79,7 +80,7 @@ run、step、attempt、result 和 provider response ID 仅属于 execution-contr
 - `ops-web -> model-config` 通过同源 BFF 管理在线模型配置；浏览器不获得 Provider API Key。
 - execution-control 读取 `primary_agent` target 并冻结服务返回的 hash；Agent Runtime 按该 hash 读取完整
   配置。普通 Job 直接读取所属具名配置。内部 consumer 位于共同受信任边界，不使用 Model Config
-  consumer token 或注册表。`campus_search` 在工具调用时读取 Embedding 与 Reranker 连接，具体查询与
+  consumer token 或注册表。Campus Search service 在检索时读取 Embedding 与 Reranker 连接，具体查询与
   失败语义见[检索服务](./retrieval-serving.md#在线消费边界)。
 - `ops-web -> PostgreSQL/execution-control` 提供有界运行摘要和执行诊断事实。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；

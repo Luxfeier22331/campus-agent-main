@@ -3,9 +3,12 @@
 package postgres_test
 
 import (
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
+	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
 )
 
 func testCampusSearchDiagnostics(t *testing.T, harness *postgresHarness) {
@@ -16,9 +19,14 @@ func testCampusSearchDiagnostics(t *testing.T, harness *postgresHarness) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	started := time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC)
+	phaseTimes := map[string]time.Time{}
+	for offset, phase := range []string{"index_loaded", "embedded", "retrieved", "reranked", "selected"} {
+		phaseTimes[phase] = started.Add(time.Duration(offset) * time.Second)
+	}
 	observation := campusdiagnostics.Observation{
 		RequestID: "diagnostic-run", InvocationID: "call", WorkflowStepID: "step", ActivityAttempt: 1,
-		SearchQuery: "图书馆", Phase: "selected", At: time.Now(),
+		SearchQuery: "图书馆", Phase: "completed", At: started.Add(5 * time.Second), PhaseTimes: phaseTimes,
 		Snapshot: &campusdiagnostics.Snapshot{EffectiveQuery: "图书馆", Candidates: []campusdiagnostics.Candidate{{ResultRef: "result://one", Returned: true}}},
 	}
 	if err := store.ObserveCampusSearch(t.Context(), observation); err != nil {
@@ -26,11 +34,13 @@ func testCampusSearchDiagnostics(t *testing.T, harness *postgresHarness) {
 	}
 	observation.Phase = "completed"
 	observation.Snapshot = nil
+	observation.PhaseTimes = nil
 	if err := store.ObserveCampusSearch(t.Context(), observation); err != nil {
 		t.Fatal(err)
 	}
 	// Late queue delivery fills a missing timestamp without regressing completion.
 	observation.Phase = "queued"
+	observation.At = started.Add(-time.Second)
 	if err := store.ObserveCampusSearch(t.Context(), observation); err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +59,19 @@ func testCampusSearchDiagnostics(t *testing.T, harness *postgresHarness) {
 	}
 	if schemaVersion != 2 || status != "completed" || phase != "completed" || query != "图书馆" || !queued || len(cited) != 1 {
 		t.Fatalf("invalid merged observation: %s %s %s %v %v", status, phase, query, queued, cited)
+	}
+	var rawPhaseTimes []byte
+	if err := ops.QueryRow(t.Context(), `select phase_times_json from execution_control.agent_campus_search_diagnostics where request_id='diagnostic-run'`).Scan(&rawPhaseTimes); err != nil {
+		t.Fatal(err)
+	}
+	var storedPhaseTimes map[string]time.Time
+	if err := json.Unmarshal(rawPhaseTimes, &storedPhaseTimes); err != nil {
+		t.Fatal(err)
+	}
+	phaseTimes["queued"] = started.Add(-time.Second)
+	phaseTimes["completed"] = started.Add(5 * time.Second)
+	if !reflect.DeepEqual(storedPhaseTimes, phaseTimes) {
+		t.Fatalf("phase completion times changed during persistence: %#v", storedPhaseTimes)
 	}
 	if _, err := ops.Exec(t.Context(), `delete from execution_control.agent_campus_search_diagnostics`); err == nil {
 		t.Fatal("ops can delete diagnostics")

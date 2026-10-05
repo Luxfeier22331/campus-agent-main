@@ -78,14 +78,74 @@ test("business recovery policies select only their actual caller and destination
 		),
 	);
 	const runtime = manifests("execution-runtime/base/runtime/network-policy.yaml");
-	const qdrant = runtime.find((doc) => doc.metadata.name === "execution-control-qdrant-egress");
+	const qdrant = runtime.find((doc) => doc.metadata.name === "campus-search-service-egress");
 	assert.deepEqual(qdrant.spec.podSelector, {
-		matchLabels: { "app.kubernetes.io/name": "execution-control" },
+		matchLabels: { "app.kubernetes.io/name": "campus-search-service" },
 	});
-	assert.deepEqual(qdrant.spec.egress, [
+	assert.ok(
+		qdrant.spec.egress.some(
+			(rule: Rule) =>
+				rule.to?.some(
+					(peer: Peer) => peer.podSelector?.matchLabels?.["app.kubernetes.io/name"] === "qdrant",
+				) && rule.ports?.some((port: { port: number }) => port.port === 6333),
+		),
+	);
+});
+
+test("Campus Search mounts the existing Qdrant and Postgres trust roots", () => {
+	const search = manifests("execution-runtime/base/runtime/campus-search-service.yaml").find(
+		(doc) => doc.kind === "Deployment",
+	).spec.template.spec;
+	const execution = manifests("execution-runtime/base/runtime/execution-control.yaml").find(
+		(doc) => doc.kind === "Deployment",
+	).spec.template.spec;
+	const [database] = manifests("data-postgres/base/database-config.yaml");
+	assert.deepEqual(
+		search.volumes.find((volume: { name: string }) => volume.name === "postgres-ca"),
+		execution.volumes.find((volume: { name: string }) => volume.name === "postgres-ca"),
+	);
+	assert.deepEqual(
+		search.containers[0].volumeMounts.find(
+			(mount: { name: string }) => mount.name === "postgres-ca",
+		),
+		execution.containers[0].volumeMounts.find(
+			(mount: { name: string }) => mount.name === "postgres-ca",
+		),
+	);
+	assert.deepEqual(
+		search.volumes.find((volume: { name: string }) => volume.name === "qdrant-tls-ca"),
+		{ name: "qdrant-tls-ca", configMap: { name: "execution-runtime-qdrant-tls-ca" } },
+	);
+	assert.deepEqual(
+		search.containers[0].volumeMounts.find(
+			(mount: { name: string }) => mount.name === "qdrant-tls-ca",
+		),
+		{ name: "qdrant-tls-ca", mountPath: "/etc/campus-agent/qdrant/tls", readOnly: true },
+	);
+	assert.equal(
+		execution.volumes.some((volume: { name: string }) => volume.name === "qdrant-tls-ca"),
+		false,
+	);
+	assert.equal(
+		execution.containers[0].volumeMounts.some(
+			(mount: { name: string }) => mount.name === "qdrant-tls-ca",
+		),
+		false,
+	);
+	const postgres = search.containers[0].volumeMounts.find(
+		(mount: { name: string }) => mount.name === "postgres-ca",
+	);
+	assert.equal(`${postgres.mountPath}/ca.crt`, database.data.PGSSLROOTCERT);
+	assert.equal(database.data.PGSSLMODE, "verify-full");
+	assert.deepEqual(
+		search.containers[0].env.find(
+			(env: { name: string }) => env.name === "CAMPUS_SEARCH_QDRANT_TLS_CA_CERT_PATH",
+		).valueFrom,
 		{
-			to: [{ podSelector: { matchLabels: { "app.kubernetes.io/name": "qdrant" } } }],
-			ports: [{ protocol: "TCP", port: 6333 }],
+			configMapKeyRef: {
+				name: "execution-runtime-rendered-config",
+				key: "QDRANT_TLS_CA_CERT_PATH",
+			},
 		},
-	]);
+	);
 });

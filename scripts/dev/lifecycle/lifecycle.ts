@@ -229,12 +229,7 @@ export async function destroyLocalDevelopment(input: {
 	if (!profile) {
 		throw new Error(`Unknown local development instance: ${input.instanceId}`);
 	}
-	const resources = await destroyLocalInstanceResources(input.repoRoot, profile);
-	if (resources.unresolved.length > 0) {
-		throw new Error(
-			`Partially destroyed local development instance ${input.instanceId}; unable to inspect ${resources.unresolved.join(", ")}.`,
-		);
-	}
+	await destroyLocalInstanceResources(input.repoRoot, profile);
 	const cleanup = existsSync(profile.worktreePath)
 		? removeLocalEnvironmentFiles(profile.worktreePath)
 		: { removed: [], skippedUnmanaged: [] };
@@ -353,6 +348,7 @@ async function diagnoseRuntime(
 			["app-api", profile.ports.appApi],
 			["campus-web", profile.ports.campusWeb],
 			["execution-control", runtimePorts.executionControl],
+			["campus-search", runtimePorts.campusSearch],
 			["execution-worker", runtimePorts.executionWorker],
 			["model-config", runtimePorts.modelConfig],
 			["agent-runtime", runtimePorts.agentRuntime],

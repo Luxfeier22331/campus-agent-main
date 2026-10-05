@@ -102,7 +102,7 @@ func TestExecutionHandlersDoNotImportTheirFormerRuleOwners(t *testing.T) {
 	directory := filepath.Dir(filename)
 	tests := map[string][]string{
 		"campus_search_tool.go": {
-			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs",
+			"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime",
@@ -113,7 +113,7 @@ func TestExecutionHandlersDoNotImportTheirFormerRuleOwners(t *testing.T) {
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime",
 		},
 		"personal_memory_recall_tool.go": {
-			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs",
+			"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter",

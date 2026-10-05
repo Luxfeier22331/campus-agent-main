@@ -23,6 +23,7 @@ schema 定义，连接拓扑见 [采集数据面](../architecture/system/data-pl
 | `campus_agent` | 数据库 schema 与显式 bootstrap Job | schema 安装、授权和一次性业务初始化，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影和个人记忆状态读写 |
+| `campus_search` | `apps/campus-search` | 只读 `campus_docs_serving.current_index` |
 | `model_config` | `apps/model-config` | 当前具名模型配置与加密凭据读写 |
 | `notice_publisher` | `jobs/notice-publisher` | 通知规范化写入；部署 Job 复用 `campus_agent` |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户凭据及 automation token 读写 |
@@ -60,7 +61,7 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
-| `campus_docs_serving.current_index`、`index_versions` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher、execution-control Campus Search |
+| `campus_docs_serving.current_index`、`index_versions` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher；Campus Search service 只读 `current_index` |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `transport.*` | Ops Web；空库 baseline 由 Ops Web bootstrap 写入 | App API 公开 projection、Ops Web |
@@ -81,10 +82,11 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 Campus Web 静态文档发布只使用对象存储和构建产物。Campus RAG serving 逻辑上拥有
 `campus_docs_serving.current_index` 单行绑定；唯一 current pointer writer 是
 `jobs/campus-rag-index-publisher`，继续复用 `execution_control` 数据库身份读取并写入该绑定。Docs 和
-Notice Chunk/Embedding builder 不写入该表。在线 execution-control 的 Campus Search 也使用该身份读取
-当前绑定，但在线代码路径只消费该记录，不承担发布写入职责。由于 publisher 与在线 execution-control
-共享技术身份，数据库 ACL 不能进一步区分两条进程路径；当前不因此创建独立数据库角色、连接字符串或
-Secret。
+Notice Chunk/Embedding builder 不写入该表。独立 Campus Search service 使用 `campus_search` 角色和
+`campus-search-service-database-secrets` 中的 `CAMPUS_SEARCH_DATABASE_URL` 读取当前绑定；该角色仅获得
+数据库 `CONNECT`、`campus_docs_serving` 的 `USAGE` 和 `current_index` 的 `SELECT` 权限。
+在线 execution-control 通过内部 HTTP 调用检索服务，不再直接读取当前绑定；publisher 继续使用
+`execution_control` 身份完成发布写入。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 通知 schema 与显式发布 Job 同样复用既有 `campus_agent` owner Secret；部署环境不需要
 `notice_publisher` 登录或密码。班车 baseline 由现有 Ops Web bootstrap Job 使用 `ops_web` 连接写入。
@@ -148,6 +150,7 @@ embedding 制品的存活判断。未有明确引用或删除清单时，本仓�
 | --- | ---: | --- |
 | execution-control projection | 8 | `pgxpool` runtime pool |
 | execution-control personal memory state | 4 | 与 projection 分开的 pool |
+| Campus Search service | 2 | 独立 `pgxpool`，使用 `campus_search` 只读当前索引 |
 | Model Config runtime | 4 | 只供在线配置服务 |
 | Ops Web runtime | 4 | internal-portal check 也复用该 pool 上限 |
 | App API Node runtime | 4 | 部署环境的 Node pool；Cloudflare Worker 使用 Hyperdrive，不建立该 pool |
@@ -178,7 +181,7 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 
 - 数据库级 `CONNECT` 不依赖 `PUBLIC` 默认授权（[campus_agent 共享库连接授权模型](../../.agents/notes/implemented/architecture/2026-09-16-campus-agent-connect-acl.md)）：
   `campus_agent` 库对 `PUBLIC` 仅保留 `TEMP`；显式 `CONNECT` 授权为 owner `campus_agent`
-  与运行角色 `app_api`、`execution_control`、`model_config`、`ops_web`。新增连接该库的角色
+  与运行角色 `app_api`、`execution_control`、`campus_search`、`model_config`、`ops_web`。新增连接该库的角色
   必须在环境实施时同步补授权，且库级权限调整前先以 `pg_stat_activity` 和本文角色表核对
   真实消费者。
 - 协作者只读角色（如 `hindsight_ro`）的数据库级授权、凭证与生命周期由

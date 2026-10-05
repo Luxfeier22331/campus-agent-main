@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -107,7 +107,7 @@ func ValidateOperationOutputFields(output temporalruntime.WorkflowOperationActiv
 				(tool.Result["outcome"] == "matched" || tool.Result["outcome"] == "no_match") {
 				continue
 			}
-			if _, _, err := campusdocs.DecodeSearchResult(tool.Result); err != nil {
+			if _, _, err := campussearch.DecodeSearchResult(tool.Result); err != nil {
 				return err
 			}
 		case "personal_memory_recall":
@@ -127,7 +127,7 @@ func temporalToolResult(result AgentToolResult, operation temporalruntime.Workfl
 	}
 	switch strings.TrimSpace(result.ToolName) {
 	case "campus_search":
-		outcome, _, err := campusdocs.DecodeSearchResult(result.Result)
+		outcome, _, err := campussearch.DecodeSearchResult(result.Result)
 		if err != nil {
 			return nil, err
 		}

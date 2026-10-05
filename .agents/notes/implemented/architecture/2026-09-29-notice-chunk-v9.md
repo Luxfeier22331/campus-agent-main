@@ -205,7 +205,7 @@ Go 集成回归验证了真实 adapter 的重排请求、版本消费和接近 4
 向量采用 Qwen3-Embedding-4B、2,560 维，缓存 target 为
 `651ca4ec3d467184c4d151db1181c49a0d59ba227068b3c50bf62e5439d35f1b`。
 查询采用当前 Go consumer 的检索 instruction（包含 `relevant current passages`），
-完整文本见 `apps/execution-control/internal/outboundadapter/campus_docs.go`。
+完整文本见 `apps/campus-search/internal/outbound/campus_docs.go`。
 早期试跑缺少 `current` 的结果不用于下表。证据覆盖按各版真实发布 text 计算，独立于原文覆盖验证。
 
 | 指标 | v8 | v9 |

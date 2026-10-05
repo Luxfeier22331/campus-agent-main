@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
@@ -50,8 +50,8 @@ type applicationTestIndexStore struct{}
 
 func (applicationTestIndexStore) CurrentIndex(
 	context.Context,
-) (campusdocs.Index, bool, error) {
-	return campusdocs.Index{Collection: "campus_docs_" + strings.Repeat("a", 64)}, true, nil
+) (campussearch.Index, bool, error) {
+	return campussearch.Index{Collection: "campus_docs_" + strings.Repeat("a", 64)}, true, nil
 }
 
 type switchingApplicationTestIndexStore struct {
@@ -59,24 +59,57 @@ type switchingApplicationTestIndexStore struct {
 	index       int
 }
 
-func (store *switchingApplicationTestIndexStore) CurrentIndex(context.Context) (campusdocs.Index, bool, error) {
+func (store *switchingApplicationTestIndexStore) CurrentIndex(context.Context) (campussearch.Index, bool, error) {
 	collection := store.collections[store.index]
 	if store.index < len(store.collections)-1 {
 		store.index++
 	}
-	return campusdocs.Index{Collection: collection}, true, nil
+	return campussearch.Index{Collection: collection}, true, nil
 }
 
-type applicationTestSearcher struct{ query campusdocs.SearchQuery }
+type applicationTestSearcher struct{ query campussearch.SearchQuery }
 
 func (searcher *applicationTestSearcher) Search(
 	_ context.Context,
-	_ campusdocs.Index,
-	query campusdocs.SearchQuery,
+	_ campussearch.Index,
+	query campussearch.SearchQuery,
 	_ int,
-) ([]campusdocs.SearchResultItem, error) {
+) ([]campussearch.SearchResultItem, error) {
 	searcher.query = query
-	return []campusdocs.SearchResultItem{}, nil
+	return []campussearch.SearchResultItem{}, nil
+}
+
+type applicationTestCampusSearchClient struct {
+	searcher    *applicationTestSearcher
+	collections []string
+	index       int
+	err         error
+}
+
+func (client *applicationTestCampusSearchClient) Search(
+	ctx context.Context,
+	request CampusSearchClientRequest,
+) (CampusSearchClientResponse, error) {
+	if client.err != nil {
+		return CampusSearchClientResponse{}, client.err
+	}
+	collection := "campus_docs_" + strings.Repeat("a", 64)
+	if len(client.collections) > 0 {
+		collection = client.collections[client.index]
+		if client.index < len(client.collections)-1 {
+			client.index++
+		}
+	}
+	if client.searcher != nil {
+		_, err := client.searcher.Search(ctx, campussearch.Index{Collection: collection}, campussearch.SearchQuery{
+			RetrievalQuery: request.RetrievalQuery,
+			RerankQuery:    request.RerankQuery,
+		}, request.ResultLimit)
+		if err != nil {
+			return CampusSearchClientResponse{}, err
+		}
+	}
+	return CampusSearchClientResponse{Collection: collection, Results: []campussearch.SearchResultItem{}}, nil
 }
 
 type applicationTestMemoryExecutor struct {
@@ -222,9 +255,8 @@ func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testi
 	store, run, _ := applicationTestRunningRun(t, false)
 	searcher := &applicationTestSearcher{}
 	service := NewAgentToolService(AgentToolServiceOptions{
-		CampusDocsIndexStore: applicationTestIndexStore{},
-		CampusDocsSearcher:   searcher,
-		Store:                store,
+		CampusSearchClient: &applicationTestCampusSearchClient{searcher: searcher},
+		Store:              store,
 	})
 	result, err := service.CampusSearch(context.Background(), CampusSearchRequest{
 		AccessContext: AgentToolAccessContext{
@@ -244,7 +276,7 @@ func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testi
 	if result["outcome"] != "no_match" {
 		t.Fatalf("campus search result = %#v", result)
 	}
-	if !reflect.DeepEqual(searcher.query, campusdocs.SearchQuery{RetrievalQuery: "本科生转专业申请条件", RerankQuery: "我想知道本科生转专业需要满足什么条件"}) {
+	if !reflect.DeepEqual(searcher.query, campussearch.SearchQuery{RetrievalQuery: "本科生转专业申请条件", RerankQuery: "我想知道本科生转专业需要满足什么条件"}) {
 		t.Fatalf("search query = %#v", searcher.query)
 	}
 	if _, err := service.CampusSearch(context.Background(), CampusSearchRequest{
@@ -283,9 +315,8 @@ func TestAgentToolServiceRejectsIndexChangeWithinRun(t *testing.T) {
 		"campus_docs_" + strings.Repeat("b", 64),
 	}}
 	service := NewAgentToolService(AgentToolServiceOptions{
-		CampusDocsIndexStore: indexStore,
-		CampusDocsSearcher:   &applicationTestSearcher{},
-		Store:                store,
+		CampusSearchClient: &applicationTestCampusSearchClient{searcher: &applicationTestSearcher{}, collections: indexStore.collections},
+		Store:              store,
 	})
 	access := AgentToolAccessContext{
 		ActivityAttempt: 1, CitationStart: 1, InvocationID: "tool-index-race-1",
@@ -307,9 +338,8 @@ func TestAgentToolServiceSerializesConcurrentFirstIndexBinding(t *testing.T) {
 		"campus_docs_" + strings.Repeat("b", 64),
 	}}
 	service := NewAgentToolService(AgentToolServiceOptions{
-		CampusDocsIndexStore: indexStore,
-		CampusDocsSearcher:   &applicationTestSearcher{},
-		Store:                store,
+		CampusSearchClient: &applicationTestCampusSearchClient{searcher: &applicationTestSearcher{}, collections: indexStore.collections},
+		Store:              store,
 	})
 	base := AgentToolAccessContext{
 		ActivityAttempt: 1, CitationStart: 1, RequestID: run.RequestID, ResultLimit: 5,
@@ -398,7 +428,7 @@ func TestCampusSearchSeparatesRetrievalExpressionAndUserGoal(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store, run, _ := applicationTestRunningRun(t, false)
 			searcher := &applicationTestSearcher{}
-			service := NewAgentToolService(AgentToolServiceOptions{Store: store, CampusDocsIndexStore: applicationTestIndexStore{}, CampusDocsSearcher: searcher})
+			service := NewAgentToolService(AgentToolServiceOptions{Store: store, CampusSearchClient: &applicationTestCampusSearchClient{searcher: searcher}})
 			_, err := service.CampusSearch(t.Context(), CampusSearchRequest{
 				AccessContext: AgentToolAccessContext{RequestID: run.RequestID, UserGoal: " " + test.userGoal + " ", ResultLimit: 5, ActivityAttempt: 1, CitationStart: 1, InvocationID: "tool-campus-search-1", WorkflowStepID: "task.step.step.lookup"},
 				SearchQuery:   " " + test.searchQuery + " ",
@@ -561,16 +591,15 @@ func validApplicationTestAdmissionSnapshot(
 
 type missingApplicationTestIndexStore struct{}
 
-func (missingApplicationTestIndexStore) CurrentIndex(context.Context) (campusdocs.Index, bool, error) {
-	return campusdocs.Index{}, false, nil
+func (missingApplicationTestIndexStore) CurrentIndex(context.Context) (campussearch.Index, bool, error) {
+	return campussearch.Index{}, false, nil
 }
 
 func TestCampusSearchReportsMissingIndexAsUnavailable(t *testing.T) {
 	store, run, _ := applicationTestRunningRun(t, false)
 	service := NewAgentToolService(AgentToolServiceOptions{
-		CampusDocsIndexStore: missingApplicationTestIndexStore{},
-		CampusDocsSearcher:   &applicationTestSearcher{},
-		Store:                store,
+		CampusSearchClient: &applicationTestCampusSearchClient{err: ErrCampusSearchUnavailable},
+		Store:              store,
 	})
 	_, err := service.CampusSearch(context.Background(), CampusSearchRequest{
 		AccessContext: AgentToolAccessContext{
@@ -604,7 +633,7 @@ func TestCampusSearchPreservesFailureDetailForOps(t *testing.T) {
 	base, run, _ := applicationTestRunningRun(t, false)
 	store := &campusFailureDiagnosticStore{InMemoryRunProjectionStore: base, failed: make(chan campusdiagnostics.Observation, 1)}
 	const detail = `campus notice Qdrant payload schema "campus_rag_point.v999" is unsupported`
-	service := NewAgentToolService(AgentToolServiceOptions{CampusDocsSearcherError: errors.New(detail), Store: store, CampusDocsIndexStore: applicationTestIndexStore{}})
+	service := NewAgentToolService(AgentToolServiceOptions{CampusSearchClient: &applicationTestCampusSearchClient{err: errors.New(detail)}, Store: store})
 	_, err := service.CampusSearch(t.Context(), CampusSearchRequest{AccessContext: AgentToolAccessContext{ActivityAttempt: 1, CitationStart: 1, InvocationID: "call-diagnostic", RequestID: run.RequestID, ResultLimit: 5, UserGoal: "夜宵时间", WorkflowStepID: "task.step.step.lookup"}, SearchQuery: "夜宵时间"})
 	if err == nil {
 		t.Fatal("failure was hidden")
@@ -646,9 +675,8 @@ func TestCampusSearchUsesOneResolvedYearForRetrievalAndRerank(t *testing.T) {
 	store, run, _ := applicationTestRunningRun(t, false)
 	searcher := &applicationTestSearcher{}
 	service := NewAgentToolService(AgentToolServiceOptions{
-		CampusDocsIndexStore: applicationTestIndexStore{},
-		CampusDocsSearcher:   searcher,
-		Store:                store,
+		CampusSearchClient: &applicationTestCampusSearchClient{searcher: searcher},
+		Store:              store,
 	})
 	query := "我们学校去年中秋怎么放"
 	if _, err := service.CampusSearch(t.Context(), CampusSearchRequest{

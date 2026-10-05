@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
@@ -445,10 +445,10 @@ func TestWorkflowFinalizationProjectsCitationsOnCompletionAndRepair(t *testing.T
 				input.WorkflowResult.SolveOutcome = "answer"
 				input.WorkflowResult.WorkflowResultRef = activityprojection.WorkflowOperationResultRef(input.RequestID, "solve.initial")
 				input.WorkflowResult.FinalOutput = "报名要求见 [5]。"
-				item := campusdocs.SearchResultItem{ResultRef: ref, SourceKind: "notice", Title: "通知", Text: "报名要求", SectionTitle: "报名", NoticeID: "12345", CitationHref: "/notices/12345"}
+				item := campussearch.SearchResultItem{ResultRef: ref, SourceKind: "notice", Title: "通知", Text: "报名要求", SectionTitle: "报名", NoticeID: "12345", CitationHref: "/notices/12345"}
 				for _, start := range []int{1, 5} {
 					input.WorkflowResult.ToolResults = append(input.WorkflowResult.ToolResults, temporalruntime.AgentToolResult{
-						ToolName: "campus_search", Status: "completed", Result: campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{item}, start),
+						ToolName: "campus_search", Status: "completed", Result: campussearch.EncodeSearchResult([]campussearch.SearchResultItem{item}, start),
 					})
 				}
 			}

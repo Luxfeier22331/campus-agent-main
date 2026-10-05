@@ -1,0 +1,580 @@
+package outbound
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"math"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/internal/modelconfig"
+)
+
+func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T) {
+	collection := "campus_docs_" + strings.Repeat("a", 64)
+	embeddingsCalled := false
+	qdrantCalled := false
+	provider := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/embeddings":
+			embeddingsCalled = true
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatalf("decode embedding request: %v", err)
+			}
+			if body["model"] != campusDocsEmbeddingModel ||
+				!strings.HasPrefix(body["input"].(string), "Instruct: ") ||
+				body["dimensions"] != float64(campussearch.EmbeddingDimensions) {
+				t.Fatalf("embedding request = %#v", body)
+			}
+			if body["input"] !=
+				"Instruct: "+campussearch.EmbeddingQueryInstruction+"\nQuery:学籍规定" {
+				t.Fatalf("embedding query instruction = %q", body["input"])
+			}
+			embedding := make([]float64, campussearch.EmbeddingDimensions)
+			embedding[0] = 0.25
+			writeJSON(response, http.StatusOK, map[string]any{
+				"data": []map[string]any{{"embedding": embedding}},
+			})
+		case "/collections/" + collection + "/points/query":
+			qdrantCalled = true
+			if request.Header.Get("api-key") != "qdrant-read-only" {
+				t.Fatalf("qdrant api key = %q", request.Header.Get("api-key"))
+			}
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatalf("decode qdrant request: %v", err)
+			}
+			if body["with_payload"] != true || body["with_vector"] != false {
+				t.Fatalf("qdrant request = %#v", body)
+			}
+			writeJSON(response, http.StatusOK, map[string]any{"result": map[string]any{"points": []any{}}})
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer provider.Close()
+
+	client := newCampusDocsHTTPClientForTest(t,
+		Config{
+			DeploymentEnvironment: "local",
+			QdrantURL:             provider.URL,
+			QdrantReadOnlyAPIKey:  "qdrant-read-only",
+		},
+		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
+	)
+	evidence, err := client.Search(
+		t.Context(),
+		campussearch.Index{Collection: collection},
+		campussearch.SearchQuery{RetrievalQuery: "学籍规定", RerankQuery: "学籍规定"},
+		campussearch.SearchResultLimit,
+	)
+	if err != nil {
+		t.Fatalf("retrieve Campus docs evidence: %v", err)
+	}
+	if len(evidence) != 0 {
+		t.Fatalf("no-match evidence = %#v", evidence)
+	}
+	result := campussearch.EncodeSearchResult(evidence, 1)
+	if result["outcome"] != "no_match" {
+		t.Fatalf("no-match result = %#v", result)
+	}
+	if !embeddingsCalled || !qdrantCalled {
+		t.Fatalf("embedding called = %t, qdrant called = %t", embeddingsCalled, qdrantCalled)
+	}
+}
+
+func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
+	const retrievalQuery = "本科生 转专业 申请条件"
+	const rerankQuery = "我想申请转专业，需要满足什么条件？"
+	snapshot := &campussearch.Snapshot{CitationStart: 4, Durations: map[string]int64{}}
+	phases := []string{}
+	ctx := campussearch.WithSearchObserver(t.Context(), &campussearch.SearchObserver{Snapshot: snapshot, Phase: func(phase string) { phases = append(phases, phase) }})
+	collection := "campus_docs_" + strings.Repeat("c", 64)
+	points := make([]qdrantPoint, 7)
+	for index := range points {
+		points[index] = validCampusDocsPointAtTest(index)
+		docID := fmt.Sprintf("rules-%d", index)
+		section := fmt.Sprintf("章节%d", index)
+		points[index].Payload["document_id"] = docID
+		points[index].Payload["section_title"] = section
+		points[index].Payload["section_ref"] = fmt.Sprintf("/docs/regulations/student_rules/attendance/v/2026#%s", section)
+	}
+
+	embeddingsCalled := false
+	qdrantCalled := false
+	rerankCalled := false
+	provider := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/embeddings":
+			embeddingsCalled = true
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body["input"] != campussearch.BuildDenseQueryText(retrievalQuery, campussearch.EmbeddingQueryInstruction) {
+				t.Fatalf("embedding did not use retrieval query: %#v", body)
+			}
+			embedding := make([]float64, campussearch.EmbeddingDimensions)
+			embedding[0] = 0.25
+			writeJSON(response, http.StatusOK, map[string]any{
+				"data": []map[string]any{{"embedding": embedding}},
+			})
+		case "/v1/rerank":
+			rerankCalled = true
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatalf("decode rerank request: %v", err)
+			}
+			if body["model"] != campusDocsRerankModel || body["query"] != rerankQuery {
+				t.Fatalf("rerank request = %#v", body)
+			}
+			documents, ok := body["documents"].([]any)
+			if !ok || len(documents) != len(points) {
+				t.Fatalf("rerank documents = %#v", body["documents"])
+			}
+			results := make([]map[string]any, len(points))
+			for index := range points {
+				results[index] = map[string]any{
+					"index":           len(points) - index - 1,
+					"relevance_score": 0.99 - float64(index)*0.05,
+				}
+			}
+			writeJSON(response, http.StatusOK, map[string]any{"results": results})
+		case "/collections/" + collection + "/points/query":
+			qdrantCalled = true
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			prefetch := body["prefetch"].([]any)
+			actual, _ := json.Marshal(prefetch[1].(map[string]any)["query"])
+			want, _ := json.Marshal(campussearch.BuildSparseVector(retrievalQuery))
+			if string(actual) != string(want) {
+				t.Fatalf("sparse query = %s, want %s", actual, want)
+			}
+			writeJSON(response, http.StatusOK, map[string]any{
+				"result": map[string]any{"points": points},
+			})
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer provider.Close()
+
+	client := newCampusDocsHTTPClientForTest(t,
+		Config{
+			DeploymentEnvironment: "local",
+			QdrantURL:             provider.URL,
+			QdrantReadOnlyAPIKey:  "qdrant-read-only",
+		},
+		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
+	)
+	evidence, err := client.Search(
+		ctx,
+		campussearch.Index{Collection: collection},
+		campussearch.SearchQuery{RetrievalQuery: retrievalQuery, RerankQuery: rerankQuery},
+		campussearch.SearchResultLimit,
+	)
+	if err != nil {
+		t.Fatalf("retrieve Campus docs evidence: %v", err)
+	}
+	if len(evidence) != campussearch.SearchResultLimit {
+		t.Fatalf("evidence count = %d, want %d", len(evidence), campussearch.SearchResultLimit)
+	}
+	for index, item := range evidence {
+		want := fmt.Sprintf("chunk-%d", len(points)-index-1)
+		if !strings.HasPrefix(item.DocumentID, "rules-") || !strings.Contains(item.Text, want) {
+			t.Fatalf("evidence[%d] = %#v, want %s", index, item, want)
+		}
+	}
+	if !embeddingsCalled || !qdrantCalled || !rerankCalled {
+		t.Fatalf("embedding called = %t, qdrant called = %t, rerank called = %t", embeddingsCalled, qdrantCalled, rerankCalled)
+	}
+	if strings.Join(phases, ",") != "embedded,retrieved,reranked,selected" || snapshot.ReturnedCount != 5 || snapshot.ExcludedCount != 2 {
+		t.Fatalf("diagnostics = %#v, %v", snapshot, phases)
+	}
+	for _, candidate := range snapshot.Candidates {
+		if candidate.RerankScore == nil || candidate.RerankRank == nil {
+			t.Fatal("missing scores")
+		}
+		if candidate.Returned && (candidate.CitationIndex == nil || *candidate.CitationIndex < 4) {
+			t.Fatal("missing citation index")
+		}
+		if !candidate.Returned && candidate.ExclusionReason != "result_limit" {
+			t.Fatalf("exclusion = %s", candidate.ExclusionReason)
+		}
+	}
+}
+
+func TestCampusDocsRerankerKeepsThresholdBoundaryAndDropsLowerScores(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/rerank" {
+			http.NotFound(response, request)
+			return
+		}
+		if request.Header.Get("X-Failover-Enabled") != "true" {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"results": []map[string]any{
+				{"index": 1, "relevance_score": 0.499},
+				{"index": 2, "relevance_score": campusDocsRerankRelevanceThreshold},
+				{"index": 0, "relevance_score": 0.9},
+			},
+		})
+	}))
+	defer provider.Close()
+
+	candidates := make([]campusDocsCandidate, 3)
+	for index := range candidates {
+		point := validCampusDocsPointAtTest(index)
+		candidate, err := campusDocsCandidateFromQdrantPoint(
+			campussearch.Index{Collection: "campus_docs_" + strings.Repeat("e", 64)},
+			point,
+		)
+		if err != nil {
+			t.Fatalf("build candidate %d: %v", index, err)
+		}
+		candidates[index] = candidate
+	}
+	ranked, err := (&campusDocsHTTPClient{rerankHTTPClient: provider.Client()}).rerankCampusDocsCandidates(
+		t.Context(),
+		modelconfigclient.RuntimeConfig{
+			APIKey:        "test-embedding-key",
+			BaseURL:       provider.URL + "/v1",
+			Model:         campusDocsRerankModel,
+			Name:          "campus_docs_reranker",
+			Provider:      "cohere-compatible",
+			APIProtocol:   "cohere.rerank",
+			SchemaVersion: "model_runtime_config.v1",
+			TargetSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		"学籍规定",
+		candidates,
+	)
+	if err != nil {
+		t.Fatalf("rerank candidates: %v", err)
+	}
+	if len(ranked) != 2 || !strings.Contains(ranked[0].result.Text, "chunk-0") ||
+		!strings.Contains(ranked[1].result.Text, "chunk-2") {
+		t.Fatalf("threshold-filtered candidates = %#v", ranked)
+	}
+}
+
+func TestCampusDocsRetrievalReturnsNoMatchWhenAllRerankerScoresAreBelowThreshold(t *testing.T) {
+	snapshot := &campussearch.Snapshot{Durations: map[string]int64{}}
+	ctx := campussearch.WithSearchObserver(t.Context(), &campussearch.SearchObserver{Snapshot: snapshot, Phase: func(string) {}})
+	collection := "campus_docs_" + strings.Repeat("f", 64)
+	rerankCalled := false
+	provider := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/embeddings":
+			embedding := make([]float64, campussearch.EmbeddingDimensions)
+			writeJSON(response, http.StatusOK, map[string]any{
+				"data": []map[string]any{{"embedding": embedding}},
+			})
+		case "/v1/rerank":
+			rerankCalled = true
+			writeJSON(response, http.StatusOK, map[string]any{
+				"results": []map[string]any{
+					{"index": 0, "relevance_score": 0.2},
+					{"index": 1, "relevance_score": 0.1},
+				},
+			})
+		case "/collections/" + collection + "/points/query":
+			writeJSON(response, http.StatusOK, map[string]any{
+				"result": map[string]any{
+					"points": []qdrantPoint{validCampusDocsPointAtTest(0), validCampusDocsPointAtTest(1)},
+				},
+			})
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer provider.Close()
+
+	client := newCampusDocsHTTPClientForTest(t,
+		Config{
+			DeploymentEnvironment: "local",
+			QdrantURL:             provider.URL,
+			QdrantReadOnlyAPIKey:  "qdrant-read-only",
+		},
+		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
+	)
+	evidence, err := client.Search(
+		ctx,
+		campussearch.Index{Collection: collection},
+		campussearch.SearchQuery{RetrievalQuery: "火星校区服务", RerankQuery: "火星校区服务"},
+		campussearch.SearchResultLimit,
+	)
+	if err != nil {
+		t.Fatalf("retrieve Campus docs evidence: %v", err)
+	}
+	result := campussearch.EncodeSearchResult(evidence, 1)
+	if !rerankCalled || len(evidence) != 0 || result["outcome"] != "no_match" {
+		t.Fatalf("low-score retrieval result = %#v; rerank called = %t", result, rerankCalled)
+	}
+	if snapshot.ExcludedCount != 2 {
+		t.Fatal("missing rejected candidates")
+	}
+	for _, candidate := range snapshot.Candidates {
+		if candidate.ExclusionReason != "rerank_below_threshold" || candidate.RerankScore == nil {
+			t.Fatalf("candidate = %#v", candidate)
+		}
+	}
+}
+
+func TestCampusDocsRetrievalDoesNotFallbackWhenRerankerResponseIsInvalid(t *testing.T) {
+	collection := "campus_docs_" + strings.Repeat("d", 64)
+	provider := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/embeddings":
+			embedding := make([]float64, campussearch.EmbeddingDimensions)
+			writeJSON(response, http.StatusOK, map[string]any{
+				"data": []map[string]any{{"embedding": embedding}},
+			})
+		case "/v1/rerank":
+			writeJSON(response, http.StatusOK, map[string]any{
+				"results": []map[string]any{{"index": 1, "relevance_score": 0.9}},
+			})
+		case "/collections/" + collection + "/points/query":
+			writeJSON(response, http.StatusOK, map[string]any{
+				"result": map[string]any{"points": []qdrantPoint{validCampusDocsPointAtTest(0)}},
+			})
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer provider.Close()
+
+	client := newCampusDocsHTTPClientForTest(t,
+		Config{
+			DeploymentEnvironment: "local",
+			QdrantURL:             provider.URL,
+			QdrantReadOnlyAPIKey:  "qdrant-read-only",
+		},
+		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
+	)
+	evidence, err := client.Search(
+		t.Context(),
+		campussearch.Index{Collection: collection},
+		campussearch.SearchQuery{RetrievalQuery: "学籍规定", RerankQuery: "学籍规定"},
+		campussearch.SearchResultLimit,
+	)
+	if err == nil || !strings.Contains(err.Error(), "reranker response index is invalid") {
+		t.Fatalf("invalid reranker response error = %v", err)
+	}
+	if evidence != nil {
+		t.Fatalf("invalid reranker response returned fallback evidence = %#v", evidence)
+	}
+}
+
+func TestValidateCampusDocsRerankResultsRejectsInvalidIndexesAndScores(t *testing.T) {
+	indexValue := func(value int) *int { return &value }
+	scoreValue := func(value float64) *float64 { return &value }
+	tests := map[string][]campusDocsRerankResultWire{
+		"out of range": {
+			{Index: indexValue(2), RelevanceScore: scoreValue(0.9)},
+			{Index: indexValue(0), RelevanceScore: scoreValue(0.8)},
+		},
+		"duplicate": {
+			{Index: indexValue(0), RelevanceScore: scoreValue(0.9)},
+			{Index: indexValue(0), RelevanceScore: scoreValue(0.8)},
+		},
+		"missing score": {
+			{Index: indexValue(0), RelevanceScore: nil},
+			{Index: indexValue(1), RelevanceScore: scoreValue(0.8)},
+		},
+		"non finite score": {
+			{Index: indexValue(0), RelevanceScore: scoreValue(math.NaN())},
+			{Index: indexValue(1), RelevanceScore: scoreValue(0.8)},
+		},
+	}
+	for name, results := range tests {
+		t.Run(name, func(t *testing.T) {
+			if err := validateCampusDocsRerankResults(results, 2); err == nil {
+				t.Fatalf("invalid reranker response was accepted: %#v", results)
+			}
+		})
+	}
+}
+
+func TestCampusDocsCandidateValidatesPayloadIdentityAndURL(t *testing.T) {
+	index := campussearch.Index{Collection: "campus_docs_" + strings.Repeat("b", 64)}
+	point := validCampusDocsPointForTest()
+	if _, err := campusDocsCandidateFromQdrantPoint(index, point); err != nil {
+		t.Fatalf("valid Campus docs point rejected: %v", err)
+	}
+
+	for name, mutate := range map[string]func(map[string]any){
+		"text hash":     func(payload map[string]any) { payload["text_sha256"] = "sha256:" + strings.Repeat("0", 64) },
+		"section URL":   func(payload map[string]any) { payload["section_ref"] = "/docs/regulations/student_rules/attendance" },
+		"root unit ids": func(payload map[string]any) { payload["root_unit_ids"] = []any{"unit-1", "unit-1"} },
+		"version slug":  func(payload map[string]any) { payload["version_slug"] = "2026-current" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			mutated := validCampusDocsPointForTest()
+			mutate(mutated.Payload)
+			if _, err := campusDocsCandidateFromQdrantPoint(index, mutated); err == nil {
+				t.Fatalf("invalid %s was accepted", name)
+			}
+		})
+	}
+}
+
+func TestCampusNoticeCandidatePreservesEvidenceAcrossPublishedVersions(t *testing.T) {
+	index := campussearch.Index{Collection: "campus_docs_" + strings.Repeat("c", 64)}
+	text := "（二）秋季批次\n第三批、第四批：\n工作周期：9月至次年1月"
+	for _, version := range []string{"campus_rag_point.v1", "campus_rag_point.v2", "campus_rag_point.v3"} {
+		t.Run(version, func(t *testing.T) {
+			point := qdrantPoint{ID: "notice-point", Score: 0.91, Payload: map[string]any{
+				"source_kind": "notice", "schema_version": version, "citation_href": "/notices/355696",
+				"notice_id": "355696", "chunk_id": "autumn", "title": "毕业安排", "section_title": "秋季批次",
+				"text": text, "text_sha256": SHA256TextRef(text),
+				"retrieval_text_sha256": SHA256TextRef("毕业安排\n" + text),
+			}}
+			if version == "campus_rag_point.v3" {
+				point.Payload["released_at"] = "2026-08-23T10:00:00.000Z"
+			}
+			candidate, err := campusDocsCandidateFromQdrantPoint(index, point)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded := campussearch.EncodeSearchResult([]campussearch.SearchResultItem{candidate.result}, 1)
+			_, decoded, err := campussearch.DecodeSearchResult(encoded)
+			if err != nil || len(decoded) != 1 || decoded[0].Text != text {
+				t.Fatalf("evidence changed: %#v, %v", decoded, err)
+			}
+		})
+	}
+}
+
+func TestCampusNoticeCandidateValidatesCitationIdentity(t *testing.T) {
+	index := campussearch.Index{Collection: "campus_docs_" + strings.Repeat("c", 64)}
+	text := "通知正文"
+	point := qdrantPoint{
+		ID:    "notice-point",
+		Score: 0.91,
+		Payload: map[string]any{
+			"source_kind":           "notice",
+			"citation_href":         "/notices/54321",
+			"chunk_id":              "notice-chunk",
+			"notice_id":             "12345",
+			"retrieval_text_sha256": SHA256TextRef("通知\n" + text),
+			"schema_version":        "campus_rag_point.v1",
+			"section_title":         "正文",
+			"text":                  text,
+			"text_sha256":           SHA256TextRef(text),
+			"title":                 "通知",
+		},
+	}
+	if _, err := campusDocsCandidateFromQdrantPoint(index, point); err == nil {
+		t.Fatal("accepted notice point whose citation href identifies another notice")
+	}
+}
+
+func TestCampusDocsEmbeddingRejectsNonFiniteValues(t *testing.T) {
+	embedding := make([]float64, campussearch.EmbeddingDimensions)
+	embedding[17] = math.NaN()
+	if err := validateCampusDocsEmbedding(embedding); err == nil {
+		t.Fatal("non-finite embedding was accepted")
+	}
+}
+
+func validCampusDocsPointForTest() qdrantPoint {
+	return validCampusDocsPointAtTest(0)
+}
+
+func validCampusDocsPointAtTest(index int) qdrantPoint {
+	text := fmt.Sprintf("学生应当在规定期限内提交材料，候选 chunk-%d。", index)
+	return qdrantPoint{
+		ID:    fmt.Sprintf("chunk-%d", index),
+		Score: 0.91,
+		Payload: map[string]any{
+			"chunk_id":              fmt.Sprintf("chunk-%d", index),
+			"document_id":           "student-rules",
+			"document_title":        "学生管理规定",
+			"retrieval_text_sha256": SHA256TextRef(fmt.Sprintf("retrieval-%d", index)),
+			"root_unit_ids":         []any{fmt.Sprintf("attendance-%d", index)},
+			"schema_version":        "campus_docs_point.v3",
+			"section_ref":           fmt.Sprintf("/docs/regulations/student_rules/attendance/v/2026#attendance-%d", index),
+			"section_title":         "材料提交",
+			"text":                  text,
+			"text_sha256":           SHA256TextRef(text),
+			"version_id":            "student-rules-2026",
+			"version_slug":          "2026",
+		},
+	}
+}
+
+const (
+	campusDocsEmbeddingModel = "Qwen3-Embedding-4B"
+	campusDocsRerankModel    = "Qwen3-Reranker-4B"
+)
+
+func newCampusDocsHTTPClientForTest(
+	t *testing.T,
+	cfg Config,
+	resolver runtimeConfigResolver,
+) *campusDocsHTTPClient {
+	t.Helper()
+	searcher, err := NewCampusDocsSearcher(cfg, resolver, nil)
+	if err != nil {
+		t.Fatalf("build Campus docs searcher: %v", err)
+	}
+	client, ok := searcher.(*campusDocsHTTPClient)
+	if !ok {
+		t.Fatalf("Campus docs searcher type = %T, want *campusDocsHTTPClient", searcher)
+	}
+	return client
+}
+
+type staticCampusDocsRuntimeConfigResolverForTest map[string]modelconfigclient.RuntimeConfig
+
+func campusDocsRuntimeConfigResolverForTest(baseURL string) staticCampusDocsRuntimeConfigResolverForTest {
+	return staticCampusDocsRuntimeConfigResolverForTest{
+		"campus_docs_embedding": {
+			APIKey:        "test-embedding-key",
+			APIProtocol:   "openai.embeddings",
+			BaseURL:       baseURL,
+			Model:         campusDocsEmbeddingModel,
+			Name:          "campus_docs_embedding",
+			Provider:      "openai-compatible",
+			SchemaVersion: "model_runtime_config.v1",
+			TargetSHA256:  strings.Repeat("a", 64),
+		},
+		"campus_docs_reranker": {
+			APIKey:        "test-reranker-key",
+			APIProtocol:   "cohere.rerank",
+			BaseURL:       baseURL,
+			Model:         campusDocsRerankModel,
+			Name:          "campus_docs_reranker",
+			Provider:      "cohere-compatible",
+			SchemaVersion: "model_runtime_config.v1",
+			TargetSHA256:  strings.Repeat("b", 64),
+		},
+	}
+}
+
+func (resolver staticCampusDocsRuntimeConfigResolverForTest) ResolveRuntimeConfig(
+	_ context.Context,
+	name string,
+) (modelconfigclient.RuntimeConfig, error) {
+	snapshot, ok := resolver[name]
+	if !ok {
+		return modelconfigclient.RuntimeConfig{}, fmt.Errorf("no runtime config for %s", name)
+	}
+	return snapshot, nil
+}
+
+func writeJSON(response http.ResponseWriter, status int, body any) {
+	response.Header().Set("content-type", "application/json")
+	response.WriteHeader(status)
+	_ = json.NewEncoder(response).Encode(body)
+}

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
@@ -18,37 +18,31 @@ import (
 const (
 	CampusSearchToolName         = "campus_search"
 	PersonalMemoryRecallToolName = "personal_memory_recall"
-	CampusSearchResultLimit      = campusdocs.SearchResultLimit
+	CampusSearchResultLimit      = campussearch.SearchResultLimit
 	campusDocsIndexBindingKey    = "campus_docs_index_collection"
 )
 
 var ErrCampusSearchUnavailable = errors.New("campus search index is not available")
 
 type AgentToolServiceOptions struct {
-	CampusDocsIndexStore      campusdocs.IndexStore
-	CampusDocsIndexStoreError error
-	CampusDocsSearcher        campusdocs.Searcher
-	CampusDocsSearcherError   error
-	InputLoader               execution.InputLoader
-	InputError                error
-	PersonalMemoryExecutor    MemoryExecutor
-	PersonalMemoryError       error
-	Store                     RunStore
-	StoreError                error
+	CampusSearchClient     CampusSearchClient
+	InputLoader            execution.InputLoader
+	InputError             error
+	PersonalMemoryExecutor MemoryExecutor
+	PersonalMemoryError    error
+	Store                  RunStore
+	StoreError             error
 }
 
 type AgentToolService struct {
-	indexBindingMu            sync.Mutex
-	campusDocsIndexStore      campusdocs.IndexStore
-	campusDocsIndexStoreError error
-	campusDocsSearcher        campusdocs.Searcher
-	campusDocsSearcherError   error
-	inputLoader               execution.InputLoader
-	inputError                error
-	personalMemoryExecutor    MemoryExecutor
-	personalMemoryError       error
-	store                     RunStore
-	storeError                error
+	campusSearchClient     CampusSearchClient
+	indexBindingMu         sync.Mutex
+	inputLoader            execution.InputLoader
+	inputError             error
+	personalMemoryExecutor MemoryExecutor
+	personalMemoryError    error
+	store                  RunStore
+	storeError             error
 }
 
 type AgentToolAccessContext struct {
@@ -110,16 +104,13 @@ func IsAgentToolConflict(err error) bool {
 
 func NewAgentToolService(options AgentToolServiceOptions) *AgentToolService {
 	return &AgentToolService{
-		campusDocsIndexStore:      options.CampusDocsIndexStore,
-		campusDocsIndexStoreError: options.CampusDocsIndexStoreError,
-		campusDocsSearcher:        options.CampusDocsSearcher,
-		campusDocsSearcherError:   options.CampusDocsSearcherError,
-		inputLoader:               options.InputLoader,
-		inputError:                options.InputError,
-		personalMemoryExecutor:    options.PersonalMemoryExecutor,
-		personalMemoryError:       options.PersonalMemoryError,
-		store:                     options.Store,
-		storeError:                options.StoreError,
+		campusSearchClient:     options.CampusSearchClient,
+		inputLoader:            options.InputLoader,
+		inputError:             options.InputError,
+		personalMemoryExecutor: options.PersonalMemoryExecutor,
+		personalMemoryError:    options.PersonalMemoryError,
+		store:                  options.Store,
+		storeError:             options.StoreError,
 	}
 }
 
@@ -133,7 +124,7 @@ func (s *AgentToolService) CampusSearch(
 		ctx, cancel = context.WithDeadline(ctx, access.DeadlineAt)
 		defer cancel()
 	}
-	query := campusdocs.SearchQuery{
+	query := campussearch.SearchQuery{
 		RetrievalQuery:     strings.TrimSpace(request.SearchQuery),
 		RerankQuery:        strings.TrimSpace(request.SearchGoal),
 		ExcludedResultRefs: access.ExcludedResultRefs,
@@ -148,11 +139,12 @@ func (s *AgentToolService) CampusSearch(
 		FailedStage:       "validation",
 		SnapshotTruncated: len([]rune(query.RetrievalQuery)) > 1024 || len([]rune(query.RerankQuery)) > 1024,
 	}
+	var phaseTimes map[string]time.Time
 	observe := func(phase string) {
 		campusdiagnostics.Record(ctx, s.store, campusdiagnostics.Observation{
 			RequestID: access.RequestID, InvocationID: access.InvocationID,
 			WorkflowStepID: access.WorkflowStepID, ActivityAttempt: access.ActivityAttempt,
-			SearchQuery: request.SearchQuery, Phase: phase, At: time.Now(), Snapshot: snapshot,
+			SearchQuery: request.SearchQuery, Phase: phase, At: time.Now(), Snapshot: snapshot, PhaseTimes: phaseTimes,
 		})
 	}
 	finishFailure := func(err error) error {
@@ -163,7 +155,9 @@ func (s *AgentToolService) CampusSearch(
 		if errors.Is(err, context.Canceled) {
 			phase = "canceled"
 		}
-		snapshot.FailureDetail = err.Error()
+		if snapshot.FailureDetail == "" {
+			snapshot.FailureDetail = err.Error()
+		}
 		observe(phase)
 		stage := snapshot.FailedStage
 		if stage == "" {
@@ -172,7 +166,6 @@ func (s *AgentToolService) CampusSearch(
 		return campusSearchStageError{stage: stage, cause: err}
 	}
 	observe("received")
-	ctx = campusdocs.WithSearchObserver(ctx, &campusdocs.SearchObserver{Snapshot: snapshot, Phase: observe})
 	run, err := s.validateRun(ctx, request.AccessContext, CampusSearchToolName)
 	if err != nil {
 		return nil, finishFailure(err)
@@ -182,68 +175,93 @@ func (s *AgentToolService) CampusSearch(
 	snapshot.EffectiveQuery = campusdiagnostics.Bound(query.RetrievalQuery, 1024)
 	snapshot.RerankQuery = campusdiagnostics.Bound(query.RerankQuery, 1024)
 	snapshot.FailedStage = "index"
-	if s.campusDocsIndexStore == nil {
-		if s.campusDocsIndexStoreError != nil {
-			return nil, finishFailure(s.campusDocsIndexStoreError)
-		}
-		return nil, finishFailure(errors.New("campus docs index store is not configured"))
-	}
-	if s.campusDocsSearcherError != nil {
-		return nil, finishFailure(s.campusDocsSearcherError)
-	}
-	if s.campusDocsSearcher == nil {
-		return nil, finishFailure(errors.New("campus docs searcher is not configured"))
-	}
-	s.indexBindingMu.Lock()
-	// The run snapshot was loaded before acquiring the service-wide lock. Re-read
-	// it here so a concurrent first caller cannot bind against the same empty
-	// metadata snapshot.
-	run, err = s.store.GetRun(ctx, access.RequestID)
-	if err != nil {
-		s.indexBindingMu.Unlock()
-		return nil, finishFailure(err)
-	}
-	index, found, err := s.campusDocsIndexStore.CurrentIndex(ctx)
-	if err != nil {
-		s.indexBindingMu.Unlock()
-		return nil, finishFailure(err)
-	}
-	if !found {
-		s.indexBindingMu.Unlock()
+	if s.campusSearchClient == nil {
 		return nil, finishFailure(ErrCampusSearchUnavailable)
 	}
-	boundCollection := execution.StringValue(run.Metadata[campusDocsIndexBindingKey])
-	if boundCollection != "" && boundCollection != index.Collection {
-		s.indexBindingMu.Unlock()
-		return nil, newAgentToolConflict(fmt.Errorf(
+	clientResult, clientErr := s.campusSearchClient.Search(ctx, CampusSearchClientRequest{
+		RetrievalQuery:     query.RetrievalQuery,
+		RerankQuery:        query.RerankQuery,
+		ExcludedResultRefs: query.ExcludedResultRefs,
+		ResultLimit:        request.AccessContext.ResultLimit,
+	})
+	if clientErr != nil {
+		var upstreamError *CampusSearchClientError
+		if errors.As(clientErr, &upstreamError) {
+			if upstreamError.Diagnostics != nil {
+				phaseTimes = upstreamError.Diagnostics.PhaseTimes
+			}
+			mergeCampusSearchDiagnostics(snapshot, upstreamError.Diagnostics, nil, access.CitationStart)
+		}
+		return nil, finishFailure(clientErr)
+	}
+	if clientResult.Diagnostics != nil {
+		phaseTimes = clientResult.Diagnostics.PhaseTimes
+	}
+	index := campussearch.Index{Collection: clientResult.Collection}
+	results := clientResult.Results
+	if err := campussearch.ValidateIndex(index); err != nil {
+		return nil, finishFailure(err)
+	}
+	run, err = s.bindCampusSearchCollection(ctx, run, index.Collection)
+	if err != nil {
+		return nil, finishFailure(err)
+	}
+	snapshot.Retrieval = &campusdiagnostics.RetrievalMeta{Collection: index.Collection}
+	mergeCampusSearchDiagnostics(snapshot, clientResult.Diagnostics, results, access.CitationStart)
+	snapshot.FailedStage = ""
+	observe("completed")
+	return campussearch.EncodeSearchResult(results, request.AccessContext.CitationStart), nil
+}
+
+func mergeCampusSearchDiagnostics(snapshot *campusdiagnostics.Snapshot, upstream *campussearch.Snapshot, results []campussearch.SearchResultItem, citationStart int) {
+	if upstream == nil {
+		return
+	}
+	if raw, err := json.Marshal(upstream); err == nil {
+		_ = json.Unmarshal(raw, snapshot)
+	}
+	snapshot.CitationStart = citationStart
+	indexes := make(map[string]int, len(results))
+	for offset, result := range results {
+		indexes[result.ResultRef] = citationStart + offset
+	}
+	for i := range snapshot.Candidates {
+		candidate := &snapshot.Candidates[i]
+		candidate.CitationIndex = nil
+		if index, ok := indexes[candidate.ResultRef]; ok && candidate.Returned {
+			candidate.CitationIndex = &index
+		}
+	}
+}
+
+func (s *AgentToolService) bindCampusSearchCollection(
+	ctx context.Context,
+	run execution.DurableRun,
+	collection string,
+) (execution.DurableRun, error) {
+	s.indexBindingMu.Lock()
+	defer s.indexBindingMu.Unlock()
+	current, err := s.store.GetRun(ctx, run.RequestID)
+	if err != nil {
+		return execution.DurableRun{}, err
+	}
+	boundCollection := execution.StringValue(current.Metadata[campusDocsIndexBindingKey])
+	if boundCollection != "" && boundCollection != collection {
+		return execution.DurableRun{}, newAgentToolConflict(fmt.Errorf(
 			"campus docs index binding changed during run: bound=%s current=%s",
 			boundCollection,
-			index.Collection,
+			collection,
 		))
 	}
 	if boundCollection == "" {
-		metadata := execution.CloneAnyMapFromValue(run.Metadata)
-		metadata[campusDocsIndexBindingKey] = index.Collection
-		if err := s.store.ReplaceRunMetadata(ctx, run.RequestID, metadata); err != nil {
-			s.indexBindingMu.Unlock()
-			return nil, err
+		metadata := execution.CloneAnyMapFromValue(current.Metadata)
+		metadata[campusDocsIndexBindingKey] = collection
+		if err := s.store.ReplaceRunMetadata(ctx, current.RequestID, metadata); err != nil {
+			return execution.DurableRun{}, err
 		}
+		current.Metadata = metadata
 	}
-	s.indexBindingMu.Unlock()
-	snapshot.Retrieval = &campusdiagnostics.RetrievalMeta{Collection: index.Collection}
-	observe("index_loaded")
-	results, err := s.campusDocsSearcher.Search(
-		ctx,
-		index,
-		query,
-		request.AccessContext.ResultLimit,
-	)
-	if err != nil {
-		return nil, finishFailure(err)
-	}
-	snapshot.FailedStage = ""
-	observe("completed")
-	return campusdocs.EncodeSearchResult(results, request.AccessContext.CitationStart), nil
+	return current, nil
 }
 
 // NormalizeRelativeNoticeYears expands the narrow set of relative year terms

@@ -3,6 +3,7 @@ import type { LocalDevProfile } from "./profile";
 
 export const LOCAL_DATABASE_ROLES = [
 	["app_api", "campus-agent-local-app-api"],
+	["campus_search", "campus-agent-local-campus-search"],
 	["execution_control", "campus-agent-local-execution-control"],
 	["model_config", "campus-agent-local-model-config"],
 	["ops_web", "campus-agent-local-ops-web"],

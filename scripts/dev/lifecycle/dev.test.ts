@@ -30,7 +30,7 @@ import {
 	resolveMainCheckoutRoot,
 } from "./environment";
 import { ensureLocalInfrastructureSecrets } from "./infrastructure-secrets";
-import { diagnoseLocalDevInstances, resolveUnmanagedInstanceCleanup } from "./instance-resources";
+import { destroyLocalInstanceResources, diagnoseLocalDevInstances } from "./instance-resources";
 import * as lifecycle from "./lifecycle";
 import { assertLocalHindsightProviders, localHindsightEnvironment } from "./local-hindsight";
 import { objectStoreCommand } from "./local-infrastructure";
@@ -115,6 +115,7 @@ describe("local development profiles", () => {
 		});
 		assert.deepEqual(calculateLocalDevRuntimePorts(2), {
 			agentRuntime: 27262,
+			campusSearch: 27254,
 			executionControl: 27251,
 			executionWorker: 27252,
 			modelConfig: 27253,
@@ -444,33 +445,14 @@ describe("local development profiles", () => {
 		}
 	});
 
-	it("releases stale instances whose Compose resources are already gone", () => {
-		const cleanup = resolveUnmanagedInstanceCleanup({
-			infraProject: "campus-agent-wt-2c4679e6",
-			instanceId: "notice-pipeline-governance-2c4679e6",
-			remainingResources: [],
-		});
-		assert.deepEqual(cleanup, {
-			bucket: "missing",
-			database: "missing",
-			namespace: "missing",
-			unresolved: [],
-		});
-	});
+	it("cleans a compose project without infrastructure credentials", async () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+		assert.equal(existsSync(resolve(repoRoot, "var/dev/infrastructure")), false);
 
-	it("fails closed when credentials are gone but Compose resources remain", () => {
-		assert.throws(
-			() =>
-				resolveUnmanagedInstanceCleanup({
-					infraProject: "campus-agent-wt-2c4679e6",
-					instanceId: "notice-pipeline-governance-2c4679e6",
-					remainingResources: [
-						"campus-agent-wt-2c4679e6_postgres-1",
-						"campus-agent-wt-2c4679e6_postgres-data",
-					],
-				}),
-			/docker compose --project-name campus-agent-wt-2c4679e6 down --volumes --remove-orphans/u,
-		);
+		await destroyLocalInstanceResources(repoRoot, profile);
+
+		assert.equal(existsSync(resolve(repoRoot, "var/dev/infrastructure")), false);
 	});
 });
 
@@ -986,7 +968,7 @@ describe("managed worktree environment", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
 		const corePaths = renderLocalEnvironmentFiles({ profile, repoRoot, target: "core" });
-		assert.equal(corePaths.length, 6);
+		assert.equal(corePaths.length, 7);
 		assert.equal(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")), false);
 	});
 
@@ -1004,6 +986,7 @@ describe("managed worktree environment", () => {
 				resolve(repoRoot, "apps/app-api/.dev.vars.local"),
 				resolve(repoRoot, "apps/app-api/.env.local"),
 				resolve(repoRoot, "apps/campus-web/.dev.vars.local"),
+				resolve(repoRoot, "apps/campus-search/.env.local"),
 				resolve(repoRoot, "apps/execution-control/.env.local"),
 				resolve(repoRoot, "apps/model-config/.env.local"),
 				resolve(repoRoot, "apps/ops-web/.env.local"),

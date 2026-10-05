@@ -80,6 +80,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	appApiVars: "apps/app-api/.dev.vars.local",
 	campusWeb: "apps/campus-web/.dev.vars.local",
 	executionControl: "apps/execution-control/.env.local",
+	campusSearch: "apps/campus-search/.env.local",
 	modelConfig: "apps/model-config/.env.local",
 	agentRuntime: "apps/agent-runtime/.env.local",
 	noticeClassifier: "jobs/notice-classifier/.env.local",
@@ -107,7 +108,15 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	readonly ManagedLocalEnvironment[]
 > = {
 	"document-ocr": ["documentOcr"],
-	core: ["appApi", "appApiVars", "campusWeb", "modelConfig", "executionControl", "agentRuntime"],
+	core: [
+		"appApi",
+		"appApiVars",
+		"campusWeb",
+		"modelConfig",
+		"campusSearch",
+		"executionControl",
+		"agentRuntime",
+	],
 	"model-config": ["modelConfig"],
 	"ops-web": ["opsWeb"],
 	"notice-publisher": ["noticePublisher"],
@@ -123,6 +132,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 export const LOCAL_DATABASE_PASSWORDS = {
 	appApi: "campus-agent-local-app-api",
 	executionControl: "campus-agent-local-execution-control",
+	campusSearch: "campus-agent-local-campus-search",
 	modelConfig: "campus-agent-local-model-config",
 	opsWeb: "campus-agent-local-ops-web",
 	noticePublisher: "campus-agent-local-notice-publisher",
@@ -213,6 +223,7 @@ export function importMainCheckoutExternalCredentials(input: {
 export function localDatabaseUrls(profile: LocalDevProfile): {
 	appApi: string;
 	executionControl: string;
+	campusSearch: string;
 	modelConfig: string;
 	opsWeb: string;
 	noticePublisher: string;
@@ -224,6 +235,7 @@ export function localDatabaseUrls(profile: LocalDevProfile): {
 	return {
 		appApi: url("app_api", LOCAL_DATABASE_PASSWORDS.appApi),
 		executionControl: url("execution_control", LOCAL_DATABASE_PASSWORDS.executionControl),
+		campusSearch: url("campus_search", LOCAL_DATABASE_PASSWORDS.campusSearch),
 		modelConfig: url("model_config", LOCAL_DATABASE_PASSWORDS.modelConfig),
 		opsWeb: url("ops_web", LOCAL_DATABASE_PASSWORDS.opsWeb),
 		noticePublisher: url("notice_publisher", LOCAL_DATABASE_PASSWORDS.noticePublisher),
@@ -396,6 +408,8 @@ export function renderLocalEnvironmentFiles(input: {
 			EXECUTION_AGENT_RUNTIME_SHARED_SECRET: executionSharedSecret,
 			EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: `http://127.0.0.1:${runtimePorts.agentRuntime}`,
 			EXECUTION_CONTROL_DATABASE_URL: database.executionControl,
+			RETRIEVAL_BASE_URL: `http://127.0.0.1:${runtimePorts.campusSearch}`,
+			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			EXECUTION_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
@@ -407,10 +421,21 @@ export function renderLocalEnvironmentFiles(input: {
 			HOST: "127.0.0.1",
 			PORT: String(runtimePorts.executionControl),
 			EXECUTION_WORKER_PORT: String(runtimePorts.executionWorker),
+		});
+	}
+	if (shouldRender("campusSearch")) {
+		writeManagedEnv(paths.campusSearch, {
+			...noProxy,
+			DEPLOYMENT_ENVIRONMENT: "development",
+			CAMPUS_SEARCH_DATABASE_URL: database.campusSearch,
+			CAMPUS_SEARCH_MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
+			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
+			HOST: "127.0.0.1",
+			PORT: String(runtimePorts.campusSearch),
 			...(input.qdrant
 				? {
-						QDRANT_READ_ONLY_API_KEY: input.qdrant.readOnlyApiKey,
-						QDRANT_URL: input.qdrant.url,
+						CAMPUS_SEARCH_QDRANT_READ_ONLY_API_KEY: input.qdrant.readOnlyApiKey,
+						CAMPUS_SEARCH_QDRANT_URL: input.qdrant.url,
 					}
 				: {}),
 		});

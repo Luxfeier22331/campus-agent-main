@@ -41,6 +41,7 @@ test("active image target registry excludes the historical schema image", () => 
 		"notice-pipeline-worker",
 		"document-ocr",
 		"execution-control",
+		"campus-search-service",
 		"model-config",
 		"notice-artifacts-worker",
 		"ops-web",
@@ -58,6 +59,14 @@ test("selects Dockerfiles independently of broad Turbo build tasks", () => {
 		),
 		["ops-web"],
 	);
+});
+
+test("maps the standalone Campus Search image to its service Dockerfile and sources", () => {
+	assert.deepEqual(targets(["apps/campus-search/Dockerfile"]), ["campus-search-service"]);
+	assert.deepEqual(targets(["apps/campus-search/internal/service/service.go"]), [
+		"campus-search-service",
+	]);
+	assert.deepEqual(targets(["apps/campus-search/internal/httpapi/server_test.go"]), []);
 });
 
 test("maps shared Node build inputs to all active Node images", () => {

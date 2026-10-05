@@ -243,15 +243,12 @@ export function removeLocalInfrastructure(repoRoot: string, profile: LocalDevPro
 	if (!profile.infraProject) {
 		return;
 	}
-	const secrets = loadLocalInfrastructureSecrets(repoRoot, profile);
+	// `down` 按 project label 删除容器、卷和网络，不需要实例凭据，
+	// 因此不传 --env-file 和需要插值的 compose 文件。
 	runCommand(
 		"docker",
-		[...localComposeArgs(repoRoot, profile), "down", "--volumes", "--remove-orphans"],
-		{
-			cwd: repoRoot,
-			env: { ...composeEnvironment(profile, secrets), ...localHindsightEnvironment(repoRoot) },
-			timeout: 120_000,
-		},
+		["compose", "--project-name", profile.infraProject, "down", "--volumes", "--remove-orphans"],
+		{ cwd: repoRoot, timeout: 120_000 },
 	);
 }
 

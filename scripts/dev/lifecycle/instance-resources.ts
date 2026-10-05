@@ -1,14 +1,8 @@
 import { existsSync } from "node:fs";
 
-import { localDatabaseProbe } from "./database-roles";
-import {
-	loadLocalInfrastructureSecrets,
-	resolveLocalInfrastructureSecretsPath,
-} from "./infrastructure-secrets";
 import {
 	inspectLocalInfrastructure,
 	type LocalResourceProbe,
-	localBucketProbe,
 	localComposeArgs,
 	removeLocalInfrastructure,
 } from "./local-infrastructure";
@@ -43,41 +37,10 @@ export interface LocalDevInstanceDiagnosis {
 	worktree: "present" | "missing";
 }
 
-export interface LocalInstanceResourceCleanup {
-	bucket: LocalResourceProbe;
-	database: LocalResourceProbe;
-	namespace: "present" | "missing" | "unknown";
-	unresolved: Array<"bucket" | "database" | "namespace">;
-}
-
-export interface LocalInstanceResourceCleanupPlan {
-	deleteBucket: boolean;
-	deleteDatabase: boolean;
-	deleteNamespace: boolean;
-	unresolved: Array<"bucket" | "database" | "namespace">;
-}
-
 export function assertDestroyConfirmation(instanceId: string, confirmation?: string): void {
 	if (confirmation !== instanceId) {
 		throw new Error(`Destruction requires --confirm ${instanceId}.`);
 	}
-}
-
-export function resolveLocalInstanceResourceCleanup(input: {
-	bucket: LocalResourceProbe;
-	database: LocalResourceProbe;
-	namespace: "present" | "missing" | "unknown";
-}): LocalInstanceResourceCleanupPlan {
-	return {
-		deleteBucket: input.bucket === "present",
-		deleteDatabase: input.database === "present",
-		deleteNamespace: input.namespace === "present",
-		unresolved: [
-			...(input.database === "unknown" ? ["database" as const] : []),
-			...(input.bucket === "unknown" ? ["bucket" as const] : []),
-			...(input.namespace === "unknown" ? ["namespace" as const] : []),
-		],
-	};
 }
 
 export function localTemporalNamespace(profile: LocalDevProfile): string {
@@ -178,19 +141,6 @@ export async function ensureLocalTemporalNamespace(
 	);
 }
 
-export function resolveUnmanagedInstanceCleanup(input: {
-	infraProject: string;
-	instanceId: string;
-	remainingResources: readonly string[];
-}): LocalInstanceResourceCleanup {
-	if (input.remainingResources.length > 0) {
-		throw new Error(
-			`Local infrastructure credentials are missing for ${input.instanceId}, and Compose resources remain (${input.remainingResources.join(", ")}). Remove them with docker compose --project-name ${input.infraProject} down --volumes --remove-orphans, then re-run pnpm dev:destroy.`,
-		);
-	}
-	return { bucket: "missing", database: "missing", namespace: "missing", unresolved: [] };
-}
-
 async function listLocalComposeResources(profile: LocalDevProfile): Promise<string[]> {
 	if (!profile.infraProject) {
 		return [];
@@ -216,26 +166,15 @@ async function listLocalComposeResources(profile: LocalDevProfile): Promise<stri
 export async function destroyLocalInstanceResources(
 	repoRoot: string,
 	profile: LocalDevProfile,
-): Promise<LocalInstanceResourceCleanup> {
-	if (!existsSync(resolveLocalInfrastructureSecretsPath(repoRoot, profile))) {
-		return resolveUnmanagedInstanceCleanup({
-			infraProject: profile.infraProject,
-			instanceId: profile.instanceId,
-			remainingResources: await listLocalComposeResources(profile),
-		});
-	}
-	const secrets = loadLocalInfrastructureSecrets(repoRoot, profile);
-	const database = localDatabaseProbe(profile, secrets.postgresPassword);
-	const bucket = await localBucketProbe(repoRoot, profile, profile.bucketName);
-	const namespace = await probeLocalTemporalNamespace(repoRoot, profile);
-	const plan = resolveLocalInstanceResourceCleanup({ bucket, database, namespace });
-	if (plan.unresolved.length > 0) {
-		return { bucket, database, namespace, unresolved: plan.unresolved };
-	}
+): Promise<void> {
 	if (profile.infraProject) {
 		removeLocalInfrastructure(repoRoot, profile);
+		if ((await listLocalComposeResources(profile)).length > 0) {
+			throw new Error(
+				`Compose resources remain for ${profile.infraProject} after docker compose down; remove them manually and re-run pnpm dev:destroy.`,
+			);
+		}
 	}
-	return { bucket: "missing", database: "missing", namespace: "missing", unresolved: [] };
 }
 
 export function formatProfileSummary(profile: LocalDevProfile): string {

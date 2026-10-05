@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/citationdiagnostic"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
@@ -245,7 +245,7 @@ func WorkflowEvidenceSource(
 		noticeID := strings.TrimSpace(item.NoticeID)
 		citationHref := strings.TrimSpace(item.CitationHref)
 		if noticeID != "" || citationHref != "" {
-			if noticeID == "" || !campusdocs.ValidNoticeCitationHrefForNoticeID(citationHref, noticeID) ||
+			if noticeID == "" || !campussearch.ValidNoticeCitationHrefForNoticeID(citationHref, noticeID) ||
 				strings.TrimSpace(item.SectionTitle) == "" {
 				return nil, "", citationError("invalid_source_identity", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
 			}
@@ -255,7 +255,7 @@ func WorkflowEvidenceSource(
 				"kind":          "campus_notice",
 				"notice_id":     noticeID,
 				"section_title": item.SectionTitle,
-				"snippet":       campusdocs.BoundedSourceSnippet(item.Excerpt),
+				"snippet":       campussearch.BoundedSourceSnippet(item.Excerpt),
 				"title":         item.Title,
 			}
 			if item.ReleasedAt != "" {
@@ -274,7 +274,7 @@ func WorkflowEvidenceSource(
 			"citation_href": href,
 			"evidence_ref":  item.ID,
 			"kind":          "campus_document",
-			"snippet":       campusdocs.BoundedSourceSnippet(item.Excerpt),
+			"snippet":       campussearch.BoundedSourceSnippet(item.Excerpt),
 			"title":         item.Title,
 		}
 		if item.DocumentID != "" {
@@ -306,7 +306,7 @@ func WorkflowEvidenceSource(
 			return nil, "", err
 		}
 		source["evidence_ref"] = item.ID
-		source["snippet"] = campusdocs.BoundedSourceSnippet(item.Excerpt)
+		source["snippet"] = campussearch.BoundedSourceSnippet(item.Excerpt)
 		return source, "web:" + urlValue, nil
 	case temporalruntime.WorkflowSourcePersonalMemoryRecall:
 		return nil, "", citationError("unsupported_source", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
@@ -347,7 +347,7 @@ func WorkflowResultsFromAgentResult(agentResult map[string]any) ([]WorkflowRunRe
 			strings.TrimSpace(execution.StringValue(toolResult["tool_name"])) != activityprojection.WorkflowCampusSearchToolName {
 			continue
 		}
-		_, parsedResults, err := campusdocs.DecodeSearchResult(
+		_, parsedResults, err := campussearch.DecodeSearchResult(
 			execution.CloneAnyMapFromValue(toolResult["result"]),
 		)
 		if err != nil {
@@ -366,7 +366,7 @@ func WorkflowResultsFromAgentResult(agentResult map[string]any) ([]WorkflowRunRe
 	return results, nil
 }
 
-func WorkflowRunResultFromCampusSearch(item campusdocs.SearchResultItem) WorkflowRunResult {
+func WorkflowRunResultFromCampusSearch(item campussearch.SearchResultItem) WorkflowRunResult {
 	if item.SourceKind == "notice" {
 		source := map[string]any{
 			"citation_href": item.CitationHref,
@@ -374,7 +374,7 @@ func WorkflowRunResultFromCampusSearch(item campusdocs.SearchResultItem) Workflo
 			"kind":          "campus_notice",
 			"notice_id":     item.NoticeID,
 			"section_title": item.SectionTitle,
-			"snippet":       campusdocs.BoundedSourceSnippet(item.Text),
+			"snippet":       campussearch.BoundedSourceSnippet(item.Text),
 			"title":         item.Title,
 		}
 		if item.ReleasedAt != "" {
@@ -399,7 +399,7 @@ func WorkflowRunResultFromCampusSearch(item campusdocs.SearchResultItem) Workflo
 			"root_unit_ids": append([]string{}, item.RootUnitIDs...),
 			"section_ref":   item.SectionRef,
 			"section_title": item.SectionTitle,
-			"snippet":       campusdocs.BoundedSourceSnippet(item.Text),
+			"snippet":       campussearch.BoundedSourceSnippet(item.Text),
 			"title":         item.Title,
 			"version_id":    item.VersionID,
 			"version_slug":  item.VersionSlug,

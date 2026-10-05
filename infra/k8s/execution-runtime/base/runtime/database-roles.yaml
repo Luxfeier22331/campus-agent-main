@@ -31,3 +31,20 @@ spec:
   login: true
   passwordSecret:
     name: execution-tool-read-model-secrets
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-campus-search
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: campus_search
+  login: true
+  passwordSecret:
+    name: campus-search-service-database-secrets

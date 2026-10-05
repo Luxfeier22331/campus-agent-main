@@ -1,0 +1,12 @@
+{
+	"extends": "../agent-runtime/tsconfig.json",
+	"compilerOptions": {
+		"outDir": "dist",
+		"rootDir": "src",
+		"noEmit": false,
+		"declaration": true,
+		"types": ["node"],
+		"allowImportingTsExtensions": false
+	},
+	"include": ["src/**/*.ts"]
+}

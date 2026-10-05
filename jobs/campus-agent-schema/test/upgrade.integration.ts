@@ -43,6 +43,7 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 	for (const role of [
 		"app_api",
 		"execution_control",
+		"campus_search",
 		"ops_web",
 		"model_config",
 		"product_data_ro",
@@ -75,6 +76,12 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		return { config, client };
 	}
 	async function ready(client: Client) {
+		const search = await client.query(`select
+		  has_schema_privilege('campus_search', 'campus_docs_serving', 'USAGE') as usage,
+		  has_table_privilege('campus_search', 'campus_docs_serving.current_index', 'SELECT') as read,
+		  has_table_privilege('campus_search', 'campus_docs_serving.current_index', 'INSERT,UPDATE,DELETE') as write,
+		  has_schema_privilege('campus_search', 'execution_control', 'USAGE') as execution`);
+		assert.deepEqual(search.rows[0], { usage: true, read: true, write: false, execution: false });
 		await assertAuthShape(client, true);
 		await client.query(
 			`insert into app_auth."user" (id,name,email,"emailVerified","createdAt","updatedAt")

@@ -54,4 +54,4 @@ Temporal namespace；初始化保留主线的 schedule 创建，不重新使用�
 
 2026-09 复核发现 slot 间隔 100 下 Qdrant 宿主端口与 Temporal 端口相差 900，slot 9 与 slot 0 的实例会互相占用端口。Qdrant 宿主映射从 26333/26334 调整为 26343/26344（容器内 6333/6334 不变），并在 profile 测试中穷举校验 slot 0–99 全部宿主端口全局唯一。存量实例的 profile 存储旧端口，派生变化后其所在 worktree 的 `dev`/`dev:init`/`dev:doctor` 按 fail-closed 报错；注册表级校验只保留身份检查，`dev:instances`、`dev:prune` 和 `dev:destroy` 仍可枚举和销毁漂移实例。迁移路径为先 `dev:destroy` 再重新 `dev:init`（本地卷随销毁删除，真实检索数据可从集群重同步），不提供原地端口改写。
 
-同批复核发现实例凭据随 worktree 删除后（人工删 worktree 而非 `dev:destroy`），prune 指向的 destroy 会因 per-instance 凭据文件缺失而 fail-closed，即使 Compose 资源已不存在、只剩注册表记录。destroy 在凭据缺失时改为按 Compose project label 检查容器、卷和网络：全部不存在时按"资源已缺失"释放注册表；仍有残留时 fail-closed 并提示用 `docker compose --project-name <project> down --volumes --remove-orphans` 手动清理后重试。凭据文件与资源探测保持绑定，不放宽。
+同批复核发现实例凭据随 worktree 删除后（人工删 worktree 而非 `dev:destroy`），prune 指向的 destroy 会因 per-instance 凭据文件缺失而 fail-closed。Compose project 的容器、卷和网络靠 project label 识别，不依赖实例凭据，因此 destroy 先按 label 执行 `docker compose --project-name <project> down --volumes --remove-orphans` 清理；清理后按 Compose project label 复查，全部不存在时按"资源已缺失"释放注册表；仍有残留时 fail-closed 并提示人工清理后重试。

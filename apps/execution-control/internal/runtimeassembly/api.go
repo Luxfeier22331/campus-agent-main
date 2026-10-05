@@ -2,23 +2,21 @@ package runtimeassembly
 
 import (
 	"context"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocspersistence"
+	"log/slog"
+	"time"
+
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/control"
-	"log/slog"
-	"time"
 )
 
 type APIOwner struct {
 	*resources
-	server               *httpapi.Server
-	reconciler           *executionreconciler.Reconciler
-	campusDocsIndexStore campusdocs.IndexStore
+	server     *httpapi.Server
+	reconciler *executionreconciler.Reconciler
 }
 
 func NewAPI(cfg config.Config, logger *slog.Logger) (*APIOwner, error) {
@@ -26,8 +24,18 @@ func NewAPI(cfg config.Config, logger *slog.Logger) (*APIOwner, error) {
 	if err != nil {
 		return nil, err
 	}
-	campusDocsIndexStore, campusDocsIndexStoreErr := campusdocspersistence.NewPostgresIndexStore(cfg.DatabaseURL)
-	campusDocsSearcher, campusDocsSearcherErr := outboundadapter.NewCampusDocsSearcher(cfg, r.modelConfigResolver, logger)
+	var client executionapplication.CampusSearchClient
+	if cfg.RetrievalBaseURL != "" {
+		campusSearchClient, campusSearchClientErr := outboundadapter.NewCampusSearchHTTPClient(
+			cfg.RetrievalBaseURL,
+			cfg.RetrievalInternalToken,
+			time.Duration(cfg.CampusSearchTimeoutMS)*time.Millisecond,
+		)
+		if campusSearchClientErr != nil {
+			return nil, campusSearchClientErr
+		}
+		client = campusSearchClient
+	}
 	reconciler := executionreconciler.New(executionreconciler.Options{
 		Finalizer:        control.NewFinalizer(r.finalizationAdapter),
 		Logger:           logger,
@@ -48,16 +56,13 @@ func NewAPI(cfg config.Config, logger *slog.Logger) (*APIOwner, error) {
 		TaskQueue:                     cfg.TemporalTaskQueue,
 	})
 	agentToolService := executionapplication.NewAgentToolService(executionapplication.AgentToolServiceOptions{
-		CampusDocsIndexStore:      campusDocsIndexStore,
-		CampusDocsIndexStoreError: campusDocsIndexStoreErr,
-		CampusDocsSearcher:        campusDocsSearcher,
-		CampusDocsSearcherError:   campusDocsSearcherErr,
-		InputLoader:               r.executionInputLoader,
-		InputError:                r.executionInputErr,
-		PersonalMemoryExecutor:    r.personalMemoryExecutor,
-		PersonalMemoryError:       r.personalMemoryErr,
-		Store:                     r.runProjectionStore,
-		StoreError:                r.runProjectionStoreErr,
+		CampusSearchClient:     client,
+		InputLoader:            r.executionInputLoader,
+		InputError:             r.executionInputErr,
+		PersonalMemoryExecutor: r.personalMemoryExecutor,
+		PersonalMemoryError:    r.personalMemoryErr,
+		Store:                  r.runProjectionStore,
+		StoreError:             r.runProjectionStoreErr,
 	})
 	server := httpapi.NewServerWithOptions(cfg, httpapi.ServerOptions{
 		PersonalMemoryReader:     r.personalMemoryReader,
@@ -71,7 +76,7 @@ func NewAPI(cfg config.Config, logger *slog.Logger) (*APIOwner, error) {
 		TemporalStarter:          &control.Gateway{Starter: r.temporalStarter},
 		TemporalStarterError:     r.temporalStarterErr,
 	})
-	return &APIOwner{resources: r, server: server, reconciler: reconciler, campusDocsIndexStore: campusDocsIndexStore}, nil
+	return &APIOwner{resources: r, server: server, reconciler: reconciler}, nil
 }
 func (owner *APIOwner) Handler() *httpapi.Server { return owner.server }
 func (owner *APIOwner) Start(ctx context.Context) *executionreconciler.Reconciler {
@@ -81,9 +86,6 @@ func (owner *APIOwner) Start(ctx context.Context) *executionreconciler.Reconcile
 func (owner *APIOwner) StartDraining() { owner.server.StartDraining() }
 func (owner *APIOwner) Shutdown(context.Context) error {
 	owner.reconciler.Stop()
-	if closer, ok := owner.campusDocsIndexStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
 	owner.Close()
 	return nil
 }

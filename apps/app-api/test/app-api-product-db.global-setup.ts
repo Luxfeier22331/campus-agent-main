@@ -16,6 +16,7 @@ const SCHEMA_OWNER = "campus_agent";
 const RUNTIME_ROLE = "app_api";
 const SUPPORTING_ROLES = [
 	"execution_control",
+	"campus_search",
 	"ops_web",
 	"model_config",
 	"product_data_ro",

@@ -44,17 +44,16 @@ HTTP API 也不拥有 worker 生命周期。
 - `internal/executionreconciler` 独立拥有启动、取消和终态收敛状态机，`internal/runtimeassembly`
   唯一负责生产依赖组装、Temporal client、worker 注册及生命周期；reconciler 依赖 application ports，
   不导入 Temporal SDK 或 HTTP；
-- `internal/campusdocs` 拥有索引与检索领域合同，`internal/campusdocspersistence` 实现当前索引的 PostgreSQL
-  读取，`internal/outboundadapter` 实现 embedding、Qdrant 和 reranker 调用；
-- `internal/embedding` 拥有独立的 Embedder 端口与进程内精确向量缓存，不依赖 Temporal、执行合同、
-  Model Config 或 Qdrant；检索适配器解析当前 provider 配置并注入 HTTP 实现，继续通过已有
-  `campusdocs.Searcher` 为工具服务。未来拆分检索运行时可迁移这一边界，不新增检索服务端口。
+- `apps/campus-search` 拥有检索领域合同、current-index PostgreSQL 读取、embedding 缓存、Qdrant 和 reranker adapter，以及 Campus Search HTTP service；
+- execution-control 只通过 typed HTTP client 消费 Campus Search，保留 run admission、索引绑定、citation 和诊断投影；不拥有检索 provider 或本地 fallback。
 
 ## 进程入口
 
 - `cmd/execution-api`：Deployment/Service 仍名为 `execution-control`，保留所有业务 HTTP 路由与 reconciler；不启动 poller。
 - `cmd/execution-worker`：独立 Deployment，只启动 workflow、core activity、agent activity poller，
   HTTP 仅提供健康探针，不提供业务 Service 或 reconciler。两角色使用同一镜像 digest。
+- Campus Search service 位于 `apps/campus-search/cmd/campus-search-service`，独立提供 Bot 公共搜索接口和
+  execution-control 内部搜索接口；检索 provider 与当前 serving index 由该进程拥有。
 
 API 的 `/readyz/process` 检查进程准入和执行数据库，作为 Kubernetes readiness；原 `/readyz`
 保留 Temporal poller 和 Agent Runtime 聚合诊断。Worker 的 `/readyz` 检查本地 poller 生命周期和

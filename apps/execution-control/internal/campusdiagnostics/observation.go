@@ -79,16 +79,17 @@ type RerankMeta struct {
 }
 
 type Observation struct {
-	RequestID       string    `json:"-"`
-	InvocationID    string    `json:"invocationId"`
-	WorkflowStepID  string    `json:"workflowStepId"`
-	ActivityAttempt int       `json:"activityAttempt"`
-	SearchQuery     string    `json:"searchQuery"`
-	Phase           string    `json:"phase"`
-	At              time.Time `json:"at"`
-	FailureCode     string    `json:"failureCode,omitempty"`
-	HTTPStatus      *int      `json:"httpStatus,omitempty"`
-	Snapshot        *Snapshot `json:"-"`
+	RequestID       string               `json:"-"`
+	InvocationID    string               `json:"invocationId"`
+	WorkflowStepID  string               `json:"workflowStepId"`
+	ActivityAttempt int                  `json:"activityAttempt"`
+	SearchQuery     string               `json:"searchQuery"`
+	Phase           string               `json:"phase"`
+	At              time.Time            `json:"at"`
+	FailureCode     string               `json:"failureCode,omitempty"`
+	HTTPStatus      *int                 `json:"httpStatus,omitempty"`
+	Snapshot        *Snapshot            `json:"-"`
+	PhaseTimes      map[string]time.Time `json:"-"`
 }
 
 var phaseRanks = map[string]int{

@@ -7,15 +7,15 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
+	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestGroupedCitationClosure(t *testing.T) {
 	first, second := citationSearchItem("notice", "a"), citationSearchItem("notice", "b")
 	payload := map[string]any{"tool_results": []map[string]any{
-		citationToolResult([]campusdocs.SearchResultItem{first}, 1),
-		citationToolResult([]campusdocs.SearchResultItem{second}, 5),
+		citationToolResult([]campussearch.SearchResultItem{first}, 1),
+		citationToolResult([]campussearch.SearchResultItem{second}, 5),
 	}}
 	for _, answer := range []string{"答案[5,1,5]", "答案[5, 1, 5]"} {
 		closure, err := (&Adapter{}).WorkflowCitationClosureForFinalization(payload, answer)
@@ -97,7 +97,7 @@ func TestGroundedRawMarkers(t *testing.T) {
 func TestGroundedMixedCampusGroup(t *testing.T) {
 	answer := "😀学校[1, 5]"
 	payload := map[string]any{
-		"tool_results": []map[string]any{citationToolResult([]campusdocs.SearchResultItem{citationSearchItem("notice", "a")}, 1)},
+		"tool_results": []map[string]any{citationToolResult([]campussearch.SearchResultItem{citationSearchItem("notice", "a")}, 1)},
 		"web_evidence": []temporalruntime.WebEvidence{
 			{Title: "学校", URL: "https://muc.edu.cn/", Excerpt: "😀学校[1,", StartIndex: 0, EndIndex: 6},
 			{Title: "校区", URL: "https://muc.edu.cn/campus", Excerpt: "学校[1, 5]", StartIndex: 1, EndIndex: 9},
@@ -126,7 +126,7 @@ func TestAdjacentCitationClosure(t *testing.T) {
 	evidence := []temporalruntime.WorkflowEvidence{}
 	for _, index := range indexes {
 		item := citationSearchItem("notice", fmt.Sprint(index))
-		results = append(results, citationToolResult([]campusdocs.SearchResultItem{item}, index))
+		results = append(results, citationToolResult([]campussearch.SearchResultItem{item}, index))
 		evidence = append(evidence, temporalruntime.WorkflowEvidence{ID: fmt.Sprint(index), Source: temporalruntime.WorkflowSourceWebSearch, Title: "学校", Excerpt: "资料", URL: fmt.Sprintf("https://muc.edu.cn/%d", index), CitationIndex: index})
 	}
 	answer := "答案[1][2][3][5]；补充[2][8]"

@@ -48,8 +48,8 @@ execution-control 冻结本轮 `primary_agent` 的 `model_target.v1` hash 和工
 只接收预期目标 hash、会话上下文和本轮开放的工具，再从共同受信任的 Model Config 读取仍匹配该
 hash 的 `model_runtime_config.v1`；它不接收或持久化工作流提供的 Provider API key，也不读取索引目录或调用
 知识 Provider。
-`campus_search` 仍由 execution-control handler 读取当前 Campus Docs collection、解析 embedding
-配置并生成查询向量；Agent Runtime 只通过工具调用协议消费结果。
+`campus_search` 由 execution-control handler 通过内部 Campus Search HTTP client 调用；Campus Search service
+读取当前 collection、解析 embedding 配置并生成查询向量，Agent Runtime 只通过工具调用协议消费结果。
 
 Agent Runtime 在模型调用前要求 Model Config 返回相同目标 hash；execution-control 在结果持久化和
 Finalization 前继续校验该 hash。目标缺失或不一致都失败关闭，不使用旧配置或备用模型。API key

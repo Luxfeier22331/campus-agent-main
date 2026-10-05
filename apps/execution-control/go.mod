@@ -17,7 +17,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0
 	go.temporal.io/api v1.63.5
 	go.temporal.io/sdk v1.48.0
-	golang.org/x/text v0.42.0
+	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -89,3 +89,7 @@ require (
 	google.golang.org/grpc v1.83.2 // indirect
 	gopkg.in/validator.v2 v2.0.1 // indirect
 )
+
+require github.com/MUC-WIKI/campus-agent/apps/campus-search v0.0.0
+
+replace github.com/MUC-WIKI/campus-agent/apps/campus-search => ../campus-search

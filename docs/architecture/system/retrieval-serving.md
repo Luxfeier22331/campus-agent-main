@@ -13,8 +13,9 @@ status: active
 个人记忆。
 
 发布链把纳入范围的文档和已发布通知写入同一个不可变 Qdrant collection，不按来源类型拆分物理
-collection。在线 Agent 不直接选择 collection、索引版本或查询配置；`campus_search` handler 在工具
-调用时读取当前绑定并执行固定查询。
+collection。在线 Agent 不直接选择 collection、索引版本或查询配置；Campus Search service 在请求时读取当前
+绑定并执行固定查询。`execution-control` 只通过内部适配器调用该服务，Agent 的 run 绑定和 citation 仍由
+execution-control 持有。
 
 ## 输入与索引身份
 
@@ -133,12 +134,13 @@ PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或
 ## 在线消费边界
 
 `campus_docs_serving.current_index` 是统一 Publisher 维护的单一当前绑定，不是当前在线 Agent 的准入输入。
-`campus_search` 被 Primary Agent 按需调用后，execution-control 从同一个 execution-control 数据库读取
-该绑定，从 Model Config 读取 `campus_docs_embedding` 和 `campus_docs_reranker` 连接，向对应 collection 发起 dense/sparse hybrid
-查询。工具不接受客户端或模型传入 collection、provider、vector name、top-k 或版本字段。
+`campus_search` 被 Primary Agent 按需调用后，execution-control 通过内部 Campus Search service 请求检索。
+该 service 从 Campus Search 专属只读数据库连接读取绑定，从 Model Config 读取 `campus_docs_embedding` 和
+`campus_docs_reranker` 连接，向对应 collection 发起 dense/sparse hybrid 查询。工具不接受客户端或模型传入
+collection、provider、vector name、top-k 或版本字段。
 
-在线 execution-control 只读取 `current_index`；它不执行 publisher 的激活流程。由于两条路径当前共享
-`execution_control` 技术身份，数据库权限不能单独表达这一进程级区分，代码行为和 ACL 需要分别验证。
+在线 Campus Search service 只读取 `current_index`；它不执行 publisher 的激活流程。Publisher 的写权限与
+Campus Search 的只读权限通过独立数据库 role 和 Secret 分离。
 
 当前查询先根据问题中的版本意图生成检索范围：默认只允许 Docs 的当前版本；培养方案可按入学年份选择适用版本；明确历史或版本问题只有在索引中存在对应版本时才可能命中。对通知问题，`今年`、`去年`、`前年` 会基于同一 run 冻结的创建日期归一化为具体年份，并把同一结果用于召回和 rerank；其他相对时间不作推断。该范围作为 Qdrant payload filter 同时应用到 dense/sparse hybrid RRF 的两个 prefetch。随后最多取得 24 个候选，再使用当前 `campus_docs_reranker`
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。数量和字符预算前
