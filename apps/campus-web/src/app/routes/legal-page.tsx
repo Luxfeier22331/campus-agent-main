@@ -1,5 +1,6 @@
 import { Button, Card, Separator } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
 const EFFECTIVE_DATE = "2026-09-14";
@@ -163,7 +164,21 @@ function LegalDocumentShell({
 }) {
 	return (
 		<section className="mx-auto min-h-[calc(100dvh-var(--layout-campus-topnav-height))] max-w-[var(--layout-page-form-width)] px-4 py-6 pb-24 lg:px-6">
-			<p className="text-sm font-medium text-[var(--sys-text-muted)]">生效日期：{EFFECTIVE_DATE}</p>
+			<div className="mb-5 flex items-center justify-between gap-3">
+				<Button
+					aria-label="返回上一页"
+					className="shrink-0"
+					onClick={returnFromLegalPage}
+					type="button"
+					variant="ghost"
+				>
+					<ArrowLeft aria-hidden="true" />
+					返回
+				</Button>
+				<p className="text-right text-sm font-medium text-[var(--sys-text-muted)]">
+					生效日期：{EFFECTIVE_DATE}
+				</p>
+			</div>
 			<h1 className="mt-1 ui-page-title">{title}</h1>
 			<Separator className="mt-5" />
 			<Card className="mt-5 p-5 md:p-7">
@@ -188,6 +203,17 @@ function LegalDocumentShell({
 			</Card>
 		</section>
 	);
+}
+
+function returnFromLegalPage(): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	if (window.history.length > 1) {
+		window.history.back();
+		return;
+	}
+	window.location.assign("/account/register");
 }
 
 function LegalSection({ children, title }: { children: ReactNode; title: string }) {

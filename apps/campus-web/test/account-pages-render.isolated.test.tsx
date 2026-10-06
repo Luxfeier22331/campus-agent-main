@@ -110,6 +110,7 @@ describe("campus account pages", () => {
 		const { unmount } = render(<LegalTermsPage />);
 
 		expect(screen.getByRole("heading", { name: "用户服务协议" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "返回上一页" })).toBeVisible();
 		expect(screen.getByText("生效日期：2026-09-14")).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "隐私政策" })).toHaveAttribute(
 			"href",
@@ -125,6 +126,7 @@ describe("campus account pages", () => {
 		render(<LegalPrivacyPage />);
 
 		expect(screen.getByRole("heading", { name: "隐私政策" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "返回上一页" })).toBeVisible();
 		expect(screen.getByText("生效日期：2026-09-14")).toBeInTheDocument();
 		expect(screen.getByText(/Cloudflare Turnstile/)).toBeInTheDocument();
 		expect(screen.getByText(/AI 模型服务/)).toBeInTheDocument();

@@ -69,4 +69,22 @@ describe("campus session provider", () => {
 		);
 		expect(screen.getByText("authenticated")).toBeVisible();
 	});
+
+	it("treats an unauthorized session response as anonymous after sign-out", () => {
+		const view = render(
+			<CampusSessionProvider>
+				<SessionProbe />
+			</CampusSessionProvider>,
+		);
+
+		authQuery.isPending = false;
+		authQuery.error = Object.assign(new Error("Unauthorized"), { status: 401 });
+		view.rerender(
+			<CampusSessionProvider>
+				<SessionProbe />
+			</CampusSessionProvider>,
+		);
+
+		expect(screen.getByText("anonymous")).toBeVisible();
+	});
 });

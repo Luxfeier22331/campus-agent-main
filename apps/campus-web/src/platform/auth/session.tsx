@@ -28,15 +28,18 @@ export function CampusSessionValueProvider({
 export function CampusSessionProvider({ children }: { children: ReactNode }) {
 	const session = campusAuthClient.useSession();
 	const refresh = useCallback(() => session.refetch(), [session.refetch]);
+	const sessionUnauthorized = isUnauthorizedSessionError(session.error);
 	const status: CampusSessionStatus = session.isPending
 		? "loading"
-		: session.error
-			? session.data
-				? "authenticated"
-				: "unavailable"
-			: session.data
-				? "authenticated"
-				: "anonymous";
+		: sessionUnauthorized
+			? "anonymous"
+			: session.error
+				? session.data
+					? "authenticated"
+					: "unavailable"
+				: session.data
+					? "authenticated"
+					: "anonymous";
 	const value = useMemo<CampusSessionState>(
 		() => ({
 			data: session.data,
@@ -49,6 +52,14 @@ export function CampusSessionProvider({ children }: { children: ReactNode }) {
 	);
 
 	return <CampusSessionContext.Provider value={value}>{children}</CampusSessionContext.Provider>;
+}
+
+function isUnauthorizedSessionError(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	const candidate = error as { status?: unknown; error?: { status?: unknown } };
+	return candidate.status === 401 || candidate.error?.status === 401;
 }
 
 export function useCampusSession(): CampusSessionState {
