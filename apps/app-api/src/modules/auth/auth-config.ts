@@ -305,6 +305,9 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 			max: AUTH_RATE_LIMIT_MAX,
 			storage: "database",
 			window: AUTH_RATE_LIMIT_WINDOW,
+			customRules: {
+				"/get-session": false,
+			},
 		},
 		session: {
 			expiresIn: AUTH_SESSION_EXPIRES_IN,

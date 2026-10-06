@@ -112,6 +112,8 @@ function response(body: unknown, etag = '"status-v1"') {
 describe("status page DOM lifecycle", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
+		// biome-ignore lint/suspicious/noDocumentCookie: test fixture controls the shared theme cookie directly.
+		document.cookie = "campus-agent.theme=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 		installShell();
 	});
 
@@ -119,6 +121,8 @@ describe("status page DOM lifecycle", () => {
 		vi.useRealTimers();
 		document.body.innerHTML = "";
 		window.localStorage.clear();
+		// biome-ignore lint/suspicious/noDocumentCookie: test fixture controls the shared theme cookie directly.
+		document.cookie = "campus-agent.theme=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 	});
 
 	it("renders each service with one composite slider and 30 visual bars", async () => {
@@ -812,6 +816,7 @@ describe("status page DOM lifecycle", () => {
 		expect(document.documentElement.dataset.theme).toBe("dark");
 		expect(document.documentElement.dataset.themeMode).toBe("dark");
 		expect(window.localStorage.getItem("campus-agent.theme")).toBe("dark");
+		expect(document.cookie).toContain("campus-agent.theme=dark");
 		expect(toggle.getAttribute("aria-label")).toBe("外观，当前深色");
 		expect(menu.hidden).toBe(true);
 
@@ -822,6 +827,27 @@ describe("status page DOM lifecycle", () => {
 		expect(document.documentElement.dataset.theme).toBe("dark");
 		themeMedia.setMatches(false);
 		expect(document.documentElement.dataset.theme).toBe("light");
+		controller.destroy();
+	});
+
+	it("hydrates the theme from the shared cookie across subdomains", () => {
+		// biome-ignore lint/suspicious/noDocumentCookie: test fixture controls the shared theme cookie directly.
+		document.cookie = "campus-agent.theme=dark; path=/";
+		const controller = initStatusPage({
+			autoLoad: false,
+			autoRefresh: false,
+			fetchFn: async () => response(snapshot()),
+			now: () => NOW,
+		});
+		if (!controller) {
+			throw new Error("status page shell did not initialize");
+		}
+
+		expect(document.documentElement.dataset.themeMode).toBe("dark");
+		expect(document.documentElement.dataset.theme).toBe("dark");
+		expect(document.getElementById("theme-toggle")?.getAttribute("aria-label")).toBe(
+			"外观，当前深色",
+		);
 		controller.destroy();
 	});
 

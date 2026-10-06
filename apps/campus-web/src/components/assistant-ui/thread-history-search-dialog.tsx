@@ -44,7 +44,7 @@ export function ThreadHistorySearchDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				className="gap-0 overflow-hidden p-0"
+				className="top-4 translate-y-0 gap-0 overflow-hidden p-0 sm:top-1/2 sm:-translate-y-1/2"
 				closeLabel="关闭搜索"
 				onCloseAutoFocus={(event) => {
 					if (skipReturnFocusRef.current) {

@@ -8,6 +8,7 @@ export interface ThemeProviderProps {
 	children: React.ReactNode;
 	defaultMode?: ThemeMode;
 	storageKey?: string;
+	syncCookie?: boolean;
 }
 
 export interface ThemeContextValue {
@@ -28,15 +29,68 @@ function isThemeMode(value: string | null): value is ThemeMode {
 	return value === "system" || value === "light" || value === "dark";
 }
 
-function readStoredMode(storageKey: string, fallback: ThemeMode): ThemeMode {
+function readThemeCookie(storageKey: string): ThemeMode | null {
+	if (typeof document === "undefined") {
+		return null;
+	}
+	try {
+		const match = document.cookie.match(new RegExp(`(?:^|; )${storageKey}=([^;]*)`));
+		const value = match?.[1] ? decodeURIComponent(match[1]) : null;
+		return isThemeMode(value) ? value : null;
+	} catch {
+		return null;
+	}
+}
+
+function writeThemeCookie(storageKey: string, mode: ThemeMode) {
+	if (typeof document === "undefined") {
+		return;
+	}
+	try {
+		const hostname = window.location.hostname;
+		// Share theme across same-origin subdomains (e.g. campus.muc.wiki & status.muc.wiki).
+		const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname === "localhost";
+		const domainAttr = isIp ? "" : `; domain=.${hostname.split(".").slice(-2).join(".")}`;
+		const secure = window.location.protocol === "https:" ? "; secure" : "";
+		// biome-ignore lint/suspicious/noDocumentCookie: cross-subdomain theme sync requires a shared cookie.
+		document.cookie = `${storageKey}=${encodeURIComponent(mode)}; path=/; max-age=31536000; SameSite=Lax${secure}${domainAttr}`;
+	} catch {
+		// Cookie write is best-effort.
+	}
+}
+
+function readPersistedMode(storageKey: string, fallback: ThemeMode): ThemeMode {
 	if (typeof window === "undefined") {
 		return fallback;
 	}
+	// The shared cookie is the cross-subdomain channel; every writer updates both
+	// stores, so a valid cookie is at least as fresh as this origin's localStorage.
+	const cookieMode = readThemeCookie(storageKey);
+	if (cookieMode) {
+		return cookieMode;
+	}
 	try {
-		const value = window.localStorage.getItem(storageKey);
-		return isThemeMode(value) ? value : fallback;
+		const stored = window.localStorage.getItem(storageKey);
+		if (isThemeMode(stored)) {
+			return stored;
+		}
 	} catch {
-		return fallback;
+		// localStorage may be unavailable; fall back to the default.
+	}
+	return fallback;
+}
+
+function persistMode(storageKey: string, mode: ThemeMode, syncCookie: boolean) {
+	if (typeof window === "undefined") {
+		return;
+	}
+	try {
+		window.localStorage.setItem(storageKey, mode);
+	} catch {
+		// Private browsing and restricted storage should not block the setting.
+	}
+	if (syncCookie) {
+		writeThemeCookie(storageKey, mode);
 	}
 }
 
@@ -68,6 +122,7 @@ export function ThemeProvider({
 	children,
 	defaultMode = "system",
 	storageKey = DEFAULT_STORAGE_KEY,
+	syncCookie = false,
 }: ThemeProviderProps) {
 	// Keep the first render deterministic for prerendered docs; bootstrap.js applies the
 	// persisted visual theme before hydration, and this effect synchronizes the control state.
@@ -135,9 +190,43 @@ export function ThemeProvider({
 	);
 
 	React.useEffect(() => {
-		const storedMode = readStoredMode(storageKey, defaultMode);
+		const storedMode = readPersistedMode(storageKey, defaultMode);
 		commitTheme(storedMode, systemTheme(), false);
 	}, [commitTheme, defaultMode, storageKey]);
+
+	React.useEffect(() => {
+		if (!syncCookie) {
+			return;
+		}
+		const handleVisibility = () => {
+			if (document.visibilityState !== "visible") {
+				return;
+			}
+			const cookieMode = readThemeCookie(storageKey);
+			if (cookieMode && cookieMode !== modeRef.current) {
+				commitTheme(cookieMode, systemTheme(), false);
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibility);
+		return () => document.removeEventListener("visibilitychange", handleVisibility);
+	}, [commitTheme, storageKey, syncCookie]);
+
+	React.useEffect(() => {
+		const handleStorage = (event: StorageEvent) => {
+			if (event.key !== storageKey) {
+				return;
+			}
+			const nextMode =
+				event.newValue === "light" || event.newValue === "dark" || event.newValue === "system"
+					? event.newValue
+					: null;
+			if (nextMode && nextMode !== modeRef.current) {
+				commitTheme(nextMode, systemTheme(), false);
+			}
+		};
+		window.addEventListener("storage", handleStorage);
+		return () => window.removeEventListener("storage", handleStorage);
+	}, [commitTheme, storageKey]);
 
 	React.useEffect(() => {
 		if (
@@ -178,15 +267,11 @@ export function ThemeProvider({
 	const setMode = React.useCallback(
 		(nextMode: ThemeMode) => {
 			if (typeof window !== "undefined") {
-				try {
-					window.localStorage.setItem(storageKey, nextMode);
-				} catch {
-					// Private browsing and restricted storage should not block the setting.
-				}
+				persistMode(storageKey, nextMode, syncCookie);
 				commitTheme(nextMode, systemTheme(), true);
 			}
 		},
-		[commitTheme, storageKey],
+		[commitTheme, storageKey, syncCookie],
 	);
 
 	const value = React.useMemo(

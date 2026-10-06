@@ -19,8 +19,11 @@ Thanks for sending a pull request. Before review:
 
 ## Verification
 
-<!-- 测试覆盖能随上面叙述写明时删除本节；写法要求见 CONTRIBUTING。 -->
+<!-- 首选：随正文写明覆盖（"X 测试现在覆盖 Y"）。无法随叙述携带时才用本节。 -->
+<!-- 1. 覆盖本次改动的测试及其断言（一句话） -->
+<!-- 2. 修复 bug 时，新测试在修复前失败的证据 -->
+<!-- 3. 影响评审的异常或未验证边界（一句话并归因） -->
 
 ## Related issue(s)
 
-<!-- Fixes 仅当合并即解决 Issue 声明的结果且本 PR 以 main 为 base；否则用 Refs；无关联写 N/A。 -->
+<!-- 每行一个 Fixes #N；合并即关闭。Refs 用于非默认分支或关联但不关闭。 -->

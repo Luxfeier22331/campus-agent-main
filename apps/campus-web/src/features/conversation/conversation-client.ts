@@ -45,10 +45,22 @@ export async function searchConversations(input: {
 	if (input.limit !== undefined) {
 		params.set("limit", String(input.limit));
 	}
-	return requestJson<{ query: string; conversations: ConversationSearchResult[] }>({
+	const response = await requestJson<{ query: string; conversations?: unknown }>({
 		path: `/api/chat/conversations/search?${params.toString()}`,
 		...(input.signal ? { signal: input.signal } : {}),
 	});
+	if (!Array.isArray(response?.conversations)) {
+		throw new ApiRequestError({
+			code: "invalid_response",
+			message: "搜索服务返回了异常数据。",
+			retryable: true,
+			status: 502,
+		});
+	}
+	return {
+		conversations: response.conversations as ConversationSearchResult[],
+		query: response.query ?? query,
+	};
 }
 
 export async function getConversationDetail(

@@ -32,7 +32,7 @@ class CampusErrorBoundary extends Component<
 
 createRoot(rootElement).render(
 	<StrictMode>
-		<ThemeProvider>
+		<ThemeProvider syncCookie>
 			<CampusErrorBoundary fallback={<ApplicationFailure />}>
 				<CampusSessionProvider>
 					<AppRouter />

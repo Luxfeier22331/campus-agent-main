@@ -61,6 +61,9 @@ export function registerAppApiAuthConfigSuite() {
 				storage: "database",
 				window: 60,
 			});
+			// get-session is read on every page load; it must not consume the global
+			// auth rate limit or transient 429s would kick users out of the app.
+			expect(config.rateLimit?.customRules).toMatchObject({ "/get-session": false });
 			expect(config.plugins).toEqual(
 				expect.arrayContaining([expect.objectContaining({ id: "captcha" })]),
 			);

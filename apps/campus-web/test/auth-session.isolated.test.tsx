@@ -58,7 +58,8 @@ describe("campus session provider", () => {
 				<SessionProbe />
 			</CampusSessionProvider>,
 		);
-		expect(screen.getByText("unavailable")).toBeVisible();
+		// A transient error must not kick a user with cached session data out of the app.
+		expect(screen.getByText("authenticated")).toBeVisible();
 
 		authQuery.error = null;
 		view.rerender(

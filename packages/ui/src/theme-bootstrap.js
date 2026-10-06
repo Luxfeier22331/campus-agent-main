@@ -1,13 +1,29 @@
 (() => {
 	const storageKey = "campus-agent.theme";
-	let mode = "system";
+	let mode = null;
+	// The shared cookie is the cross-subdomain channel; every writer updates both
+	// stores, so a valid cookie is at least as fresh as this origin's localStorage.
 	try {
-		const stored = window.localStorage.getItem(storageKey);
-		if (stored === "light" || stored === "dark" || stored === "system") {
-			mode = stored;
+		const match = document.cookie.match(new RegExp(`(?:^|; )${storageKey}=([^;]*)`));
+		const value = match?.[1] ? decodeURIComponent(match[1]) : null;
+		if (value === "light" || value === "dark" || value === "system") {
+			mode = value;
 		}
 	} catch {
-		// Storage may be unavailable before the app is interactive.
+		// Cookie read is best-effort.
+	}
+	if (mode === null) {
+		try {
+			const stored = window.localStorage.getItem(storageKey);
+			if (stored === "light" || stored === "dark" || stored === "system") {
+				mode = stored;
+			}
+		} catch {
+			// Storage may be unavailable before the app is interactive.
+		}
+	}
+	if (mode === null) {
+		mode = "system";
 	}
 	const prefersDark =
 		typeof window.matchMedia === "function" &&

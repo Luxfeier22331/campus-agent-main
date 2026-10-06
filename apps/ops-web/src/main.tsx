@@ -13,7 +13,7 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
 	<StrictMode>
-		<ThemeProvider>
+		<ThemeProvider syncCookie>
 			<OpsWebApp />
 		</ThemeProvider>
 	</StrictMode>,

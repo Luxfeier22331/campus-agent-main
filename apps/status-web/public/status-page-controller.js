@@ -108,21 +108,58 @@ function applyTheme(mode, persist = false, animate = true) {
 		update();
 	}
 	if (persist) {
-		try {
-			window.localStorage.setItem(THEME_KEY, nextMode);
-		} catch {
-			/* Storage is optional. */
-		}
+		persistThemeMode(nextMode);
 	}
 }
 
-function storedThemeMode() {
+function readThemeCookie(storageKey) {
 	try {
-		const value = window.localStorage.getItem(THEME_KEY);
+		const match = document.cookie.match(new RegExp(`(?:^|; )${storageKey}=([^;]*)`));
+		const value = match?.[1] ? decodeURIComponent(match[1]) : null;
 		return isThemeMode(value) ? value : null;
 	} catch {
 		return null;
 	}
+}
+
+function writeThemeCookie(storageKey, mode) {
+	try {
+		const hostname = window.location.hostname;
+		const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname === "localhost";
+		const domainAttr = isIp ? "" : `; domain=.${hostname.split(".").slice(-2).join(".")}`;
+		const secure = window.location.protocol === "https:" ? "; secure" : "";
+		// biome-ignore lint/suspicious/noDocumentCookie: cross-subdomain theme sync requires a shared cookie.
+		document.cookie = `${storageKey}=${encodeURIComponent(mode)}; path=/; max-age=31536000; SameSite=Lax${secure}${domainAttr}`;
+	} catch {
+		/* Cookie write is best-effort. */
+	}
+}
+
+function storedThemeMode() {
+	// The shared cookie is the cross-subdomain channel; every writer updates both
+	// stores, so a valid cookie is at least as fresh as this origin's localStorage.
+	const cookieMode = readThemeCookie(THEME_KEY);
+	if (cookieMode) {
+		return cookieMode;
+	}
+	try {
+		const value = window.localStorage.getItem(THEME_KEY);
+		if (isThemeMode(value)) {
+			return value;
+		}
+	} catch {
+		/* Storage is optional. */
+	}
+	return null;
+}
+
+function persistThemeMode(nextMode) {
+	try {
+		window.localStorage.setItem(THEME_KEY, nextMode);
+	} catch {
+		/* Storage is optional. */
+	}
+	writeThemeCookie(THEME_KEY, nextMode);
 }
 
 export function initStatusPage(options = {}) {
@@ -557,6 +594,10 @@ export function initStatusPage(options = {}) {
 	function handleVisibilityChange() {
 		if (document.visibilityState === "visible") {
 			refreshExpiryState();
+			const cookieMode = readThemeCookie(THEME_KEY);
+			if (cookieMode && cookieMode !== state.themeMode) {
+				applyTheme(cookieMode, true, false);
+			}
 		}
 	}
 

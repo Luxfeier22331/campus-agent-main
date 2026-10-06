@@ -31,7 +31,9 @@ export function CampusSessionProvider({ children }: { children: ReactNode }) {
 	const status: CampusSessionStatus = session.isPending
 		? "loading"
 		: session.error
-			? "unavailable"
+			? session.data
+				? "authenticated"
+				: "unavailable"
 			: session.data
 				? "authenticated"
 				: "anonymous";

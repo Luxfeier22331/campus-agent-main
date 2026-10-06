@@ -97,6 +97,16 @@ function SessionRouteGuard({ children, pathname }: { children: ReactNode; pathna
 		void navigate({ replace: true, to: target });
 	}, [mustLeaveAuthEntry, navigate]);
 
+	useEffect(() => {
+		if (session.status !== "unavailable") {
+			return;
+		}
+		const timer = setTimeout(() => {
+			void session.refresh();
+		}, 5000);
+		return () => clearTimeout(timer);
+	}, [session.status, session.refresh]);
+
 	if (session.status === "loading" && isProtectedRoute) {
 		return <RoutePending />;
 	}

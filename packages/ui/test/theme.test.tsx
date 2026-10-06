@@ -238,6 +238,71 @@ describe("theme controls", () => {
 		expect(trigger).toHaveFocus();
 		expect(trigger).toHaveAccessibleName("外观，当前深色");
 	});
+
+	describe("cross-subdomain cookie sync", () => {
+		beforeEach(() => {
+			window.localStorage.clear();
+			// biome-ignore lint/suspicious/noDocumentCookie: test fixture controls the shared theme cookie directly.
+			document.cookie = "campus-agent.theme=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+		});
+
+		it("writes the theme to a shared cookie when syncCookie is enabled", async () => {
+			const user = userEvent.setup();
+			render(
+				<ThemeProvider syncCookie>
+					<ThemeModeControl />
+				</ThemeProvider>,
+			);
+
+			await user.click(screen.getByRole("radio", { name: "深色" }));
+			await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "dark"));
+			expect(document.cookie).toContain("campus-agent.theme=dark");
+		});
+
+		it("hydrates from the shared cookie when localStorage is empty", async () => {
+			// biome-ignore lint/suspicious/noDocumentCookie: test fixture controls the shared theme cookie directly.
+			document.cookie = "campus-agent.theme=dark; path=/";
+			render(
+				<ThemeProvider syncCookie>
+					<ThemeModeControl />
+				</ThemeProvider>,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByRole("radio", { name: "深色" })).toBeChecked();
+				expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+			});
+		});
+
+		it("prefers the shared cookie over localStorage when both are present", async () => {
+			window.localStorage.setItem("campus-agent.theme", "light");
+			// biome-ignore lint/suspicious/noDocumentCookie: test fixture controls the shared theme cookie directly.
+			document.cookie = "campus-agent.theme=dark; path=/";
+			render(
+				<ThemeProvider syncCookie>
+					<ThemeModeControl />
+				</ThemeProvider>,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByRole("radio", { name: "深色" })).toBeChecked();
+				expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+			});
+		});
+
+		it("does not touch cookies when syncCookie is disabled", async () => {
+			const user = userEvent.setup();
+			render(
+				<ThemeProvider>
+					<ThemeModeControl />
+				</ThemeProvider>,
+			);
+
+			await user.click(screen.getByRole("radio", { name: "深色" }));
+			await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "dark"));
+			expect(document.cookie).not.toContain("campus-agent.theme=");
+		});
+	});
 });
 
 function installViewTransitionMock() {
