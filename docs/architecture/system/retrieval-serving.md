@@ -64,10 +64,11 @@ Docs 当前 `campus_docs_reader_elements.v5` 使用 Unicode 字符数，不依�
 字符硬上限之外仍保留 16000 UTF-8 byte 传输限制。dense embedding 和 sparse vector 使用由文档
 标题、完整 heading 路径和 evidence 正文组成的 `retrieval_text`；point 分别保存正文和检索文本摘要。
 
-Notice 使用独立的 `notice_text_structure.v8` 分块定义（软目标 800、硬上限 1200、无 overlap）。其
-`retrievalText` 由通知标题、heading path 和正文构成。统一 publisher 使用 Chunk 的 `retrievalText` 首行
-生成 title，并由 `noticeId` 生成 citation；`released_at` 只作为通知发布时间证据，不参与 embedding、适用期推断或
-通知过滤。builder 的 review 和 validation 文件只用于离线诊断，不进入 serving 读取路径。
+Notice 使用独立的 `notice_text_structure.v10` 分块定义（软目标 800、硬上限 1200、无 overlap）；完整规则和
+当前 schema 见[通知数据](../../data/notices.md#检索分块与制品)。其 `retrievalText` 由通知标题、heading path 和正文构成。
+统一 publisher 使用 Chunk 的 `retrievalText` 首行生成 title，并由 `noticeId` 生成 citation；`released_at` 只作为通知发布时间
+证据，不参与 embedding、适用期推断或通知过滤。生产 serving 直接读取内容寻址的 Chunk 数据对象，builder 的 review、
+validation 和本地 `notice_chunk_run.v2` 只用于离线诊断和评测，不进入 serving 读取路径。
 
 ## Chunk 策略治理
 
@@ -93,8 +94,8 @@ Docs Chunk Job: source.json + 当前 reader
 Docs Embedding Job: Docs Chunk Set + Model Config 完整配置
   -> Docs Embedding Set
 Notice Chunk Job: 已发布 Notice 快照
-  -> Notice Chunk Run v2
-Notice Embedding Job: Notice Chunk Run + Model Config 完整配置
+  -> 内容寻址的 Notice Chunk 数据
+Notice Embedding Job: Notice Chunk 数据 + Model Config 完整配置
   -> Notice Embedding Set
 Unified Publisher Job: Docs Embedding Set + Notice Embedding Set
   -> 不可变 Qdrant collection
@@ -141,6 +142,13 @@ collection、provider、vector name、top-k 或版本字段。
 
 在线 Campus Search service 只读取 `current_index`；它不执行 publisher 的激活流程。Publisher 的写权限与
 Campus Search 的只读权限通过独立数据库 role 和 Secret 分离。
+
+索引绑定发生在 execution-control 首次收到合法搜索响应后，包括 `no_match` 响应：handler 将返回的
+collection 保存到 run metadata，后续响应必须匹配该绑定，否则拒绝本次工具结果。搜索服务仍在每次调用时
+读取当前索引；内部请求不携带已绑定 collection，也不会在发布切换后自动改查旧索引。因此运行中切换索引
+可能导致后续检索被拒绝，而不是让同一回答混用两个 collection。该绑定不冻结 embedding 或 reranker 配置。
+读取入口见[Search service](../../../apps/campus-search/internal/service/service.go)，绑定与拒绝逻辑见
+[AgentToolService](../../../apps/execution-control/internal/executionapplication/agent_tool_service.go)。
 
 当前查询先根据问题中的版本意图生成检索范围：默认只允许 Docs 的当前版本；培养方案可按入学年份选择适用版本；明确历史或版本问题只有在索引中存在对应版本时才可能命中。对通知问题，`今年`、`去年`、`前年` 会基于同一 run 冻结的创建日期归一化为具体年份，并把同一结果用于召回和 rerank；其他相对时间不作推断。该范围作为 Qdrant payload filter 同时应用到 dense/sparse hybrid RRF 的两个 prefetch。随后最多取得 24 个候选，再使用当前 `campus_docs_reranker`
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。数量和字符预算前

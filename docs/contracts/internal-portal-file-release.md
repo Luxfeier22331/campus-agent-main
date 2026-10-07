@@ -9,11 +9,12 @@ status: active
 ## 边界
 
 internal-portal-collection 分页扫描门户文件发布库存，按 ID 保存原始文件和来源 metadata。当前不生成
-ingestion task 或 workflow，不执行 PDF 解析、OCR、正文抽取、清洗、分类、索引或在线发布。
+通用 ingestion task；集群由通知工作流的 `file-sync` mode 调用该实现，不执行 PDF 解析、OCR、
+正文抽取、清洗、分类、索引或在线发布。
 
 ## 入口语义
 
-本地采集使用受管理环境中的直接 TGC，Kubernetes Job 先通过 Ops Web 解析可用 TGC。两个入口执行
+本地采集使用受管理环境中的直接 TGC，集群 Worker 或显式 Job 先通过 Ops Web 解析可用 TGC。各入口执行
 同一 `file-sync` 实现，分页、复用、对象写入和失败语义一致。具体操作见
 [采集与发布手册](../runbooks/ingestion/ingestion.md)。
 

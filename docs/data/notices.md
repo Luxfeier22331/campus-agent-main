@@ -11,7 +11,7 @@ status: active
 [通知接口](../contracts/app-api/notices.md) 维护，采集和发布步骤由 [采集运行](../runbooks/ingestion/ingestion.md) 维护。
 
 来源对象保存门户原始数据；采集器在来源和必需资源齐备后同时登记 `notices.notices`。数据库中的
-`category` 是唯一分类状态，`is_published` 是学生端可见边界。通知数据不保存采集批次、模型理由、
+`category` 是唯一分类状态，学生端读取要求 `is_published=true` 且 `unavailable_at IS NULL`。通知数据不保存采集批次、模型理由、
 置信度、原始模型响应、阅读状态或下游处理状态。
 
 ## 来源对象
@@ -75,7 +75,7 @@ sync、backfill、rescan 和周期复核都可刷新已有通知详情；无变�
 通知对象、其引用的图片和非永久缺失附件、以及 `meta.json` 全部成功后才推进状态；已有合法 source 对象仍会检查并
 补齐缺失资源，明确返回 HTTP 404 的通知附件除外。增量同步、历史回填与遗漏补查通过 PostgreSQL advisory lock 串行执行。旧
 `internal_portal_notice_sync_state.v2` 只作为迁移输入读取；它没有可靠的排他上界，下一次 backfill 会重新
-建立完整 v3 区间，sync 在此之前拒绝运行。通知独立、随机消费，不创建 `captures/` 批次。
+建立完整 v4 区间，sync 在此之前拒绝运行。通知独立、随机消费，不创建 `captures/` 批次。
 
 采集 Job 的 `processedRange` 只记录本次尝试扫描的半开区间；它不是数据库维护边界，也不能在失败后代替
 `_state.json`。只有 source、必需资源、库存映射和状态文件都成功写入后，`maintenanceRange` 才反映新的
@@ -147,7 +147,7 @@ chunk/embedding 制品，正文变化在下一次完整检索刷新进入 AI 搜
 外链标记与 URL、可空 `category`、`is_published` 以及发布后写入的 `content_html`、`content_text`。
 
 门户确认删除的通知保留行与来源对象，仅记录 `unavailable_at`：detail 探测返回门户固定删除/失效消息时采集器写入该时间戳，
-学生端查询、校历关联与检索分块输入过滤 `unavailable_at IS NULL`；复核重新取回该通知时登记行为清除 `unavailable_at`。
+学生端查询、班车关联与检索分块输入过滤 `unavailable_at IS NULL`；复核重新取回该通知时登记行为清除 `unavailable_at`。
 Ops 管理台不做该过滤。
 
 状态只由现有字段推导：`category IS NULL` 为待分类；已有分类且 `is_published=false` 为待发布；
@@ -160,8 +160,9 @@ Ops 管理台不做该过滤。
 
 `notices.notice_assets` 按通知和资源类型保存名称、媒体类型、字节数、SHA-256 和附件的
 `portal_annex_id`。图片使用从零开始的连续展示 ordinal；附件保留 source metadata ordinal，永久缺失附件会留下
-ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不落库。表结构和授权的可执行来源是
-`jobs/campus-agent-schema/`；通知领域的声明式字段来源仍由 `packages/domains/notices/` 拥有。
+ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不落库。表结构、字段和授权的可执行来源是
+`jobs/campus-agent-schema/` 的统一 migration；`packages/domains/notices/` 只拥有正文规范化、分类和资源声明等
+运行时领域逻辑，不拥有 PostgreSQL schema。
 
 ### 正文清洗
 
@@ -306,9 +307,9 @@ notices/assets/sha256/<digest>
   在线检索消费者不连接通知来源或 schema，统一 publisher 也只读取 immutable Notice artifacts，不连接
   live Notices DB。
 
-通知 publisher 同时提供本地 CLI 和默认暂停的 Kubernetes Job 模板，只能由维护者显式创建一次性
-Job，不提供自动 schedule。线上 schema 与发布复用既有数据库 owner 身份，不创建专用 publisher
-Secret。Notice Chunk 与 Embedding 也分别使用默认暂停的模板，阶段间只交接显式制品 ID；只有统一
+通知 publisher 提供独立 CLI，并由 `notice-pipeline-worker` 调用同一实现完成自动或手动发布；
+制品构建由 `notice-artifacts-worker` 执行，单阶段 Job 仍按显式输入运行。schema 由统一迁移 Job 安装，
+发布流程不执行 DDL。调度和运行凭据见[采集运行](../runbooks/ingestion/ingestion.md)。阶段间只交接显式制品 ID；只有统一
 Publisher 成功验证并激活 `campus_docs_serving.current_index` 后，Notice 才通过 `campus_search` 进入
 在线检索。本地模型比较结果和对象存储中存在制品都不表示已经完成该发布。
 

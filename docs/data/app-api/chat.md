@@ -68,7 +68,13 @@ status: active
 
 这些槽位不直接出现在浏览器聊天合同中，也不保存原始会话摘要或模型草稿。
 
-## 个人记忆边界\n\n删除会话或裁剪消息不联动清理 Hindsight；聊天准入只保存记忆开关和 generation，不携带管理命令序号。\n个人记忆内容以 Hindsight 为准，App API 只保存设置和 durable commands；普通命令成功后清空正文，\n失败保留供用户重试，整库清除移除全部旧命令正文。详见 [个人记忆合同](../../contracts/app-api/memory.md)。\n\n## 数据边界
+## 个人记忆边界
+
+删除会话或裁剪消息不联动清理 Hindsight；聊天准入只保存记忆开关和 generation，不携带管理命令序号。
+个人记忆内容以 Hindsight 为准，App API 只保存设置和 durable commands；普通命令成功后清空正文，失败保留供用户重试，
+整库清除移除全部旧命令正文。详见[个人记忆合同](../../contracts/app-api/memory.md)。
+
+## 数据边界
 
 - `chat.*` 拥有会话、消息、轮次接收和产品反馈；
 - `runtime.request_observability_fact` 拥有 app-api 产品运行摘要；

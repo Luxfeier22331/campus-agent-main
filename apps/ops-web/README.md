@@ -44,24 +44,22 @@
 Node 构建内联通知 workspace 源码，但外部加载生产依赖 `jsdom`，不将其文件资源读取逻辑打入 ESM bundle。
 镜像构建在独立 production deploy 目录检查所有服务端 JavaScript 的依赖边界，并实际加载和实例化 `jsdom`。
 
-通知维护页面只暴露七个固定操作：增量采集、按日期回填、分类缺失通知、分类单条通知、发布待发布通知、
-发布单条通知和重新发布单条通知。分类编辑直接更新通知数据库中的唯一分类字段。部署环境的服务端从
-同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能
-提交任意 command、image、environment、namespace 或 Secret。每个采集、分类和发布操作族同时只允许
-一个待运行或运行中的 Job。分类与发布执行入口另用数据库会话锁防止跨入口重叠，忙时报告 skipped。
-GitOps 创建并拥有暂停的 CronJob 模板；定时调度统一由 Temporal `notice-pipeline` Schedule 承担，在
-`/tasks` 调整。动态 Job 引用来源 CronJob 作为 owner，固定零重试，并在完成 24 小时后回收。
+通知维护页面暴露八个固定操作：增量采集、按日期回填、补查日期范围、分类缺失通知、分类单条通知、发布待发布通知、
+发布单条通知和重新发布单条通知。分类编辑直接更新通知数据库中的唯一分类字段。部署环境的通知维护操作和定时流水线
+都通过 Temporal 的固定工作流 ID `notice-pipeline-workflow` 运行；浏览器不能提交任意命令、镜像、环境变量或 namespace。
+同一工作流正在运行时，新的维护提交返回冲突；分类与发布阶段仍由各自的数据库会话锁保证跨入口不重叠，锁忙时返回
+`skipped`。定时调度由 Temporal `notice-pipeline` Schedule 承担，可在 `/tasks` 调整；OCR 与门户凭据检查是独立的
+定时任务。
 
-Job 的 stdout 使用结构化 JSON。Ops Web 读取运行中、成功和失败 Job 的 Pod 输出，返回 Kubernetes
-状态、本次处理区间、完成后维护区间、最近阶段/进度、原始应用错误、controller condition、严格业务摘要和单条任务的通知 ID label；
-没有对应日志字段时保持 `processedRange`、`maintenanceRange`、`progress`、`error` 或 `controllerError` 为 `null`，不从日志或 Job
-名称推测处理数量及通知归属。页面分别显示活动任务与成功或失败的历史结果，历史结果不参与任务互斥。
-Job 只保留短期排障证据，当前不持久化超过 24 小时的执行历史。调试阶段错误不做泛化、脱敏或截断。
-本地 `local/development` 环境使用同一任务合同启动当前 worktree 的固定 Job CLI，任务状态只保存在 Ops Web
-进程内；服务重启后不恢复本地任务，也不会回退到 Kubernetes。
+Ops Web 从 Temporal workflow result、Activity heartbeat 和 history 投影运行状态、阶段进度、处理区间、维护区间、错误和
+严格业务摘要；缺少对应字段时保持 `processedRange`、`maintenanceRange`、`progress`、`error` 或 `controllerError` 为 `null`。
+运行历史来自 Temporal namespace 的可见记录，不再读取通知 Job 的 Pod 日志或 Kubernetes condition。部署环境的运行记录按
+Temporal run ID 查询，历史结果不参与当前工作流的互斥。
+本地 `local/development` 环境使用相同任务合同启动当前 worktree 的固定 CLI，任务状态只保存在 Ops Web 进程内；服务
+重启后不恢复本地任务，也不会切换到部署环境的 Temporal。
 
-任务中心在提交一次性 Job 后立即显示客户端 pending 行并锁定对应的采集、分类或发布操作族；收到真实 Job
-后替换该行。pending 行不是 Kubernetes 记录，任务列表加载或刷新失败时仍保留，避免视觉上丢失刚提交的任务。
+任务中心在提交维护工作流后立即显示客户端 pending 行并锁定对应的采集、分类或发布操作族；收到真实 run 后替换该行。
+pending 行不是 Temporal 记录，任务列表加载或刷新失败时仍保留，避免视觉上丢失刚提交的任务。
 
 `/internal-portal` 还管理多条开发者自动化 token。人工管理接口继续使用 Cloudflare Access；开发者
 程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，可以在名称不存在时创建一条具名

@@ -44,9 +44,9 @@ PostgreSQL 仅保存查询投影，取消须传播到外部请求和产物写入
 
 ## 后果
 
-当前采集链路只有显式 CLI/Job 进程，没有第二套持久任务状态。Ops Web 负责凭据健康和候选解析，线上
-Job 与本地 CLI 继续共用采集实现。Ops Web 可以从固定暂停 CronJob 模板创建一次性通知 Job，但不得
-恢复通用任务注册表、工作流控制面或任意 Kubernetes 操作入口。
+文件采集仍由显式 CLI/Job 进程复用采集实现；通知采集、分类、发布和索引刷新随后收敛到
+`notice-pipeline` Temporal workflow，Ops Web 通过固定操作和工作流历史读取运行状态。Ops Web 负责凭据健康和候选解析，
+不得恢复通用任务注册表、任意 Kubernetes 操作入口或已退役的通知 CronJob 控制面。独立 OCR 与门户凭据检查仍可由各自 CronJob 承载。
 
 [退役旧文档分块栈](./2026-08-21-retire-document-chunking-stack.md)退役了当时保留但没有消费者的
 Rust 分块栈和 canonical/retrieval 合同。对象存储辅助能力仍由实际 producer 在所属模块内维护，

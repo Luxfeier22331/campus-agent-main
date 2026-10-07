@@ -20,10 +20,10 @@ status: active
 
 代码负责认证、授权、步骤准入、期限、非空文本与工具结果校验以及终态写入。Agent Runtime 负责输出
 结构解析；execution-control 负责计划与重规划的语义准入。在线回答由
-`solve`、`execute_step`、`replan` 和 `synthesize` 四类 operation 组成；Solve 可以直接回答或返回计划，代码固定步骤顺序和预算，模型
-在步骤边界内选择如何使用候选来源。Solve 只负责直接回答或生成计划；机构知识由 `execute_step` 按需
-通过已注册的 `campus_search` function tool 提供，也可以由步骤显式允许的供应商原生 `web_search`
-补充或核验尚未采集的公开校园网页信息。
+`solve`、`execute_step`、`replan` 和 `synthesize` 四类 operation 按分支完成；Solve 可以使用已开放工具
+直接检索并回答，也可以返回计划。代码负责依赖与预算约束，模型在当前 operation 的能力边界内选择来源。
+机构知识由 Solve 或 Executor 按需通过 `campus_search` 查询；当前 operation 已开放的供应商原生
+`web_search` 可以补充或核验公开校园网页信息。具体开放条件见[工具路由](./tool-routing.md)。
 工具是否存在、如何执行和结果如何公开，必须由对应合同与实现决定，不能因为提示词中出现相关描述就
 扩大模型能力。配置选中的 runner 在这些边界内负责当前 operation 的模型调用、工具循环和答案生成。
 提示词不能替代代码检查，也不能扩大当前 operation 已提供的能力。
@@ -35,6 +35,9 @@ execution-control 的 Agent Workflow 合同显式传递；提示词只约束每�
 ## 规则治理
 
 - 身份、权限、工具准入、预算、输出结构、引用合法性和终态写入属于代码或可执行合同；提示词不得重复承担这些保证。
+- 机构事实必须有本轮资料支持属于模型指令与答案质量要求。Finalization 校验证据身份、编号映射与网页
+  支持段位置，不逐条判定自然语言结论是否被证据支持；引用合法性不等于事实正确性。合法的 Solve answer
+  不因 evidence 为空而被拒绝，追问或资料不足说明仍可正常完成。
 - 用户答案风格属于产品行为，只保留直接、简洁且可执行的表达，不把内部检索状态、失败码或覆盖范围写给用户。
 - Provider 或模型特有的格式 workaround 只能记录在对应配置或历史决策中，不得升级为所有模型的架构约束。
 - 修改模型或 SDK 时，先用现有测试和真实产品路径验证能力；没有具体失败或消费者的旧规则直接删除或降为历史说明。
@@ -51,8 +54,8 @@ execution-control 的 Agent Workflow 合同显式传递；提示词只约束每�
 6. 当前 operation 的输出合同、用户答案风格和正文引用要求。
 
 角色指令由 `apps/agent-runtime` 维护，并使用简体中文表达当前单校产品边界：Agent Workflow 服务
-中央民族大学校园问答场景，未明确指定机构时，学校、本校和校园均默认指中央民族大学。Solve 生成
-步骤，Executor 依据当前步骤候选来源执行，Replanner 依据真实结果通过 `continue` 保留或替换后续路径，或选择 `synthesize` 提前结束；工具结果是候选，正文
+中央民族大学校园问答场景，未明确指定机构时，学校、本校和校园均默认指中央民族大学。Solve 按需检索
+并回答或生成步骤，Executor 依据当前步骤候选来源执行，Replanner 依据真实结果通过 `continue` 保留或替换后续路径，或选择 `synthesize` 提前结束；工具结果是候选，正文
 只引用本轮实际采用的结果。历史助手正文在组装模型输入时移除裸编号、分组编号与数字标签的
 Markdown 引用链接，保留正文、普通链接和代码；用户消息、持久化历史及历史 UI 不变。历史回答只帮助
 识别追问对象，不能把旧编号当作当前证据；需要引用的机构事实使用本轮检索资料。
@@ -62,9 +65,9 @@ Executor 用 `summary` 与 `remainingFacts` 表达已确认内容和具体缺项
 Replanner 的 `synthesize` 同时用于资料足够、部分可答以及没有进一步适用路径的收尾，不区分回答模式。
 Synthesizer 先回答有支持的内容，再简短说明具体缺项；不因另一来源失败而降低已确认内容的确定性。
 
-`campus_search` 返回 `no_match` 或失败时，Executor 保留该来源尝试，Replanner 决定是否增加允许
-`web_search` 的后续步骤；系统不由代码自动回退，也不要求固定的 2～3 个 turn。问题所需事实可从尚未
-采集的公开校园网页获取时，后续步骤可以使用 `web_search`，不能仅凭校内无匹配就判定事实不存在。`web_search` 只服务
+`campus_search` 返回 `no_match` 或失败时，Solve/Executor 保留来源尝试，并可继续选择当前已开放的
+其他来源；需要调整剩余步骤时由 Replanner 决定。系统不由代码自动回退，也不要求固定的 2～3 个 turn。
+不能仅凭校内无匹配就判定事实不存在。`web_search` 只服务
 于校园问题，不是通用开放域能力。runner 将 Web Search 原生 annotation / grounding 转为有效材料；
 Synthesizer 对 Campus 和 Web 材料统一使用实际 citationIndex 输出 `[n]`，不手写 URL 或虚构来源编号。
 Finalization 按实际引用生成来源链接。Google 搜索建议不进入产品消息或模型输入。

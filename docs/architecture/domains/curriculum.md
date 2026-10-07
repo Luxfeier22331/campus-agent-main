@@ -20,10 +20,10 @@ status: active
 ```text
 已核对的培养方案来源
 -> campus_docs_source.v4 + campus_docs_reader.v3
--> Campus Web 静态文档
--> Campus Docs Chunk/Embedding builder
--> Campus RAG unified publisher
--> 共享的不可变 campus_docs 索引
+├-> Campus Web 构建 -> 静态文档
+└-> Campus Docs Chunk/Embedding builder
+    -> Campus RAG unified publisher
+    -> 共享的不可变 campus_docs 索引
 ```
 
 源码具备 builder/publisher 不表示任一环境已经激活索引；实际可用性取决于

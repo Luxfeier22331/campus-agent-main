@@ -29,7 +29,6 @@ Conversation coordinator 对已受理请求的传输断线自动恢复一次，�
 
 ```bash
 pnpm dev:init -- --target core
-pnpm dev:init -- --target core
 pnpm --dir apps/campus-web dev
 pnpm test --filter=campus-web
 pnpm --dir apps/campus-web build

@@ -6,16 +6,17 @@ status: active
 
 # Agent 的机构知识边界
 
-本文定义当前在线 Agent 与机构知识数据之间的边界。系统只有一个 Primary Agent；机构知识通过
-已注册的只读 `campus_search` function tool 按需查询，不恢复 Knowledge Agent、handoff、强制预检索
-或第二次答案合成。
+本文定义当前在线 Agent 与机构知识数据之间的边界。机构知识由同一 Agent Workflow 的 Solve 或 Executor
+通过只读 `campus_search` function tool 按需查询，不使用 Knowledge Agent、handoff 或强制预检索。
+直接回答与计划合成的分支由[Agent 框架](./agent-framework.md#运行形态)维护，Finalization 不额外调用模型改写答案。
 
 `campus_search` 的工具说明声明它提供中央民族大学当前 Campus Web 文档和已发布校园通知。Primary Agent 根据问题
 所需事实与该声明范围是否相交决定是否调用；问候、改写、个人事实以及所需事实完全不在该范围内的
 请求，不因词面相似而自动查询 Campus RAG。工具调用时读取 PostgreSQL
 `campus_docs_serving.current_index` 的当前 collection，并从 Model Config 读取当前
 `campus_docs_embedding` 与 `campus_docs_reranker` 连接；collection、provider 和检索参数不进入准入快照
-或 Temporal workflow input。
+或 Temporal workflow input。execution-control 在首次合法响应后绑定 run 的 collection，后续响应须匹配；
+完整读取与绑定时序见[检索服务](./retrieval-serving.md#在线消费边界)。
 
 查询 Embedding 使用检索适配器持有的进程内精确 LRU：最多 512 条，从成功加载起保留 24 小时，
 进程重启即清空。键由缓存版本、provider、规范化 Base URL、model、dimensions、instruction version

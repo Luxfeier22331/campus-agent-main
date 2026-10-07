@@ -50,7 +50,7 @@ ADR-0077 的采集编排取舍由 [简化采集控制面与内部门户凭据所
 入口预算仍由 `scripts/docs/doc-budgets.json` 拥有；笔记入口新增生命周期转换与冻结能力说明，
 行数预算由 95 调整为 105，保留必要规则及少量余量。
 
-`docs:notes:anchors` 只作观察，扫描仓内 Markdown 的链接和反引号路径，并按来源文件去重。
+`pnpm exec tsx scripts/docs/check-note-anchors.ts` 只作观察，扫描仓内 Markdown 的链接和反引号路径，并按来源文件去重。
 它区分 owner 文档引用与笔记／入口引用，避免仅扫描笔记而把已有 owner 引用误报为孤立。
 没有 owner 引用和高入站数都不是缺陷判定，不进默认检查，不推断自然语言中的取代关系。
 

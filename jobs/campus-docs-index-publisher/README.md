@@ -108,7 +108,7 @@ worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 与 `EMBEDDING_API_KEY`，直接
 不读取 reader、不调用 embedding provider，并将 Docs (`source_kind=document`) 与 Notice
 (`source_kind=notice`) points 组装到同一个 `campus_docs_<sha256>` collection。
 
-Notice citation 由 Notice Chunk Run v1 的 `noticeId` 固定生成，形如 `/notices/<noticeId>`；统一 publisher
+Notice citation 由 Notice Chunk 数据中的 `noticeId` 固定生成，形如 `/notices/<noticeId>`；统一 publisher
 不连接 live Notices DB。它拥有 `campus_docs_serving.current_index` 的激活逻辑。
 检索数据初始化使用根 `dev:local data seed --domain retrieval` 或 `dev:local data sync --domain retrieval` 并复用该逻辑；显式制品发布使用统一 RAG publisher。
 

@@ -11,7 +11,7 @@
 ## 本地运行
 
 ```bash
-pnpm dev:init -- --target ops-web
+pnpm dev:init -- --target notice-artifacts-worker
 pnpm --filter notice-artifacts-worker typecheck
 pnpm --filter notice-artifacts-worker test:unit
 ```

@@ -5,7 +5,8 @@ Temporal 队列 `notice-pipeline` 每 15 分钟运行一次通知采集、分类
 
 首次调度创建暂停。`schedule:init` 更新部署拥有的工作流和重叠策略，保留操作员设置的启停和周期。
 Ops `/tasks` 支持 15、30、60 分钟、立即运行和暂停。暂停不取消运行中的工作流。
-手动运行也通过同一 Schedule，显式使用 SKIP。Docs 发布继续使用显式制品输入。
+定时运行由 Schedule action 启动带固定 ID 的子工作流；手动运行和回滚直接启动同一固定 ID 的维护工作流，运行中由
+Temporal 原子冲突拒绝。Docs 发布继续使用显式制品输入。
 
 ## 本地运行
 
@@ -29,7 +30,7 @@ pnpm --filter notice-pipeline-worker dev
 没有保留版本引用且生产工作流已结束的对象；删除全部对象版本并确认清理后才移除版本记录。未完成对象还须超过 24 小时。共享 embedding cache、
 来源资产和手动产物保留。清理失败不撤销已成功的激活，下次刷新继续清理。
 
-回滚先暂停 Schedule，等待活动刷新结束后使用同一 publisher 激活已验证上一版本，之后保持暂停。
-维护旧制品前也须暂停并等待刷新结束。
+回滚先暂停 Schedule，再启动固定 ID 的回滚工作流；如果刷新仍在运行，Temporal 返回冲突且 Schedule 保持暂停，
+不会在服务端等待。回滚成功后 Schedule 继续保持暂停。维护旧制品前也须暂停调度，并在确认没有活动刷新后再操作。
 
 决策与验收范围见 [定时任务治理](../../.agents/notes/implemented/architecture/2026-09-20-scheduled-task-governance.md)。

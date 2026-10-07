@@ -20,7 +20,7 @@ app-api 产品读模型、Ops Web 运行记录、诊断和评测消费，并保�
 状态或最终答案；不写入 `agent_run_events`、`agent_step_results` 或 App API 的 request observability fact。
 请求删除时通过外键级联删除，不单独增加 TTL 或历史回填机制。
 
-v2 硬切由统一 schema migration 0008 删除旧诊断行并替换版本约束；不删除请求、消息、通知或索引。
+v2 硬切由统一 schema migration 0009 删除旧诊断行并替换版本约束；不删除请求、消息、通知或索引。
 生产者与 Ops 消费者一起升级，不保留 v1 读取或双写。升级时先停止旧生产者，迁移后启动新版；
 历史请求没有诊断时展示无数据，不从日志重建。
 

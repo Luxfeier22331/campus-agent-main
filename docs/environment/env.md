@@ -54,8 +54,8 @@ target 按实际消费边界生成环境投影；例如 `internal-portal-collect
 `internal-portal-collection` 和 `notice-classifier` 不重复执行 DDL。`notice-index-publisher` target 通过
 同一 schema owner 补齐数据库 baseline；`campus-docs-index-publisher` 只生成任务环境，不执行应用 bootstrap。
 两个 notice Worker target 同样通过 `campus-agent-schema` 补齐数据库 baseline，seed 并校验各自所需的
-Model Config（notice-pipeline-worker 覆盖 `notice_classification` 与 `campus_docs_embedding`，
-notice-artifacts-worker 只需 `campus_docs_embedding`），并创建 Temporal namespace；`notice-artifacts-worker`
+Model Config（notice-pipeline-worker 只需 `notice_classification`，notice-artifacts-worker 只需
+`campus_docs_embedding`），并创建 Temporal namespace；`notice-artifacts-worker`
 初始化时要求本地 Qdrant 连接已就绪，缺失即失败。
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
@@ -126,9 +126,9 @@ Ops Web 的托管 `.env.local` 保存本 worktree 的数据库连接和本地 de
 需要显式运行配置的仓库命令使用 `env/commands/*.env.example`。命令模板只保存变量名和安全示例，
 不保存真实值，也不成为常驻应用的配置来源。
 
-本地任务标识、来源引用和其他单次输入通过类型化请求或 CLI 参数传递。Kubernetes 一次性 Job 可以在
-从固定 CronJob 模板创建时，通过 `kubectl set env --local` 写入该 Job 独有的数据选择；这些值不进入
-CronJob、ConfigMap、Secret 或长期环境配置。
+本地任务标识、来源引用和其他单次输入通过类型化请求或 CLI 参数传递。显式 Kubernetes 一次性 Job 可以
+在创建时写入该 Job 独有的数据选择；这些值不进入模板、ConfigMap、Secret 或长期环境配置。Temporal
+通知维护工作流的单次输入则通过 workflow 参数传递，不写入环境配置。
 
 ### 部署环境
 

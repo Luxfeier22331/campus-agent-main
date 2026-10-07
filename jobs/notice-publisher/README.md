@@ -21,15 +21,15 @@ pnpm --filter notice-publisher run republish
 pnpm --filter notice-publisher run republish --notice-id 123456
 ```
 
-通知 schema 与授权由 `campus-agent-schema` 安装。`pnpm dev:init -- --target notice-publisher` 在生成托管 `.env.local` 后调用
-`seed-local`，后者只向隔离的本地数据库写入通知分类，不创建表，也不维护 migration ledger。
+通知 schema 与授权由 `campus-agent-schema` 安装。`pnpm dev:init -- --target notice-publisher` 准备托管环境，
+分类目录属于环境 bootstrap，已有目录通过 readiness 复用；它不导入通知业务数据。
 
-`republish` 读取已发布、站内通知的 source bucket 原始正文，重新生成 `content_html` 和 `content_text`，
-保持 `is_published`、分类和来源 metadata 不变。无 `--notice-id` 时处理全部已发布站内通知，有
-`--notice-id` 时只处理指定通知；没有正文的通知跳过批量处理，单条处理失败。正文没有变化时成功并
-保持幂等。它只更新正文投影，不触发 Chunk、Embedding、Collection 或 RAG。显式指定已发布通知时，
-普通 `publish` 仍只做来源、正文和资源一致性校验，不会覆盖正文。外链通知只发布来源 metadata 和
-URL。图片写入 derived bucket，附件字节继续保留在 source bucket。
+普通 `publish` 批量选择已有分类且未发布、或 `source_ref` 与 `published_source_ref` 不同的通知；
+`republish` 批量选择已发布通知，显式 `--notice-id` 限定指定通知。两者都从当前来源物化 metadata、
+正文和资源，在同一事务中切换公开投影并记录 `published_source_ref`，保持已有分类；重新发布保持已发布状态。
+外链通知只物化 metadata 和 URL，不生成站内正文或资源。图片写入 derived bucket，附件字节留在 source bucket。
+相同来源重复执行保持幂等，发布期间来源变化时拒绝提交。CLI 本身不触发 Chunk、Embedding 或 RAG；
+集群流水线负责后续制品刷新，见[采集运行](../../docs/runbooks/ingestion/ingestion.md)。
 
 ## 相关文档
 

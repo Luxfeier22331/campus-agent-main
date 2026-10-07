@@ -30,7 +30,7 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；数据库结构由 data-postgres
   Application 中的统一 `campus-agent-schema` Job 安装；
 - `agent-runtime`：一个独立 Deployment；
-- `ops-web`：一个运维 API Deployment，管理 `notice-pipeline` Temporal Schedule 启停与周期，并从暂停的 CronJob 模板创建一次性 Job；
+- `ops-web`：一个运维 API Deployment，管理 `notice-pipeline` Temporal Schedule 启停与周期，并查询通知维护工作流的运行投影；
 - `notice-pipeline-worker`：独立离线流水线 Deployment，在 `notice-pipeline` 队列执行通知采集、分类、发布和 RAG 刷新编排；
 - `notice-artifacts-worker`：独立离线流水线 Deployment，在 `notice-artifacts` 队列执行通知制品、Embedding、Qdrant 发布、清理和 rollback；
 - `ops-web-internal-portal-check`：使用 Ops Web 凭据 store 顺序检查凭据池的 CronJob；
@@ -71,9 +71,10 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 - Docs/Notice builder、统一 Campus RAG publisher 和 internal-portal 三个模板默认 `suspend: true`，不因源码存在而自动运行；
 - Job 的 `ttlSecondsAfterFinished` 只负责完成后的 Job 对象回收，不替代数据 retention 或备份。
 
-Ops Web 按需从暂停的通知 CronJob 模板创建 Job。GitOps 只管理 CronJob 模板；动态 Job 通过
-`ownerReference` 归属来源模板，不构成独立 desired state 或顶层 orphan。动态 Job 固定不重试并在完成
-24 小时后回收，成功和失败状态只作为该窗口内的运行历史，不参与 Argo CD 或服务健康判断。
+通知采集、分类、发布和索引刷新由 Temporal workflow 承载，Ops Web 不再从通知 CronJob 模板创建动态 Job。
+源码中保留的旧通知 CronJob YAML 只是显式单阶段模板，当前 `infra/k8s/ingestion-runtime/base/runtime`
+的 Kustomization 不渲染这些模板；它们不构成当前通知调度或运行历史。OCR 和门户凭据检查仍由各自的 CronJob
+承载，运行结果按其各自合同读取。
 
 这些是 desired-state 合同。清单通过测试只证明仓库期望状态可检查，不能证明某个环境已经启用模板、
 控制器已经创建 Job，或 Job 实际获得了相应资源。

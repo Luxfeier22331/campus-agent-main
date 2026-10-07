@@ -103,10 +103,12 @@ Completions 配置以
 随本轮冻结的内部可用性，不表示用户同意状态或逐次读取授权。浏览器和用户文案不得暴露该字段、
 recall 工具或执行结果。matched personal memory 只支持用户自身事实或偏好，不推导机构事实。
 
-`campus_search` 的模型参数只有 `search_query`，不接收 collection、索引版本、provider、top-k 或
-vector-store 字段。handler 在调用
-时读取当前 `campus_docs_serving.current_index`、embedding provider 和 reranker provider。handler 内部
-先取得最多 24 个 hybrid 候选，再调用 `campus_docs_reranker` 配置中的固定 `Qwen3-Reranker-4B` 排序并保留
+`campus_search` 的模型参数为 `search_query` 与 `search_goal`，分别表达召回查询和本次待确认的事实，
+字段要求以[函数 schema](../../configs/runtime/tool-function-schemas.v4.json)为准；不接收 collection、
+索引版本、provider、top-k 或 vector-store 字段。handler 通过内部 HTTP client 调用 Campus Search service，
+后者在调用时读取当前 `campus_docs_serving.current_index`、embedding provider 和 reranker provider。
+索引绑定由 execution-control 维护，时序见[检索服务](../architecture/system/retrieval-serving.md#在线消费边界)。
+Campus Search service 先取得最多 24 个 hybrid 候选，再调用 `campus_docs_reranker` 配置中的固定 `Qwen3-Reranker-4B` 排序并保留
 `relevance_score >= 0.5` 的候选。成功结果只包含 `outcome` 与最多 5 条 `results`；过滤后无候选返回
 `no_match`。阈值只判断文本相关性，不判断学校、人群或规则适用主体；reranker 失败不得回退到未排序
 候选。
@@ -118,9 +120,10 @@ Agent Workflow 的固定角色是中央民族大学校园问答助手，未明�
 被候选直接支持时，只回答有依据的部分；完全没有候选支持所需机构事实时，正常助手正文使用简洁的
 “暂未找到相关资料”或“目前无法确认”，不暴露内部资料范围。
 
-需要补充或核验尚未采集的公开校园网页信息时，Replanner 可以为后续步骤加入 `web_search`，Executor
-再在该步骤内调用它。`campus_search` 返回 `no_match` 或失败表示当前已采集文档没有可用证据；这不会由
-代码自动触发 Web Search，也不能直接判定资料不足。runner 在模型响应处解析 OpenAI URL annotation 或
+需要补充或核验公开校园网页信息时，Solve/Executor 可以选择当前已开放的 `web_search`；Replanner
+可以调整后续步骤的候选来源。`campus_search` 的 `no_match` 表示本次查询没有匹配候选，工具失败表示
+本次检索未成功；二者不会由代码自动触发 Web Search，也不能直接判定事实不存在或整个回答资料不足。
+runner 在模型响应处解析 OpenAI URL annotation 或
 Gemini grounding support，提取 URL、标题与对应文本片段作为中立 `webEvidence`。供应商 UTF-8/Part
 位置只留在 adapter；Solve 直接回答通过 `web_evidence` 传递最终答案的 codepoint `start_index` /
 `end_index`、`excerpt`、`title`、`url`，Finalization 校验精确正文跨度并在末尾插入引用，保留正文及

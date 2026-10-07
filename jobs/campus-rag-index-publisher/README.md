@@ -68,7 +68,7 @@ notices/rag/embedding-data/sha256/<digest>/embeddings.ndjson
 ```
 
 Docs 制品使用 `campus_docs_chunk_set.v2` 和 `campus_docs_embedding_set.v3`。Notice 制品使用
-`notice_embedding_set.v2`，直接引用 chunks 对象；已有 v1 set 仍通过 chunkRun 读取。统一 publisher 从 Notice
+`notice_embedding_set.v2`，直接引用 chunks 对象；已有 v1 set 仍通过 legacy `chunkRun` 读取。统一 publisher 从 Notice
 Chunk 的 `retrievalText` 首行生成 title，并由 `noticeId` 生成 `/notices/<notice_id>` citation；不连接 live Notices DB。
 文档和通知统一写入 `campus_rag_point.v3`。通知 payload 保留 `released_at` 发布时间，但不包含文档版本路由字段；
 `text` 使用 `retrievalText` 首行之后的完整证据，包含章节及必要上下文。
@@ -105,15 +105,15 @@ Notice point：
 - `text` 使用 Chunk `retrievalText` 去掉首行标题后的内容，包含必要的原文章节、父项和表头，
   `text_sha256` 按该证据正文计算；Chunk `content` 继续用于原文覆盖。
 
-当前 point 为 `campus_rag_point.v3`；collection identity 包含该版本。先部署接受 v1/v2/v3 的
-execution-control，再部署 v9 builder 和统一 publisher，最后通过既有制品发布入口激活候选。
+当前 point 为 `campus_rag_point.v3`；collection identity 包含该版本。在线 consumer 继续接受 v1/v2/v3
+以支持既有集合回滚；当前 Notice builder 使用 v10 分块定义，统一 publisher 通过既有制品发布入口激活候选。
 
 在线 adapter 将 Notice 的 `source_kind=notice` 映射为 UI 使用的 `campus_notice`，不通过额外 collection
 或查询路由区分两类来源。Docs/Notice point ID 使用不同 source namespace，避免 chunk ID 碰撞。
 
 ## 发布顺序与失败语义
 
-1. 读取并验证两个 Embedding Set 及其 serving 所需的 Chunk/Chunk Run 对象；
+1. 读取并验证两个 Embedding Set 及其 serving 所需的 Chunk 数据（或旧制品引用的 legacy Chunk Run）；
 2. 生成 Docs/Notice points 和 sparse vectors；
 3. 若 collection 已存在，完整核对配置、数量、point payload 和 dense/sparse vectors；
 4. 若 collection 不存在，先创建 dense/sparse collection 并批量写入 points，再创建检索过滤所需的 payload indexes；

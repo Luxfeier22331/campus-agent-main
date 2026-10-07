@@ -98,7 +98,7 @@ pnpm exec tsx scripts/docs/archive-agent-note.ts \
 归档由专用检查器维护，普通笔记格式、Markdownlint、出站链接和语言检查跳过归档正文；
 模板不作为正式笔记。默认 `rg` 搜索排除归档；追查历史时显式传入归档目录。
 
-`pnpm docs:notes:anchors` 扫描仓内 Markdown 的链接和反引号路径，统计不同来源文件。
+`pnpm exec tsx scripts/docs/check-note-anchors.ts` 扫描仓内 Markdown 的链接和反引号路径，统计不同来源文件。
 implemented 没有 owner 文档引用时输出 `informational`，高引用量也只是观察项；
 报告不进入默认检查，不据此自动归档或补链接。根／docs 分区 README、Skill 和其他笔记的引用
 计入总入站数，但不当作 owner 文档引用；模块 README 计为 owner。board 和新增 CI 工作流暂不纳入此治理。

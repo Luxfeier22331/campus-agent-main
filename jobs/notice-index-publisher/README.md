@@ -203,7 +203,7 @@ var/notices/chunking/comparisons/sha256/<comparison-run>/comparison.json
 证据落块和 rank 变化。证据落块只按 `noticeId + evidence.text` 在两次 Chunk 产物中定位，不复用旧
 `chunkId`。该命令只产出离线对比数据，不设置阈值或阻断任何流程。
 
-v9 当前规则与本轮验证见
+v9 的历史选择与验证见
 [通知分块 v9 与完整证据发布](../../.agents/notes/implemented/architecture/2026-09-29-notice-chunk-v9.md)。
 策略选择、v6→v8 同题集对照、扩大问题集结果及已接受限制见
 [通知结构分块决策](../../.agents/notes/implemented/architecture/2026-08-31-notice-chunk-strategy.md)。

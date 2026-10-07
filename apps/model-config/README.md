@@ -47,9 +47,9 @@ Primary Agent 在持久执行准入时先读取 target，Agent Runtime 再携带
 等普通 Job 直接读取一次完整配置；Embedding Set 记录响应中的 target hash。各配置名的当前消费者见
 [Model Config 架构](../../docs/architecture/system/model-config.md)。
 
-`campus_docs_embedding` 当前被四个内部工作负载各自读取一次完整配置（execution-control 的
-campus_search、campus-docs-index-publisher、notice-index-publisher、notice-artifacts-worker 的目标
-一致性检查）。共同信任边界内重复读取是既有设计：API Key 不出边界，consumer 各自校验配置并失败
+`campus_docs_embedding` 由 Campus Search service、campus-docs-index-publisher、notice-index-publisher 和
+notice-artifacts-worker 的目标一致性检查各自读取一次完整配置。共同信任边界内重复读取是既有设计：API Key 不出边界，
+consumer 各自校验配置并失败
 关闭；Model Config 不聚合为模型代理服务，原因见
 [边界决策](../../.agents/notes/implemented/architecture/2026-08-22-model-config-boundary.md)。
 

@@ -12,6 +12,9 @@ status: active
 `Cache-Control: no-store`；未登录请求返回共享认证错误。字段与校验的可执行来源是
 `packages/contracts/src/notices.ts`。
 
+列表、部门筛选项、详情和图片均只读取已发布且 `unavailable_at IS NULL` 的通知。门户确认删除的
+通知不再出现在目录中，详情与图片返回 `404`；Ops 库存与来源对象继续保留。
+
 ## 列表
 
 `GET /api/notices` 按发布时间倒序返回固定分页的通知，并同时返回用户分类、门户栏目和发布部门筛选项。

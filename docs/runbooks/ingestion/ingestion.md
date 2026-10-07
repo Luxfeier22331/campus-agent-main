@@ -31,9 +31,8 @@ pnpm --filter ops-web dev:api
 ```
 
 数据库 TLS 与运行变量见 Ops Web 的环境合同。当前本地与 Kubernetes 拓扑使用
-`drizzle.campus_agent_migrations`。`notice-publisher` target 是统一 schema Job 和通知分类 seed 的 owner；
-`internal-portal-collection` target 只生成 Ops Web 与采集器实际读取的环境投影，并通过 readiness 复用已完成的
-schema，不执行重复 DDL。`notice-classifier` target 只生成 Model Config 与分类器实际读取的环境投影。
+`drizzle.campus_agent_migrations`。通知相关 target 声明所需 schema、分类目录与环境投影，
+`dev:init` 通过 readiness 复用已完成的 bootstrap，不重复执行 DDL，也不导入通知业务数据。
 通知分类由当前 Model Config 配置和分类器 Job 负责，不由 execution-control 持有。
 
 ## 文件发布
@@ -45,8 +44,8 @@ pnpm --dir jobs/internal-portal-collection collect -- --mode file-sync
 ```
 
 命令按顺序逐条处理。已有合法 `source.json` 时复用；普通单项失败继续并汇总，认证失败立即终止。结果只在
-source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同一采集实现和固定为 `file-sync` 的
-独立 Job 模板。
+source bucket 保存 `file` 与 `source.json`，不解析 PDF。集群通过通知工作流的 `file-sync` mode
+调用同一实现，不继续通知分类和索引阶段。
 
 ## 本地通知流程
 
@@ -75,7 +74,7 @@ pnpm --dir jobs/internal-portal-collection auth:check
 - `notice-sync` 发现门户最新边界 `P`，从 `max(start,end 前一天)` 扫描到 `max(end,P)`，
   补齐最后一个日期稍后发布的通知，成功后只向前推进上界；
 - `notice-backfill --start-date S` 采集 `[S,start)`，成功后把状态扩展到 `[S,end)`。
-- `notice-rescan --from F --to T` 补查已有维护范围内的遗漏，不改变边界，也不重新抓取已有通知详情。
+- `notice-rescan --from F --to T` 补查已有维护范围并刷新已有通知详情，不改变维护边界。
 
 因旧通知置顶导致上界停滞时，部署修复后运行现有 `notice-pipeline`，由 sync 从已有上界继续补采，
 再完成分类、发布和索引刷新；不要手改 `_state.json` 或用仅覆盖已有区间的 rescan 代替向后补齐。
@@ -90,11 +89,11 @@ pnpm --dir jobs/internal-portal-collection collect -- --mode notice-backfill --s
 pnpm --dir jobs/internal-portal-collection collect -- --mode notice-sync
 ```
 
-回填起点必须是本次明确选择的日期；当前首次初始化约定为 `2025-12-01`。没有完整 v3 区间时，sync
+回填起点必须是本次明确选择的日期；当前首次初始化约定为 `2025-12-01`。没有完整维护区间时，sync
 会拒绝运行。适配器把内部排他上界转换为门户闭区间 `end_date` 的前一天，并用详情发布时间再次执行
 `[start,end)` 校验。sync、backfill 与 rescan 通过 PostgreSQL advisory lock 串行执行，不能并发运行。后续
 sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查 source bucket 包含
-`internal_portal/meta.json`、通知对象、已成功采集的资源对象和 `_state.json`，确认 v3 状态中的
+`internal_portal/meta.json`、通知对象、已成功采集的资源对象和 `_state.json`，确认当前 v4 状态中的
 `covered_from/covered_until` 区间符合本次 Job，且对应通知已登记到
 `notices.notices`。来源对象必须通过版本化 schema，内部通知与外链字段必须成对合法；source、metadata、库存登记或
 非永久缺失的资源传输失败时状态不能推进。通知附件明确返回 HTTP 404 时保留 source metadata、跳过附件资源对象，
@@ -103,6 +102,8 @@ sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查
 详情接口非认证性报错、列表项 `notice_type` 非法或库存登记数据冲突时，该通知计入失败（stderr 中的
 `detail`/`source`/`item`/`inventory` operation），其余通知继续处理，但状态不能推进直到失败清除；
 认证失败（TGC 过期等）与列表项 `notice_id` 非法（通知身份不可识别）仍立即终止整批。
+门户明确返回通知删除或失效消息时，按不可用通知处理并记录 `unavailable_at`，不作为普通详情失败
+阻止水位推进；v4 状态保留有界不可用 ID。恢复可读后清除不可用状态，详见[通知数据](../../data/notices.md)。
 输入合同分层：分页完整性（`total`、`totalCounts`、固定 `pageSize` 与 `Math.ceil` 关系）与
 notice type 映射（`notice_type_id`/`notice_type_name`、重复项、非空）是被引用的阻断性检查——空 type
 映射会让全量通知被过滤、分页不一致意味着漏采，二者必须阻止水位推进；organization 映射当前不被采集
@@ -149,7 +150,8 @@ API key 写入本地文件。
 
 ### 在线分类 Job
 
-在线分类使用独立的 `notice-classifier` 一次性 Job。它从数据库读取待分类通知；传入 `--notice-id` 时
+集群常规分类由通知流水线执行；单独使用 `notice-classifier` Job 前须确认目标环境已显式部署该暂停模板。
+当前 ingestion base 不安装它，不能仅因源码存在就运行下述命令。分类器从数据库读取待分类通知；传入 `--notice-id` 时
 只处理指定通知并强制重分类。Job 只向模型发送
 原始标题，不消费正文、门户栏目或清洗结果：
 
@@ -185,7 +187,7 @@ pnpm dev:init -- --target notice-publisher
 pnpm --filter notice-publisher run publish --notice-id "$NOTICE_ID"
 ```
 
-核对正文、外链、图片和附件后，省略 `--notice-id` 发布所有已分类且未发布的通知：
+核对正文、外链、图片和附件后，省略 `--notice-id` 发布已分类且未发布、或来源快照已变化的通知：
 
 ```bash
 pnpm --filter notice-publisher run publish
@@ -207,7 +209,7 @@ pnpm --filter notice-publisher run republish
 数据库不留部分通知，已验证的内容寻址图片可在重跑时复用，成功提交在同一事务中清除该通知的失败
 记录。相同输入必须幂等。
 
-重新发布只更新 `content_html`/`content_text` 投影，不构建 chunk、embedding 或检索 collection；
+重新发布原子更新当前来源的 metadata、正文与资源，并记录已发布来源引用；它不构建 chunk、embedding 或检索 collection。
 正文变化在下一次 `notice-pipeline` 完整刷新（prepare/embed/activate）时进入 AI 检索，收敛窗口与
 失败语义见[通知索引](./notice-indexing.md#与-republish-的一致性)。自动 republish 批次不排除已有
 publication 失败记录的通知：republish 本身就是重试入口，幂等写入保证重复尝试无副作用。
@@ -233,13 +235,14 @@ publisher；已发布内容与新清洗结果冲突时，由引入清洗合同�
 全新的端到端结果时，创建新的本地实例并依次执行通知 schema 初始化、采集、分类和发布，不在现有实例
 中清空 `notices.notices` 或 `notices.notice_assets`。
 
-该流程没有自动分类、定时发布或自动双写。集群回填和发布必须由对应环境配置明确执行，本地验证结果不表示集群
+上述本地 CLI 不自动串联阶段；集群的定时分类、发布和刷新由下述通知流水线执行。本地验证结果不表示集群
 已经更新。App API 与 Campus Web 的读取路径也不表示任一环境已经完成写入或部署。
 
 ## Kubernetes
 
 `infra/k8s/ops-web/base` 提供 Ops Web API、数据库授权 Job 和 `ops-web-internal-portal-check` CronJob；
-`infra/k8s/ingestion-runtime/base/runtime` 包含默认暂停的内部门户采集、通知分类和通知发布 CronJob 模板。
+`infra/k8s/ingestion-runtime/base/runtime` 当前仅渲染独立 OCR 任务及其网络策略；目录中的旧采集、分类、
+发布与通知制品 CronJob YAML 保留为显式单阶段模板，不在该 base 的 Kustomization 中启用。
 
 ### 自动化与调度所有权
 
@@ -268,14 +271,14 @@ Worker 复用既有 Ops Web 凭据入口、数据库 owner Secret、PostgreSQL C
 ## 排查
 
 流水线失败先在 Ops `/tasks` 查看 `notice-pipeline` 的最近执行、当前问题数量与索引状态，再进入 Temporal
-执行历史定位失败阶段。文件发布先检查分页响应、逐项错误摘要、门户响应及两个固定 source 对象。通知先查看命令错误、
-Job 的 `processedRange`、`maintenanceRange`、`progress`、原始应用错误、`controllerError`、通知对象和
+执行历史定位失败阶段。文件发布先检查分页响应、逐项错误摘要、门户响应及两个固定 source 对象。通知先查看工作流返回的
+`processedRange`、`maintenanceRange`、`progress`、原始应用错误、`controllerError`、通知对象和
 `_state.json`，不要手工推进边界来伪装成功。`processedRange` 只说明本次尝试的处理范围；失败时必须以
 `_state.json` 中仍然存在的维护区间为准，不能把它当作已提交边界。
 
-Kubernetes 的 `BackoffLimitExceeded` 表示 Job 控制器观察到 Pod 失败次数达到 `backoffLimit`；本项目固定
-`backoffLimit: 0`，所以它不是应用根因。应用根因应从任务的 Pod 原始输出中读取，Ops Web 会把它放在
-`error`，并把 controller reason/message 单独放在 `controllerError`。调试阶段两者均不脱敏、不泛化、不截断。
+通过显式模板运行的 Kubernetes Job 若出现 `BackoffLimitExceeded`，应读取 Pod 输出定位应用根因。
+Ops 通知维护的部署环境响应来自 Temporal failure 与 Workflow result；`controllerError` 保留接口兼容字段，
+不再表示 Kubernetes Job condition。本地任务错误来自 CLI 输出。
 
 认证错误按 [内部门户认证](../access/portal-auth.md) 替换 TGC。对象摘要或 schema 不一致时保留明确失败，不能改写为部分
 成功。

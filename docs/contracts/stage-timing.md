@@ -96,8 +96,9 @@ OpenAI Agents SDK trace、Langfuse 与 Temporal UI 可以提供进一步诊断�
 也不能把 SDK span、provider payload、tool I/O、prompt、answer 或 memory text 写入
 `stage_timing.v1`。
 
-当前在线执行没有 Campus Docs 检索阶段，因此不产生检索阶段耗时。Campus Docs 的离线制品构建耗时
-属于对应 Job 的运行记录，不进入 `stage_timing.v1`。
+当前合同没有单独的 Campus Docs 检索耗时字段；在线 `campus_search` 的耗时由所属 operation/tool
+投影和检索诊断提供，不在 `stage_timing.v1` 另建一列。Campus Docs 的离线制品构建耗时属于对应 Job
+的运行记录，不进入 `stage_timing.v1`。
 
 ## 相关文档
 

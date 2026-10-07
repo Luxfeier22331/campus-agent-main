@@ -15,10 +15,10 @@ trace。它不负责产品认证、Temporal 生命周期、持久步骤顺序、
 
 ## 运行形态
 
-每个在线回答由同一模型角色完成四类 operation，但“Workflow”指 Agent Workflow，不等同于
-Temporal Workflow：
+在线回答使用同一模型角色，支持四类 operation；一次请求按实际分支执行其中的操作，并非每次都执行全部四类。
+“Agent Workflow”表示模型决策参与的任务流程，Temporal Workflow 负责持久推进该流程：
 
-1. `solve` 在一次模型 operation 中直接回答简单请求，或将复杂目标拆成有依赖关系的步骤。
+1. `solve` 可以直接回答，也可以在当前 operation 内调用获准工具后回答；需要分步完成的目标才返回计划。
 2. `execute_step` 执行当前步骤声明的候选来源，并在需要时进行多轮模型—工具调用；这一局部行为
    接近 ReAct，但系统没有把思维文本作为状态，也不实现显式 ReAct 状态机。
 3. `replan` 根据已完成步骤、成功证据、`no_match` 和工具失败选择 `continue`（可保留或替换剩余步骤）或进入 `synthesize`。
@@ -27,8 +27,18 @@ Temporal Workflow：
 execution-control 负责上述 operation 的持久顺序、依赖检查、重规划预算和最终收口；plan、候选来源、依赖和
 replan decision 的语义规则由 `temporalruntime` 共享纯规则入口统一实现，Adapter 与 Temporal workflow
 只保留各自信任边界的调用；Agent Runtime
-只执行当前 operation。系统不使用 Knowledge Agent 或 handoff。历史配置槽位仍称为 `primary_agent`，
+只执行当前 operation。单一模型角色不表示整轮只有一次模型调用或一次 SDK run。系统不使用 Knowledge Agent 或 handoff。历史配置槽位仍称为 `primary_agent`，
 但它不是用户可见的 Agent 层级，也不是编排策略名。
+
+这里的 Agent 能力来自模型对直接回答、任务计划、工具参数、候选来源选择和剩余路径的决策；这些
+结构化输出会改变实际执行路径。外层工作流按依赖逐步执行计划并在符合条件时重规划，内层 Solve/Executor
+运行模型—工具循环。阶段顺序、重规划条件和预算由[持久运行时](./durable-runtime.md#执行阶段)维护。
+可执行入口为[工作流](../../../apps/execution-control/internal/temporalruntime/workflow.go)与
+[operation 装配](../../../apps/agent-runtime/src/workflow-runtime.ts)。
+
+Agent Runtime 按模型配置选择 runner：OpenAI 路径使用 Agents SDK，Gemini 路径使用原生 GenerateContent
+与函数循环；二者消费同一 operation 合同，不决定外层持久步骤顺序。选择入口见
+[provider-config.ts](../../../apps/agent-runtime/src/provider-config.ts)。
 
 所有 operation 的固定角色指令使用简体中文，并明确产品服务中央民族大学。未明确指定机构时，学校、
 本校和校园均按中央民族大学理解；这属于单校产品身份，不由请求或环境变量动态选择。
@@ -78,8 +88,9 @@ Google 搜索建议 HTML 不进入运行结果、产品消息或 UI；原生搜�
 
 Solve 根据用户目标决定直接回答或生成步骤和候选来源；Executor 只能执行当前步骤允许的来源；Replanner 根据实际
 结果重新决定剩余路径。`campus_search` 的 `no_match` 只说明当前 Campus Docs 没有找到证据，不会由
-代码自动切换到 Web Search；如果后续仍需要公开网页证据，必须由 Replanner 产生包含 `web_search` 的
-合法步骤。问题同时包含已覆盖和未覆盖事实时，Synthesizer 只回答成功证据支持的部分并生成普通正文；
+代码自动切换到 Web Search。Solve 已开放网页搜索，或 Executor 当前步骤已允许 `web_search` 时，模型
+可以在同一 operation 内继续使用它；需要调整剩余步骤的来源时，由 Replanner 返回合法计划。
+问题同时包含已覆盖和未覆盖事实时，Synthesizer 只回答成功证据支持的部分并生成普通正文；
 普通函数工具失败可以与合法答案并存，但失败结果不得成为答案依据。用户答案只使用简洁的“暂未找到相关资料”
 或“目前无法确认”等产品话术，不暴露内部资料范围、步骤或失败码；合同、身份、运行指纹和结果结构错误继续失败关闭。
 

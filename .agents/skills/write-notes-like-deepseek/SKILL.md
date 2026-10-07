@@ -23,7 +23,7 @@ description: 为改变行为、架构、跨文件合同或工具流程的非平�
    归档保留原状态和正文，已有归档不再编辑；不批量清理迁移笔记。
 4. 遇到真实故障时按[复盘入口](../../../docs/postmortem/README.md)判断是否需要事故复盘。
    故障经过与漏检原因放复盘，长期选择及其理由留在决策笔记，两者互链。
-5. 运行 `pnpm docs:check`；需要观察引用时显式运行 `pnpm docs:notes:anchors`。
+5. 运行 `pnpm docs:check`；需要观察引用时显式运行 `pnpm exec tsx scripts/docs/check-note-anchors.ts`。
    informational 不等于缺陷；只有实际读者需要决策理由时才补 owner 链接。
 
 纯排版、错别字、依赖补丁、不改变行为的机械重命名和单模块内自明的小修复豁免。

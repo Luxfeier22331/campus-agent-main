@@ -99,7 +99,7 @@ pnpm --dir jobs/notice-index-publisher import-embedding-cache-local -- \
 
 ## 与 republish 的一致性
 
-notice-publisher 的重新发布只改写 `notices.notices` 正文投影，不构建本 runbook 的任何制品。在线
+notice-publisher 的重新发布更新当前来源的 metadata、正文与资源，不构建本 runbook 的任何制品。在线
 serving collection 与正文的一致性由 `notice-pipeline` 完整刷新维护：`prepareRefresh` 从已发布正文
 重建 Chunk 数据并与当前激活的 Embedding Set 比对；Chunk 数据或模型 target 变化时触发 embed 与
 统一发布，两者均未变化时刷新跳过。审查报告和算法标签不参与该判断。因此 republish 后的收敛窗口是下一次成功完成的 `noticePipelineRun`

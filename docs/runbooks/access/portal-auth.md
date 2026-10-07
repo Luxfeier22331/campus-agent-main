@@ -9,7 +9,7 @@ status: active
 ## 运行模型
 
 Ops Web 是 TGC、检查结果和 CAS 刷新值的唯一运行所有者，直接提供人员页面、automation endpoint
-和内部解析接口。internal-portal-collection 不读取数据库，也不按名称选择记录。
+和内部解析接口。internal-portal-collection 不读取凭据数据库，也不按名称选择记录；通知库存使用其所属数据库连接。
 
 系统允许多条具名凭据，不维护主凭据。消费解析排除 `credential_rejected`，按 `valid`、未检查、
 `check_failed` 逐条真实验证，返回第一条可用 TGC。采集会话随后得到的新 TGC 只在本次进程使用，不
@@ -67,11 +67,11 @@ INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
 
 ## Job 认证边界
 
-通知采集 Job 的创建命令和回填参数见[采集与发布](../ingestion/ingestion.md#kubernetes)。
+集群通知工作流的操作入口和回填参数见[采集与发布](../ingestion/ingestion.md#kubernetes)。
 
-这些模板读取 `OPS_WEB_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
-与本地 CLI 相同的采集实现。Job 不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。Kubernetes
-base 为三种动作分别提供默认暂停的模板；它们没有 schedule，必须由维护者显式创建一次性 Job。
+通知 Worker 和显式 Job 入口读取 `OPS_WEB_INTERNAL_URL` 与 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后
+以内存参数调用与本地 CLI 相同的采集实现。集群入口不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。
+通知自动调度由 Temporal Schedule 拥有；源码保留的暂停 CronJob 模板不在当前 ingestion base 中自动部署。
 
 自动化 endpoint 与 Bearer token 不改变上述边界：endpoint 只是环境配置，token 只授权 Ops Web 机器
 接口；internal-portal-collection 本地入口只读取拉取到托管环境的 TGC，Job 入口只调用 Ops Web 解析

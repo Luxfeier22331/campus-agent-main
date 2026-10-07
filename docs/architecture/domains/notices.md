@@ -20,7 +20,7 @@ status: active
 -> notice-publisher
 -> 已发布正文与 derived 资源
    ├-> App API -> Campus Web
-   └-> Notice Chunk Run v1 -> Notice Embedding Set
+   └-> Notice Chunk/Embedding builder -> Notice Embedding Set
        -> Campus RAG unified publisher -> campus_search
 ```
 
@@ -32,14 +32,15 @@ internal-portal-collection 在通知模式中写入来源对象和原始资源�
 
 采集同时提供本地 CLI 和复用同一实现的一次性 Job 入口。通知维护状态使用
 `[covered_from, covered_until)` 半开区间：notice-sync 只推进排他上界，notice-backfill 只扩展包含下界。
-ingestion runtime base 为通知增量、通知回填和文件发布分别提供一个固定动作、默认暂停的模板，不提供
-自动调度；通知分类同时提供本地 CLI 和默认暂停的在线 Job：两者只消费标题，在线 Job 将结果写回通知
-数据库。凭据由 Ops Web 候选池解析，本地写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内
-使用，不形成 TGC Secret。
+集群中的采集、分类、发布和 RAG 刷新由 `notice-pipeline-worker` 串联，Temporal Schedule 默认暂停；
+手动维护复用同一工作流，单阶段 CLI 仍可独立运行。分类只消费标题并写回数据库。
+凭据由 Ops Web 候选池解析，本地写入当前 worktree 的受管理环境文件，集群 Worker 只在当前进程内
+使用，不形成 TGC Secret。调度和操作入口见[采集运行](../../runbooks/ingestion/ingestion.md)。
 
-notice-publisher 读取数据库中已有分类且未发布的通知，显式物化正文与资源并打开学生端可见边界；对已发布通知也可通过独立的
-重新发布操作重新物化当前来源的 metadata、正文和资源，但保持学生端可见边界不变。本地 CLI 与默认暂停的 Kubernetes Job 模板使用同一实现，不提供自动
-schedule。App API 和 Campus Web 只读取 `is_published=true` 的投影。完整
+notice-publisher 读取已有分类且未发布、或当前来源已变化的通知，物化 metadata、正文与资源；显式
+重新发布也使用同一物化实现，保持分类及已发布状态。App API 和 Campus Web 只读取
+`is_published=true AND unavailable_at IS NULL` 的投影；门户确认删除的通知保留库存但退出公开读取，
+下一次索引刷新也排除该通知。完整
 数据结构和操作顺序分别由 [通知数据](../../data/notices.md) 和
 [采集运行](../../runbooks/ingestion/ingestion.md) 维护。
 

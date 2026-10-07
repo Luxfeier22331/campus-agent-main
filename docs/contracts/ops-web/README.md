@@ -12,7 +12,7 @@ status: active
 - [chat-feedback.md](./chat-feedback.md)：回答反馈筛选、统计和对应问答的只读查询；
 - [providers.md](./providers.md)：在线模型配置；
 - [internal-portal.md](./internal-portal.md)：内部门户凭据与自动化 token；
-- [notices.md](./notices.md)：通知库存、分类维护和固定 Job 操作入口；
+- [notices.md](./notices.md)：通知库存、分类维护和 Temporal 固定维护操作入口；
 - [access.md](./access.md)：非校园邮箱准入；
 - [users.md](./users.md)：用户、会话、账号操作记录和只读注销状态。
 

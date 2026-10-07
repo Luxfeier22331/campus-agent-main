@@ -21,7 +21,7 @@ Executor 步骤状态与检索材料是否可用分别表达：`model_output_inv
 
 - `Conversation`、`Turn`：app-api 产品事实；
 - `Run`：产品可见持久执行对象；
-- `Agent Workflow`：Solve（直接回答或生成计划）→Execute Step→Replan→Synthesize 的产品编排；
+- `Agent Workflow`：Solve 直接回答，或进入 Execute Step、按需 Replan 与 Synthesize 的产品编排；
 - `ToolExecutionWorkflow`：上述 Agent Workflow 的 Temporal Workflow 实现；
 - `WorkflowStartCommand`、`CancellationCommand`：将已提交的 PostgreSQL 意图投递给 Temporal
   的持久命令；
@@ -62,12 +62,20 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 ## 执行阶段
 
 1. **Solve**：在 agent queue 调用 `apps/agent-runtime`，可使用已准入检索来源直接回答简单请求，或生成有界任务计划；
-2. **Execute Step**：按依赖逐步调用 `apps/agent-runtime`，由 Executor 执行当前步骤允许的来源并保留
+2. **Execute Step**：按计划顺序选择首个依赖已完成的步骤，等待当前步骤结束后再选下一步，由 Executor 执行当前步骤允许的来源并保留
    成功证据、`no_match` 和失败状态；
-3. **Replan**：在步骤完成后调用 `apps/agent-runtime`，由 Replanner 决定继续、修改剩余步骤或进入合成；
-4. **Synthesize**：聚合成功证据后调用 `apps/agent-runtime` 生成最终正文；
-5. **Finalization**：在 core queue 校验 operation 结果、生成终态投影并写入最终投影；Solve/检索失败但已取得 evidence 时，先进入 recovery synthesis，再按 completed finalization 收口；
+3. **Replan**：步骤存在 `remainingFacts`、可恢复失败，或没有 evidence 且来源失败/无匹配时，
+   还需满足计划与重规划预算未耗尽、仍有后续执行或来源路径，才调用 Replanner 决定继续、替换剩余步骤或进入合成；
+4. **Synthesize**：计划结束后，在有 evidence、成功来源尝试（包括 `no_match`）或明确来源不可用结果时，
+   使用已有材料生成正文；无可用材料且只有其他技术失败时保持失败；
+5. **Finalization**：在 core queue 校验 operation 结果、生成终态投影并写入最终投影；
 6. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
+
+Solve 返回合法答案时直接进入 Finalization，不调用 Execute Step、Replan 或 Synthesize。
+Solve 失败但保留 evidence 时，使用独立的 recovery synthesis 分支；计划中的可恢复步骤失败保留材料，
+继续既有步骤、按需重规划并按计划合成。取消、绝对截止时间和不可恢复失败仍结束运行。
+实际分支见[工作流实现](../../../apps/execution-control/internal/temporalruntime/workflow.go)，
+材料与后续路径条件见[工作流规则](../../../apps/execution-control/internal/temporalruntime/workflow_rules.go)。
 
 Temporal 不把 SDK tool call 展开成独立 Temporal 阶段，但 Agent Workflow 的 Solve、Execute Step、Replan
 和 Synthesize 是真实的持久步骤。当前在线 workflow 不包含独立的强制预检索阶段；离线 Campus Docs

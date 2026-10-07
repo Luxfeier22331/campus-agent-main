@@ -39,14 +39,14 @@ status: active
 更新 Qdrant 或当前索引指针；统一 Campus RAG publisher 需要与显式 Notice 制品一起独立验证并激活新索引。
 
 Internal Portal 可以提供来源材料，但来源清单不会自动成为规章。把通知中的制度正文提升为
-`institutional_rules` 需要显式的规范文档物化、来源关联和质量检查；当前任务注册表没有实现该
-提升步骤。
+`institutional_rules` 需要显式的规范文档物化、来源关联和质量检查；当前没有自动提升实现。
 
 ## 查询边界
 
-规章不向 Primary Agent 提供文档召回或章节读取工具。公开阅读发布不意味着模型获得访问权限。
-在线请求不能读取原始通知、现场抓取官网、查询历史 reader、跟随可变 alias，或绕过准入查询未
-发布 collection。找不到足够当前证据时必须返回无依据终态，不能使用模型记忆补齐。
+规章不提供专用模型工具；已发布正文通过统一 `campus_search` 查询。公开阅读发布与检索索引激活
+是独立步骤，静态页面发布不表示新正文已进入当前索引。在线请求不能读取原始通知、直接查询历史
+reader 或绕过准入查询未发布 collection；模型可使用当前 operation 已开放的网页搜索核验公开校园信息。
+找不到足够证据时，助手在正常正文中说明无法确认，不用模型记忆补齐；详见[工具路由](../system/tool-routing.md)。
 
 索引发布和生命周期属于独立检索链路，不由 Campus Web 文档构建触发。publisher 不按
 `institutional_rules`、`scoped_rules` 或 `student_rules` 过滤；凡是来源清单列为当前版本的公开

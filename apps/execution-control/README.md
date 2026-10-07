@@ -6,7 +6,8 @@ Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流�
 ## 运行边界
 
 - `app-api` 负责浏览器认证、会话、请求提交和产品传输；
-- `agent-runtime` 在单个 Agent Activity 内运行 OpenAI Agents SDK 代理与工具循环；
+- `agent-runtime` 执行当前模型 operation；配置选中的 OpenAI Agents SDK 或 Gemini runner 负责该
+  operation 内的模型与工具循环；
 - `model-config` 独立拥有模型目标、凭据和验证；`execution-control` 只读取 `primary_agent` target 并
   冻结服务返回的 hash；独立 Worker 轮询三类 Temporal 队列；
 - Temporal 保存 workflow history、重试、超时、heartbeat 和 cancellation；
@@ -18,11 +19,12 @@ Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流�
 
 | 工作流 | 用途 | 详细文档 |
 | --- | --- | --- |
-| `ToolExecutionWorkflow` | 在线回答的 Agent Activity、终态处理和记忆追加 | `docs/architecture/system/durable-runtime.md` |
+| `ToolExecutionWorkflow` | 在线回答的 Solve、按需计划执行与重规划、合成、终态处理和记忆追加 | `docs/architecture/system/durable-runtime.md` |
 | `PersonalMemoryCommandWorkflow` | 原生记忆增改、停用/恢复和账户级变更 | `docs/architecture/system/memory-plane.md` |
 
 在线回答只使用 workflow、core activity 和 agent activity 三类 task queue。个人记忆函数工具在
-Agent Activity 内按需执行，不单独创建 Temporal activity；Campus RAG publisher 不属于在线回答链路。
+Solve 或 Execute Step Activity 内按需执行，不单独创建 Temporal activity；四类模型 operation 分别注册为
+Activity，整轮请求可以执行多个 operation。Campus RAG publisher 不属于在线回答链路。
 
 进程入口只负责配置、服务生命周期和退出协调；Temporal client、poller 与 queue 组装由运行时组装
 层拥有。各 queue 的 activity adapter 依赖窄 handler interface，不依赖 HTTP server 的具体类型，

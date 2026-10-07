@@ -47,7 +47,8 @@ internal_portal/<site-id>/file-releases/<file-release-id>/source.json
 文件名、media type、字节数、摘要和对象 key。已有合法 `source.json` 时不再访问门户。同 key 内容冲突
 明确失败。
 
-当前不保存 workflow result，不解析 PDF，不执行 OCR、清洗、分类或发布。
+来源对象不保存工作流结果；集群 `file-sync` 的执行结果由通知工作流返回。文件来源不执行 PDF 解析、
+OCR、清洗、分类或发布。
 
 ## 来源对象生命周期
 

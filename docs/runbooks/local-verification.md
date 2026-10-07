@@ -9,8 +9,8 @@ status: active
 ## 边界
 
 本地开发使用 `infra/local/docker-compose.dev.yml` 提供每个 worktree 独立的 PostgreSQL、RustFS、Qdrant 和 Temporal；仓库不在
-Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.execution-runtime.yml` 只用于按需
-启动 Hindsight 与 OTel 诊断依赖。
+Kubernetes/GitOps 之外维护第二套 staging 生命周期。`infra/local/docker-compose.execution-runtime.yml` 只用于按需
+启动 Hindsight。
 
 未配置 Hindsight 时，execution-control 不向模型暴露 `personal_memory_recall`，普通对话仍使用真实
 模型链路；验证个人记忆时再显式启动并配置 Hindsight。
@@ -20,8 +20,9 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.e
 外部开发连接，并在 `internal-portal-collection` projection 下首次导入 main 已有的门户 TGC。数据库、
 对象存储资源、应用内部 secret 和 provider 配置加密 key 仍按 worktree 独立。其他外部凭据由开发者进程环境显式提供。
 
-默认诊断 compose 使用 debug OTel Collector。只有验证本地 Agent trace 到 Langfuse 的转发时加入
-`docker-compose.execution-runtime.langfuse.yml`。
+默认诊断 compose 只提供 Hindsight；Agent trace 不经过本地 Collector。只有验证本地 Agent trace 到
+Langfuse 的转发时，才在进程环境显式提供 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` 或
+`OTEL_EXPORTER_OTLP_ENDPOINT`，并按 Langfuse 运行合同启动对应依赖。
 
 独立数据平面决策见[每个 worktree 的独立本地数据平面](../../.agents/notes/implemented/architecture/2026-09-24-independent-worktree-data-plane.md)；数据域与初始化命令边界见[本地开发初始化与数据域 owner](../../.agents/notes/implemented/architecture/2026-10-03-local-development-initialization-ownership.md)。
 
@@ -348,7 +349,7 @@ Campus Search v2 实际验收需要完整跑通已有账号发问、工具完成
 核对诊断完整性与调用结果分开展示，实际模型和 collection 不被 DTO 丢弃，Qdrant HTTP/server/
 decode/postprocess 可区分；同一通知的互补片段可同时返回，跨调用重复片段的排除原因可见，最终引用数与
 产品来源一致。先等待会话结束再发下一题。离线标注评测与真实会话各验证自己的链路，不能互相替代。
-schema 0008 只清除旧诊断；先停止本 worktree 的旧 execution-control，执行统一 schema migration，
+schema 0009 只清除旧诊断；先停止本 worktree 的旧 execution-control，执行统一 schema migration，
 再启动新版与 Ops API。不要在仍有旧生产者的 staging 单独提前应用这次硬切。
 `pnpm dev:init -- --target core` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline。
 显式模型 seed 和 runtime doctor 会检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于

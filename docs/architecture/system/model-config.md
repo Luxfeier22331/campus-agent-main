@@ -14,8 +14,8 @@ Model Config 是具名在线模型配置与 Provider API Key 的唯一所有者�
 1. execution-control 读取 `primary_agent` 的 `model_target.v1`，并把 Model Config 返回的 opaque hash
    写入持久执行准入；
 2. Agent Runtime 携带该 hash 读取 `model_runtime_config.v1`，hash 不匹配时失败关闭；
-3. execution-control 的 `campus_search` 在工具调用时读取 Embedding 与 Reranker 完整配置并直接调用
-   Provider，不把它们冻结到 Agent 的准入输入；
+3. Campus Search service 在工具调用时读取 Embedding 与 Reranker 完整配置并直接调用 Provider；
+   execution-control 只通过该服务的 typed HTTP client 消费检索结果，不把这些配置冻结到 Agent 的准入输入；
 4. Campus Docs Embedding 与 Notice Classifier 等普通 Job 一次读取所属具名配置的完整
    `model_runtime_config.v1` 并直接调用 Provider；
 5. Embedding Set 等需要记录目标身份的制品直接保存响应中的 target hash。
@@ -31,8 +31,8 @@ profile 保持独立。
 | name | 消费者 |
 | --- | --- |
 | `primary_agent` | execution-control（执行准入读取 target）、agent-runtime（携带预期 hash 读取完整配置） |
-| `campus_docs_embedding` | execution-control 的 campus_search、campus-docs-index-publisher、notice-index-publisher、notice-artifacts-worker（目标一致性检查） |
-| `campus_docs_reranker` | execution-control 的 campus_search |
+| `campus_docs_embedding` | Campus Search service、campus-docs-index-publisher、notice-index-publisher、notice-artifacts-worker（目标一致性检查） |
+| `campus_docs_reranker` | Campus Search service |
 | `notice_classification` | notice-pipeline-worker（分类 activity，复用 notice-classifier 运行时） |
 | `document_ocr` | document-ocr job（读取配置并回写异步验证结果） |
 
