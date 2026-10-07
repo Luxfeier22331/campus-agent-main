@@ -45,9 +45,11 @@ beforeAll(async () => {
 		VALUES (952401, 9524, '停运一', '2026-09-17', false, 'cpu-test', true),
 		(952402, 9524, '停运二', '2026-09-18', false, 'cpu-test', true),
 		(952403, 9524, '未发布', '2026-09-19', false, NULL, false),
-		(952404, 9524, '未来', '2026-09-19', false, 'cpu-test', true);
+		(952404, 9524, '未来', '2026-09-19', false, 'cpu-test', true),
+		(952405, 9524, '已删除', '2026-09-18', false, 'cpu-test', true);
+		UPDATE notices.notices SET unavailable_at = now() WHERE notice_id = 952405;
 		INSERT INTO transport.schedule_period_notices (schedule_id, notice_id)
-		VALUES ('cpu-closed', 952401), ('cpu-closed', 952402), ('cpu-closed', 952403), ('cpu-future', 952404);
+		VALUES ('cpu-closed', 952401), ('cpu-closed', 952402), ('cpu-closed', 952403), ('cpu-future', 952404), ('cpu-closed', 952405);
 	`);
 });
 

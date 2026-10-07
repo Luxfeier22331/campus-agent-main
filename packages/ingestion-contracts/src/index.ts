@@ -15,6 +15,9 @@ import internalPortalNoticeSyncStateV2Schema from "../schemas/internal-portal-no
 import internalPortalNoticeSyncStateV3Schema from "../schemas/internal-portal-notice-sync-state.v3.schema.json" with {
 	type: "json",
 };
+import internalPortalNoticeSyncStateV4Schema from "../schemas/internal-portal-notice-sync-state.v4.schema.json" with {
+	type: "json",
+};
 
 export type ValidationResult = { ok: true } | { ok: false; errors: string[] };
 
@@ -51,7 +54,7 @@ export type InternalPortalNoticeSource = InternalPortalNoticeSourceBase &
 	({ is_external: false; external_url: null } | { is_external: true; external_url: string });
 
 interface InternalPortalNoticeSyncStateBase {
-	schema_version: "internal_portal_notice_sync_state.v3";
+	schema_version: "internal_portal_notice_sync_state.v3" | "internal_portal_notice_sync_state.v4";
 	updated_at: string;
 }
 
@@ -62,7 +65,17 @@ export type InternalPortalNoticeSyncState = InternalPortalNoticeSyncStateBase &
 	) & {
 		recent_reviewed_at?: string | null;
 		full_reviewed_at?: string | null;
+		unavailable_notice_ids?: number[];
 	};
+
+export interface V3InternalPortalNoticeSyncState {
+	schema_version: "internal_portal_notice_sync_state.v3";
+	updated_at: string;
+	covered_from: string | null;
+	covered_until: string | null;
+	recent_reviewed_at?: string | null;
+	full_reviewed_at?: string | null;
+}
 
 export interface LegacyInternalPortalNoticeSyncState {
 	schema_version: "internal_portal_notice_sync_state.v2";
@@ -116,6 +129,9 @@ const internalPortalNoticeSyncStateV2Validator = ajv.compile(
 ) as ValidateFunction<LegacyInternalPortalNoticeSyncState>;
 const internalPortalNoticeSyncStateV3Validator = ajv.compile(
 	internalPortalNoticeSyncStateV3Schema,
+) as ValidateFunction<V3InternalPortalNoticeSyncState>;
+const internalPortalNoticeSyncStateV4Validator = ajv.compile(
+	internalPortalNoticeSyncStateV4Schema,
 ) as ValidateFunction<InternalPortalNoticeSyncState>;
 const internalPortalMetaValidator = ajv.compile(
 	internalPortalMetaSchema,
@@ -126,9 +142,12 @@ export function validateInternalPortalNoticeSource(value: unknown): ValidationRe
 }
 
 export function validateInternalPortalNoticeSyncState(value: unknown): ValidationResult {
-	const validation = validateWith(internalPortalNoticeSyncStateV3Validator, value);
-	if (!validation.ok) {
-		return validation;
+	const validation = validateWith(internalPortalNoticeSyncStateV4Validator, value);
+	const effective = validation.ok
+		? validation
+		: validateWith(internalPortalNoticeSyncStateV3Validator, value);
+	if (!effective.ok) {
+		return effective;
 	}
 	const state = value as InternalPortalNoticeSyncState;
 	if (
@@ -138,7 +157,7 @@ export function validateInternalPortalNoticeSyncState(value: unknown): Validatio
 	) {
 		return { ok: false, errors: ["covered_until must be on or after covered_from"] };
 	}
-	return validation;
+	return effective;
 }
 
 export function validateLegacyInternalPortalNoticeSyncState(value: unknown): ValidationResult {

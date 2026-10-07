@@ -9,8 +9,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
 import { PortalSessionExpiredError } from "@campus-agent/internal-portal-client";
 import type { InternalPortalNoticeMetaStore } from "../src/notice-meta-store.js";
-import { NoticeIngestionDataError } from "../src/notice-ingestion-errors.js";
+import { NoticeIngestionDataError, PortalNoticeUnavailableError } from "../src/notice-ingestion-errors.js";
 import type {
+	NoticeCandidateRecord,
 	NoticeInventoryMappings,
 	NoticeInventoryStore,
 } from "../src/notice-inventory-store.js";
@@ -967,6 +968,105 @@ describe("notice runner maintenance ranges", () => {
 		expect(stateStore.saveCalls).toBe(0);
 	});
 
+	it("marks portal-confirmed deletions as unavailable without blocking the covered range", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[notice(1, 5, "2026-08-10 09:00"), notice(2, 5, "2026-08-10 10:00")],
+						2,
+					),
+		);
+		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) => {
+			if (noticeId === 2) {
+				throw new PortalNoticeUnavailableError({
+					message: "notice 2 is unavailable on the portal: 通知公告已删除",
+					noticeId,
+				});
+			}
+			return detail(noticeId, "2026-08-10 09:00");
+		});
+
+		const result = await syncInternalPortalNotices(
+			runnerInput({ fetchNoticeDetail, fetchNoticePage, inventoryStore, stateStore }),
+		);
+
+		expect(result.failures).toEqual([]);
+		expect(inventoryStore.unavailable).toEqual([2]);
+		expect(inventoryStore.registered).toEqual([1]);
+		expect(result.state?.coveredUntil).toBe("2026-08-12");
+		expect(result.state?.unavailableNoticeIds).toEqual([2]);
+	});
+
+	it("skips the detail probe for notices already recorded as unavailable", async () => {
+		const stateStore = new MemoryStateStore(
+			state({
+				coveredFrom: "2026-08-01",
+				coveredUntil: "2026-08-10",
+				unavailableNoticeIds: [2],
+			}),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page(
+						[notice(1, 5, "2026-08-10 09:00"), notice(2, 5, "2026-08-10 10:00")],
+						2,
+					),
+		);
+		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) =>
+			detail(noticeId, "2026-08-10 09:00"),
+		);
+
+		const result = await syncInternalPortalNotices(
+			runnerInput({ fetchNoticeDetail, fetchNoticePage, inventoryStore, stateStore }),
+		);
+
+		expect(fetchNoticeDetail).toHaveBeenCalledTimes(1);
+		expect(fetchNoticeDetail).toHaveBeenCalledWith(
+			expect.objectContaining({ noticeId: 1 }),
+		);
+		expect(inventoryStore.unavailable).toEqual([]);
+		expect(result.state?.unavailableNoticeIds).toEqual([2]);
+	});
+
+	it("recovers an unavailable notice when a periodic review fetches it again", async () => {
+		const stateStore = new MemoryStateStore(
+			state({
+				coveredFrom: "2026-08-01",
+				coveredUntil: "2026-08-10",
+				recentReviewedAt: "2026-08-24T00:00:00.000Z",
+				fullReviewedAt: "2026-08-18T00:00:00.000Z",
+				unavailableNoticeIds: [2],
+			}),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		inventoryStore.listExisting = async () => [
+			{ notice_id: 2, notice_type: 5, organization_id: "00007" },
+		];
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-27 09:00")], 1)
+				: page([notice(1, 5, "2026-08-26 09:00")], 1),
+		);
+		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) =>
+			detail(noticeId, "2026-08-26 09:00"),
+		);
+
+		const result = await syncInternalPortalNotices({
+			...runnerInput({ fetchNoticeDetail, fetchNoticePage, inventoryStore, stateStore }),
+			enablePeriodicReview: true,
+		});
+
+		expect(inventoryStore.registered).toContain(2);
+		expect(result.state?.unavailableNoticeIds).toBeUndefined();
+	});
+
 	it("requires an explicit backfill before a sync can use a missing upper bound", async () => {
 		await expect(
 			syncInternalPortalNotices(runnerInput({ stateStore: new MemoryStateStore(null) })),
@@ -1126,6 +1226,8 @@ class MemoryMetaStore implements InternalPortalNoticeMetaStore {
 class MemoryInventoryStore implements NoticeInventoryStore {
 	readonly mappings: NoticeInventoryMappings[] = [];
 	readonly registered: number[] = [];
+	readonly unavailable: number[] = [];
+	listExisting?: (from: string, to: string) => Promise<NoticeCandidateRecord[]>;
 
 	async getSourceRefs(): Promise<Map<number, string | null>> { return new Map(); }
 
@@ -1133,6 +1235,10 @@ class MemoryInventoryStore implements NoticeInventoryStore {
 		if (this.registered.includes(source.notice_id)) return "reused";
 		this.registered.push(source.notice_id);
 		return "written";
+	}
+
+	async markUnavailable(noticeId: number): Promise<void> {
+		if (!this.unavailable.includes(noticeId)) this.unavailable.push(noticeId);
 	}
 
 	async upsertMappings(mappings: NoticeInventoryMappings): Promise<void> {

@@ -16,3 +16,16 @@ export class NoticeIngestionDataError extends Error {
 		this.operation = input.operation;
 	}
 }
+
+// The portal answers `state:false` with a fixed deletion/permission message when a
+// notice no longer exists for this account. That is a deterministic business
+// conclusion, distinct from transient fetch failures that should be retried.
+export class PortalNoticeUnavailableError extends Error {
+	readonly noticeId: number;
+
+	constructor(input: { message: string; noticeId: number }) {
+		super(input.message);
+		this.name = "PortalNoticeUnavailableError";
+		this.noticeId = input.noticeId;
+	}
+}

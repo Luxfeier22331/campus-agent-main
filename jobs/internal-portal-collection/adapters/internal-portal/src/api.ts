@@ -5,6 +5,7 @@ import {
 	type TemporaryAttachmentFile,
 } from "./attachment-temp-file.js";
 import { PortalSessionExpiredError } from "./auth-errors.js";
+import { PortalNoticeUnavailableError } from "./notice-ingestion-errors.js";
 import type {
 	ApiRequestContextLike,
 	ApiResponseLike,
@@ -129,6 +130,15 @@ export async function fetchNoticeDetail(
 	}
 	const json = await parseJsonResponse<NoticeDetailResponse>(response, "getNotice");
 	if (!json.state) {
+		// The portal confirms deletion/expiry/permission loss with a fixed message;
+		// anything else keeps the generic rejection so transient causes stay retryable.
+		const msg = json.msg ?? "";
+		if (msg.includes("通知公告已删除") || msg.includes("通知公告已经失效")) {
+			throw new PortalNoticeUnavailableError({
+				message: `notice ${input.noticeId} is unavailable on the portal: ${msg}`,
+				noticeId: input.noticeId,
+			});
+		}
 		throw new Error("Internal portal notice detail request was rejected.");
 	}
 	return json;

@@ -14,6 +14,7 @@ export interface NoticeInventoryStore {
 	getSourceRefs(noticeIds: readonly number[]): Promise<Map<number, string | null>>;
 	register(source: InternalPortalNoticeSource): Promise<"reused" | "written" | "updated">;
 	listExisting?(from: string, to: string): Promise<NoticeCandidateRecord[]>;
+	markUnavailable(noticeId: number): Promise<void>;
 	upsertMappings(mappings: NoticeInventoryMappings): Promise<void>;
 }
 
@@ -81,10 +82,12 @@ export function createNoticeInventoryStore(pool: Pick<Pool, "query">): NoticeInv
 					title=CASE WHEN notices.notices.is_published THEN notices.notices.title ELSE EXCLUDED.title END,
 					released_at=CASE WHEN notices.notices.is_published THEN notices.notices.released_at ELSE EXCLUDED.released_at END,
 					is_external=CASE WHEN notices.notices.is_published THEN notices.notices.is_external ELSE EXCLUDED.is_external END,
-					external_url=CASE WHEN notices.notices.is_published THEN notices.notices.external_url ELSE EXCLUDED.external_url END,
-					source_ref=EXCLUDED.source_ref
-				 WHERE notices.notices.source_ref IS DISTINCT FROM EXCLUDED.source_ref
-				 RETURNING notice_id, (xmax = 0) AS inserted`,
+				external_url=CASE WHEN notices.notices.is_published THEN notices.notices.external_url ELSE EXCLUDED.external_url END,
+				source_ref=EXCLUDED.source_ref,
+				unavailable_at=NULL
+			 WHERE notices.notices.source_ref IS DISTINCT FROM EXCLUDED.source_ref
+				OR notices.notices.unavailable_at IS NOT NULL
+			 RETURNING notice_id, (xmax = 0) AS inserted`,
 				[
 					source.notice_id,
 					source.notice_type,
@@ -100,6 +103,16 @@ export function createNoticeInventoryStore(pool: Pick<Pool, "query">): NoticeInv
 				return inserted.rows[0]?.inserted === false ? "updated" : "written";
 			}
 			return "reused";
+		},
+		async markUnavailable(noticeId) {
+			// Keep rows and objects; consumers filter on unavailable_at. Idempotent so
+			// repeated portal confirmations do not move the timestamp.
+			await pool.query(
+				`UPDATE notices.notices
+				 SET unavailable_at = now()
+				 WHERE notice_id = $1 AND unavailable_at IS NULL`,
+				[noticeId],
+			);
 		},
 	};
 }

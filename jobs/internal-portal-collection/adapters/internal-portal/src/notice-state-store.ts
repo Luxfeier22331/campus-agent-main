@@ -1,8 +1,9 @@
 import {
 	type LegacyInternalPortalNoticeSyncState,
 	type InternalPortalNoticeSyncState as StoredNoticeSyncState,
-	validateLegacyInternalPortalNoticeSyncState,
+	type V3InternalPortalNoticeSyncState,
 	validateInternalPortalNoticeSyncState,
+	validateLegacyInternalPortalNoticeSyncState,
 } from "ingestion-contracts";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
@@ -13,6 +14,7 @@ export interface InternalPortalNoticeSyncState {
 	updatedAt: string;
 	recentReviewedAt?: string | null;
 	fullReviewedAt?: string | null;
+	unavailableNoticeIds?: number[];
 }
 
 export interface InternalPortalNoticeSyncStateStore {
@@ -40,7 +42,10 @@ export function createObjectStoreInternalPortalNoticeSyncStateStore(input: {
 			}
 			const validation = validateInternalPortalNoticeSyncState(value);
 			if (validation.ok) {
-				return fromStoredState(value as StoredNoticeSyncState);
+				const state = value as StoredNoticeSyncState | V3InternalPortalNoticeSyncState;
+				return state.schema_version === "internal_portal_notice_sync_state.v4"
+					? fromStoredState(state as StoredNoticeSyncState)
+					: fromV3StoredState(state as V3InternalPortalNoticeSyncState);
 			}
 			const legacyValidation = validateLegacyInternalPortalNoticeSyncState(value);
 			if (legacyValidation.ok) {
@@ -84,10 +89,13 @@ export function internalPortalNoticeSyncStateObjectKey(): string {
 
 function toStoredState(state: InternalPortalNoticeSyncState): StoredNoticeSyncState {
 	const base = {
-		schema_version: "internal_portal_notice_sync_state.v3" as const,
+		schema_version: "internal_portal_notice_sync_state.v4" as const,
 		updated_at: state.updatedAt,
 		...(Object.hasOwn(state, "recentReviewedAt") ? { recent_reviewed_at: state.recentReviewedAt ?? null } : {}),
 		...(Object.hasOwn(state, "fullReviewedAt") ? { full_reviewed_at: state.fullReviewedAt ?? null } : {}),
+		...(Object.hasOwn(state, "unavailableNoticeIds")
+			? { unavailable_notice_ids: state.unavailableNoticeIds ?? [] }
+			: {}),
 	};
 	if (state.coveredFrom === null && state.coveredUntil === null) {
 		return { ...base, covered_from: null, covered_until: null };
@@ -103,6 +111,19 @@ function toStoredState(state: InternalPortalNoticeSyncState): StoredNoticeSyncSt
 }
 
 function fromStoredState(state: StoredNoticeSyncState): InternalPortalNoticeSyncState {
+	return {
+		coveredFrom: state.covered_from,
+		coveredUntil: state.covered_until,
+		updatedAt: state.updated_at,
+		...(Object.hasOwn(state, "recent_reviewed_at") ? { recentReviewedAt: state.recent_reviewed_at ?? null } : {}),
+		...(Object.hasOwn(state, "full_reviewed_at") ? { fullReviewedAt: state.full_reviewed_at ?? null } : {}),
+		...(Object.hasOwn(state, "unavailable_notice_ids")
+			? { unavailableNoticeIds: state.unavailable_notice_ids ?? [] }
+			: {}),
+	};
+}
+
+function fromV3StoredState(state: V3InternalPortalNoticeSyncState): InternalPortalNoticeSyncState {
 	return {
 		coveredFrom: state.covered_from,
 		coveredUntil: state.covered_until,

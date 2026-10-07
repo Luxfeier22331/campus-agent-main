@@ -48,7 +48,8 @@ internal_portal/meta.json
 internal_portal/notices/_state.json
 ```
 
-`internal_portal_notice_sync_state.v3` 记录通知维护的半开日期区间和更新时间：
+`internal_portal_notice_sync_state.v4` 记录通知维护的半开日期区间和更新时间，以及有界的
+`unavailable_notice_ids`（上限 500，超出淘汰最旧）。v3 状态文件仍可读取，写入一律升级为 v4：
 
 ```text
 [covered_from, covered_until)
@@ -144,6 +145,10 @@ chunk/embedding 制品，正文变化在下一次完整检索刷新进入 AI 搜
 `notices.notice_types` 和 `notices.organizations` 保存门户 ID 与名称映射，`notices.categories` 保存允许的
 单一分类。`notices.notices` 从采集完成后即存在，保存通知 ID、类型、可空组织 ID、原始标题、发布时间、
 外链标记与 URL、可空 `category`、`is_published` 以及发布后写入的 `content_html`、`content_text`。
+
+门户确认删除的通知保留行与来源对象，仅记录 `unavailable_at`：detail 探测返回门户固定删除/失效消息时采集器写入该时间戳，
+学生端查询、校历关联与检索分块输入过滤 `unavailable_at IS NULL`；复核重新取回该通知时登记行为清除 `unavailable_at`。
+Ops 管理台不做该过滤。
 
 状态只由现有字段推导：`category IS NULL` 为待分类；已有分类且 `is_published=false` 为待发布；
 `is_published=true` 为已发布。已发布行必须具有分类，不增加独立工作流、审计历史或派生库存表。已发布通知

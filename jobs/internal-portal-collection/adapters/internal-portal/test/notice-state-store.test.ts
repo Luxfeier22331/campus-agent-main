@@ -7,7 +7,7 @@ import {
 } from "../src/notice-state-store.js";
 
 describe("internal portal notice state store", () => {
-	it("writes and reads the v3 half-open maintenance range", async () => {
+	it("writes and reads the v4 half-open maintenance range", async () => {
 		let existing: Uint8Array | null = null;
 		const pruneObjectVersions = vi.fn(async () => undefined);
 		const putObject = vi.fn(async (input: { body: Uint8Array }) => {
@@ -32,7 +32,7 @@ describe("internal portal notice state store", () => {
 		expect(JSON.parse(Buffer.from(existing ?? []).toString("utf8"))).toEqual({
 			covered_from: "2025-12-01",
 			covered_until: "2026-08-27",
-			schema_version: "internal_portal_notice_sync_state.v3",
+			schema_version: "internal_portal_notice_sync_state.v4",
 			updated_at: "2026-08-26T02:30:07.000Z",
 		});
 		expect(pruneObjectVersions).toHaveBeenCalledWith({

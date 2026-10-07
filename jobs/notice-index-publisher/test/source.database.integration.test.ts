@@ -35,6 +35,7 @@ describe("published notice database source", () => {
 				released_at timestamptz NOT NULL,
 				is_external boolean NOT NULL DEFAULT false,
 				is_published boolean NOT NULL,
+				unavailable_at timestamptz,
                 source_ref text, published_source_ref text
 			);
             CREATE TABLE notices.notice_assets(
@@ -63,7 +64,7 @@ describe("published notice database source", () => {
 
  beforeEach(async () => {
   await pool.query("TRUNCATE ocr.pages, ocr.tasks, notices.notice_assets");
-  await pool.query("UPDATE notices.notices SET source_ref=NULL, published_source_ref=NULL");
+  await pool.query("UPDATE notices.notices SET source_ref=NULL, published_source_ref=NULL, unavailable_at=NULL");
  });
 
  async function asset(notice: string, ordinal: number, digest: string, kind = "image") {
@@ -94,6 +95,11 @@ describe("published notice database source", () => {
 				title: "纯图片",
 			},
 		]);
+	});
+	it("excludes notices confirmed unavailable on the portal", async () => {
+		await pool.query("UPDATE notices.notices SET unavailable_at = now() WHERE notice_id = 1");
+		const sources = await loadPublishedNoticeSources(pool);
+		expect(sources.map((source) => source.noticeId)).toEqual(["2"]);
 	});
 	it("uses available image text in image/page order while failed, pending and missing OCR never exclude notices", async () => {
 		const add = async (

@@ -10,7 +10,7 @@ import {
 	PortalSessionExpiredError,
 } from "./auth-errors.js";
 import type { InternalPortalNoticeMetaStore } from "./notice-meta-store.js";
-import { NoticeIngestionDataError, type NoticeIngestionOperation } from "./notice-ingestion-errors.js";
+import { NoticeIngestionDataError, type NoticeIngestionOperation, PortalNoticeUnavailableError } from "./notice-ingestion-errors.js";
 import type { NoticeInventoryStore } from "./notice-inventory-store.js";
 import type { NoticeCandidateRecord } from "./notice-inventory-store.js";
 import {
@@ -127,6 +127,37 @@ interface NoticeScan {
 	pagesFetched: number;
 }
 
+const MAX_UNAVAILABLE_NOTICE_IDS = 500;
+
+// Returns the pruned set, or undefined when empty so states without any
+// unavailable notice keep the key absent.
+function prunedUnavailableNoticeIds(ids: ReadonlySet<number>): number[] | undefined {
+	// Insertion order keeps the oldest confirmations first; evict them past the cap.
+	const pruned = [...new Set(ids)].slice(-MAX_UNAVAILABLE_NOTICE_IDS);
+	return pruned.length > 0 ? pruned : undefined;
+}
+
+async function saveUnavailableNoticeIds(
+	input: NoticeRunnerInput,
+	current: InternalPortalNoticeSyncState,
+	unavailableIds: ReadonlySet<number>,
+): Promise<InternalPortalNoticeSyncState> {
+	const previous = current.unavailableNoticeIds ?? [];
+	const next = prunedUnavailableNoticeIds(unavailableIds) ?? [];
+	if (previous.length === next.length && previous.every((id, index) => id === next[index])) {
+		return current;
+	}
+	const { unavailableNoticeIds: _previous, ...currentWithoutUnavailable } = current;
+	return saveState(
+		input,
+		{
+			...currentWithoutUnavailable,
+			...(next.length > 0 ? { unavailableNoticeIds: next } : {}),
+		},
+		now(input),
+	);
+}
+
 export async function syncInternalPortalNotices(
 	input: NoticeRunnerInput,
 ): Promise<NoticeRunnerResult> {
@@ -175,7 +206,8 @@ export async function syncInternalPortalNotices(
 	}
 	const completeMappings = withObservedOrganizations(mappings, candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
-	const counts = await writeCandidates(input, candidates, processedRange);
+	const unavailableIds = new Set(current.unavailableNoticeIds ?? []);
+	const counts = await writeCandidates(input, candidates, processedRange, unavailableIds);
 	counts.failures = [...scan.failures, ...counts.failures];
 	if (reviewed && counts.failures.length === 0) {
 		current.recentReviewedAt = now(input);
@@ -189,9 +221,10 @@ export async function syncInternalPortalNotices(
 		total: candidates.length,
 	});
 	if (counts.failures.length > 0) {
+		const failedState = await saveUnavailableNoticeIds(input, current, unavailableIds);
 		return result(
 			"sync",
-			current,
+			failedState,
 			processedRange,
 			null,
 			scan.pagesFetched + latest.pagesFetched,
@@ -199,7 +232,17 @@ export async function syncInternalPortalNotices(
 		);
 	}
 	await saveMappings(input, completeMappings, updatedAt);
-	const state = await saveState(input, { ...current, coveredUntil: processedRange.to }, updatedAt);
+	const { unavailableNoticeIds: _previousUnavailable, ...currentWithoutUnavailable } = current;
+	const unavailableNoticeIds = prunedUnavailableNoticeIds(unavailableIds);
+	const state = await saveState(
+		input,
+		{
+			...currentWithoutUnavailable,
+			coveredUntil: processedRange.to,
+			...(unavailableNoticeIds ? { unavailableNoticeIds } : {}),
+		},
+		updatedAt,
+	);
 	return result(
 		"sync",
 		state,
@@ -254,11 +297,13 @@ export async function rescanInternalPortalNotices(
 	const scan = await scanNotices(input, range, new Set(Object.keys(mappings.noticeTypes).map(Number)));
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
-	const counts = await writeCandidates(input, scan.candidates, range);
+	const unavailableIds = new Set(current.unavailableNoticeIds ?? []);
+	const counts = await writeCandidates(input, scan.candidates, range, unavailableIds);
 	counts.failures = [...scan.failures, ...counts.failures];
 	emitProgress(input, { phase: "finalizing", processed: counts.noticesProcessed, processedRange: range, total: scan.candidates.length });
+	const rescanState = await saveUnavailableNoticeIds(input, current, unavailableIds);
 	if (counts.failures.length === 0) await saveMappings(input, completeMappings, now(input));
-	return result("rescan", current, range, counts.failures.length ? null : maintenanceRangeFromState(current), scan.pagesFetched, counts);
+	return result("rescan", rescanState, range, counts.failures.length ? null : maintenanceRangeFromState(rescanState), scan.pagesFetched, counts);
 }
 
 export async function backfillInternalPortalNotices(
@@ -292,7 +337,8 @@ export async function backfillInternalPortalNotices(
 	const scan = await scanNotices(input, processedRange, allowedTypes);
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
-	const counts = await writeCandidates(input, scan.candidates, processedRange);
+	const unavailableIds = new Set(current?.unavailableNoticeIds ?? []);
+	const counts = await writeCandidates(input, scan.candidates, processedRange, unavailableIds);
 	counts.failures = [...scan.failures, ...counts.failures];
 	const updatedAt = now(input);
 	emitProgress(input, {
@@ -302,9 +348,12 @@ export async function backfillInternalPortalNotices(
 		total: scan.candidates.length,
 	});
 	if (counts.failures.length > 0) {
+		const failedState = current
+			? await saveUnavailableNoticeIds(input, current, unavailableIds)
+			: current;
 		return result(
 			"backfill",
-			current,
+			failedState,
 			processedRange,
 			null,
 			scan.pagesFetched + latest.pagesFetched,
@@ -312,12 +361,14 @@ export async function backfillInternalPortalNotices(
 		);
 	}
 	await saveMappings(input, completeMappings, updatedAt);
+	const backfillUnavailableIds = prunedUnavailableNoticeIds(unavailableIds);
 	const updated = await saveState(
 		input,
 		{
 			coveredFrom: processedRange.from,
 			coveredUntil: completeCurrent?.coveredUntil ?? processedRange.to,
 			updatedAt: current?.updatedAt ?? "",
+			...(backfillUnavailableIds ? { unavailableNoticeIds: backfillUnavailableIds } : {}),
 		},
 		updatedAt,
 	);
@@ -584,6 +635,7 @@ async function writeCandidates(
 	input: NoticeRunnerInput,
 	candidates: NoticeCandidate[],
 	range: NoticeMaintenanceRange,
+	unavailableIds: Set<number>,
 ): Promise<{
 	failures: NoticeRunnerFailure[];
 	noticesAdded: number;
@@ -615,6 +667,19 @@ async function writeCandidates(
 	);
 	for (const candidate of candidates) {
 		try {
+			if (candidate.refresh !== true && unavailableIds.has(candidate.noticeId)) {
+				// Already confirmed deleted on the portal; review passes may still re-probe
+				// with refresh:true so a restored notice recovers.
+				candidatesProcessed += 1;
+				candidatesWritten += 1;
+				emitProgress(input, {
+					phase: "writing",
+					processed: candidatesWritten,
+					processedRange: range,
+					total: candidates.length,
+				});
+				continue;
+			}
 			const sourceRef = sourceRefs.get(candidate.noticeId) ?? null;
 			const existing = await input.sourceStore.get(candidate.noticeId, sourceRef);
 			const needsRefresh = candidate.refresh === true || !existing || noticeListMetadataChanged(existing, candidate);
@@ -658,6 +723,7 @@ async function writeCandidates(
 			if (registration === "written") noticesAdded += 1;
 			else if (registration === "updated") noticesUpdated += 1;
 			else noticesUnchanged += 1;
+			unavailableIds.delete(candidate.noticeId);
 			noticesProcessed += 1;
 			addResourceCounts(resources, resourceResult);
 			candidatesWritten += 1;
@@ -668,6 +734,20 @@ async function writeCandidates(
 				total: candidates.length,
 			});
 		} catch (error) {
+			console.error("DEBUG candidate error", candidate.noticeId, error);
+			if (error instanceof PortalNoticeUnavailableError) {
+				await input.inventoryStore.markUnavailable(error.noticeId);
+				unavailableIds.add(error.noticeId);
+				candidatesProcessed += 1;
+				candidatesWritten += 1;
+				emitProgress(input, {
+					phase: "writing",
+					processed: candidatesWritten,
+					processedRange: range,
+					total: candidates.length,
+				});
+				continue;
+			}
 			const failure = isolateNoticeCandidateFailure(error);
 			if (!failure) {
 				throw error;
@@ -696,7 +776,7 @@ async function buildNoticeSource(
 			noticeId: candidate.noticeId,
 		});
 	} catch (error) {
-		if (isPortalAuthenticationError(error)) {
+		if (isPortalAuthenticationError(error) || error instanceof PortalNoticeUnavailableError) {
 			throw error;
 		}
 		throw new NoticeIngestionDataError({

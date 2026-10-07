@@ -122,6 +122,7 @@ async function attachNotices(
 			sql`, `,
 		)})
 		AND n.is_published
+		AND n.unavailable_at IS NULL
 		ORDER BY n.released_at DESC, n.notice_id DESC
 	`);
 	for (const row of result.rows) {

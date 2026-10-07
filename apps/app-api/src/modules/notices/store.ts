@@ -55,7 +55,7 @@ export function createPgNoticeStore(input: { getDb: RuntimeDbGetter }): NoticeSt
 				FROM notices.notices AS n
 				JOIN notices.notice_types AS t ON t.notice_type = n.notice_type
 				LEFT JOIN notices.organizations AS o ON o.organization_id = n.organization_id
-				WHERE n.notice_id = ${noticeId}::bigint AND n.is_published AND NOT n.is_external
+				WHERE n.notice_id = ${noticeId}::bigint AND n.is_published AND NOT n.is_external AND n.unavailable_at IS NULL
 			`);
 			const row = noticeResult.rows[0];
 			if (!row) {
@@ -98,6 +98,7 @@ export function createPgNoticeStore(input: { getDb: RuntimeDbGetter }): NoticeSt
 					AND a.ordinal = ${ordinal}
 					AND n.is_published
 					AND NOT n.is_external
+					AND n.unavailable_at IS NULL
 			`);
 			const row = result.rows[0];
 			return row
@@ -146,7 +147,7 @@ export function createPgNoticeStore(input: { getDb: RuntimeDbGetter }): NoticeSt
 					WHERE EXISTS (
 						SELECT 1
 						FROM notices.notices AS n
-						WHERE n.organization_id = o.organization_id AND n.is_published
+						WHERE n.organization_id = o.organization_id AND n.is_published AND n.unavailable_at IS NULL
 					)
 					ORDER BY o.name, o.organization_id
 				`),
@@ -165,7 +166,7 @@ export function createPgNoticeStore(input: { getDb: RuntimeDbGetter }): NoticeSt
 }
 
 function noticeWhere(input: NoticeListRequestQuery): SQL {
-	const conditions: SQL[] = [sql`n.is_published`];
+	const conditions: SQL[] = [sql`n.is_published`, sql`n.unavailable_at IS NULL`];
 	if (input.q) {
 		const pattern = containsPattern(input.q);
 		conditions.push(

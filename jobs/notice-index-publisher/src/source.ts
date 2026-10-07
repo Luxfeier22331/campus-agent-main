@@ -24,7 +24,7 @@ export const PUBLISHED_NOTICE_SOURCE_QUERY = `SELECT notice_id::text, title, con
     WHERE asset.notice_id = n.notice_id AND asset.asset_kind = 'image'
   ), '') AS image_text
 FROM notices.notices n
-WHERE is_published AND NOT is_external
+WHERE is_published AND NOT is_external AND unavailable_at IS NULL
 ORDER BY notice_id`;
 
 interface NoticeSourceRow {

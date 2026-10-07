@@ -53,6 +53,29 @@ describe("pg notice store", () => {
 		});
 	});
 
+	it("excludes unavailable notices from list, detail and image queries", async () => {
+		const queries: string[] = [];
+		const dialect = new PgDialect();
+		const execute = vi.fn(async (statement: SQL) => {
+			const query = dialect.sqlToQuery(statement).sql;
+			queries.push(query);
+			return query.includes("count(*)") ? { rows: [{ count: "0" }] } : { rows: [] };
+		});
+		const store = createPgNoticeStore({
+			getDb: async () => ({ execute }) as never,
+		});
+
+		await store.list({ page: 1, stream: "notices" });
+		await store.getDetail("358159");
+		await store.getImageAsset("358159", 0);
+
+		const noticeTableQueries = queries.filter((query) => query.includes("notices.notices"));
+		expect(noticeTableQueries.length).toBeGreaterThan(0);
+		for (const query of noticeTableQueries) {
+			expect(query).toContain("n.unavailable_at IS NULL");
+		}
+	});
+
 	it("filters the selected stream and category in count and item queries", async () => {
 		const queries: Array<{ params: unknown[]; sql: string }> = [];
 		const dialect = new PgDialect();
@@ -137,7 +160,7 @@ describe("pg notice store", () => {
 		]);
 		const organizationQuery = queries.find((query) => query.includes("FROM notices.organizations"));
 		expect(organizationQuery).toMatch(
-			/WHERE EXISTS \(\s*SELECT 1\s*FROM notices\.notices AS n\s*WHERE n\.organization_id = o\.organization_id AND n\.is_published\s*\)/u,
+			/WHERE EXISTS \(\s*SELECT 1\s*FROM notices\.notices AS n\s*WHERE n\.organization_id = o\.organization_id AND n\.is_published AND n\.unavailable_at IS NULL\s*\)/u,
 		);
 	});
 });
