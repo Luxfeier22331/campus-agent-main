@@ -24,6 +24,7 @@ type hindsightBankConfig struct {
 	EnableAutoConsolidation bool                         `json:"enable_auto_consolidation"`
 	EnableObservations      bool                         `json:"enable_observations"`
 	MemoryDefense           hindsightMemoryDefenseConfig `json:"memory_defense"`
+	RetainMission           string                       `json:"retain_mission,omitempty"`
 }
 
 type hindsightMemoryDefenseConfig struct {

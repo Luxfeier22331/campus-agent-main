@@ -235,6 +235,8 @@ func defaultHindsightBankConfig() hindsightBankConfig {
 				Action: "redact",
 			}},
 		},
+		RetainMission: "只提取用户明确陈述的稳定偏好、长期目标、重要事实与背景。" +
+			"单次咨询、提问、测试标记、临时意图不提取为稳定偏好或长期意向。",
 	}
 }
 

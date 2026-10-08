@@ -2,6 +2,7 @@ package hindsightadapter
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
@@ -51,6 +52,30 @@ func TestHindsightAppendUsesExistingBankWithoutReconfiguringIt(t *testing.T) {
 	}
 	if client.bankExistsCalls != 1 || client.ensureBankCalls != 0 {
 		t.Fatalf("bank exists calls=%d ensure calls=%d, want 1/0", client.bankExistsCalls, client.ensureBankCalls)
+	}
+}
+
+func TestDefaultHindsightBankConfigIncludesRetainMission(t *testing.T) {
+	cfg := defaultHindsightBankConfig()
+	if cfg.RetainMission == "" {
+		t.Fatal("RetainMission is empty, want conservative extraction constraint")
+	}
+	if !strings.Contains(cfg.RetainMission, "单次咨询") || !strings.Contains(cfg.RetainMission, "不提取") {
+		t.Fatalf("RetainMission = %q, want constraint against single-turn consultation extraction", cfg.RetainMission)
+	}
+}
+
+func TestHindsightEnsureBankConfigCarriesRetainMission(t *testing.T) {
+	client := &fakeHindsightClient{}
+	executor := hindsightExecutor{client: client, ownerSalt: "test-salt"}
+	if err := executor.ensureBankForWrite(context.Background(), "bank-test-retain-mission"); err != nil {
+		t.Fatalf("ensure bank for write: %v", err)
+	}
+	if client.ensureBankCalls != 1 {
+		t.Fatalf("ensure bank calls=%d, want 1", client.ensureBankCalls)
+	}
+	if client.ensuredBankConfig.RetainMission == "" {
+		t.Fatal("ensured bank config RetainMission is empty")
 	}
 }
 
