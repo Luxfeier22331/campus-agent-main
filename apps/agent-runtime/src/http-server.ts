@@ -26,6 +26,7 @@ import { type AgentRuntimeErrorPayload, agentRuntimeErrorPayload } from "./runti
 import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
 
 export interface AgentRuntimeHandlerOptions {
+	isDraining?: () => boolean;
 	onRunError?: (
 		error: unknown,
 		context: {
@@ -48,17 +49,20 @@ export interface AgentRuntimeHandlerOptions {
 	modelConfig: ModelConfigClientOptions;
 }
 
-export type AgentRuntimeHandler = (request: Request) => Promise<Response>;
+export type AgentRuntimeHandler = (request: Request, onAccepted?: () => void) => Promise<Response>;
 
 export function createAgentRuntimeHandler(
 	options: AgentRuntimeHandlerOptions,
 ): AgentRuntimeHandler {
-	return async (request) => {
+	return async (request, onAccepted) => {
 		const url = new URL(request.url);
 		if (request.method === "GET" && url.pathname === "/healthz") {
 			return jsonResponse(200, { status: "ok" });
 		}
 		if (request.method === "GET" && url.pathname === "/readyz") {
+			if (options.isDraining?.()) {
+				return drainingResponse();
+			}
 			return options.sharedSecret
 				? jsonResponse(200, { runtime_release: options.runtimeRelease, status: "ready" })
 				: jsonResponse(503, {
@@ -71,6 +75,9 @@ export function createAgentRuntimeHandler(
 		if (request.method === "GET" && url.pathname === "/internal/readyz") {
 			if (!authorized(request, options.sharedSecret)) {
 				return unauthorizedResponse();
+			}
+			if (options.isDraining?.()) {
+				return drainingResponse();
 			}
 			return jsonResponse(200, { runtime_release: options.runtimeRelease, status: "ready" });
 		}
@@ -101,6 +108,10 @@ export function createAgentRuntimeHandler(
 					},
 				});
 			}
+			if (options.isDraining?.()) {
+				return drainingResponse();
+			}
+			onAccepted?.();
 			const signals = createRuntimeCancellation(
 				request.signal,
 				operationDeadlineMs(parsed.deadline_at, parsed.operation),
@@ -236,4 +247,10 @@ function withAgentTraceAttributes<T>(parsed: AgentRunRequest, callback: () => T)
 		},
 		callback,
 	);
+}
+
+function drainingResponse(): Response {
+	return jsonResponse(503, {
+		error: { code: "service_draining", message: "Agent runtime is draining." },
+	});
 }

@@ -129,3 +129,15 @@ pnpm test --filter=agent-runtime
 - `docs/architecture/system/tool-routing.md`
 - `docs/architecture/system/durable-runtime.md`
 - `docs/reference/telemetry.md`
+
+## 容量指标与停机
+
+独立 metrics listener 提供 `GET /metrics`，默认端口 9091；Kubernetes 通过 `METRICS_PORT=9090`
+与命名端口 `metrics` 对齐。`agent_runtime_active_requests` 是无业务标签的 gauge，统计通过认证和
+输入校验后接受的执行请求，直到普通响应或完整流完成、失败或断连。空闲时明确输出零，不统计探针。
+此值表示 HTTP 承载量，不证明 Provider 容量或业务成功。
+
+SIGTERM/SIGINT 后进入 draining，readiness 返回 503，新执行请求（包含已有连接上的请求）被拒绝；
+已接受请求沿用原 deadline 和取消语义完成。HTTP 排空最多 350 秒，包含共享资源清理的进程退出最多
+365 秒。Pod 终止前等待 10 秒供端点摘除传播，总宽限为 390 秒。正常响应完成后关闭排空中的连接，
+避免 keep-alive 阻塞退出。扩缩容参数与指标采集由环境仓拥有，源码不调用 Kubernetes API。

@@ -37,7 +37,13 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	server := &http.Server{Addr: fmt.Sprintf("%s:%d", cfg.Host, cfg.Port), Handler: owner.Handler(runtime), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second}
-	errors := make(chan error, 1)
+	metricsServer := &http.Server{Addr: fmt.Sprintf("%s:9090", cfg.Host), Handler: runtime.MetricsHandler(), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second}
+	errors := make(chan error, 2)
+	go func() {
+		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errors <- err
+		}
+	}()
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errors <- err
@@ -55,13 +61,14 @@ func run(logger *slog.Logger) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
+		_ = metricsServer.Shutdown(shutdownCtx)
 		owner.Close()
 		close(done)
 	}()
 	select {
 	case <-done:
 		return err
-	case <-time.After(65 * time.Second):
-		return fmt.Errorf("worker shutdown exceeded 65s")
+	case <-time.After(365 * time.Second):
+		return fmt.Errorf("worker shutdown exceeded 365s")
 	}
 }

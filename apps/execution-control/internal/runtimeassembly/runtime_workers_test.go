@@ -51,8 +51,8 @@ func TestWorkerOptionsForRolePreservesProfile(t *testing.T) {
 	if options.OnFatalError == nil {
 		t.Fatal("worker fatal error callback is not configured")
 	}
-	if options.WorkerStopTimeout != 50*time.Second {
-		t.Fatalf("worker stop timeout = %s, want 50s", options.WorkerStopTimeout)
+	if options.WorkerStopTimeout != 350*time.Second {
+		t.Fatalf("worker stop timeout = %s, want 350s", options.WorkerStopTimeout)
 	}
 }
 

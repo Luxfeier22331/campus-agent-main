@@ -57,6 +57,57 @@ const evidence: WorkflowEvidence = {
 afterEach(() => vi.useRealTimers());
 
 describe("agent runtime HTTP handler", () => {
+	it("rejects new work while draining without invoking runtime or accepting capacity", async () => {
+		const runtime = runtimeFor();
+		const run = vi.spyOn(runtime, "run");
+		const accepted = vi.fn();
+		const handler = createAgentRuntimeHandler({
+			runtime,
+			sharedSecret: "secret",
+			isDraining: () => true,
+		});
+		const response = await handler(
+			new Request("http://runtime/internal/agent-requests", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify(validBody("solve")),
+			}),
+			accepted,
+		);
+		expect(response.status).toBe(503);
+		expect(run).not.toHaveBeenCalled();
+		expect(accepted).not.toHaveBeenCalled();
+		expect((await handler(new Request("http://runtime/readyz"))).status).toBe(503);
+		expect((await handler(new Request("http://runtime/healthz"))).status).toBe(200);
+	});
+	it("counts only requests passing authorization and validation", async () => {
+		const accepted = vi.fn();
+		const handler = createAgentRuntimeHandler({ runtime: runtimeFor(), sharedSecret: "secret" });
+		await handler(new Request("http://runtime/healthz"), accepted);
+		await handler(
+			new Request("http://runtime/internal/agent-requests", { method: "POST", body: "{}" }),
+			accepted,
+		);
+		await handler(
+			new Request("http://runtime/internal/agent-requests", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: "{}",
+			}),
+			accepted,
+		);
+		expect(accepted).not.toHaveBeenCalled();
+		await handler(
+			new Request("http://runtime/internal/agent-requests", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify(validBody("solve")),
+			}),
+			accepted,
+		);
+		expect(accepted).toHaveBeenCalledOnce();
+	});
+
 	it("passes buffered model transport through the internal SSE endpoint", async () => {
 		const runtime: WorkflowOperationRuntime = {
 			...runtimeFor(),

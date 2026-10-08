@@ -32,14 +32,19 @@ spec:
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 390
       containers:
         - name: agent-runtime
           image: ghcr.io/muc-wiki/campus-agent/agent-runtime:replace-me
           imagePullPolicy: IfNotPresent
           ports:
+            - name: metrics
+              containerPort: 9090
             - name: http
               containerPort: 27062
           env:
+            - name: METRICS_PORT
+              value: "9090"
             - name: DEPLOYMENT_ENVIRONMENT
               valueFrom:
                 configMapKeyRef:
@@ -62,6 +67,10 @@ spec:
                   key: EXECUTION_AGENT_RUNTIME_SHARED_SECRET
             - name: MODEL_CONFIG_URL
               value: http://model-config:8000
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sleep", "10"]
           readinessProbe:
             httpGet:
               path: /readyz

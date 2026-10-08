@@ -246,7 +246,6 @@ func TestReadyzDoesNotExposeExecutionInputCredential(t *testing.T) {
 		AppAPIExecutionSharedSecret: secret,
 		DeploymentEnvironment:       "local",
 	})
-	t.Cleanup(func() { _ = server.Shutdown(context.Background()) })
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))

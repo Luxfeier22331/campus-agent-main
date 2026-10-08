@@ -12,7 +12,6 @@ import (
 func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:                     "campus-agent",
-		MaxConcurrentAnswers:        8,
 		DeploymentEnvironment:       "staging",
 		AppAPIExecutionSharedSecret: "worker-secret",
 	})
@@ -38,7 +37,6 @@ func TestReadyzAcceptsOpsWebBearerOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:               "campus-agent",
 		DeploymentEnvironment: "staging",
-		MaxConcurrentAnswers:  8,
 		OpsWebInternalToken:   "ops-web-token",
 	})
 	request := newTestRequest(http.MethodGet, "/readyz", nil)
@@ -82,12 +80,16 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 	if body["status"] != "ready" {
 		t.Fatalf("status body = %v, want ready", body["status"])
 	}
-	transportRuntime := expectRecord(t, body["transport_runtime"], "transport_runtime")
-	if transportRuntime["max_concurrent_answers"] != float64(8) {
-		t.Fatalf(
-			"transport_runtime.max_concurrent_answers = %v, want 8",
-			transportRuntime["max_concurrent_answers"],
-		)
+	for _, key := range []string{"run_projection_store", "temporal_runtime", "agent_runtime"} {
+		status := expectRecord(t, body[key], key)
+		if status["configured"] != true || status["healthy"] != true {
+			t.Fatalf("%s = %#v, want configured and healthy", key, status)
+		}
+	}
+	for _, key := range []string{"transport_runtime", "lifecycle_runtime"} {
+		if _, ok := body[key]; ok {
+			t.Fatalf("readyz must not publish unused local controller state %s", key)
+		}
 	}
 	if _, ok := body["runtime_provider"]; ok {
 		t.Fatalf("readyz must not publish stale Python runtime_provider")

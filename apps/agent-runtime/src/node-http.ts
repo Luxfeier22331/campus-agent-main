@@ -6,15 +6,16 @@ import {
 	type ServerResponse,
 } from "node:http";
 import { authorizedBearerValue, jsonResponse } from "./http-response.ts";
-
 import { MAX_OPERATION_PAYLOAD_BYTES } from "./operation-payload.ts";
+import type { RuntimeLifecycle } from "./runtime-lifecycle.ts";
 
 export const AGENT_RUNTIME_MAX_REQUEST_BODY_BYTES = MAX_OPERATION_PAYLOAD_BYTES;
 
 const BODY_ROUTES = new Set(["/internal/agent-requests", "/internal/agent-requests/stream"]);
 
 export interface AgentRuntimeNodeServerOptions {
-	handler(request: Request): Promise<Response>;
+	handler(request: Request, onAccepted?: () => void): Promise<Response>;
+	lifecycle?: RuntimeLifecycle;
 	onError?(error: unknown): void;
 	sharedSecret: string;
 }
@@ -39,7 +40,13 @@ export function nodeClientDisconnectSignal(
 }
 
 export function createAgentRuntimeNodeServer(options: AgentRuntimeNodeServerOptions): Server {
-	return createServer((request, response) => {
+	const server = createServer((request, response) => {
+		response.once("finish", () => {
+			if (options.lifecycle?.draining) {
+				// Node marks the socket idle after the finish callback.
+				setImmediate(() => server.closeIdleConnections());
+			}
+		});
 		void serveAgentRuntimeNodeRequest(request, response, options).catch((error) => {
 			try {
 				options.onError?.(error);
@@ -64,6 +71,7 @@ export function createAgentRuntimeNodeServer(options: AgentRuntimeNodeServerOpti
 			).catch(() => response.destroy());
 		});
 	});
+	return server;
 }
 
 async function serveAgentRuntimeNodeRequest(
@@ -135,7 +143,22 @@ async function serveAgentRuntimeNodeRequest(
 		...(method !== "GET" && method !== "HEAD" && webBody ? { body: webBody } : {}),
 		signal,
 	});
-	const webResponse = await options.handler(webRequest);
+	let complete: (() => void) | undefined;
+	let finished = false;
+	const finish = () => {
+		finished = true;
+		complete?.();
+	};
+	response.once("finish", finish);
+	response.once("close", finish);
+	const webResponse = await options.handler(webRequest, () => {
+		if (!(finished || complete)) {
+			complete = options.lifecycle?.accept();
+		}
+	});
+	if (options.lifecycle?.draining && !response.headersSent) {
+		closeConnectionAfterResponse(response);
+	}
 	await writeNodeResponse(response, webResponse);
 }
 

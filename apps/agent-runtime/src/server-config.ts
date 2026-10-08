@@ -1,6 +1,7 @@
 export interface AgentRuntimeServerConfig {
 	host: string;
 	port: number;
+	metricsPort: number;
 }
 
 export function exactSharedSecret(value: string | undefined): string {
@@ -14,7 +15,7 @@ export function exactSharedSecret(value: string | undefined): string {
 }
 
 export function loadAgentRuntimeServerConfig(
-	env: Partial<Pick<NodeJS.ProcessEnv, "HOST" | "PORT">> = process.env,
+	env: Partial<Pick<NodeJS.ProcessEnv, "HOST" | "PORT" | "METRICS_PORT">> = process.env,
 ): AgentRuntimeServerConfig {
 	const host = env.HOST?.trim() || "0.0.0.0";
 	const rawPort = env.PORT?.trim() || "27062";
@@ -25,5 +26,14 @@ export function loadAgentRuntimeServerConfig(
 	if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
 		throw new Error("PORT must be between 1 and 65535");
 	}
-	return { host, port };
+	const rawMetricsPort = env.METRICS_PORT?.trim() || "9091";
+	const metricsPort = Number(rawMetricsPort);
+	if (
+		!(/^\d+$/u.test(rawMetricsPort) && Number.isSafeInteger(metricsPort)) ||
+		metricsPort < 1 ||
+		metricsPort > 65535
+	) {
+		throw new Error("METRICS_PORT must be between 1 and 65535");
+	}
+	return { host, port, metricsPort };
 }

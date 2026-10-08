@@ -7,16 +7,16 @@ status: active
 
 ## 边界
 
-本文说明 Temporal Server 与 execution-control poller 的稳定运维规则。具体 chart 版本、Helm
+本文说明 Temporal Server 与 execution-worker poller 的稳定运维规则。具体 chart 版本、Helm
 value、namespace、endpoint 和资源尺寸由环境仓库拥有，不在本文复制。
 
 本文不定义应用工作流语义：在线回答见 [持久 Agent 运行时](../../architecture/system/durable-runtime.md)，个人记忆见
 [个人记忆](../../architecture/system/memory-plane.md)。平台运维不得改变这些工作流的业务状态。
 
-execution-control 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
+execution-worker 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
 poller。副本数与滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套
 自动扩缩状态。通知采集到 RAG 刷新的编排由 `notice-pipeline-worker` 在独立的 `notice-pipeline` 与
-`notice-artifacts` 队列执行，不占用 execution-control 的 poller，见[采集与离线数据运维](../ingestion/ingestion.md)。
+`notice-artifacts` 队列执行，不占用 execution-worker 的 poller，见[采集与离线数据运维](../ingestion/ingestion.md)。
 
 本地 Temporal 测试属于 integration 验证，不是完整产品 E2E。它使用 Temporal Dev Server、测试 worker
 和测试 projection，不连接 staging、真实 Agent Runtime 或 PostgreSQL。运行入口由 execution-control
@@ -85,8 +85,30 @@ kubectl get deployment
 kubectl get pod
 ```
 
-检查 execution-control Deployment rollout、Pod readiness、task queue poller、backlog 与旧 Pod
+检查 execution-worker Deployment rollout、Pod readiness、task queue poller、backlog 与旧 Pod
 退出状态。
+
+## 自动扩缩容检查
+
+环境仓拥有 KEDA、Prometheus、ScaledObject 和动态副本策略。使用前确认已发布包含指标端口与排空
+行为的 Source 版本；未发布的配置和本地测试不证明环境已启用。生产者合同见
+[Execution Control](../../../apps/execution-control/README.md) 与
+[Agent Runtime](../../../apps/agent-runtime/README.md)。
+
+发布后检查两个 ScaledObject 的 Ready/Active、关联 HPA 的取值及事件、所有目标 Pod 的抓取状态和
+指标时效。backlog 由 KEDA 直接读取 Temporal，已用 slots 和活跃请求由 Prometheus 聚合；队列没有
+积压但仍有 activity 执行时，不应因 backlog 为零就缩到最小副本。缺失指标应显示错误而不是零。
+
+用可控慢 Provider 验证单副本基线、突发扩容、持续负载保持副本、恢复空闲后缩容，并分别覆盖 Worker、
+Agent Runtime 与二者同时缩容。对比等待时间、吞吐和产品终态；已有输出不得因正常缩容中断或重复
+调用 Provider。断开指标采集后核对 HPA 不错误缩容，Argo CD 同步不得恢复固定 replicas。
+
+上线前核对节点剩余资源、数据库连接和 Provider 额度；排空 Pod 在退出前仍消耗资源，最大副本不能
+当作所有存活 Pod 的硬上限。首次阈值仅是受限环境起点，不代表生产容量或突发请求的延迟保证。
+达到上限仍持续积压、Pod Pending、指标失效或依赖错误时才需要人工调整；Provider 限流不直接触发扩容。
+
+回退在环境 GitOps 暂停扩缩容，恢复固定副本所有权后移除 ScaledObject；继续保留排空能力，不直接
+patch Deployment 或关闭运行中的 workflow。具体环境操作与首版参数见环境仓的执行面自动扩缩容运行文档。
 
 ## 常见故障
 

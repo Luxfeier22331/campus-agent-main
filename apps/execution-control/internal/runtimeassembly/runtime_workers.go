@@ -25,11 +25,12 @@ const (
 	RoleCore     Role = "activity-core"
 	RoleAgent    Role = "activity-agent"
 
-	temporalWorkerStopTimeout = 50 * time.Second
+	temporalWorkerStopTimeout = 350 * time.Second
 )
 
 type Runtime struct {
 	client   client.Client
+	metrics  *workerMetrics
 	errors   chan error
 	ready    atomic.Bool
 	failed   atomic.Bool
@@ -73,13 +74,17 @@ func StartWorkers(
 	if logger == nil {
 		logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	}
-	temporalClient, err := client.DialContext(startupContext, temporalClientOptions(cfg))
+	metrics := newWorkerMetrics()
+	options := temporalClientOptions(cfg)
+	options.MetricsHandler = metrics.handler()
+	temporalClient, err := client.DialContext(startupContext, options)
 	if err != nil {
 		return nil, fmt.Errorf("connect temporal client: %w", err)
 	}
 
 	runtime := &Runtime{
 		client:  temporalClient,
+		metrics: metrics,
 		errors:  make(chan error, 1),
 		workers: make([]worker.Worker, 0, 3),
 	}

@@ -57,13 +57,19 @@ HTTP API 也不拥有 worker 生命周期。
 - Campus Search service 位于 `apps/campus-search/cmd/campus-search-service`，独立提供 Bot 公共搜索接口和
   execution-control 内部搜索接口；检索 provider 与当前 serving index 由该进程拥有。
 
-API 的 `/readyz/process` 检查进程准入和执行数据库，作为 Kubernetes readiness；原 `/readyz`
-保留 Temporal poller 和 Agent Runtime 聚合诊断。Worker 的 `/readyz` 检查本地 poller 生命周期和
-执行、个人记忆数据库；两个角色的 `/healthz` 都不检查外部服务。readiness 继续使用现有内部鉴权。
+API 的 `/readyz/process` 检查 draining 状态、run service 和执行数据库，作为 Kubernetes readiness；
+原 `/readyz` 检查 draining 状态、执行数据库、Temporal poller 和 Agent Runtime，保留为聚合诊断。
+未配置执行数据库时两个 readiness 接口均返回 503；不再输出未接入的本地限流容量或执行 registry 状态。
+Worker 的 `/readyz` 检查本地 poller 生命周期和执行、个人记忆数据库；两个角色的 `/healthz` 都不检查
+外部服务。readiness 继续使用现有内部鉴权。
 
-API 收到 SIGTERM 后先 draining，保留既有 HTTP 请求的有界排空，再停止 reconciler、关闭 store
-与 Temporal starter；总退出上限 110 秒，Pod 宽限 120 秒。Worker 先撤销 readiness，再并行停止
-三类 poller，SDK 停机上限 50 秒，最后关闭共享依赖；总退出上限 65 秒，Pod 宽限 75 秒。
+API 收到 SIGTERM 后先撤销 readiness，由 `requestTracker` 拒绝新 HTTP 请求并保留既有请求的有界
+排空，再由 API owner 停止 reconciler、关闭 store 与 Temporal starter；总退出上限 110 秒，Pod 宽限
+120 秒。Worker 先撤销 readiness，再并行停止三类 poller，SDK 停机上限 350 秒，最后关闭共享依赖；
+总退出上限 365 秒，Pod 宽限 390 秒，覆盖最长 330 秒的 core activity。
+Worker 在独立的 `9090 /metrics` 输出 Temporal SDK 的 `temporal_worker_task_slots_used` 与
+`temporal_worker_task_slots_available`，标签仅保留 `task_queue`、`worker_type`，供环境自动扩缩容消费。
+指标不改变 readiness，也不把单 Pod slots 当作集群容量。
 持久 start/cancel intent 和 invocation receipt 继续由新实例按既有合同收敛，不新增模型重试。
 
 当前共享数据库 schema 由 `jobs/campus-agent-schema/` 安装，统一记录在

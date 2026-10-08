@@ -37,7 +37,7 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `internal-portal-collection` 及通知分类、发布包保留镜像和共用实现，供流水线 Activity 与手动恢复使用；旧通知 CronJob 模板仅作为迁移期手动入口，不再承担自动调度。统一 RAG publisher 保留为共享 package 和手动 CLI，不再部署独立 CronJob。
 
 Temporal Server 是 execution-control、notice-pipeline-worker 与 notice-artifacts-worker 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
-WorkerDeployment、WorkerResourceTemplate 或 KEDA 资源。
+WorkerDeployment 或 WorkerResourceTemplate；KEDA 控制器与 ScaledObject 由环境仓管理。
 
 Agent Runtime 的可选 OTLP endpoint 由环境仓选择。源码仓不把 OpenTelemetry Agent/Gateway、节点
 日志采集或 kubelet metrics 作为应用运行时的固定组件。
@@ -48,9 +48,15 @@ Agent Runtime 的可选 OTLP endpoint 由环境仓选择。源码仓不把 OpenT
 replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通过第二套长期 worker 路由兼容旧合同。
 应用不自行部署、重启或修改 Kubernetes 资源。
 
-当前小规模环境使用明确副本数和 SDK 并发上限，不为这些 poller 维护 KEDA/HPA。容量调整由环境仓
-修改所属 Deployment 的副本与资源；Temporal task queue backlog 只作为运行观测，不进入应用
-数据库或自研扩缩器。
+环境仓可用 KEDA 独立管理 `execution-worker` 与 `agent-runtime` 的副本。Worker 采用 Temporal
+队列 backlog 与 SDK 已用 slots；Agent Runtime 采用活跃执行请求数，计数覆盖完整流式响应。
+Prometheus 只采集直接被策略消费的指标；指标缺失不能解释为空闲。副本上限、稳定窗口、资源额度和
+Provider 约束由环境策略负责，API 保持独立的副本管理。应用不维护容量数据库或自研扩缩器。
+
+同一个 Deployment 只由一个 ScaledObject/HPA 管理动态副本，启用时环境渲染去除固定 replicas，
+Argo CD 精确忽略该字段并启用 RespectIgnoreDifferences。最小副本保持为 1，避免停止全部执行能力。
+排空等待覆盖现有 activity/request 预算，不能用队列为空或缩容稳定窗口替代排空。实施理由见
+[执行面自动扩缩容](../../../.agents/notes/implemented/architecture/2026-10-09-runtime-autoscaling.md)。
 
 ## Job 运行合同
 
@@ -111,8 +117,7 @@ Kubernetes 候选物、环境选择和实际发布的所有权见
 ## 不允许的形态
 
 - 为 workflow、core activity 和 agent activity 各维护一个长期独立 Deployment；
-- 引入 Worker Controller、WorkerDeployment、WorkerResourceTemplate 或 KEDA 作为应用发布或扩缩容
-  机制；
+- 引入 Worker Controller、WorkerDeployment 或 WorkerResourceTemplate 接管应用发布；
 - 使用自研 task queue 采样器或副本执行器；
 - workflow 调用 Kubernetes 或 Argo CD；
 - 应用自行维护 worker build routing。

@@ -1,25 +1,21 @@
 package httpapi
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
+	"sync/atomic"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreadmodel"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 )
 
 type Server struct {
 	config                   config.Config
-	admission                *admission.Controller
-	lifecycle                *lifecycle.Registry
+	draining                 atomic.Bool
 	logger                   *slog.Logger
 	runProjectionStore       executionapplication.RunStore
 	runReader                executionreadmodel.Reader
@@ -37,7 +33,6 @@ type Server struct {
 // package wires routes and authentication around these ports; it does not
 // construct persistence, provider, or Temporal clients.
 type ServerOptions struct {
-	AdmissionController      *admission.Controller
 	AgentToolService         executionapplication.AgentToolPort
 	Logger                   *slog.Logger
 	PersonalMemoryStateStore executionapplication.MemoryStore
@@ -65,17 +60,11 @@ func NewServer(cfg config.Config) *Server {
 
 func NewServerWithOptions(cfg config.Config, options ServerOptions) *Server {
 	cfg = normalizeServerConfig(cfg)
-	if options.AdmissionController == nil {
-		options.AdmissionController = newAdmissionController(cfg)
-	}
 	if options.Logger == nil {
 		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	registry := lifecycle.NewRegistry()
 	server := &Server{
 		config:                   cfg,
-		admission:                options.AdmissionController,
-		lifecycle:                registry,
 		logger:                   options.Logger,
 		runProjectionStore:       options.RunProjectionStore,
 		runReader:                options.RunReader,
@@ -101,31 +90,14 @@ func normalizeServerConfig(cfg config.Config) config.Config {
 	if cfg.RequestBodyLimitBytes <= 0 {
 		cfg.RequestBodyLimitBytes = 1_048_576
 	}
-	if cfg.QueueTimeoutMS <= 0 {
-		cfg.QueueTimeoutMS = 3_000
-	}
 	if cfg.RequestTimeoutMS <= 0 {
 		cfg.RequestTimeoutMS = 45_000
 	}
 	return cfg
 }
 
-func newAdmissionController(cfg config.Config) *admission.Controller {
-	return admission.NewController(admission.Config{
-		MaxConcurrent: cfg.MaxConcurrentAnswers,
-		QueueCapacity: cfg.QueueCapacity,
-		QueueTimeout:  time.Duration(cfg.QueueTimeoutMS) * time.Millisecond,
-	})
-}
-
 func (s *Server) StartDraining() {
-	s.admission.StartDraining()
-}
-
-// Shutdown is intentionally a no-op. The composition root owns the stores,
-// clients and their close order; HTTP only owns request admission and routes.
-func (s *Server) Shutdown(context.Context) error {
-	return nil
+	s.draining.Store(true)
 }
 
 func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) {

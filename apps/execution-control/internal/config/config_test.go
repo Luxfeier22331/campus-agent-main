@@ -23,9 +23,6 @@ func TestRuntimeUsesFixedRuntimePolicy(t *testing.T) {
 	if cfg.TemporalWorkflowExecutionTimeoutSeconds != 900 {
 		t.Fatalf("workflow timeout = %d", cfg.TemporalWorkflowExecutionTimeoutSeconds)
 	}
-	if cfg.MaxConcurrentAnswers != 8 || cfg.QueueCapacity != 24 || cfg.QueueTimeoutMS != 3_000 {
-		t.Fatalf("unexpected admission limits: %#v", cfg)
-	}
 	if cfg.RequestTimeoutMS != 95_000 || cfg.ShutdownGraceMS != 95_000 {
 		t.Fatalf("unexpected request limits: %#v", cfg)
 	}

@@ -131,8 +131,9 @@ Campus Docs 与 Notices 的 Chunk/Embedding Job 由人工分别触发。两个 E
 运行版本与环境选择一致；status-web 另检查 `/api/status` 能返回合同快照。源码仓不保存 staging
 hostname。
 
-Kubernetes 使用 API `/readyz/process`，原 `/readyz` 保留聚合诊断。聚合 readiness 降级时，根据顶层核心状态定位回答准入、Temporal、Agent Runtime、
-PostgreSQL 或 execution runtime Application。`/readyz` 不探测 Model Config、Hindsight、Qdrant、
+Kubernetes 使用 API `/readyz/process`，原 `/readyz` 保留聚合诊断。聚合 readiness 降级时，检查 API
+是否正在 draining，并根据核心状态定位 Temporal、Agent Runtime 或执行 PostgreSQL；未配置执行
+数据库也会返回不就绪。`/readyz` 不探测 Model Config、Hindsight、Qdrant、
 OTel 或工具读取投影；这些局部能力由所属管理接口、业务路径、metrics 和 trace 提供故障证据。通过
 环境仓修复期望状态，不以本地 Docker、临时环境渲染器或宿主机修改代替 GitOps。
 

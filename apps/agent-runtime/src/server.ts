@@ -6,6 +6,11 @@ import { createAgentRuntimeHandler } from "./http-server.ts";
 import { createAgentRuntimeNodeServer } from "./node-http.ts";
 import { createConfiguredRunner, createConfiguredStreamingRunner } from "./provider-config.ts";
 import { agentRuntimeErrorLogFields } from "./runtime-errors.ts";
+import {
+	createRuntimeMetricsServer,
+	drainRuntimeServer,
+	RuntimeLifecycle,
+} from "./runtime-lifecycle.ts";
 import { logAgentRuntimeEvent, safeAgentRuntimeErrorCode } from "./safe-logging.ts";
 import { exactSharedSecret, loadAgentRuntimeServerConfig } from "./server-config.ts";
 import { runWithExtractedTraceContext, startAgentRuntimeTelemetry } from "./telemetry.ts";
@@ -13,7 +18,7 @@ import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 import { createWorkflowOperationRuntime } from "./workflow-runtime.ts";
 
-const { host, port } = loadAgentRuntimeServerConfig();
+const { host, port, metricsPort } = loadAgentRuntimeServerConfig();
 const executionAgentRuntimeSharedSecret = exactSharedSecret(
 	process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET,
 );
@@ -50,7 +55,9 @@ const runtime = createWorkflowOperationRuntime({
 		sharedSecret: executionAgentRuntimeSharedSecret,
 	}),
 });
+const lifecycle = new RuntimeLifecycle();
 const handler = createAgentRuntimeHandler({
+	isDraining: () => lifecycle.draining,
 	onRunError: (error, context) =>
 		logAgentRuntimeEvent("error", "agent_runtime.run", "failed", {
 			...agentRuntimeErrorLogFields(error, context.failure),
@@ -74,7 +81,9 @@ const handler = createAgentRuntimeHandler({
 });
 
 const server = createAgentRuntimeNodeServer({
-	handler: (request) => runWithExtractedTraceContext(request.headers, () => handler(request)),
+	handler: (request, onAccepted) =>
+		runWithExtractedTraceContext(request.headers, () => handler(request, onAccepted)),
+	lifecycle,
 	onError: (error) =>
 		logAgentRuntimeEvent("error", "agent_runtime.request", "failed", {
 			error_code: safeAgentRuntimeErrorCode(error),
@@ -87,13 +96,29 @@ server.listen(port, host, () => {
 	logAgentRuntimeEvent("info", "agent_runtime.server_listening", "ready", { source: "http" });
 });
 
+const metricsServer = createRuntimeMetricsServer(lifecycle);
+metricsServer.listen(metricsPort, host);
+
+let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	process.once(signal, () => {
-		server.close(() => {
-			void Promise.all([telemetry.shutdown(), sourceResolver.close()]).finally(() =>
-				process.exit(0),
-			);
-		});
+		if (stopping) {
+			return;
+		}
+		stopping = true;
+		// Bound cleanup as well as HTTP draining below the Pod's termination grace.
+		const exitDeadline = setTimeout(() => process.exit(1), 365_000);
+		void drainRuntimeServer(server, lifecycle)
+			.then(async (drained) => {
+				await Promise.all([
+					telemetry.shutdown(),
+					sourceResolver.close(),
+					new Promise<void>((resolve) => metricsServer.close(() => resolve())),
+				]);
+				clearTimeout(exitDeadline);
+				process.exit(drained ? 0 : 1);
+			})
+			.catch(() => process.exit(1));
 	});
 }
 

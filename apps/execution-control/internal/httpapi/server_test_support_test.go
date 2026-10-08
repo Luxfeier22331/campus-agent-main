@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -116,7 +117,6 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 		AgentRuntimeBaseURL:         agentRuntime.URL,
 		AgentRuntimeSharedSecret:    "agent-runtime-secret",
 		AppAPIExecutionSharedSecret: "test-execution-input-secret",
-		MaxConcurrentAnswers:        8,
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)
@@ -126,7 +126,11 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 
 func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Server {
 	t.Helper()
-	server := NewServer(readyServerConfigForTest(t, mutators...))
+	store := executionpersistence.NewInMemoryRunProjectionStore()
+	server := NewServerWithOptions(readyServerConfigForTest(t, mutators...), ServerOptions{
+		RunProjectionStore: store,
+		RunService:         executionapplication.NewRunService(executionapplication.RunServiceOptions{Store: store}),
+	})
 	markTemporalReadyForTest(server)
 	return server
 }

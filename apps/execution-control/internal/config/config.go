@@ -11,13 +11,10 @@ const (
 	defaultTemporalTaskQueue          = "campus-agent.workflow.v3"
 	defaultAgentRuntimeDeadlineMS     = 240_000
 	defaultAgentRuntimeInputCharLimit = 8_000
-	defaultMaxConcurrentAnswers       = 8
 	defaultMemoryContextCharBudget    = 2_500
 	defaultMemoryRecallLimit          = 8
 	defaultMemoryRecallMaxTokens      = 2_500
 	defaultMemoryTimeoutSeconds       = 90
-	defaultQueueCapacity              = 24
-	defaultQueueTimeoutMS             = 3_000
 	defaultProductCallbackTimeoutMS   = 5_000
 	defaultRequestBodyLimitBytes      = 1_048_576
 	defaultRequestTimeoutMS           = 95_000
@@ -42,9 +39,6 @@ type Config struct {
 	Host                                    string
 	Port                                    int
 	AppAPIExecutionSharedSecret             string
-	MaxConcurrentAnswers                    int
-	QueueCapacity                           int
-	QueueTimeoutMS                          int
 	RequestTimeoutMS                        int
 	RequestBodyLimitBytes                   int64
 	ShutdownGraceMS                         int
@@ -150,9 +144,6 @@ func loadFromEnv(workerRole bool) (Config, error) {
 		Host:                                    host,
 		Port:                                    port,
 		AppAPIExecutionSharedSecret:             strings.TrimSpace(values.AppAPIExecutionSharedSecret),
-		MaxConcurrentAnswers:                    defaultMaxConcurrentAnswers,
-		QueueCapacity:                           defaultQueueCapacity,
-		QueueTimeoutMS:                          defaultQueueTimeoutMS,
 		RequestTimeoutMS:                        defaultRequestTimeoutMS,
 		RequestBodyLimitBytes:                   defaultRequestBodyLimitBytes,
 		ShutdownGraceMS:                         defaultShutdownGraceMS,

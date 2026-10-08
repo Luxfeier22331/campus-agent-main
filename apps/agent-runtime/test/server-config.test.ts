@@ -22,13 +22,18 @@ describe("agent runtime server config", () => {
 
 describe("agent runtime server binding", () => {
 	it("uses the production-compatible defaults", () => {
-		expect(loadAgentRuntimeServerConfig({})).toEqual({ host: "0.0.0.0", port: 27062 });
+		expect(loadAgentRuntimeServerConfig({})).toEqual({
+			host: "0.0.0.0",
+			port: 27062,
+			metricsPort: 9091,
+		});
 	});
 
 	it("uses the configured host and port", () => {
 		expect(loadAgentRuntimeServerConfig({ HOST: "127.0.0.1", PORT: "27162" })).toEqual({
 			host: "127.0.0.1",
 			port: 27162,
+			metricsPort: 9091,
 		});
 	});
 

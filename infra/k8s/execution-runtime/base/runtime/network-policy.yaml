@@ -367,3 +367,26 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-runtime-metrics-ingress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [execution-worker, agent-runtime]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+              app.kubernetes.io/instance: runtime-metrics
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: 9090

@@ -18,11 +18,10 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid readiness auth.", false)
 		return
 	}
-	transportStatus := s.admission.Status()
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	agentRuntimeStatus := s.agentRuntimeStatus(request.Context())
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
-	ready := transportStatus.Healthy && readiness.Aggregate(request.Context(),
+	ready := !s.draining.Load() && readiness.Aggregate(request.Context(),
 		func(context.Context) map[string]any { return agentRuntimeStatus },
 		func(context.Context) map[string]any { return runProjectionStoreStatus },
 		func(context.Context) map[string]any { return temporalRuntimeStatus },
@@ -37,8 +36,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	responseBody := map[string]any{
 		"status":               statusText,
 		"runtime_release":      strings.TrimSpace(s.config.DeploymentRelease),
-		"transport_runtime":    transportStatus,
-		"lifecycle_runtime":    s.lifecycle.Snapshot(),
 		"run_projection_store": runProjectionStoreStatus,
 		"temporal_runtime":     temporalRuntimeStatus,
 		"agent_runtime":        agentRuntimeStatus,
@@ -160,7 +157,7 @@ func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
 	configured := s.runProjectionStore != nil
 	status := map[string]any{
 		"configured": configured,
-		"healthy":    true,
+		"healthy":    configured,
 		"last_error": "",
 	}
 	if s.runProjectionStoreErr != nil {
@@ -192,7 +189,7 @@ func (s *Server) handleProcessReadyz(response http.ResponseWriter, request *http
 		return
 	}
 	store := s.runProjectionStoreStatus(request.Context())
-	ready := s.runService != nil && s.runProjectionStore != nil && store["healthy"] == true && s.admission.Status().Healthy
+	ready := !s.draining.Load() && s.runService != nil && s.runProjectionStore != nil && store["healthy"] == true
 	status, code := "ready", http.StatusOK
 	if !ready {
 		status, code = "degraded", http.StatusServiceUnavailable

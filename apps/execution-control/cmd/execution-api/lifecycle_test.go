@@ -53,6 +53,40 @@ func TestRequestTrackerCancelsInFlightRequestsAndRejectsNewRequests(t *testing.T
 	}
 }
 
+func TestRequestTrackerDrainingPreservesInFlightDeadline(t *testing.T) {
+	entered := make(chan struct{})
+	finish := make(chan struct{})
+	observed := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	deadline, _ := ctx.Deadline()
+	tracker := newRequestTracker(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		close(entered)
+		<-finish
+		if got, ok := request.Context().Deadline(); !ok || !got.Equal(deadline) {
+			observed <- errors.New("request deadline changed during draining")
+			return
+		}
+		observed <- request.Context().Err()
+	}))
+	t.Cleanup(tracker.Cancel)
+	t.Cleanup(func() { close(finish) })
+	go tracker.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodGet, "/internal/execution/requests", nil))
+	select {
+	case <-entered:
+	case <-ctx.Done():
+		t.Fatal("in-flight request did not enter handler")
+	}
+	tracker.BeginDraining()
+	finish <- struct{}{}
+	if err := tracker.Wait(ctx); err != nil {
+		t.Fatalf("wait for request: %v", err)
+	}
+	if err := <-observed; err != nil {
+		t.Fatalf("draining changed in-flight context: %v", err)
+	}
+}
+
 type lifecycleEventLog struct {
 	mu     sync.Mutex
 	events []string

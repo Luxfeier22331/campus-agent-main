@@ -309,8 +309,10 @@ app-api 只把持久事件投影为固定产品事件：排队、开始执行、
 worker 和 task queue 不进入 Campus Web。回答过程读取同一事件时间线，固定派生 `queued`、
 `preparing`、`generating`、`finalizing` 四个协议步骤及其时间，不透传原始步骤轨迹。
 
-execution-control 根据运行就绪状态、策略和下游预算接纳新 run。进程内 limit 只是单进程保护，
-Temporal task queue 与 worker 扩缩容共同定义部署容量。缺少 Temporal、
+execution-control 通过执行输入和 admission snapshot 校验准备新 run，将 run 与 start intent 持久化后
+交由 reconciler 启动 Temporal workflow。HTTP server 不维护本地执行限流队列或执行 registry；
+admission snapshot 描述本轮能力和预算，不承担并发控制。实际执行容量由 Temporal task queue 和
+worker 配置约束，HTTP 请求排空与持久执行生命周期分别由 API 进程和执行层负责。缺少 Temporal、
 投影、供应商、内部查询、目标注册表或可信依据时拒绝接收或终结运行。
 
 ## Workflow completion budget

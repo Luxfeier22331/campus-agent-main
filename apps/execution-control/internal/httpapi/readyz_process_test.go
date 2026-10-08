@@ -43,3 +43,52 @@ func TestProcessReadinessIsIndependentOfExecutionDependencies(t *testing.T) {
 	check("/readyz/process", "test-secret", http.StatusServiceUnavailable)
 	check("/healthz", "", http.StatusOK)
 }
+
+func TestReadinessRequiresHealthyProjectionStore(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		store      executionapplication.RunStore
+		storeError error
+		configured bool
+	}{
+		{name: "missing"},
+		{name: "initialization failed", storeError: errors.New("invalid database configuration")},
+		{name: "unhealthy", store: processReadyStore{err: errors.New("database unavailable")}, configured: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newReadyServerForTest(t)
+			server.runProjectionStore = tc.store
+			server.runProjectionStoreErr = tc.storeError
+			for _, path := range []string{"/readyz", "/readyz/process"} {
+				response := httptest.NewRecorder()
+				server.ServeHTTP(response, newTestRequest(http.MethodGet, path, nil))
+				if response.Code != http.StatusServiceUnavailable {
+					t.Fatalf("%s = %d, want 503: %s", path, response.Code, response.Body)
+				}
+				store := expectRecord(t, decodeBody(t, response)["run_projection_store"], "run_projection_store")
+				if store["configured"] != tc.configured || store["healthy"] != false {
+					t.Fatalf("%s store = %#v, want configured=%t and unhealthy", path, store, tc.configured)
+				}
+			}
+		})
+	}
+}
+
+func TestReadinessDrainingWithHealthyDependencies(t *testing.T) {
+	server := newReadyServerForTest(t)
+	check := func(path string, want int) {
+		t.Helper()
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, newTestRequest(http.MethodGet, path, nil))
+		if response.Code != want {
+			t.Fatalf("%s = %d, want %d: %s", path, response.Code, want, response.Body)
+		}
+	}
+	check("/readyz", http.StatusOK)
+	check("/readyz/process", http.StatusOK)
+	server.StartDraining()
+	server.StartDraining()
+	check("/readyz", http.StatusServiceUnavailable)
+	check("/readyz/process", http.StatusServiceUnavailable)
+	check("/healthz", http.StatusOK)
+}
