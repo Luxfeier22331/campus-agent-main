@@ -477,6 +477,35 @@ describe("campus worker boundary", () => {
 		expect(forwardedRequests[0]?.headers.get("x-campus-legal-accepted")).toBe("terms-and-privacy");
 	});
 
+	it.each(["origin", "referer"])(
+		"preserves %s for account deletion password verification",
+		async (sourceHeader) => {
+			const passwordBody = JSON.stringify({ password: "current-password" });
+			const source = "https://campus.muc.wiki";
+			const env = createEnv({
+				fetch: async (request) => {
+					expect(request.headers.get(sourceHeader)).toBe(source);
+					expect(request.headers.get("cookie")).toBe("better-auth.session_token=session-token");
+					expect(await request.text()).toBe(passwordBody);
+					return Response.json({ status: "deleting" }, { status: 202 });
+				},
+			});
+			const response = await worker.fetch(
+				new Request("https://campus.muc.wiki/api/account/delete", {
+					body: passwordBody,
+					headers: {
+						"content-type": "application/json",
+						cookie: "better-auth.session_token=session-token",
+						[sourceHeader]: source,
+					},
+					method: "POST",
+				}),
+				env,
+			);
+			expect(response.status).toBe(202);
+		},
+	);
+
 	it("forwards browser interaction headers for federation consent", async () => {
 		const forwardedRequests: Request[] = [];
 		const env = createEnv({

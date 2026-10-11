@@ -167,7 +167,7 @@ function getForwardedHeaders(pathname: string, photoPath = false) {
 	if (photoPath) {
 		return DINING_SUBMISSION_PHOTO_FORWARDED_HEADERS;
 	}
-	if (pathname.startsWith("/api/auth/")) {
+	if (pathname.startsWith("/api/auth/") || pathname === "/api/account/delete") {
 		return AUTH_FORWARDED_HEADERS;
 	}
 	if (FEDERATION_INTERACTION_PATHS.has(pathname)) {
