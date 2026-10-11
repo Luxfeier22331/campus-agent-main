@@ -3,15 +3,15 @@ package adaptertest
 import (
 	"context"
 	"fmt"
+	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/operation"
+	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestRetrievalStreamPersistsReplayAndClosesInterruptedSearch(t *testing.T) {
@@ -26,7 +26,7 @@ func TestRetrievalStreamPersistsReplayAndClosesInterruptedSearch(t *testing.T) {
 				}
 			}
 			run, _ := store.GetRun(ctx, "retrieval")
-			adapter := &executionactivities.Adapter{Writer: &activityprojection.Writer{RunProjectionStore: store}}
+			adapter := &executionactivities.OperationService{StateWriter: store, Writer: &activityprojection.Writer{RunProjectionStore: store}}
 			frame := func(status string) string {
 				return fmt.Sprintf("event: retrieval_status\ndata: {\"schema_version\":\"workflow_runtime_retrieval_status.v1\",\"source\":\"campus\",\"status\":\"%s\",\"occurred_at\":\"2026-09-18T00:00:00Z\"}\n\n", status)
 			}
@@ -35,7 +35,7 @@ func TestRetrievalStreamPersistsReplayAndClosesInterruptedSearch(t *testing.T) {
 				body += frame(status)
 			}
 			body += "event: failed\ndata: {\"request_id\":\"retrieval\",\"status\":\"failed\",\"operation\":\"execute_step\",\"failure\":{\"code\":\"provider_timeout\",\"operation\":\"execute_step\"}}\n\n"
-			result, err := adapter.ConsumeWorkflowRuntimeStream(ctx, run, temporalruntime.WorkflowOperationExecuteStep, strings.NewReader(body))
+			result, err := adapter.ConsumeWorkflowRuntimeStream(ctx, run, applicationcontract.WorkflowOperationExecuteStep, runtimeEvents(strings.NewReader(body)))
 			if err != nil || result.AnswerStarted {
 				t.Fatalf("result=%#v err=%v", result, err)
 			}

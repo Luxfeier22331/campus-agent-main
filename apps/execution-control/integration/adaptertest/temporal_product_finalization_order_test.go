@@ -3,13 +3,13 @@ package adaptertest
 import (
 	"context"
 	"errors"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
 )
 
 func TestFailedRunPublishesBrowserTerminalEventOnlyAfterProductCallback(t *testing.T) {
@@ -52,7 +52,7 @@ func TestFailedRunPublishesBrowserTerminalEventOnlyAfterProductCallback(t *testi
 	_, err = server.FailTemporalRun(
 		context.Background(),
 		run,
-		activityprojection.TemporalStepFailureProjection{FailureKind: "provider_unavailable"},
+		projectionapp.StepFailureProjection{FailureKind: "provider_unavailable"},
 		errors.New("provider unavailable"),
 	)
 	if err == nil || err.Error() != "callback unavailable" {
@@ -62,7 +62,7 @@ func TestFailedRunPublishesBrowserTerminalEventOnlyAfterProductCallback(t *testi
 	if err != nil {
 		t.Fatalf("get run after callback failure: %v", err)
 	}
-	if activityprojection.TemporalRunTerminal(latest.Status) {
+	if projectionapp.RunTerminal(latest.Status) {
 		t.Fatalf("run status = %s, want nonterminal after callback failure", latest.Status)
 	}
 }

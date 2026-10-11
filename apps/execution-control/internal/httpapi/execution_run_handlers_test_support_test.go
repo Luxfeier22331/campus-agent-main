@@ -16,6 +16,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreadmodel"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
 )
 
 var testExecutionInputs = struct {
@@ -66,7 +67,7 @@ func (f *fakeTemporalStarter) StartToolExecutionWorkflow(
 
 func (f *fakeTemporalStarter) StartPersonalMemoryCommandWorkflow(
 	context.Context,
-	executionapplication.PersonalMemoryCommandInput,
+	memoryapplication.PersonalMemoryCommandInput,
 ) error {
 	return f.err
 }
@@ -165,12 +166,9 @@ func attachRunProjectionStoreForHandlerTest(
 	attachRunServiceForHandlerTest(server, store, mapExecutionInputLoader{}, staticAdmissionSnapshotBuilder{
 		targetSHA256: primaryAgentModelTargetSHA256ForTest,
 	}, false)
-	server.agentToolService = executionapplication.NewAgentToolService(
-		executionapplication.AgentToolServiceOptions{
-			InputLoader: mapExecutionInputLoader{},
-			Store:       store,
-		},
-	)
+	authorizer := executionapplication.NewRunToolAuthorizer(executionapplication.RunToolAuthorizerOptions{Store: store, InputLoader: mapExecutionInputLoader{}})
+	server.campusSearchTool = executionapplication.NewCampusSearchToolService(executionapplication.CampusSearchToolServiceOptions{Authorizer: authorizer, Store: store})
+	server.personalMemoryRecallTool = executionapplication.NewPersonalMemoryRecallToolService(executionapplication.PersonalMemoryRecallToolServiceOptions{Authorizer: authorizer})
 }
 
 func attachRunServiceForHandlerTest(

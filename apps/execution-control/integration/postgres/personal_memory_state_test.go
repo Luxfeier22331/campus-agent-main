@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memorypersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +36,7 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 		require.NoError(t, err)
 		require.True(t, drained)
 	})
-	t.Run("finalize reports missing receipts and abandon terminals stale ones", func(t *testing.T) {
+	t.Run("finalize reports missing receipts and unresolved receipt blocks drain", func(t *testing.T) {
 		ctx := t.Context()
 		_, err := store.FinalizeCommand(ctx, "cmd-unknown-postgres", "owner-abandon", "failed", "personal_memory_command_failed", "")
 		require.ErrorIs(t, err, memoryruntime.ErrMemoryCommandNotFound)
@@ -54,35 +54,13 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 		_, execute, err := store.BeginCommand(ctx, "owner-abandon", orphan, time.Minute)
 		require.NoError(t, err)
 		require.True(t, execute)
-		fresh := memoryruntime.PersonalMemoryCommandRequest{
-			CommandID:         "cmd-fresh-postgres",
-			CommandKind:       "owner_transition",
-			LifecycleState:    "paused",
-			OwnerGeneration:   1,
-			OwnerSequence:     2,
-			SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
-			SourceUpdatedAt:   "2026-07-16T00:00:01Z",
-			SupersessionScope: "owner:lifecycle",
-		}
-		_, _, err = store.BeginCommand(ctx, "owner-fresh-postgres", fresh, time.Minute)
-		require.NoError(t, err)
-		// Postgres receipts carry real touch times, so an age the margin
-		// cannot cover requires an explicit backdated cutoff.
-		abandoned, err := store.AbandonStaleGenerationReceipts(ctx, "owner-abandon", 1, time.Now().Add(time.Hour))
-		require.NoError(t, err)
-		require.Equal(t, 1, abandoned)
 		receipt, err := store.GetCommand(ctx, "owner-abandon", orphan.CommandID)
 		require.NoError(t, err)
-		require.Equal(t, "failed", receipt.Status)
-		require.Equal(t, "memory_receipt_abandoned", receipt.ErrorCode)
-		require.False(t, memoryruntime.CommandReceiptStale(receipt, time.Now()))
-		abandoned, err = store.AbandonStaleGenerationReceipts(ctx, "owner-fresh-postgres", 1, time.Now().Add(-time.Hour))
+		require.Equal(t, "processing", receipt.Status)
+		require.False(t, receipt.UpdatedAt.IsZero())
+		drained, err := store.GenerationDrained(ctx, "owner-abandon", 1)
 		require.NoError(t, err)
-		require.Equal(t, 0, abandoned)
-		freshReceipt, err := store.GetCommand(ctx, "owner-fresh-postgres", fresh.CommandID)
-		require.NoError(t, err)
-		require.Equal(t, "processing", freshReceipt.Status)
-		require.False(t, freshReceipt.UpdatedAt.IsZero())
+		require.False(t, drained)
 	})
 	first := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-memory-first",
@@ -132,7 +110,7 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 	if _, err := store.FinalizeCommand(t.Context(), second.CommandID, "owner-hash", "failed", "personal_memory_command_failed", ""); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
 		t.Fatalf("conflicting terminal CAS error=%v", err)
 	}
-	if _, err := store.FinalizeCommand(t.Context(), first.CommandID, "owner-hash", "failed", "memory_receipt_abandoned", ""); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
+	if _, err := store.FinalizeCommand(t.Context(), first.CommandID, "owner-hash", "failed", "different_failure", ""); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
 		t.Fatalf("conflicting terminal error code error=%v", err)
 	}
 	coalesced := memoryruntime.PersonalMemoryCommandRequest{

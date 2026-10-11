@@ -3,34 +3,25 @@ package memory
 import (
 	"context"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	workflowcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/contract"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 )
 
-// MemoryAppendWorkflowReviver reconnects durable append leases whose workflow
-// is no longer running, so an erase waiting on generation drain can recover
-// lost background work instead of timing out on it.
-type MemoryAppendWorkflowReviver interface {
-	RestartMemoryAppendWorkflow(ctx context.Context, requestID string) error
-	RunningMemoryAppendWorkflows(ctx context.Context, requestIDs []string) (map[string]bool, error)
+type AnswerAppendPort interface {
+	PrepareAppend(context.Context, string) (memoryapplication.PreparedAppend, memoryapplication.AppendProgressStore, error)
 }
-
 type Adapter struct {
-	*activityprojection.Writer
-	PersonalMemoryExecutor   executionapplication.MemoryExecutor
-	AsyncMemoryExecutor      executionapplication.AsyncMemoryExecutor
-	PersonalMemoryErr        error
-	PersonalMemoryStateStore executionapplication.MemoryStore
-	PersonalMemoryStateErr   error
-	AppendWorkflowReviver    MemoryAppendWorkflowReviver
+	*memoryapplication.Service
+	AppendClient interface {
+		Append(context.Context, memoryruntime.AppendConversationTurnRequest) error
+	}
+	AnswerAppend       AnswerAppendPort
+	MemoryResultClient memoryapplication.MemoryCommandResultClient
 }
 
 func New(adapter Adapter) *Adapter { return &adapter }
-func (a *Adapter) AppendConversationMemoryActivity(ctx context.Context, in temporalruntime.AppendConversationMemoryActivityInput) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
-	return a.AppendConversationMemory(ctx, in)
-}
 func (a *Adapter) ExecutePersonalMemoryCommandActivity(ctx context.Context, in temporalruntime.PersonalMemoryCommandRequest) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
 	return a.ExecutePersonalMemoryCommand(ctx, workflowcontract.MemoryCommandToDomain(in))
 }

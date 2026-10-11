@@ -7,10 +7,13 @@ status: active
 
 ## 文档边界
 
-本文定义在线回答的持久生命周期。这里的 Agent Workflow 是产品编排概念；Temporal Workflow 是其
-持久化实现，负责 workflow history、task queue、retry、timer 和 activity dispatch。execution-control
-负责执行准入、四类 operation 的顺序、重规划预算、命令投递和有界投影；Agent Runtime 中被配置选中的
-OpenAI 或 Gemini runner 负责 operation 内的模型与工具循环。app-api 拥有产品请求、原始执行输入和跨系统产品终态。
+本文定义在线回答的持久生命周期。agent-runtime 的 TypeScript Temporal Workflow 拥有 Solve、
+Execute、Replan、Synthesize 顺序和预算，单次模型请求与外部工具调用分别作为 Activity。
+execution-control 拥有执行准入、启动/取消命令、运行载荷、事件和终态投影；app-api 拥有产品请求、
+原始输入和产品终态。Memory 是独立 API、Worker、Workflow 与数据库，通过 API 接收召回和管理请求。
+
+部署采用按 owner 稳定分桶的双轨切换，run 的队列在准入时冻结。旧 Go Workflow 与 HTTP operation
+循环在旧队列排空前保留；本文标注为旧路径的内容只描述该迁移期实现。
 
 ## 主要对象
 
@@ -22,10 +25,10 @@ Executor 步骤状态与检索材料是否可用分别表达：`model_output_inv
 - `Conversation`、`Turn`：app-api 产品事实；
 - `Run`：产品可见持久执行对象；
 - `Agent Workflow`：Solve 直接回答，或进入 Execute Step、按需 Replan 与 Synthesize 的产品编排；
-- `ToolExecutionWorkflow`：上述 Agent Workflow 的 Temporal Workflow 实现；
+- `AgentWorkflow`：TypeScript Temporal Workflow；旧 Go `ToolExecutionWorkflow` 在双轨期间保留；
 - `WorkflowStartCommand`、`CancellationCommand`：将已提交的 PostgreSQL 意图投递给 Temporal
   的持久命令；
-- `AgentInvocationReceipt`：约束同一模型 operation 的供应商调用只能开始一次；
+- `AgentInvocationReceipt`：约束同一模型调用只能开始一次，保存已完成结果供恢复；
 - `RunEvent`、`RunStep`、`StepAttempt`、`StepResult`：有界投影，不是 workflow
   history；
 - `Finalization`：app-api 消费的已验证终态投影。
@@ -37,18 +40,27 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 - `internal/execution` 定义中立执行合同、admission 校验和 workflow identity，不依赖
   Temporal SDK、HTTP 或 PostgreSQL driver；
 - `internal/executionapplication` 负责构造冻结 workflow input、原子提交 run/start intent、提交取消命令，
-  并拥有 run/receipt/memory、workflow control 和 outbound ports，执行 receipt 状态管理、Campus Docs
-  与个人记忆工具用例；具体工具合同文件读取由 `internal/toolcontract` 实现注入端口；
+  并拥有 run/receipt、workflow control 和执行 outbound ports，负责 receipt、运行内工具身份校验
+  和账号删除协调；`operation` 编排 Runtime 调用、回执与事件投影，`finalization` 统一处理回答终态
+  和恢复，`projection` 负责业务投影；具体工具合同文件读取由 `internal/toolcontract` 实现注入端口；
+- `apps/agent-runtime/src/workflows.ts` 拥有 Agent 推进，`activities.ts` 执行模型和工具，
+  `domain-tools.ts` 直接调用 Search/Memory API；`internal/runtimeapi` 是 control 的类型化读写入口；
+- `apps/memory-service` 拥有记忆管理、命令与追加恢复、provider adapter 和生命周期状态，
+  不依赖 execution run 或产品消息；
 - `internal/httpapi` 只完成认证、wire 解码、错误映射和响应编码，不拥有执行生命周期、admission、检索
   query 或 recall request 规则；
 - `internal/executionreconciler` 通过 application starter/control/finalizer 合同收敛持久命令；
-- `internal/temporaladapter/execution`、`memory`、`finalization` 分别拥有实际 activity 实现，
-  `finalization/projection` 通过 application RunStore 写投影；`contract` 负责独立 workflow DTO 与领域合同转换；
-- `internal/runtimeassembly` 是唯一生产 composition root，创建 Temporal client、starter 和 worker，
-  注册 workflow/activity 并组装 application ports；
-- `internal/campusdocs` 定义索引和搜索合同，PostgreSQL 当前索引读取由
-  `internal/campusdocspersistence` 实现，embedding、Qdrant 与 reranker wire 调用由
-  `internal/outboundadapter` 实现。
+- 旧 Go 路径的 `internal/temporaladapter/execution`、`memory`、`finalization` 分别拥有 activity 实现，
+  `answermemory` 桥接拥有追加前的回答完成校验、输入读取和步骤/attempt/result 投影；记忆 adapter
+  通过接口接收桥接，不直接持有回答 store 或 InputReader；
+  `executioncontext` 校验活动身份并提取显式调用元数据，`projection` 将其交给应用 Writer；
+  `activitysupport` 提供无状态 heartbeat 与错误映射，输入读取由 application `InputReader` 单独注入，
+  记忆和回答终态各自依赖所需的回调接口；`contract` 负责独立 workflow DTO 与领域合同转换；
+- `internal/executioncontract` 拥有 operation 数据和计划规则；Runtime HTTP/JSON/SSE 解码由
+  `outboundadapter` 负责，应用消费类型化事件。API reconciler 与 Activity 共用终态应用服务；
+- `internal/runtimeassembly` 是唯一生产 composition root，按回答执行与个人记忆分组创建依赖，
+  创建 Temporal client、starter 和 worker，注册 workflow/activity 并组装 application ports；
+- `apps/campus-search` 独立拥有检索实现，Agent 的工具 Activity 通过 API 消费。
 
 ## 进程停机
 
@@ -61,33 +73,23 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 
 ## 执行阶段
 
-1. **Solve**：在 agent queue 调用 `apps/agent-runtime`，可使用已准入检索来源直接回答简单请求，或生成有界任务计划；
+1. **Solve**：由 TypeScript Workflow 调度模型与工具 Activity，可使用已准入检索来源直接回答简单请求，或生成有界任务计划；
 2. **Execute Step**：按计划顺序选择首个依赖已完成的步骤，等待当前步骤结束后再选下一步，由 Executor 执行当前步骤允许的来源并保留
    成功证据、`no_match` 和失败状态；
 3. **Replan**：步骤存在 `remainingFacts`、可恢复失败，或没有 evidence 且来源失败/无匹配时，
    还需满足计划与重规划预算未耗尽、仍有后续执行或来源路径，才调用 Replanner 决定继续、替换剩余步骤或进入合成；
 4. **Synthesize**：计划结束后，在有 evidence、成功来源尝试（包括 `no_match`）或明确来源不可用结果时，
    使用已有材料生成正文；无可用材料且只有其他技术失败时保持失败；
-5. **Finalization**：在 core queue 校验 operation 结果、生成终态投影并写入最终投影；
-6. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
+5. **Finalization**：Activity 通过 control API 校验并提交产品终态与运行投影；
+6. **Memory Append**：control 投递表在完成事务中置为 ready，交付独立 Memory API 后由其 Workflow 推进。
 
 Solve 返回合法答案时直接进入 Finalization，不调用 Execute Step、Replan 或 Synthesize。
 Solve 失败但保留 evidence 时，使用独立的 recovery synthesis 分支；计划中的可恢复步骤失败保留材料，
 继续既有步骤、按需重规划并按计划合成。取消、绝对截止时间和不可恢复失败仍结束运行。
-实际分支见[工作流实现](../../../apps/execution-control/internal/temporalruntime/workflow.go)，
-材料与后续路径条件见[工作流规则](../../../apps/execution-control/internal/temporalruntime/workflow_rules.go)。
-
-Temporal 不把 SDK tool call 展开成独立 Temporal 阶段，但 Agent Workflow 的 Solve、Execute Step、Replan
-和 Synthesize 是真实的持久步骤。当前在线 workflow 不包含独立的强制预检索阶段；离线 Campus Docs
-制品发布不进入 Temporal history。
-
-PostgreSQL 正式步骤投影保存 ref、hash、用量和终态等摘要；invocation receipt 另保存完整类型化
-operation output，用于 Activity 重投递时恢复结果和修复投影。
-
-`personal_memory_recall` 不建立独立载荷。它的完整返回值是当前 operation 有界 result 的一部分；模型
-operation invocation receipt 约束该 operation 的模型和工具调用只能开始一次。started receipt 的
-结果不确定时阻断；completed receipt 使用已保存结果恢复，不再次调用 Provider。
-精确绑定字段和 StepResult 写入边界见 [持久执行数据](../../data/durable-runtime.md)。
+实际分支见 [TypeScript Workflow](../../../apps/agent-runtime/src/workflows.ts)。
+模型轮次与外部工具调用分别持久调度；检索服务内部的 embedding、候选排序等仍由检索服务完成。
+有界步骤投影与 Runtime continuation 分开存储；完整 prompt、工具结果不放进 Temporal history。
+模型结果已保存时复用 receipt，已开始但结果未知时使用 `workflow_attempt_uncertain` 收口。
 
 ## 启动与取消命令
 
@@ -172,7 +174,7 @@ Deployment。两个角色仍属于同一执行领域、Go module、数据库角�
 不按知识类型、工具或检索能力继续拆分 Worker；`agent-runtime` 仍是独立 Deployment。
 选择理由见 [API 与 Worker 部署边界](../../../.agents/notes/implemented/architecture/2026-10-02-execution-api-worker.md)。
 
-## Agent Workflow operation
+## 双轨期间的旧 Go operation
 
 execution-control 为每个 operation 提供运行标识、当前步骤/计划、已准入的模型可见工具、历史配置槽位
 `primary_agent` 的预期 Model Target hash 和有界会话上下文。Agent Runtime 从共同受信任的 Model Config
@@ -188,10 +190,12 @@ Replan 的模型决策不满足这些语义时保存 `model_output_invalid` 失�
 SDK `maxTurns` 只限制当前 operation 的代理与工具轮次，不是重试次数或重规划预算。重规划次数和
 步骤数量由外层 Agent Workflow 预算限制。内部 SDK 工具在当前 operation 生命周期内调用带认证的
 execution-control 查询接口。
-HTTP adapter 解码工具 envelope 后把 typed request 交给 `AgentToolService`；该 use case 校验 run 正在
-执行、activity attempt 是当前 operation 的最新 attempt，且工具位于该 attempt 的已准入可见工具集合。
+HTTP adapter 将 typed request 分别交给 Campus Search 和 Personal Memory Recall 服务；两者通过共享
+`RunToolAuthorizer` 校验 run 正在执行、activity attempt 是最新 attempt，且工具位于该 attempt 的
+已准入可见工具集合。
 Campus Search 的检索表达式、当前索引读取和搜索调用，以及 personal-memory recall 的冻结 workflow
-admission 校验、执行输入加载和 recall request 构造都不属于 HTTP owner。
+admission 校验、执行输入加载和 recall request 构造都不属于 HTTP owner。Recall 经记忆访问 fence
+返回有序事实和字符预算；中文上下文格式化由 Runtime 在 runner 消费和工具记录前完成。
 
 每个 source-side Temporal Activity 在读取 run 或写入任何投影前，都从当前 Activity context 取得
 Workflow ID 与精确 Temporal Run ID，并与持久 start intent 的 Workflow ID 和 root Run ID 绑定逐项
@@ -317,11 +321,11 @@ worker 配置约束，HTTP 请求排空与持久执行生命周期分别由 API 
 
 ## Workflow completion budget
 
-产品 `completed` 与 Temporal root workflow close 是两个有意分开的观察点。Finalization CAS
-成功后，产品答案已经 canonical；随后个人记忆追加仍作为非关键 side effect 在 core activity queue
-执行。当前 workflow 只等待独立 `MemoryAppendWorkflow` 启动成功，再返回 workflow result；append
-失败不能回滚已提交的产品答案，也不能重复追加已完成 run。历史版本仍保留同步 activity
-路径用于 replay，不作为新请求路径。独立 workflow 不引入 outbox 或第二套 memory store。
+产品 `completed` 与 Temporal root workflow close 是两个观察点。control 在产品终态确认后，
+与运行完成同一事务将准备好的 Memory 投递标为 ready，dispatcher 交付独立 Memory API。
+Memory 接收时原子保存完整最小输入与派发意图；回答 Workflow 不等待记忆内容处理完成。
+Memory 接收后的恢复不读取 execution run、finalization 或产品消息，追加失败不回滚产品答案。
+旧本地 Memory 模式仍由 `MemoryAppendWorkflow` 与 `answermemory` 消费，待排空后退役。
 
 Workflow 的 900 秒 `WorkflowExecutionTimeout` 是硬生命周期上限。Agent operation 的 deadline、
 plan/replan 次数、activity timeout/retry、finalization 和 memory append 都受该上限约束；它们不是
@@ -333,10 +337,10 @@ polling `maxAttempts` 是连续空页预算，不是严格 elapsed-time SLA；�
 
 ## 禁止形态
 
-- 每个 SDK 工具或语义能力一个 Temporal activity 或 queue；
+- 按知识类型或语义工具各建一个 Worker/queue；模型、工具各用统一队列；
 - 独立知识 Agent worker；
 - 确定性 workflow 代码选择语义工具；
-- 将每个检索查询、候选处理、重排、SDK tool call 或模型轮次展开成 Temporal activity graph；
+- 将检索服务内部的候选处理、embedding、重排拆成 Agent Workflow Activity；
 - 从 SDK 轮次派生持久重新规划状态；
 - app-api 或 finalization 改写答案；
 - 把冻结输入正文放入 execution-control metadata、Temporal history、event、step、日志或 trace；

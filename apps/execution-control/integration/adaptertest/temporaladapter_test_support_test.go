@@ -17,10 +17,10 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolcontract"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 )
 
 const (
@@ -74,6 +74,7 @@ func attachAgentAdmissionProviderConfigsForTest(adapter *Adapter) {
 			targetSHA256: modelTargetSHA256ForTest,
 		},
 	})
+	adapter.FinalizationAdapter.AdmissionService = adapter.AdmissionService
 }
 
 func admissionSnapshotForTest(
@@ -143,7 +144,7 @@ func attachRunProjectionStoreForAdapterTest(
 	adapter *Adapter,
 	store executionapplication.RunStore,
 ) {
-	adapter.RunProjectionStore = store
+	adapter.SetProjectionStore(store)
 	switch store := store.(type) {
 	case *executionpersistence.InMemoryRunProjectionStore:
 		adapter.Receipts = executionapplication.NewReceiptService(store.Receipts)
@@ -349,21 +350,6 @@ func (executor *fakePersonalMemoryExecutor) Recall(
 	executor.recallCount++
 	executor.seenRequest = request
 	return memoryruntime.RecallResult{
-		ContextBlock: "用户记忆:\n相关事实:\n- 用户关注保研和培养方案。",
+		Facts: []string{"用户记忆:\n相关事实:\n- 用户关注保研和培养方案。"}, ContextCharBudget: 2500,
 	}, nil
-}
-
-func (executor *fakePersonalMemoryExecutor) AppendConversationTurn(
-	_ context.Context,
-	request memoryruntime.AppendConversationTurnRequest,
-) (memoryruntime.AppendConversationTurnResult, error) {
-	executor.appendCount++
-	executor.seenAppend = request
-	if executor.appendDelay > 0 {
-		time.Sleep(executor.appendDelay)
-	}
-	if executor.appendErr != nil {
-		return memoryruntime.AppendConversationTurnResult{}, executor.appendErr
-	}
-	return memoryruntime.AppendConversationTurnResult{AppendedMessageCount: 1}, nil
 }

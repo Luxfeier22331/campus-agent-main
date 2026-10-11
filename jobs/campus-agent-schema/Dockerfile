@@ -73,6 +73,7 @@ RUN apt-get update \
 COPY --from=production-dependencies --chown=node:node /app /app
 COPY --from=build --chown=node:node /app/jobs/campus-agent-schema/dist ./jobs/campus-agent-schema/dist
 COPY --from=build --chown=node:node /app/jobs/campus-agent-schema/migrations ./jobs/campus-agent-schema/migrations
+COPY --from=build --chown=node:node /app/jobs/campus-agent-schema/memory-migrations ./jobs/campus-agent-schema/memory-migrations
 
 RUN node --check ./jobs/campus-agent-schema/dist/cli.js \
   && cd ./jobs/campus-agent-schema \

@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
 )
 
 type failingReadCloser struct{}
@@ -54,7 +55,7 @@ func (readyTemporalStarter) StartToolExecutionWorkflow(
 
 func (readyTemporalStarter) StartPersonalMemoryCommandWorkflow(
 	context.Context,
-	executionapplication.PersonalMemoryCommandInput,
+	memoryapplication.PersonalMemoryCommandInput,
 ) error {
 	return nil
 }

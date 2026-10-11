@@ -4,6 +4,7 @@ import type {
 	UntimedToolExecutionResult,
 } from "./agent-run-contract.ts";
 import { createCampusSearchReporter } from "./campus-search-observer.ts";
+import { formatMemoryRecall } from "./memory-context.ts";
 import { injectTraceContext } from "./telemetry.ts";
 import { isCanonicalExecutionControlInternalEndpoint } from "./tool-catalog.ts";
 
@@ -163,7 +164,8 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 			}
 			return {
 				status: "completed",
-				result,
+				result:
+					request.tool.name === "personal_memory_recall" ? formatMemoryRecall(result) : result,
 			};
 		};
 		await observe(request, { phase: "dispatching" });

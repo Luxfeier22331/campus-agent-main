@@ -1,286 +1,86 @@
 package temporalruntime
 
 import (
-	"errors"
-	"fmt"
-	"regexp"
-	"strings"
-	"unicode/utf8"
+	app "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 )
 
-var workflowTaskStepIDPattern = regexp.MustCompile(`^step\.[a-z0-9][a-z0-9_-]{0,63}$`)
-
-// ValidateWorkflowPlan validates the durable workflow plan semantics shared by
-// the Temporal workflow and the runtime adapter.
-func ValidateWorkflowPlan(
-	plan WorkflowTaskPlan,
-	maxSteps int,
-	capabilities AgentCapabilitiesSnapshot,
-) error {
-	if plan.SchemaVersion != "task_plan.v1" || strings.TrimSpace(plan.Goal) == "" ||
-		maxSteps < 1 || len(plan.Steps) == 0 || len(plan.Steps) > maxSteps {
-		return errors.New("workflow plan identity or size is invalid")
-	}
-	known := make(map[string]struct{}, len(plan.Steps))
-	visible := workflowVisibleSourceSet(capabilities.VisibleFunctionToolNames, capabilities.HostedWebSearch)
-	for _, step := range plan.Steps {
-		if !workflowTaskStepIDPattern.MatchString(strings.TrimSpace(step.ID)) || strings.TrimSpace(step.Objective) == "" {
-			return fmt.Errorf("workflow plan step %q has invalid identity", step.ID)
-		}
-		if _, exists := known[step.ID]; exists {
-			return fmt.Errorf("workflow plan step %s is duplicated", step.ID)
-		}
-		if err := validateWorkflowSources(step.ID, step.CandidateSources, visible); err != nil {
-			return err
-		}
-		seenDependencies := map[string]struct{}{}
-		for _, dependency := range step.DependsOn {
-			if dependency == step.ID {
-				return fmt.Errorf("workflow plan step %s depends on itself", step.ID)
-			}
-			if _, duplicate := seenDependencies[dependency]; duplicate {
-				return fmt.Errorf("workflow plan step %s repeats a dependency", step.ID)
-			}
-			if _, exists := known[dependency]; !exists {
-				return fmt.Errorf("workflow plan step %s depends on unknown or later step %s", step.ID, dependency)
-			}
-			seenDependencies[dependency] = struct{}{}
-		}
-		known[step.ID] = struct{}{}
-	}
-	return nil
+func ValidateWorkflowPlan(plan WorkflowTaskPlan, maxSteps int, capabilities AgentCapabilitiesSnapshot) error {
+	return app.ValidateWorkflowPlan(operationDomainWorkflowTaskPlan(plan), maxSteps, operationDomainAgentCapabilitiesSnapshot(capabilities))
 }
-
-// ValidateWorkflowCompletedSteps validates completed-step metadata and exact
-// membership in the already admitted plan. Source semantics belong to the
-// plan validator and are intentionally not re-proven here.
-func ValidateWorkflowCompletedSteps(
-	completed []WorkflowCompletedStep,
-	plan WorkflowTaskPlan,
-) error {
-	if len(completed) > len(plan.Steps) {
-		return errors.New("completed workflow step count exceeds the supplied plan")
-	}
-	seen := map[string]struct{}{}
-	for _, item := range completed {
-		if err := ValidateWorkflowStepOutcome(item); err != nil {
-			return err
+func ValidateWorkflowCompletedSteps(completed []WorkflowCompletedStep, plan WorkflowTaskPlan) error {
+	return app.ValidateWorkflowCompletedSteps(func() []app.WorkflowCompletedStep {
+		if completed == nil {
+			return nil
 		}
-		if item.ExecutionIndex < 1 || strings.TrimSpace(item.Summary) == "" {
-			return errors.New("completed workflow step metadata is invalid")
+		out := make([]app.WorkflowCompletedStep, len(completed))
+		for i, v := range completed {
+			out[i] = operationDomainWorkflowCompletedStep(v)
 		}
-		if _, duplicate := seen[item.Step.ID]; duplicate {
-			return fmt.Errorf("completed workflow step %s is duplicated", item.Step.ID)
-		}
-		if !WorkflowPlanContainsStep(plan, item.Step) {
-			return fmt.Errorf("completed workflow step %s is not part of the supplied plan", item.Step.ID)
-		}
-		seen[item.Step.ID] = struct{}{}
-	}
-	return nil
+		return out
+	}(), operationDomainWorkflowTaskPlan(plan))
 }
-
-// ValidateWorkflowRemainingSteps validates a replacement path against the
-// completed steps and the admitted workflow budget.
-func ValidateWorkflowRemainingSteps(
-	steps []WorkflowTaskPlanStep,
-	maxSteps int,
-	completed []WorkflowCompletedStep,
-	capabilities AgentCapabilitiesSnapshot,
-) error {
-	if len(completed)+len(steps) > maxSteps {
-		return errors.New("workflow steps exceed budget")
-	}
-	completedIDs := make(map[string]struct{}, len(completed))
-	known := make(map[string]struct{}, len(completed)+len(steps))
-	for _, item := range completed {
-		completedIDs[item.Step.ID] = struct{}{}
-		known[item.Step.ID] = struct{}{}
-	}
-	visible := workflowVisibleSourceSet(capabilities.VisibleFunctionToolNames, capabilities.HostedWebSearch)
-	for _, step := range steps {
-		if !workflowTaskStepIDPattern.MatchString(strings.TrimSpace(step.ID)) || strings.TrimSpace(step.Objective) == "" {
-			return fmt.Errorf("remaining workflow step %q has invalid identity", step.ID)
+func ValidateWorkflowRemainingSteps(steps []WorkflowTaskPlanStep, maxSteps int, completed []WorkflowCompletedStep, capabilities AgentCapabilitiesSnapshot) error {
+	return app.ValidateWorkflowRemainingSteps(func() []app.WorkflowTaskPlanStep {
+		if steps == nil {
+			return nil
 		}
-		if _, done := completedIDs[step.ID]; done {
-			return fmt.Errorf("remaining step %s is already completed", step.ID)
+		out := make([]app.WorkflowTaskPlanStep, len(steps))
+		for i, v := range steps {
+			out[i] = operationDomainWorkflowTaskPlanStep(v)
 		}
-		if _, duplicate := known[step.ID]; duplicate {
-			return fmt.Errorf("remaining step %s is duplicated", step.ID)
+		return out
+	}(), maxSteps, func() []app.WorkflowCompletedStep {
+		if completed == nil {
+			return nil
 		}
-		if err := validateWorkflowSources(step.ID, step.CandidateSources, visible); err != nil {
-			return err
+		out := make([]app.WorkflowCompletedStep, len(completed))
+		for i, v := range completed {
+			out[i] = operationDomainWorkflowCompletedStep(v)
 		}
-		for _, dependency := range step.DependsOn {
-			if dependency == step.ID {
-				return fmt.Errorf("remaining step %s depends on itself", step.ID)
-			}
-			if _, exists := known[dependency]; !exists {
-				return fmt.Errorf("remaining step %s depends on unknown or later step %s", step.ID, dependency)
-			}
-		}
-		known[step.ID] = struct{}{}
-	}
-	return nil
+		return out
+	}(), operationDomainAgentCapabilitiesSnapshot(capabilities))
 }
-
-// ValidateWorkflowReplanDecision validates the decision/remaining-step shape.
 func ValidateWorkflowReplanDecision(replan WorkflowTaskReplan) error {
-	if replan.SchemaVersion != "task_replan.v3" {
-		return errors.New("workflow replan schema version is invalid")
-	}
-	switch replan.Decision {
-	case "synthesize":
-		if len(replan.RemainingSteps) != 0 {
-			return errors.New("terminal replan decision must not contain remaining steps")
-		}
-	case "continue":
-		if len(replan.RemainingSteps) == 0 {
-			return errors.New("continuing replan decision requires remaining steps")
-		}
-	default:
-		return fmt.Errorf("unsupported replan decision %q", replan.Decision)
-	}
-	return nil
+	return app.ValidateWorkflowReplanDecision(operationDomainWorkflowTaskReplan(replan))
 }
-
-func workflowVisibleSourceSet(values []string, hostedWebSearch bool) map[WorkflowSource]struct{} {
-	visible := map[WorkflowSource]struct{}{}
-	if hostedWebSearch {
-		visible[WorkflowSourceWebSearch] = struct{}{}
-	}
-	for _, value := range values {
-		switch WorkflowSource(strings.TrimSpace(value)) {
-		case WorkflowSourceCampusSearch:
-			visible[WorkflowSourceCampusSearch] = struct{}{}
-		case WorkflowSourcePersonalMemoryRecall:
-			visible[WorkflowSourcePersonalMemoryRecall] = struct{}{}
-		}
-	}
-	return visible
-}
-
-func validateWorkflowSources(
-	stepID string,
-	sources []WorkflowSource,
-	visible map[WorkflowSource]struct{},
-) error {
-	if len(sources) == 0 || len(sources) > 3 {
-		return fmt.Errorf("workflow step %s candidate source count is invalid", stepID)
-	}
-	seen := map[WorkflowSource]struct{}{}
-	for _, source := range sources {
-		if _, duplicate := seen[source]; duplicate {
-			return fmt.Errorf("workflow step %s repeats candidate source %s", stepID, source)
-		}
-		seen[source] = struct{}{}
-		if _, available := visible[source]; !available {
-			return fmt.Errorf("workflow step %s uses unavailable source %s", stepID, source)
-		}
-	}
-	return nil
-}
-
-// WorkflowPlanContainsStep compares a completed or admitted step with the
-// canonical definition in the current plan.
 func WorkflowPlanContainsStep(plan WorkflowTaskPlan, want WorkflowTaskPlanStep) bool {
-	for _, step := range plan.Steps {
-		if WorkflowTaskPlanStepEqual(step, want) {
-			return true
-		}
-	}
-	return false
+	return app.WorkflowPlanContainsStep(operationDomainWorkflowTaskPlan(plan), operationDomainWorkflowTaskPlanStep(want))
 }
-
-// WorkflowTaskPlanStepEqual compares the semantic fields owned by the
-// workflow plan contract.
-func WorkflowTaskPlanStepEqual(left, right WorkflowTaskPlanStep) bool {
-	return left.ID == right.ID && left.Objective == right.Objective &&
-		sameWorkflowSources(left.CandidateSources, right.CandidateSources) &&
-		sameWorkflowStrings(left.DependsOn, right.DependsOn)
+func WorkflowTaskPlanStepEqual(left WorkflowTaskPlanStep, right WorkflowTaskPlanStep) bool {
+	return app.WorkflowTaskPlanStepEqual(operationDomainWorkflowTaskPlanStep(left), operationDomainWorkflowTaskPlanStep(right))
 }
-
-func sameWorkflowSources(left, right []WorkflowSource) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
-func sameWorkflowStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
-// Remaining facts concern this step's objective, not unexecuted future steps.
 func ValidateWorkflowStepOutcome(step WorkflowCompletedStep) error {
-	if step.RemainingFacts == nil || len(step.RemainingFacts) > 32 {
-		return errors.New("workflow remaining facts are required and bounded")
-	}
-	for _, fact := range step.RemainingFacts {
-		if strings.TrimSpace(fact) == "" || utf8.RuneCountInString(fact) > 1000 {
-			return errors.New("workflow remaining fact is invalid")
-		}
-	}
-	if step.Failure != nil {
-		if !WorkflowFailureRecoverable(step.Failure.Code) || step.Failure.Operation != "execute_step" {
-			return errors.New("workflow step failure cannot be recovered")
-		}
-	}
-	return nil
+	return app.ValidateWorkflowStepOutcome(operationDomainWorkflowCompletedStep(step))
 }
-
-// Provider/runtime errors are recoverable only after a classified terminal response.
-// Transport timeouts and uncertain invocation receipts are intentionally absent.
-func WorkflowFailureRecoverable(code string) bool {
-	switch code {
-	case "model_output_invalid", "max_turns_exceeded", "tool_call_budget_exhausted", "agent_deadline_exceeded", "provider_timeout", "provider_connection_failed", "provider_rate_limited", "provider_http_failed":
-		return true
-	default:
-		return false
-	}
-}
-
+func WorkflowFailureRecoverable(code string) bool { return app.WorkflowFailureRecoverable(code) }
 func WorkflowToolFailureRecoverable(failure *ExecutionFailure) bool {
-	if failure == nil {
-		return false
-	}
-	return WorkflowSourceUnavailable(failure.Code) ||
-		(failure.Code == "tool_handler_failed" && (failure.HTTPStatus == 429 || (failure.HTTPStatus >= 500 && failure.HTTPStatus < 600)))
+	return app.WorkflowToolFailureRecoverable(func() *app.ExecutionFailure {
+		if failure == nil {
+			return nil
+		}
+		out := operationDomainExecutionFailure(*failure)
+		return &out
+	}())
 }
-
-func WorkflowSourceUnavailable(code string) bool {
-	switch code {
-	case "campus_search_timeout", "campus_search_network_failed", "campus_search_unavailable", "campus_search_rate_limited",
-		"campus_search_validation_failed", "campus_search_index_failed", "campus_search_embedding_failed",
-		"campus_search_retrieval_failed", "campus_search_retrieval_timeout", "campus_search_rerank_failed",
-		"campus_search_rerank_timeout", "campus_search_selection_failed", "campus_search_unknown_failed",
-		"campus_search_deadline_exceeded", "transient_internal_query_failed",
-		"personal_memory_recall_failed", "personal_memory_recall_timeout", "personal_memory_recall_network_failed", "source_unavailable_for_request", "retrieval_budget_exhausted":
-		return true
-	default:
-		return false
-	}
-}
-
+func WorkflowSourceUnavailable(code string) bool { return app.WorkflowSourceUnavailable(code) }
 func WorkflowCompletedSourceAttempts(completed []WorkflowCompletedStep) []WorkflowSourceAttempt {
-	result := []WorkflowSourceAttempt{}
-	for _, step := range completed {
-		result = append(result, step.SourceAttempts...)
-	}
-	return result
+	return func() []WorkflowSourceAttempt {
+		values := app.WorkflowCompletedSourceAttempts(func() []app.WorkflowCompletedStep {
+			if completed == nil {
+				return nil
+			}
+			out := make([]app.WorkflowCompletedStep, len(completed))
+			for i, v := range completed {
+				out[i] = operationDomainWorkflowCompletedStep(v)
+			}
+			return out
+		}())
+		out := make([]WorkflowSourceAttempt, len(values))
+		for i, v := range values {
+			out[i] = operationWireWorkflowSourceAttempt(v)
+		}
+		return out
+	}()
 }
 
 // Source unavailability is context for the answer, not a failure of generation.
@@ -303,13 +103,12 @@ func workflowCanSynthesize(evidence []WorkflowEvidence, completed []WorkflowComp
 	}
 	return false
 }
-
 func workflowHasRecoveryPath(completed []WorkflowCompletedStep, remaining []WorkflowTaskPlanStep, capabilities AgentCapabilitiesSnapshot) bool {
 	if nextReadyWorkflowStep(remaining, completed) >= 0 {
 		return true
 	}
 	available := workflowVisibleSourceSet(capabilities.VisibleFunctionToolNames, capabilities.HostedWebSearch)
-	// A source that produced partial evidence can still answer a more specific question.
+
 	for _, step := range completed {
 		if step.Failure != nil {
 			for _, source := range step.Step.CandidateSources {
@@ -323,4 +122,104 @@ func workflowHasRecoveryPath(completed []WorkflowCompletedStep, remaining []Work
 		}
 	}
 	return len(available) > 0
+}
+func workflowVisibleSourceSet(values []string, hosted bool) map[WorkflowSource]struct{} {
+	out := map[WorkflowSource]struct{}{}
+	for source := range app.VisibleSources(values, hosted) {
+		out[WorkflowSource(source)] = struct{}{}
+	}
+	return out
+}
+func operationDomainAgentCapabilitiesSnapshot(v AgentCapabilitiesSnapshot) app.AgentCapabilitiesSnapshot {
+	return app.AgentCapabilitiesSnapshot{HostedWebSearch: v.HostedWebSearch, SchemaVersion: v.SchemaVersion, VisibleFunctionToolNames: v.VisibleFunctionToolNames}
+}
+func operationDomainExecutionFailure(v ExecutionFailure) app.ExecutionFailure {
+	return app.ExecutionFailure{Citation: v.Citation, Code: v.Code, Detail: v.Detail, HTTPStatus: v.HTTPStatus, InvocationID: v.InvocationID, Operation: v.Operation, Reason: v.Reason, Stage: v.Stage}
+}
+func operationDomainSourceLink(v SourceLink) app.SourceLink {
+	return app.SourceLink{Href: v.Href}
+}
+func operationDomainWorkflowCompletedStep(v WorkflowCompletedStep) app.WorkflowCompletedStep {
+	return app.WorkflowCompletedStep{Evidence: func() []app.WorkflowEvidence {
+		if v.Evidence == nil {
+			return nil
+		}
+		out := make([]app.WorkflowEvidence, len(v.Evidence))
+		for i, v := range v.Evidence {
+			out[i] = operationDomainWorkflowEvidence(v)
+		}
+		return out
+	}(), ExecutionIndex: v.ExecutionIndex, Failure: func() *app.ExecutionFailure {
+		if v.Failure == nil {
+			return nil
+		}
+		out := operationDomainExecutionFailure(*v.Failure)
+		return &out
+	}(), RemainingFacts: v.RemainingFacts, SourceAttempts: func() []app.WorkflowSourceAttempt {
+		if v.SourceAttempts == nil {
+			return nil
+		}
+		out := make([]app.WorkflowSourceAttempt, len(v.SourceAttempts))
+		for i, v := range v.SourceAttempts {
+			out[i] = operationDomainWorkflowSourceAttempt(v)
+		}
+		return out
+	}(), Step: operationDomainWorkflowTaskPlanStep(v.Step), Summary: v.Summary}
+}
+func operationDomainWorkflowEvidence(v WorkflowEvidence) app.WorkflowEvidence {
+	return app.WorkflowEvidence{CitationHref: v.CitationHref, CitationIndex: v.CitationIndex, DocumentID: v.DocumentID, Excerpt: v.Excerpt, ID: v.ID, NoticeID: v.NoticeID, ReleasedAt: v.ReleasedAt, ResultRef: v.ResultRef, RootUnitIDs: v.RootUnitIDs, SchemaVersion: v.SchemaVersion, SectionRef: v.SectionRef, SectionTitle: v.SectionTitle, Source: operationDomainWorkflowSource(v.Source), SourceLink: func() *app.SourceLink {
+		if v.SourceLink == nil {
+			return nil
+		}
+		out := operationDomainSourceLink(*v.SourceLink)
+		return &out
+	}(), Title: v.Title, URL: v.URL, VersionID: v.VersionID, VersionSlug: v.VersionSlug}
+}
+func operationDomainWorkflowSource(v WorkflowSource) app.WorkflowSource {
+	return app.WorkflowSource(v)
+}
+func operationDomainWorkflowSourceAttempt(v WorkflowSourceAttempt) app.WorkflowSourceAttempt {
+	return app.WorkflowSourceAttempt{FailureCode: v.FailureCode, Source: operationDomainWorkflowSource(v.Source), Status: v.Status}
+}
+func operationDomainWorkflowTaskPlan(v WorkflowTaskPlan) app.WorkflowTaskPlan {
+	return app.WorkflowTaskPlan{Goal: v.Goal, SchemaVersion: v.SchemaVersion, Steps: func() []app.WorkflowTaskPlanStep {
+		if v.Steps == nil {
+			return nil
+		}
+		out := make([]app.WorkflowTaskPlanStep, len(v.Steps))
+		for i, v := range v.Steps {
+			out[i] = operationDomainWorkflowTaskPlanStep(v)
+		}
+		return out
+	}()}
+}
+func operationDomainWorkflowTaskPlanStep(v WorkflowTaskPlanStep) app.WorkflowTaskPlanStep {
+	return app.WorkflowTaskPlanStep{CandidateSources: func() []app.WorkflowSource {
+		if v.CandidateSources == nil {
+			return nil
+		}
+		out := make([]app.WorkflowSource, len(v.CandidateSources))
+		for i, v := range v.CandidateSources {
+			out[i] = operationDomainWorkflowSource(v)
+		}
+		return out
+	}(), DependsOn: v.DependsOn, ID: v.ID, Objective: v.Objective}
+}
+func operationDomainWorkflowTaskReplan(v WorkflowTaskReplan) app.WorkflowTaskReplan {
+	return app.WorkflowTaskReplan{Decision: v.Decision, Reason: v.Reason, RemainingSteps: func() []app.WorkflowTaskPlanStep {
+		if v.RemainingSteps == nil {
+			return nil
+		}
+		out := make([]app.WorkflowTaskPlanStep, len(v.RemainingSteps))
+		for i, v := range v.RemainingSteps {
+			out[i] = operationDomainWorkflowTaskPlanStep(v)
+		}
+		return out
+	}(), SchemaVersion: v.SchemaVersion}
+}
+func operationWireWorkflowSource(v app.WorkflowSource) WorkflowSource {
+	return WorkflowSource(v)
+}
+func operationWireWorkflowSourceAttempt(v app.WorkflowSourceAttempt) WorkflowSourceAttempt {
+	return WorkflowSourceAttempt{FailureCode: v.FailureCode, Source: operationWireWorkflowSource(v.Source), Status: v.Status}
 }

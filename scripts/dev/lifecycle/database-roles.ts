@@ -2,6 +2,7 @@ import { captureCommandResult, runCommand } from "./process";
 import type { LocalDevProfile } from "./profile";
 
 export const LOCAL_DATABASE_ROLES = [
+	["memory_service", "campus-agent-local-memory"],
 	["app_api", "campus-agent-local-app-api"],
 	["campus_search", "campus-agent-local-campus-search"],
 	["execution_control", "campus-agent-local-execution-control"],
@@ -24,6 +25,7 @@ export function localAdminDatabaseUrl(
 export function localDatabaseProbe(
 	profile: LocalDevProfile,
 	postgresPassword: string,
+	databaseName = profile.databaseName,
 ): "present" | "missing" | "unknown" {
 	const result = captureCommandResult("psql", [
 		localAdminDatabaseUrl(profile, postgresPassword),
@@ -31,7 +33,7 @@ export function localDatabaseProbe(
 		"-v",
 		"ON_ERROR_STOP=1",
 		"-c",
-		`SELECT 1 FROM pg_database WHERE datname = ${quoteLiteral(profile.databaseName)};`,
+		`SELECT 1 FROM pg_database WHERE datname = ${quoteLiteral(databaseName)};`,
 	]);
 	if (result.status !== 0 || result.error || result.timedOut) {
 		return "unknown";
@@ -61,12 +63,29 @@ export function ensureLocalDatabase(profile: LocalDevProfile, postgresPassword: 
 			`CREATE DATABASE ${quoteIdentifier(profile.databaseName)} OWNER campus_agent;`,
 		);
 	}
+
+	const memoryDatabase = `${profile.databaseName}_memory`;
+	if (localDatabaseProbe(profile, postgresPassword, memoryDatabase) === "missing") {
+		runPsql(
+			profile,
+			postgresPassword,
+			`CREATE DATABASE ${quoteIdentifier(memoryDatabase)} OWNER memory_service;`,
+		);
+	}
+	runPsql(
+		profile,
+		postgresPassword,
+		`REVOKE ALL ON DATABASE ${quoteIdentifier(memoryDatabase)} FROM PUBLIC;`,
+	);
+
 	runPsql(
 		profile,
 		postgresPassword,
 		[
 			`REVOKE ALL ON DATABASE ${quoteIdentifier(profile.databaseName)} FROM PUBLIC`,
-			...LOCAL_DATABASE_ROLES.filter(([name]) => name !== "campus_agent").map(
+			...LOCAL_DATABASE_ROLES.filter(
+				([name]) => name !== "campus_agent" && name !== "memory_service",
+			).map(
 				([name]) =>
 					`GRANT CONNECT ON DATABASE ${quoteIdentifier(profile.databaseName)} TO ${quoteIdentifier(name)}`,
 			),

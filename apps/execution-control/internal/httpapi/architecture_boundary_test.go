@@ -27,7 +27,12 @@ func TestServerInfrastructureFieldsUseTheirOwnedPackages(t *testing.T) {
 			pointer: false,
 		},
 		{
-			field:   "agentToolService",
+			field:   "personalMemoryRecallTool",
+			owner:   "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication",
+			pointer: false,
+		},
+		{
+			field:   "campusSearchTool",
 			owner:   "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication",
 			pointer: false,
 		},
@@ -103,19 +108,19 @@ func TestExecutionHandlersDoNotImportTheirFormerRuleOwners(t *testing.T) {
 	tests := map[string][]string{
 		"campus_search_tool.go": {
 			"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch",
-			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime",
+			"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime",
 		},
 		"execution_run_handlers.go": {
-			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime",
+			"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime",
 		},
 		"personal_memory_recall_tool.go": {
 			"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution",
-			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime",
+			"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter",
 			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime",
 		},

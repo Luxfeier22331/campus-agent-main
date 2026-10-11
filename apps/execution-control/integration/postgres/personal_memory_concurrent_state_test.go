@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memorypersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 	"github.com/stretchr/testify/require"
 )
 

@@ -6,8 +6,8 @@ import (
 
 	temporaladapter "github.com/MUC-WIKI/campus-agent/apps/execution-control/integration/adaptertest"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/control"
 )
 
 func reconcileTemporalRunsOnceForTest(ctx context.Context, server *Server) {
@@ -26,10 +26,11 @@ func reconcileTemporalRunsOnceForTest(ctx context.Context, server *Server) {
 			return nil
 		},
 	})
+	starter, _ := server.temporalStarter.(executionapplication.WorkflowStarter)
 	reconciler := executionreconciler.New(executionreconciler.Options{
-		Finalizer:        control.NewFinalizer(adapter),
+		Finalizer:        adapter.FinalizationAdapter,
 		OperationTimeout: time.Duration(server.config.TemporalStartTimeoutMS) * time.Millisecond,
-		Starter:          server.temporalStarter,
+		Starter:          starter,
 		Store:            server.runProjectionStore,
 	})
 	reconciler.ReconcileOnce(ctx)

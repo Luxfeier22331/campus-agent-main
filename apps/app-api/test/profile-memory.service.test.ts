@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AppApiRouteError } from "../src/http";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
-import { ExecutionControlTransportError } from "../src/modules/integration/execution-control-transport";
+import { MemoryServiceTransportError } from "../src/modules/integration/memory-service-requester";
 import {
 	buildProfileMemoryService,
 	type ProfileMemoryCommandAdmitter,
@@ -377,7 +377,7 @@ describe("profile memory service", () => {
 		);
 	});
 
-	it("re-admits an admitted command with a missing execution-control receipt", async () => {
+	it("reports a missing Memory request without recreating accepted work", async () => {
 		const store = createStore();
 		const command = {
 			commandId: "memcmd_01HS",
@@ -399,12 +399,7 @@ describe("profile memory service", () => {
 		};
 		const commandStatusReader = {
 			getCommandStatus: vi.fn(async () => {
-				throw new ExecutionControlTransportError({
-					code: "command_not_found",
-					message: "missing",
-					retryable: false,
-					status: 404,
-				});
+				throw new MemoryServiceTransportError("command_not_found", 404, false);
 			}),
 		};
 		const service = buildProfileMemoryService({
@@ -415,15 +410,14 @@ describe("profile memory service", () => {
 
 		await expect(service.reconcileAdmitted?.()).resolves.toEqual({
 			reconciled: 0,
-			failed: 0,
+			failed: 1,
 			processed: 1,
 		});
-		expect(commandAdmitter.admit).toHaveBeenCalledTimes(1);
-		expect(commandAdmitter.admit).toHaveBeenCalledWith(command);
+		expect(commandAdmitter.admit).not.toHaveBeenCalled();
 		expect(store.applyCommandResult).not.toHaveBeenCalled();
 	});
 
-	it("re-admits an admitted command whose receipt went stale without a terminal result", async () => {
+	it("leaves stale receipt recovery to the independent Memory Worker", async () => {
 		const store = createStore();
 		const command = {
 			commandId: "memcmd_01HT",
@@ -462,8 +456,7 @@ describe("profile memory service", () => {
 			failed: 0,
 			processed: 1,
 		});
-		expect(commandAdmitter.admit).toHaveBeenCalledTimes(1);
-		expect(commandAdmitter.admit).toHaveBeenCalledWith(command);
+		expect(commandAdmitter.admit).not.toHaveBeenCalled();
 		expect(store.applyCommandResult).not.toHaveBeenCalled();
 	});
 

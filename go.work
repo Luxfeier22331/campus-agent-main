@@ -5,5 +5,6 @@ toolchain go1.26.7
 use (
 	./apps/campus-search
 	./apps/execution-control
+	./apps/memory-service
 	./apps/model-config
 )

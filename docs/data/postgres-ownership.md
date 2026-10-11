@@ -22,7 +22,8 @@ schema 定义，连接拓扑见 [采集数据面](../architecture/system/data-pl
 | --- | --- | --- |
 | `campus_agent` | 数据库 schema 与显式 bootstrap Job | schema 安装、授权和一次性业务初始化，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
-| `execution_control` | `apps/execution-control` | 执行投影和个人记忆状态读写 |
+| `execution_control` | `apps/execution-control` | 执行投影、Runtime 载荷和 Memory 投递意图读写 |
+| `memory_service` | `apps/memory-service` | 独立 `memory` 数据库中的 schema、命令、追加与生命周期状态 |
 | `campus_search` | `apps/campus-search` | 只读 `campus_docs_serving.current_index` |
 | `model_config` | `apps/model-config` | 当前具名模型配置与加密凭据读写 |
 | `notice_publisher` | `jobs/notice-publisher` | 通知规范化写入；部署 Job 复用 `campus_agent` |
@@ -59,7 +60,8 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 | `profile.*` | App API 账号设置 | App API |
 | `campus_groups.sections`、`campus_groups.groups` | App API 同好群模块 | App API、通过内部接口访问的 Ops Web |
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
-| `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
+| `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
+| 独立数据库 `memory` 中的 `memory.*` | Memory API / Worker | Memory API / Worker；其他消费者使用 HTTP |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
 | `campus_docs_serving.current_index`、`index_versions` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher；Campus Search service 只读 `current_index` |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
@@ -74,10 +76,11 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 表由 `apps/app-api/src/db/schema/auth.ts` 描述，全部 App API 自有表由 `managed.ts` 汇总。可执行 DDL
 与其他产品 schema 一起进入 `campus-agent-schema`；Better Auth 运行时不执行 DDL。
 
-个人记忆的调用租约、命令回执和 owner fence 只由
-`execution_control.personal_memory_call_leases`、`execution_control.personal_memory_command_receipts` 和
-`execution_control.personal_memory_owner_fences` 承载。历史遗留的 `runtime.*` 兼容 View 无当前消费者，
-由统一 migration `0002_remove_runtime_personal_memory_compat_views` 删除，不改变底层表、数据或权限。
+个人记忆的调用租约、命令回执和 owner fence 由独立数据库中的
+`memory.personal_memory_call_leases`、`memory.personal_memory_command_receipts` 和
+`memory.personal_memory_owner_fences` 承载；`memory.requests` 保存接收与派发、恢复输入。
+原 `execution_control.personal_memory_*` 仅作为双轨部署迁移源和旧本地模式状态保留。
+迁移在排空窗口复制，保持 owner salt、generation 和序号；服务间不跨数据库查询。
 
 Campus Web 静态文档发布只使用对象存储和构建产物。Campus RAG serving 逻辑上拥有
 `campus_docs_serving.current_index` 单行绑定；唯一 current pointer writer 是

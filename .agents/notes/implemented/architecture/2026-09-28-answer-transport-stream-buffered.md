@@ -12,6 +12,9 @@ Status: implemented
 
 ## 决策
 
+Responses 的模型传输选择由[JSON 输出与流式接收](./2026-10-10-json-output-streaming-transport.md)
+部分取代：缓冲展示仍然保留，Responses 的所有模型阶段使用流式接收；Gemini 原生路径不受影响。
+
 让 solve/execute_step 的模型消费协议同时支持流式与非流式、可切换，当前默认非流式，供应商修复后评估切回。
 
 - 新增进程级开关 `EXECUTION_CONTROL_ANSWER_TRANSPORT`（取值 `stream`/`buffered`，默认 `buffered`），由 `execution-control` config 读取。任何非 `stream` 值（含缺省、非法值）一律归一为 `buffered`，避免误开流式复现缺陷。

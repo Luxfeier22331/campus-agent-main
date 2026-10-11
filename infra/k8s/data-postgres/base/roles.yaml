@@ -57,3 +57,18 @@ spec:
   login: true
   passwordSecret:
     name: pg-product-data-ro
+
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-memory
+  labels:
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: memory_service
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-memory-owner

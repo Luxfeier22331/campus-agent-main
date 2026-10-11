@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+const AgentRuntimeWorkflowTaskQueue = "campus-agent.agent.workflow.v1"
 const WorkflowTaskQueue = "campus-agent.workflow.v3"
 
 var (
@@ -19,6 +20,7 @@ var (
 )
 
 type WorkflowStartInput struct {
+	MemoryDeliveryExternal       bool                   `json:"memory_delivery_external,omitempty"`
 	DeadlineAt                   time.Time              `json:"deadline_at"`
 	AdmissionSnapshot            AgentAdmissionSnapshot `json:"admission_snapshot"`
 	AdmissionSnapshotSHA256      string                 `json:"admission_snapshot_sha256"`
@@ -47,7 +49,7 @@ func DecodeAndValidateWorkflowStartInput(
 	if input.WorkflowID != wantWorkflowID || intent.WorkflowID != wantWorkflowID {
 		return input, errors.New("workflow identity is not canonical")
 	}
-	if input.TaskQueue != WorkflowTaskQueue || intent.TaskQueue != WorkflowTaskQueue {
+	if (input.TaskQueue != WorkflowTaskQueue && input.TaskQueue != AgentRuntimeWorkflowTaskQueue) || intent.TaskQueue != input.TaskQueue {
 		return input, errors.New("workflow task queue is not v3")
 	}
 	if input.PayloadSHA256 != intent.PayloadSHA256 || !validWorkflowIdentitySHA(input.PayloadSHA256) {

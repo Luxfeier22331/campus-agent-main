@@ -33,7 +33,8 @@ status: active
 execution-control 的 receipt 可通过受内部 worker 鉴权保护的
 `POST /internal/memory/personal/commands/status` 查询；产品侧尚未把运行时状态字段直接
 暴露为新的公开生命周期字段。响应包含 `stale` 布尔值：非终态 receipt 超过既定触碰
-间隔（execution-control 定义的 margin）未被触碰时为 true，表示其 workflow 已死。
+间隔（execution-control 定义的 margin）未被触碰时为 true，只表示本地进度长时间未更新，
+不能据此判定 workflow 已结束或 Hindsight operation 已停止。
 
 `operations` 返回当前用户尚未完成或当前失败的产品命令，每项包含：
 
@@ -47,7 +48,9 @@ errorCode: string | null
 `admitted` 表示 execution-control 已接收命令，不表示 Hindsight 已完成。app-api 的定时任务会对
 admitted 命令按 command ID 查询 execution-control；已知 succeeded/failed 的 receipt 会重新写入
 产品投影。查询不到的命令重新准入（同 workflow ID 幂等）；运行时仍未终态但已 `stale` 的命令
-同样重新准入以重启死掉的 workflow；新鲜的未终态命令继续保持 admitted，不能伪装成成功或失败。
+同样用原 payload、command ID 和 workflow ID 重新准入；已运行的 workflow 保持不变，
+已结束的 workflow 重新启动以查询或恢复同一 provider operation。
+未确认终态的命令继续保持 admitted；stale 不触发失败终态化，也不放行旧 generation 的排空。
 
 `GET /api/me/profile-memory/profile` 返回：
 

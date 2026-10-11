@@ -32,7 +32,7 @@ func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 func TestTemporalActivityInterfacesExposeOnlyTheirQueueMethods(t *testing.T) {
 	contextType := reflect.TypeOf((*temporalruntime.ContextActivities)(nil)).Elem()
 	for _, method := range []string{
-		"AppendConversationMemoryActivity",
+		"AdvanceMemoryAppendActivity",
 		"ExecutePersonalMemoryCommandActivity",
 		"FinalizePersonalMemoryCommandReceiptActivity",
 		"WritePersonalMemoryCommandResultActivity",

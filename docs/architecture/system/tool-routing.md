@@ -66,8 +66,11 @@ embedding 与 reranker 连接并执行查询，handler 负责 run 校验、索�
 本轮全局 `citation_index`。检索结果只是候选，只有正文实际引用的结果进入公开来源投影。
 
 `execution_control_internal_query` handler 在同一个 Solve 或 Execute Step operation 内调用 execution-control 的有界
-读取接口。个人记忆 handler 重新校验冻结策略和运行身份后调用 Hindsight，只向 Agent 返回受限结果；
-它不创建额外 Temporal Activity，也不把记忆正文写入普通投影。
+读取接口。个人记忆 handler 重新校验冻结策略和运行身份，经记忆访问 fence 调用 Hindsight，返回
+`PersonalMemoryRecallResponse`：有序 `facts` 和现有配置的 `context_char_budget`。Provider adapter
+负责结果数量和单条 UTF-8 字节截断；Runtime 负责中文标题、完整行预算及 matched/no_match。Runtime
+在工具执行器内转换为原有 `PersonalMemoryRecallResult`（`outcome`、`memory_text`），再交给 runner
+与工具记录。该调用不创建额外 Temporal Activity，也不自动向 prompt 注入记忆。
 
 普通工具失败不得贡献候选或来源，也不得回退到未注册数据源、强制预检索或旧工具；其他成功工具或
 非机构事实已经足以支持回答时，整轮仍可完成。合同、身份、运行指纹或结果结构错误继续失败关闭。

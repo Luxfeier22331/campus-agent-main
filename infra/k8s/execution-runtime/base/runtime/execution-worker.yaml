@@ -39,6 +39,13 @@ spec:
             - name: http
               containerPort: 8000
           env:
+            - name: MEMORY_SERVICE_BASE_URL
+              value: http://memory-service:8000
+            - name: MEMORY_INTERNAL_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: memory-service-secrets
+                  key: MEMORY_INTERNAL_SHARED_SECRET
             - name: DEPLOYMENT_ENVIRONMENT
               valueFrom:
                 configMapKeyRef:
@@ -69,11 +76,6 @@ spec:
                 configMapKeyRef:
                   name: execution-runtime-rendered-config
                   key: EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL
-            - name: HINDSIGHT_API_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: execution-runtime-rendered-config
-                  key: HINDSIGHT_API_BASE_URL
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:
@@ -88,16 +90,6 @@ spec:
                 secretKeyRef:
                   name: execution-agent-runtime-secrets
                   key: EXECUTION_AGENT_RUNTIME_SHARED_SECRET
-            - name: HINDSIGHT_API_TENANT_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: hindsight-api-secrets
-                  key: HINDSIGHT_API_TENANT_API_KEY
-            - name: HINDSIGHT_OWNER_SALT
-              valueFrom:
-                secretKeyRef:
-                  name: execution-memory-client-secrets
-                  key: HINDSIGHT_OWNER_SALT
             - name: APP_API_EXECUTION_SHARED_SECRET
               valueFrom:
                 secretKeyRef:

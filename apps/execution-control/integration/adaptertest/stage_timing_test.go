@@ -3,19 +3,19 @@ package adaptertest
 import (
 	"context"
 	"fmt"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
 )
 
 func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newAdapterForTest(configForStageTimingTest())
-	server.RunProjectionStore = store
+	server.SetProjectionStore(store)
 
 	now := time.Date(2026, 7, 4, 10, 0, 0, 0, time.UTC)
 	run := createStageTimingRun(t, store, now)
@@ -64,7 +64,7 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 		upsertStageTimingResult(t, store, run.RequestID, result.stepID, result.stageTiming, now)
 	}
 
-	timing, err := NewFinalizationAdapter(server).StageTimingForRun(context.Background(), run, nil)
+	timing, err := NewFinalizationAdapter(server).Service.StageTimingForRun(context.Background(), run, nil)
 	if err != nil {
 		t.Fatalf("stage timing: %v", err)
 	}
@@ -88,13 +88,13 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
 	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newAdapterForTest(configForStageTimingTest())
-	server.RunProjectionStore = store
+	server.SetProjectionStore(store)
 
 	now := time.Date(2026, 7, 4, 10, 30, 0, 0, time.UTC)
 	run := createStageTimingRun(t, store, now)
 	upsertStageTimingAttempt(t, store, run.RequestID, 1, "task.step.step.lookup", 120, nil, now)
 
-	timing, err := NewFinalizationAdapter(server).StageTimingForRun(context.Background(), run, nil)
+	timing, err := NewFinalizationAdapter(server).Service.StageTimingForRun(context.Background(), run, nil)
 	if err != nil {
 		t.Fatalf("stage timing: %v", err)
 	}
@@ -129,13 +129,13 @@ func upsertStageTimingResult(
 ) {
 	t.Helper()
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             activityprojection.TemporalStepResultID(runID, stepID, 1),
+		ResultID:             projectionapp.StepResultID(runID, stepID, 1),
 		StepID:               stepID,
 		RequestID:            runID,
-		AttemptID:            activityprojection.TemporalStepAttemptID(runID, stepID, 1),
+		AttemptID:            projectionapp.StepAttemptID(runID, stepID, 1),
 		Status:               "completed",
 		ResultKind:           "workflow_operation_result",
-		ProjectionRef:        activityprojection.WorkflowOperationResultRef(runID, stepID),
+		ProjectionRef:        projectionapp.WorkflowOperationResultRef(runID, stepID),
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{

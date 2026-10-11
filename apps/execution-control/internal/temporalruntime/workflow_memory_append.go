@@ -10,7 +10,6 @@ import (
 
 const MemoryAppendWorkflowType = "MemoryAppendWorkflow"
 const AdvanceMemoryAppendActivityName = "AdvanceMemoryAppendActivity"
-const memoryAppendVersion = "async-memory-append-v1"
 
 type MemoryAppendWorkflowInput struct {
 	RequestID string    `json:"request_id"`
@@ -33,7 +32,7 @@ func MemoryAppendWorkflow(ctx workflow.Context, input MemoryAppendWorkflowInput)
 		},
 	})
 	for {
-		var output AppendConversationMemoryActivityOutput
+		var output AdvanceMemoryAppendActivityOutput
 		if err := workflow.ExecuteActivity(ctx, AdvanceMemoryAppendActivityName, input).Get(ctx, &output); err != nil {
 			return err
 		}

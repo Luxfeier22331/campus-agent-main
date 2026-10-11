@@ -90,10 +90,10 @@ func testProductionAgentRuntimeWorkflowContract(t *testing.T, memory bool) {
 			return runtimeassembly.NewWorkflowWorkerWithOptions(c, temporalruntime.WorkflowTaskQueue, temporaltest.Options())
 		}},
 		temporaltest.WorkerSpec{Queue: temporalruntime.ActivityTaskQueueCore, Kind: "core", New: func(c client.Client) worker.Worker {
-			return runtimeassembly.NewCoreActivityWorkerWithOptions(c, temporalruntime.ActivityTaskQueueCore, fake, adapter.FinalizationAdapter, temporaltest.Options())
+			return runtimeassembly.NewCoreActivityWorkerWithOptions(c, temporalruntime.ActivityTaskQueueCore, fake, adaptertest.NewFinalizationAdapter(adapter), temporaltest.Options())
 		}},
 		temporaltest.WorkerSpec{Queue: temporalruntime.ActivityTaskQueueAgent, Kind: "agent", New: func(c client.Client) worker.Worker {
-			return runtimeassembly.NewWorkflowOperationActivityWorkerWithOptions(c, temporalruntime.ActivityTaskQueueAgent, adapter.ExecutionAdapter, temporaltest.Options())
+			return runtimeassembly.NewWorkflowOperationActivityWorkerWithOptions(c, temporalruntime.ActivityTaskQueueAgent, adaptertest.NewExecutionAdapter(adapter), temporaltest.Options())
 		}},
 	)
 	packageHarness.CleanupRun(t, workflowID, workflowRun.GetRunID())

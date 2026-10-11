@@ -55,7 +55,7 @@ func newExecutionServer(t *testing.T, ctx context.Context, store executionapplic
 		RunProjectionStore:        store,
 		ProductFinalizationWriter: func(context.Context, execution.DurableRun, time.Time, map[string]any) error { return nil },
 	})
-	reconciler := executionreconciler.New(executionreconciler.Options{Store: store, Starter: &control.Gateway{Starter: starter}, Finalizer: control.NewFinalizer(adapter)})
+	reconciler := executionreconciler.New(executionreconciler.Options{Store: store, Starter: &control.Gateway{Starter: starter}, Finalizer: adapter.FinalizationAdapter})
 	service := executionapplication.NewRunService(executionapplication.RunServiceOptions{
 		Store:                    store,
 		Namespace:                packageHarness.Namespace,

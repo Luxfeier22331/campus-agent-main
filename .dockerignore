@@ -25,6 +25,8 @@ apps/campus-web/**
 !apps/campus-search/**
 !apps/execution-control/
 !apps/execution-control/**
+!apps/memory-service/
+!apps/memory-service/**
 !apps/model-config/
 !apps/model-config/**
 !apps/ops-web/

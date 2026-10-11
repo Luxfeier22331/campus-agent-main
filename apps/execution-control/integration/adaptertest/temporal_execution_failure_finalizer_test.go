@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
+	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionfailure"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/finalization"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
+
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -33,7 +36,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		t.Fatalf("load run before agent attempts: %v", err)
 	}
 	for attempt, marker := range []string{"agent-attempt-1", "agent-attempt-2"} {
-		if err := server.ProjectTemporalStep(context.Background(), activityprojection.TemporalStepProjection{
+		if err := server.ProjectTemporalStep(context.Background(), projectionapp.StepProjection{
 			ActivityAttempt: attempt + 1,
 			ActivityID:      marker,
 			ActivityType:    temporalruntime.SolveTaskActivityName,
@@ -52,7 +55,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		}
 	}
 
-	output, err := server.FinalizeExecutionFailure(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
+	output, err := server.FinalizeExecutionFailureApplication(context.Background(), applicationcontract.FailureInput{
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
 		RequestID:   "run-agent-failed",
@@ -69,7 +72,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		t.Fatalf("failed run = %#v err=%v", run, err)
 	}
 	errorBody, ok := productResponse["error"].(map[string]any)
-	if !ok || errorBody["message"] != activityprojection.DefaultExecutionFailureMessage {
+	if !ok || errorBody["message"] != executionfailure.DefaultExecutionFailureMessage {
 		t.Fatalf("product error = %#v", productResponse)
 	}
 	if run.TerminalReason != execution.DurableTerminalReasonExecutionFailed {
@@ -83,7 +86,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		t.Fatalf("product response leaked raw failure: %s", encoded)
 	}
 
-	replay, err := server.FinalizeExecutionFailure(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
+	replay, err := server.FinalizeExecutionFailureApplication(context.Background(), applicationcontract.FailureInput{
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
 		RequestID:   "run-agent-failed",
@@ -144,9 +147,9 @@ func TestFinalizeExecutionFailureActivityOwnsAllPreAnswerFailureStages(t *testin
 				return nil
 			}
 
-			output, err := server.FinalizeExecutionFailure(
+			output, err := server.FinalizeExecutionFailureApplication(
 				context.Background(),
-				temporalruntime.FinalizeExecutionFailureActivityInput{
+				applicationcontract.FailureInput{
 					FailureKind: test.failureKind,
 					FailedAt:    now.Add(time.Second),
 					RequestID:   runID,
@@ -191,9 +194,9 @@ func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailu
 		return nil
 	}
 
-	_, err := server.FinalizeExecutionFailure(
+	_, err := server.FinalizeExecutionFailureApplication(
 		context.Background(),
-		temporalruntime.FinalizeExecutionFailureActivityInput{
+		applicationcontract.FailureInput{
 			FailureKind: "agent_runtime_unauthorized",
 			FailedAt:    now.Add(time.Second),
 			RequestID:   "run-runtime-unauthorized",
@@ -217,7 +220,7 @@ func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailu
 func TestTemporalFailureTerminalReasonAndProductRetryability(t *testing.T) {
 	tests := []struct {
 		name           string
-		projection     activityprojection.TemporalStepFailureProjection
+		projection     projectionapp.StepFailureProjection
 		failureKind    string
 		terminalReason execution.DurableTerminalReason
 		retryable      bool
@@ -230,7 +233,7 @@ func TestTemporalFailureTerminalReasonAndProductRetryability(t *testing.T) {
 		},
 		{
 			name: "provider timeout outcome",
-			projection: activityprojection.TemporalStepFailureProjection{
+			projection: projectionapp.StepFailureProjection{
 				TimeoutOutcome: execution.TimeoutOutcomeProviderTimeout,
 			},
 			failureKind:    "execution_failed",
@@ -245,7 +248,7 @@ func TestTemporalFailureTerminalReasonAndProductRetryability(t *testing.T) {
 		},
 		{
 			name: "activity timeout outcome",
-			projection: activityprojection.TemporalStepFailureProjection{
+			projection: projectionapp.StepFailureProjection{
 				TimeoutOutcome: execution.TimeoutOutcomeActivityTimeout,
 			},
 			failureKind:    "agent_deadline_exceeded",
@@ -339,7 +342,7 @@ func TestTemporalFailureTerminalReasonAndProductRetryability(t *testing.T) {
 }
 
 func TestTemporalFailureProjectionRejectsRetiredMemoryRecallStage(t *testing.T) {
-	_, ok := finalizationactivities.TemporalFailureProjectionForStage(temporalruntime.FinalizeExecutionFailureActivityInput{
+	_, ok := finalizationactivities.TemporalFailureProjectionForStage(applicationcontract.FailureInput{
 		RequestID: "run-retired-memory-recall",
 		Stage:     "memory.recall",
 	})
@@ -363,9 +366,9 @@ func TestFinalizeExecutionFailureActivityKeepsRunActiveUntilCallbackSucceeds(t *
 		return errors.New(temporalFailureSentinel)
 	}
 
-	_, err := server.FinalizeExecutionFailure(
+	_, err := server.FinalizeExecutionFailureApplication(
 		context.Background(),
-		temporalruntime.FinalizeExecutionFailureActivityInput{
+		applicationcontract.FailureInput{
 			FailureKind: "agent_runtime_failed",
 			FailedAt:    now.Add(time.Second),
 			RequestID:   "run-callback-pending",

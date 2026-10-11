@@ -164,6 +164,11 @@ func ownerDeletionStatusInTx(ctx context.Context, tx pgx.Tx, ownerUserID string)
 		where owner_user_id = $1 and status in `+ownerDeletionActiveRunStatuses, ownerUserID).Scan(&activeRuns); err != nil {
 		return execution.OwnerDeletionStatus{}, err
 	}
+	var pendingDeliveries int
+	if err := tx.QueryRow(ctx, `select count(*) from execution_control.agent_memory_deliveries where owner_user_id=$1 and status='ready'`, ownerUserID).Scan(&pendingDeliveries); err != nil {
+		return execution.OwnerDeletionStatus{}, err
+	}
+	activeRuns += pendingDeliveries
 	return execution.OwnerDeletionStatus{OwnerUserID: ownerUserID, State: state, ActiveRuns: activeRuns}, nil
 }
 

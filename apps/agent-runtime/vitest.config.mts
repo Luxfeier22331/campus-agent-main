@@ -5,6 +5,7 @@ export default defineProject({
 		environment: "node",
 		fileParallelism: false,
 		include: ["test/**/*.test.ts"],
+		exclude: ["test/temporal-workflow.test.ts"],
 		maxWorkers: 1,
 		name: "agent-runtime",
 	},

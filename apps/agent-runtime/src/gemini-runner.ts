@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
 	ApiError,
 	type Content,
+	FunctionCallingConfigMode,
 	type GenerateContentParameters,
 	type GenerateContentResponse,
 	GoogleGenAI,
@@ -47,39 +48,24 @@ function modelsFor(input: AgentRunnerInput, options: GeminiRunnerOptions): Gemin
 	}).models;
 }
 
-export function geminiJSONSchema(value: unknown): unknown {
-	if (Array.isArray(value)) {
-		return value.map(geminiJSONSchema);
-	}
-	if (!value || typeof value !== "object") {
-		return value;
-	}
-	// Gemini's structured decoder rejects the full bounded Solve schema. These
-	// application limits remain enforced by workflow-runtime after generation.
-	return Object.fromEntries(
-		Object.entries(value)
-			.filter(
-				([key]) => !["$schema", "minLength", "maxLength", "minItems", "maxItems"].includes(key),
-			)
-			.map(([key, item]) => (key === "const" ? ["enum", [item]] : [key, geminiJSONSchema(item)])),
-	);
-}
-
 function requestFor(input: AgentRunnerInput, contents: Content[]): GenerateContentParameters {
 	return {
 		model: input.providerConfig.model,
 		contents,
 		config: {
-			systemInstruction: input.instructions,
-			...(input.allowWebSearch ? { toolConfig: { includeServerSideToolInvocations: true } } : {}),
-			...(input.limits.maxOutputTokens ? { maxOutputTokens: input.limits.maxOutputTokens } : {}),
-			...(input.signal ? { abortSignal: input.signal } : {}),
-			...(input.outputSchema
+			systemInstruction: input.outputSchema
+				? `${input.instructions}\nOutput a JSON object matching this application contract:\n${JSON.stringify(input.outputSchema.schema)}`
+				: input.instructions,
+			...(input.allowWebSearch
 				? {
-						responseMimeType: "application/json",
-						responseJsonSchema: geminiJSONSchema(input.outputSchema.schema),
+						toolConfig: {
+							includeServerSideToolInvocations: true,
+							functionCallingConfig: { mode: FunctionCallingConfigMode.VALIDATED },
+						},
 					}
 				: {}),
+			...(input.limits.maxOutputTokens ? { maxOutputTokens: input.limits.maxOutputTokens } : {}),
+			...(input.signal ? { abortSignal: input.signal } : {}),
 			tools: [
 				...(input.tools.length > 0 && Date.now() < retrievalDeadlineAt(input.deadlineAt)
 					? [
@@ -301,6 +287,18 @@ function assertComplete(response: GenerateContentResponse): Content {
 	return candidate.content;
 }
 
+function geminiErrorDetail(error: ApiError): string {
+	// The SDK message wraps the provider error; retain only its explicit message.
+	let message = error.message;
+	try {
+		const body = JSON.parse(message);
+		message = typeof body?.error?.message === "string" ? body.error.message : "";
+	} catch {
+		// Some gateways return a plain error message.
+	}
+	return `Gemini returned HTTP ${error.status}${message ? `: ${message}` : ""}`;
+}
+
 function modelFailure(error: unknown, input: AgentRunnerInput): never {
 	input.signal?.throwIfAborted();
 	if (error instanceof AgentRuntimeError) {
@@ -317,7 +315,7 @@ function modelFailure(error: unknown, input: AgentRunnerInput): never {
 			{
 				operation: "agent.model",
 				httpStatus: error.status,
-				detail: `Gemini returned HTTP ${error.status}`,
+				detail: geminiErrorDetail(error),
 			},
 			{ cause: error },
 		);
@@ -756,4 +754,77 @@ export function createStreamingGeminiRunner(
 			}
 		}
 	};
+}
+
+// Provider Content (including thought signatures) is kept verbatim between turns.
+export async function runGeminiModelTurn(
+	input: AgentRunnerInput,
+	continuation?: import("./model-turn.ts").ProviderContinuation,
+	onDelta?: (delta: string) => Promise<void>,
+	options: GeminiRunnerOptions = {},
+): Promise<import("./model-turn.ts").ModelTurn> {
+	try {
+		return await geminiModelTurn(input, continuation, onDelta, options);
+	} catch (error) {
+		modelFailure(error, input);
+	}
+}
+
+async function geminiModelTurn(
+	input: AgentRunnerInput,
+	continuation?: import("./model-turn.ts").ProviderContinuation,
+	onDelta?: (delta: string) => Promise<void>,
+	options: GeminiRunnerOptions = {},
+): Promise<import("./model-turn.ts").ModelTurn> {
+	const models = modelsFor(input, options);
+	const contents =
+		continuation?.provider === "gemini" ? continuation.contents : initialContents(input);
+	const result = emptyResult();
+	// Keep provider transport independent from whether the caller publishes answer
+	// deltas. The pre-Temporal Gemini path used streaming model requests; callers
+	// without a UI delta consumer still receive the fully collected result below.
+	let pending = Promise.resolve();
+	const streamed = await collectGeminiStreamTurn(input, models, contents, result, (delta) => {
+		if (onDelta) {
+			pending = pending.then(() => onDelta(delta));
+		}
+	});
+	await pending;
+	if (!streamed.contentSeen || streamed.finishReason !== "STOP") {
+		throw new AgentRuntimeError("run_failed", "Gemini stream ended without a complete response");
+	}
+	const response = streamed.response;
+	const content = streamed.content;
+	recordGrounding(result, geminiGrounding(streamed.response, streamed.groundingSnapshots));
+	const calls = (content.parts ?? []).flatMap((part, index) =>
+		part.functionCall
+			? [
+					{
+						id: part.functionCall.id ?? `call.${index}`,
+						name: part.functionCall.name ?? "",
+						arguments: part.functionCall.args ?? {},
+					},
+				]
+			: [],
+	);
+	if (calls.length === 0) {
+		const text = (content.parts ?? [])
+			.filter((p) => !p.thought)
+			.map((p) => p.text ?? "")
+			.join("");
+		result.rawModelOutput = { text, finishReason: response.candidates?.[0]?.finishReason ?? null };
+		try {
+			Object.assign(
+				result,
+				normalizedModelOutput(
+					input.outputSchema ? parseModelOutputJSON(text, `workflow.${input.operation}`) : text,
+					input.operation,
+				),
+			);
+		} catch {
+			result.failure = { code: "model_output_invalid", operation: `workflow.${input.operation}` };
+		}
+		await options.resolveSources?.(input, result);
+	}
+	return { continuation: { provider: "gemini", contents: [...contents, content] }, calls, result };
 }

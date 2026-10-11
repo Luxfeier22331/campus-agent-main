@@ -40,7 +40,7 @@ COPY --from=pruner /repo/out/full/ ./
 
 RUN pnpm --filter agent-runtime build
 
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS production-dependencies
+FROM node:${NODE_VERSION}-bookworm-slim AS production-dependencies
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH

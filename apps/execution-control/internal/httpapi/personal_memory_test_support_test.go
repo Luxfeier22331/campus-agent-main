@@ -3,7 +3,7 @@ package httpapi
 import (
 	"context"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 )
 
 type fakePersonalMemoryExecutor struct {
@@ -42,20 +42,6 @@ func (f *fakePersonalMemoryExecutor) Recall(
 	f.recallCount++
 	f.seenRequest = request
 	return memoryruntime.RecallResult{
-		ContextBlock: "用户记忆:\n相关事实:\n- 用户关注保研和培养方案。",
-	}, nil
-}
-
-func (f *fakePersonalMemoryExecutor) AppendConversationTurn(
-	_ context.Context,
-	request memoryruntime.AppendConversationTurnRequest,
-) (memoryruntime.AppendConversationTurnResult, error) {
-	f.appendCount++
-	f.seenAppend = request
-	if f.appendErr != nil {
-		return memoryruntime.AppendConversationTurnResult{}, f.appendErr
-	}
-	return memoryruntime.AppendConversationTurnResult{
-		AppendedMessageCount: 1,
+		Facts: []string{"用户记忆:\n相关事实:\n- 用户关注保研和培养方案。"}, ContextCharBudget: 2500,
 	}, nil
 }

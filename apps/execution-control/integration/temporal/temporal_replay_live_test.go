@@ -11,9 +11,9 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/integration/temporalfake"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/integration/temporaltest"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimeassembly"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 	enumspb "go.temporal.io/api/enums/v1"
 	historypb "go.temporal.io/api/history/v1"
 	"go.temporal.io/sdk/client"

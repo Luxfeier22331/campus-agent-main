@@ -66,6 +66,7 @@ export interface AccountLifecycleServiceDependencies {
 	diningLifecycleService: {
 		eraseForAccountDeletion(input: PendingAccountDeletion): Promise<boolean>;
 	};
+	memoryController: { finalizeOwnerDeletion(input: { ownerUserId: string }): Promise<void> };
 	executionController: AccountDeletionExecutionController;
 	profileMemoryService: Pick<ProfileMemoryService, "dispatchPending" | "eraseForAccountDeletion">;
 	removeAuthUser: (userId: string) => Promise<void>;

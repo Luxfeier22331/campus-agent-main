@@ -1,0 +1,101 @@
+package answermemory
+
+import (
+	"context"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
+	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/projection"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
+)
+
+// Bridge owns the answer data still required by post-answer memory work.
+type Bridge struct {
+	*activityprojection.Writer
+	*executionapplication.InputReader
+}
+
+func (b *Bridge) PrepareAppend(ctx context.Context, requestID string) (memoryapplication.PreparedAppend, memoryapplication.AppendProgressStore, error) {
+	run, err := b.completedFinalizationRun(ctx, requestID)
+	if err != nil {
+		return memoryapplication.PreparedAppend{}, nil, err
+	}
+	payload, err := b.LoadExecutionPayload(ctx, run)
+	if err != nil {
+		return memoryapplication.PreparedAppend{}, nil, err
+	}
+	source := memoryapplication.PreparedAppend{RequestID: run.RequestID, ThreadID: run.ConversationID}
+	enabled, known := MemoryEnabledFromExecutionPayload(payload)
+	if !known {
+		source.SkipReason = "memory_enabled_unknown"
+	} else if !enabled {
+		source.SkipReason = "memory_disabled"
+	} else {
+		source.Request, source.RequestError = MemoryAppendRequestForRun(run, payload)
+	}
+	return source, &appendJournal{bridge: b, run: run}, nil
+}
+
+type appendJournal struct {
+	bridge *Bridge
+	run    execution.DurableRun
+}
+
+func (j *appendJournal) Restore(ctx context.Context) (memoryapplication.AppendCheckpoint, error) {
+	steps, err := j.bridge.RunProjectionStore.ListRunSteps(ctx, j.run.RequestID)
+	if err != nil {
+		return memoryapplication.AppendCheckpoint{}, err
+	}
+	for _, step := range steps {
+		if step.StepID != "memory.append" {
+			continue
+		}
+		if projectionapp.StepTerminal(step.Status) {
+			if err := j.project(ctx, step.StartedAt, step.CompletedAt, step.UpdatedAt, step.Status, step.SanitizedPayload); err != nil {
+				return memoryapplication.AppendCheckpoint{}, err
+			}
+			return memoryapplication.AppendCheckpoint{Status: step.Status, Terminal: true}, nil
+		}
+		if step.Status == "running" {
+			return memoryapplication.AppendCheckpoint{Status: "running"}, nil
+		}
+	}
+	return memoryapplication.AppendCheckpoint{}, nil
+}
+func (j *appendJournal) Save(ctx context.Context, progress memoryapplication.AppendProgress) error {
+	result := progress.Result
+	payload := map[string]any{"status": result.Status}
+	if result.Status != "running" {
+		payload["schema_version"] = result.SchemaVersion
+		payload["appended_message_count"] = result.AppendedMessageCount
+		payload["thread_id"] = j.run.ConversationID
+	}
+	if result.Status == "skipped" {
+		payload["skip_reasons"] = result.SkipReasons
+		payload["skipped_count"] = result.SkippedCount
+	}
+	if result.Status == "failed" {
+		failure := map[string]any{"code": progress.FailureCode, "operation": "memory.append", "detail": "Hindsight retain operation reached a terminal failure."}
+		if progress.FailureDetail != "" {
+			failure["detail"] = progress.FailureDetail
+		}
+		if progress.HTTPStatus != 0 {
+			failure["http_status"] = progress.HTTPStatus
+		}
+		payload["failure"] = failure
+	}
+	return j.project(ctx, progress.StartedAt, progress.CompletedAt, progress.UpdatedAt, result.Status, payload)
+}
+func (j *appendJournal) project(ctx context.Context, startedAt, completedAt, updatedAt time.Time, status string, payload map[string]any) error {
+	return j.bridge.ProjectTemporalStep(ctx, projectionapp.StepProjection{
+		Run: j.run, StepID: "memory.append", StepKind: "memory", Tool: "memory",
+		Status: status, StartedAt: startedAt, CompletedAt: completedAt, UpdatedAt: updatedAt,
+		Attempt: 1, ActivityAttempt: 1, PreserveAttempt: true,
+		WorkflowID: "memory.append/" + j.run.RequestID, ActivityType: temporalruntime.AdvanceMemoryAppendActivityName,
+		ResultKind: "memory_conversation_append_result", ProjectionRef: projectionapp.ProjectionRef(j.run.RequestID, "memory/append"),
+		TaskQueue: temporalruntime.ActivityTaskQueueCore, Payload: payload,
+	})
+}

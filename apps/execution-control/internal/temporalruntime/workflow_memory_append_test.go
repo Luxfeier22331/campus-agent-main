@@ -21,25 +21,25 @@ func TestAsyncMemoryAppendTransportRecoveryDoesNotResubmitAcceptedTask(t *testin
 			var suite testsuite.WorkflowTestSuite
 			env := suite.NewTestWorkflowEnvironment()
 			submits, polls := 0, 0
-			env.RegisterActivityWithOptions(func(ctx context.Context, in MemoryAppendWorkflowInput) (AppendConversationMemoryActivityOutput, error) {
+			env.RegisterActivityWithOptions(func(ctx context.Context, in MemoryAppendWorkflowInput) (AdvanceMemoryAppendActivityOutput, error) {
 				require.Equal(t, "req-async", in.RequestID)
 				require.False(t, in.StartedAt.IsZero())
 				if !in.Submitted {
 					submits++
 					if submits == 1 {
-						return AppendConversationMemoryActivityOutput{}, temporal.NewApplicationError("lost acknowledgement", "network")
+						return AdvanceMemoryAppendActivityOutput{}, temporal.NewApplicationError("lost acknowledgement", "network")
 					}
 				} else {
 					polls++
 					if polls == 1 {
-						return AppendConversationMemoryActivityOutput{}, temporal.NewApplicationError("status unavailable", "network")
+						return AdvanceMemoryAppendActivityOutput{}, temporal.NewApplicationError("status unavailable", "network")
 					}
 					// Simulate a provider retry and a write taking over 300s.
 					if polls >= 40 {
-						return AppendConversationMemoryActivityOutput{Status: terminalStatus}, nil
+						return AdvanceMemoryAppendActivityOutput{Status: terminalStatus}, nil
 					}
 				}
-				return AppendConversationMemoryActivityOutput{Status: "running"}, nil
+				return AdvanceMemoryAppendActivityOutput{Status: "running"}, nil
 			}, activity.RegisterOptions{Name: AdvanceMemoryAppendActivityName})
 			start := env.Now()
 			env.ExecuteWorkflow(MemoryAppendWorkflow, MemoryAppendWorkflowInput{RequestID: "req-async"})
@@ -55,10 +55,10 @@ func TestAsyncMemoryAppendResumeOnlyQueriesExistingOperation(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	started := time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC)
-	env.RegisterActivityWithOptions(func(_ context.Context, in MemoryAppendWorkflowInput) (AppendConversationMemoryActivityOutput, error) {
+	env.RegisterActivityWithOptions(func(_ context.Context, in MemoryAppendWorkflowInput) (AdvanceMemoryAppendActivityOutput, error) {
 		require.True(t, in.Submitted)
 		require.Equal(t, started, in.StartedAt)
-		return AppendConversationMemoryActivityOutput{Status: "completed"}, nil
+		return AdvanceMemoryAppendActivityOutput{Status: "completed"}, nil
 	}, activity.RegisterOptions{Name: AdvanceMemoryAppendActivityName})
 	env.ExecuteWorkflow(MemoryAppendWorkflow, MemoryAppendWorkflowInput{RequestID: "req-resumed", Submitted: true, StartedAt: started})
 	require.NoError(t, env.GetWorkflowError())
@@ -68,9 +68,9 @@ func TestAsyncMemoryAppendContinueAsNewPreservesSubmittedIdentity(t *testing.T) 
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.SetContinueAsNewSuggested(true)
-	env.RegisterActivityWithOptions(func(_ context.Context, in MemoryAppendWorkflowInput) (AppendConversationMemoryActivityOutput, error) {
+	env.RegisterActivityWithOptions(func(_ context.Context, in MemoryAppendWorkflowInput) (AdvanceMemoryAppendActivityOutput, error) {
 		require.False(t, in.Submitted)
-		return AppendConversationMemoryActivityOutput{Status: "running"}, nil
+		return AdvanceMemoryAppendActivityOutput{Status: "running"}, nil
 	}, activity.RegisterOptions{Name: AdvanceMemoryAppendActivityName})
 	started := env.Now()
 	env.ExecuteWorkflow(MemoryAppendWorkflow, MemoryAppendWorkflowInput{RequestID: "continue"})
@@ -99,6 +99,6 @@ func TestAnswerDoesNotWaitForBackgroundMemory(t *testing.T) {
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 	require.NoError(t, env.GetWorkflowError())
 	require.Less(t, env.Now().Sub(start), time.Minute)
-	env.AssertActivityNumberOfCalls(t, AppendConversationMemoryActivityName, 0)
+	env.AssertActivityNumberOfCalls(t, AdvanceMemoryAppendActivityName, 0)
 	env.AssertExpectations(t)
 }

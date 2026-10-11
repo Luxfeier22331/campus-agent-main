@@ -3,18 +3,19 @@ package adaptertest
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/finalization"
+	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/operation"
+	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
+	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
-	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
 )
 
 type citationRuntimeClient struct {
@@ -22,8 +23,8 @@ type citationRuntimeClient struct {
 	status int
 }
 
-func (c citationRuntimeClient) Execute(context.Context, executionapplication.AgentRuntimeRequest) (executionapplication.AgentRuntimeResponse, error) {
-	return executionapplication.AgentRuntimeResponse{StatusCode: c.status, Body: io.NopCloser(strings.NewReader(c.body))}, nil
+func (c citationRuntimeClient) Execute(_ context.Context, request executionapplication.AgentRuntimeRequest, handle func(executionapplication.AgentRuntimeEvent) error) (executionapplication.AgentRuntimeResult, error) {
+	return outboundadapter.DecodeAgentRuntimeResponse(c.status, strings.NewReader(c.body), request.Stream, handle)
 }
 
 func TestRecoveryCitationDiagnosticSurvivesTerminalAndReplay(t *testing.T) {
@@ -42,20 +43,20 @@ func TestRecoveryCitationDiagnosticSurvivesTerminalAndReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			runtime := &executionactivities.Adapter{AgentRuntimeClient: citationRuntimeClient{body: `{"error":` + wireFailure + `}`, status: 422}}
+			runtime := &executionactivities.OperationService{AgentRuntimeClient: citationRuntimeClient{body: `{"error":` + wireFailure + `}`, status: 422}}
 			payload := map[string]any{"failure": map[string]any{"code": "citation_validation_failed"}}
 			switch mode {
 			case "http_error":
-				_, err = runtime.CallWorkflowOperationRuntime(ctx, run, temporalruntime.WorkflowOperationSynthesize, "", []byte(`{}`), 60000, false)
+				_, err = runtime.CallWorkflowOperationRuntime(ctx, run, applicationcontract.WorkflowOperationSynthesize, "", executionapplication.AgentRuntimeRequest{}, 60000, false)
 			case "sse_error":
-				_, err = runtime.ConsumeWorkflowRuntimeStream(ctx, run, temporalruntime.WorkflowOperationSynthesize, strings.NewReader("event: error\ndata: "+wireFailure+"\n\n"))
+				_, err = runtime.ConsumeWorkflowRuntimeStream(ctx, run, applicationcontract.WorkflowOperationSynthesize, runtimeEvents(strings.NewReader("event: error\ndata: "+wireFailure+"\n\n")))
 			case "failed_result":
 				runtime.AgentRuntimeClient = citationRuntimeClient{body: `{"request_id":"recovery-citation","status":"failed","failure":` + wireFailure + `}`, status: 200}
-				response, callErr := runtime.CallWorkflowOperationRuntime(ctx, run, temporalruntime.WorkflowOperationSynthesize, "", []byte(`{}`), 60000, false)
+				response, callErr := runtime.CallWorkflowOperationRuntime(ctx, run, applicationcontract.WorkflowOperationSynthesize, "", executionapplication.AgentRuntimeRequest{}, 60000, false)
 				if callErr != nil {
 					t.Fatal(callErr)
 				}
-				output, outputErr := executionactivities.WorkflowOperationOutputFromRuntimeResponse(response, temporalruntime.WorkflowOperationSynthesize, "review-result")
+				output, outputErr := executionactivities.WorkflowOperationOutputFromRuntimeResponse(response, applicationcontract.WorkflowOperationSynthesize, "review-result")
 				if outputErr != nil {
 					t.Fatal(outputErr)
 				}
@@ -76,7 +77,7 @@ func TestRecoveryCitationDiagnosticSurvivesTerminalAndReplay(t *testing.T) {
 				executionactivities.AddWorkflowFailureEvidence(payload, err)
 			}
 			// A different step with the same code must not supply the terminal cause.
-			for _, step := range []activityprojection.TemporalStepProjection{
+			for _, step := range []activityprojection.StepProjection{
 				{Run: run, StepID: "solve.initial", StepKind: "solver", Status: "failed", UpdatedAt: now, Payload: map[string]any{"failure": map[string]any{"code": "citation_validation_failed", "reason": "invalid_url"}}},
 				{Run: run, StepID: "answer.synthesize", StepKind: "synthesizer", Status: "failed", UpdatedAt: now, Payload: payload},
 			} {
@@ -84,9 +85,9 @@ func TestRecoveryCitationDiagnosticSurvivesTerminalAndReplay(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			input := temporalruntime.FinalizeExecutionFailureActivityInput{RequestID: run.RequestID, Stage: "answer.synthesize", FailureKind: "answer_synthesis_failed", FailedAt: time.Now().UTC()}
+			input := applicationcontract.FailureInput{RequestID: run.RequestID, Stage: "answer.synthesize", FailureKind: "answer_synthesis_failed", FailedAt: time.Now().UTC()}
 			for range 2 {
-				if _, err := server.FinalizeExecutionFailure(ctx, input); err != nil {
+				if _, err := server.FinalizeExecutionFailureApplication(ctx, input); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -139,16 +140,16 @@ func TestCitationDiagnosticSurvivesFinalizationAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := server.ProjectTemporalStep(ctx, activityprojection.TemporalStepProjection{Run: run, StepID: "solve.initial", StepKind: "solver", Status: "failed", StartedAt: now, CompletedAt: now, UpdatedAt: now, Payload: map[string]any{"failure": map[string]any{"code": "citation_validation_failed", "reason": "invalid_url"}}}); err != nil {
+	if err := server.ProjectTemporalStep(ctx, activityprojection.StepProjection{Run: run, StepID: "solve.initial", StepKind: "solver", Status: "failed", StartedAt: now, CompletedAt: now, UpdatedAt: now, Payload: map[string]any{"failure": map[string]any{"code": "citation_validation_failed", "reason": "invalid_url"}}}); err != nil {
 		t.Fatal(err)
 	}
 	_, cause := finalizationactivities.WorkflowEvidenceCitationClosureForFinalization(nil, "缺失引用 [9]")
 	if _, err := server.FailFinalizationActivity(ctx, run, "", "citation_validation_failed", "", cause); err == nil {
 		t.Fatal("expected citation rejection")
 	}
-	input := temporalruntime.FinalizeExecutionFailureActivityInput{RequestID: run.RequestID, Stage: "finalization.write", FailureKind: "citation_validation_failed", FailedAt: time.Now().UTC()}
+	input := applicationcontract.FailureInput{RequestID: run.RequestID, Stage: "finalization.write", FailureKind: "citation_validation_failed", FailedAt: time.Now().UTC()}
 	for range 2 {
-		if _, err := server.FinalizeExecutionFailure(ctx, input); err != nil {
+		if _, err := server.FinalizeExecutionFailureApplication(ctx, input); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -200,8 +201,8 @@ func TestRecoveryTerminalDoesNotBorrowUnrelatedDiagnosis(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			step := activityprojection.TemporalStepProjection{Run: run, StepID: "answer.synthesize", StepKind: "synthesizer", Status: "failed", UpdatedAt: now, Payload: map[string]any{"failure": map[string]any{"code": "citation_validation_failed", "reason": "invalid_url"}}}
-			input := temporalruntime.FinalizeExecutionFailureActivityInput{RequestID: run.RequestID, Stage: "answer.synthesize", FailureKind: "answer_synthesis_failed", FailedAt: now}
+			step := activityprojection.StepProjection{Run: run, StepID: "answer.synthesize", StepKind: "synthesizer", Status: "failed", UpdatedAt: now, Payload: map[string]any{"failure": map[string]any{"code": "citation_validation_failed", "reason": "invalid_url"}}}
+			input := applicationcontract.FailureInput{RequestID: run.RequestID, Stage: "answer.synthesize", FailureKind: "answer_synthesis_failed", FailedAt: now}
 			switch scenario {
 			case "other_step":
 				step.StepID = "solve.initial"
@@ -215,7 +216,7 @@ func TestRecoveryTerminalDoesNotBorrowUnrelatedDiagnosis(t *testing.T) {
 			if err := server.ProjectTemporalStep(ctx, step); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := server.FinalizeExecutionFailure(ctx, input); err != nil {
+			if _, err := server.FinalizeExecutionFailureApplication(ctx, input); err != nil {
 				t.Fatal(err)
 			}
 			events, err := store.ListRunEvents(ctx, run.RequestID)
@@ -233,4 +234,8 @@ func TestRecoveryTerminalDoesNotBorrowUnrelatedDiagnosis(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (c citationRuntimeClient) Prepare(r executionapplication.AgentRuntimeRequest) (string, error) {
+	return outboundadapter.NewAgentRuntimeClient(config.Config{}).Prepare(r)
 }

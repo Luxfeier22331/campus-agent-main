@@ -2,8 +2,8 @@ package contract
 
 import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 )
 
 func AdmissionToDomain(s temporalruntime.AgentAdmissionSnapshot) execution.AgentAdmissionSnapshot {
@@ -24,7 +24,8 @@ func MemoryCommandToWorkflow(s memoryruntime.PersonalMemoryCommandRequest) tempo
 }
 func WorkflowInput(input execution.WorkflowStartInput) temporalruntime.ToolExecutionWorkflowInput {
 	return temporalruntime.ToolExecutionWorkflowInput{
-		DeadlineAt:        input.DeadlineAt,
-		AdmissionSnapshot: AdmissionToWorkflow(input.AdmissionSnapshot), AdmissionSnapshotSHA256: input.AdmissionSnapshotSHA256, ConversationID: input.ConversationID, Namespace: input.Namespace, PayloadSHA256: input.PayloadSHA256, PersonalMemoryTimeoutSeconds: input.PersonalMemoryTimeoutSeconds, RequestID: input.RequestID, TaskQueue: input.TaskQueue, TraceParent: input.TraceParent, WorkflowID: input.WorkflowID,
+		DeadlineAt:             input.DeadlineAt,
+		MemoryDeliveryExternal: input.MemoryDeliveryExternal,
+		AdmissionSnapshot:      AdmissionToWorkflow(input.AdmissionSnapshot), AdmissionSnapshotSHA256: input.AdmissionSnapshotSHA256, ConversationID: input.ConversationID, Namespace: input.Namespace, PayloadSHA256: input.PayloadSHA256, PersonalMemoryTimeoutSeconds: input.PersonalMemoryTimeoutSeconds, RequestID: input.RequestID, TaskQueue: input.TaskQueue, TraceParent: input.TraceParent, WorkflowID: input.WorkflowID,
 	}
 }

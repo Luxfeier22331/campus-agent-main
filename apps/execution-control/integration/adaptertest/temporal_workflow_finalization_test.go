@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
+	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 	"reflect"
 	"strings"
 	"testing"
@@ -13,10 +15,9 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/finalization"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	workflowcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/contract"
-	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
+
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -58,13 +59,13 @@ func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build admission snapshot: %v", err)
 	}
-	evidence := []temporalruntime.WorkflowEvidence{{SchemaVersion: "workflow_evidence.v1", ID: "evidence.finalization", Source: temporalruntime.WorkflowSourceCampusSearch, Title: "校园资料", Excerpt: "资料内容", CitationIndex: 1, URL: "https://example.edu/notice"}}
-	input := temporalruntime.WriteWorkflowFinalizationActivityInput{
+	evidence := []applicationcontract.WorkflowEvidence{{SchemaVersion: "workflow_evidence.v1", ID: "evidence.finalization", Source: applicationcontract.WorkflowSourceCampusSearch, Title: "校园资料", Excerpt: "资料内容", CitationIndex: 1, URL: "https://example.edu/notice"}}
+	input := applicationcontract.FinalizationInput{
 		RequestID:         runID,
-		AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot),
-		WorkflowResult: temporalruntime.WorkflowOperationActivityOutput{
-			Operation:               temporalruntime.WorkflowOperationSynthesize,
-			WorkflowResultRef:       activityprojection.WorkflowOperationResultRef(runID, "answer.synthesize"),
+		AdmissionSnapshot: applicationcontract.AdmissionFromDomain(snapshot),
+		WorkflowResult: applicationcontract.OperationOutput{
+			Operation:               applicationcontract.WorkflowOperationSynthesize,
+			WorkflowResultRef:       projectionapp.WorkflowOperationResultRef(runID, "answer.synthesize"),
 			FinalOutput:             "你好，我是校园问答助手。",
 			ModelName:               "gpt-5.6-terra",
 			ModelProvider:           "openai",
@@ -73,10 +74,10 @@ func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
 			RuntimeRelease:          "agent-runtime@test",
 			Status:                  "completed",
 			Evidence:                evidence,
-			SourceAttempts:          []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}},
+			SourceAttempts:          []applicationcontract.WorkflowSourceAttempt{{Source: applicationcontract.WorkflowSourceCampusSearch, Status: "matched"}},
 			TerminalReason:          "answer_completed",
 			ToolContractFingerprint: execution.ToolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint),
-			Usage: temporalruntime.AgentUsageSummary{
+			Usage: applicationcontract.AgentUsageSummary{
 				InputTokens:       12,
 				OutputTokens:      8,
 				UsageObserved:     true,
@@ -85,7 +86,7 @@ func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
 		},
 	}
 
-	output, err := adapter.WriteWorkflowFinalization(context.Background(), input)
+	output, err := adapter.WriteWorkflowFinalizationApplication(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestCommitWorkflowFinalizationMapsActiveProjectionConflictAfterSuccessEvide
 	if err != nil {
 		t.Fatalf("get active run: %v", err)
 	}
-	finalizationRef := activityprojection.TemporalProjectionRef(runID, "finalization/write")
+	finalizationRef := projectionapp.ProjectionRef(runID, "finalization/write")
 	run.FinalResponseRef = finalizationRef
 	run.TerminalReason = execution.DurableTerminalReasonAnswerCompleted
 	finalizedResponse := map[string]any{
@@ -195,14 +196,14 @@ func TestCommitWorkflowFinalizationMapsActiveProjectionConflictAfterSuccessEvide
 
 	adapter := newAdapterForTest(config.Config{TemporalWorkerIdentity: "test:finalization:conflict"})
 	attachRunProjectionStoreForAdapterTest(adapter, store)
-	input := temporalruntime.WriteWorkflowFinalizationActivityInput{
+	input := applicationcontract.FinalizationInput{
 		RequestID: runID,
-		WorkflowResult: temporalruntime.WorkflowOperationActivityOutput{
-			WorkflowResultRef: activityprojection.WorkflowOperationResultRef(runID, "answer.synthesize"),
+		WorkflowResult: applicationcontract.OperationOutput{
+			WorkflowResultRef: projectionapp.WorkflowOperationResultRef(runID, "answer.synthesize"),
 			RequestID:         runID,
 		},
 	}
-	_, err = NewFinalizationAdapter(adapter).CommitWorkflowFinalizationStep(
+	_, err = NewFinalizationAdapter(adapter).Service.CommitWorkflowFinalizationStep(
 		context.Background(),
 		run,
 		input,
@@ -257,7 +258,7 @@ func TestFinalizeExecutionFailureBlocksAfterProductFinalizationEvidence(t *testi
 		return nil
 	}
 
-	_, err := adapter.FinalizeExecutionFailure(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
+	_, err := adapter.FinalizeExecutionFailureApplication(context.Background(), applicationcontract.FailureInput{
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(2 * time.Second),
 		RequestID:   runID,
@@ -315,7 +316,7 @@ func TestWriteWorkflowFinalizationReservesStableCompletionBeforeCallbackRetry(t 
 		return nil
 	}
 
-	if _, err := adapter.WriteWorkflowFinalization(context.Background(), input); err == nil {
+	if _, err := adapter.WriteWorkflowFinalizationApplication(context.Background(), input); err == nil {
 		t.Fatal("first callback failure should be returned")
 	}
 	firstEvents, err := store.ListRunEvents(context.Background(), input.RequestID)
@@ -340,7 +341,7 @@ func TestWriteWorkflowFinalizationReservesStableCompletionBeforeCallbackRetry(t 
 		t.Fatalf("reservation timing = %#v", reservation)
 	}
 
-	output, err := adapter.WriteWorkflowFinalization(context.Background(), input)
+	output, err := adapter.WriteWorkflowFinalizationApplication(context.Background(), input)
 	if err != nil {
 		t.Fatalf("replay finalization after callback retry: %v", err)
 	}
@@ -407,11 +408,11 @@ func TestWriteWorkflowFinalizationReservesStableCompletionBeforeCallbackRetry(t 
 
 func TestWriteWorkflowFinalizationCompletedReplayUsesDurableTiming(t *testing.T) {
 	store, adapter, input := workflowFinalizationFixture(t, "run-finalization-completed-replay")
-	first, err := adapter.WriteWorkflowFinalization(context.Background(), input)
+	first, err := adapter.WriteWorkflowFinalizationApplication(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write initial finalization: %v", err)
 	}
-	second, err := adapter.WriteWorkflowFinalization(context.Background(), input)
+	second, err := adapter.WriteWorkflowFinalizationApplication(context.Background(), input)
 	if err != nil {
 		t.Fatalf("replay completed finalization: %v", err)
 	}
@@ -432,28 +433,28 @@ func TestWorkflowFinalizationProjectsCitationsOnCompletionAndRepair(t *testing.T
 		t.Run(mode, func(t *testing.T) {
 			store, adapter, input := workflowFinalizationFixture(t, "run-citations-"+strings.ReplaceAll(mode, " ", "-"))
 			diagnostics := &finalizationCitationStore{InMemoryRunProjectionStore: store}
-			adapter.RunProjectionStore = diagnostics
+			adapter.SetProjectionStore(diagnostics)
 			ref := "result://" + strings.Repeat("a", 64)
-			input.WorkflowResult.Evidence = []temporalruntime.WorkflowEvidence{{
-				ID: "campus:" + ref, ResultRef: ref, Source: temporalruntime.WorkflowSourceCampusSearch,
+			input.WorkflowResult.Evidence = []applicationcontract.WorkflowEvidence{{
+				ID: "campus:" + ref, ResultRef: ref, Source: applicationcontract.WorkflowSourceCampusSearch,
 				SchemaVersion: "workflow_evidence.v1", Title: "通知", Excerpt: "报名要求", SectionTitle: "报名",
 				NoticeID: "12345", CitationHref: "/notices/12345", CitationIndex: 1,
 			}}
 			input.WorkflowResult.FinalOutput = "报名要求见 [1]。"
 			if mode == "solve" || mode == "diagnostics unavailable" || mode == "invalid citation" {
-				input.WorkflowResult.Operation = temporalruntime.WorkflowOperationSolve
+				input.WorkflowResult.Operation = applicationcontract.WorkflowOperationSolve
 				input.WorkflowResult.SolveOutcome = "answer"
-				input.WorkflowResult.WorkflowResultRef = activityprojection.WorkflowOperationResultRef(input.RequestID, "solve.initial")
+				input.WorkflowResult.WorkflowResultRef = projectionapp.WorkflowOperationResultRef(input.RequestID, "solve.initial")
 				input.WorkflowResult.FinalOutput = "报名要求见 [5]。"
 				item := campussearch.SearchResultItem{ResultRef: ref, SourceKind: "notice", Title: "通知", Text: "报名要求", SectionTitle: "报名", NoticeID: "12345", CitationHref: "/notices/12345"}
 				for _, start := range []int{1, 5} {
-					input.WorkflowResult.ToolResults = append(input.WorkflowResult.ToolResults, temporalruntime.AgentToolResult{
+					input.WorkflowResult.ToolResults = append(input.WorkflowResult.ToolResults, applicationcontract.AgentToolResult{
 						ToolName: "campus_search", Status: "completed", Result: campussearch.EncodeSearchResult([]campussearch.SearchResultItem{item}, start),
 					})
 				}
 			}
 			if mode == "recovery" {
-				input.WorkflowResult.SourceAttempts = append(input.WorkflowResult.SourceAttempts, temporalruntime.WorkflowSourceAttempt{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "failed"})
+				input.WorkflowResult.SourceAttempts = append(input.WorkflowResult.SourceAttempts, applicationcontract.WorkflowSourceAttempt{Source: applicationcontract.WorkflowSourceCampusSearch, Status: "failed"})
 			}
 			if mode == "diagnostics unavailable" {
 				diagnostics.writeError = errors.New("diagnostics unavailable")
@@ -461,7 +462,7 @@ func TestWorkflowFinalizationProjectsCitationsOnCompletionAndRepair(t *testing.T
 			if mode == "invalid citation" {
 				input.WorkflowResult.FinalOutput = "报名要求见 [9]。"
 			}
-			output, err := adapter.WriteWorkflowFinalization(t.Context(), input)
+			output, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input)
 			if mode == "invalid citation" {
 				if err == nil && output.Status == "completed" {
 					t.Fatal("invalid answer completed")
@@ -486,7 +487,7 @@ func TestWorkflowFinalizationProjectsCitationsOnCompletionAndRepair(t *testing.T
 				t.Fatalf("answer = %v", response["answer_text"])
 			}
 			diagnostics.writes = nil
-			repaired, err := adapter.WriteWorkflowFinalization(t.Context(), input)
+			repaired, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input)
 			if err != nil || repaired.Status != "completed" || !repaired.CompletedAt.Equal(output.CompletedAt) {
 				t.Fatalf("repair = %#v, %v", repaired, err)
 			}
@@ -527,12 +528,12 @@ func TestFinalizationTimingReservationClampsClockRollback(t *testing.T) {
 	}
 	startedAt := finalizationactivities.CanonicalFinalizationTime(time.Now().Add(time.Hour))
 	agentResult := finalizationactivities.WorkflowFinalizationResultMap(input)
-	finalizedResponse, err := NewFinalizationAdapter(adapter).WorkflowFinalizedResponse(context.Background(), run, agentResult)
+	finalizedResponse, err := NewFinalizationAdapter(adapter).Service.WorkflowFinalizedResponse(context.Background(), run, agentResult)
 	if err != nil {
 		t.Fatalf("build finalization response: %v", err)
 	}
 	payload := finalizationactivities.TemporalFinalizationResultPayload(finalizedResponse, input, run)
-	reservation, err := NewFinalizationAdapter(adapter).EnsureFinalizationTimingReservation(
+	reservation, err := NewFinalizationAdapter(adapter).Service.EnsureFinalizationTimingReservation(
 		context.Background(),
 		run,
 		input,
@@ -551,7 +552,7 @@ func TestFinalizationTimingReservationClampsClockRollback(t *testing.T) {
 func workflowFinalizationFixture(
 	t *testing.T,
 	runID string,
-) (*executionpersistence.InMemoryRunProjectionStore, *Adapter, temporalruntime.WriteWorkflowFinalizationActivityInput) {
+) (*executionpersistence.InMemoryRunProjectionStore, *Adapter, applicationcontract.FinalizationInput) {
 	t.Helper()
 	store := executionpersistence.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 9, 1, 11, 30, 0, 0, time.UTC)
@@ -576,13 +577,13 @@ func workflowFinalizationFixture(
 	if err != nil {
 		t.Fatalf("build fixture admission snapshot: %v", err)
 	}
-	evidence := []temporalruntime.WorkflowEvidence{{SchemaVersion: "workflow_evidence.v1", ID: "evidence.fixture", Source: temporalruntime.WorkflowSourceCampusSearch, Title: "校园资料", Excerpt: "资料内容", CitationIndex: 1, URL: "https://example.edu/notice"}}
-	return store, adapter, temporalruntime.WriteWorkflowFinalizationActivityInput{
-		AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot),
+	evidence := []applicationcontract.WorkflowEvidence{{SchemaVersion: "workflow_evidence.v1", ID: "evidence.fixture", Source: applicationcontract.WorkflowSourceCampusSearch, Title: "校园资料", Excerpt: "资料内容", CitationIndex: 1, URL: "https://example.edu/notice"}}
+	return store, adapter, applicationcontract.FinalizationInput{
+		AdmissionSnapshot: applicationcontract.AdmissionFromDomain(snapshot),
 		RequestID:         runID,
-		WorkflowResult: temporalruntime.WorkflowOperationActivityOutput{
-			Operation:               temporalruntime.WorkflowOperationSynthesize,
-			WorkflowResultRef:       activityprojection.WorkflowOperationResultRef(runID, "answer.synthesize"),
+		WorkflowResult: applicationcontract.OperationOutput{
+			Operation:               applicationcontract.WorkflowOperationSynthesize,
+			WorkflowResultRef:       projectionapp.WorkflowOperationResultRef(runID, "answer.synthesize"),
 			FinalOutput:             "fixture answer",
 			ModelName:               "fixture-model",
 			ModelProvider:           "fixture-provider",
@@ -591,10 +592,10 @@ func workflowFinalizationFixture(
 			RuntimeRelease:          "fixture-runtime",
 			Status:                  "completed",
 			Evidence:                evidence,
-			SourceAttempts:          []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}},
+			SourceAttempts:          []applicationcontract.WorkflowSourceAttempt{{Source: applicationcontract.WorkflowSourceCampusSearch, Status: "matched"}},
 			TerminalReason:          "answer_completed",
 			ToolContractFingerprint: execution.ToolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint),
-			Usage: temporalruntime.AgentUsageSummary{
+			Usage: applicationcontract.AgentUsageSummary{
 				InputTokens:       10,
 				OutputTokens:      5,
 				UsageObserved:     true,
@@ -605,7 +606,7 @@ func workflowFinalizationFixture(
 }
 
 func TestFinalizationCompletesWithUnavailableSources(t *testing.T) {
-	for _, operation := range []temporalruntime.WorkflowOperation{temporalruntime.WorkflowOperationSolve, temporalruntime.WorkflowOperationSynthesize} {
+	for _, operation := range []applicationcontract.WorkflowOperation{applicationcontract.WorkflowOperationSolve, applicationcontract.WorkflowOperationSynthesize} {
 		for _, allUnavailable := range []bool{false, true} {
 			name := string(operation) + "-mixed"
 			if allUnavailable {
@@ -614,27 +615,27 @@ func TestFinalizationCompletesWithUnavailableSources(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				store, adapter, input := workflowFinalizationFixture(t, "run-"+name)
 				direct := "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm"
-				first := &temporalruntime.SourceLink{Href: &direct}
+				first := &applicationcontract.SourceLink{Href: &direct}
 				if allUnavailable {
-					first = &temporalruntime.SourceLink{}
+					first = &applicationcontract.SourceLink{}
 				}
-				links := []*temporalruntime.SourceLink{first, {}}
+				links := []*applicationcontract.SourceLink{first, {}}
 				input.WorkflowResult.Operation = operation
 				input.WorkflowResult.Evidence = nil
-				input.WorkflowResult.SourceAttempts = []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceWebSearch, Status: "completed"}}
+				input.WorkflowResult.SourceAttempts = []applicationcontract.WorkflowSourceAttempt{{Source: applicationcontract.WorkflowSourceWebSearch, Status: "completed"}}
 				input.WorkflowResult.FinalOutput = "地址。"
 				step := "solve.initial"
-				if operation == temporalruntime.WorkflowOperationSynthesize {
+				if operation == applicationcontract.WorkflowOperationSynthesize {
 					step = "answer.synthesize"
 					input.WorkflowResult.FinalOutput += "[1,2]"
 				}
-				input.WorkflowResult.WorkflowResultRef = activityprojection.WorkflowOperationResultRef(input.RequestID, step)
+				input.WorkflowResult.WorkflowResultRef = projectionapp.WorkflowOperationResultRef(input.RequestID, step)
 				for i, link := range links {
 					original := "https://vertexaisearch.cloud.google.com/grounding-api-redirect/" + string(rune('a'+i))
-					if operation == temporalruntime.WorkflowOperationSolve {
-						input.WorkflowResult.WebEvidence = append(input.WorkflowResult.WebEvidence, temporalruntime.WebEvidence{Title: "来源", URL: original, SourceLink: link, Excerpt: "地址。", StartIndex: 0, EndIndex: 3})
+					if operation == applicationcontract.WorkflowOperationSolve {
+						input.WorkflowResult.WebEvidence = append(input.WorkflowResult.WebEvidence, applicationcontract.WebEvidence{Title: "来源", URL: original, SourceLink: link, Excerpt: "地址。", StartIndex: 0, EndIndex: 3})
 					} else {
-						input.WorkflowResult.Evidence = append(input.WorkflowResult.Evidence, temporalruntime.WorkflowEvidence{SchemaVersion: "workflow_evidence.v1", ID: "web:" + original, Source: temporalruntime.WorkflowSourceWebSearch, Title: "来源", Excerpt: "地址。", CitationIndex: i + 1, URL: original, SourceLink: link})
+						input.WorkflowResult.Evidence = append(input.WorkflowResult.Evidence, applicationcontract.WorkflowEvidence{SchemaVersion: "workflow_evidence.v1", ID: "web:" + original, Source: applicationcontract.WorkflowSourceWebSearch, Title: "来源", Excerpt: "地址。", CitationIndex: i + 1, URL: original, SourceLink: link})
 					}
 				}
 				calls := 0
@@ -674,7 +675,7 @@ func TestFinalizationCompletesWithUnavailableSources(t *testing.T) {
 					}
 					return nil
 				}
-				output, err := adapter.WriteWorkflowFinalization(t.Context(), input)
+				output, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input)
 				if err != nil {
 					t.Fatal(err)
 				}

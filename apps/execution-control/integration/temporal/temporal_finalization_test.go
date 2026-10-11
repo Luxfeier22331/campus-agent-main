@@ -19,13 +19,13 @@ type blockedMemoryActivities struct {
 	release chan struct{}
 }
 
-func (a *blockedMemoryActivities) AdvanceMemoryAppendActivity(ctx context.Context, input temporalruntime.MemoryAppendWorkflowInput) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+func (a *blockedMemoryActivities) AdvanceMemoryAppendActivity(ctx context.Context, input temporalruntime.MemoryAppendWorkflowInput) (temporalruntime.AdvanceMemoryAppendActivityOutput, error) {
 	close(a.started)
 	select {
 	case <-a.release:
 		return a.Activities.AdvanceMemoryAppendActivity(ctx, input)
 	case <-ctx.Done():
-		return temporalruntime.AppendConversationMemoryActivityOutput{}, ctx.Err()
+		return temporalruntime.AdvanceMemoryAppendActivityOutput{}, ctx.Err()
 	}
 }
 
@@ -56,7 +56,7 @@ func TestAnswerWorkflowCompletesWhileBackgroundMemoryContinues(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !historyContainsCompletedActivity(history, temporalruntime.WriteWorkflowFinalizationActivityName) ||
-		historyContainsCompletedActivity(history, temporalruntime.AppendConversationMemoryActivityName) {
+		historyContainsCompletedActivity(history, temporalruntime.AdvanceMemoryAppendActivityName) {
 		t.Fatal("memory append must be pending after finalization completes")
 	}
 	var result temporalruntime.ToolExecutionWorkflowResult

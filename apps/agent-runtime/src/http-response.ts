@@ -285,7 +285,7 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 	return payload;
 }
 
-function structuredOutputWire(value: TaskPlan | TaskReplan): Record<string, unknown> {
+export function structuredOutputWire(value: TaskPlan | TaskReplan): Record<string, unknown> {
 	if (value.schemaVersion === "task_plan.v1") {
 		return {
 			goal: value.goal,
@@ -301,7 +301,7 @@ function structuredOutputWire(value: TaskPlan | TaskReplan): Record<string, unkn
 	};
 }
 
-function taskPlanStepWire(step: TaskPlan["steps"][number]) {
+export function taskPlanStepWire(step: TaskPlan["steps"][number]) {
 	return {
 		candidate_sources: step.candidateSources,
 		depends_on: step.dependsOn,
@@ -310,7 +310,7 @@ function taskPlanStepWire(step: TaskPlan["steps"][number]) {
 	};
 }
 
-function evidenceWire(evidence: WorkflowEvidence) {
+export function evidenceWire(evidence: WorkflowEvidence) {
 	return {
 		excerpt: evidence.excerpt,
 		id: evidence.id,

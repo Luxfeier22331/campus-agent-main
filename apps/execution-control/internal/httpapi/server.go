@@ -11,38 +11,43 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreadmodel"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
 )
 
 type Server struct {
+	runtimeHandler           http.Handler
 	config                   config.Config
 	draining                 atomic.Bool
 	logger                   *slog.Logger
 	runProjectionStore       executionapplication.RunStore
 	runReader                executionreadmodel.Reader
 	runProjectionStoreErr    error
-	personalMemoryStateStore executionapplication.MemoryStore
-	personalMemoryStateErr   error
-	personalMemoryReader     executionapplication.MemoryReader
-	temporalStarter          executionapplication.WorkflowGateway
+	memoryManagement         memoryapplication.MemoryManagementPort
+	ownerDeletion            executionapplication.OwnerDeletionPort
+	personalMemoryReader     memoryapplication.ProfileReader
+	temporalStarter          executionapplication.ReadinessChecker
 	temporalStarterErr       error
 	runService               executionapplication.RunCommandService
-	agentToolService         executionapplication.AgentToolPort
+	campusSearchTool         executionapplication.CampusSearchToolPort
+	personalMemoryRecallTool executionapplication.PersonalMemoryRecallToolPort
 }
 
 // ServerOptions contains already-constructed application ports. The HTTP
 // package wires routes and authentication around these ports; it does not
 // construct persistence, provider, or Temporal clients.
 type ServerOptions struct {
-	AgentToolService         executionapplication.AgentToolPort
+	RuntimeHandler           http.Handler
+	CampusSearchTool         executionapplication.CampusSearchToolPort
+	PersonalMemoryRecallTool executionapplication.PersonalMemoryRecallToolPort
 	Logger                   *slog.Logger
-	PersonalMemoryStateStore executionapplication.MemoryStore
-	PersonalMemoryStateError error
-	PersonalMemoryReader     executionapplication.MemoryReader
+	MemoryManagement         memoryapplication.MemoryManagementPort
+	OwnerDeletion            executionapplication.OwnerDeletionPort
+	PersonalMemoryReader     memoryapplication.ProfileReader
 	RunProjectionStore       executionapplication.RunStore
 	RunReader                executionreadmodel.Reader
 	RunProjectionStoreError  error
 	RunService               executionapplication.RunCommandService
-	TemporalStarter          executionapplication.WorkflowGateway
+	TemporalStarter          executionapplication.ReadinessChecker
 	TemporalStarterError     error
 }
 
@@ -64,18 +69,20 @@ func NewServerWithOptions(cfg config.Config, options ServerOptions) *Server {
 		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	server := &Server{
+		runtimeHandler:           options.RuntimeHandler,
+		campusSearchTool:         options.CampusSearchTool,
+		personalMemoryRecallTool: options.PersonalMemoryRecallTool,
 		config:                   cfg,
 		logger:                   options.Logger,
 		runProjectionStore:       options.RunProjectionStore,
 		runReader:                options.RunReader,
 		runProjectionStoreErr:    options.RunProjectionStoreError,
-		personalMemoryStateStore: options.PersonalMemoryStateStore,
-		personalMemoryStateErr:   options.PersonalMemoryStateError,
+		memoryManagement:         options.MemoryManagement,
+		ownerDeletion:            options.OwnerDeletion,
 		personalMemoryReader:     options.PersonalMemoryReader,
 		temporalStarter:          options.TemporalStarter,
 		temporalStarterErr:       options.TemporalStarterError,
 		runService:               options.RunService,
-		agentToolService:         options.AgentToolService,
 	}
 	if server.runReader == nil && server.runProjectionStore != nil {
 		server.runReader = executionreadmodel.NewStoreReader(server.runProjectionStore)
@@ -105,6 +112,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	path := request.URL.Path
 
 	switch {
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/agent-runtime/") && s.runtimeHandler != nil:
+		s.runtimeHandler.ServeHTTP(response, request)
 	case request.Method == http.MethodGet && path == "/healthz":
 		writeJSON(response, http.StatusOK, map[string]any{
 			"status":   "ok",

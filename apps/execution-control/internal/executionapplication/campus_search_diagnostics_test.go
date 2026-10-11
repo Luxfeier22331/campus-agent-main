@@ -61,7 +61,7 @@ func TestCampusSearchRecordsUpstreamFailureStage(t *testing.T) {
 					Durations: map[string]int64{"embedding": 12}, Candidates: []campussearch.Candidate{{ResultRef: "result://candidate"}},
 				}}
 			})
-			svc := NewAgentToolService(AgentToolServiceOptions{Store: store, CampusSearchClient: client})
+			svc := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}), Store: store, CampusSearchClient: client, Diagnostics: store})
 			_, err := svc.CampusSearch(t.Context(), CampusSearchRequest{SearchQuery: "通知", AccessContext: AgentToolAccessContext{RequestID: run.RequestID, ActivityAttempt: 1, CitationStart: 6, InvocationID: "failure-diagnostic", WorkflowStepID: "task.step.step.lookup", ResultLimit: 5, UserGoal: "通知"}})
 			if CampusSearchFailureCode(err) != test.code || !errors.Is(err, test.cause) {
 				t.Fatalf("failure identity lost: %v, %s", err, CampusSearchFailureCode(err))
@@ -101,7 +101,7 @@ func TestCampusSearchDiagnosticCitationsMatchRunResults(t *testing.T) {
 			{ResultRef: first, Returned: true, CitationIndex: &one},
 		}}}, nil
 	})
-	svc := NewAgentToolService(AgentToolServiceOptions{Store: store, CampusSearchClient: client})
+	svc := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}), Store: store, CampusSearchClient: client, Diagnostics: store})
 	result, err := svc.CampusSearch(t.Context(), CampusSearchRequest{SearchQuery: "通知", AccessContext: AgentToolAccessContext{RequestID: run.RequestID, ActivityAttempt: 1, CitationStart: 6, InvocationID: "citation-diagnostic", WorkflowStepID: "task.step.step.lookup", ResultLimit: 5, UserGoal: "通知"}})
 	if err != nil {
 		t.Fatal(err)

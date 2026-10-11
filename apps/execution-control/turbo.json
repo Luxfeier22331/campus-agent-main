@@ -15,7 +15,8 @@
 				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**",
 				"$TURBO_ROOT$/packages/contracts/fixtures/citation-diagnostic.v1.json",
 				"$TURBO_ROOT$/packages/contracts/fixtures/citation-markers.v1.json",
-				"$TURBO_ROOT$/apps/campus-search/campussearch/**"
+				"$TURBO_ROOT$/apps/campus-search/campussearch/**",
+				"$TURBO_ROOT$/apps/memory-service/**/*.go"
 			]
 		},
 		"test:database-integration": {
@@ -25,6 +26,20 @@
 				"integration/postgres/**",
 				"internal/execution/**",
 				"scripts/test-postgres-integration.sh"
+			]
+		},
+		"native:vet": {
+			"inputs": [
+				"$TURBO_EXTENDS$",
+				"$TURBO_ROOT$/apps/memory-service/**/*.go",
+				"$TURBO_ROOT$/apps/campus-search/campussearch/**"
+			]
+		},
+		"native:lint": {
+			"inputs": [
+				"$TURBO_EXTENDS$",
+				"$TURBO_ROOT$/apps/memory-service/**/*.go",
+				"$TURBO_ROOT$/apps/campus-search/campussearch/**"
 			]
 		}
 	}

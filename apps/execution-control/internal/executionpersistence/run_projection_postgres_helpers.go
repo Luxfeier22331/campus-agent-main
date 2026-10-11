@@ -9,6 +9,11 @@ import (
 )
 
 func updateDurableRunStatusInTx(ctx context.Context, tx pgx.Tx, run execution.DurableRun) error {
+	if execution.DurableRunStatusIsTerminal(run.Status) && run.Status != execution.DurableRunStatusCompleted {
+		if _, err := tx.Exec(ctx, `delete from execution_control.agent_memory_deliveries where request_id=$1 and status='prepared'`, run.RequestID); err != nil {
+			return err
+		}
+	}
 	_, err := tx.Exec(
 		ctx,
 		`update execution_control.agent_runs

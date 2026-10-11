@@ -41,12 +41,14 @@ try {
 	const hyperdriveId = requiredEnv("APP_API_DB_HYPERDRIVE_ID");
 	const objectStoreVpcServiceId = requiredEnv("OBJECT_STORE_VPC_SERVICE_ID");
 	const executionControlVpcServiceId = requiredEnv("EXECUTION_CONTROL_VPC_SERVICE_ID");
+	const memoryServiceVpcServiceId = requiredEnv("MEMORY_SERVICE_VPC_SERVICE_ID");
 	writeFileSync(
 		configPath,
 		buildAppApiStagingUploadConfig(readFileSync(resolve(appDir, "wrangler.toml"), "utf8"), appDir, {
 			executionMaintenance: process.env.EXECUTION_MAINTENANCE === "true",
 			hyperdriveId,
 			objectStoreVpcServiceId,
+			memoryServiceVpcServiceId,
 			vpcServiceId: executionControlVpcServiceId,
 		}),
 		"utf8",
@@ -72,6 +74,11 @@ try {
 			{
 				name: "EXECUTION_CONTROL_PRIVATE",
 				properties: { service_id: executionControlVpcServiceId },
+				type: "vpc_service",
+			},
+			{
+				name: "MEMORY_SERVICE_PRIVATE",
+				properties: { service_id: memoryServiceVpcServiceId },
 				type: "vpc_service",
 			},
 			{

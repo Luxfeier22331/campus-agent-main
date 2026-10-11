@@ -22,8 +22,8 @@ staging execution runtime 由 Kubernetes/GitOps 管理，Docker Compose 只用�
 同一交付顺序必须先运行 `data-postgres` Application 中的 `campus-agent-schema` Job，再启动依赖数据库
 的 workload。该 Job 使用 `campus_agent` owner 和统一 migration ledger；长期进程不执行 schema 迁移。
 `ops-web-bootstrap` 只在自己的 wave 中执行 Dining 与班车 baseline bootstrap，不负责建表、迁移或授权。
-个人记忆状态只通过 `execution_control.personal_memory_*` 表提供；历史 `runtime.*` 兼容 View 由统一
-migration 退役，不是运行时接口。
+独立 Memory 数据库由同一 schema 制品的 `--target memory` 入口安装，`memory-schema` Job 使用
+`memory_service` role；个人记忆状态经 Memory API 消费。旧 execution 表只保留为迁移源。
 
 发布检查：
 
@@ -38,6 +38,30 @@ migration 退役，不是运行时接口。
 - 没有 `CrashLoopBackOff`、`ImagePullBackOff` 或无法解释的 `Pending` Pod。
 
 具体集群命令只放环境仓 runbook，不在这里复制。
+
+## Agent 与 Memory 独立部署切换
+
+源码交付独立 Memory API/Worker、TypeScript Agent Worker 和迁移工具；环境仓负责选择镜像、
+Secret、VPC service 和流量比例。无旧 Workflow history 兼容要求，双轨用于部署期间分批切换。
+
+1. 安装 `memory` database、`memory_service` role 与 `memory-schema` Job；通过已有 secret backend
+   注入 `campus-agent-postgres-memory-owner` 和 `memory-service-secrets`，后者含
+   `MEMORY_DATABASE_URL`（环境 TLS CA 参数）及 `MEMORY_INTERNAL_SHARED_SECRET`。保留原 owner salt。
+2. 开启既有 `EXECUTION_MAINTENANCE`，排空回答、记忆命令、追加和账户删除，停止旧写入者。
+   在新 Memory API/Worker 启动前，以迁移镜像运行 `/usr/local/bin/memory-cutover`，设置
+   `MEMORY_SOURCE_DATABASE_URL` 和 `MEMORY_DATABASE_URL`。工具拒绝未排空源与非空目标，
+   在目标事务内复制 fence、receipt 和 lease。失败时维持维护状态并解决未排空项后重试。
+3. 启动 Memory API/Worker，把 control 的 `MEMORY_SERVICE_BASE_URL` 指向独立服务；
+   App API 发布版本配置独立 `MEMORY_SERVICE_PRIVATE` VPC binding、对应 origin 和共享密钥。
+   Source staging 需要 `MEMORY_SERVICE_VPC_SERVICE_ID` variable 与同名内部 secret。
+4. 启动 Agent Runtime Worker，先保持 `AGENT_RUNTIME_ROLLOUT_PERCENT=0`，验证 Memory
+   管理、召回、追加和账户删除，再恢复准入；逐步提高比例到 100。比例按 owner 稳定分桶，
+   已接收 run 的任务队列冻结，配置变化只影响新 run。旧 Go Workflow 与 HTTP runner 保留消费旧队列。
+5. 验证直接回答、计划合成、取消、失败恢复和追加；100% 后排空旧队列，再退役旧 Go Workflow、
+   HTTP operation 入口、本地 Memory 装配和旧状态表。该退役依赖环境排空，不能与首次部署一起删除。
+
+Agent 切流回退只降低新 run 比例，并继续消费已冻结的新队列。Memory 在独立库开始写入之前可以
+恢复旧写入者；之后必须再次维护排空并处理新状态，不能仅回退镜像或重新使用过期源库。
 
 ## API 与 Worker 首次排空切换
 

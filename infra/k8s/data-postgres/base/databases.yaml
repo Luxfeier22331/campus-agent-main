@@ -55,3 +55,17 @@ spec:
   databaseReclaimPolicy: retain
   extensions:
     - name: vector
+
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: campus-agent-postgres-memory
+  labels:
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: memory
+  owner: memory_service
+  databaseReclaimPolicy: retain

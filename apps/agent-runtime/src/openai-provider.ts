@@ -55,6 +55,7 @@ export function openAIAgentsRunnerOptionsFromProviderConfig(
 			new OpenAIProvider({
 				openAIClient: new OpenAI({
 					apiKey: providerConfig.apiKey,
+					maxRetries: 0,
 					baseURL: providerConfig.baseURL,
 					fetch: fetchWithoutRedirects,
 				}),

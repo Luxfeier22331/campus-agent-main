@@ -43,7 +43,7 @@ func TestToolExecutionWorkflowReplansPartialCoverageWithinBudget(t *testing.T) {
 				return len(actual.Evidence) == 1 && len(actual.RemainingFacts) == 1+tc.wantReplans
 			})).Return(workflowSynthesisOutput(input.RequestID, "在校学生可申请，截止日期尚未查明。", []WorkflowEvidence{evidence}), nil).Once()
 			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
+
 			env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 			if err := env.GetWorkflowError(); err != nil {
 				t.Fatal(err)
@@ -142,7 +142,7 @@ func TestWorkflowKeepsUnhelpfulCandidatesAndCompletes(t *testing.T) {
 				return len(actual.Evidence) == 1 && actual.Evidence[0].ID == "candidate" && actual.SourceAttempts[0].Status == "matched" && equalStrings(actual.RemainingFacts[0].Facts, []string{"申请截止日期"})
 			})).Return(workflowSynthesisOutput(input.RequestID, "暂时无法确认申请截止日期。", evidence), nil).Once()
 			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
+
 			env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 			if err := env.GetWorkflowError(); err != nil {
 				t.Fatal(err)

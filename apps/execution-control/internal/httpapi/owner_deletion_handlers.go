@@ -4,10 +4,11 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 )
 
 func ownerUserIDFromDeletionPath(path string, suffix string) string {
@@ -24,7 +25,7 @@ func (s *Server) handleOwnerDeletionBegin(
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.runProjectionStore == nil || s.runProjectionStoreErr != nil {
+	if s.ownerDeletion == nil || !s.ownerDeletion.StoreConfigured() {
 		writeError(response, http.StatusServiceUnavailable, "projection_store_not_configured", "Execution projection store is not configured.", true)
 		return
 	}
@@ -32,7 +33,7 @@ func (s *Server) handleOwnerDeletionBegin(
 		writeError(response, http.StatusBadRequest, "invalid_request", "owner_user_id is required.", false)
 		return
 	}
-	status, err := s.runProjectionStore.BeginOwnerDeletion(request.Context(), ownerUserID, time.Now().UTC().Truncate(time.Microsecond))
+	status, err := s.ownerDeletion.Begin(request.Context(), ownerUserID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "owner_deletion_begin_failed", err.Error(), true)
 		return
@@ -49,7 +50,7 @@ func (s *Server) handleOwnerDeletionFinalize(
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.runProjectionStore == nil || s.runProjectionStoreErr != nil {
+	if s.ownerDeletion == nil || !s.ownerDeletion.StoreConfigured() {
 		writeError(response, http.StatusServiceUnavailable, "projection_store_not_configured", "Execution projection store is not configured.", true)
 		return
 	}
@@ -66,46 +67,29 @@ func (s *Server) handleOwnerDeletionFinalize(
 		writeError(response, http.StatusBadRequest, "invalid_request", "memory_erased must be true.", false)
 		return
 	}
-	status, err := s.runProjectionStore.BeginOwnerDeletion(request.Context(), ownerUserID, time.Now().UTC().Truncate(time.Microsecond))
+	status, err := s.ownerDeletion.Finalize(request.Context(), ownerUserID)
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "owner_deletion_begin_failed", err.Error(), true)
-		return
-	}
-	if status.State == execution.OwnerDeletionStateDeleted {
-		writeOwnerDeletionStatus(response, http.StatusOK, status)
-		return
-	}
-	if status.ActiveRuns > 0 {
-		writeOwnerDeletionStatus(response, http.StatusConflict, status)
-		return
-	}
-	if s.personalMemoryStateStore == nil || s.personalMemoryStateErr != nil || strings.TrimSpace(s.config.PersonalMemoryOwnerSalt) == "" {
-		writeError(response, http.StatusServiceUnavailable, "personal_memory_state_unavailable", "Personal memory state is not configured.", true)
-		return
-	}
-	ownerHash := memoryruntime.OwnerScopeHash(s.config.PersonalMemoryOwnerSalt, "tenant-main", ownerUserID)
-	if err := s.personalMemoryStateStore.MarkOwnerDeleted(request.Context(), ownerHash); err != nil {
-		if errors.Is(err, memoryruntime.ErrMemoryOwnerNotDrained) {
-			writeError(response, http.StatusConflict, "owner_deletion_not_drained", "Personal memory deletion has not drained.", true)
-			return
-		}
-		writeError(response, http.StatusInternalServerError, "personal_memory_state_delete_failed", err.Error(), true)
-		return
-	}
-	status, err = s.runProjectionStore.FinalizeOwnerDeletion(request.Context(), execution.OwnerDeletionFinalizeRequest{
-		OwnerUserID: ownerUserID,
-		Now:         time.Now().UTC().Truncate(time.Microsecond),
-	})
-	if err != nil {
-		if errors.Is(err, execution.ErrOwnerDeletionNotDrained) {
+		var beginError *executionapplication.OwnerDeletionBeginError
+		var memoryError *executionapplication.MemoryOwnerDeletionError
+		switch {
+		case errors.As(err, &beginError):
+			writeError(response, http.StatusInternalServerError, "owner_deletion_begin_failed", err.Error(), true)
+		case errors.As(err, &memoryError):
+			switch {
+			case errors.Is(err, memoryapplication.ErrMemoryStateUnavailable):
+				writeError(response, http.StatusServiceUnavailable, "personal_memory_state_unavailable", "Personal memory state is not configured.", true)
+			case errors.Is(err, memoryruntime.ErrMemoryOwnerNotDrained):
+				writeError(response, http.StatusConflict, "owner_deletion_not_drained", "Personal memory deletion has not drained.", true)
+			default:
+				writeError(response, http.StatusInternalServerError, "personal_memory_state_delete_failed", err.Error(), true)
+			}
+		case errors.Is(err, execution.ErrOwnerDeletionNotDrained):
 			writeOwnerDeletionStatus(response, http.StatusConflict, status)
-			return
-		}
-		if errors.Is(err, execution.ErrOwnerDeletionNotStarted) {
+		case errors.Is(err, execution.ErrOwnerDeletionNotStarted):
 			writeError(response, http.StatusNotFound, "owner_deletion_not_started", "Owner deletion has not started.", false)
-			return
+		default:
+			writeError(response, http.StatusInternalServerError, "owner_deletion_finalize_failed", err.Error(), true)
 		}
-		writeError(response, http.StatusInternalServerError, "owner_deletion_finalize_failed", err.Error(), true)
 		return
 	}
 	writeOwnerDeletionStatus(response, http.StatusOK, status)

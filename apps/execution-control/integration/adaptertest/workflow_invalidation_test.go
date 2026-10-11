@@ -8,10 +8,11 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/integration/agenttest"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/operation"
+	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
+	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestAnswerInvalidationPreservesFailureAndRejectsSuccess(t *testing.T) {
@@ -28,16 +29,19 @@ func TestAnswerInvalidationPreservesFailureAndRejectsSuccess(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			adapter := &executionactivities.Adapter{Writer: &activityprojection.Writer{RunProjectionStore: store}}
+			adapter := &executionactivities.OperationService{StateWriter: store, Writer: &activityprojection.Writer{RunProjectionStore: store}}
 			body := "event: answer_delta\ndata: {\"schema_version\":\"workflow_runtime_answer_delta.v2\",\"delta\":\"draft\",\"provisional\":true}\n\nevent: answer_invalidated\ndata: {\"schema_version\":\"workflow_runtime_answer_invalidation.v1\",\"reason\":\"terminal_result_unavailable\"}\n\n"
 			payload := `{"request_id":"invalidation","operation":"synthesize","status":"` + terminal + `","failure":{"code":"model_output_invalid","operation":"workflow.synthesize"}}`
+			if terminal == "answer_delta" {
+				payload = `{"schema_version":"workflow_runtime_answer_delta.v2","delta":"late draft","provisional":true}`
+			}
 			if terminal == "error" {
 				payload = `{"code":"provider_timeout","operation":"workflow.synthesize","detail":"original error"}`
 			}
-			response, err := adapter.ConsumeWorkflowRuntimeStream(t.Context(), run, temporalruntime.WorkflowOperationSynthesize, strings.NewReader(body+"event: "+terminal+"\ndata: "+payload+"\n\n"))
+			response, err := adapter.ConsumeWorkflowRuntimeStream(t.Context(), run, applicationcontract.WorkflowOperationSynthesize, runtimeEvents(strings.NewReader(body+"event: "+terminal+"\ndata: "+payload+"\n\n")))
 			switch terminal {
 			case "error":
-				var failure executionactivities.AgentRuntimeApplicationError
+				var failure executionapplication.AgentRuntimeFailure
 				if !errors.As(err, &failure) || failure.Code != "provider_timeout" || failure.Detail != "original error" {
 					t.Fatalf("lost failure: %v", err)
 				}

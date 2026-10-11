@@ -23,10 +23,32 @@ Hindsight 是唯一的个人记忆内容运行时；Qdrant 只负责机构知识
 | Temporal | 持久执行载体、重试和 workflow history；不拥有产品状态 |
 | app-api | 用户意图、命令 outbox、产品读取投影和 HTTP 合同；不复制 Hindsight 内容，不解释 workflow history |
 | campus-web | 当前用户的画像展示、纠正提交、状态展示和重试 |
-| agent-runtime | 在运行时能力可用时调用 `personal_memory_recall`，不持有 Hindsight 凭据 |
+| agent-runtime | 按模型调用执行 `personal_memory_recall`，格式化召回事实为模型上下文，不持有 Hindsight 凭据 |
 
 app-api 的 callback 是加速投影的传输通道，不是执行完成的事实来源。已准入命令必须能由
 execution-control 按 `command_id` 查询和恢复；callback 丢失不能永久留下 `admitted`。
+
+## 内部模块边界
+
+`memoryapplication` 拥有管理、命令与 receipt、访问 fence、generation drain 和追加恢复，依赖记忆
+领域及窄端口；`memorypersistence` 和 `hindsightadapter` 实现存储与 provider，Temporal adapter
+只负责 Activity/DTO/错误映射。管理命令和画像读取不要求存在回答 run。
+
+运行内 recall 由 `PersonalMemoryRecallToolService` 通过共享授权器校验执行身份与工具准入，
+读取冻结输入后调用只含 Recall 的
+端口。Provider 返回经过数量限制和单条 UTF-8 截断的有序事实及现有字符预算；Runtime 生成中文
+上下文和 `{outcome, memory_text}`，两种 runner 共用同一实现，模型仍自主决定何时召回。
+
+回答成功后只追加本轮用户消息。`temporaladapter/answermemory` 桥接校验回答和 finalization 已完成、
+读取冻结输入，并拥有 `memory.append` 步骤、attempt 与 result 投影；记忆应用通过 typed input 和
+checkpoint 接口恢复 Hindsight operation，先写终态投影再释放 lease。异步提交和每次查询的 lease
+准入由追加服务统一执行；同一已准入操作可跨 generation 恢复，新调用仍受当前 fence 约束。
+Provider 包装器保留 recall 访问屏障，画像读取由 profile service 管理；同步追加及其旧 Activity 已删除。
+这属于模块解耦：追加恢复仍依赖回答记录和输入，并未获得独立的数据保留周期。
+
+当前保留 execution API/Worker 与 Hindsight 的部署边界，不增加记忆控制服务、事件或表。
+取舍见[执行与记忆职责解耦](../../../.agents/notes/implemented/architecture/2026-10-10-execution-coupling-governance.md)，
+内部召回合同切换见[发布操作](../../runbooks/release/release.md#个人记忆召回合同切换)。
 
 ## 命令和生命周期
 

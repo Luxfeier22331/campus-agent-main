@@ -389,7 +389,7 @@ function mapTaskPlan(value: z.infer<typeof taskPlanSchema>): TaskPlan {
 	};
 }
 
-function mapTaskPlanStep(value: z.infer<typeof taskPlanStepSchema>): TaskPlanStep {
+export function mapTaskPlanStep(value: z.infer<typeof taskPlanStepSchema>): TaskPlanStep {
 	return {
 		candidateSources: [...value.candidate_sources] as WorkflowSource[],
 		dependsOn: [...value.depends_on],
@@ -398,7 +398,7 @@ function mapTaskPlanStep(value: z.infer<typeof taskPlanStepSchema>): TaskPlanSte
 	};
 }
 
-function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
+export function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
 	const result: WorkflowEvidence = {
 		excerpt: value.excerpt,
 		...(value.source_link ? { sourceLink: value.source_link } : {}),

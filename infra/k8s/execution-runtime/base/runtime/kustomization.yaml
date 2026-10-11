@@ -12,3 +12,5 @@ resources:
   - execution-control.yaml
   - execution-worker.yaml
   - campus-search-service.yaml
+  - agent-runtime-worker.yaml
+  - memory-service.yaml

@@ -60,6 +60,9 @@ func TestPostgresIntegration(t *testing.T) {
 	harness := &postgresHarness{adminURL: adminURL, repositoryRoot: repositoryRoot(t)}
 
 	harness.installClusterRoles(t)
+	t.Run("runtime activity projection", func(t *testing.T) { testRuntimeActivityProjection(t, harness) })
+	t.Run("independent memory database and cutover", func(t *testing.T) { testIndependentMemoryDatabase(t, harness) })
+	t.Run("runtime payload and memory delivery", func(t *testing.T) { testRuntimeMemoryDelivery(t, harness) })
 	t.Run("independent API instances", func(t *testing.T) { testAPIInstances(t, harness) })
 	t.Run("campus search diagnostics", func(t *testing.T) { testCampusSearchDiagnostics(t, harness) })
 	t.Run("run projection store", func(t *testing.T) {
@@ -100,6 +103,7 @@ func (h *postgresHarness) installClusterRoles(t *testing.T) {
 		fmt.Sprintf("create role %s nologin", pgx.Identifier{modelConfigRole}.Sanitize()),
 		"create role product_data_ro nologin",
 		"create role campus_search nologin",
+		"create role memory_service login password 'memory-integration-password'",
 	}
 	for _, statement := range statements {
 		if _, err := conn.Exec(t.Context(), statement); err != nil {
@@ -167,7 +171,7 @@ func closeConn(t *testing.T, conn *pgx.Conn) {
 	}
 }
 
-func requireSchema(t *testing.T, databaseURL string) {
+func requireSchema(t *testing.T, databaseURL string, target ...string) {
 	t.Helper()
 	parsed, err := url.Parse(databaseURL)
 	if err != nil {
@@ -178,6 +182,9 @@ func requireSchema(t *testing.T, databaseURL string) {
 		t.Fatal("schema database URL is missing a password")
 	}
 	command := exec.CommandContext(t.Context(), "pnpm", "--dir", "jobs/campus-agent-schema", "migrate")
+	if len(target) > 0 {
+		command.Args = append(command.Args, "--target", target[0])
+	}
 	command.Dir = repositoryRoot(t)
 	command.Env = append(os.Environ(),
 		"PGHOST="+parsed.Hostname(),

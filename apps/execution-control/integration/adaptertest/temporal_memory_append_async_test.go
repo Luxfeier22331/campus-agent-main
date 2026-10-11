@@ -2,6 +2,7 @@ package adaptertest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -9,9 +10,9 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memorypersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -19,6 +20,7 @@ import (
 )
 
 type asyncMemoryFake struct {
+	lastRequest memoryruntime.AppendConversationTurnRequest
 	submits     int
 	polls       int
 	status      string
@@ -52,7 +54,10 @@ func TestAsyncMemoryAppendActivityUsesBackgroundWorkflowIdentity(t *testing.T) {
 			attachRunProjectionStoreForAdapterTest(adapter, store)
 			remote := &asyncMemoryFake{status: "completed"}
 			adapter.AsyncMemoryExecutor = remote
-			adapter.PersonalMemoryStateStore = memorypersistence.NewInMemoryStateStore()
+			state := memorypersistence.NewInMemoryStateStore()
+			adapter.CommandStateStore = state
+			adapter.CallLeaseStore = state
+			adapter.OwnerLifecycleStore = state
 			env := (&testsuite.WorkflowTestSuite{}).NewTestWorkflowEnvironment()
 			workflowID := "unrelated"
 			if validIdentity {
@@ -73,8 +78,9 @@ func TestAsyncMemoryAppendActivityUsesBackgroundWorkflowIdentity(t *testing.T) {
 	}
 }
 
-func (f *asyncMemoryFake) SubmitConversationTurn(context.Context, memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendOperation, error) {
+func (f *asyncMemoryFake) SubmitConversationTurn(_ context.Context, request memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendOperation, error) {
 	f.submits++
+	f.lastRequest = request
 	return memoryruntime.AppendOperation{Status: "pending"}, f.submitErr
 }
 func (f *asyncMemoryFake) GetConversationTurnOperation(context.Context, memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendOperation, error) {
@@ -96,8 +102,10 @@ func TestAsyncMemoryAppendRetainsFenceUntilConfirmedTerminal(t *testing.T) {
 			attachRunProjectionStoreForAdapterTest(adapter, store)
 			adapter.AsyncMemoryExecutor = remote
 			failingStore := &appendResultFailureStore{InMemoryRunProjectionStore: store}
-			adapter.RunProjectionStore = failingStore
-			adapter.PersonalMemoryStateStore = state
+			adapter.SetProjectionStore(failingStore)
+			adapter.CommandStateStore = state
+			adapter.CallLeaseStore = state
+			adapter.OwnerLifecycleStore = state
 			input := temporalruntime.MemoryAppendWorkflowInput{RequestID: requestID, StartedAt: now}
 			owner := memoryruntime.OwnerScopeHash("salt", "tenant-main", "user-executor")
 			out, err := adapter.AdvanceMemoryAppendActivity(ctx, input)
@@ -111,7 +119,7 @@ func TestAsyncMemoryAppendRetainsFenceUntilConfirmedTerminal(t *testing.T) {
 			input.Submitted = true
 			remote.queryErr = errors.New("connection interrupted")
 			_, err = adapter.AdvanceMemoryAppendActivity(ctx, input)
-			require.Error(t, err)
+			require.ErrorContains(t, err, "retain status unavailable")
 			remote.queryErr = nil
 			remote.status = "not_found"
 			out, err = adapter.AdvanceMemoryAppendActivity(ctx, input)
@@ -168,4 +176,88 @@ func TestAsyncMemoryAppendRetainsFenceUntilConfirmedTerminal(t *testing.T) {
 			require.Equal(t, 1, count)
 		})
 	}
+}
+
+func TestAsyncMemoryAppendUsesFrozenInputWithoutProjectingMessage(t *testing.T) {
+	store := executionpersistence.NewInMemoryRunProjectionStore()
+	now := time.Now().UTC().Add(-time.Minute)
+	const requestID = "append-input"
+	const message = "仅用于记忆的本轮用户消息"
+	createMemoryAppendRunForTest(t, store, requestID, message, ptrBool(true), now)
+	adapter := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "salt"})
+	attachRunProjectionStoreForAdapterTest(adapter, store)
+	remote := &asyncMemoryFake{status: "completed"}
+	adapter.AsyncMemoryExecutor = remote
+	state := memorypersistence.NewInMemoryStateStore()
+	adapter.CallLeaseStore = state
+	input := temporalruntime.MemoryAppendWorkflowInput{RequestID: requestID, StartedAt: now}
+	_, err := adapter.AdvanceMemoryAppendActivity(t.Context(), input)
+	require.NoError(t, err)
+	require.Equal(t, memoryruntime.AppendConversationTurnRequest{
+		RequestID: requestID, ThreadID: "conv-" + requestID, TenantID: "tenant-main", UserID: "user-executor", OwnerGeneration: 1,
+		UserMessage: message, UserMessageID: "msg-" + requestID, UserMessageCreatedAt: now.Format(time.RFC3339),
+	}, remote.lastRequest)
+	input.Submitted = true
+	out, err := adapter.AdvanceMemoryAppendActivity(t.Context(), input)
+	require.NoError(t, err)
+	require.Equal(t, "completed", out.Status)
+	assertMemoryAppendProjectionHasElapsedTiming(t, store, requestID)
+	results, err := store.ListStepResults(t.Context(), requestID)
+	require.NoError(t, err)
+	for _, result := range results {
+		if result.StepID != "memory.append" {
+			continue
+		}
+		encoded, err := json.Marshal(result.SanitizedPayload)
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded), message)
+		require.NotContains(t, string(encoded), "answer_text")
+	}
+}
+
+func TestAsyncMemoryAppendHonorsGatesAndFinalizationBinding(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		enabled        *bool
+		invalidBinding bool
+		reason         string
+	}{
+		{name: "disabled", enabled: ptrBool(false), reason: "memory_disabled"},
+		{name: "unknown", reason: "memory_enabled_unknown"},
+		{name: "wrong-finalization", enabled: ptrBool(true), invalidBinding: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := executionpersistence.NewInMemoryRunProjectionStore()
+			now := time.Now().UTC().Add(-time.Minute)
+			createMemoryAppendRunForTest(t, store, tc.name, "用户消息", tc.enabled, now)
+			adapter := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "salt"})
+			if tc.invalidBinding {
+				attachRunProjectionStoreForAdapterTest(adapter, &mismatchedFinalizationStore{store})
+			} else {
+				attachRunProjectionStoreForAdapterTest(adapter, store)
+			}
+			remote := &asyncMemoryFake{}
+			adapter.AsyncMemoryExecutor = remote
+			out, err := adapter.AdvanceMemoryAppendActivity(t.Context(), temporalruntime.MemoryAppendWorkflowInput{RequestID: tc.name, StartedAt: now})
+			if tc.invalidBinding {
+				require.ErrorContains(t, err, "post_finalization_activity_identity_invalid")
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, "skipped", out.Status)
+				require.Equal(t, []string{tc.reason}, out.SkipReasons)
+			}
+			require.Zero(t, remote.submits)
+			require.Zero(t, remote.polls)
+		})
+	}
+}
+
+type mismatchedFinalizationStore struct {
+	*executionpersistence.InMemoryRunProjectionStore
+}
+
+func (s *mismatchedFinalizationStore) GetRun(ctx context.Context, id string) (execution.DurableRun, error) {
+	run, err := s.InMemoryRunProjectionStore.GetRun(ctx, id)
+	run.FinalResponseRef = "another/finalization"
+	return run, err
 }

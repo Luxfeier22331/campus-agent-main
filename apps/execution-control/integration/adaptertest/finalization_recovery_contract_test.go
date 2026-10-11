@@ -16,7 +16,7 @@ func TestFinalizationRejectsOversizedResponseBeforeProductSuccess(t *testing.T) 
 	input.WorkflowResult.FinalOutput = strings.Repeat("x", 1<<20)
 	calls := 0
 	adapter.ProductFinalizationWriter = func(context.Context, execution.DurableRun, time.Time, map[string]any) error { calls++; return nil }
-	_, err := adapter.WriteWorkflowFinalization(t.Context(), input)
+	_, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input)
 	if err == nil || !strings.Contains(err.Error(), "finalization_response_too_large") || calls != 0 {
 		t.Fatalf("calls=%d err=%v", calls, err)
 	}
@@ -36,7 +36,7 @@ func TestFinalizationRejectsUnknownFieldsBeforeProductSuccess(t *testing.T) {
 	input.WorkflowResult.StageTiming = map[string]any{"private_debug": 1.0}
 	calls := 0
 	adapter.ProductFinalizationWriter = func(context.Context, execution.DurableRun, time.Time, map[string]any) error { calls++; return nil }
-	_, err := adapter.WriteWorkflowFinalization(t.Context(), input)
+	_, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input)
 	if err == nil || calls != 0 {
 		t.Fatalf("calls=%d err=%v", calls, err)
 	}
@@ -62,7 +62,7 @@ func (s *finalizationCASFailureStore) FinalizeRunProjection(ctx context.Context,
 
 func TestFinalizationCASFailureConvergesAfterProductSuccess(t *testing.T) {
 	store, adapter, input := workflowFinalizationFixture(t, "run-finalization-cas-retry")
-	adapter.RunProjectionStore = &finalizationCASFailureStore{InMemoryRunProjectionStore: store}
+	adapter.SetProjectionStore(&finalizationCASFailureStore{InMemoryRunProjectionStore: store})
 	var times []time.Time
 	var hashes []string
 	adapter.ProductFinalizationWriter = func(_ context.Context, _ execution.DurableRun, at time.Time, response map[string]any) error {
@@ -70,7 +70,7 @@ func TestFinalizationCASFailureConvergesAfterProductSuccess(t *testing.T) {
 		hashes = append(hashes, execution.HashAdmissionJSON(response))
 		return nil
 	}
-	if _, err := adapter.WriteWorkflowFinalization(t.Context(), input); err == nil {
+	if _, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input); err == nil {
 		t.Fatal("expected injected CAS failure")
 	}
 	events, err := store.ListRunEvents(t.Context(), input.RequestID)
@@ -82,7 +82,7 @@ func TestFinalizationCASFailureConvergesAfterProductSuccess(t *testing.T) {
 			t.Fatal("published browser completion before CAS")
 		}
 	}
-	if _, err := adapter.WriteWorkflowFinalization(t.Context(), input); err != nil {
+	if _, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input); err != nil {
 		t.Fatal(err)
 	}
 	if len(times) != 2 || !times[0].Equal(times[1]) || hashes[0] != hashes[1] {
@@ -104,7 +104,7 @@ func (s *finalizationEventFailureStore) AppendRunEvent(ctx context.Context, even
 
 func TestFinalizationEventFailureReplaysIdenticalProductCallback(t *testing.T) {
 	store, adapter, input := workflowFinalizationFixture(t, "run-finalization-event-retry")
-	adapter.RunProjectionStore = &finalizationEventFailureStore{InMemoryRunProjectionStore: store}
+	adapter.SetProjectionStore(&finalizationEventFailureStore{InMemoryRunProjectionStore: store})
 	var timestamps []time.Time
 	var fingerprints []string
 	adapter.ProductFinalizationWriter = func(_ context.Context, _ execution.DurableRun, at time.Time, response map[string]any) error {
@@ -112,10 +112,10 @@ func TestFinalizationEventFailureReplaysIdenticalProductCallback(t *testing.T) {
 		fingerprints = append(fingerprints, execution.HashAdmissionJSON(response))
 		return nil
 	}
-	if _, err := adapter.WriteWorkflowFinalization(t.Context(), input); err == nil {
+	if _, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input); err == nil {
 		t.Fatal("expected injected event failure")
 	}
-	if _, err := adapter.WriteWorkflowFinalization(t.Context(), input); err != nil {
+	if _, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input); err != nil {
 		t.Fatal(err)
 	}
 	if len(timestamps) != 2 || !timestamps[0].Equal(timestamps[1]) || fingerprints[0] != fingerprints[1] {
@@ -125,7 +125,7 @@ func TestFinalizationEventFailureReplaysIdenticalProductCallback(t *testing.T) {
 	if err != nil || run.Status != execution.DurableRunStatusCompleted {
 		t.Fatalf("run=%+v err=%v", run, err)
 	}
-	if _, err := adapter.WriteWorkflowFinalization(t.Context(), input); err != nil {
+	if _, err := adapter.WriteWorkflowFinalizationApplication(t.Context(), input); err != nil {
 		t.Fatal(err)
 	}
 	if len(timestamps) != 2 {

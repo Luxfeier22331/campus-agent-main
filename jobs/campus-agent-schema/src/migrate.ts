@@ -8,6 +8,10 @@ import { Client, type ClientConfig } from "pg";
 import { type AppliedMigration, compareHistory, type Migration, readHistory } from "./history.ts";
 
 export const MIGRATIONS_FOLDER = resolve(fileURLToPath(new URL("../migrations", import.meta.url)));
+export const MEMORY_MIGRATIONS_FOLDER = resolve(
+	fileURLToPath(new URL("../memory-migrations", import.meta.url)),
+);
+export type SchemaTarget = "campus-agent" | "memory";
 const MIGRATIONS_SCHEMA = "drizzle";
 const MIGRATIONS_TABLE = "campus_agent_migrations";
 const ADVISORY_LOCK_KEY = "campus-agent-schema-migrations";
@@ -54,12 +58,13 @@ export function readDatabaseConfig(env: NodeJS.ProcessEnv = process.env): Client
 export async function migrateCampusAgentSchema(
 	env: NodeJS.ProcessEnv = process.env,
 	migrationsFolder = MIGRATIONS_FOLDER,
+	target: SchemaTarget = "campus-agent",
 ): Promise<CampusAgentSchemaResult> {
 	const history = readHistory(migrationsFolder);
 	const client = new Client(readDatabaseConfig(env));
 	await client.connect();
 	try {
-		await assertMigrationOwner(client);
+		await assertMigrationOwner(client, target);
 		const result = await withSchemaMigrationLock(client, async () => {
 			const before = await readStatus(client, history);
 			await migrate(drizzle({ client }), {
@@ -85,11 +90,13 @@ export async function migrateCampusAgentSchema(
 export async function inspectCampusAgentSchema(
 	env: NodeJS.ProcessEnv = process.env,
 	migrationsFolder = MIGRATIONS_FOLDER,
+	target: SchemaTarget = "campus-agent",
 ): Promise<CampusAgentSchemaStatus> {
 	const history = readHistory(migrationsFolder);
 	const client = new Client(readDatabaseConfig(env));
 	await client.connect();
 	try {
+		await assertMigrationOwner(client, target);
 		return await readStatus(client, history);
 	} finally {
 		await client.end();
@@ -112,11 +119,12 @@ export async function withSchemaMigrationLock<T>(
 	}
 }
 
-async function assertMigrationOwner(client: QueryClient): Promise<void> {
+async function assertMigrationOwner(client: QueryClient, target: SchemaTarget): Promise<void> {
+	const owner = target === "memory" ? "memory_service" : "campus_agent";
 	const result = await client.query<{ current_user: string }>("select current_user");
-	if (result.rows[0]?.current_user !== "campus_agent") {
+	if (result.rows[0]?.current_user !== owner) {
 		throw new Error(
-			`schema migrations must run as campus_agent; current user is ${result.rows[0]?.current_user ?? "unknown"}`,
+			`schema migrations must run as ${owner}; current user is ${result.rows[0]?.current_user ?? "unknown"}`,
 		);
 	}
 }

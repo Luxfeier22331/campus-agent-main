@@ -4,12 +4,14 @@ import {
 	type AgentOutputType,
 	AgentsError,
 	type ModelProvider,
+	NoopTrace,
 	Runner,
 	RunResult,
 	type StreamedRunResult,
 	tool,
-	type Usage,
+	Usage,
 	webSearchTool,
+	withTrace,
 } from "@openai/agents";
 import {
 	CITATION_REASONS,
@@ -32,6 +34,7 @@ import {
 	createFunctionToolContext,
 	invokeFunctionTool,
 } from "./function-tools.ts";
+import { parseModelOutputJSON } from "./model-output.ts";
 import { openAIRuntimeError } from "./openai-errors.ts";
 import { failedRunnerResult } from "./runner-failure.ts";
 import { normalizedModelOutput, partialJSONStringField } from "./runner-output.ts";
@@ -58,29 +61,40 @@ export interface OpenAIAgentsRunnerOptions {
 export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}): AgentRunner {
 	return async (input) => {
 		let runtime: ReturnType<typeof createSdkRuntime> | undefined;
-		let result: RunResult<AgentSdkContext, CampusAgent> | undefined;
+		let result:
+			| RunResult<AgentSdkContext, CampusAgent>
+			| StreamedRunResult<AgentSdkContext, CampusAgent>
+			| undefined;
 		try {
 			const requestOptions = resolveRequestOptions(options, input.providerConfig);
 			runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
 			const runner = createSdkRunner(requestOptions.modelProvider, input.operation);
-			result = await runner.run(
-				runtime.agent,
-				input.input.map((message) =>
-					message.role === "assistant"
-						? {
-								role: "assistant" as const,
-								status: "completed" as const,
-								content: [{ type: "output_text" as const, text: message.content }],
-							}
-						: { role: "user" as const, content: message.content },
-				),
-				{
-					context: runtime.context,
-					maxTurns: input.limits.maxTurns,
-					...(input.signal ? { signal: input.signal } : {}),
-				},
+			const items = input.input.map((message) =>
+				message.role === "assistant"
+					? {
+							role: "assistant" as const,
+							status: "completed" as const,
+							content: [{ type: "output_text" as const, text: message.content }],
+						}
+					: { role: "user" as const, content: message.content },
 			);
-			return agentRunnerResultFromSDKResult(result, input.operation);
+			const runOptions = {
+				context: runtime.context,
+				maxTurns: input.limits.maxTurns,
+				...(input.signal ? { signal: input.signal } : {}),
+			};
+			if (input.providerConfig.transport === "responses") {
+				const streamed = await runner.run(runtime.agent, items, { ...runOptions, stream: true });
+				result = streamed;
+				for await (const _event of streamed) {
+					// Receive provider events without publishing answer deltas for buffered callers.
+				}
+				await streamed.completed;
+				throwIfStreamRunDidNotComplete(streamed, input.signal);
+			} else {
+				result = await runner.run(runtime.agent, items, runOptions);
+			}
+			return agentRunnerResultFromSDKResult(result, input);
 		} catch (error) {
 			const classified = openAIRuntimeError(error);
 			if (runtime) {
@@ -149,7 +163,7 @@ export function createStreamingOpenAIAgentsRunner(
 			}
 			await result.completed;
 			throwIfStreamRunDidNotComplete(result, input.signal);
-			yield agentRunnerResultFromSDKResult(result, input.operation);
+			yield agentRunnerResultFromSDKResult(result, input);
 		} catch (error) {
 			const classified = openAIRuntimeError(error);
 			if (runtime) {
@@ -228,7 +242,7 @@ async function* streamSolveResult(
 	}
 	await result.completed;
 	throwIfStreamRunDidNotComplete(result, input.signal);
-	const finalResult = agentRunnerResultFromSDKResult(result, input.operation);
+	const finalResult = agentRunnerResultFromSDKResult(result, input);
 	if (!outcome) {
 		const structured = finalResult.structuredOutput;
 		if (
@@ -300,41 +314,33 @@ function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 		input.allowWebSearch && input.providerConfig.hostedWebSearch === true ? [webSearchTool()] : [];
 	const agentConfig: AgentOptions<AgentSdkContext, AgentOutputType> = {
 		name: `Campus workflow ${input.operation}`,
-		instructions: input.instructions,
-		...(input.outputSchema
-			? {
-					outputType: {
-						type: "json_schema" as const,
-						name: input.outputSchema.name,
-						schema: openAIOutputSchema(input.outputSchema.schema) as JsonObjectSchema,
-						strict: true,
-					},
-				}
-			: {}),
+		instructions: modelInstructions(input),
 		...(model ? { model } : {}),
-		...(input.limits.maxOutputTokens
-			? { modelSettings: { maxTokens: input.limits.maxOutputTokens } }
-			: {}),
+		modelSettings: modelSettings(input),
 		tools: [...input.tools.map((runtimeTool) => sdkTool(runtimeTool)), ...hostedTools],
 	} as AgentOptions<AgentSdkContext, AgentOutputType>;
 	const agent = new Agent<AgentSdkContext, AgentOutputType>(agentConfig);
 	return { agent, context };
 }
 
-// Match the SDK's Zod discriminated-union projection. The workflow still
-// validates exclusive branches; OpenAI's structured decoder accepts anyOf.
-export function openAIOutputSchema(value: unknown): unknown {
-	if (Array.isArray(value)) {
-		return value.map(openAIOutputSchema);
-	}
-	if (!value || typeof value !== "object") {
-		return value;
-	}
-	return Object.fromEntries(
-		Object.entries(value)
-			.filter(([key]) => key !== "$schema")
-			.map(([key, item]) => [key === "oneOf" ? "anyOf" : key, openAIOutputSchema(item)]),
-	);
+function modelInstructions(input: AgentRunnerInput): string {
+	return input.outputSchema
+		? `${input.instructions}\nOutput a JSON object matching this application contract:\n${JSON.stringify(input.outputSchema.schema)}`
+		: input.instructions;
+}
+
+function modelSettings(input: AgentRunnerInput) {
+	return {
+		...(input.limits.maxOutputTokens ? { maxTokens: input.limits.maxOutputTokens } : {}),
+		...(input.outputSchema
+			? {
+					providerData:
+						input.providerConfig.transport === "responses"
+							? { text: { format: { type: "json_object" } } }
+							: { response_format: { type: "json_object" } },
+				}
+			: {}),
+	};
 }
 
 function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
@@ -368,10 +374,14 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 
 function agentRunnerResultFromSDKResult(
 	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
-	operation: AgentRunnerInput["operation"],
+	input: AgentRunnerInput,
 ) {
+	const value =
+		input.outputSchema && typeof result.finalOutput === "string"
+			? parseModelOutputJSON(result.finalOutput, `workflow.${input.operation}`)
+			: result.finalOutput;
 	return {
-		...normalizedModelOutput(result.finalOutput, operation),
+		...normalizedModelOutput(value, input.operation),
 		providerResponseId: result.lastResponseId?.trim() ?? "",
 		toolResults: toolResultsFromSDKResult(result),
 		webEvidence: extractWebEvidence(result),
@@ -534,5 +544,132 @@ function usageFromSDK(usage: Usage) {
 			0,
 		),
 		usageObserved: usage.requests > 0,
+	};
+}
+
+// This adapter performs one model request. Temporal owns the continuation loop.
+export async function runOpenAIModelTurn(
+	input: AgentRunnerInput,
+	continuation?: import("./model-turn.ts").ProviderContinuation,
+	onDelta?: (delta: string) => Promise<void>,
+): Promise<import("./model-turn.ts").ModelTurn> {
+	// Direct model calls bypass Runner, which normally supplies this SDK context.
+	return withTrace(new NoopTrace(), () => requestOpenAIModelTurn(input, continuation, onDelta));
+}
+
+async function requestOpenAIModelTurn(
+	input: AgentRunnerInput,
+	continuation?: import("./model-turn.ts").ProviderContinuation,
+	onDelta?: (delta: string) => Promise<void>,
+): Promise<import("./model-turn.ts").ModelTurn> {
+	const { openAIAgentsRunnerOptionsFromProviderConfig } = await import("./openai-provider.ts");
+	const options = openAIAgentsRunnerOptionsFromProviderConfig(input.providerConfig);
+	const model = await options.modelProvider!.getModel(options.model!);
+	const items: import("@openai/agents").AgentInputItem[] =
+		continuation?.provider === "openai"
+			? continuation.items
+			: input.input.map((m) =>
+					m.role === "assistant"
+						? {
+								role: "assistant",
+								status: "completed",
+								content: [{ type: "output_text", text: m.content }],
+							}
+						: { role: "user", content: m.content },
+				);
+	const request: Parameters<typeof model.getResponse>[0] = {
+		systemInstructions: modelInstructions(input),
+		input: items,
+		modelSettings: modelSettings(input),
+		tools: [
+			...input.tools.map((t) => ({
+				type: "function" as const,
+				name: t.name,
+				description: t.description,
+				parameters: t.parameters ?? emptyParametersSchema,
+				strict: true,
+			})),
+			...(input.allowWebSearch ? [webSearchTool()] : []),
+		],
+		outputType: "text",
+		handoffs: [],
+		tracing: false,
+		...(input.signal ? { signal: input.signal } : {}),
+	};
+	let response: Awaited<ReturnType<typeof model.getResponse>>;
+	if (input.providerConfig.transport === "responses" || onDelta) {
+		let terminal: Awaited<ReturnType<typeof model.getResponse>> | undefined;
+		for await (const event of model.getStreamedResponse(request)) {
+			if (event.type === "output_text_delta") {
+				await onDelta?.(event.delta);
+			}
+			if (event.type === "response_done") {
+				terminal = {
+					...event.response,
+					usage: new Usage({
+						inputTokens: event.response.usage.inputTokens,
+						outputTokens: event.response.usage.outputTokens,
+						totalTokens: event.response.usage.totalTokens,
+						requests: event.response.usage.requests ?? 1,
+					}),
+					responseId: event.response.id,
+				} as Awaited<ReturnType<typeof model.getResponse>>;
+			}
+		}
+		if (!terminal) {
+			throw new AgentRuntimeError("run_failed", "Model stream ended without response");
+		}
+		response = terminal;
+	} else {
+		response = await model.getResponse(request);
+	}
+	const calls = response.output.flatMap((item) =>
+		item.type === "function_call"
+			? [
+					{
+						id: item.callId,
+						name: item.name,
+						arguments: JSON.parse(item.arguments) as Record<string, unknown>,
+					},
+				]
+			: [],
+	);
+	const text = response.output
+		.flatMap((item) =>
+			item.type === "message" && item.role === "assistant"
+				? item.content.flatMap((p) => (p.type === "output_text" ? [p.text] : []))
+				: [],
+		)
+		.join("");
+	const pseudo = {
+		newItems: response.output.map((rawItem) => ({ rawItem })),
+		runContext: { usage: response.usage },
+	} as unknown as RunResult<AgentSdkContext, CampusAgent>;
+	let normalized: Pick<AgentRunnerResult, "finalOutput" | "structuredOutput"> = { finalOutput: "" };
+	let outputFailure: AgentRunnerResult["failure"];
+	try {
+		if (calls.length === 0) {
+			normalized = normalizedModelOutput(
+				input.outputSchema ? JSON.parse(text) : text,
+				input.operation,
+			);
+		}
+	} catch {
+		outputFailure = { code: "model_output_invalid", operation: `workflow.${input.operation}` };
+	}
+	const result: AgentRunnerResult = {
+		...normalized,
+		...(outputFailure ? { failure: outputFailure } : {}),
+		rawModelOutput: { text, finishReason: null },
+		providerResponseId: response.responseId ?? "",
+		toolResults: [],
+		webEvidence: extractWebEvidence(pseudo),
+		webSearchUsed: webSearchUsedFromSDKResult(pseudo),
+		usage: usageFromSDK(response.usage),
+	};
+	return {
+		continuation: { provider: "openai", items: [...items, ...response.output] },
+		calls,
+		result,
 	};
 }

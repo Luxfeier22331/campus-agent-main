@@ -215,6 +215,7 @@ describe("app-api worker foundation", () => {
 		expect(staging?.hyperdrive).toEqual([expect.objectContaining({ binding: "APP_API_DB" })]);
 		expect(staging?.vpc_services).toEqual([
 			expect.objectContaining({ binding: "EXECUTION_CONTROL_PRIVATE", remote: true }),
+			expect.objectContaining({ binding: "MEMORY_SERVICE_PRIVATE", remote: true }),
 			expect.objectContaining({ binding: "OBJECT_STORE_PRIVATE", remote: true }),
 		]);
 	});
@@ -226,6 +227,7 @@ describe("app-api worker foundation", () => {
 			"RESEND_API_KEY",
 			"OPS_WEB_INTERNAL_TOKEN",
 			"APP_API_EXECUTION_SHARED_SECRET",
+			"MEMORY_INTERNAL_SHARED_SECRET",
 			"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
 			"OBJECT_STORE_DERIVED_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_SECRET_KEY",

@@ -274,6 +274,7 @@ describe("account journeys PostgreSQL integration", () => {
 			},
 		});
 		lifecycle = buildAccountLifecycleService({
+			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: async () => true },
 			executionController: {
 				beginOwnerDeletion: async () => ({ activeRunCount: 0, state: "draining" as const }),

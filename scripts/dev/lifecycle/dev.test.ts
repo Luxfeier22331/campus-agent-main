@@ -115,6 +115,9 @@ describe("local development profiles", () => {
 		});
 		assert.deepEqual(calculateLocalDevRuntimePorts(2), {
 			agentRuntime: 27262,
+			agentWorker: 27263,
+			memoryApi: 27255,
+			memoryWorker: 27256,
 			campusSearch: 27254,
 			executionControl: 27251,
 			executionWorker: 27252,
@@ -902,7 +905,7 @@ describe("managed worktree environment", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
 		renderLocalEnvironmentFiles({ repoRoot, profile, target: "core", qdrant });
-		const path = resolve(repoRoot, "apps/execution-control/.env.local");
+		const path = resolve(repoRoot, "apps/memory-service/.env.local");
 		const first = parseEnv(readFileSync(path, "utf8"));
 		renderLocalEnvironmentFiles({ repoRoot, profile, target: "core", qdrant });
 		const next = parseEnv(readFileSync(path, "utf8"));
@@ -968,7 +971,7 @@ describe("managed worktree environment", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
 		const corePaths = renderLocalEnvironmentFiles({ profile, repoRoot, target: "core" });
-		assert.equal(corePaths.length, 7);
+		assert.equal(corePaths.length, 8);
 		assert.equal(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")), false);
 	});
 
@@ -1235,7 +1238,7 @@ describe("local development lifecycle guards", () => {
 		);
 		assert.deepEqual(
 			coreCommands.map(({ step }) => step),
-			["campus-agent-schema", "app-api-seed-local-test-user"],
+			["campus-agent-schema", "memory-schema", "app-api-seed-local-test-user"],
 		);
 		assert.equal(
 			coreCommands.some(({ step }) => step.startsWith("model-config-")),
@@ -1316,8 +1319,13 @@ describe("local development lifecycle guards", () => {
 			),
 			/go build -o .*execution-api \.\/cmd\/execution-api/u,
 		);
-		assert.match(agentPackage.scripts?.dev ?? "", /(?:^|\s)--experimental-strip-types(?:\s|$)/u);
-		assert.match(agentPackage.scripts?.dev ?? "", /(?:^|\s)src\/server\.ts$/u);
+		assert.equal(agentPackage.scripts?.dev, "bash scripts/dev.sh");
+		const agentDev = readFileSync(
+			resolve(import.meta.dirname, "../../../apps/agent-runtime/scripts/dev.sh"),
+			"utf8",
+		);
+		assert.match(agentDev, /--experimental-strip-types.*src\/server\.ts/u);
+		assert.match(agentDev, /--import=tsx src\/worker\.ts/u);
 		assert.equal(opsWebPackage.scripts?.dev, undefined);
 		assert.match(opsWebPackage.scripts?.["dev:api"] ?? "", /--experimental-strip-types/u);
 		assert.equal(campusDocsIndexPublisherPackage.scripts?.["dev:init"], undefined);

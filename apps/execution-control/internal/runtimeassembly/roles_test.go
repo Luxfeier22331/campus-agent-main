@@ -8,7 +8,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memorypersistence"
 )
 
 type healthyRoleStore struct{ executionapplication.RunStore }
@@ -33,7 +33,7 @@ func TestAPIStartsWithoutTemporalConnectivity(t *testing.T) {
 
 func TestWorkerOnlyExposesHealthAndTracksLocalLifecycle(t *testing.T) {
 	runtime := &Runtime{}
-	owner := &WorkerOwner{cfg: config.Config{AppAPIExecutionSharedSecret: "secret"}, resources: &resources{runProjectionStore: healthyRoleStore{}, personalMemoryStateStore: memorypersistence.NewInMemoryStateStore()}}
+	owner := &WorkerOwner{cfg: config.Config{AppAPIExecutionSharedSecret: "secret"}, resources: &resources{execution: executionResources{store: healthyRoleStore{}}, memory: memoryResources{store: memorypersistence.NewInMemoryStateStore()}}}
 	check := func(path, secret string, want int) {
 		t.Helper()
 		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)

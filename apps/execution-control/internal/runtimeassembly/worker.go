@@ -11,10 +11,14 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	operationapp "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/operation"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/answermemory"
 	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
+	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
 	memoryactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/memory"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
 )
 
 type WorkerOwner struct {
@@ -30,17 +34,29 @@ func NewWorker(cfg config.Config, logger *slog.Logger) (*WorkerOwner, error) {
 		return nil, err
 	}
 	var receipts executionapplication.ReceiptStore
-	if store, ok := r.runProjectionStore.(*executionpersistence.PostgresRunProjectionStore); ok {
+	if store, ok := r.execution.store.(*executionpersistence.PostgresRunProjectionStore); ok {
 		receipts = store.Receipts
 	}
-	return &WorkerOwner{
+	memoryService := &memoryapplication.Service{
+		CommandExecutor: r.memory.command, Recaller: r.memory.recaller,
+		AsyncMemoryExecutor: r.memory.asyncExecutor,
+		PersonalMemoryErr:   r.memory.providerErr, CommandStateStore: r.memory.commandState,
+		CallLeaseStore: r.memory.callLease, OwnerLifecycleStore: r.memory.ownerLifecycle,
+		PersonalMemoryStateErr: r.memory.storeErr, AppendWorkflowReviver: r.temporalStarter,
+		OwnerSalt: cfg.PersonalMemoryOwnerSalt, TimeoutSeconds: cfg.PersonalMemoryTimeoutSeconds,
+	}
+	owner := &WorkerOwner{
 		resources: r, cfg: cfg,
-		executionAdapter: executionactivities.New(executionactivities.Adapter{Writer: r.writer, AgentRuntimeClient: outboundadapter.NewAgentRuntimeClient(cfg), Receipts: executionapplication.NewReceiptService(receipts)}),
-		memoryAdapter:    memoryactivities.New(memoryactivities.Adapter{Writer: r.writer, PersonalMemoryExecutor: r.personalMemoryExecutor, AsyncMemoryExecutor: r.asyncMemoryExecutor, PersonalMemoryErr: r.personalMemoryErr, PersonalMemoryStateStore: r.personalMemoryStateStore, PersonalMemoryStateErr: r.personalMemoryStateErr, AppendWorkflowReviver: r.temporalStarter}),
-	}, nil
+		executionAdapter: executionactivities.New(executionactivities.Adapter{Service: &operationapp.OperationService{StateWriter: r.execution.store, Writer: r.execution.writer.Application(context.Background()), InputReader: r.execution.inputReader, Options: operationapp.Options{AnswerTransport: cfg.AnswerTransport, Configured: strings.TrimSpace(cfg.AgentRuntimeBaseURL) != "" && strings.TrimSpace(cfg.AgentRuntimeSharedSecret) != "", DeploymentRelease: cfg.DeploymentRelease}, AgentRuntimeClient: outboundadapter.NewAgentRuntimeClient(cfg), Receipts: executionapplication.NewReceiptService(receipts)}}),
+		memoryAdapter:    memoryactivities.New(memoryactivities.Adapter{Service: memoryService, AnswerAppend: &answermemory.Bridge{Writer: r.execution.writer, InputReader: r.execution.inputReader}, MemoryResultClient: r.memory.resultClient}),
+	}
+	if cfg.MemoryServiceBaseURL != "" {
+		owner.memoryAdapter.AppendClient = outboundadapter.NewMemoryClient(cfg.MemoryServiceBaseURL, cfg.MemoryServiceSecret)
+	}
+	return owner, nil
 }
 func (owner *WorkerOwner) Start(ctx context.Context, logger *slog.Logger) (*Runtime, error) {
-	return StartWorkers(ctx, owner.cfg, owner.executionAdapter, owner.memoryAdapter, owner.finalizationAdapter, logger)
+	return StartWorkers(ctx, owner.cfg, owner.executionAdapter, owner.memoryAdapter, finalizationactivities.New(finalizationactivities.Adapter{Service: owner.execution.finalization}), logger)
 }
 func (owner *WorkerOwner) Handler(runtime *Runtime) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -54,10 +70,10 @@ func (owner *WorkerOwner) Handler(runtime *Runtime) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			ready := runtime.Ready() && owner.runProjectionStore != nil && owner.runProjectionStoreErr == nil && owner.personalMemoryStateStore != nil && owner.personalMemoryStateErr == nil
+			ready := runtime.Ready() && owner.execution.store != nil && owner.execution.storeErr == nil && (owner.cfg.MemoryServiceBaseURL != "" || (owner.memory.store != nil && owner.memory.storeErr == nil))
 			ctx, cancel := context.WithTimeout(r.Context(), time.Second)
 			defer cancel()
-			for _, store := range []any{owner.runProjectionStore, owner.personalMemoryStateStore} {
+			for _, store := range []any{owner.execution.store, owner.memory.store} {
 				if checker, ok := store.(interface{ HealthCheck(context.Context) error }); ok && checker.HealthCheck(ctx) != nil {
 					ready = false
 				}

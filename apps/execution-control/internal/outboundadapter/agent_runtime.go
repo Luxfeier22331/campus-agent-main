@@ -32,9 +32,10 @@ func NewAgentRuntimeClient(cfg config.Config) executionapplication.AgentRuntimeC
 func (client *agentRuntimeHTTPClient) Execute(
 	ctx context.Context,
 	request executionapplication.AgentRuntimeRequest,
-) (executionapplication.AgentRuntimeResponse, error) {
+	handle func(executionapplication.AgentRuntimeEvent) error,
+) (executionapplication.AgentRuntimeResult, error) {
 	if client == nil || client.baseURL == "" || client.sharedSecret == "" {
-		return executionapplication.AgentRuntimeResponse{}, &executionapplication.AgentRuntimeRequestError{
+		return executionapplication.AgentRuntimeResult{}, &executionapplication.AgentRuntimeRequestError{
 			Cause: errors.New("agent runtime base URL and shared secret are required"),
 		}
 	}
@@ -43,9 +44,13 @@ func (client *agentRuntimeHTTPClient) Execute(
 		requestPath += "/stream"
 	}
 	requestURL := client.baseURL + requestPath
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(request.Body))
+	body, err := encodeRuntimeRequest(request)
 	if err != nil {
-		return executionapplication.AgentRuntimeResponse{}, &executionapplication.AgentRuntimeRequestError{Build: true, Cause: err}
+		return executionapplication.AgentRuntimeResult{}, &executionapplication.AgentRuntimeRequestError{Build: true, Cause: err}
+	}
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
+	if err != nil {
+		return executionapplication.AgentRuntimeResult{}, &executionapplication.AgentRuntimeRequestError{Build: true, Cause: err}
 	}
 	httpRequest.Header.Set("authorization", "Bearer "+client.sharedSecret)
 	httpRequest.Header.Set("content-type", "application/json")
@@ -57,10 +62,8 @@ func (client *agentRuntimeHTTPClient) Execute(
 		if httpResponse != nil && httpResponse.Body != nil {
 			_ = httpResponse.Body.Close()
 		}
-		return executionapplication.AgentRuntimeResponse{}, &executionapplication.AgentRuntimeRequestError{Cause: err}
+		return executionapplication.AgentRuntimeResult{}, &executionapplication.AgentRuntimeRequestError{Cause: err}
 	}
-	return executionapplication.AgentRuntimeResponse{
-		StatusCode: httpResponse.StatusCode,
-		Body:       httpResponse.Body,
-	}, nil
+	defer func() { _ = httpResponse.Body.Close() }()
+	return DecodeAgentRuntimeResponse(httpResponse.StatusCode, httpResponse.Body, request.Stream, handle)
 }

@@ -9,3 +9,4 @@ resources:
   - database-config.yaml
   - schema-job.yaml
   - network-policy.yaml
+  - memory-schema-job.yaml

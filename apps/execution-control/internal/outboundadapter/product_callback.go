@@ -16,6 +16,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
 )
 
 type productCallbackHTTPClient struct {
@@ -27,7 +28,7 @@ type productCallbackHTTPClient struct {
 // NewProductCallbackClient constructs the app-api callback owner. Missing
 // configuration is reported when the activity invokes the port, matching the
 // previous runtime behavior.
-func NewProductCallbackClient(cfg config.Config) executionapplication.ProductCallbackClient {
+func NewProductCallbackClient(cfg config.Config) *productCallbackHTTPClient {
 	timeout := time.Duration(cfg.ProductCallbackTimeoutMS) * time.Millisecond
 	if timeout <= 0 {
 		timeout = 5 * time.Second
@@ -43,7 +44,7 @@ func NewProductCallbackClient(cfg config.Config) executionapplication.ProductCal
 
 func (client *productCallbackHTTPClient) WritePersonalMemoryCommandResult(
 	ctx context.Context,
-	request executionapplication.PersonalMemoryCommandResultRequest,
+	request memoryapplication.PersonalMemoryCommandResultRequest,
 ) error {
 	body, err := json.Marshal(map[string]string{
 		"error_code": request.ErrorCode,
@@ -128,5 +129,34 @@ func (client *productCallbackHTTPClient) do(ctx context.Context, callbackURL str
 }
 
 func productCallbackError(code string, cause error) error {
-	return &executionapplication.ProductCallbackError{Code: code, Cause: cause}
+	return &ProductCallbackError{Code: code, Cause: cause}
+}
+
+// ProductCallbackError deliberately keeps the response body out of the error
+// value. It gives the Temporal adapter stable classification while preserving
+// the existing no-diagnostic-details contract.
+type ProductCallbackError struct {
+	Code  string
+	Cause error
+}
+
+func (err *ProductCallbackError) Error() string {
+	if err == nil || err.Code == "" {
+		return "product callback failed"
+	}
+	return "product callback failed"
+}
+
+func (err *ProductCallbackError) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+	return err.Cause
+}
+
+func (err *ProductCallbackError) ProductCallbackCode() string {
+	if err == nil {
+		return ""
+	}
+	return err.Code
 }

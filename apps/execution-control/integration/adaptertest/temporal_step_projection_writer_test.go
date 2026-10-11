@@ -3,6 +3,7 @@ package adaptertest
 import (
 	"context"
 	"errors"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
 	"strings"
 	"testing"
 	"time"
@@ -10,15 +11,15 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
+
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestTemporalPostFinalizationStepAllowsOnlyMemoryAppend(t *testing.T) {
-	if !activityprojection.TemporalPostFinalizationStepAllowed("memory.append") {
+	if !projectionapp.PostFinalizationStepAllowed("memory.append") {
 		t.Fatal("memory append should remain allowed after finalization")
 	}
-	if activityprojection.TemporalPostFinalizationStepAllowed("memory.operation_status") {
+	if projectionapp.PostFinalizationStepAllowed("memory.operation_status") {
 		t.Fatal("retired memory.operation_status must not be allowed after finalization")
 	}
 }
@@ -66,7 +67,7 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
 		ActivityAttempt:      1,
 		Attempt:              1,
-		AttemptID:            activityprojection.TemporalStepAttemptID("run-step-terminal-late", "solve.initial", 1),
+		AttemptID:            projectionapp.StepAttemptID("run-step-terminal-late", "solve.initial", 1),
 		RequestID:            "run-step-terminal-late",
 		StepID:               "solve.initial",
 		Status:               "failed",
@@ -81,7 +82,7 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		t.Fatalf("get run: %v", err)
 	}
 
-	err = server.ProjectTemporalStep(context.Background(), activityprojection.TemporalStepProjection{
+	err = server.ProjectTemporalStep(context.Background(), projectionapp.StepProjection{
 		ActivityAttempt: 1,
 		Attempt:         1,
 		Tool:            "",
@@ -95,7 +96,7 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		CompletedAt:     now.Add(5 * time.Second),
 		UpdatedAt:       now.Add(5 * time.Second),
 		ResultKind:      "agent_final_output",
-		ProjectionRef:   activityprojection.TemporalProjectionRef(run.RequestID, "solve/initial/result"),
+		ProjectionRef:   projectionapp.ProjectionRef(run.RequestID, "solve/initial/result"),
 		Payload:         map[string]any{"provider_response": "late"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "already terminal before solve.initial completion projection") {
@@ -155,7 +156,7 @@ func TestProjectTemporalStepAllowsEquivalentTerminalReplay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
-	projection := activityprojection.TemporalStepProjection{
+	projection := projectionapp.StepProjection{
 		ActivityAttempt:    1,
 		ActivityID:         "activity-solve-initial",
 		ActivityType:       temporalruntime.SolveTaskActivityName,
@@ -166,7 +167,7 @@ func TestProjectTemporalStepAllowsEquivalentTerminalReplay(t *testing.T) {
 		ModelName:          "test-model",
 		ModelProvider:      "test-provider",
 		Payload:            map[string]any{"provider_response": "stable"},
-		ProjectionRef:      activityprojection.TemporalProjectionRef(run.RequestID, "solve/initial/result"),
+		ProjectionRef:      projectionapp.ProjectionRef(run.RequestID, "solve/initial/result"),
 		ProviderRequestRef: "provider-request-stable",
 		ProviderResponseID: "provider-response-stable",
 		ResultKind:         "agent_final_output",
@@ -239,7 +240,7 @@ func TestProjectTemporalStepAllowsHigherActivityAttemptToReplaceTerminalStep(t *
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
-	base := activityprojection.TemporalStepProjection{
+	base := projectionapp.StepProjection{
 		ActivityAttempt: 1,
 		Attempt:         1,
 		Run:             run,
@@ -263,7 +264,7 @@ func TestProjectTemporalStepAllowsHigherActivityAttemptToReplaceTerminalStep(t *
 	base.UpdatedAt = now.Add(5 * time.Second)
 	base.Payload = map[string]any{"provider_response": "retry-success"}
 	base.ResultKind = "agent_final_output"
-	base.ProjectionRef = activityprojection.TemporalProjectionRef(run.RequestID, "solve/initial/result")
+	base.ProjectionRef = projectionapp.ProjectionRef(run.RequestID, "solve/initial/result")
 	if err := server.ProjectTemporalStep(context.Background(), base); err != nil {
 		t.Fatalf("project attempt 2 completion: %v", err)
 	}
@@ -318,7 +319,7 @@ func TestProjectTemporalStepPreservesCancellationFinalizerTerminalProjection(t *
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
-	started := activityprojection.TemporalStepProjection{
+	started := projectionapp.StepProjection{
 		ActivityAttempt: 1,
 		Attempt:         1,
 		Run:             run,
@@ -349,7 +350,7 @@ func TestProjectTemporalStepPreservesCancellationFinalizerTerminalProjection(t *
 	lateFailure.CompletedAt = now.Add(3 * time.Second)
 	lateFailure.UpdatedAt = lateFailure.CompletedAt
 	lateFailure.ResultKind = "activity_failure"
-	lateFailure.ProjectionRef = activityprojection.TemporalProjectionRef(run.RequestID, "solve/initial/result")
+	lateFailure.ProjectionRef = projectionapp.ProjectionRef(run.RequestID, "solve/initial/result")
 	lateFailure.Payload = map[string]any{"marker": "late-failure"}
 	if err := server.ProjectTemporalStep(context.Background(), lateFailure); !errors.Is(err, execution.ErrStaleRunStepProjection) {
 		t.Fatalf("late failure error = %v, want ErrStaleRunStepProjection", err)

@@ -1,17 +1,37 @@
 # agent-runtime
 
-执行校园信息 workflow 中模型 operation 的 TypeScript 服务。
+拥有校园回答编排与模型、工具 Activity 的 TypeScript Temporal Worker；双轨期间保留 HTTP operation 服务。
+
+## Temporal 运行入口
+
+`workflows.ts` 拥有 Solve、Execute、Replan、Synthesize 的步骤顺序和请求级预算；
+`activities.ts` 将单次模型请求与外部工具调用分别执行并保存 continuation。
+`domain-tools.ts` 直接调用 Campus Search 和 Memory API；`control-client.ts` 通过 typed API
+读写 control 拥有的载荷、invocation receipt、事件与最终投影。
+模型调用返回后先保存 receipt 再推进；结果未知的已开始调用保持不确定结果合同。
+
+`pnpm --filter agent-runtime dev` 同时启动旧 HTTP 服务与 Temporal Worker；独立 Worker 可用
+`dev:worker` 启动。Worker 需要 `AGENT_RUNTIME_TEMPORAL_ADDRESS`、`AGENT_RUNTIME_TEMPORAL_NAMESPACE`、
+`AGENT_CONTROL_BASE_URL`、`EXECUTION_AGENT_RUNTIME_SHARED_SECRET`、`MODEL_CONFIG_URL`，以及
+Search/Memory 服务地址和内部密钥。HTTP 健康端口由 `AGENT_WORKER_PORT` 设置。
+本地与部署的 Worker 启动参数均将地址族连接尝试等待设为 2000ms，与 HTTP 服务一致；该参数不改变
+TLS 握手或整体请求截止时间。模型 Activity 在 receipt 和内部日志保留分类后的状态码、原因与调用 ID，
+产品终态仍使用原有公开错误消息。
+构建生成独立 Workflow bundle；模型 SDK 与外部 IO 仅加载在 Activity Worker。
+
+旧 HTTP 模式的 operation 循环在双轨期间保留，下面 HTTP/SSE 说明适用于该入口。
 
 ## 职责
 
 - 执行 Solve、Executor、Replanner 和 Synthesizer；Solve 可以直接回答，也可以返回任务计划；
 - 严格解析并做结构 schema 校验 Solve/Replanner 返回的 JSON 文本，以及步骤摘要和最终文本；结构化合同不依赖
-  OpenAI-compatible Provider 强制执行 JSON Schema；
+  Provider 强制执行 JSON Schema；
 - Solve 可在已准入来源范围内直接检索并回答；Executor 只接收当前步骤声明且本轮获准的函数工具，
   两者复用同一工具预算、证据和 citation 合同；可用时支持托管 `web_search`；
 - 消费 execution-control 提供的预期 Model Target hash、上下文和 operation 预算，并从共同受信任的
   Model Config 读取仍匹配该 hash 的 `primary_agent` 配置；该名称是历史配置键，不是 Agent 层级；
 - 把本地函数调用交回 execution-control，不直接访问产品数据库、Campus Docs 数据库或 Hindsight；
+- 将个人记忆 HTTP 返回的有序事实和字符预算格式化为模型上下文；
 - 返回 operation 结果、证据、source attempts、模型用量和调用链关联信息；
 - 通过 OpenTelemetry 与 Langfuse 记录受控模型轨迹。
 
@@ -19,10 +39,11 @@
 本应用不保存会话或运行状态。
 
 Solve 的模型输出使用根对象 `{ result: answer分支 | plan分支 }`，由 runner 解包为 operation 合同；
-`workflow-runtime.ts` 统一严格校验互斥分支及长度/数量约束。Gemini 的 schema 投影省略本地长度和数量
-限制，并将 const 转为 enum，避免供应商结构化解码器拒绝完整 Solve schema；这不放宽应用校验。
-OpenAI adapter 将通用 schema 的 oneOf 投影为 anyOf，保留原 SDK 的互斥分支转换；最终互斥校验仍由
-workflow-runtime 负责。Synthesizer 的组合编号 `[1, 2]` 在输出时统一为 `[1][2]`，由既有引用闭包处理。
+`workflow-runtime.ts` 统一严格校验互斥分支及长度/数量约束。Gemini 原生协议对结构化操作使用
+提示词约定 JSON，不发送 `responseMimeType`，OpenAI 兼容协议使用 JSON object 模式；两条路径都将完整输出
+合同放入指令，不发送供应商输出 Schema。函数工具的参数 Schema 保持不变，返回文本先解析 JSON，
+再由 workflow-runtime 严格校验。Gemini 混合工具保留 `includeServerSideToolInvocations` 和 `VALIDATED`。
+Synthesizer 的组合编号 `[1, 2]` 在输出时统一为 `[1][2]`，由既有引用闭包处理。
 检索或 Solve 失败但已保留 evidence 时使用 recovery synthesis，只基于已有材料生成回答，不伪造 task plan。
 Synthesizer 只使用材料已有的 citationIndex，且区分检索失败
 与检索成功但无匹配，最终引用校验仍然保留。
@@ -80,14 +101,19 @@ operation 消费准入时持久化的绝对 `deadline_at`，切换步骤、重�
 - `gemini-runner.ts` 使用官方 `@google/genai` 执行 GenerateContent、原生 Google Search 和函数循环；
 - `provider-config.ts` 按 Model Config 的 provider/transport 选择 runner，不按模型名猜测，也不自动切换；
 - `function-tools.ts` 共享本地工具预算、调用记录与 Campus citation 编号；SDK 数据结构、错误转换留在 adapter；
+- `tool-executor.ts` 在工具 HTTP 返回后调用 `memory-context.ts`，将 recall 的 `{facts, context_char_budget}`
+  转成 `{outcome, memory_text}`，再交给两种 runner 和调用记录；格式化按 Unicode codepoint 和完整行预算
+  保留事实顺序，空事实返回 no_match；
 - Provider、工具执行和 SDK runner 依赖上述 leaf contract，不反向依赖 HTTP server。
 
 `google` + `google.generate_content` 选择 Gemini，`openai` / `openai-compatible` 配合
 `openai.responses` / `openai.chat_completions` 选择 OpenAI。配置中的 Gemini Base URL 应包含 API 版本路径，
 如 `https://generativelanguage.googleapis.com/v1beta`；网关同样填写其原生 Gemini API 根路径。
 Solve/Executor 可使用已准入工具，Synthesizer 不使用工具；三者均可使用内部 SSE。
-Executor 只输出检索状态和终态结果，不输出 answer_delta；Replanner 使用非流式接口。
-Solve/Executor 通过 `model_answer_transport` 独立选择模型 buffered/stream；内部 SSE 两种模式均
+Executor 只输出检索状态和终态结果，不输出 answer_delta；Replanner 对调用者返回完整结果。
+Responses 模型请求始终使用流式接收，包括缓冲回答、Executor、Replanner 和恢复合成；
+是否投影 answer_delta 由现有回答展示模式决定，无增量消费者时收集完整响应后再解析和校验。
+Solve/Executor 通过 `model_answer_transport` 选择回答 buffered/stream 展示；内部 SSE 两种模式均
 实时上报检索状态。buffered Solve 只返回 decision 和完整终态，正文由 Execution Control 单次投影。
 内部 `retrieval_status` 的 schema 为 `workflow_runtime_retrieval_status.v1`，字段为 `source`、`status`、
 `occurred_at`。Runtime 从实际 campus_search 函数调用产生产品检索状态，execution-control 持久化后

@@ -92,9 +92,8 @@ export const solveOutputSchema = z.discriminatedUnion("outcome", [
 		.strict(),
 ]);
 
-// The Agents SDK requires a JSON Schema whose root is an object. Keep the
-// discriminated union above for strict result validation, while using this
-// object-shaped schema only when configuring the SDK output type.
+// JSON object mode requires an object at the root. The prompt describes this
+// envelope; the runtime unwraps it and validates the exclusive branches above.
 export const solveSdkOutputSchema = z
 	.object({
 		result: solveOutputSchema,
@@ -108,7 +107,7 @@ const productIdentityInstructions = [
 	"不要向用户暴露 workflow operation、步骤 ID、来源枚举、工具名称或其他内部实现标签。",
 ];
 
-const defaultInstructions: Record<WorkflowOperation, string> = {
+export const defaultInstructions: Record<WorkflowOperation, string> = {
 	solve: [
 		...productIdentityInstructions,
 		"你负责在一次操作中决定直接回答用户，或为复杂校园信息任务制定可执行计划。",
@@ -299,7 +298,7 @@ export function createWorkflowOperationRuntime(
 	};
 }
 
-function prepareOperation(
+export function prepareOperation(
 	input: WorkflowOperationInput,
 	catalog: ToolCatalog,
 	executor: ToolExecutor,
@@ -656,7 +655,7 @@ function userVisibleSourceLabel(source: WorkflowSource): string {
 	}
 }
 
-function operationResultFromRunner(args: {
+export function operationResultFromRunner(args: {
 	input: WorkflowOperationInput;
 	prepared: { contextUsage: ModelContextUsage; runnerInput: AgentRunnerInput };
 	runnerResult: AgentRunnerResult;

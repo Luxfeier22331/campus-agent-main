@@ -1,6 +1,5 @@
 import type { AssistantMessageItem, ModelProvider } from "@openai/agents";
 import { assistantMessage, functionCall, ScriptedModel } from "@openai/agents/testing";
-import { zodTextFormat } from "openai/helpers/zod";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type {
@@ -12,12 +11,10 @@ import type {
 } from "../src/agent-run-contract.ts";
 import { failedRunnerResult } from "../src/runner-failure.ts";
 import { AgentRuntimeError } from "../src/runtime-errors.ts";
-import {
-	createOpenAIAgentsRunner,
-	createStreamingOpenAIAgentsRunner,
-	openAIOutputSchema,
-} from "../src/sdk-runner.ts";
+import { createOpenAIAgentsRunner, createStreamingOpenAIAgentsRunner } from "../src/sdk-runner.ts";
 import { solveSdkOutputSchema } from "../src/workflow-runtime.ts";
+
+import { memoryRecallTool, recalledMemory } from "./helpers/memory-recall.ts";
 
 const providerConfig = {
 	apiKey: "test-provider-key",
@@ -110,12 +107,24 @@ function providerFor(model: ScriptedModel): ModelProvider {
 }
 
 describe("OpenAI Agents SDK runner adapter", () => {
-	it("converts the solve union without the SDK non-strict fallback", () => {
-		const format = zodTextFormat(solveSdkOutputSchema, "solve");
-		expect(format.strict).toBe(true);
-		expect(format.schema).toMatchObject({ type: "object", required: ["result"] });
-		const { $schema: _dialect, ...expected } = format.schema;
-		expect(openAIOutputSchema(z.toJSONSchema(solveSdkOutputSchema))).toEqual(expected);
+	it("passes formatted recall to the model and records the same tool result", async () => {
+		const model = new ScriptedModel([
+			[functionCall("personal_memory_recall", { query: "偏好" }, { callId: "recall" })],
+			[assistantMessage("已找到偏好。")],
+		]);
+		const result = await createOpenAIAgentsRunner({
+			model: "gpt-test",
+			modelProvider: providerFor(model),
+		})(input([memoryRecallTool()]));
+		expect(result.toolResults[0]).toMatchObject({
+			toolName: "personal_memory_recall",
+			result: recalledMemory,
+		});
+		const followup = JSON.stringify(model.calls[1]);
+		expect(followup).toContain("memory_text");
+		expect(followup).toContain("喜欢安静😀");
+		expect(followup).not.toContain("context_char_budget");
+		model.assertComplete();
 	});
 
 	it("unwraps a non-streaming answer with answer before outcome", async () => {
@@ -131,6 +140,13 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				outputSchema: { name: "solve", schema: z.toJSONSchema(solveSdkOutputSchema) },
 			}),
 		);
+		expect(model.calls[0]).toMatchObject({
+			streamed: true,
+			request: {
+				outputType: "text",
+				modelSettings: { providerData: { text: { format: { type: "json_object" } } } },
+			},
+		});
 		expect(result).toMatchObject({
 			finalOutput: "你好",
 			structuredOutput: { outcome: "answer", answer: "你好" },

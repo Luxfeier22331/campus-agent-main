@@ -47,6 +47,14 @@ test("every target renders cold without network, provider input or command execu
 		const result = await diagnoseLocalDevelopment(root, target, "config");
 		assert.equal(result.status, "ready", JSON.stringify(result));
 	}
+	const memoryPath = resolve(root, "apps/memory-service/.env.local");
+	const memoryConfig = readFileSync(memoryPath, "utf8");
+	writeFileSync(
+		memoryPath,
+		memoryConfig.replace(`${profile.databaseName}_memory`, profile.databaseName),
+	);
+	assert.equal((await diagnoseLocalDevelopment(root, "core", "config")).status, "invalid");
+	writeFileSync(memoryPath, memoryConfig);
 	const path = resolve(root, "apps/ops-web/.env.local");
 	writeFileSync(
 		path,

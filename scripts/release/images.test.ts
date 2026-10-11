@@ -36,7 +36,7 @@ test("active selected images run serially in two groups with PR and canonical ca
 	const { options } = await fixture(t);
 	const bake = await readFile(path.join(REPOSITORY_ROOT, "docker-bake.hcl"), "utf8");
 	const images = [...bake.matchAll(/^target "([a-z][a-z-]+)"/gmu)].map((match) => match[1]);
-	assert.equal(images.length, 11);
+	assert.equal(images.length, 12);
 	const calls: string[][] = [];
 	const firstEntered = Promise.withResolvers<void>();
 	const releaseFirst = Promise.withResolvers<void>();
@@ -69,20 +69,25 @@ test("active selected images run serially in two groups with PR and canonical ca
 		releaseFirst.resolve();
 		await building;
 	}
-	assert.equal(calls.length, 11);
+	assert.equal(calls.length, 12);
 	assert.deepEqual(
 		calls.map((args) => args.at(-1)),
 		[
 			"campus-search-service",
 			"execution-control",
+			"memory-service",
 			"model-config",
 			"ops-web",
 			...images
 				.filter(
 					(image) =>
-						!["execution-control", "model-config", "ops-web", "campus-search-service"].includes(
-							image,
-						),
+						![
+							"execution-control",
+							"memory-service",
+							"model-config",
+							"ops-web",
+							"campus-search-service",
+						].includes(image),
 				)
 				.sort(),
 		],
@@ -233,17 +238,25 @@ function bakePrint(targets: string[]): CommandResult {
 			group: {
 				heavy: {
 					targets: targets.filter((target) =>
-						["ops-web", "execution-control", "campus-search-service", "model-config"].includes(
-							target,
-						),
+						[
+							"ops-web",
+							"execution-control",
+							"memory-service",
+							"campus-search-service",
+							"model-config",
+						].includes(target),
 					),
 				},
 				standard: {
 					targets: targets.filter(
 						(target) =>
-							!["ops-web", "execution-control", "campus-search-service", "model-config"].includes(
-								target,
-							),
+							![
+								"ops-web",
+								"execution-control",
+								"memory-service",
+								"campus-search-service",
+								"model-config",
+							].includes(target),
 					),
 				},
 			},
@@ -286,6 +299,7 @@ test("Docker Bake groups cover all targets without overlap", async () => {
 			"campus-rag-index-publisher",
 			"notice-pipeline-worker",
 			"execution-control",
+			"memory-service",
 			"model-config",
 			"notice-artifacts-worker",
 			"ops-web",

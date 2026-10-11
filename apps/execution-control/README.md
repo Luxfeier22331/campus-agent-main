@@ -3,6 +3,12 @@
 Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流、个人记忆命令、
 终态校验和有界运行投影，不面向浏览器。
 
+TypeScript Agent Workflow 已由 agent-runtime Worker 拥有。control 通过 `internal/runtimeapi`
+提供 Runtime 载荷、模型 receipt、事件与终态投影的 typed API，保留唯一投影写入所有权。
+独立 Memory 模式通过 `MEMORY_SERVICE_BASE_URL` 调用 Memory API，回答终态事务发布持久追加投递。
+`AGENT_RUNTIME_ROLLOUT_PERCENT` 控制新 run 的 owner 分桶比例；旧 Go Workflow 与本地 Memory
+装配仅在双轨期间保留。部署切换见 [运维入口](../../docs/runbooks/runtime/execution.md)。
+
 ## 运行边界
 
 - `app-api` 负责浏览器认证、会话、请求提交和产品传输；
@@ -34,17 +40,29 @@ HTTP API 也不拥有 worker 生命周期。
 
 - `internal/execution` 拥有与传输、Temporal SDK 和数据库无关的执行合同、workflow 身份校验与 admission
   规则；
-- `internal/executionapplication` 拥有 run、receipt、memory、workflow control 和 outbound ports，执行
-  admission、run 创建/取消、receipt 状态管理和 Agent 内部工具用例；工具合同文件由 `internal/toolcontract`
-  读取后通过 application port 注入；
+- `internal/executionapplication` 拥有 run、receipt、workflow control 和执行 outbound ports，执行
+  admission、run 创建/取消、receipt 状态管理、账号删除协调和共享运行内工具身份校验；搜索与记忆召回由独立用例及 HTTP port 承接；`operation` 拥有
+  模型调用编排与流事件投影，`finalization` 拥有终态校验、回调和恢复，`projection` 拥有步骤投影规则。工具合同文件由
+  `internal/toolcontract` 读取后通过 application port 注入；
+- `apps/memory-service/memoryapplication` 拥有记忆管理、命令执行与 receipt、访问 fence、异步追加恢复及所需端口，
+  不导入回答应用、HTTP、Temporal SDK、provider 或 persistence；
 - `internal/httpapi` 只负责认证、JSON wire 解码、错误映射和响应编码，查询接口可直接读取有界投影；
 - `internal/temporalruntime` 拥有 Temporal workflow、activity 名称和独立的 workflow/activity DTO；
 - `internal/temporaladapter/execution`、`memory`、`finalization` 分别实现执行、记忆和终态 activity，
-  `finalization/projection` 通过 application RunStore 写投影；`contract` 与 `control` 负责合同转换和控制适配；
+  记忆 adapter 只做 DTO、Activity 身份和错误映射；`answermemory` 桥接负责回答完成校验、输入读取与
+  `memory.append` 投影，向记忆应用提供追加输入和 checkpoint 接口；
+  `executioncontext` 校验 Activity 身份并提取调用元数据；`projection` 将这些元数据传给应用 Writer，
+  不再实现业务投影规则；
+  `activitysupport` 提供无状态 heartbeat 与错误映射，输入读取由 application `InputReader` 单独注入，
+  记忆和回答终态各自依赖所需的回调接口；`contract` 与 `control` 负责合同转换和控制适配；
+- `internal/executioncontract` 定义独立于 Temporal DTO 的 operation 数据和计划规则；
+  `internal/agentruntimeprotocol` 定义 wire 数据，`internal/outboundadapter` 拥有 Runtime 编码、HTTP/JSON/SSE
+  解码及错误分类；应用只消费内部类型，receipt 准入前由本地 Prepare 校验请求并生成指纹；
+  `internal/executionreadmodel` 仅依赖七方法只读端口；
 - `internal/executionpersistence` 分别实现 run 与 receipt 存储，receipt 的保留期限随父 run，删除由同一锁或
   数据库外键事务完成；activity 通过 application receipt service 保存完整输出和 hash；
 - `internal/executionreconciler` 独立拥有启动、取消和终态收敛状态机，`internal/runtimeassembly`
-  唯一负责生产依赖组装、Temporal client、worker 注册及生命周期；reconciler 依赖 application ports，
+  按回答执行与个人记忆分别构造资源，唯一负责生产依赖组装、Temporal client、worker 注册及生命周期；reconciler 直接复用终态应用服务，依赖 application ports，
   不导入 Temporal SDK 或 HTTP；
 - `apps/campus-search` 拥有检索领域合同、current-index PostgreSQL 读取、embedding 缓存、Qdrant 和 reranker adapter，以及 Campus Search HTTP service；
 - execution-control 只通过 typed HTTP client 消费 Campus Search，保留 run admission、索引绑定、citation 和诊断投影；不拥有检索 provider 或本地 fallback。

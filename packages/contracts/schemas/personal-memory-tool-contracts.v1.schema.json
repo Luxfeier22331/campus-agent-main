@@ -8,7 +8,11 @@
 			"additionalProperties": false,
 			"required": ["query"],
 			"properties": {
-				"query": { "type": "string", "minLength": 1, "maxLength": 400 }
+				"query": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 400
+				}
 			}
 		},
 		"PersonalMemoryRecallResult": {
@@ -16,8 +20,29 @@
 			"additionalProperties": false,
 			"required": ["outcome", "memory_text"],
 			"properties": {
-				"outcome": { "enum": ["matched", "no_match"] },
-				"memory_text": { "type": "string" }
+				"outcome": {
+					"enum": ["matched", "no_match"]
+				},
+				"memory_text": {
+					"type": "string"
+				}
+			}
+		},
+		"PersonalMemoryRecallResponse": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["facts", "context_char_budget"],
+			"properties": {
+				"facts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"context_char_budget": {
+					"type": "integer",
+					"minimum": 1
+				}
 			}
 		}
 	}

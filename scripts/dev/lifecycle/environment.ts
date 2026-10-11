@@ -83,6 +83,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	campusSearch: "apps/campus-search/.env.local",
 	modelConfig: "apps/model-config/.env.local",
 	agentRuntime: "apps/agent-runtime/.env.local",
+	memoryService: "apps/memory-service/.env.local",
 	noticeClassifier: "jobs/notice-classifier/.env.local",
 	noticePublisher: "jobs/notice-publisher/.env.local",
 	opsWeb: "apps/ops-web/.env.local",
@@ -117,6 +118,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 		"campusSearch",
 		"executionControl",
 		"agentRuntime",
+		"memoryService",
 	],
 	"model-config": ["modelConfig"],
 	"ops-web": ["opsWeb"],
@@ -131,6 +133,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 };
 
 export const LOCAL_DATABASE_PASSWORDS = {
+	memory: "campus-agent-local-memory",
 	appApi: "campus-agent-local-app-api",
 	executionControl: "campus-agent-local-execution-control",
 	campusSearch: "campus-agent-local-campus-search",
@@ -222,6 +225,7 @@ export function importMainCheckoutExternalCredentials(input: {
 }
 
 export function localDatabaseUrls(profile: LocalDevProfile): {
+	memory: string;
 	appApi: string;
 	executionControl: string;
 	campusSearch: string;
@@ -234,6 +238,10 @@ export function localDatabaseUrls(profile: LocalDevProfile): {
 	const url = (role: string, password: string) =>
 		`postgresql://${role}:${encodeURIComponent(password)}@127.0.0.1:${infraPorts.postgres}/${profile.databaseName}`;
 	return {
+		memory: url("memory_service", LOCAL_DATABASE_PASSWORDS.memory).replace(
+			`/${profile.databaseName}`,
+			`/${profile.databaseName}_memory`,
+		),
 		appApi: url("app_api", LOCAL_DATABASE_PASSWORDS.appApi),
 		executionControl: url("execution_control", LOCAL_DATABASE_PASSWORDS.executionControl),
 		campusSearch: url("campus_search", LOCAL_DATABASE_PASSWORDS.campusSearch),
@@ -385,6 +393,9 @@ export function renderLocalEnvironmentFiles(input: {
 			AUTH_TURNSTILE_SECRET_KEY: "local-turnstile-disabled",
 			BETTER_AUTH_SECRET: localSecrets?.betterAuthSecret ?? "",
 			EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
+
+			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
+			MEMORY_INTERNAL_SHARED_SECRET: executionSharedSecret,
 			...objectStore,
 			OBJECT_STORE_LOCAL_BASE_URL: `${objectStoreEndpoint}/${profile.bucketName}/`,
 			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
@@ -410,6 +421,10 @@ export function renderLocalEnvironmentFiles(input: {
 			EXECUTION_AGENT_RUNTIME_SHARED_SECRET: executionSharedSecret,
 			EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: `http://127.0.0.1:${runtimePorts.agentRuntime}`,
 			EXECUTION_CONTROL_DATABASE_URL: database.executionControl,
+
+			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
+			MEMORY_INTERNAL_SHARED_SECRET: executionSharedSecret,
+			AGENT_RUNTIME_ROLLOUT_PERCENT: "100",
 			RETRIEVAL_BASE_URL: `http://127.0.0.1:${runtimePorts.campusSearch}`,
 			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
@@ -417,12 +432,26 @@ export function renderLocalEnvironmentFiles(input: {
 			EXECUTION_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			EXECUTION_CONTROL_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: `${profile.instanceId}:execution-control`,
-			HINDSIGHT_API_BASE_URL: `http://127.0.0.1:${infraPorts.hindsightApi}`,
-			HINDSIGHT_API_TENANT_API_KEY: infrastructure.hindsightTenantKey,
-			HINDSIGHT_OWNER_SALT: infrastructure.hindsightOwnerSalt,
 			HOST: "127.0.0.1",
 			PORT: String(runtimePorts.executionControl),
 			EXECUTION_WORKER_PORT: String(runtimePorts.executionWorker),
+		});
+	}
+	if (shouldRender("memoryService")) {
+		writeManagedEnv(paths.memoryService, {
+			...noProxy,
+			MEMORY_HOST: "127.0.0.1",
+			MEMORY_PORT: String(runtimePorts.memoryApi),
+			MEMORY_WORKER_PORT: String(runtimePorts.memoryWorker),
+			MEMORY_DATABASE_URL: database.memory,
+			MEMORY_INTERNAL_SHARED_SECRET: executionSharedSecret,
+			MEMORY_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
+			MEMORY_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
+			APP_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
+			APP_PRODUCT_CALLBACK_SHARED_SECRET: executionSharedSecret,
+			HINDSIGHT_API_BASE_URL: `http://127.0.0.1:${infraPorts.hindsightApi}`,
+			HINDSIGHT_API_TENANT_API_KEY: infrastructure.hindsightTenantKey,
+			HINDSIGHT_OWNER_SALT: infrastructure.hindsightOwnerSalt,
 		});
 	}
 	if (shouldRender("campusSearch")) {
@@ -453,7 +482,16 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("agentRuntime")) {
 		writeManagedEnv(paths.agentRuntime, {
+			AGENT_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
+			AGENT_RUNTIME_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
+			AGENT_RUNTIME_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
+			RETRIEVAL_BASE_URL: `http://127.0.0.1:${runtimePorts.campusSearch}`,
+			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
+
+			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
+			MEMORY_INTERNAL_SHARED_SECRET: executionSharedSecret,
 			AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
+			AGENT_WORKER_PORT: String(runtimePorts.agentWorker),
 			DEPLOYMENT_ENVIRONMENT: "development",
 			DEPLOYMENT_RELEASE: `execution-runtime@${profile.instanceId}`,
 			EXECUTION_AGENT_RUNTIME_SHARED_SECRET: executionSharedSecret,

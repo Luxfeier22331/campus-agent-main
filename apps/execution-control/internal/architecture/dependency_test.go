@@ -48,11 +48,27 @@ func TestInternalDependencyBoundaries(t *testing.T) {
 				}
 			}
 		}
+		if within(info.ImportPath, internal+"executionapplication") || info.ImportPath == internal+"executionfailure" {
+			check(info.Deps, append(infrastructure, internal+"config", internal+"agentruntimeprotocol"))
+		}
 		switch info.ImportPath {
-		case internal + "execution", internal + "memoryruntime", internal + "campusdocs", internal + "contracts", internal + "executionapplication":
+		case internal + "agentruntimeprotocol", internal + "executionreadmodel":
 			check(info.Deps, infrastructure)
+			check(info.Deps, []string{internal + "executionapplication", internal + "config"})
+		case internal + "execution", internal + "executioncontract", internal + "memoryruntime", internal + "campusdocs", internal + "contracts", internal + "executionapplication":
+			check(info.Deps, infrastructure)
+		case internal + "memoryapplication":
+			check(info.Deps, infrastructure)
+			check(info.Deps, []string{internal + "execution", internal + "executionapplication", internal + "config"})
 		case internal + "httpapi", internal + "executionreconciler":
 			check(info.Deps, []string{"go.temporal.io", internal + "temporalruntime", internal + "temporaladapter"})
+		case internal + "temporaladapter/memory":
+			check(info.Deps, []string{internal + "temporaladapter/finalization", internal + "executionapplication"})
+			check(info.Imports, []string{internal + "executionapplication", internal + "temporaladapter/projection", internal + "temporaladapter/answermemory"})
+		case internal + "temporaladapter/execution":
+			check(info.Deps, []string{internal + "temporaladapter/finalization"})
+		case internal + "temporaladapter/projection", internal + "temporaladapter/activitysupport":
+			check(info.Deps, []string{internal + "config", internal + "temporaladapter/execution", internal + "temporaladapter/memory", internal + "temporaladapter/finalization"})
 		case internal + "config":
 			check(info.Deps, []string{internal + "temporalruntime", internal + "temporaladapter"})
 		}

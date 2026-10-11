@@ -6,17 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memorypersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 )
 
 func TestExecuteOwnerTransitionDoesNotRequireProvider(t *testing.T) {
-	adapter := New(Adapter{
-		Writer:                   &projection.Writer{Config: config.Config{PersonalMemoryOwnerSalt: "test-salt"}},
-		PersonalMemoryStateStore: memorypersistence.NewInMemoryStateStore(),
-	})
+	state := memorypersistence.NewInMemoryStateStore()
+	adapter := New(Adapter{Service: &memoryapplication.Service{CommandStateStore: state, OwnerLifecycleStore: state, CallLeaseStore: state, OwnerSalt: "test-salt"}})
 	result, err := adapter.ExecutePersonalMemoryCommand(context.Background(), memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "pause-without-provider",
 		CommandKind:       "owner_transition",
@@ -39,11 +36,7 @@ func TestExecuteOwnerTransitionDoesNotRequireProvider(t *testing.T) {
 
 func TestExecuteOwnerEraseAdvancesFenceBeforeProviderAvailability(t *testing.T) {
 	state := memorypersistence.NewInMemoryStateStore()
-	adapter := New(Adapter{
-		Writer:                   &projection.Writer{Config: config.Config{PersonalMemoryOwnerSalt: "test-salt"}},
-		PersonalMemoryStateStore: state,
-		PersonalMemoryErr:        context.Canceled,
-	})
+	adapter := New(Adapter{Service: &memoryapplication.Service{CommandStateStore: state, OwnerLifecycleStore: state, CallLeaseStore: state, PersonalMemoryErr: context.Canceled, OwnerSalt: "test-salt"}})
 	command := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "erase-without-provider",
 		CommandKind:       "owner_erase",
@@ -59,7 +52,7 @@ func TestExecuteOwnerEraseAdvancesFenceBeforeProviderAvailability(t *testing.T) 
 	if err == nil {
 		t.Fatal("owner erase without provider unexpectedly succeeded")
 	}
-	if err := state.BeginCall(context.Background(), PersonalMemoryOwnerScopeHash("test-salt", "tenant", "user"), "stale", 1, "recall", time.Minute); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
+	if err := state.BeginCall(context.Background(), memoryapplication.PersonalMemoryOwnerScopeHash("test-salt", "tenant", "user"), "stale", 1, "recall", time.Minute); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
 		t.Fatalf("stale recall error=%v, want fence conflict", err)
 	}
 }

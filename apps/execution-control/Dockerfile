@@ -13,11 +13,13 @@ ENV GOPROXY=${GOPROXY} \
 WORKDIR /src
 
 COPY apps/execution-control/go.mod apps/execution-control/go.sum apps/execution-control/
+COPY apps/memory-service/go.mod apps/memory-service/go.sum apps/memory-service/
 COPY apps/campus-search/go.mod apps/campus-search/go.sum apps/campus-search/
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod cd apps/execution-control && go mod download
 
 COPY apps/execution-control/cmd apps/execution-control/cmd
 COPY apps/execution-control/internal apps/execution-control/internal
+COPY apps/memory-service/ apps/memory-service/
 COPY apps/campus-search/campussearch apps/campus-search/campussearch
 COPY configs/runtime/tool-function-schemas.v4.json /src/configs/runtime/tool-function-schemas.v4.json
 COPY configs/runtime/tools.v7.json /src/configs/runtime/tools.v7.json

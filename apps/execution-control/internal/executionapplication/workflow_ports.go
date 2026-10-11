@@ -2,9 +2,9 @@ package executionapplication
 
 import (
 	"context"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 type WorkflowStarter interface {
@@ -46,12 +46,6 @@ type TaskQueueReadiness struct {
 	Pollers int
 	Healthy bool
 }
-type PersonalMemoryCommandInput struct {
-	Command    memoryruntime.PersonalMemoryCommandRequest
-	WorkflowID string
-}
-type WorkflowGateway interface {
-	WorkflowStarter
+type ReadinessChecker interface {
 	CheckReadiness(context.Context) RuntimeReadiness
-	StartPersonalMemoryCommandWorkflow(context.Context, PersonalMemoryCommandInput) error
 }

@@ -350,20 +350,11 @@ func finalizeWorkflowAnswer(
 	postFinalizationCtx, postFinalizationCancel := workflow.NewDisconnectedContext(ctx)
 	defer postFinalizationCancel()
 
-	if workflow.GetVersion(postFinalizationCtx, memoryAppendVersion, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+	if !input.MemoryDeliveryExternal {
 		if err := startMemoryAppendWorkflow(postFinalizationCtx, input.RequestID); err != nil {
 			return workflowResultFromFinalization(finalization), err
 		}
-		return workflowResultFromFinalization(finalization), nil
-	}
-	// Replay-only path for histories created before async-memory-append-v1.
-	if appendErr := executeMemoryAppend(postFinalizationCtx, activityOptions, input); appendErr != nil {
-		finalCtx := workflow.WithActivityOptions(postFinalizationCtx, unlimitedFinalizerActivityOptions(15*time.Second))
-		if err := executeBoundedActivity(finalCtx, FinalizeMemoryAppendActivityName, FinalizeMemoryAppendActivityInput{
-			RequestID: input.RequestID, FailureKind: workflowFailureKind(appendErr, "memory_append_failed"),
-		}).Get(postFinalizationCtx, nil); err != nil {
-			return workflowResultFromFinalization(finalization), err
-		}
+
 	}
 	return workflowResultFromFinalization(finalization), nil
 }
@@ -652,10 +643,9 @@ func failWorkflowStage(
 }
 
 // personalMemoryCommandBlockedWaitTimeout bounds how long a command workflow
-// waits behind an unresolved earlier receipt. The wait outlives every live
-// retry chain; a receipt still blocking after this bound has a dead workflow,
-// and the command fails with memory_command_wait_timeout so admission can
-// retry it after the blocker's owner reconciles the stale receipt.
+// waits behind an unresolved earlier receipt before reaching the provider.
+// This command fails with memory_command_wait_timeout so admission can retry
+// it after the blocker resolves; the blocker's outcome remains unknown.
 const personalMemoryCommandBlockedWaitTimeout = 30 * time.Minute
 
 // errPersonalMemoryCommandWaitTimeout marks a command that gave up waiting at
@@ -671,15 +661,40 @@ func PersonalMemoryCommandWorkflow(
 ) (PersonalMemoryCommandWorkflowResult, error) {
 	providerOptions := personalMemoryCommandProviderActivityOptions(input.Command.CommandKind)
 	var result PersonalMemoryCommandActivityOutput
-	if err := executePersonalMemoryCommandProvider(ctx, providerOptions, input.Command, &result); err != nil {
-		errorCode := "personal_memory_command_failed"
-		if errors.Is(err, errPersonalMemoryCommandWaitTimeout) {
-			errorCode = "memory_command_wait_timeout"
+	for {
+		if err := executePersonalMemoryCommandProvider(ctx, providerOptions, input.Command, &result); err != nil {
+			if errors.Is(err, errPersonalMemoryCommandWaitTimeout) {
+				result = PersonalMemoryCommandActivityOutput{
+					CommandID: input.Command.CommandID,
+					ErrorCode: "memory_command_wait_timeout",
+					Status:    "failed",
+				}
+				break
+			}
+			if personalMemoryCommandErrorIsTerminal(err) {
+				result = PersonalMemoryCommandActivityOutput{
+					CommandID: input.Command.CommandID,
+					ErrorCode: workflowFailureKind(err, "personal_memory_command_failed"),
+					Status:    "failed",
+				}
+				break
+			}
+			// The activity may have reached Hindsight before the transport or
+			// local state failed. Keep the workflow and receipt non-terminal; the
+			// next activity invocation uses the same command and provider ID.
+			result = PersonalMemoryCommandActivityOutput{
+				CommandID: input.Command.CommandID,
+				Status:    "unknown",
+			}
 		}
-		result = PersonalMemoryCommandActivityOutput{
-			CommandID: input.Command.CommandID,
-			ErrorCode: errorCode,
-			Status:    "failed",
+		if result.Status != "processing" && result.Status != "unknown" {
+			break
+		}
+		if workflow.GetInfo(ctx).GetContinueAsNewSuggested() {
+			return PersonalMemoryCommandWorkflowResult{}, workflow.NewContinueAsNewError(ctx, PersonalMemoryCommandWorkflowType, input)
+		}
+		if err := workflow.Sleep(ctx, 5*time.Second); err != nil {
+			return PersonalMemoryCommandWorkflowResult{}, err
 		}
 	}
 	finalizerOptions := unlimitedFinalizerActivityOptions(15 * time.Second)
@@ -701,6 +716,15 @@ func PersonalMemoryCommandWorkflow(
 		return PersonalMemoryCommandWorkflowResult{}, err
 	}
 	return PersonalMemoryCommandWorkflowResult(result), nil
+}
+
+func personalMemoryCommandErrorIsTerminal(err error) bool {
+	switch workflowFailureKind(err, "") {
+	case "memory_command_invalid":
+		return true
+	default:
+		return false
+	}
 }
 
 func executePersonalMemoryCommandProvider(
@@ -875,25 +899,6 @@ func defaultActivityOptions() workflow.ActivityOptions {
 			MaximumAttempts:    3,
 		},
 	}
-}
-
-func executeMemoryAppend(
-	ctx workflow.Context,
-	activityOptions workflow.ActivityOptions,
-	input ToolExecutionWorkflowInput,
-) error {
-	contextCtx := workflow.WithActivityOptions(
-		ctx,
-		memoryActivityOptions(activityOptions, 300),
-	)
-	var appendResult AppendConversationMemoryActivityOutput
-	return executeBoundedActivity(
-		contextCtx,
-		AppendConversationMemoryActivityName,
-		AppendConversationMemoryActivityInput{
-			RequestID: input.RequestID,
-		},
-	).Get(ctx, &appendResult)
 }
 
 func memoryActivityOptions(base workflow.ActivityOptions, timeoutSeconds float64) workflow.ActivityOptions {

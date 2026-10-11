@@ -50,7 +50,7 @@ func (s *Server) handlePersonalMemoryRecallTool(response http.ResponseWriter, re
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	result, err := s.agentToolService.PersonalMemoryRecall(
+	result, err := s.personalMemoryRecallTool.PersonalMemoryRecall(
 		request.Context(),
 		executionapplication.PersonalMemoryRecallRequest{
 			AccessContext: agentToolAccessContextToApplication(envelope.AccessContext),

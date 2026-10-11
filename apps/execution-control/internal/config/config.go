@@ -33,6 +33,7 @@ const (
 )
 
 type Config struct {
+	AgentRuntimePercent                     int
 	AppName                                 string
 	DeploymentEnvironment                   string
 	DeploymentRelease                       string
@@ -64,6 +65,8 @@ type Config struct {
 	ProductCallbackTimeoutMS                int
 	ModelConfigBaseURL                      string
 	WorkerProfiles                          map[string]WorkerProfile
+	MemoryServiceBaseURL                    string
+	MemoryServiceSecret                     string
 	PersonalMemoryBaseURL                   string
 	PersonalMemoryAPISecret                 string
 	PersonalMemoryOwnerSalt                 string
@@ -83,6 +86,7 @@ type WorkerProfile struct {
 }
 
 type envValues struct {
+	AgentRuntimePercent         int    `env:"AGENT_RUNTIME_ROLLOUT_PERCENT" envDefault:"0"`
 	DeploymentEnvironment       string `env:"DEPLOYMENT_ENVIRONMENT" envDefault:"local"`
 	DeploymentRelease           string `env:"DEPLOYMENT_RELEASE"`
 	Host                        string `env:"HOST"`
@@ -100,6 +104,8 @@ type envValues struct {
 	ModelConfigBaseURL          string `env:"MODEL_CONFIG_URL"`
 	AnswerTransport             string `env:"EXECUTION_CONTROL_ANSWER_TRANSPORT"`
 	ProductCallbackBaseURL      string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
+	MemoryServiceBaseURL        string `env:"MEMORY_SERVICE_BASE_URL"`
+	MemoryServiceSecret         string `env:"MEMORY_INTERNAL_SHARED_SECRET"`
 	PersonalMemoryBaseURL       string `env:"HINDSIGHT_API_BASE_URL"`
 	PersonalMemoryAPISecret     string `env:"HINDSIGHT_API_TENANT_API_KEY"`
 	PersonalMemoryOwnerSalt     string `env:"HINDSIGHT_OWNER_SALT"`
@@ -112,6 +118,9 @@ func loadFromEnv(workerRole bool) (Config, error) {
 	values := envValues{}
 	if err := env.Parse(&values); err != nil {
 		return Config{}, fmt.Errorf("parse execution-control env: %w", err)
+	}
+	if values.AgentRuntimePercent < 0 || values.AgentRuntimePercent > 100 {
+		return Config{}, fmt.Errorf("AGENT_RUNTIME_ROLLOUT_PERCENT must be 0..100")
 	}
 	environment, err := normalizeDeploymentEnvironment(values.DeploymentEnvironment)
 	if err != nil {
@@ -171,6 +180,9 @@ func loadFromEnv(workerRole bool) (Config, error) {
 		ProductCallbackTimeoutMS:        defaultProductCallbackTimeoutMS,
 		ModelConfigBaseURL:              strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
 		WorkerProfiles:                  workerProfiles,
+		MemoryServiceBaseURL:            strings.TrimRight(strings.TrimSpace(values.MemoryServiceBaseURL), "/"),
+		MemoryServiceSecret:             values.MemoryServiceSecret,
+		AgentRuntimePercent:             values.AgentRuntimePercent,
 		PersonalMemoryBaseURL:           strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
 		PersonalMemoryAPISecret:         strings.TrimSpace(values.PersonalMemoryAPISecret),
 		PersonalMemoryOwnerSalt:         strings.TrimSpace(values.PersonalMemoryOwnerSalt),

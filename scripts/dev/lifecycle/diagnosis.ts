@@ -123,7 +123,10 @@ export async function diagnoseLocalDevelopment(
 							return (
 								url.hostname !== "127.0.0.1" ||
 								Number(url.port) !== profile.infraPorts.postgres ||
-								decodeURIComponent(url.pathname.slice(1)) !== profile.databaseName
+								decodeURIComponent(url.pathname.slice(1)) !==
+									(key === "MEMORY_DATABASE_URL"
+										? `${profile.databaseName}_memory`
+										: profile.databaseName)
 							);
 						} catch {
 							return true;
@@ -212,6 +215,9 @@ export async function diagnoseLocalDevelopment(
 					"execution-worker": rp.executionWorker,
 					"model-config": rp.modelConfig,
 					"agent-runtime": rp.agentRuntime,
+					"agent-runtime-worker": rp.agentWorker,
+					"memory-service": rp.memoryApi,
+					"memory-worker": rp.memoryWorker,
 				})) {
 					endpoints.set(name, port);
 				}

@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	workflowcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/contract"
-	memoryactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/memory"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memorypersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/temporal"
@@ -22,9 +22,12 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 	state := memorypersistence.NewInMemoryStateStore()
 	executor := &fakePersonalMemoryExecutor{}
 	server := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
-	server.PersonalMemoryExecutor = executor
+	server.CommandExecutor = executor
+	server.Recaller = executor
 	server.PersonalMemoryErr = nil
-	server.PersonalMemoryStateStore = state
+	server.CommandStateStore = state
+	server.CallLeaseStore = state
+	server.OwnerLifecycleStore = state
 	server.PersonalMemoryStateErr = nil
 	command := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-pause",
@@ -43,7 +46,7 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 	if err != nil || result.Status != "succeeded" || executor.commandCount != 0 {
 		t.Fatalf("provider result=%#v calls=%d err=%v", result, executor.commandCount, err)
 	}
-	ownerHash := memoryactivities.PersonalMemoryOwnerScopeHash("owner-salt", command.TenantID, command.UserID)
+	ownerHash := memoryapplication.PersonalMemoryOwnerScopeHash("owner-salt", command.TenantID, command.UserID)
 	receipt, execute, err := state.BeginCommand(context.Background(), ownerHash, command, time.Minute)
 	if err != nil || execute || receipt.Status != "processing" {
 		t.Fatalf("receipt before finalizer=%#v execute=%t err=%v", receipt, execute, err)
@@ -86,9 +89,12 @@ func TestPersonalMemoryCommandActivityAllowsSameGenerationEraseAfterErased(t *te
 	executor := &fakePersonalMemoryExecutor{}
 	server := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
 	memoryAdapter := NewMemoryAdapter(server)
-	server.PersonalMemoryExecutor = executor
+	server.CommandExecutor = executor
+	server.Recaller = executor
 	server.PersonalMemoryErr = nil
-	server.PersonalMemoryStateStore = state
+	server.CommandStateStore = state
+	server.CallLeaseStore = state
+	server.OwnerLifecycleStore = state
 	server.PersonalMemoryStateErr = nil
 	first := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "erase-first",
@@ -140,7 +146,9 @@ func TestPersonalMemoryCommandActivityAllowsSameGenerationEraseAfterErased(t *te
 func TestPersonalMemoryReceiptFinalizerToleratesMissingReceipt(t *testing.T) {
 	state := memorypersistence.NewInMemoryStateStore()
 	server := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
-	server.PersonalMemoryStateStore = state
+	server.CommandStateStore = state
+	server.CallLeaseStore = state
+	server.OwnerLifecycleStore = state
 	server.PersonalMemoryStateErr = nil
 	command := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-missing-receipt",
@@ -172,7 +180,7 @@ func TestPersonalMemoryReceiptFinalizerToleratesMissingReceipt(t *testing.T) {
 	// The finalizer must not create receipts. A command without a receipt is
 	// re-admitted from scratch, and re-admission either resumes it or is a
 	// no-op, so creating a blocked receipt here would dead-end the owner.
-	ownerHash := memoryactivities.PersonalMemoryOwnerScopeHash("owner-salt", command.TenantID, command.UserID)
+	ownerHash := memoryapplication.PersonalMemoryOwnerScopeHash("owner-salt", command.TenantID, command.UserID)
 	if _, err := state.GetCommand(context.Background(), ownerHash, command.CommandID); !errors.Is(err, memoryruntime.ErrMemoryCommandNotFound) {
 		t.Fatalf("receipt after finalization error=%v, want ErrMemoryCommandNotFound", err)
 	}
@@ -181,9 +189,11 @@ func TestPersonalMemoryReceiptFinalizerToleratesMissingReceipt(t *testing.T) {
 func TestPersonalMemoryCommandActivityRecordsHeartbeat(t *testing.T) {
 	state := memorypersistence.NewInMemoryStateStore()
 	server := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
-	server.PersonalMemoryExecutor = &fakePersonalMemoryExecutor{}
+	server.SetPersonalMemoryExecutor(&fakePersonalMemoryExecutor{})
 	server.PersonalMemoryErr = nil
-	server.PersonalMemoryStateStore = state
+	server.CommandStateStore = state
+	server.CallLeaseStore = state
+	server.OwnerLifecycleStore = state
 	server.PersonalMemoryStateErr = nil
 	command := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-heartbeat",
@@ -219,11 +229,13 @@ func TestPersonalMemoryCommandActivityRecordsHeartbeat(t *testing.T) {
 func TestPersonalMemoryEraseDrainTimeoutFailsInsteadOfRetryingForever(t *testing.T) {
 	state := memorypersistence.NewInMemoryStateStore()
 	server := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
-	server.PersonalMemoryExecutor = &fakePersonalMemoryExecutor{}
+	server.SetPersonalMemoryExecutor(&fakePersonalMemoryExecutor{})
 	server.PersonalMemoryErr = nil
-	server.PersonalMemoryStateStore = state
+	server.CommandStateStore = state
+	server.CallLeaseStore = state
+	server.OwnerLifecycleStore = state
 	server.PersonalMemoryStateErr = nil
-	ownerHash := memoryactivities.PersonalMemoryOwnerScopeHash("owner-salt", "tenant-main", "user-erase-drain-timeout")
+	ownerHash := memoryapplication.PersonalMemoryOwnerScopeHash("owner-salt", "tenant-main", "user-erase-drain-timeout")
 	stale := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-stale-edit",
 		CommandKind:       "memory_add",
@@ -266,13 +278,15 @@ func TestPersonalMemoryEraseDrainTimeoutFailsInsteadOfRetryingForever(t *testing
 func TestPersonalMemoryEraseRevivesLostAppendWorkflowsWhileWaitingForDrain(t *testing.T) {
 	state := memorypersistence.NewInMemoryStateStore()
 	server := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
-	server.PersonalMemoryExecutor = &fakePersonalMemoryExecutor{}
+	server.SetPersonalMemoryExecutor(&fakePersonalMemoryExecutor{})
 	server.PersonalMemoryErr = nil
-	server.PersonalMemoryStateStore = state
+	server.CommandStateStore = state
+	server.CallLeaseStore = state
+	server.OwnerLifecycleStore = state
 	server.PersonalMemoryStateErr = nil
 	reviver := &fakeAppendWorkflowReviver{running: map[string]bool{"lost-run": false, "alive-run": true, "gone-run": false}}
 	server.AppendWorkflowReviver = reviver
-	ownerHash := memoryactivities.PersonalMemoryOwnerScopeHash("owner-salt", "tenant-main", "user-erase-revive")
+	ownerHash := memoryapplication.PersonalMemoryOwnerScopeHash("owner-salt", "tenant-main", "user-erase-revive")
 	for _, requestID := range []string{"lost-run", "alive-run", "gone-run"} {
 		if err := state.BeginCall(context.Background(), ownerHash, requestID+":append", 1, "append", 0); err != nil {
 			t.Fatalf("begin durable append lease %s: %v", requestID, err)
@@ -322,11 +336,13 @@ func (reviver *fakeAppendWorkflowReviver) RunningMemoryAppendWorkflows(_ context
 func TestPersonalMemoryProviderFailureDoesNotPersistRawCause(t *testing.T) {
 	state := memorypersistence.NewInMemoryStateStore()
 	server := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
-	server.PersonalMemoryExecutor = &fakePersonalMemoryExecutor{
+	server.CommandExecutor = &fakePersonalMemoryExecutor{
 		commandErr: errors.New(temporalFailureSentinel),
 	}
 	server.PersonalMemoryErr = nil
-	server.PersonalMemoryStateStore = state
+	server.CommandStateStore = state
+	server.CallLeaseStore = state
+	server.OwnerLifecycleStore = state
 	server.PersonalMemoryStateErr = nil
 	command := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-provider-sanitized",
@@ -346,14 +362,17 @@ func TestPersonalMemoryProviderFailureDoesNotPersistRawCause(t *testing.T) {
 	assertTemporalFailureSanitized(t, err, "hindsight_command_failed", false)
 }
 
-func TestPersonalMemoryEraseAbandonsStaleGenerationReceiptsDuringDrain(t *testing.T) {
+func TestPersonalMemoryEraseKeepsStaleGenerationReceiptBlockingDrain(t *testing.T) {
 	state := memorypersistence.NewInMemoryStateStore()
 	server := newAdapterForTest(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
-	server.PersonalMemoryExecutor = &fakePersonalMemoryExecutor{}
+	executor := &fakePersonalMemoryExecutor{}
+	server.SetPersonalMemoryExecutor(executor)
 	server.PersonalMemoryErr = nil
-	server.PersonalMemoryStateStore = state
+	server.CommandStateStore = state
+	server.CallLeaseStore = state
+	server.OwnerLifecycleStore = state
 	server.PersonalMemoryStateErr = nil
-	ownerHash := memoryactivities.PersonalMemoryOwnerScopeHash("owner-salt", "tenant-main", "user-erase-abandon")
+	ownerHash := memoryapplication.PersonalMemoryOwnerScopeHash("owner-salt", "tenant-main", "user-erase-abandon")
 	orphan := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-orphan-edit",
 		CommandKind:       "memory_add",
@@ -383,12 +402,17 @@ func TestPersonalMemoryEraseAbandonsStaleGenerationReceiptsDuringDrain(t *testin
 		TenantID:          "tenant-main",
 		UserID:            "user-erase-abandon",
 	}
-	result, err := server.ExecutePersonalMemoryCommand(context.Background(), erase)
-	if err != nil || result.Status != "succeeded" {
-		t.Fatalf("erase result=%#v err=%v, want succeeded after abandoning stale receipt", result, err)
-	}
+	_, err := server.ExecutePersonalMemoryCommand(context.Background(), erase)
+	assertTemporalFailureSanitized(t, err, "memory_generation_not_drained", false)
 	orphanReceipt, err := state.GetCommand(context.Background(), ownerHash, orphan.CommandID)
-	if err != nil || orphanReceipt.Status != "failed" || orphanReceipt.ErrorCode != "memory_receipt_abandoned" {
-		t.Fatalf("orphan receipt=%#v err=%v, want failed memory_receipt_abandoned", orphanReceipt, err)
+	if err != nil || orphanReceipt.Status != "processing" {
+		t.Fatalf("orphan receipt=%#v err=%v, want unresolved processing receipt", orphanReceipt, err)
+	}
+	drained, err := state.GenerationDrained(context.Background(), ownerHash, 1)
+	if err != nil || drained {
+		t.Fatalf("generation drained=%t err=%v, want stale receipt to block erase", drained, err)
+	}
+	if executor.commandCount != 0 {
+		t.Fatalf("provider command calls=%d, want erase not to reach provider", executor.commandCount)
 	}
 }

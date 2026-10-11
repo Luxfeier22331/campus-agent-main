@@ -79,6 +79,15 @@ export function localApplicationBootstrapCommands(
 			},
 			step: "campus-agent-schema",
 		},
+		{
+			args: ["--dir", "jobs/campus-agent-schema", "migrate", "--target", "memory"],
+			command: pnpm,
+			options: {
+				cwd: repoRoot,
+				env: { ...process.env, ...postgresEnvironment(database.memory), PGSSLMODE: "disable" },
+			},
+			step: "memory-schema",
+		},
 		modelConfigCommand("model-config-seed", "seed"),
 		appApiCommand("app-api-seed-local-test-user", "./ops/db/seed-local-test-user.ts"),
 		modelConfigCommand("model-config-check", "check"),
@@ -147,8 +156,8 @@ export async function probeLocalBootstrapStep(
 	if (step === "model-config-seed" || step === "model-config-check") {
 		return await probeLocalModelConfig(repoRoot, profile, modelConfigNames);
 	}
-	if (step === "campus-agent-schema") {
-		return await probeSchema(repoRoot, profile);
+	if (step === "campus-agent-schema" || step === "memory-schema") {
+		return await probeSchema(repoRoot, profile, step === "memory-schema");
 	}
 	if (step === "app-api-seed-local-test-user") {
 		return await probeSql(
@@ -223,8 +232,9 @@ async function probeLocalModelConfig(
 async function probeSchema(
 	repoRoot: string,
 	profile: LocalDevProfile,
+	memory = false,
 ): Promise<BootstrapProbeResult> {
-	const database = localDatabaseUrls(profile).owner;
+	const database = memory ? localDatabaseUrls(profile).memory : localDatabaseUrls(profile).owner;
 	const url = new URL(database);
 	const env = {
 		...process.env,
@@ -237,7 +247,7 @@ async function probeSchema(
 	};
 	const result = captureCommandResult(
 		process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-		["--dir", "jobs/campus-agent-schema", "status"],
+		["--dir", "jobs/campus-agent-schema", "status", ...(memory ? ["--target", "memory"] : [])],
 		{ cwd: repoRoot, env, timeout: 15_000 },
 	);
 	if (result.status !== 0 || result.error || result.timedOut) {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,10 +13,11 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/operation"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
+	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	workflowcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/contract"
-	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -43,9 +43,9 @@ type modelOutputFailureClient struct {
 	response string
 }
 
-func (c *modelOutputFailureClient) Execute(context.Context, executionapplication.AgentRuntimeRequest) (executionapplication.AgentRuntimeResponse, error) {
+func (c *modelOutputFailureClient) Execute(_ context.Context, request executionapplication.AgentRuntimeRequest, handle func(executionapplication.AgentRuntimeEvent) error) (executionapplication.AgentRuntimeResult, error) {
 	c.calls++
-	return executionapplication.AgentRuntimeResponse{StatusCode: 200, Body: io.NopCloser(strings.NewReader(c.response))}, nil
+	return outboundadapter.DecodeAgentRuntimeResponse(200, strings.NewReader(c.response), request.Stream, handle)
 }
 
 func TestRejectedReplanDecisionPreservesFailureUsageAndReplay(t *testing.T) {
@@ -59,17 +59,17 @@ func TestRejectedReplanDecisionPreservesFailureUsageAndReplay(t *testing.T) {
 			attachRunProjectionStoreForAdapterTest(adapter, fenced)
 			adapter.Receipts = executionapplication.NewReceiptService(store.Receipts)
 			snapshot := admissionSnapshotForTest(t, false)
-			step := temporalruntime.WorkflowTaskPlanStep{ID: "step.notice", Objective: "查通知", CandidateSources: []temporalruntime.WorkflowSource{temporalruntime.WorkflowSourceCampusSearch}, DependsOn: []string{}}
-			plan := temporalruntime.WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: "hello", Steps: []temporalruntime.WorkflowTaskPlanStep{step}}
-			remaining := []temporalruntime.WorkflowTaskPlanStep{}
+			step := applicationcontract.WorkflowTaskPlanStep{ID: "step.notice", Objective: "查通知", CandidateSources: []applicationcontract.WorkflowSource{applicationcontract.WorkflowSourceCampusSearch}, DependsOn: []string{}}
+			plan := applicationcontract.WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: "hello", Steps: []applicationcontract.WorkflowTaskPlanStep{step}}
+			remaining := []applicationcontract.WorkflowTaskPlanStep{}
 			if decision == "synthesize" {
-				remaining = []temporalruntime.WorkflowTaskPlanStep{step}
+				remaining = []applicationcontract.WorkflowTaskPlanStep{step}
 			}
 			body, err := json.Marshal(map[string]any{
 				"request_id": runID, "operation": "replan", "status": "completed", "runtime_release": "test",
 				"tool_contract_fingerprint": snapshot.ToolContractFingerprint,
 				"usage":                     map[string]any{"input_tokens": 10, "output_tokens": 2, "model_request_count": 1, "usage_observed": true},
-				"replan":                    temporalruntime.WorkflowTaskReplan{SchemaVersion: "task_replan.v3", Decision: decision, Reason: "检查", RemainingSteps: remaining},
+				"replan":                    applicationcontract.WorkflowTaskReplan{SchemaVersion: "task_replan.v3", Decision: decision, Reason: "检查", RemainingSteps: remaining},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -77,17 +77,17 @@ func TestRejectedReplanDecisionPreservesFailureUsageAndReplay(t *testing.T) {
 			client := &modelOutputFailureClient{response: string(body)}
 			adapter.AgentRuntimeClient = client
 			env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
-			env.RegisterActivity(adapter.ReplanTask)
-			input := temporalruntime.ReplanTaskActivityInput{
-				WorkflowOperationActivityInputBase: temporalruntime.WorkflowOperationActivityInputBase{AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot), RequestID: runID, ConversationID: "conv-" + runID},
-				Plan:                               plan, ReplanIndex: 1, RemainingSteps: plan.Steps, MaxRemainingSteps: snapshot.AgentBudget.MaxPlanSteps,
+			env.RegisterActivity(adapter.ReplanTaskApplication)
+			input := applicationcontract.ReplanInput{
+				OperationInputBase: applicationcontract.OperationInputBase{AdmissionSnapshot: applicationcontract.AdmissionFromDomain(snapshot), RequestID: runID, ConversationID: "conv-" + runID},
+				Plan:               plan, ReplanIndex: 1, RemainingSteps: plan.Steps, MaxRemainingSteps: snapshot.AgentBudget.MaxPlanSteps,
 			}
 			for attempt := 0; attempt < 2; attempt++ {
-				value, err := env.ExecuteActivity(adapter.ReplanTask, input)
+				value, err := env.ExecuteActivity(adapter.ReplanTaskApplication, input)
 				if err != nil {
 					t.Fatal(err)
 				}
-				var output temporalruntime.WorkflowOperationActivityOutput
+				var output applicationcontract.OperationOutput
 				if err := value.Get(&output); err != nil {
 					t.Fatal(err)
 				}
@@ -128,10 +128,10 @@ func TestModelOutputDiagnosticFailureDoesNotChangeResultOrReplay(t *testing.T) {
 	client := &modelOutputFailureClient{response: "event: failed\ndata: " + string(body) + "\n\n"}
 	adapter.AgentRuntimeClient = client
 	env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
-	runOperation := func(ctx context.Context) (temporalruntime.WorkflowOperationActivityOutput, error) {
-		return adapter.RunWorkflowOperationActivity(ctx, executionactivities.WorkflowOperationActivityRequest{
+	runOperation := func(ctx context.Context) (applicationcontract.OperationOutput, error) {
+		return adapter.ExecuteOperation(ctx, executionactivities.OperationRequest{
 			AdmissionSnapshot: snapshot, RequestID: runID, ConversationID: "conv-" + runID,
-			Operation: temporalruntime.WorkflowOperationSolve, StepID: "solve.initial", StepKind: "solver", MaxSteps: 2, Stream: true,
+			Operation: applicationcontract.WorkflowOperationSolve, StepID: "solve.initial", StepKind: "solver", MaxSteps: 2, Stream: true,
 			Payload: map[string]any{"max_steps": 2},
 		})
 	}
@@ -141,7 +141,7 @@ func TestModelOutputDiagnosticFailureDoesNotChangeResultOrReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var output temporalruntime.WorkflowOperationActivityOutput
+		var output applicationcontract.OperationOutput
 		if err := value.Get(&output); err != nil {
 			t.Fatal(err)
 		}
@@ -166,9 +166,9 @@ func TestModelOutputDiagnosticFailureDoesNotChangeResultOrReplay(t *testing.T) {
 	}
 }
 
-func (c *receiptTestRuntimeClient) Execute(context.Context, executionapplication.AgentRuntimeRequest) (executionapplication.AgentRuntimeResponse, error) {
+func (c *receiptTestRuntimeClient) Execute(_ context.Context, request executionapplication.AgentRuntimeRequest, handle func(executionapplication.AgentRuntimeEvent) error) (executionapplication.AgentRuntimeResult, error) {
 	c.calls++
-	return executionapplication.AgentRuntimeResponse{}, fmt.Errorf("receipt must prevent provider execution")
+	return executionapplication.AgentRuntimeResult{}, fmt.Errorf("receipt must prevent provider execution")
 }
 
 func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) {
@@ -204,15 +204,15 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			client := &receiptTestRuntimeClient{}
 			adapter.AgentRuntimeClient = client
 			snapshot := admissionSnapshotForTest(t, false)
-			request := executionactivities.WorkflowOperationActivityRequest{
+			request := executionactivities.OperationRequest{
 				AdmissionSnapshot: snapshot, ConversationID: run.ConversationID, RequestID: runID,
-				Operation: temporalruntime.WorkflowOperationSolve, StepID: "solve.initial", StepKind: "solver",
+				Operation: applicationcontract.WorkflowOperationSolve, StepID: "solve.initial", StepKind: "solver",
 				MaxSteps: 2, Stream: false, Payload: map[string]any{"goal": "hello", "max_steps": 2},
 			}
-			step := temporalruntime.WorkflowTaskPlanStep{ID: "step.notice", Objective: "hello", CandidateSources: []temporalruntime.WorkflowSource{temporalruntime.WorkflowSourceCampusSearch}, DependsOn: []string{}}
-			plan := temporalruntime.WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: "hello", Steps: []temporalruntime.WorkflowTaskPlanStep{step}}
+			step := applicationcontract.WorkflowTaskPlanStep{ID: "step.notice", Objective: "hello", CandidateSources: []applicationcontract.WorkflowSource{applicationcontract.WorkflowSourceCampusSearch}, DependsOn: []string{}}
+			plan := applicationcontract.WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: "hello", Steps: []applicationcontract.WorkflowTaskPlanStep{step}}
 			if execute {
-				request.Operation = temporalruntime.WorkflowOperationExecuteStep
+				request.Operation = applicationcontract.WorkflowOperationExecuteStep
 				request.StepID = executionactivities.WorkflowTaskStepID(step.ID)
 				request.StepKind = "executor"
 				request.Stream = false
@@ -234,7 +234,7 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			providerHash, err := executionactivities.WorkflowOperationProviderRequestSHA256(executionactivities.WorkflowOperationRuntimeRequestPayload(run, request, conversation, limits, 1))
+			providerHash, err := (&receiptTestRuntimeClient{}).Prepare(executionactivities.WorkflowOperationRuntimeRequest(run, request, conversation, limits, 1))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -244,7 +244,7 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			}
 			receipt := execution.AgentInvocationReceipt{
 				InvocationID: runID + ":" + request.StepID, RequestID: runID, CreatedAt: now, UpdatedAt: now,
-				InputSHA256: activityprojection.Sha256AnyValue(executionactivities.WorkflowOperationInvocationEnvelope{
+				InputSHA256: projectionapp.Sha256AnyValue(executionactivities.WorkflowOperationInvocationEnvelope{
 					AdmissionSnapshotSHA256: execution.HashAdmissionJSON(snapshot), ExecutionInputSHA256: metadata.ExecutionInputSHA256,
 					InvocationID: runID + ":" + request.StepID, Operation: request.Operation, ProviderRequestSHA256: providerHash,
 					RequestID: runID, SchemaVersion: executionactivities.WorkflowOperationInvocationSchemaVersion, StepID: request.StepID,
@@ -253,8 +253,8 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			if _, _, err := store.Receipts.BeginAgentInvocation(ctx, receipt); err != nil {
 				t.Fatal(err)
 			}
-			output := temporalruntime.WorkflowOperationActivityOutput{
-				Operation: request.Operation, RequestID: runID, WorkflowResultRef: activityprojection.WorkflowOperationResultRef(runID, request.StepID),
+			output := applicationcontract.OperationOutput{
+				Operation: request.Operation, RequestID: runID, WorkflowResultRef: projectionapp.WorkflowOperationResultRef(runID, request.StepID),
 				Status: "completed", SolveOutcome: "answer", FinalOutput: "保存的回答",
 			}
 			if execute {
@@ -263,17 +263,17 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 				if shape == "execute-legacy" {
 					result["results"] = []any{map[string]any{"citation_index": float64(1), "citation_href": "/notices/notice-1", "notice_id": "notice-1", "result_ref": "result://sha256:" + strings.Repeat("a", 64), "section_title": "办理说明", "source_kind": "notice", "text": "唯一检索正文", "title": "校园服务"}}
 				}
-				output.ToolResults = []temporalruntime.AgentToolResult{{ToolName: "campus_search", Status: "completed", InvocationID: "search-1", Result: result}}
-				output.Evidence = []temporalruntime.WorkflowEvidence{{ID: "notice", Title: "校园服务", Excerpt: "唯一检索正文", Source: temporalruntime.WorkflowSourceCampusSearch, CitationIndex: 1}}
-				output.SourceAttempts = []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}}
+				output.ToolResults = []applicationcontract.AgentToolResult{{ToolName: "campus_search", Status: "completed", InvocationID: "search-1", Result: result}}
+				output.Evidence = []applicationcontract.WorkflowEvidence{{ID: "notice", Title: "校园服务", Excerpt: "唯一检索正文", Source: applicationcontract.WorkflowSourceCampusSearch, CitationIndex: 1}}
+				output.SourceAttempts = []applicationcontract.WorkflowSourceAttempt{{Source: applicationcontract.WorkflowSourceCampusSearch, Status: "matched"}}
 			}
 			if status == "failed" {
 				output.Status = "failed"
 				output.FinalOutput = ""
-				output.Failure = &temporalruntime.ExecutionFailure{Code: failureCode, Operation: "solve"}
-				output.Evidence = []temporalruntime.WorkflowEvidence{{ID: "notice", Title: "通知", Excerpt: "已取得的正文", Source: temporalruntime.WorkflowSourceCampusSearch, CitationIndex: 1}}
-				output.SourceAttempts = []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}}
-				output.Usage = temporalruntime.AgentUsageSummary{InputTokens: 100, OutputTokens: 20, ModelRequestCount: 2, UsageObserved: true}
+				output.Failure = &applicationcontract.ExecutionFailure{Code: failureCode, Operation: "solve"}
+				output.Evidence = []applicationcontract.WorkflowEvidence{{ID: "notice", Title: "通知", Excerpt: "已取得的正文", Source: applicationcontract.WorkflowSourceCampusSearch, CitationIndex: 1}}
+				output.SourceAttempts = []applicationcontract.WorkflowSourceAttempt{{Source: applicationcontract.WorkflowSourceCampusSearch, Status: "matched"}}
+				output.Usage = applicationcontract.AgentUsageSummary{InputTokens: 100, OutputTokens: 20, ModelRequestCount: 2, UsageObserved: true}
 			}
 			if completed {
 				receipt.OutputJSON, err = json.Marshal(output)
@@ -309,12 +309,12 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 				}
 			}
 			env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
-			restore := func(ctx context.Context) (temporalruntime.WorkflowOperationActivityOutput, error) {
-				base := temporalruntime.WorkflowOperationActivityInputBase{AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot), RequestID: runID, ConversationID: run.ConversationID}
+			restore := func(ctx context.Context) (applicationcontract.OperationOutput, error) {
+				base := applicationcontract.OperationInputBase{AdmissionSnapshot: applicationcontract.AdmissionFromDomain(snapshot), RequestID: runID, ConversationID: run.ConversationID}
 				if execute {
-					return adapter.ExecuteTaskStep(ctx, temporalruntime.ExecuteTaskStepActivityInput{WorkflowOperationActivityInputBase: base, Plan: plan, Step: step, CitationStart: 1})
+					return adapter.ExecuteTaskStepApplication(ctx, applicationcontract.ExecuteStepInput{OperationInputBase: base, Plan: plan, Step: step, CitationStart: 1})
 				}
-				return adapter.SolveTask(ctx, temporalruntime.SolveTaskActivityInput{WorkflowOperationActivityInputBase: base, MaxSteps: 2})
+				return adapter.SolveTaskApplication(ctx, applicationcontract.SolveInput{OperationInputBase: base, MaxSteps: 2})
 			}
 			env.RegisterActivity(restore)
 			value, activityErr := env.ExecuteActivity(restore)
@@ -328,7 +328,7 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			if activityErr != nil {
 				t.Fatal(activityErr)
 			}
-			var restored temporalruntime.WorkflowOperationActivityOutput
+			var restored applicationcontract.OperationOutput
 			if err := value.Get(&restored); err != nil {
 				t.Fatal(err)
 			}
@@ -359,6 +359,64 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 				if err != nil || !bytes.Equal(saved.OutputJSON, receipt.OutputJSON) || saved.OutputSHA256 != receipt.OutputSHA256 {
 					t.Fatalf("replay rewrote receipt: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func (c *modelOutputFailureClient) Prepare(r executionapplication.AgentRuntimeRequest) (string, error) {
+	return outboundadapter.NewAgentRuntimeClient(config.Config{}).Prepare(r)
+}
+
+func (c *receiptTestRuntimeClient) Prepare(r executionapplication.AgentRuntimeRequest) (string, error) {
+	return outboundadapter.NewAgentRuntimeClient(config.Config{}).Prepare(r)
+}
+
+type observedReceiptStore struct {
+	executionapplication.ReceiptStore
+	begins int
+}
+
+func (s *observedReceiptStore) BeginAgentInvocation(ctx context.Context, receipt execution.AgentInvocationReceipt) (execution.AgentInvocationReceipt, execution.AgentInvocationDisposition, error) {
+	s.begins++
+	return s.ReceiptStore.BeginAgentInvocation(ctx, receipt)
+}
+
+func TestRuntimePreparationRejectsInvalidRequestBeforeReceiptAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		name, kind string
+		payload    any
+	}{
+		{"oversized", "workflow_operation_payload_too_large", strings.Repeat("x", execution.MaxAgentOperationPayloadBytes)},
+		{"unencodable", "workflow_invocation_envelope_invalid", make(chan int)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runID := "prepare-" + tc.name
+			store := executionpersistence.NewInMemoryRunProjectionStore()
+			createQueuedDurableRunForTest(t, store, runID, "conv-"+runID, time.Now(), agentRequestForDurableWorkerTest("hello"))
+			fenced := &temporalActivityRootFenceIntentStore{InMemoryRunProjectionStore: store, intent: execution.WorkflowStartIntent{RequestID: runID, WorkflowID: temporalActivityTestWorkflowID, TemporalRunID: temporalActivityTestRunID, State: execution.LifecycleIntentStateConfirmed}}
+			adapter := newAdapterForTest(config.Config{AgentRuntimeBaseURL: "http://unused.invalid", AgentRuntimeSharedSecret: "test", TemporalWorkerIdentity: "test-worker"})
+			attachRunProjectionStoreForAdapterTest(adapter, fenced)
+			receipts := &observedReceiptStore{ReceiptStore: store.Receipts}
+			adapter.Receipts = executionapplication.NewReceiptService(receipts)
+			client := &receiptTestRuntimeClient{}
+			adapter.AgentRuntimeClient = client
+			snapshot := admissionSnapshotForTest(t, false)
+			runOperation := func(ctx context.Context) (applicationcontract.OperationOutput, error) {
+				return adapter.ExecuteOperation(ctx, executionactivities.OperationRequest{
+					AdmissionSnapshot: snapshot, RequestID: runID, ConversationID: "conv-" + runID,
+					Operation: applicationcontract.WorkflowOperationSolve, StepID: "solve.initial", StepKind: "solver", MaxSteps: 2,
+					Payload: map[string]any{"max_steps": 2, "invalid_value": tc.payload},
+				})
+			}
+			env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
+			env.RegisterActivity(runOperation)
+			_, err := env.ExecuteActivity(runOperation)
+			if err == nil || !strings.Contains(err.Error(), tc.kind) {
+				t.Fatalf("error=%v want=%s", err, tc.kind)
+			}
+			if receipts.begins != 0 || client.calls != 0 {
+				t.Fatalf("receipt admissions=%d provider calls=%d", receipts.begins, client.calls)
 			}
 		})
 	}

@@ -93,3 +93,6 @@ require (
 require github.com/MUC-WIKI/campus-agent/apps/campus-search v0.0.0
 
 replace github.com/MUC-WIKI/campus-agent/apps/campus-search => ../campus-search
+
+require github.com/MUC-WIKI/campus-agent/apps/memory-service v0.0.0
+replace github.com/MUC-WIKI/campus-agent/apps/memory-service => ../memory-service

@@ -1,16 +1,13 @@
 package temporalruntime
 
 import (
-	"context"
 	"errors"
-	"go.temporal.io/sdk/activity"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 	"github.com/stretchr/testify/mock"
-	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -62,6 +59,64 @@ func TestPersonalMemoryCommandWorkflowRetriesCallbackWithoutRepeatingProviderMut
 	env.AssertActivityNumberOfCalls(t, ExecutePersonalMemoryCommandActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, FinalizePersonalMemoryCommandReceiptActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, WritePersonalMemoryCommandResultActivityName, 2)
+}
+
+func TestPersonalMemoryCommandWorkflowPollsProcessingOperation(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	command := PersonalMemoryCommandRequest{
+		CommandID: "memcmd-processing", CommandKind: "memory_add", OwnerGeneration: 1, OwnerSequence: 1,
+		SchemaVersion: memoryruntime.PersonalMemoryCommandSchemaVersion, SubjectID: "memory-1",
+		SupersessionScope: "item:memory-1", Item: &PersonalMemoryCommandItem{Text: "program: cs"},
+		SourceUpdatedAt: "2026-07-16T00:00:00Z", TenantID: "tenant-main", UserID: "user-1",
+	}
+	processing := PersonalMemoryCommandActivityOutput{CommandID: command.CommandID, Status: "processing"}
+	succeeded := PersonalMemoryCommandActivityOutput{CommandID: command.CommandID, Status: "succeeded"}
+	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).Return(processing, nil).Once()
+	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).Return(succeeded, nil).Once()
+	env.OnActivity(FinalizePersonalMemoryCommandReceiptActivityName, mock.Anything,
+		FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: succeeded}).Return(succeeded, nil).Once()
+	env.OnActivity(WritePersonalMemoryCommandResultActivityName, mock.Anything, succeeded).Return(nil).Once()
+	env.ExecuteWorkflow(PersonalMemoryCommandWorkflow, PersonalMemoryCommandWorkflowInput{Command: command})
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	env.AssertActivityNumberOfCalls(t, ExecutePersonalMemoryCommandActivityName, 2)
+}
+
+func TestPersonalMemoryCommandWorkflowKeepsReceiptNonterminalAfterActivityRetries(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	command := PersonalMemoryCommandRequest{
+		CommandID: "memcmd-activity-recovery", CommandKind: "memory_add", OwnerGeneration: 1, OwnerSequence: 1,
+		SchemaVersion: memoryruntime.PersonalMemoryCommandSchemaVersion, SubjectID: "memory-1",
+		SupersessionScope: "memory:memory-1", Item: &PersonalMemoryCommandItem{Text: "program: cs"},
+		SourceUpdatedAt: "2026-07-16T00:00:00Z", TenantID: "tenant-main", UserID: "user-1",
+	}
+	succeeded := PersonalMemoryCommandActivityOutput{CommandID: command.CommandID, Status: "succeeded"}
+	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
+		Return(PersonalMemoryCommandActivityOutput{}, temporal.NewApplicationError("provider status unavailable", "hindsight_command_failed")).
+		Times(5)
+	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).Return(succeeded, nil).Once()
+	env.OnActivity(FinalizePersonalMemoryCommandReceiptActivityName, mock.Anything,
+		FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: succeeded}).Return(succeeded, nil).Once()
+	env.OnActivity(WritePersonalMemoryCommandResultActivityName, mock.Anything, succeeded).Return(nil).Once()
+
+	env.ExecuteWorkflow(PersonalMemoryCommandWorkflow, PersonalMemoryCommandWorkflowInput{Command: command})
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	var result PersonalMemoryCommandWorkflowResult
+	if err := env.GetWorkflowResult(&result); err != nil {
+		t.Fatalf("workflow result: %v", err)
+	}
+	if result.Status != "succeeded" {
+		t.Fatalf("result=%#v, want eventual success after same-command recovery", result)
+	}
+	env.AssertActivityNumberOfCalls(t, ExecutePersonalMemoryCommandActivityName, 6)
+	env.AssertExpectations(t)
 }
 
 func TestPersonalMemoryCommandWorkflowWaitsAtOwnerReceiptGate(t *testing.T) {
@@ -189,16 +244,13 @@ func TestToolExecutionWorkflowRunsSolveExecutorAndSynthesizerInOrder(t *testing.
 			RequestID:     input.RequestID,
 			Status:        "completed",
 		}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, AppendConversationMemoryActivityInput{RequestID: input.RequestID}).
-		Run(func(mock.Arguments) { sequence = append(sequence, "memory_append") }).
-		Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	if got, want := sequence, []string{"solve", "execute_step", "synthesize", "finalization", "memory_append"}; !equalStrings(got, want) {
+	if got, want := sequence, []string{"solve", "execute_step", "synthesize", "finalization"}; !equalStrings(got, want) {
 		t.Fatalf("activity sequence = %#v, want %#v", got, want)
 	}
 	var result ToolExecutionWorkflowResult
@@ -235,16 +287,13 @@ func TestToolExecutionWorkflowFinalizesDirectSolveAnswer(t *testing.T) {
 	})).
 		Run(func(mock.Arguments) { sequence = append(sequence, "finalization") }).
 		Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
-		Run(func(mock.Arguments) { sequence = append(sequence, "memory_append") }).
-		Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	if got, want := sequence, []string{"solve", "finalization", "memory_append"}; !equalStrings(got, want) {
+	if got, want := sequence, []string{"solve", "finalization"}; !equalStrings(got, want) {
 		t.Fatalf("activity sequence = %#v, want %#v", got, want)
 	}
 	env.AssertActivityNumberOfCalls(t, ExecuteTaskStepActivityName, 0)
@@ -281,8 +330,6 @@ func TestToolExecutionWorkflowFollowsMultipleStepDependencies(t *testing.T) {
 	})).Return(workflowSynthesisOutput(input.RequestID, "依赖顺序答案。", []WorkflowEvidence{evidence}), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).
 		Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
-		Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
@@ -320,7 +367,6 @@ func TestToolExecutionWorkflowContinuesToWebSearchAfterCampusNoMatch(t *testing.
 		return len(actual.RemainingFacts) == 2 && len(actual.Evidence) == 1 && actual.Evidence[0].Source == WorkflowSourceWebSearch
 	})).Return(workflowSynthesisOutput(input.RequestID, "基于公开资料的答案。", []WorkflowEvidence{webEvidence}), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
@@ -391,16 +437,13 @@ func TestToolExecutionWorkflowPreservesEvidenceAfterStepFailureAndContinues(t *t
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).
 		Run(func(mock.Arguments) { sequence = append(sequence, "finalization") }).
 		Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
-		Run(func(mock.Arguments) { sequence = append(sequence, "memory_append") }).
-		Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	if got, want := sequence, []string{"solve", "first", "failed", "last", "synthesize", "finalization", "memory_append"}; !equalStrings(got, want) {
+	if got, want := sequence, []string{"solve", "first", "failed", "last", "synthesize", "finalization"}; !equalStrings(got, want) {
 		t.Fatalf("activity sequence = %#v, want %#v", got, want)
 	}
 	env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 0)
@@ -436,7 +479,6 @@ func TestToolExecutionWorkflowSynthesizesExistingEvidenceAfterTimedOutStep(t *te
 			len(actual.Evidence) == 1 && actual.Evidence[0].ID == evidence.ID
 	})).Return(workflowSynthesisOutput(input.RequestID, "仅基于已取得资料的答案。", []WorkflowEvidence{evidence}), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
@@ -529,16 +571,13 @@ func TestToolExecutionWorkflowReplansAfterFinalCampusSearchMissOrFailure(t *test
 			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).
 				Run(func(mock.Arguments) { sequence = append(sequence, "finalization") }).
 				Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
-				Run(func(mock.Arguments) { sequence = append(sequence, "memory_append") }).
-				Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 			env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
 			if err := env.GetWorkflowError(); err != nil {
 				t.Fatalf("workflow error: %v", err)
 			}
-			if got, want := sequence, []string{"solve", "campus", "replan", "web", "synthesize", "finalization", "memory_append"}; !equalStrings(got, want) {
+			if got, want := sequence, []string{"solve", "campus", "replan", "web", "synthesize", "finalization"}; !equalStrings(got, want) {
 				t.Fatalf("activity sequence = %#v, want %#v", got, want)
 			}
 			env.AssertActivityNumberOfCalls(t, ReplanTaskActivityName, 1)
@@ -570,7 +609,6 @@ func TestToolExecutionWorkflowReplannerCanReplaceRemainingPath(t *testing.T) {
 		return len(actual.RemainingFacts) == 2 && actual.RemainingFacts[1].Objective == newSecond.Objective
 	})).Return(workflowSynthesisOutput(input.RequestID, "重规划后的答案。", nil), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
@@ -657,7 +695,6 @@ func TestToolExecutionWorkflowReplannerCanEndSearchAndSynthesize(t *testing.T) {
 		return len(actual.RemainingFacts) == 1 && actual.RemainingFacts[0].Objective == first.Objective
 	})).Return(workflowSynthesisOutput(input.RequestID, "提前合成的答案。", nil), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
@@ -691,7 +728,6 @@ func TestToolExecutionWorkflowStopsAfterMaxReplans(t *testing.T) {
 	env.OnActivity(ReplanTaskActivityName, mock.Anything, mock.Anything).Return(workflowReplanOutput(input.RequestID, "continue", "继续。", []WorkflowTaskPlanStep{second, third}), nil).Once()
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.Anything).Return(workflowSynthesisOutput(input.RequestID, "预算内答案。", nil), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
@@ -801,7 +837,6 @@ func TestToolExecutionWorkflowRetriesFinalizationProjectionWithoutFailureFinaliz
 	completedAt := time.Date(2026, 8, 2, 8, 0, 0, 0, time.UTC)
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).
 		Return(WorkflowFinalizationActivityOutput{CompletedAt: completedAt, ProjectionRef: "projection://runs/" + input.RequestID + "/answer/synthesize/result", RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
@@ -886,10 +921,7 @@ func TestToolExecutionWorkflowKeepsCompletedResultWhenCancellationRacesCleanup(t
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).
 		Run(func(mock.Arguments) { sequence = append(sequence, "finalization") }).
 		Return(WorkflowFinalizationActivityOutput{CompletedAt: completedAt, ProjectionRef: "projection://runs/" + input.RequestID + "/answer/synthesize/result", RequestID: input.RequestID, Status: "completed"}, nil).Once()
-	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
-		After(time.Hour).
-		Run(func(mock.Arguments) { sequence = append(sequence, "memory_append") }).
-		Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
+
 	env.RegisterDelayedCallback(env.CancelWorkflow, time.Minute)
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
@@ -904,7 +936,7 @@ func TestToolExecutionWorkflowKeepsCompletedResultWhenCancellationRacesCleanup(t
 	if result.RequestID != input.RequestID || result.Status != "completed" || !result.CompletedAt.Equal(completedAt) {
 		t.Fatalf("workflow result = %#v, want completed finalization", result)
 	}
-	if got, want := sequence, []string{"finalization", "memory_append"}; !equalStrings(got, want) {
+	if got, want := sequence, []string{"finalization"}; !equalStrings(got, want) {
 		t.Fatalf("post-finalization sequence = %#v, want %#v", got, want)
 	}
 	env.AssertActivityNumberOfCalls(t, FinalizeExecutionCancellationActivityName, 0)
@@ -988,40 +1020,6 @@ func equalStrings(left []string, right []string) bool {
 		}
 	}
 	return true
-}
-
-func TestMemoryAppendExhaustionClosesOnlyBackgroundStep(t *testing.T) {
-	for _, mode := range []string{"provider", "timeout"} {
-		t.Run(mode, func(t *testing.T) {
-			var suite testsuite.WorkflowTestSuite
-			env := suite.NewTestWorkflowEnvironment()
-			registerWorkflowTestActivities(env, &Activities{})
-			input := validToolExecutionWorkflowInput("memory-final-" + mode)
-			answer := WorkflowOperationActivityOutput{Operation: WorkflowOperationSolve, SolveOutcome: "answer", FinalOutput: "答案", RequestID: input.RequestID, Status: "completed"}
-			env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(answer, nil).Once()
-			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
-			cause := temporal.NewApplicationError("provider failed", "hindsight_append_failed")
-			if mode == "timeout" {
-				cause = temporal.NewTimeoutError(enumspb.TIMEOUT_TYPE_START_TO_CLOSE, nil)
-			}
-			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{}, cause).Times(3)
-			env.OnActivity(FinalizeMemoryAppendActivityName, mock.Anything, mock.MatchedBy(func(actual FinalizeMemoryAppendActivityInput) bool {
-				return actual.RequestID == input.RequestID && actual.FailureKind != ""
-			})).Return(func(ctx context.Context, _ FinalizeMemoryAppendActivityInput) error {
-				if queue := activity.GetInfo(ctx).TaskQueue; queue != ActivityTaskQueueCore {
-					t.Errorf("finalizer queue = %q", queue)
-				}
-				return nil
-			}).Once()
-			env.ExecuteWorkflow(ToolExecutionWorkflow, input)
-			if err := env.GetWorkflowError(); err != nil {
-				t.Fatal(err)
-			}
-			env.AssertActivityNumberOfCalls(t, FinalizeMemoryAppendActivityName, 1)
-			env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 0)
-			env.AssertExpectations(t)
-		})
-	}
 }
 
 func TestPersonalMemoryCommandWorkflowFailsAfterBoundedOwnerGateWait(t *testing.T) {

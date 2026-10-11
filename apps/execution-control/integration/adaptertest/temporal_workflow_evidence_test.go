@@ -2,15 +2,15 @@ package adaptertest
 
 import (
 	"errors"
+	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 	"testing"
 
-	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/finalization"
 )
 
 func TestWorkflowEvidenceCitationClosureProjectsMixedCampusSources(t *testing.T) {
 	closure, err := finalizationactivities.WorkflowEvidenceCitationClosureForFinalization(
-		[]temporalruntime.WorkflowEvidence{
+		[]applicationcontract.WorkflowEvidence{
 			{
 				CitationIndex: 1,
 				DocumentID:    "handbook:student-rules",
@@ -20,7 +20,7 @@ func TestWorkflowEvidenceCitationClosureProjectsMixedCampusSources(t *testing.T)
 				SchemaVersion: "workflow_evidence.v1",
 				SectionRef:    "/docs/regulations/student_rules/attendance/v/2026#attendance",
 				SectionTitle:  "申请条件",
-				Source:        temporalruntime.WorkflowSourceCampusSearch,
+				Source:        applicationcontract.WorkflowSourceCampusSearch,
 				Title:         "学生管理规定",
 				VersionID:     "version-2026",
 				VersionSlug:   "2026",
@@ -33,7 +33,7 @@ func TestWorkflowEvidenceCitationClosureProjectsMixedCampusSources(t *testing.T)
 				NoticeID:      "12345",
 				SchemaVersion: "workflow_evidence.v1",
 				SectionTitle:  "报名要求",
-				Source:        temporalruntime.WorkflowSourceCampusSearch,
+				Source:        applicationcontract.WorkflowSourceCampusSearch,
 				Title:         "关于报名的通知",
 			},
 		},
@@ -60,7 +60,7 @@ func TestWorkflowEvidenceCitationClosureProjectsMixedCampusSources(t *testing.T)
 
 func TestWorkflowEvidenceCitationClosureRejectsMismatchedNoticeIdentity(t *testing.T) {
 	_, err := finalizationactivities.WorkflowEvidenceCitationClosureForFinalization(
-		[]temporalruntime.WorkflowEvidence{{
+		[]applicationcontract.WorkflowEvidence{{
 			CitationHref:  "/notices/54321",
 			CitationIndex: 1,
 			Excerpt:       "正文",
@@ -68,7 +68,7 @@ func TestWorkflowEvidenceCitationClosureRejectsMismatchedNoticeIdentity(t *testi
 			NoticeID:      "12345",
 			SchemaVersion: "workflow_evidence.v1",
 			SectionTitle:  "正文",
-			Source:        temporalruntime.WorkflowSourceCampusSearch,
+			Source:        applicationcontract.WorkflowSourceCampusSearch,
 			Title:         "通知",
 		}},
 		"通知内容 [1]。",

@@ -19,6 +19,7 @@ group "default" {
 	"campus-rag-index-publisher",
     "notice-pipeline-worker",
     "execution-control",
+    "memory-service",
     "campus-search-service",
     "model-config",
     "notice-artifacts-worker",
@@ -30,6 +31,7 @@ group "heavy" {
   targets = [
     "ops-web",
     "execution-control",
+    "memory-service",
     "campus-search-service",
     "model-config",
   ]
@@ -113,4 +115,9 @@ target "notice-artifacts-worker" {
 target "campus-search-service" {
   inherits = ["_common"]
   dockerfile = "apps/campus-search/Dockerfile"
+}
+
+target "memory-service" {
+ inherits=["_common"]
+ dockerfile="apps/memory-service/Dockerfile"
 }

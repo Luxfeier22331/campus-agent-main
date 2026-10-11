@@ -70,3 +70,28 @@ type ReceiptStore interface {
 	BeginAgentInvocation(context.Context, execution.AgentInvocationReceipt) (execution.AgentInvocationReceipt, execution.AgentInvocationDisposition, error)
 	CompleteAgentInvocation(context.Context, execution.AgentInvocationReceipt) (execution.AgentInvocationReceipt, error)
 }
+
+// StepProjectionStore is shared by step writers; it cannot admit, delete or finalize a run.
+type StepProjectionStore interface {
+	GetRun(context.Context, string) (execution.DurableRun, error)
+	GetWorkflowStartIntent(context.Context, string) (execution.WorkflowStartIntent, error)
+	AppendRunEvent(context.Context, execution.DurableRunEvent) (execution.DurableRunEvent, error)
+	ListRunEvents(context.Context, string) ([]execution.DurableRunEvent, error)
+	UpsertRunStep(context.Context, execution.RunStepProjection) (execution.RunStepProjection, error)
+	UpsertStepAttempt(context.Context, execution.StepAttemptProjection) (execution.StepAttemptProjection, error)
+	UpsertStepResult(context.Context, execution.StepResultProjection) (execution.StepResultProjection, error)
+	ListRunSteps(context.Context, string) ([]execution.RunStepProjection, error)
+	ListStepAttempts(context.Context, string) ([]execution.StepAttemptProjection, error)
+	ListStepResults(context.Context, string) ([]execution.StepResultProjection, error)
+}
+type OperationStateWriter interface {
+	TransitionRun(context.Context, string, execution.DurableRunStatus, execution.DurableTerminalReason, time.Time) (execution.DurableRun, error)
+	StartRunAnswerStream(context.Context, execution.RunAnswerStreamStartRequest) (execution.DurableRun, error)
+	RecordModelOutputDiagnostic(context.Context, string, string, execution.ModelOutputDiagnostic) error
+}
+type FinalizationStateWriter interface {
+	FailRunProjection(context.Context, execution.DurableRunFailRequest) (execution.DurableRun, error)
+	ExpireRunProjection(context.Context, execution.DurableRunExpireRequest) (execution.DurableRun, error)
+	FinalizeRunProjection(context.Context, execution.RunProjectionFinalizeRequest) (execution.RunProjectionFinalizeResult, error)
+	CancelRunProjection(context.Context, execution.DurableRunCancelRequest) (execution.DurableRun, error)
+}

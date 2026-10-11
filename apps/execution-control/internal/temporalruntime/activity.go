@@ -1,8 +1,6 @@
 package temporalruntime
 
 const (
-	FinalizeMemoryAppendActivityName                 = "FinalizeMemoryAppendActivity"
-	AppendConversationMemoryActivityName             = "AppendConversationMemoryActivity"
 	SolveTaskActivityName                            = "SolveTaskActivity"
 	ExecuteTaskStepActivityName                      = "ExecuteTaskStepActivity"
 	ReplanTaskActivityName                           = "ReplanTaskActivity"

@@ -11,12 +11,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/agentruntimeprotocol"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/finalization"
+	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/operation"
+	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication/projection"
+	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
-	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
-	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
-	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/activitysupport"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/temporal"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -31,7 +35,12 @@ func assertTemporalFailureSanitized(
 	wantNonRetryable bool,
 ) {
 	t.Helper()
-	var applicationError *temporal.ApplicationError
+	var applicationError interface {
+		error
+		Type() string
+		NonRetryable() bool
+		HasDetails() bool
+	}
 	if !errors.As(err, &applicationError) {
 		t.Fatalf("error = %T %v, want Temporal ApplicationError", err, err)
 	}
@@ -61,7 +70,7 @@ func assertTemporalFailureSanitized(
 }
 
 func TestTemporalApplicationErrorPersistsOnlyBoundedFailureEvidence(t *testing.T) {
-	err := activityprojection.SanitizedTemporalApplicationError(
+	err := activitysupport.SanitizedTemporalApplicationError(
 		"provider_unavailable",
 		errors.New(temporalFailureSentinel),
 		false,
@@ -73,8 +82,8 @@ func TestWorkflowFailureProjectionKeepsBoundedRuntimeEvidence(t *testing.T) {
 	payload := map[string]any{
 		"failure": map[string]any{"code": "provider_http_failed", "operation": "solve"},
 	}
-	executionactivities.AddWorkflowFailureEvidence(payload, executionactivities.AgentRuntimeHTTPError{
-		StatusCode:   http.StatusBadGateway,
+	executionactivities.AddWorkflowFailureEvidence(payload, executionapplication.AgentRuntimeFailure{
+		HTTPStatus:   http.StatusBadGateway,
 		Detail:       "provider returned HTTP 502",
 		InvocationID: "req:solve.initial",
 	})
@@ -105,10 +114,10 @@ func TestRuntimeDeadlineSurvivesRealHTTPTransport(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			adapter := executionactivities.Adapter{AgentRuntimeClient: outboundadapter.NewAgentRuntimeClient(config.Config{
+			adapter := executionactivities.OperationService{AgentRuntimeClient: outboundadapter.NewAgentRuntimeClient(config.Config{
 				AgentRuntimeBaseURL: server.URL, AgentRuntimeSharedSecret: "secret",
 			})}
-			_, err := adapter.CallWorkflowOperationRuntime(t.Context(), execution.DurableRun{RequestID: "deadline", CreatedAt: time.Now()}, temporalruntime.WorkflowOperationSolve, "", []byte(`{}`), 6000, stream)
+			_, err := adapter.CallWorkflowOperationRuntime(t.Context(), execution.DurableRun{RequestID: "deadline", CreatedAt: time.Now()}, applicationcontract.WorkflowOperationSolve, "", executionapplication.AgentRuntimeRequest{}, 6000, stream)
 			if got := executionactivities.WorkflowRuntimeFailureKind(err); got != "agent_deadline_exceeded" {
 				t.Fatalf("failure=%v kind=%s", err, got)
 			}
@@ -139,10 +148,10 @@ func TestRuntimeBlackholeRemainsTransportTimeout(t *testing.T) {
 			}))
 			defer server.Close()
 			defer close(finish)
-			adapter := executionactivities.Adapter{AgentRuntimeClient: outboundadapter.NewAgentRuntimeClient(config.Config{
+			adapter := executionactivities.OperationService{AgentRuntimeClient: outboundadapter.NewAgentRuntimeClient(config.Config{
 				AgentRuntimeBaseURL: server.URL, AgentRuntimeSharedSecret: "secret",
 			})}
-			_, err := adapter.CallWorkflowOperationRuntime(t.Context(), execution.DurableRun{RequestID: "blackhole", CreatedAt: time.Now()}, temporalruntime.WorkflowOperationSolve, "", []byte(`{}`), 4100, stream)
+			_, err := adapter.CallWorkflowOperationRuntime(t.Context(), execution.DurableRun{RequestID: "blackhole", CreatedAt: time.Now()}, applicationcontract.WorkflowOperationSolve, "", executionapplication.AgentRuntimeRequest{}, 4100, stream)
 			if got := executionactivities.WorkflowRuntimeFailureKind(err); got != "agent_runtime_timeout" {
 				t.Fatalf("failure=%v kind=%s", err, got)
 			}
@@ -153,12 +162,12 @@ func TestRuntimeBlackholeRemainsTransportTimeout(t *testing.T) {
 func TestWorkflowFailureProjectionPreservesSourceStatusAndOperation(t *testing.T) {
 	for _, status := range []int{http.StatusBadRequest, http.StatusBadGateway} {
 		for _, cause := range []error{
-			executionactivities.AgentRuntimeFailureFromResponse(http.StatusInternalServerError, executionactivities.AgentRuntimeResponse{
-				Error: executionactivities.AgentRuntimeError{
+			outboundadapter.AgentRuntimeFailureFromResponse(http.StatusInternalServerError, agentruntimeprotocol.AgentRuntimeResponse{
+				Error: agentruntimeprotocol.AgentRuntimeError{
 					Code: "run_failed", Operation: "workflow.execute_step", HTTPStatus: status, Detail: "provider rejection",
 				},
 			}),
-			executionactivities.AgentRuntimeApplicationError{
+			executionapplication.AgentRuntimeFailure{
 				Code: "run_failed", Operation: "workflow.execute_step", HTTPStatus: status, Detail: "provider rejection",
 			},
 		} {
@@ -174,13 +183,13 @@ func TestWorkflowFailureProjectionPreservesSourceStatusAndOperation(t *testing.T
 
 func TestTemporalFailureTerminalReasonDistinguishesRuntimeAndProviderTimeouts(t *testing.T) {
 	if got := finalizationactivities.TemporalFailureTerminalReason(
-		activityprojection.TemporalStepFailureProjection{},
+		activityprojection.StepFailureProjection{},
 		"agent_runtime_timeout",
 	); got != execution.DurableTerminalReasonRunTimeout {
 		t.Fatalf("runtime timeout terminal reason = %q, want run_timeout", got)
 	}
 	if got := finalizationactivities.TemporalFailureTerminalReason(
-		activityprojection.TemporalStepFailureProjection{},
+		activityprojection.StepFailureProjection{},
 		"provider_timeout",
 	); got != execution.DurableTerminalReasonProviderUnavailable {
 		t.Fatalf("provider timeout terminal reason = %q, want provider_unavailable", got)

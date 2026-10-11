@@ -41,7 +41,7 @@ func (s *Server) handleCampusSearchTool(response http.ResponseWriter, request *h
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	result, err := s.agentToolService.CampusSearch(
+	result, err := s.campusSearchTool.CampusSearch(
 		request.Context(),
 		executionapplication.CampusSearchRequest{
 			AccessContext: agentToolAccessContextToApplication(envelope.AccessContext),

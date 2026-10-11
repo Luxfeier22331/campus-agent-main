@@ -9,6 +9,7 @@ import (
 // intentionally distinct from the application workflow input so Temporal
 // serialization does not leak application contracts across the adapter.
 type ToolExecutionWorkflowInput struct {
+	MemoryDeliveryExternal       bool                   `json:"memory_delivery_external,omitempty"`
 	DeadlineAt                   time.Time              `json:"deadline_at"`
 	AdmissionSnapshot            AgentAdmissionSnapshot `json:"admission_snapshot"`
 	AdmissionSnapshotSHA256      string                 `json:"admission_snapshot_sha256"`
@@ -155,11 +156,7 @@ type ToolExecutionWorkflowResult struct {
 	Status        string    `json:"status"`
 }
 
-type AppendConversationMemoryActivityInput struct {
-	RequestID string `json:"request_id"`
-}
-
-type AppendConversationMemoryActivityOutput struct {
+type AdvanceMemoryAppendActivityOutput struct {
 	AppendedMessageCount int      `json:"appended_message_count"`
 	RequestID            string   `json:"request_id"`
 	SchemaVersion        string   `json:"schema_version"`

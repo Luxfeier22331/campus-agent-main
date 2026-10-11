@@ -10,6 +10,7 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"notice-pipeline-worker",
 	"document-ocr",
 	"execution-control",
+	"memory-service",
 	"campus-search-service",
 	"model-config",
 	"notice-artifacts-worker",
@@ -18,7 +19,10 @@ export const ACTIVE_IMAGE_TARGETS = [
 export type ImageTarget = (typeof ACTIVE_IMAGE_TARGETS)[number];
 export const NODE_IMAGE_TARGETS = ACTIVE_IMAGE_TARGETS.filter(
 	(image) =>
-		image !== "execution-control" && image !== "campus-search-service" && image !== "model-config",
+		image !== "memory-service" &&
+		image !== "execution-control" &&
+		image !== "campus-search-service" &&
+		image !== "model-config",
 );
 export interface ImageScopeTask {
 	package: string;
@@ -31,6 +35,7 @@ export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[
 	[
 		["apps/agent-runtime/Dockerfile", ["agent-runtime"]],
 		["apps/execution-control/Dockerfile", ["execution-control"]],
+		["apps/memory-service/Dockerfile", ["memory-service"]],
 		["apps/campus-search/Dockerfile", ["campus-search-service"]],
 		["apps/model-config/Dockerfile", ["model-config"]],
 		["apps/ops-web/Dockerfile", ["ops-web"]],
@@ -77,6 +82,7 @@ const EXTRA_INPUTS: Partial<Record<ImageTarget, string[]>> = {
 		"configs/runtime/tool-function-schemas.v4.json",
 	],
 	"execution-control": [
+		"apps/memory-service/",
 		"apps/campus-search/go.mod",
 		"apps/campus-search/go.sum",
 		"apps/campus-search/campussearch/",
@@ -206,6 +212,7 @@ export function imageTargetsForScope(
 				}
 				const relative = file.slice(workspace.directory.length + 1);
 				if (
+					image === "memory-service" ||
 					image === "model-config" ||
 					image === "execution-control" ||
 					image === "campus-search-service"
@@ -215,7 +222,11 @@ export function imageTargetsForScope(
 						relative === "go.sum" ||
 						relative.startsWith(image === "model-config" ? "cmd/model-config/" : "cmd/") ||
 						relative.startsWith("internal/") ||
-						relative.startsWith("campussearch/")
+						relative.startsWith("campussearch/") ||
+						(image === "memory-service" &&
+							/^(memoryapplication|memoryruntime|memorypersistence|hindsightadapter)\//u.test(
+								relative,
+							))
 					);
 				}
 				return relative !== "Dockerfile";

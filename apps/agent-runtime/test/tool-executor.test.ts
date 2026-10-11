@@ -14,6 +14,32 @@ const transportResultSchemaRef = schemaRef(
 );
 
 describe("execution-control tool executor", () => {
+	it("formats memory facts before returning the model-facing result", async () => {
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "test",
+			fetchImpl: async () => Response.json({ facts: ["喜欢安静😀"], context_char_budget: 2500 }),
+		});
+		const request = toolRequest();
+		request.tool.name = "personal_memory_recall";
+		expect(await executor(request)).toEqual({
+			status: "completed",
+			result: {
+				outcome: "matched",
+				memory_text: "用户记忆:\n相关事实:\n- 喜欢安静😀",
+			},
+		});
+	});
+	it("surfaces an invalid recall transport as a contract mismatch", async () => {
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "test",
+			fetchImpl: async () => Response.json({ outcome: "matched", memory_text: "old transport" }),
+		});
+		const request = toolRequest();
+		request.tool.name = "personal_memory_recall";
+		await expect(executor(request)).rejects.toMatchObject({ code: "tool_contract_mismatch" });
+	});
 	it("classifies memory transport failure independently from Campus Search", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "http://127.0.0.1:1",

@@ -93,6 +93,24 @@ Actions access 必须允许这些 job 读取。权限由现有 promoter App 与 
 合并后等待环境仓定义的 reconcile、migration、rollout 和 readiness。不得绕过环境仓直接修改集群、
 流量或线上 Secret。
 
+## 个人记忆召回合同切换
+
+将记忆上下文格式化移入 Runtime 后，内部 recall 从 `{outcome, memory_text}` 改为
+`{facts, context_char_budget}`，工具注册表 fingerprint 随之改变。模型工具结果和产品接口维持原合同；
+不提供新旧传输的双解析。按现有维护窗口协同切换 execution API、execution Worker 和 agent-runtime：
+
+1. 由环境仓暂停新聊天、记忆命令准入与定时派发，保留现有依赖供在途执行收敛。
+2. 等待回答 workflow、独立 `memory.append/<request_id>`、个人记忆命令 workflow 和对应 Hindsight
+   operation 收敛。回答完成或 HTTP active requests 为零都不代表追加已结束；未知 operation 或未释放
+   lease 按既有恢复流程处理，不能通过删除 lease、清空 namespace 或 bank 宣告排空。
+3. 停止旧版本消费者，将 API、Worker、Runtime 切到同一工具合同的候选组合；确认旧进程退出后再恢复
+   准入。各服务 release 值仍用于诊断，不代替 fingerprint 检查。
+4. 用已准入的 recall 验证空结果与命中、模型工具输出和回答后追加，再恢复定时派发。
+5. 需要回退时重新暂停准入并排空，三个组件作为兼容组合回退；不能只回退一端。
+
+本次不迁移数据库 schema、Hindsight bank、generation 或异步追加身份；旧同步追加与 replay
+分支已在没有旧 workflow 的前提下删除。这里定义环境切换步骤；源码检查通过不表示实际环境已经切换。
+
 ## 失败处理
 
 - 候选物发布中断：对同一源码身份重试缺失步骤，不覆盖已有不可变产物；

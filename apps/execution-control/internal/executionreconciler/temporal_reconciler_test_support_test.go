@@ -16,7 +16,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/control"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolcontract"
 )
 
@@ -81,7 +80,7 @@ func newReconcilerTestHarness(
 		RunProjectionStore: store,
 	})
 	harness.reconciler = New(Options{
-		Finalizer:        control.NewFinalizer(harness.adapter),
+		Finalizer:        harness.adapter.FinalizationAdapter,
 		OperationTimeout: time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
 		Starter:          starter,
 		Store:            store,

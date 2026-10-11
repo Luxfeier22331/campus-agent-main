@@ -2,26 +2,44 @@ package executionapplication
 
 import (
 	"context"
-	"io"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioncontract"
 )
 
-// AgentRuntimeClient is the typed outbound port used by the Temporal adapter.
-// Response decoding remains with the activity owner because solve/replan
-// operations return structured JSON while answer synthesis returns SSE.
+// AgentRuntimeClient delivers decoded results and synchronous ordered stream events.
 type AgentRuntimeClient interface {
-	Execute(context.Context, AgentRuntimeRequest) (AgentRuntimeResponse, error)
+	Prepare(AgentRuntimeRequest) (string, error)
+	Execute(context.Context, AgentRuntimeRequest, func(AgentRuntimeEvent) error) (AgentRuntimeResult, error)
 }
 
 type AgentRuntimeRequest struct {
-	Body      []byte
-	RequestID string
-	Stream    bool
+	RequestID                string
+	ConversationID           string
+	UserID                   string
+	DeadlineAt               time.Time
+	ActivityAttempt          int
+	Operation                executioncontract.WorkflowOperation
+	Input                    map[string]any
+	VisibleFunctionToolNames []string
+	Limits                   RuntimeLimits
+	ModelTargetSHA256        string
+	ToolContractFingerprint  map[string]any
+	PriorEvidence            []executioncontract.WorkflowEvidence
+	PriorSourceAttempts      []executioncontract.WorkflowSourceAttempt
+	ConversationContext      map[string]any
+	StreamModelAnswer        bool
+	Stream                   bool
 }
-
-type AgentRuntimeResponse struct {
-	StatusCode int
-	Body       io.ReadCloser
+type RuntimeLimits struct {
+	AgentDeadlineMS       int
+	ContextCharLimit      int
+	CurrentInputCharLimit int
+	MaxOutputTokens       int
+	MaxFunctionToolCalls  int
+	MaxTurns              int
+	MaxPlanSteps          int
+	MaxReplans            int
 }
 
 // AgentRuntimeRequestError keeps request construction failures distinct from
@@ -46,44 +64,12 @@ func (err *AgentRuntimeRequestError) Unwrap() error {
 	return err.Cause
 }
 
-// ProductCallbackClient is the typed app-api callback port used by terminal
-// Temporal activities. It owns callback URL construction and HTTP policy;
-// Temporal owns the surrounding activity error mapping.
-type ProductCallbackClient interface {
-	WritePersonalMemoryCommandResult(context.Context, PersonalMemoryCommandResultRequest) error
+type ExecutionFinalizationClient interface {
 	WriteExecutionFinalization(context.Context, ExecutionFinalizationRequest) error
-}
-
-type PersonalMemoryCommandResultRequest struct {
-	CommandID string
-	ErrorCode string
-	Status    string
 }
 
 type ExecutionFinalizationRequest struct {
 	RequestID   string
 	CompletedAt time.Time
 	Response    map[string]any
-}
-
-// ProductCallbackError deliberately keeps the response body out of the error
-// value. It gives the Temporal adapter stable classification while preserving
-// the existing no-diagnostic-details contract.
-type ProductCallbackError struct {
-	Code  string
-	Cause error
-}
-
-func (err *ProductCallbackError) Error() string {
-	if err == nil || err.Code == "" {
-		return "product callback failed"
-	}
-	return "product callback failed"
-}
-
-func (err *ProductCallbackError) Unwrap() error {
-	if err == nil {
-		return nil
-	}
-	return err.Cause
 }

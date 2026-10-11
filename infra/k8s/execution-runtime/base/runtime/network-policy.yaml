@@ -9,6 +9,9 @@ spec:
         operator: In
         values:
           - agent-runtime
+          - agent-runtime-worker
+          - memory-service
+          - memory-worker
           - execution-control
   policyTypes: ["Ingress"]
   ingress:
@@ -19,6 +22,9 @@ spec:
                 operator: In
                 values:
                   - agent-runtime
+                  - agent-runtime-worker
+                  - memory-service
+                  - memory-worker
                   - execution-control
                   - execution-worker
         - podSelector:
@@ -43,6 +49,9 @@ spec:
         operator: In
         values:
           - agent-runtime
+          - agent-runtime-worker
+          - memory-service
+          - memory-worker
           - execution-control
           - execution-worker
   policyTypes: ["Egress"]
@@ -63,6 +72,9 @@ spec:
                 operator: In
                 values:
                   - agent-runtime
+                  - agent-runtime-worker
+                  - memory-service
+                  - memory-worker
                   - execution-control
                   - campus-search-service
       ports:
@@ -84,15 +96,6 @@ spec:
       ports:
         - protocol: TCP
           port: 7233
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: hindsight
-              app.kubernetes.io/instance: hindsight
-              app.kubernetes.io/component: api
-      ports:
-        - protocol: TCP
-          port: 8888
     - to:
         - podSelector:
             matchLabels:
@@ -121,6 +124,9 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: execution-control
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-runtime-worker
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: private-service-connector
@@ -367,7 +373,6 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -378,7 +383,7 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: In
-        values: [execution-worker, agent-runtime]
+        values: [execution-worker, agent-runtime, agent-runtime-worker]
   policyTypes: [Ingress]
   ingress:
     - from:
@@ -390,3 +395,28 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: memory-hindsight-egress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - memory-service
+          - memory-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hindsight
+              app.kubernetes.io/instance: hindsight
+              app.kubernetes.io/component: api
+      ports:
+        - protocol: TCP
+          port: 8888

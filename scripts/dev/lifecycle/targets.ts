@@ -46,6 +46,7 @@ export type LocalModelConfigName =
 	| "notice_classification";
 
 export type LocalBootstrapStep =
+	| "memory-schema"
 	| "campus-agent-schema"
 	| "model-config-seed"
 	| "model-config-check"
@@ -93,7 +94,12 @@ const consumers = {
 	core: {
 		projections: ["core"],
 		capabilities: ["postgres", "derived-bucket", "source-bucket", "temporal", "qdrant"],
-		bootstrap: ["campus-agent-schema", "app-api-seed-local-test-user", "temporal-namespace"],
+		bootstrap: [
+			"campus-agent-schema",
+			"memory-schema",
+			"app-api-seed-local-test-user",
+			"temporal-namespace",
+		],
 		models: ["primary_agent", "campus_docs_embedding", "campus_docs_reranker"],
 		runtime: ["core"],
 	},

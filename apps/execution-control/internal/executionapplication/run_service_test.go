@@ -14,7 +14,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 )
 
 var applicationTestNow = time.Date(2026, 9, 4, 1, 2, 3, 0, time.UTC)
@@ -123,19 +123,12 @@ func (*applicationTestMemoryExecutor) ExecuteCommand(
 	return memoryruntime.PersonalMemoryCommandResult{}, nil
 }
 
-func (*applicationTestMemoryExecutor) AppendConversationTurn(
-	context.Context,
-	memoryruntime.AppendConversationTurnRequest,
-) (memoryruntime.AppendConversationTurnResult, error) {
-	return memoryruntime.AppendConversationTurnResult{}, nil
-}
-
 func (executor *applicationTestMemoryExecutor) Recall(
 	_ context.Context,
 	request memoryruntime.RecallRequest,
 ) (memoryruntime.RecallResult, error) {
 	executor.request = request
-	return memoryruntime.RecallResult{ContextBlock: " remembered context "}, nil
+	return memoryruntime.RecallResult{Facts: []string{" remembered context "}, ContextCharBudget: 2500}, nil
 }
 
 func TestDurableRunFromCreateRequestPersistsOnlyInputReferenceMetadata(t *testing.T) {
@@ -251,13 +244,12 @@ func TestRunServiceCreatesRunAndStartIntentBeforeWakingReconciler(t *testing.T) 
 	}
 }
 
-func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testing.T) {
+func TestToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testing.T) {
 	store, run, _ := applicationTestRunningRun(t, false)
 	searcher := &applicationTestSearcher{}
-	service := NewAgentToolService(AgentToolServiceOptions{
+	service := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}),
 		CampusSearchClient: &applicationTestCampusSearchClient{searcher: searcher},
-		Store:              store,
-	})
+		Store:              store, Diagnostics: nil})
 	result, err := service.CampusSearch(context.Background(), CampusSearchRequest{
 		AccessContext: AgentToolAccessContext{
 			ActivityAttempt: 1,
@@ -308,16 +300,15 @@ func TestCampusSearchFailureCodePreservesExecutionStage(t *testing.T) {
 	}
 }
 
-func TestAgentToolServiceRejectsIndexChangeWithinRun(t *testing.T) {
+func TestToolServiceRejectsIndexChangeWithinRun(t *testing.T) {
 	store, run, _ := applicationTestRunningRun(t, false)
 	indexStore := &switchingApplicationTestIndexStore{collections: []string{
 		"campus_docs_" + strings.Repeat("a", 64),
 		"campus_docs_" + strings.Repeat("b", 64),
 	}}
-	service := NewAgentToolService(AgentToolServiceOptions{
+	service := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}),
 		CampusSearchClient: &applicationTestCampusSearchClient{searcher: &applicationTestSearcher{}, collections: indexStore.collections},
-		Store:              store,
-	})
+		Store:              store, Diagnostics: nil})
 	access := AgentToolAccessContext{
 		ActivityAttempt: 1, CitationStart: 1, InvocationID: "tool-index-race-1",
 		RequestID: run.RequestID, ResultLimit: 5, UserGoal: "查校务信息", WorkflowStepID: "task.step.step.lookup",
@@ -331,16 +322,15 @@ func TestAgentToolServiceRejectsIndexChangeWithinRun(t *testing.T) {
 	}
 }
 
-func TestAgentToolServiceSerializesConcurrentFirstIndexBinding(t *testing.T) {
+func TestToolServiceSerializesConcurrentFirstIndexBinding(t *testing.T) {
 	store, run, _ := applicationTestRunningRun(t, false)
 	indexStore := &switchingApplicationTestIndexStore{collections: []string{
 		"campus_docs_" + strings.Repeat("a", 64),
 		"campus_docs_" + strings.Repeat("b", 64),
 	}}
-	service := NewAgentToolService(AgentToolServiceOptions{
+	service := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}),
 		CampusSearchClient: &applicationTestCampusSearchClient{searcher: &applicationTestSearcher{}, collections: indexStore.collections},
-		Store:              store,
-	})
+		Store:              store, Diagnostics: nil})
 	base := AgentToolAccessContext{
 		ActivityAttempt: 1, CitationStart: 1, RequestID: run.RequestID, ResultLimit: 5,
 		UserGoal: "查校务信息", WorkflowStepID: "task.step.step.lookup",
@@ -369,13 +359,12 @@ func TestAgentToolServiceSerializesConcurrentFirstIndexBinding(t *testing.T) {
 	}
 }
 
-func TestAgentToolServiceBuildsPersonalMemoryRecallFromFrozenRunInput(t *testing.T) {
+func TestToolServiceBuildsPersonalMemoryRecallFromFrozenRunInput(t *testing.T) {
 	store, run, inputLoader := applicationTestRunningRun(t, true)
 	executor := &applicationTestMemoryExecutor{}
-	service := NewAgentToolService(AgentToolServiceOptions{
-		InputLoader:            inputLoader,
+	service := NewPersonalMemoryRecallToolService(PersonalMemoryRecallToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store, InputLoader: inputLoader}),
+
 		PersonalMemoryExecutor: executor,
-		Store:                  store,
 	})
 	result, err := service.PersonalMemoryRecall(context.Background(), PersonalMemoryRecallRequest{
 		AccessContext: AgentToolAccessContext{
@@ -389,7 +378,7 @@ func TestAgentToolServiceBuildsPersonalMemoryRecallFromFrozenRunInput(t *testing
 	if err != nil {
 		t.Fatalf("PersonalMemoryRecall returned error: %v", err)
 	}
-	if result["outcome"] != "matched" || result["memory_text"] != "remembered context" {
+	if len(result["facts"].([]string)) != 1 || result["facts"].([]string)[0] != " remembered context " || result["context_char_budget"] != 2500 {
 		t.Fatalf("personal memory result = %#v", result)
 	}
 	if executor.request.RequestID != run.RequestID ||
@@ -428,7 +417,7 @@ func TestCampusSearchSeparatesRetrievalExpressionAndUserGoal(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store, run, _ := applicationTestRunningRun(t, false)
 			searcher := &applicationTestSearcher{}
-			service := NewAgentToolService(AgentToolServiceOptions{Store: store, CampusSearchClient: &applicationTestCampusSearchClient{searcher: searcher}})
+			service := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}), Store: store, CampusSearchClient: &applicationTestCampusSearchClient{searcher: searcher}, Diagnostics: nil})
 			_, err := service.CampusSearch(t.Context(), CampusSearchRequest{
 				AccessContext: AgentToolAccessContext{RequestID: run.RequestID, UserGoal: " " + test.userGoal + " ", ResultLimit: 5, ActivityAttempt: 1, CitationStart: 1, InvocationID: "tool-campus-search-1", WorkflowStepID: "task.step.step.lookup"},
 				SearchQuery:   " " + test.searchQuery + " ",
@@ -597,10 +586,9 @@ func (missingApplicationTestIndexStore) CurrentIndex(context.Context) (campussea
 
 func TestCampusSearchReportsMissingIndexAsUnavailable(t *testing.T) {
 	store, run, _ := applicationTestRunningRun(t, false)
-	service := NewAgentToolService(AgentToolServiceOptions{
+	service := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}),
 		CampusSearchClient: &applicationTestCampusSearchClient{err: ErrCampusSearchUnavailable},
-		Store:              store,
-	})
+		Store:              store, Diagnostics: nil})
 	_, err := service.CampusSearch(context.Background(), CampusSearchRequest{
 		AccessContext: AgentToolAccessContext{
 			ActivityAttempt: 1, CitationStart: 1, InvocationID: "missing-index",
@@ -633,7 +621,7 @@ func TestCampusSearchPreservesFailureDetailForOps(t *testing.T) {
 	base, run, _ := applicationTestRunningRun(t, false)
 	store := &campusFailureDiagnosticStore{InMemoryRunProjectionStore: base, failed: make(chan campusdiagnostics.Observation, 1)}
 	const detail = `campus notice Qdrant payload schema "campus_rag_point.v999" is unsupported`
-	service := NewAgentToolService(AgentToolServiceOptions{CampusSearchClient: &applicationTestCampusSearchClient{err: errors.New(detail)}, Store: store})
+	service := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}), CampusSearchClient: &applicationTestCampusSearchClient{err: errors.New(detail)}, Store: store, Diagnostics: store})
 	_, err := service.CampusSearch(t.Context(), CampusSearchRequest{AccessContext: AgentToolAccessContext{ActivityAttempt: 1, CitationStart: 1, InvocationID: "call-diagnostic", RequestID: run.RequestID, ResultLimit: 5, UserGoal: "夜宵时间", WorkflowStepID: "task.step.step.lookup"}, SearchQuery: "夜宵时间"})
 	if err == nil {
 		t.Fatal("failure was hidden")
@@ -674,10 +662,9 @@ func TestNormalizeRelativeNoticeYears(t *testing.T) {
 func TestCampusSearchUsesOneResolvedYearForRetrievalAndRerank(t *testing.T) {
 	store, run, _ := applicationTestRunningRun(t, false)
 	searcher := &applicationTestSearcher{}
-	service := NewAgentToolService(AgentToolServiceOptions{
+	service := NewCampusSearchToolService(CampusSearchToolServiceOptions{Authorizer: NewRunToolAuthorizer(RunToolAuthorizerOptions{Store: store}),
 		CampusSearchClient: &applicationTestCampusSearchClient{searcher: searcher},
-		Store:              store,
-	})
+		Store:              store, Diagnostics: nil})
 	query := "我们学校去年中秋怎么放"
 	if _, err := service.CampusSearch(t.Context(), CampusSearchRequest{
 		AccessContext: AgentToolAccessContext{

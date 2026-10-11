@@ -58,8 +58,3 @@ type PersonalMemoryCommandRequest struct {
 	TenantID          string                     `json:"tenant_id"`
 	UserID            string                     `json:"user_id"`
 }
-
-type FinalizeMemoryAppendActivityInput struct {
-	RequestID   string `json:"request_id"`
-	FailureKind string `json:"failure_kind"`
-}

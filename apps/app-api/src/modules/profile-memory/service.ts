@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
-import { ExecutionControlTransportError } from "../integration/execution-control-transport";
 import { requireExecutionAdmission } from "../integration/execution-maintenance";
+import { MemoryServiceTransportError } from "../integration/memory-service-requester";
 import type { ProfileMemoryList, ProfileMemoryMutationResult, ProfileMemoryProfile } from "./model";
 import type {
 	ProfileMemoryCommandPayload,
@@ -115,7 +115,7 @@ async function mapFailure<T>(operation: () => Promise<T>): Promise<T> {
 				409,
 			);
 		}
-		if (cause instanceof ExecutionControlTransportError) {
+		if (cause instanceof MemoryServiceTransportError) {
 			throw error(cause.code, cause.message, cause.status);
 		}
 		throw cause;
@@ -268,9 +268,7 @@ export function buildProfileMemoryService(
 				} catch (cause) {
 					failed++;
 					const errorCode =
-						cause instanceof ExecutionControlTransportError
-							? cause.code
-							: "memory_admission_failed";
+						cause instanceof MemoryServiceTransportError ? cause.code : "memory_admission_failed";
 					await dependencies.commandStore.markAdmissionFailed({
 						commandId: command.commandId,
 						errorCode,
@@ -299,12 +297,6 @@ export function buildProfileMemoryService(
 						ownerUserId: command.ownerUserId,
 					});
 					if (status.status !== "succeeded" && status.status !== "failed") {
-						// A non-terminal receipt that went stale has a dead workflow.
-						// Re-admission restarts it under the same workflow id,
-						// which either resumes the command or is a no-op.
-						if (status.stale && dependencies.commandAdmitter) {
-							await dependencies.commandAdmitter.admit(command);
-						}
 						continue;
 					}
 					await service.applyResult({
@@ -314,19 +306,7 @@ export function buildProfileMemoryService(
 					});
 					reconciled++;
 				} catch (cause) {
-					let failure: unknown = cause;
-					if (
-						cause instanceof ExecutionControlTransportError &&
-						cause.code === "command_not_found" &&
-						dependencies.commandAdmitter
-					) {
-						try {
-							await dependencies.commandAdmitter.admit(command);
-							continue;
-						} catch (admissionCause) {
-							failure = admissionCause;
-						}
-					}
+					const failure: unknown = cause;
 					failed++;
 					console.error({
 						source: "app-api.memory-reconciler",

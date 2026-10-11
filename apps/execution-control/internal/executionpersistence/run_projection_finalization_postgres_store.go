@@ -77,6 +77,9 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 					"completed run identity differs from the request",
 				)
 			}
+			if _, err := tx.Exec(ctx, `update execution_control.agent_memory_deliveries set status='ready' where request_id=$1 and status='prepared'`, run.RequestID); err != nil {
+				return execution.RunProjectionFinalizeResult{}, err
+			}
 			if err := tx.Commit(ctx); err != nil {
 				return execution.RunProjectionFinalizeResult{}, err
 			}
@@ -99,6 +102,9 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 			return execution.RunProjectionFinalizeResult{}, err
 		}
 		if err := deleteConversationRunLockInTx(ctx, tx, completedRun); err != nil {
+			return execution.RunProjectionFinalizeResult{}, err
+		}
+		if _, err := tx.Exec(ctx, `update execution_control.agent_memory_deliveries set status='ready' where request_id=$1 and status='prepared'`, run.RequestID); err != nil {
 			return execution.RunProjectionFinalizeResult{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -155,6 +161,9 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 		return execution.RunProjectionFinalizeResult{}, err
 	}
 	if err := deleteConversationRunLockInTx(ctx, tx, completedRun); err != nil {
+		return execution.RunProjectionFinalizeResult{}, err
+	}
+	if _, err := tx.Exec(ctx, `update execution_control.agent_memory_deliveries set status='ready' where request_id=$1 and status='prepared'`, run.RequestID); err != nil {
 		return execution.RunProjectionFinalizeResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

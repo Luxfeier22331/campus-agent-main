@@ -2,7 +2,6 @@ package executionreadmodel
 
 import (
 	"context"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
@@ -20,9 +19,9 @@ type Reader interface {
 	ListStepResults(context.Context, string) ([]execution.StepResultProjection, error)
 }
 
-type StoreReader struct{ store executionapplication.RunStore }
+type StoreReader struct{ store Reader }
 
-func NewStoreReader(store executionapplication.RunStore) Reader { return StoreReader{store: store} }
+func NewStoreReader(store Reader) Reader { return StoreReader{store: store} }
 func (r StoreReader) GetRun(ctx context.Context, id string) (execution.DurableRun, error) {
 	return r.store.GetRun(ctx, id)
 }

@@ -14,6 +14,7 @@ const resources = {
 	hyperdriveId: "11111111111111111111111111111111",
 	objectStoreVpcServiceId: "44444444-4444-4444-8444-444444444444",
 	vpcServiceId: "33333333-3333-4333-8333-333333333333",
+	memoryServiceVpcServiceId: "55555555-5555-4555-8555-555555555555",
 };
 
 describe("app-api staging upload config", () => {
@@ -34,6 +35,10 @@ describe("app-api staging upload config", () => {
 			expect.objectContaining({
 				binding: "EXECUTION_CONTROL_PRIVATE",
 				service_id: resources.vpcServiceId,
+			}),
+			expect.objectContaining({
+				binding: "MEMORY_SERVICE_PRIVATE",
+				service_id: resources.memoryServiceVpcServiceId,
 			}),
 			expect.objectContaining({
 				binding: "OBJECT_STORE_PRIVATE",
@@ -105,6 +110,7 @@ describe("app-api staging upload config", () => {
 	it("passes through only the Worker object-store identities in the upload secret file", () => {
 		const environment = {
 			APP_API_EXECUTION_SHARED_SECRET: "execution-test",
+			MEMORY_INTERNAL_SHARED_SECRET: "memory-test",
 			OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-write-test",
 			OBJECT_STORE_DERIVED_SECRET_KEY: "derived-write-secret-test",
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "derived-read-test",

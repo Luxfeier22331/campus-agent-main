@@ -41,6 +41,7 @@ test("active image target registry excludes the historical schema image", () => 
 		"notice-pipeline-worker",
 		"document-ocr",
 		"execution-control",
+		"memory-service",
 		"campus-search-service",
 		"model-config",
 		"notice-artifacts-worker",

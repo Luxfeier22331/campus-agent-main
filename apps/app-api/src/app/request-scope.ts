@@ -23,10 +23,10 @@ import {
 } from "../modules/dining";
 import { buildEmailAccessService, createPgEmailAccessGrantStore } from "../modules/email-access";
 import {
-	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
+import { createMemoryServiceClient } from "../modules/integration/memory-service";
 import {
 	buildNoticeService,
 	createNoticeObjectStore,
@@ -91,9 +91,9 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				if (!memory) {
 					memory = buildProfileMemoryService({
 						executionMaintenance: input.env.EXECUTION_MAINTENANCE === "true",
-						commandAdmitter: createExecutionControlPersonalMemoryClient(input.env),
-						commandStatusReader: createExecutionControlPersonalMemoryClient(input.env),
-						memoryReader: createExecutionControlPersonalMemoryClient(input.env),
+						commandAdmitter: createMemoryServiceClient(input.env),
+						commandStatusReader: createMemoryServiceClient(input.env),
+						memoryReader: createMemoryServiceClient(input.env),
 						commandStore: persistence.commands,
 						mutationStore: persistence.mutations,
 						readStore: persistence.reads,
@@ -145,6 +145,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 					(accountLifecycle ??= buildAccountLifecycleService({
 						executionMaintenance: input.env.EXECUTION_MAINTENANCE === "true",
 						diningLifecycleService: resolveDiningLifecycleService(),
+						memoryController: createMemoryServiceClient(input.env),
 						executionController: executionRuntime ?? createExecutionControlRuntimeClient(input.env),
 						profileMemoryService: resolveProfileMemoryService(),
 						removeAuthUser: async (userId) => {

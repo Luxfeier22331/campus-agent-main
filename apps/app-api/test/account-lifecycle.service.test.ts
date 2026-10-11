@@ -49,6 +49,7 @@ function diningDeletionFixture(executionMaintenance = false) {
 		requestDeletion: vi.fn(),
 	};
 	const service = buildAccountLifecycleService({
+		memoryController: { finalizeOwnerDeletion: async () => undefined },
 		executionMaintenance,
 		diningLifecycleService: { eraseForAccountDeletion },
 		executionController: executionController(),
@@ -146,6 +147,7 @@ describe("account lifecycle service", () => {
 			.fn()
 			.mockResolvedValue({ requestId: "acctdel_1", status: "deleting" });
 		const service = buildAccountLifecycleService({
+			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: {} as never,
@@ -185,6 +187,7 @@ describe("account lifecycle service", () => {
 			.mockResolvedValue([]);
 		const defer = vi.fn().mockResolvedValue(true);
 		const service = buildAccountLifecycleService({
+			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: { dispatchPending, eraseForAccountDeletion },
@@ -228,6 +231,7 @@ describe("account lifecycle service", () => {
 		const recordFailure = vi.fn();
 		const completeDeletion = vi.fn();
 		const service = buildAccountLifecycleService({
+			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: {
@@ -268,6 +272,7 @@ describe("account lifecycle service", () => {
 		const removeAuthUser = vi.fn();
 		const completeDeletion = vi.fn();
 		const service = buildAccountLifecycleService({
+			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: {
@@ -319,6 +324,7 @@ describe("account lifecycle service", () => {
 			];
 		});
 		const service = buildAccountLifecycleService({
+			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
 			executionController: executionController(),
 			profileMemoryService: {

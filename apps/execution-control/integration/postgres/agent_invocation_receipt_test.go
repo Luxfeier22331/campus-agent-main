@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
 	workflowcontract "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/contract"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -241,7 +241,7 @@ type receiptProvider struct {
 	fingerprint map[string]any
 }
 
-func (p *receiptProvider) Execute(context.Context, executionapplication.AgentRuntimeRequest) (executionapplication.AgentRuntimeResponse, error) {
+func (p *receiptProvider) Execute(_ context.Context, request executionapplication.AgentRuntimeRequest, handle func(executionapplication.AgentRuntimeEvent) error) (executionapplication.AgentRuntimeResult, error) {
 	p.calls++
 	completed, err := json.Marshal(map[string]any{
 		"request_id": p.requestID, "operation": "solve", "solve_outcome": "answer", "status": "completed",
@@ -249,8 +249,12 @@ func (p *receiptProvider) Execute(context.Context, executionapplication.AgentRun
 		"usage": map[string]any{"input_tokens": 12, "output_tokens": 8, "model_request_count": 1, "usage_observed": true},
 	})
 	if err != nil {
-		return executionapplication.AgentRuntimeResponse{}, err
+		return executionapplication.AgentRuntimeResult{}, err
 	}
 	body := fmt.Sprintf("event: solve_decision\ndata: {\"schema_version\":\"workflow_runtime_solve_decision.v1\",\"outcome\":\"answer\"}\n\nevent: completed\ndata: %s\n\n", completed)
-	return executionapplication.AgentRuntimeResponse{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+	return outboundadapter.DecodeAgentRuntimeResponse(200, strings.NewReader(body), request.Stream, handle)
+}
+
+func (c *receiptProvider) Prepare(r executionapplication.AgentRuntimeRequest) (string, error) {
+	return outboundadapter.NewAgentRuntimeClient(config.Config{}).Prepare(r)
 }

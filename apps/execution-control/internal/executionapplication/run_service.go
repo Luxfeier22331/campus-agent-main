@@ -30,6 +30,8 @@ type RunServiceOptions struct {
 	Store                         RunStore
 	StoreError                    error
 	TaskQueue                     string
+	RuntimePercent                int
+	MemoryExternal                bool
 }
 
 type RunService struct {
@@ -44,6 +46,8 @@ type RunService struct {
 	store                         RunStore
 	storeError                    error
 	taskQueue                     string
+	runtimePercent                int
+	memoryExternal                bool
 }
 
 type CreateRunRequest struct {
@@ -95,6 +99,8 @@ func NewRunService(options RunServiceOptions) *RunService {
 		store:                         options.Store,
 		storeError:                    options.StoreError,
 		taskQueue:                     taskQueue,
+		runtimePercent:                options.RuntimePercent,
+		memoryExternal:                options.MemoryExternal,
 	}
 }
 
@@ -211,7 +217,13 @@ func (s *RunService) workflowInputForRun(
 	if err != nil {
 		return execution.WorkflowStartInput{}, err
 	}
+	taskQueue := s.taskQueue
+	bucket := sha256.Sum256([]byte(run.OwnerUserID))
+	if (int(bucket[0])*256+int(bucket[1]))%100 < s.runtimePercent {
+		taskQueue = execution.AgentRuntimeWorkflowTaskQueue
+	}
 	workflowInput := execution.WorkflowStartInput{
+		MemoryDeliveryExternal:       s.memoryExternal,
 		DeadlineAt:                   run.CreatedAt.Add(time.Duration(admissionSnapshot.AgentLimits.AgentDeadlineMS) * time.Millisecond),
 		AdmissionSnapshot:            admissionSnapshot,
 		AdmissionSnapshotSHA256:      execution.SHA256JSONRef(admissionSnapshot),
@@ -220,11 +232,11 @@ func (s *RunService) workflowInputForRun(
 		PayloadSHA256:                inputMetadata.ExecutionInputSHA256,
 		PersonalMemoryTimeoutSeconds: s.personalMemoryTimeoutSeconds,
 		RequestID:                    run.RequestID,
-		TaskQueue:                    s.taskQueue,
+		TaskQueue:                    taskQueue,
 		TraceParent:                  strings.TrimSpace(request.TraceParent),
 		WorkflowID:                   "campus-agent.chat." + run.RequestID,
 	}
-	if workflowInput.TaskQueue != execution.WorkflowTaskQueue {
+	if workflowInput.TaskQueue != execution.WorkflowTaskQueue && workflowInput.TaskQueue != execution.AgentRuntimeWorkflowTaskQueue {
 		return execution.WorkflowStartInput{}, errors.New("execution task queue is not v3")
 	}
 	return workflowInput, nil

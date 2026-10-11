@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memorypersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
 )
 
 func TestPersonalMemoryCommandStatusRequiresAuthorizationAndOwnerScope(t *testing.T) {
@@ -38,7 +39,7 @@ func TestPersonalMemoryCommandStatusRequiresAuthorizationAndOwnerScope(t *testin
 	server := NewServerWithOptions(config.Config{
 		AppAPIExecutionSharedSecret: "secret",
 		PersonalMemoryOwnerSalt:     ownerSalt,
-	}, ServerOptions{PersonalMemoryStateStore: state})
+	}, ServerOptions{MemoryManagement: memoryapplication.NewMemoryManagementService(memoryapplication.MemoryManagementOptions{Store: state, OwnerSalt: ownerSalt})})
 
 	requestStatusFor := func(commandID string, user string, auth string) *httptest.ResponseRecorder {
 		t.Helper()
@@ -96,7 +97,7 @@ func TestPersonalMemoryCommandStatusReturnsUnavailableWhenStateStoreIsNotReady(t
 	server := NewServerWithOptions(config.Config{
 		AppAPIExecutionSharedSecret: "secret",
 		PersonalMemoryOwnerSalt:     "test-owner-salt",
-	}, ServerOptions{PersonalMemoryStateError: context.Canceled})
+	}, ServerOptions{MemoryManagement: memoryapplication.NewMemoryManagementService(memoryapplication.MemoryManagementOptions{StoreError: context.Canceled})})
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/memory/personal/commands/status",

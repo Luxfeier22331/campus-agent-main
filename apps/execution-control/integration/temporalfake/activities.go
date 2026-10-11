@@ -13,8 +13,8 @@ import (
 // HTTP integration overrides the finalizers that write its run projections.
 type Activities struct{}
 
-func (Activities) AdvanceMemoryAppendActivity(_ context.Context, input temporalruntime.MemoryAppendWorkflowInput) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
-	return temporalruntime.AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil
+func (Activities) AdvanceMemoryAppendActivity(_ context.Context, input temporalruntime.MemoryAppendWorkflowInput) (temporalruntime.AdvanceMemoryAppendActivityOutput, error) {
+	return temporalruntime.AdvanceMemoryAppendActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil
 }
 
 const workflowTestGoal = "查询并整理校园信息"
@@ -54,22 +54,6 @@ func (Activities) WritePersonalMemoryCommandResultActivity(
 	context.Context,
 	temporalruntime.PersonalMemoryCommandActivityOutput,
 ) error {
-	return nil
-}
-
-func (Activities) AppendConversationMemoryActivity(
-	_ context.Context,
-	input temporalruntime.AppendConversationMemoryActivityInput,
-) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
-	return temporalruntime.AppendConversationMemoryActivityOutput{
-		AppendedMessageCount: 1,
-		RequestID:            input.RequestID,
-		SchemaVersion:        "memory_conversation_append_result_v3",
-		Status:               "completed",
-	}, nil
-}
-
-func (Activities) FinalizeMemoryAppendActivity(context.Context, temporalruntime.FinalizeMemoryAppendActivityInput) error {
 	return nil
 }
 

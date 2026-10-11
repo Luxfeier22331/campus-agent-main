@@ -565,6 +565,9 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 	); err != nil {
 		return execution.DurableRun{}, err
 	}
+	if _, err := tx.Exec(ctx, `delete from execution_control.agent_memory_deliveries where request_id=$1 and status='prepared'`, run.RequestID); err != nil {
+		return execution.DurableRun{}, err
+	}
 	if err := insertDurableRunEventInTx(ctx, tx, run, request.TerminalEvent); err != nil {
 		if errors.Is(err, execution.ErrInvalidRunEvent) {
 			return execution.DurableRun{}, fmt.Errorf("%w: %v", execution.ErrDurableRunFailureConflict, err)

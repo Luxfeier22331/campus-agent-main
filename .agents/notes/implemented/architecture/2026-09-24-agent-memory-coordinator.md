@@ -27,7 +27,7 @@ provider operation ID 和未知状态不得重提的规则继续有效。
 即真实删除收敛后才放行注销。数据库 `lifecycle_state` 无 check 约束、
 `accepted_lifecycle_state` CHECK 已含 `erased`，无需迁移；遗留 `erasing` 行靠重试逻辑自愈。
 
-### 阻塞 receipt 的收敛（2026-09-26 更新）
+### 阻塞 receipt 的收敛（2026-09-26 更新；erase 陈旧 receipt 决定已被取代）
 
 命令链此前存在三条无界路径：后继命令在 owner gate 上无限等待前置 receipt；finalizer 里
 `BeginCommand` 遇 `ErrMemoryReceiptBlocked` 以无限重试死循环；erase 排空被 workflow 已死的
@@ -38,9 +38,9 @@ provider operation ID 和未知状态不得重提的规则继续有效。
   上退避重试（1s 起、10s 封顶），总等待 30 分钟后以 `memory_command_wait_timeout` 失败终态化。
   30 分钟超过所有活跃重试链；等待中的 workflow 每次重试都真实探测 gate，不引入轮询组件。
 - **receipt 陈旧判定**：receipt 增加 `updated_at` 触碰时间（每次状态迁移都刷新）。非终态且
-  超过 `memoryruntime.CommandReceiptStaleAfter`（10 分钟，超过 lease TTL + 退避的最坏活跃
-  触碰间隔）未被触碰的 receipt 判为 stale——只有 workflow 已死的 receipt 才会 stale。陈旧
-  判定只由 execution-control 做，status 接口只暴露 `stale` 布尔值，app-api 不重复计算。
+  超过 `memoryruntime.CommandReceiptStaleAfter`（10 分钟）未被触碰的 receipt 判为 stale。
+  这只是本地恢复信号，不能证明 workflow 或 provider operation 已停止；判定只由
+  execution-control 做，status 接口只暴露 `stale` 布尔值，app-api 不重复计算。
 - **app-api 重新准入**：memory 定时 reconcile 对非终态且 `stale` 的已准入命令重新 `admit`
   （同 workflow ID，`AlreadyStarted` 被吞掉，要么恢复要么 no-op），与既有 404 `command_not_found`
   重新准入同形态。恢复必须由 app-api 执行，因为 EC receipt 刻意不保存命令 payload（隐私约束）。
@@ -48,10 +48,11 @@ provider operation ID 和未知状态不得重提的规则继续有效。
   receipt；缺失 receipt（`ErrMemoryCommandNotFound`）直接放行结果到 callback，由上述 404
   重新准入路径兜底。同时 `FinalizeCommand` 对缺失 receipt 从 `ErrMemoryFenceConflict` 改为
   `ErrMemoryCommandNotFound`，finalizer 据此区分"没赶上"与"身份冲突"。
-- **erase 排空放弃陈旧 receipt**：erase 等待 drain 时先对上一代执行
-  `AbandonStaleGenerationReceipts`（10 分钟 margin），把孤儿 receipt 以
-  `failed` / `memory_receipt_abandoned` 终态化（fingerprint 与 finalizer 同公式，幂等重放
-  不冲突），再复查 drain。新鲜 receipt 仍由复活路径兜底。
+- **erase 排空保留未决 receipt**：旧决定曾把超过 10 分钟未触碰的 receipt 终态化；这把本地
+  触碰间隔误当成 provider operation 已停止的证据。现由[命令结果不确定性修复](./2026-10-10-memory-command-uncertainty.md)
+  取代：stale 只触发同一 command 的重新准入和恢复，不能释放旧 generation 的排空屏障。
+  其他收敛决定（有界 owner gate 等待、receipt stale 判定、app-api 同命令重新准入、finalizer
+  不创建 receipt）仍有效。
 
 取舍：崩溃或恢复重放后 provider 可能 at-least-once 执行，与既有 SDK activity 重试语义一致；
 双重追加受 supersession/fence 约束且终结。`(owner_scope_hash, generation)` 索引仍为规模
@@ -167,3 +168,4 @@ app-api 对 stale/404 重新准入（vitest）。覆盖缺口：真实 Hindsight
 - [Hindsight 自托管个人记忆](./2026-07-16-hindsight.md)
 - [Hindsight 记忆生命周期](./2026-07-17-hindsight-lifecycle.md)
 - [异步记忆追加](../../implemented/bug-fix/2026-09-19-async-memory-append.md)
+- [命令结果不确定性修复](./2026-10-10-memory-command-uncertainty.md)

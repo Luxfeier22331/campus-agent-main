@@ -118,6 +118,10 @@ func (s *Starter) startToolExecutionWorkflow(
 	if workflowExecutionTimeout <= 0 {
 		workflowExecutionTimeout = defaultWorkflowExecutionTTL
 	}
+	var workflowType any = ToolExecutionWorkflow
+	if taskQueue == "campus-agent.agent.workflow.v1" {
+		workflowType = "AgentWorkflow"
+	}
 	workflowRun, err := s.client.ExecuteWorkflow(
 		startCtx,
 		client.StartWorkflowOptions{
@@ -138,7 +142,7 @@ func (s *Starter) startToolExecutionWorkflow(
 			WorkflowIDReusePolicy:                    enumspb.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
 			WorkflowExecutionErrorWhenAlreadyStarted: true,
 		},
-		ToolExecutionWorkflow,
+		workflowType,
 		input,
 	)
 	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted

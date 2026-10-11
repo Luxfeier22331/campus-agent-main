@@ -24,6 +24,9 @@ export interface LocalDevPorts {
 
 export interface LocalDevRuntimePorts {
 	agentRuntime: number;
+	agentWorker: number;
+	memoryApi: number;
+	memoryWorker: number;
 	campusSearch: number;
 	executionControl: number;
 	executionWorker: number;
@@ -91,6 +94,9 @@ export function calculateLocalDevRuntimePorts(slot: number): LocalDevRuntimePort
 	assertSlot(slot);
 	return {
 		agentRuntime: 27_062 + slot * 100,
+		agentWorker: 27_063 + slot * 100,
+		memoryApi: 27_055 + slot * 100,
+		memoryWorker: 27_056 + slot * 100,
 		executionControl: 27_051 + slot * 100,
 		executionWorker: 27_052 + slot * 100,
 		modelConfig: 27_053 + slot * 100,

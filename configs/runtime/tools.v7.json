@@ -24,7 +24,7 @@
 			"read_only": true,
 			"requires_approval": false,
 			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload",
-			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult",
+			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResponse",
 			"handler": {
 				"type": "execution_control_internal_query",
 				"endpoint": "/internal/memory/personal/recall"

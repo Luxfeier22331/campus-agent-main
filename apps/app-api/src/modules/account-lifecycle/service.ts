@@ -87,6 +87,9 @@ export function buildAccountLifecycleService(
 						continue;
 					}
 					if (await dependencies.store.isMemoryErased(request.ownerUserId)) {
+						await dependencies.memoryController.finalizeOwnerDeletion({
+							ownerUserId: request.ownerUserId,
+						});
 						const finalizedExecution = await dependencies.executionController.finalizeOwnerDeletion(
 							{
 								ownerUserId: request.ownerUserId,

@@ -7,7 +7,7 @@ import {
 	type GenerateContentParameters,
 	type GenerateContentResponse,
 } from "@google/genai";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type {
 	AgentRunnerAnswerDelta,
@@ -19,9 +19,12 @@ import {
 	createGeminiRunner,
 	createStreamingGeminiRunner,
 	geminiGrounding,
+	runGeminiModelTurn,
 } from "../src/gemini-runner.ts";
 import { createConfiguredRunner } from "../src/provider-config.ts";
 import { solveSdkOutputSchema } from "../src/workflow-runtime.ts";
+
+import { memoryRecallTool, recalledMemory } from "./helpers/memory-recall.ts";
 
 function input(overrides: Partial<AgentRunnerInput> = {}): AgentRunnerInput {
 	return {
@@ -79,7 +82,173 @@ function scripted(responses: GenerateContentResponse[]) {
 	return { requests, models: { generateContent, generateContentStream: vi.fn() } };
 }
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("Gemini native runner", () => {
+	it.each([false, true])(
+		"sends all three tools and JSON instructions through the SDK (publishes deltas=%s)",
+		async (publishesDeltas) => {
+			const bodies: Array<{
+				generationConfig?: Record<string, unknown>;
+				systemInstruction?: unknown;
+				contents?: unknown;
+				toolConfig?: unknown;
+				tools: Array<{
+					functionDeclarations: Array<{ name: string; parametersJsonSchema: unknown }>;
+				}>;
+			}> = [];
+			const outputs = [
+				{
+					...response(""),
+					candidates: [
+						{
+							content: {
+								role: "model",
+								parts: [
+									{
+										functionCall: { name: "personal_memory_recall", args: { query: "偏好" } },
+										thoughtSignature: "signed",
+									},
+								],
+							},
+							finishReason: "STOP",
+						},
+					],
+				},
+				response('{"result":{"outcome":"answer","answer":"喜欢乌龙茶"}}'),
+			];
+			vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+				const request = new Request(url, init);
+				bodies.push(await request.json());
+				const payload = outputs.shift();
+				return new Response(`data: ${JSON.stringify(payload)}\n\n`, {
+					headers: { "content-type": "text/event-stream" },
+				});
+			});
+			const request = input({
+				operation: "solve",
+				allowWebSearch: true,
+				outputSchema: { name: "solve", schema: z.toJSONSchema(solveSdkOutputSchema) },
+				tools: [{ ...memoryRecallTool(), name: "campus_search" }, memoryRecallTool()],
+			});
+			const delta = publishesDeltas
+				? async (_text: string) => {
+						/* consume delta */
+					}
+				: undefined;
+			const first = await runGeminiModelTurn(request, undefined, delta);
+			expect(first.calls[0]?.name).toBe("personal_memory_recall");
+			expect(first.continuation.provider).toBe("gemini");
+			if (first.continuation.provider !== "gemini") {
+				throw new Error("wrong protocol");
+			}
+			const result = await runGeminiModelTurn(
+				request,
+				{
+					provider: "gemini",
+					contents: [
+						...first.continuation.contents,
+						{
+							role: "user",
+							parts: [
+								{
+									functionResponse: {
+										name: "personal_memory_recall",
+										response: { memory_text: "喜欢乌龙茶" },
+									},
+								},
+							],
+						},
+					],
+				},
+				delta,
+			);
+			expect(result.result.finalOutput).toBe("喜欢乌龙茶");
+			for (const body of bodies) {
+				expect(body.generationConfig ?? {}).not.toHaveProperty("responseMimeType");
+				expect(body.generationConfig ?? {}).not.toHaveProperty("responseJsonSchema");
+				expect(body.generationConfig ?? {}).not.toHaveProperty("responseSchema");
+				expect(JSON.stringify(body.systemInstruction)).toContain(
+					"Output a JSON object matching this application contract",
+				);
+				expect(body.toolConfig).toEqual({
+					includeServerSideToolInvocations: true,
+					functionCallingConfig: { mode: "VALIDATED" },
+				});
+				expect(
+					body.tools[0]?.functionDeclarations.map((tool: { name: string }) => tool.name),
+				).toEqual(["campus_search", "personal_memory_recall"]);
+				expect(body.tools[0]?.functionDeclarations[1]?.parametersJsonSchema).toEqual(
+					request.tools[1]?.parameters,
+				);
+				expect(body.tools[1]).toEqual({ googleSearch: {} });
+			}
+			expect(JSON.stringify(bodies[1]?.contents)).toContain("signed");
+			expect(JSON.stringify(bodies[1]?.contents)).toContain("functionResponse");
+		},
+	);
+
+	it("retains the Gemini rejection status and explicit reason in a model turn", async () => {
+		await expect(
+			runGeminiModelTurn(input(), undefined, undefined, {
+				createModels: () => ({
+					generateContent: vi.fn(),
+					generateContentStream: async () =>
+						({
+							[Symbol.asyncIterator]() {
+								throw new ApiError({
+									status: 400,
+									message: JSON.stringify({
+										error: {
+											message: "Enable include_server_side_tool_invocations",
+											private_body: "not retained",
+										},
+									}),
+								});
+							},
+						}) as never,
+				}),
+			}),
+		).rejects.toMatchObject({
+			failure: {
+				code: "run_failed",
+				operation: "agent.model",
+				httpStatus: 400,
+				detail: "Gemini returned HTTP 400: Enable include_server_side_tool_invocations",
+			},
+		});
+	});
+
+	it("passes formatted recall to the model and records the same tool result", async () => {
+		const call = response("");
+		call.candidates[0].content.parts = [
+			{ functionCall: { id: "recall", name: "personal_memory_recall", args: { query: "偏好" } } },
+		];
+		const script = scripted([call, response("已找到偏好。")]);
+		const result = await createGeminiRunner({ createModels: () => script.models })(
+			input({ tools: [memoryRecallTool()] }),
+		);
+		expect(result.toolResults[0]).toMatchObject({
+			toolName: "personal_memory_recall",
+			result: recalledMemory,
+		});
+		expect(script.requests[1]?.contents).toEqual(
+			expect.arrayContaining([
+				{
+					role: "user",
+					parts: [
+						{
+							functionResponse: {
+								name: "personal_memory_recall",
+								id: "recall",
+								response: { status: "completed", result: recalledMemory },
+							},
+						},
+					],
+				},
+			]),
+		);
+	});
 	it("observes Gemini server tool parts without leaking them into answer text", async () => {
 		const reportRetrieval = vi.fn();
 		const generateContentStream = vi.fn(async function* (_request: GenerateContentParameters) {
@@ -411,7 +580,7 @@ describe("Gemini native runner", () => {
 			},
 		});
 	});
-	it("uses native structured output and unwraps Solve", async () => {
+	it("requests JSON through instructions without provider output constraints and unwraps Solve", async () => {
 		const script = scripted([
 			response(JSON.stringify({ result: { answer: "你好", outcome: "answer" } })),
 		]);
@@ -425,13 +594,10 @@ describe("Gemini native runner", () => {
 			finalOutput: "你好",
 			structuredOutput: { answer: "你好", outcome: "answer" },
 		});
-		expect(script.requests[0]?.config).toMatchObject({ responseMimeType: "application/json" });
-		expect(JSON.stringify(script.requests[0]?.config?.responseJsonSchema)).not.toContain('"const"');
-		expect(JSON.stringify(script.requests[0]?.config?.responseJsonSchema)).not.toContain(
-			'"maxLength"',
-		);
-		expect(JSON.stringify(script.requests[0]?.config?.responseJsonSchema)).not.toContain(
-			'"maxItems"',
+		expect(script.requests[0]?.config).not.toHaveProperty("responseMimeType");
+		expect(script.requests[0]?.config).not.toHaveProperty("responseJsonSchema");
+		expect(script.requests[0]?.config?.systemInstruction).toContain(
+			JSON.stringify(z.toJSONSchema(solveSdkOutputSchema)),
 		);
 	});
 	it("round-trips RAG results and preserves the full signed model content", async () => {

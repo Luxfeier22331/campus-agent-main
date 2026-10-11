@@ -1,10 +1,11 @@
 package temporalruntime
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/mock"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
-	"testing"
 )
 
 func TestExecutorOutputFailurePreservesMaterials(t *testing.T) {
@@ -176,7 +177,7 @@ func TestValidAnswerCompletesWithoutSourceEvidence(t *testing.T) {
 			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.MatchedBy(func(actual WriteWorkflowFinalizationActivityInput) bool {
 				return actual.WorkflowResult.FinalOutput == "暂未找到相关资料。"
 			})).Return(WorkflowFinalizationActivityOutput{Status: "completed"}, nil).Once()
-			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{Status: "completed"}, nil).Once()
+
 			env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 			if err := env.GetWorkflowError(); err != nil {
 				t.Fatalf("valid answer failed: %v", err)
