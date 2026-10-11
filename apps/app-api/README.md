@@ -57,6 +57,14 @@ Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET
 输入。认证邮件仅在实际发送时读取 `AUTH_EMAIL_FROM` 和 `RESEND_API_KEY`；`AUTH_EMAIL_FROM` 同时作为
 发件人与回复地址。缺失这些值不会阻止已验证用户登录或刷新会话，但相应邮件操作会明确失败。
 
+## 集群私有通信
+
+Control 与 Memory 产品接口统一通过 `CLUSTER_PRIVATE_API` VPC binding 和 `CLUSTER_PRIVATE_ORIGIN`
+调用 `cluster-private-ingress`，使用 `EDGE_INGRESS_SHARED_SECRET`；本地改用 `CLUSTER_PRIVATE_BASE_URL`。
+Worker 不持有 Memory 内部 secret 或 Control 入站 secret。`APP_API_EXECUTION_SHARED_SECRET`
+只保留产品回调认证用途，Object Store 仍使用独立 binding。
+路由与部署边界见 [cluster-private-ingress](../cluster-private-ingress/README.md)。
+
 ## 本地命令
 
 ```bash

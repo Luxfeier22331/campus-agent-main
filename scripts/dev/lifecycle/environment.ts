@@ -84,6 +84,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	modelConfig: "apps/model-config/.env.local",
 	agentRuntime: "apps/agent-runtime/.env.local",
 	memoryService: "apps/memory-service/.env.local",
+	clusterPrivateIngress: "apps/cluster-private-ingress/.env.local",
 	noticeClassifier: "jobs/notice-classifier/.env.local",
 	noticePublisher: "jobs/notice-publisher/.env.local",
 	opsWeb: "apps/ops-web/.env.local",
@@ -119,6 +120,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 		"executionControl",
 		"agentRuntime",
 		"memoryService",
+		"clusterPrivateIngress",
 	],
 	"model-config": ["modelConfig"],
 	"ops-web": ["opsWeb"],
@@ -366,6 +368,11 @@ export function renderLocalEnvironmentFiles(input: {
 						existingSecrets.APP_API_EXECUTION_SHARED_SECRET,
 						executionControlEnvironment.EXECUTION_AGENT_RUNTIME_SHARED_SECRET,
 					],
+					edgeIngressSecret: [existingSecrets.EDGE_INGRESS_SHARED_SECRET],
+					controlIngressSecret: [
+						executionControlEnvironment.EXECUTION_CONTROL_INGRESS_SHARED_SECRET,
+					],
+					memoryInternalSecret: [],
 					opsWebInternalToken: [
 						existingSecrets.OPS_WEB_INTERNAL_TOKEN,
 						executionControlEnvironment.OPS_WEB_INTERNAL_TOKEN,
@@ -392,10 +399,8 @@ export function renderLocalEnvironmentFiles(input: {
 			AUTH_SHELL_ORIGIN: `http://127.0.0.1:${profile.ports.campusWeb}`,
 			AUTH_TURNSTILE_SECRET_KEY: "local-turnstile-disabled",
 			BETTER_AUTH_SECRET: localSecrets?.betterAuthSecret ?? "",
-			EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
-
-			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
-			MEMORY_INTERNAL_SHARED_SECRET: executionSharedSecret,
+			CLUSTER_PRIVATE_BASE_URL: `http://127.0.0.1:${runtimePorts.clusterPrivateIngress}`,
+			EDGE_INGRESS_SHARED_SECRET: localSecrets?.edgeIngressSecret ?? "",
 			...objectStore,
 			OBJECT_STORE_LOCAL_BASE_URL: `${objectStoreEndpoint}/${profile.bucketName}/`,
 			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
@@ -412,8 +417,19 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 		});
 	}
+	if (shouldRender("clusterPrivateIngress")) {
+		writeManagedEnv(paths.clusterPrivateIngress, {
+			LISTEN_ADDR: `127.0.0.1:${runtimePorts.clusterPrivateIngress}`,
+			EDGE_INGRESS_SHARED_SECRET: localSecrets?.edgeIngressSecret ?? "",
+			EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
+			EXECUTION_CONTROL_INGRESS_SHARED_SECRET: localSecrets?.controlIngressSecret ?? "",
+			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
+			MEMORY_INTERNAL_SHARED_SECRET: localSecrets?.memoryInternalSecret ?? "",
+		});
+	}
 	if (shouldRender("executionControl")) {
 		writeManagedEnv(paths.executionControl, {
+			EXECUTION_CONTROL_INGRESS_SHARED_SECRET: localSecrets?.controlIngressSecret ?? "",
 			...noProxy,
 			APP_API_EXECUTION_SHARED_SECRET: executionSharedSecret,
 			DEPLOYMENT_ENVIRONMENT: "development",
@@ -423,7 +439,7 @@ export function renderLocalEnvironmentFiles(input: {
 			EXECUTION_CONTROL_DATABASE_URL: database.executionControl,
 
 			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
-			MEMORY_INTERNAL_SHARED_SECRET: executionSharedSecret,
+			MEMORY_INTERNAL_SHARED_SECRET: localSecrets?.memoryInternalSecret ?? "",
 			AGENT_RUNTIME_ROLLOUT_PERCENT: "100",
 			RETRIEVAL_BASE_URL: `http://127.0.0.1:${runtimePorts.campusSearch}`,
 			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
@@ -444,7 +460,7 @@ export function renderLocalEnvironmentFiles(input: {
 			MEMORY_PORT: String(runtimePorts.memoryApi),
 			MEMORY_WORKER_PORT: String(runtimePorts.memoryWorker),
 			MEMORY_DATABASE_URL: database.memory,
-			MEMORY_INTERNAL_SHARED_SECRET: executionSharedSecret,
+			MEMORY_INTERNAL_SHARED_SECRET: localSecrets?.memoryInternalSecret ?? "",
 			MEMORY_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			MEMORY_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			APP_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
@@ -489,7 +505,7 @@ export function renderLocalEnvironmentFiles(input: {
 			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
 
 			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
-			MEMORY_INTERNAL_SHARED_SECRET: executionSharedSecret,
+			MEMORY_INTERNAL_SHARED_SECRET: localSecrets?.memoryInternalSecret ?? "",
 			AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
 			AGENT_WORKER_PORT: String(runtimePorts.agentWorker),
 			DEPLOYMENT_ENVIRONMENT: "development",

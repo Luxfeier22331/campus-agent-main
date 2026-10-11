@@ -26,8 +26,8 @@ describe("execution control requester", () => {
 		const requestExecutionControl = createExecutionControlRequester(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "http://execution-control.local",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "http://execution-control.local",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{
 				fetchImplementation: fetchImplementation as typeof fetch,
@@ -53,9 +53,9 @@ describe("execution control requester", () => {
 		const requestExecutionControl = createExecutionControlRequester(
 			{
 				DEPLOYMENT_ENVIRONMENT: "staging",
-				EXECUTION_CONTROL_PRIVATE: { fetch: privateFetch },
-				EXECUTION_CONTROL_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_API: { fetch: privateFetch },
+				CLUSTER_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{},
 		);
@@ -67,7 +67,7 @@ describe("execution control requester", () => {
 			}),
 		).resolves.toEqual({ ok: true });
 		expect(privateFetch).toHaveBeenCalledWith(
-			"http://execution-control.internal:8000/internal/probe",
+			"http://execution-control.internal:8000/v1/control/internal/probe",
 			expect.objectContaining({
 				method: "GET",
 			}),
@@ -85,9 +85,9 @@ describe("execution control requester", () => {
 		const requestExecutionControl = createExecutionControlRequester(
 			{
 				DEPLOYMENT_ENVIRONMENT: "staging",
-				EXECUTION_CONTROL_PRIVATE: { fetch: privateFetch },
-				EXECUTION_CONTROL_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_API: { fetch: privateFetch },
+				CLUSTER_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{
 				fetchImplementation: overrideFetch,
@@ -108,8 +108,8 @@ describe("execution control requester", () => {
 		const requestExecutionControl = createExecutionControlRequester(
 			{
 				DEPLOYMENT_ENVIRONMENT: "staging",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.example.invalid",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.example.invalid",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{},
 		);
@@ -135,8 +135,8 @@ describe("execution control requester", () => {
 		const requestExecutionControl = createExecutionControlRequester(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "http://execution-control.local",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "http://execution-control.local",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -153,7 +153,7 @@ describe("execution control requester", () => {
 		});
 		expect(fetchImplementation).toHaveBeenCalledTimes(1);
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"http://execution-control.local/internal/probe",
+			"http://execution-control.local/v1/control/internal/probe",
 			expect.objectContaining({ redirect: "manual" }),
 		);
 	});

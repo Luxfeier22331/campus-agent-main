@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Server) internalWorkerAuthorized(request *http.Request) bool {
-	secret := strings.TrimSpace(s.config.AppAPIExecutionSharedSecret)
+	secret := strings.TrimSpace(s.config.IngressSharedSecret)
 	if secret == "" {
 		return false
 	}

@@ -190,6 +190,7 @@ export function formatProfileSummary(profile: LocalDevProfile): string {
 		`Model Config: http://127.0.0.1:${runtimePorts.modelConfig}`,
 		`Agent Runtime: http://127.0.0.1:${runtimePorts.agentRuntime}`,
 		`Agent Worker: http://127.0.0.1:${runtimePorts.agentWorker}`,
+		`Cluster private ingress: http://127.0.0.1:${runtimePorts.clusterPrivateIngress}`,
 		`Memory API: http://127.0.0.1:${runtimePorts.memoryApi}`,
 		`Memory Worker: http://127.0.0.1:${runtimePorts.memoryWorker}`,
 		`PostgreSQL: 127.0.0.1:${profile.infraPorts.postgres}`,

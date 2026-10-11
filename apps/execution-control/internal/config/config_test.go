@@ -144,6 +144,7 @@ func setRuntimeEnv(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", "https://app-api.internal")
 	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
 	t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "app-api-secret")
+	t.Setenv("EXECUTION_CONTROL_INGRESS_SHARED_SECRET", "ingress-secret")
 	t.Setenv("EXECUTION_AGENT_RUNTIME_SHARED_SECRET", "agent-secret")
 	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-token")
 	t.Setenv("RETRIEVAL_BASE_URL", "http://campus-search:8000")

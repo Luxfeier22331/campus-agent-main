@@ -42,6 +42,7 @@ test("active image target registry excludes the historical schema image", () => 
 		"document-ocr",
 		"execution-control",
 		"memory-service",
+		"cluster-private-ingress",
 		"campus-search-service",
 		"model-config",
 		"notice-artifacts-worker",
@@ -187,4 +188,18 @@ test("maps OCR bundled inputs to its image", () => {
 	]) {
 		assert.ok(targets([file]).includes("document-ocr"), file);
 	}
+});
+
+test("ingress production code selects its standalone image", () => {
+	for (const file of [
+		"internal/ingress/server.go",
+		"cmd/cluster-private-ingress/main.go",
+		"Dockerfile",
+		"go.mod",
+	]) {
+		assert.deepEqual(targets([`apps/cluster-private-ingress/${file}`]), [
+			"cluster-private-ingress",
+		]);
+	}
+	assert.deepEqual(targets(["apps/cluster-private-ingress/internal/ingress/server_test.go"]), []);
 });

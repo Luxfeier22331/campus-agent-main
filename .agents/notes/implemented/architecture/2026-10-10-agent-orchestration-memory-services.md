@@ -50,6 +50,9 @@ Status: implemented
 
 Memory 共用 execution 数据库可以少做迁移，但继续保留部署和状态清理耦合，不满足独立子系统要求。
 
+Worker 到 Control/Memory 的通信与凭据边界由[集群私有入口](2026-10-11-cluster-private-ingress.md)
+补充；本篇的编排和 Memory 所有权决定保持有效。
+
 ## 后果
 
 TypeScript Workflow 拥有步骤与模型/工具调用推进；control 仍是产品运行投影唯一写入者。

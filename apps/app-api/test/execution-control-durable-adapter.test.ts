@@ -49,28 +49,28 @@ describe("execution control runtime adapter", () => {
 		expect(
 			isExecutionControlRuntimeConfigured({
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(true);
 		expect(
 			isExecutionControlRuntimeConfigured({
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: " ",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: " ",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(false);
 		expect(
 			isExecutionControlRuntimeConfigured({
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "",
 			}),
 		).toBe(false);
 		expect(
 			isExecutionControlRuntimeConfigured({
 				DEPLOYMENT_ENVIRONMENT: "test",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			} as never),
 		).toBe(false);
 	});
@@ -84,8 +84,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -103,11 +103,11 @@ describe("execution control runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/execution/requests",
+			"https://execution-control.internal/v1/control/internal/execution/requests",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
-					"x-worker-origin-auth": "shared-secret",
+					"x-edge-ingress-auth": "shared-secret",
 				},
 				method: "POST",
 			}),
@@ -173,8 +173,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -188,22 +188,22 @@ describe("execution control runtime adapter", () => {
 
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			1,
-			"https://execution-control.internal/internal/execution/requests/req_durable_001",
+			"https://execution-control.internal/v1/control/internal/execution/requests/req_durable_001",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
-					"x-worker-origin-auth": "shared-secret",
+					"x-edge-ingress-auth": "shared-secret",
 				},
 				method: "GET",
 			}),
 		);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			2,
-			"https://execution-control.internal/internal/execution/requests/req_durable_001/events",
+			"https://execution-control.internal/v1/control/internal/execution/requests/req_durable_001/events",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
-					"x-worker-origin-auth": "shared-secret",
+					"x-edge-ingress-auth": "shared-secret",
 				},
 				method: "GET",
 			}),
@@ -236,8 +236,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -248,7 +248,7 @@ describe("execution control runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/execution/requests/req_durable_001/events?after_sequence=7",
+			"https://execution-control.internal/v1/control/internal/execution/requests/req_durable_001/events?after_sequence=7",
 			expect.objectContaining({
 				method: "GET",
 			}),
@@ -264,8 +264,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -277,7 +277,7 @@ describe("execution control runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/execution/requests/req_durable_001/events?after_sequence=7&wait_ms=25000",
+			"https://execution-control.internal/v1/control/internal/execution/requests/req_durable_001/events?after_sequence=7&wait_ms=25000",
 			expect.objectContaining({
 				method: "GET",
 			}),
@@ -300,8 +300,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -333,8 +333,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -355,8 +355,8 @@ describe("execution control runtime adapter", () => {
 	it("rejects invalid durable run event wait budgets", async () => {
 		const client = createExecutionControlRuntimeClient({
 			DEPLOYMENT_ENVIRONMENT: "test",
-			EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-			APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+			CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+			EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 		});
 
 		await expect(
@@ -376,8 +376,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -388,11 +388,11 @@ describe("execution control runtime adapter", () => {
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/execution/requests/req_durable_001/cancel",
+			"https://execution-control.internal/v1/control/internal/execution/requests/req_durable_001/cancel",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
-					"x-worker-origin-auth": "shared-secret",
+					"x-edge-ingress-auth": "shared-secret",
 				},
 				method: "POST",
 			}),
@@ -412,8 +412,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlPersonalMemoryClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -433,9 +433,9 @@ describe("execution control runtime adapter", () => {
 			supersessionScope: "memory:fact_01",
 		});
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/memory/personal/commands",
+			"https://execution-control.internal/v1/control/internal/memory/personal/commands",
 			expect.objectContaining({
-				headers: expect.objectContaining({ "x-worker-origin-auth": "shared-secret" }),
+				headers: expect.objectContaining({ "x-edge-ingress-auth": "shared-secret" }),
 				method: "POST",
 			}),
 		);
@@ -473,8 +473,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlPersonalMemoryClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -483,7 +483,7 @@ describe("execution control runtime adapter", () => {
 			client.getCommandStatus({ commandId: "memcmd_01HQ", ownerUserId: "user_01HQ" }),
 		).resolves.toMatchObject({ commandId: "memcmd_01HQ", status: "succeeded" });
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/memory/personal/commands/status",
+			"https://execution-control.internal/v1/control/internal/memory/personal/commands/status",
 			expect.objectContaining({ method: "POST" }),
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
@@ -523,8 +523,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -559,8 +559,8 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+				CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+				EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);

@@ -14,7 +14,8 @@ const env = {
 	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
-	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+	EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",

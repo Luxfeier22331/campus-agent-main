@@ -1,4 +1,5 @@
-import { type Env, isDeployedEnvironment, resolveEnvironment } from "../../config";
+import { isDeployedEnvironment, resolveEnvironment } from "../../config";
+import { type ClusterPrivateEnv, resolveClusterPrivateUpstream } from "./cluster-private-transport";
 
 export const EXECUTION_CONTROL_FAILURE_MESSAGE = "Execution-control request failed.";
 
@@ -92,27 +93,13 @@ export function isSafeExecutionControlErrorCode(value: string): boolean {
 	return /^[A-Za-z0-9_.:-]{1,80}$/u.test(value.trim());
 }
 
-export function createExecutionControlRequestHeaders(input: {
-	sharedSecret: string;
-	accept?: string;
-}): Record<string, string> {
-	const headers = new Headers({
-		"content-type": "application/json",
-		"x-worker-origin-auth": input.sharedSecret,
-	});
-	if (input.accept) {
-		headers.set("accept", input.accept);
-	}
-	return Object.fromEntries(headers.entries());
-}
-
 export interface ExecutionControlUpstream {
 	baseUrl: string;
 	fetch: typeof fetch;
 }
 
 export function selectExecutionControlFetchImplementation(
-	env: Pick<Env, "DEPLOYMENT_ENVIRONMENT">,
+	env: Pick<ClusterPrivateEnv, "DEPLOYMENT_ENVIRONMENT">,
 	upstream: ExecutionControlUpstream,
 	override?: typeof fetch,
 ): typeof fetch {
@@ -122,52 +109,15 @@ export function selectExecutionControlFetchImplementation(
 	return override ?? upstream.fetch;
 }
 
-export function resolveExecutionControlUpstream(
-	env: Pick<
-		Env,
-		| "DEPLOYMENT_ENVIRONMENT"
-		| "EXECUTION_CONTROL_BASE_URL"
-		| "EXECUTION_CONTROL_PRIVATE"
-		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
-	>,
-): ExecutionControlUpstream {
-	const environment = resolveEnvironment(env);
-	const privateFetch = env.EXECUTION_CONTROL_PRIVATE?.fetch;
-	if (isDeployedEnvironment(environment)) {
-		if (typeof privateFetch !== "function") {
-			throw new ExecutionControlTransportError({
-				code: "dependency_not_ready",
-				message: "Execution control private service binding is not configured.",
-				retryable: true,
-				status: 503,
-			});
-		}
-		const privateOrigin = env.EXECUTION_CONTROL_PRIVATE_ORIGIN?.trim();
-		if (!privateOrigin) {
-			throw new ExecutionControlTransportError({
-				code: "dependency_not_ready",
-				message: "Execution control private service origin is not configured.",
-				retryable: true,
-				status: 503,
-			});
-		}
-		return {
-			baseUrl: privateOrigin.replace(/\/+$/u, ""),
-			fetch: privateFetch.bind(env.EXECUTION_CONTROL_PRIVATE) as typeof fetch,
-		};
-	}
-
-	const baseUrl = env.EXECUTION_CONTROL_BASE_URL?.trim();
-	if (!baseUrl) {
+export function resolveExecutionControlUpstream(env: ClusterPrivateEnv): ExecutionControlUpstream {
+	try {
+		return resolveClusterPrivateUpstream(env, "control");
+	} catch {
 		throw new ExecutionControlTransportError({
 			code: "dependency_not_ready",
-			message: "Execution control is not configured.",
+			message: "Cluster private ingress is not configured.",
 			retryable: true,
 			status: 503,
 		});
 	}
-	return {
-		baseUrl,
-		fetch,
-	};
 }

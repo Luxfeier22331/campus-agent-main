@@ -37,8 +37,8 @@ func TestPersonalMemoryCommandStatusRequiresAuthorizationAndOwnerScope(t *testin
 	}
 
 	server := NewServerWithOptions(config.Config{
-		AppAPIExecutionSharedSecret: "secret",
-		PersonalMemoryOwnerSalt:     ownerSalt,
+		IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret",
+		PersonalMemoryOwnerSalt: ownerSalt,
 	}, ServerOptions{MemoryManagement: memoryapplication.NewMemoryManagementService(memoryapplication.MemoryManagementOptions{Store: state, OwnerSalt: ownerSalt})})
 
 	requestStatusFor := func(commandID string, user string, auth string) *httptest.ResponseRecorder {
@@ -95,8 +95,8 @@ func TestPersonalMemoryCommandStatusRequiresAuthorizationAndOwnerScope(t *testin
 
 func TestPersonalMemoryCommandStatusReturnsUnavailableWhenStateStoreIsNotReady(t *testing.T) {
 	server := NewServerWithOptions(config.Config{
-		AppAPIExecutionSharedSecret: "secret",
-		PersonalMemoryOwnerSalt:     "test-owner-salt",
+		IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret",
+		PersonalMemoryOwnerSalt: "test-owner-salt",
 	}, ServerOptions{MemoryManagement: memoryapplication.NewMemoryManagementService(memoryapplication.MemoryManagementOptions{StoreError: context.Canceled})})
 	request := newTestRequest(
 		http.MethodPost,

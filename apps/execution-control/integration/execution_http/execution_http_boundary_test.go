@@ -29,7 +29,7 @@ func (fakeRunCommands) RequestRunCancellation(context.Context, executionapplicat
 // boundary test intentionally uses the public HTTP surface and does not reach
 // into httpapi's test-only helpers.
 func TestExecutionHTTPRequiresWorkerOriginAuthentication(t *testing.T) {
-	server := httpapi.NewServer(config.Config{AppAPIExecutionSharedSecret: "secret"})
+	server := httpapi.NewServer(config.Config{IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret"})
 	response := httptest.NewRecorder()
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/internal/execution/requests", nil)
 	server.ServeHTTP(response, request)
@@ -39,7 +39,7 @@ func TestExecutionHTTPRequiresWorkerOriginAuthentication(t *testing.T) {
 }
 
 func TestExecutionHTTPDelegatesValidCreateToApplicationPort(t *testing.T) {
-	server := httpapi.NewServerWithOptions(config.Config{AppAPIExecutionSharedSecret: "secret"}, httpapi.ServerOptions{RunService: fakeRunCommands{}})
+	server := httpapi.NewServerWithOptions(config.Config{IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret"}, httpapi.ServerOptions{RunService: fakeRunCommands{}})
 	req := httpapitest.ExecutionCreateRequest(t.Context(), "run-http-boundary", "conv-http-boundary", "secret")
 	resp := httptest.NewRecorder()
 	server.ServeHTTP(resp, req)

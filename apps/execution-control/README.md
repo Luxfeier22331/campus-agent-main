@@ -67,6 +67,12 @@ HTTP API 也不拥有 worker 生命周期。
 - `apps/campus-search` 拥有检索领域合同、current-index PostgreSQL 读取、embedding 缓存、Qdrant 和 reranker adapter，以及 Campus Search HTTP service；
 - execution-control 只通过 typed HTTP client 消费 Campus Search，保留 run admission、索引绑定、citation 和诊断投影；不拥有检索 provider 或本地 fallback。
 
+## 产品入口认证
+
+App API 经 cluster-private-ingress 调用产品运行接口。`EXECUTION_CONTROL_INGRESS_SHARED_SECRET`
+用于这些入站请求及 API readiness；`APP_API_EXECUTION_SHARED_SECRET` 保留产品输入读取和回调用途。
+Runtime 的投影与查询继续使用现有集群内部认证，不经过入口。
+
 ## 进程入口
 
 - `cmd/execution-api`：Deployment/Service 仍名为 `execution-control`，保留所有业务 HTTP 路由与 reconciler；不启动 poller。

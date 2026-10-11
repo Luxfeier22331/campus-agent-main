@@ -3,15 +3,14 @@ import {
 	PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
 	resolveEnvironment,
 } from "../../config";
+import {
+	type ClusterPrivateEnv,
+	createClusterPrivateHeaders,
+	resolveClusterPrivateUpstream,
+} from "./cluster-private-transport";
 import type { JsonRecord } from "./execution-control-runtime-types";
 
-export interface MemoryServiceEnv {
-	DEPLOYMENT_ENVIRONMENT?: string;
-	MEMORY_SERVICE_PRIVATE?: { fetch: typeof fetch };
-	MEMORY_SERVICE_PRIVATE_ORIGIN?: string;
-	MEMORY_SERVICE_BASE_URL?: string;
-	MEMORY_INTERNAL_SHARED_SECRET?: string;
-}
+export type MemoryServiceEnv = ClusterPrivateEnv;
 export class MemoryServiceTransportError extends Error {
 	readonly code: string;
 	readonly status: number;
@@ -32,34 +31,24 @@ export function createMemoryRequester(
 		path: string,
 		options: { body?: JsonRecord; expectedStatus: number; method: "POST"; timeoutMs?: number },
 	): Promise<JsonRecord> => {
-		if (!(env.MEMORY_SERVICE_BASE_URL && env.MEMORY_INTERNAL_SHARED_SECRET)) {
+		let upstream: ReturnType<typeof resolveClusterPrivateUpstream>;
+		try {
+			upstream = resolveClusterPrivateUpstream(env, "memory");
+		} catch {
 			throw new MemoryServiceTransportError("personal_memory_unavailable", 503, true);
 		}
-		const deployed = isDeployedEnvironment(resolveEnvironment(env));
-		if (deployed && !env.MEMORY_SERVICE_PRIVATE) {
-			throw new MemoryServiceTransportError("personal_memory_unavailable", 503, true);
-		}
-		if (deployed && !env.MEMORY_SERVICE_PRIVATE_ORIGIN?.trim()) {
-			throw new MemoryServiceTransportError("personal_memory_unavailable", 503, true);
-		}
-		const requester = deployed
-			? env.MEMORY_SERVICE_PRIVATE!.fetch.bind(env.MEMORY_SERVICE_PRIVATE)
-			: (input.fetchImplementation ?? fetch);
+		const requester = isDeployedEnvironment(resolveEnvironment(env))
+			? upstream.fetch
+			: (input.fetchImplementation ?? upstream.fetch);
 		let response: Response;
 		try {
-			response = await requester(
-				`${(deployed ? env.MEMORY_SERVICE_PRIVATE_ORIGIN! : env.MEMORY_SERVICE_BASE_URL).replace(/\/$/u, "")}${path}`,
-				{
-					method: options.method,
-					body: JSON.stringify(options.body ?? {}),
-					redirect: "manual",
-					headers: {
-						"content-type": "application/json",
-						"x-memory-origin-auth": env.MEMORY_INTERNAL_SHARED_SECRET,
-					},
-					signal: AbortSignal.timeout(options.timeoutMs ?? PROFILE_MEMORY_COMMAND_TIMEOUT_MS),
-				},
-			);
+			response = await requester(`${upstream.baseUrl}${path}`, {
+				method: options.method,
+				body: JSON.stringify(options.body ?? {}),
+				redirect: "manual",
+				headers: createClusterPrivateHeaders(env),
+				signal: AbortSignal.timeout(options.timeoutMs ?? PROFILE_MEMORY_COMMAND_TIMEOUT_MS),
+			});
 		} catch {
 			throw new MemoryServiceTransportError("personal_memory_unavailable", 503, true);
 		}

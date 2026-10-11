@@ -40,6 +40,7 @@ type Config struct {
 	Host                                    string
 	Port                                    int
 	AppAPIExecutionSharedSecret             string
+	IngressSharedSecret                     string
 	RequestTimeoutMS                        int
 	RequestBodyLimitBytes                   int64
 	ShutdownGraceMS                         int
@@ -91,6 +92,7 @@ type envValues struct {
 	DeploymentRelease           string `env:"DEPLOYMENT_RELEASE"`
 	Host                        string `env:"HOST"`
 	Port                        int    `env:"PORT"`
+	IngressSharedSecret         string `env:"EXECUTION_CONTROL_INGRESS_SHARED_SECRET"`
 	AppAPIExecutionSharedSecret string `env:"APP_API_EXECUTION_SHARED_SECRET"`
 	OpsWebInternalToken         string `env:"OPS_WEB_INTERNAL_TOKEN"`
 	DatabaseURL                 string `env:"EXECUTION_CONTROL_DATABASE_URL"`
@@ -153,6 +155,7 @@ func loadFromEnv(workerRole bool) (Config, error) {
 		Host:                                    host,
 		Port:                                    port,
 		AppAPIExecutionSharedSecret:             strings.TrimSpace(values.AppAPIExecutionSharedSecret),
+		IngressSharedSecret:                     strings.TrimSpace(values.IngressSharedSecret),
 		RequestTimeoutMS:                        defaultRequestTimeoutMS,
 		RequestBodyLimitBytes:                   defaultRequestBodyLimitBytes,
 		ShutdownGraceMS:                         defaultShutdownGraceMS,
@@ -216,6 +219,7 @@ func validateDeployedRuntime(values envValues, workerRole bool) error {
 			name  string
 			value string
 		}{
+			{"EXECUTION_CONTROL_INGRESS_SHARED_SECRET", values.IngressSharedSecret},
 			{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
 			{"MODEL_CONFIG_URL", values.ModelConfigBaseURL},
 			{"RETRIEVAL_BASE_URL", values.RetrievalBaseURL},

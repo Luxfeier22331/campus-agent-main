@@ -25,6 +25,8 @@ apps/campus-web/**
 !apps/campus-search/**
 !apps/execution-control/
 !apps/execution-control/**
+!apps/cluster-private-ingress/
+!apps/cluster-private-ingress/**
 !apps/memory-service/
 !apps/memory-service/**
 !apps/model-config/

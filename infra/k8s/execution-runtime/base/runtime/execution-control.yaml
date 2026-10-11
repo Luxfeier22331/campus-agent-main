@@ -52,6 +52,11 @@ spec:
             - name: http
               containerPort: 8000
           env:
+            - name: EXECUTION_CONTROL_INGRESS_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: execution-control-ingress-secrets
+                  key: EXECUTION_CONTROL_INGRESS_SHARED_SECRET
             - name: AGENT_RUNTIME_ROLLOUT_PERCENT
               valueFrom:
                 configMapKeyRef:
@@ -139,7 +144,7 @@ spec:
                 - -ec
                 - |
                   curl -fsS \
-                    -H "x-worker-origin-auth: ${APP_API_EXECUTION_SHARED_SECRET}" \
+                    -H "x-worker-origin-auth: ${EXECUTION_CONTROL_INGRESS_SHARED_SECRET}" \
                     http://127.0.0.1:8000/readyz/process >/dev/null
             initialDelaySeconds: 20
             periodSeconds: 10

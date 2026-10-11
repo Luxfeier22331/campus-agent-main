@@ -48,7 +48,10 @@ flowchart LR
 
   Browser --> AppAPI
   AppAPI --> ProductDB
-  AppAPI --> Control
+  PrivateIngress[cluster-private-ingress]
+  AppAPI --> PrivateIngress
+  PrivateIngress --> Control
+  PrivateIngress --> Memory
   Control --> Temporal
   Temporal --> Control
   Control --> Agent
@@ -67,7 +70,7 @@ app-api 保存用户轮次并创建持久 request；execution-control 和 Tempor
 - Agent 模型和工具调用 trace：Langfuse；
 - 离线评测输入与结果：调用方和所属评分器；需要关联运行时再把 score 发布到 Langfuse；
 - Worker release 和 source map：Worker 发布流程与 Cloudflare 平台；
-- 个人记忆：Hindsight，仅由 execution-control Activity 调用；
+- 个人记忆内容：Hindsight，由独立 memory-service 拥有；Agent Runtime 通过 Memory API 召回，Control/Memory Workflows 负责命令和追加；
 - 产品可用性快照和有限时间线：`status-web` 所属的 Cloudflare KV namespace；不写入原始探测
   响应、Langfuse trace 或数据库记录。
 

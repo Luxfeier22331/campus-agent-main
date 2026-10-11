@@ -10,7 +10,7 @@ Hindsight 继续拥有记忆内容；本服务拥有命令、追加、generation
 不读取回答 run、step 或产品消息。追加使用稳定 request ID；终态释放租约后清除输入。
 命令结果通过 App API callback 写回产品状态，回调完成前保留恢复所需结果。
 
-App API 管理命令、资料读取和账户清理直接调用本 API；Agent Runtime 的 recall Activity
+App API 管理命令、资料读取和账户清理经 cluster-private-ingress 调用本 API；Agent Runtime 的 recall Activity
 调用本 API；control 在产品终态确认后，通过持久投递表交付最小追加输入。
 接口入口与字段由 [HTTP adapter](internal/memoryhttp/server.go) 和
 [领域合同](memoryruntime/contracts.go) 定义，使用 `x-memory-origin-auth`。

@@ -47,13 +47,14 @@ Secret、VPC service 和流量比例。无旧 Workflow history 兼容要求，�
 1. 安装 `memory` database、`memory_service` role 与 `memory-schema` Job；通过已有 secret backend
    注入 `campus-agent-postgres-memory-owner` 和 `memory-service-secrets`，后者含
    `MEMORY_DATABASE_URL`（环境 TLS CA 参数）及 `MEMORY_INTERNAL_SHARED_SECRET`。保留原 owner salt。
-2. 开启既有 `EXECUTION_MAINTENANCE`，排空回答、记忆命令、追加和账户删除，停止旧写入者。
+2. 在已确认没有请求和后台任务的窗口内，停止旧写入者；无需开启维护模式。有在途任务时先排空回答、
+   记忆命令、追加和账户删除。
    在新 Memory API/Worker 启动前，以迁移镜像运行 `/usr/local/bin/memory-cutover`，设置
    `MEMORY_SOURCE_DATABASE_URL` 和 `MEMORY_DATABASE_URL`。工具拒绝未排空源与非空目标，
-   在目标事务内复制 fence、receipt 和 lease。失败时维持维护状态并解决未排空项后重试。
+   在目标事务内复制 fence、receipt 和 lease。失败时保持旧写入者停止，解决未排空项后再执行。
 3. 启动 Memory API/Worker，把 control 的 `MEMORY_SERVICE_BASE_URL` 指向独立服务；
-   App API 发布版本配置独立 `MEMORY_SERVICE_PRIVATE` VPC binding、对应 origin 和共享密钥。
-   Source staging 需要 `MEMORY_SERVICE_VPC_SERVICE_ID` variable 与同名内部 secret。
+   App API 发布版本通过 `CLUSTER_PRIVATE_API` 访问 Memory；入口部署与凭据按下节配置。
+   Worker 不消费 `MEMORY_INTERNAL_SHARED_SECRET`。
 4. 启动 Agent Runtime Worker，先保持 `AGENT_RUNTIME_ROLLOUT_PERCENT=0`，验证 Memory
    管理、召回、追加和账户删除，再恢复准入；逐步提高比例到 100。比例按 owner 稳定分桶，
    已接收 run 的任务队列冻结，配置变化只影响新 run。旧 Go Workflow 与 HTTP runner 保留消费旧队列。
@@ -173,3 +174,27 @@ Job 所有的精确授权；不得切回 schema owner DSN、手工在线 `GRANT`
 
 相关入口：[持久 Agent 运行时](../../architecture/system/durable-runtime.md)、[Kubernetes 运行时](../../architecture/system/k8s-runtime.md)、
 [执行合同](../../contracts/tool-execution.md)、[Temporal 自托管运维](./temporal.md)、[发布](../release/release.md)。
+
+## Cluster private ingress 切换
+
+1. GitOps 纳入 `cluster-private-ingress` 镜像与 runtime base，创建
+   `cluster-private-ingress-secrets/EDGE_INGRESS_SHARED_SECRET` 和
+   `execution-control-ingress-secrets/EXECUTION_CONTROL_INGRESS_SHARED_SECRET`。
+   入口复用 `memory-service-secrets/MEMORY_INTERNAL_SHARED_SECRET`；三个值独立生成。
+   首次部署 Memory 时，先完成上节数据库和状态交接。客户端到 Hindsight 的策略命名为
+   `memory-clients-hindsight-egress`，避免与 GitOps 拥有的 Hindsight 服务端出站策略同名。
+2. Cloudflare VPC Service 指向 `cluster-private-ingress:8000`；connector 必须能解析并连接该 Service。
+   runtime base 允许 connector 到入口、入口到 Control/Memory，阻止 connector 直接访问这两个后端。
+   connector 自身的 egress 由 GitOps 配合更新；保留 Object Store 的独立通道。
+3. 目前 Worker 仍由 Source 上传。向 Source staging 提供 `CLUSTER_PRIVATE_VPC_SERVICE_ID`
+   variable 与 `EDGE_INGRESS_SHARED_SECRET` secret，保持产品回调 secret 和 Object Store 凭据。
+   Wrangler 的 `CLUSTER_PRIVATE_ORIGIN` 必须匹配环境内的入口 Service 地址。
+4. 已确认无请求和后台任务的窗口内，同步 Control 的新入站 secret、入口与网络策略，再发布并选择
+   新 Worker 版本。不需要设置维护模式；在完成验收前不要开放新流量。
+5. 验证真实聊天创建、事件读取、完成与取消；验证 Memory 资料读取、手工命令、状态查询、对话追加
+   和账户删除。确认 Runtime 的 recall/append 仍直接访问 Memory，并验证对象读取与上传。
+6. 验收后删除旧 Control/Memory VPC Service、Source variables 和 Worker 旧版本专用的 Memory
+   secret；保留现行回调和集群内部 Memory 凭据。切换前保留旧 Worker 版本和 VPC 资源以便回退。
+   回退必须同步恢复旧 Control 配置、网络策略和旧 Worker 版本，不能只回退其中一项。
+
+Worker 发布迁入 GitOps 由已有 issue 453 跟踪，不是本次入口上线的前置步骤。

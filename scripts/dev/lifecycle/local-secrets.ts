@@ -6,6 +6,9 @@ export interface LocalDevSecretsV1 {
 	appApiSafetyIdentifierHmacSecret: string;
 	betterAuthSecret: string;
 	executionSharedSecret: string;
+	edgeIngressSecret?: string;
+	controlIngressSecret?: string;
+	memoryInternalSecret?: string;
 	opsWebInternalToken: string;
 	schemaVersion: 2;
 }
@@ -29,6 +32,9 @@ export function ensureLocalDevSecrets(
 		"appApiSafetyIdentifierHmacSecret",
 		"betterAuthSecret",
 		"executionSharedSecret",
+		"edgeIngressSecret",
+		"controlIngressSecret",
+		"memoryInternalSecret",
 		"opsWebInternalToken",
 	] as const) {
 		const existingValue = existing?.[name];
@@ -41,7 +47,13 @@ export function ensureLocalDevSecrets(
 		}
 		values[name] = [...unique][0] ?? randomSecret();
 	}
-	const next: LocalDevSecretsV1 = { ...values, schemaVersion: 2 };
+	const next: LocalDevSecretsV1 = {
+		...values,
+		edgeIngressSecret: existing?.edgeIngressSecret ?? randomSecret(),
+		controlIngressSecret: existing?.controlIngressSecret ?? randomSecret(),
+		memoryInternalSecret: existing?.memoryInternalSecret ?? randomSecret(),
+		schemaVersion: 2,
+	};
 	if (!existing || JSON.stringify(existing) !== JSON.stringify(next)) {
 		writeJsonAtomic(path, next);
 	}

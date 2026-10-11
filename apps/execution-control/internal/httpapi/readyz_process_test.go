@@ -20,7 +20,7 @@ func (s processReadyStore) HealthCheck(context.Context) error { return s.err }
 
 func TestProcessReadinessIsIndependentOfExecutionDependencies(t *testing.T) {
 	store := processReadyStore{}
-	s := NewServerWithOptions(config.Config{DeploymentEnvironment: "staging", AppAPIExecutionSharedSecret: "test-secret"}, ServerOptions{RunProjectionStore: store, RunService: executionapplication.NewRunService(executionapplication.RunServiceOptions{Store: store})})
+	s := NewServerWithOptions(config.Config{DeploymentEnvironment: "staging", IngressSharedSecret: "test-secret", AppAPIExecutionSharedSecret: "test-secret"}, ServerOptions{RunProjectionStore: store, RunService: executionapplication.NewRunService(executionapplication.RunServiceOptions{Store: store})})
 	check := func(path, secret string, want int) {
 		t.Helper()
 		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)

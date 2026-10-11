@@ -256,6 +256,7 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 		"document-ocr",
 		"execution-control",
 		"memory-service",
+		"cluster-private-ingress",
 		"campus-search-service",
 		"model-config",
 		"notice-artifacts-worker",

@@ -46,7 +46,10 @@ checkpoint 接口恢复 Hindsight operation，先写终态投影再释放 lease�
 Provider 包装器保留 recall 访问屏障，画像读取由 profile service 管理；同步追加及其旧 Activity 已删除。
 这属于模块解耦：追加恢复仍依赖回答记录和输入，并未获得独立的数据保留周期。
 
-当前保留 execution API/Worker 与 Hindsight 的部署边界，不增加记忆控制服务、事件或表。
+Memory API 与 Memory Temporal Worker 独立部署；App API 的画像、命令和账户清理请求经
+cluster-private-ingress 到 Memory API，Agent Runtime 的 recall Activity 直接调用 Memory API。
+入口只负责固定产品路由和认证转换，不拥有记忆状态；Hindsight 的 provider 凭据只在 memory-service
+及其 Worker 内部使用。
 取舍见[执行与记忆职责解耦](../../../.agents/notes/implemented/architecture/2026-10-10-execution-coupling-governance.md)，
 内部召回合同切换见[发布操作](../../runbooks/release/release.md#个人记忆召回合同切换)。
 

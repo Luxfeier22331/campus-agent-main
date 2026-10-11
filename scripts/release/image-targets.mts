@@ -11,6 +11,7 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"document-ocr",
 	"execution-control",
 	"memory-service",
+	"cluster-private-ingress",
 	"campus-search-service",
 	"model-config",
 	"notice-artifacts-worker",
@@ -20,6 +21,7 @@ export type ImageTarget = (typeof ACTIVE_IMAGE_TARGETS)[number];
 export const NODE_IMAGE_TARGETS = ACTIVE_IMAGE_TARGETS.filter(
 	(image) =>
 		image !== "memory-service" &&
+		image !== "cluster-private-ingress" &&
 		image !== "execution-control" &&
 		image !== "campus-search-service" &&
 		image !== "model-config",
@@ -36,6 +38,7 @@ export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[
 		["apps/agent-runtime/Dockerfile", ["agent-runtime"]],
 		["apps/execution-control/Dockerfile", ["execution-control"]],
 		["apps/memory-service/Dockerfile", ["memory-service"]],
+		["apps/cluster-private-ingress/Dockerfile", ["cluster-private-ingress"]],
 		["apps/campus-search/Dockerfile", ["campus-search-service"]],
 		["apps/model-config/Dockerfile", ["model-config"]],
 		["apps/ops-web/Dockerfile", ["ops-web"]],
@@ -213,6 +216,7 @@ export function imageTargetsForScope(
 				const relative = file.slice(workspace.directory.length + 1);
 				if (
 					image === "memory-service" ||
+					image === "cluster-private-ingress" ||
 					image === "model-config" ||
 					image === "execution-control" ||
 					image === "campus-search-service"

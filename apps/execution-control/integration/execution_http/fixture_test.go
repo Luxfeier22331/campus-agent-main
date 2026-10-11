@@ -46,9 +46,9 @@ func newExecutionServer(t *testing.T, ctx context.Context, store executionapplic
 	}
 	t.Cleanup(starter.Close)
 	cfg := config.Config{
-		AppAPIExecutionSharedSecret: "secret",
-		TemporalNamespace:           packageHarness.Namespace,
-		TemporalTaskQueue:           temporalruntime.WorkflowTaskQueue,
+		IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret",
+		TemporalNamespace: packageHarness.Namespace,
+		TemporalTaskQueue: temporalruntime.WorkflowTaskQueue,
 	}
 	adapter := temporaladapter.New(temporaladapter.Options{
 		Config:                    cfg,

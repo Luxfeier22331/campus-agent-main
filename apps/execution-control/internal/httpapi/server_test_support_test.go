@@ -32,13 +32,13 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 
 func newServerForTest() *Server {
 	return NewServer(config.Config{
-		AppAPIExecutionSharedSecret: "test-execution-input-secret",
+		IngressSharedSecret: "test-execution-input-secret", AppAPIExecutionSharedSecret: "test-execution-input-secret",
 	})
 }
 
 func newWorkerAuthServerForTest() *Server {
 	server := newServerForTest()
-	server.config.AppAPIExecutionSharedSecret = "secret"
+	server.config.IngressSharedSecret = "secret"
 	return server
 }
 
@@ -114,10 +114,10 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 	}))
 	t.Cleanup(agentRuntime.Close)
 	cfg := config.Config{
-		AppName:                     "campus-agent",
-		AgentRuntimeBaseURL:         agentRuntime.URL,
-		AgentRuntimeSharedSecret:    "agent-runtime-secret",
-		AppAPIExecutionSharedSecret: "test-execution-input-secret",
+		AppName:                  "campus-agent",
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-runtime-secret",
+		IngressSharedSecret:      "test-execution-input-secret", AppAPIExecutionSharedSecret: "test-execution-input-secret",
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)

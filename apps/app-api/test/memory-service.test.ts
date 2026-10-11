@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createMemoryServiceClient } from "../src/modules/integration/memory-service";
 
 describe("independent Memory transport", () => {
-	it("routes deployed reads through the Memory VPC binding", async () => {
+	it("routes deployed reads through the cluster private binding", async () => {
 		const memoryFetch = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({
 				content: "profile",
@@ -15,10 +15,10 @@ describe("independent Memory transport", () => {
 		const client = createMemoryServiceClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "staging",
-				MEMORY_SERVICE_BASE_URL: "http://memory-service",
-				MEMORY_SERVICE_PRIVATE_ORIGIN: "http://memory-private",
-				MEMORY_SERVICE_PRIVATE: { fetch: memoryFetch },
-				MEMORY_INTERNAL_SHARED_SECRET: "test-secret",
+				CLUSTER_PRIVATE_BASE_URL: "http://memory-service",
+				CLUSTER_PRIVATE_ORIGIN: "http://memory-private",
+				CLUSTER_PRIVATE_API: { fetch: memoryFetch },
+				EDGE_INGRESS_SHARED_SECRET: "test-secret",
 			},
 			{ fetchImplementation: publicFetch },
 		);
@@ -28,14 +28,14 @@ describe("independent Memory transport", () => {
 		});
 		expect(publicFetch).not.toHaveBeenCalled();
 		expect(memoryFetch).toHaveBeenCalledWith(
-			"http://memory-private/internal/memory/profile",
+			"http://memory-private/v1/memory/internal/memory/profile",
 			expect.objectContaining({
 				body: JSON.stringify({
 					tenant_id: "tenant-main",
 					owner_user_id: "user",
 					owner_generation: 2,
 				}),
-				headers: expect.objectContaining({ "x-memory-origin-auth": "test-secret" }),
+				headers: expect.objectContaining({ "x-edge-ingress-auth": "test-secret" }),
 			}),
 		);
 	});
@@ -48,8 +48,8 @@ describe("independent Memory transport", () => {
 		const client = createMemoryServiceClient(
 			{
 				DEPLOYMENT_ENVIRONMENT: "development",
-				MEMORY_SERVICE_BASE_URL: "http://memory",
-				MEMORY_INTERNAL_SHARED_SECRET: "test-secret",
+				CLUSTER_PRIVATE_BASE_URL: "http://memory",
+				EDGE_INGRESS_SHARED_SECRET: "test-secret",
 			},
 			{ fetchImplementation },
 		);

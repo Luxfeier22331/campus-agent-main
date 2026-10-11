@@ -51,7 +51,7 @@ export function isExecutionControlRuntimeConfigured(env: ExecutionControlRuntime
 	} catch {
 		return false;
 	}
-	return Boolean(env.APP_API_EXECUTION_SHARED_SECRET?.trim());
+	return Boolean(env.EDGE_INGRESS_SHARED_SECRET?.trim());
 }
 
 export function createExecutionControlRuntimeClient(

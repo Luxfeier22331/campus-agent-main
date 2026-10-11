@@ -26,7 +26,7 @@ required = [
   "RESEND_API_KEY",
   "OPS_WEB_INTERNAL_TOKEN",
   "APP_API_EXECUTION_SHARED_SECRET",
-  "MEMORY_INTERNAL_SHARED_SECRET",
+  "EDGE_INGRESS_SHARED_SECRET",
   "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
   "OBJECT_STORE_DERIVED_ACCESS_KEY",
   "OBJECT_STORE_DERIVED_SECRET_KEY",
@@ -37,9 +37,7 @@ required = [
 [env.staging.vars]
 DEPLOYMENT_ENVIRONMENT = "staging"
 AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"
-EXECUTION_CONTROL_PRIVATE_ORIGIN = "http://execution-control.campus-agent-staging.svc.cluster.local:8000"
-MEMORY_SERVICE_PRIVATE_ORIGIN = "http://memory-service.campus-agent-staging.svc.cluster.local:8000"
-MEMORY_SERVICE_BASE_URL = "http://memory-service.campus-agent-staging.svc.cluster.local:8000"
+CLUSTER_PRIVATE_ORIGIN = "http://cluster-private-ingress.campus-agent-staging.svc.cluster.local:8000"
 
 [env.staging.images]
 binding = "DINING_IMAGES"
@@ -51,7 +49,7 @@ required = [
   "RESEND_API_KEY",
   "OPS_WEB_INTERNAL_TOKEN",
   "APP_API_EXECUTION_SHARED_SECRET",
-  "MEMORY_INTERNAL_SHARED_SECRET",
+  "EDGE_INGRESS_SHARED_SECRET",
   "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
   "OBJECT_STORE_DERIVED_ACCESS_KEY",
   "OBJECT_STORE_DERIVED_SECRET_KEY",
@@ -60,12 +58,7 @@ required = [
 ]
 
 [[env.staging.vpc_services]]
-binding = "EXECUTION_CONTROL_PRIVATE"
-service_id = "00000000-0000-0000-0000-000000000000"
-remote = true
-
-[[env.staging.vpc_services]]
-binding = "MEMORY_SERVICE_PRIVATE"
+binding = "CLUSTER_PRIVATE_API"
 service_id = "00000000-0000-0000-0000-000000000000"
 remote = true
 

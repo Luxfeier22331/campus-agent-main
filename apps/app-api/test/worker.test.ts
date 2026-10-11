@@ -29,7 +29,8 @@ const env = {
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+	EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET: "safety-identifier-secret",
 	DEPLOYMENT_ENVIRONMENT: "test" as const,
@@ -208,14 +209,13 @@ describe("app-api worker foundation", () => {
 		expect(staging?.vars).toMatchObject({
 			AUTH_SHELL_ORIGIN: "https://campus-staging.mucwiki-edge.link",
 			DEPLOYMENT_ENVIRONMENT: "staging",
-			EXECUTION_CONTROL_PRIVATE_ORIGIN:
-				"http://execution-control.campus-agent-staging.svc.cluster.local:8000",
+			CLUSTER_PRIVATE_ORIGIN:
+				"http://cluster-private-ingress.campus-agent-staging.svc.cluster.local:8000",
 		});
-		expect(staging?.vars).not.toHaveProperty("EXECUTION_CONTROL_BASE_URL");
+		expect(staging?.vars).not.toHaveProperty("CLUSTER_PRIVATE_BASE_URL");
 		expect(staging?.hyperdrive).toEqual([expect.objectContaining({ binding: "APP_API_DB" })]);
 		expect(staging?.vpc_services).toEqual([
-			expect.objectContaining({ binding: "EXECUTION_CONTROL_PRIVATE", remote: true }),
-			expect.objectContaining({ binding: "MEMORY_SERVICE_PRIVATE", remote: true }),
+			expect.objectContaining({ binding: "CLUSTER_PRIVATE_API", remote: true }),
 			expect.objectContaining({ binding: "OBJECT_STORE_PRIVATE", remote: true }),
 		]);
 	});
@@ -227,7 +227,7 @@ describe("app-api worker foundation", () => {
 			"RESEND_API_KEY",
 			"OPS_WEB_INTERNAL_TOKEN",
 			"APP_API_EXECUTION_SHARED_SECRET",
-			"MEMORY_INTERNAL_SHARED_SECRET",
+			"EDGE_INGRESS_SHARED_SECRET",
 			"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
 			"OBJECT_STORE_DERIVED_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_SECRET_KEY",
@@ -246,7 +246,7 @@ describe("app-api worker foundation", () => {
 		expect(parsedWranglerConfig.env?.local?.hyperdrive).toEqual([
 			expect.objectContaining({ binding: "APP_API_DB" }),
 		]);
-		expect(parsedWranglerConfig.env?.local?.vars).not.toHaveProperty("EXECUTION_CONTROL_BASE_URL");
+		expect(parsedWranglerConfig.env?.local?.vars).not.toHaveProperty("CLUSTER_PRIVATE_BASE_URL");
 	});
 
 	it("serves healthz and readyz from the worker shell", async () => {

@@ -1,8 +1,8 @@
 import { EXECUTION_CONTROL_TIMEOUT_MS } from "../../config";
+import { createClusterPrivateHeaders } from "./cluster-private-transport";
 import type { ExecutionControlRuntimeEnv, JsonRecord } from "./execution-control-runtime-types";
 import {
 	assertExecutionControlResponseNotRedirect,
-	createExecutionControlRequestHeaders,
 	ExecutionControlTransportError,
 	parseExecutionControlErrorEnvelope,
 	parseExecutionControlJsonResponse,
@@ -37,15 +37,6 @@ export function createExecutionControlRequester(
 			timeoutMs?: number;
 		},
 	): Promise<JsonRecord> {
-		const sharedSecret = env.APP_API_EXECUTION_SHARED_SECRET?.trim();
-		if (!sharedSecret) {
-			throw new ExecutionControlTransportError({
-				code: "dependency_not_ready",
-				message: "Execution control runtime is not configured.",
-				retryable: true,
-				status: 503,
-			});
-		}
 		const upstream = resolveExecutionControlUpstream(env);
 		const fetchImplementation = selectExecutionControlFetchImplementation(
 			env,
@@ -88,7 +79,7 @@ export function createExecutionControlRequester(
 
 					fetchImplementation(`${upstream.baseUrl}${path}`, {
 						...(options.body ? { body: JSON.stringify(options.body) } : {}),
-						headers: createExecutionControlRequestHeaders({ sharedSecret }),
+						headers: createClusterPrivateHeaders(env),
 						method: options.method,
 						redirect: "manual",
 						signal: controller.signal,

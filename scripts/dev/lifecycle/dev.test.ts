@@ -116,6 +116,7 @@ describe("local development profiles", () => {
 		assert.deepEqual(calculateLocalDevRuntimePorts(2), {
 			agentRuntime: 27262,
 			agentWorker: 27263,
+			clusterPrivateIngress: 27257,
 			memoryApi: 27255,
 			memoryWorker: 27256,
 			campusSearch: 27254,
@@ -744,7 +745,7 @@ describe("managed worktree environment", () => {
 			second.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
 			second.OBJECT_STORE_DERIVED_SECRET_KEY,
 		);
-		assert.equal(second.EXECUTION_CONTROL_BASE_URL, "http://127.0.0.1:27151");
+		assert.equal(second.CLUSTER_PRIVATE_BASE_URL, "http://127.0.0.1:27157");
 		assert.equal(
 			second.OBJECT_STORE_LOCAL_BASE_URL,
 			`http://127.0.0.1:${profile.infraPorts.objectStore}/${profile.bucketName}/`,
@@ -971,7 +972,7 @@ describe("managed worktree environment", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
 		const corePaths = renderLocalEnvironmentFiles({ profile, repoRoot, target: "core" });
-		assert.equal(corePaths.length, 8);
+		assert.equal(corePaths.length, 9);
 		assert.equal(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")), false);
 	});
 
@@ -1309,7 +1310,7 @@ describe("local development lifecycle guards", () => {
 		);
 		assert.match(appApiDev, /exec wrangler dev/u);
 		assert.match(appApiDev, /\. \.\/\.dev\.vars\.local/u);
-		assert.match(appApiDev, /--var "EXECUTION_CONTROL_BASE_URL:\$EXECUTION_CONTROL_BASE_URL"/u);
+		assert.match(appApiDev, /--var "CLUSTER_PRIVATE_BASE_URL:\$CLUSTER_PRIVATE_BASE_URL"/u);
 		assert.match(campusWebPackage.scripts?.dev ?? "", /\bvite\b/u);
 		assert.equal(executionPackage.scripts?.dev, "bash scripts/dev.sh");
 		assert.match(

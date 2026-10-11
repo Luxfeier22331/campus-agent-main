@@ -27,9 +27,6 @@ spec:
                   - memory-worker
                   - execution-control
                   - execution-worker
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/component: private-service-connector
       ports:
         - protocol: TCP
           port: 8000
@@ -399,7 +396,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: memory-hindsight-egress
+  name: memory-clients-hindsight-egress
 spec:
   podSelector:
     matchExpressions:
@@ -420,3 +417,60 @@ spec:
       ports:
         - protocol: TCP
           port: 8888
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cluster-private-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-private-ingress
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: private-service-connector
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [execution-control, memory-service]
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cluster-private-backends-ingress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [execution-control, memory-service]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cluster-private-ingress
+      ports:
+        - protocol: TCP
+          port: 8000

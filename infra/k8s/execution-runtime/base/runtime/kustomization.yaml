@@ -14,3 +14,4 @@ resources:
   - campus-search-service.yaml
   - agent-runtime-worker.yaml
   - memory-service.yaml
+  - cluster-private-ingress.yaml

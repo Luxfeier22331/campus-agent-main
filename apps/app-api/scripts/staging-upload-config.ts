@@ -5,8 +5,7 @@ export interface AppApiStagingResources {
 	executionMaintenance?: boolean;
 	hyperdriveId: string;
 	objectStoreVpcServiceId: string;
-	memoryServiceVpcServiceId: string;
-	vpcServiceId: string;
+	clusterPrivateVpcServiceId: string;
 }
 
 export function buildAppApiStagingUploadSecrets(
@@ -20,7 +19,7 @@ export function buildAppApiStagingUploadSecrets(
 		"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
 		"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 		"OPS_WEB_INTERNAL_TOKEN",
-		"MEMORY_INTERNAL_SHARED_SECRET",
+		"EDGE_INGRESS_SHARED_SECRET",
 	]) {
 		const value = environment[name]?.trim();
 		if (!value) {
@@ -81,15 +80,9 @@ export function buildAppApiStagingUploadConfig(
 	}
 	replaceBinding(
 		staging.vpc_services,
-		"EXECUTION_CONTROL_PRIVATE",
+		"CLUSTER_PRIVATE_API",
 		"service_id",
-		requireUuid("EXECUTION_CONTROL_VPC_SERVICE_ID", resources.vpcServiceId),
-	);
-	replaceBinding(
-		staging.vpc_services,
-		"MEMORY_SERVICE_PRIVATE",
-		"service_id",
-		requireUuid("MEMORY_SERVICE_VPC_SERVICE_ID", resources.memoryServiceVpcServiceId),
+		requireUuid("CLUSTER_PRIVATE_VPC_SERVICE_ID", resources.clusterPrivateVpcServiceId),
 	);
 	replaceBinding(
 		staging.vpc_services,

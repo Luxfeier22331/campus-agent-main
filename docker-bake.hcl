@@ -20,6 +20,7 @@ group "default" {
     "notice-pipeline-worker",
     "execution-control",
     "memory-service",
+    "cluster-private-ingress",
     "campus-search-service",
     "model-config",
     "notice-artifacts-worker",
@@ -39,6 +40,7 @@ group "heavy" {
 
 group "standard" {
   targets = [
+    "cluster-private-ingress",
     "document-ocr",
     "agent-runtime",
     "campus-agent-schema",
@@ -120,4 +122,9 @@ target "campus-search-service" {
 target "memory-service" {
  inherits=["_common"]
  dockerfile="apps/memory-service/Dockerfile"
+}
+
+target "cluster-private-ingress" {
+  inherits = ["_common"]
+  dockerfile = "apps/cluster-private-ingress/Dockerfile"
 }

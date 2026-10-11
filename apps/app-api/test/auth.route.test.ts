@@ -6,13 +6,14 @@ const env = {
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
+	EDGE_INGRESS_SHARED_SECRET: "shared-secret",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	DEPLOYMENT_ENVIRONMENT: "test" as const,
-	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+	CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
 	RESEND_API_KEY: "resend_test_key",
 };
 

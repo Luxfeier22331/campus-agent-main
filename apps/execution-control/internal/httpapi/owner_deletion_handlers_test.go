@@ -92,7 +92,7 @@ func TestOwnerDeletionPreservesOrderingAndHTTPResults(t *testing.T) {
 				memoryOptions.OwnerSalt = " "
 			}
 			service := executionapplication.NewOwnerDeletionService(executionapplication.OwnerDeletionOptions{Store: store, Memory: memoryapplication.NewMemoryManagementService(memoryOptions)})
-			server := NewServerWithOptions(config.Config{AppAPIExecutionSharedSecret: "secret"}, ServerOptions{OwnerDeletion: service})
+			server := NewServerWithOptions(config.Config{IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret"}, ServerOptions{OwnerDeletion: service})
 			request := newTestRequest(http.MethodPost, "/internal/owners/"+owner+"/deletion/finalize", strings.NewReader(`{"memory_erased":true}`))
 			request.Header.Set("x-worker-origin-auth", "secret")
 			response := httptest.NewRecorder()
@@ -138,7 +138,7 @@ func TestOwnerDeletionHTTPValidationPrecedesSideEffects(t *testing.T) {
 			if tc.unavailable {
 				opts.StoreError = errors.New("unavailable")
 			}
-			server := NewServerWithOptions(config.Config{AppAPIExecutionSharedSecret: "secret"}, ServerOptions{OwnerDeletion: executionapplication.NewOwnerDeletionService(opts)})
+			server := NewServerWithOptions(config.Config{IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret"}, ServerOptions{OwnerDeletion: executionapplication.NewOwnerDeletionService(opts)})
 			request := newTestRequest(http.MethodPost, "/internal/owners/user/deletion/"+tc.action, strings.NewReader(tc.body))
 			request.Header.Set("x-worker-origin-auth", tc.auth)
 			response := httptest.NewRecorder()

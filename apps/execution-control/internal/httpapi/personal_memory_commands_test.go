@@ -53,7 +53,7 @@ func TestMemoryCommandAdmissionUsesManagementBoundary(t *testing.T) {
 			if tc.failed {
 				starter.err = errors.New("start failed")
 			}
-			server := NewServerWithOptions(config.Config{AppAPIExecutionSharedSecret: "secret"}, ServerOptions{MemoryManagement: memoryapplication.NewMemoryManagementService(options)})
+			server := NewServerWithOptions(config.Config{IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret"}, ServerOptions{MemoryManagement: memoryapplication.NewMemoryManagementService(options)})
 			request := newTestRequest(http.MethodPost, "/internal/memory/personal/commands", bytes.NewReader(body))
 			request.Header.Set("x-worker-origin-auth", "secret")
 			response := httptest.NewRecorder()

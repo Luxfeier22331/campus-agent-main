@@ -1,15 +1,8 @@
-import type { Env } from "../../config";
 import type { ProfileMemoryReader } from "../profile-memory";
+import type { ClusterPrivateEnv } from "./cluster-private-transport";
 import type { ExecutionRunMetadataWire } from "./generated/tool-execution-contract";
 
-export type ExecutionControlRuntimeEnv = Pick<
-	Env,
-	| "DEPLOYMENT_ENVIRONMENT"
-	| "EXECUTION_CONTROL_BASE_URL"
-	| "EXECUTION_CONTROL_PRIVATE"
-	| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
-	| "APP_API_EXECUTION_SHARED_SECRET"
->;
+export type ExecutionControlRuntimeEnv = ClusterPrivateEnv;
 
 export type JsonRecord = Record<string, unknown>;
 

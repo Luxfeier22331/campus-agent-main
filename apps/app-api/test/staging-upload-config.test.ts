@@ -13,8 +13,7 @@ const source = readFileSync(resolve(appDir, "wrangler.toml"), "utf8");
 const resources = {
 	hyperdriveId: "11111111111111111111111111111111",
 	objectStoreVpcServiceId: "44444444-4444-4444-8444-444444444444",
-	vpcServiceId: "33333333-3333-4333-8333-333333333333",
-	memoryServiceVpcServiceId: "55555555-5555-4555-8555-555555555555",
+	clusterPrivateVpcServiceId: "33333333-3333-4333-8333-333333333333",
 };
 
 describe("app-api staging upload config", () => {
@@ -33,12 +32,8 @@ describe("app-api staging upload config", () => {
 		expect(staging).not.toHaveProperty("observability");
 		expect(staging.vpc_services).toEqual([
 			expect.objectContaining({
-				binding: "EXECUTION_CONTROL_PRIVATE",
-				service_id: resources.vpcServiceId,
-			}),
-			expect.objectContaining({
-				binding: "MEMORY_SERVICE_PRIVATE",
-				service_id: resources.memoryServiceVpcServiceId,
+				binding: "CLUSTER_PRIVATE_API",
+				service_id: resources.clusterPrivateVpcServiceId,
 			}),
 			expect.objectContaining({
 				binding: "OBJECT_STORE_PRIVATE",
@@ -93,9 +88,9 @@ describe("app-api staging upload config", () => {
 		expect(() =>
 			buildAppApiStagingUploadConfig(source, appDir, {
 				...resources,
-				vpcServiceId: "invalid",
+				clusterPrivateVpcServiceId: "invalid",
 			}),
-		).toThrow("EXECUTION_CONTROL_VPC_SERVICE_ID must contain a Cloudflare resource UUID.");
+		).toThrow("CLUSTER_PRIVATE_VPC_SERVICE_ID must contain a Cloudflare resource UUID.");
 	});
 
 	it("rejects an invalid object-store VPC service id", () => {
@@ -110,7 +105,7 @@ describe("app-api staging upload config", () => {
 	it("passes through only the Worker object-store identities in the upload secret file", () => {
 		const environment = {
 			APP_API_EXECUTION_SHARED_SECRET: "execution-test",
-			MEMORY_INTERNAL_SHARED_SECRET: "memory-test",
+			EDGE_INGRESS_SHARED_SECRET: "memory-test",
 			OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-write-test",
 			OBJECT_STORE_DERIVED_SECRET_KEY: "derived-write-secret-test",
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "derived-read-test",
@@ -121,6 +116,8 @@ describe("app-api staging upload config", () => {
 			buildAppApiStagingUploadSecrets({
 				...environment,
 				OBJECT_STORE_SOURCE_ACCESS_KEY: "source-not-for-worker",
+				MEMORY_INTERNAL_SHARED_SECRET: "cluster-only",
+				EXECUTION_CONTROL_INGRESS_SHARED_SECRET: "cluster-only",
 			}),
 		).toEqual(environment);
 		for (const name of ["OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_DERIVED_SECRET_KEY"]) {

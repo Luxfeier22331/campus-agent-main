@@ -11,9 +11,9 @@ import (
 
 func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
-		AppName:                     "campus-agent",
-		DeploymentEnvironment:       "staging",
-		AppAPIExecutionSharedSecret: "worker-secret",
+		AppName:               "campus-agent",
+		DeploymentEnvironment: "staging",
+		IngressSharedSecret:   "worker-secret", AppAPIExecutionSharedSecret: "worker-secret",
 	})
 
 	unauthorized := httptest.NewRecorder()
@@ -310,6 +310,20 @@ func TestReadyzOmitsNonCoreRuntimeDiagnostics(t *testing.T) {
 	} {
 		if _, ok := body[key]; ok {
 			t.Fatalf("readyz must not publish non-core diagnostic %s: %#v", key, body[key])
+		}
+	}
+}
+
+func TestIngressSecretDoesNotAcceptProductCallbackIdentity(t *testing.T) {
+	s := NewServer(config.Config{IngressSharedSecret: "ingress-secret", AppAPIExecutionSharedSecret: "callback-secret"})
+	for _, tc := range []struct {
+		secret string
+		want   bool
+	}{{"ingress-secret", true}, {"callback-secret", false}, {"", false}} {
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/internal/execution/requests", nil)
+		request.Header.Set("x-worker-origin-auth", tc.secret)
+		if s.internalWorkerAuthorized(request) != tc.want {
+			t.Fatalf("unexpected authorization result")
 		}
 	}
 }

@@ -23,6 +23,8 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 	],
 	"apps/app-api/.dev.vars.local": [
 		"APP_API_EXECUTION_SHARED_SECRET",
+		"EDGE_INGRESS_SHARED_SECRET",
+		"CLUSTER_PRIVATE_BASE_URL",
 		"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
 		"BETTER_AUTH_SECRET",
 		"OBJECT_STORE_LOCAL_BASE_URL",
@@ -41,6 +43,13 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 		"MODEL_CONFIG_DATABASE_URL",
 		"MODEL_CONFIG_ENCRYPTION_KEY_FILE",
 		"MODEL_CONFIG_PORT",
+	],
+	"apps/cluster-private-ingress/.env.local": [
+		"LISTEN_ADDR",
+		"EDGE_INGRESS_SHARED_SECRET",
+		"EXECUTION_CONTROL_INGRESS_SHARED_SECRET",
+		"MEMORY_SERVICE_BASE_URL",
+		"MEMORY_INTERNAL_SHARED_SECRET",
 	],
 	"apps/agent-runtime/.env.local": ["AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL", "PORT"],
 	"apps/ops-web/.env.local": [
@@ -216,6 +225,7 @@ export async function diagnoseLocalDevelopment(
 					"model-config": rp.modelConfig,
 					"agent-runtime": rp.agentRuntime,
 					"agent-runtime-worker": rp.agentWorker,
+					"cluster-private-ingress": rp.clusterPrivateIngress,
 					"memory-service": rp.memoryApi,
 					"memory-worker": rp.memoryWorker,
 				})) {
