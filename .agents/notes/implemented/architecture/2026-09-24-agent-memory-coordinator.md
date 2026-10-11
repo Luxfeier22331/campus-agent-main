@@ -148,7 +148,7 @@ Campus Web 在 generating 时刷新画像，完成或读取失败后停止；生
 不静默宣称 `erased`；产品投影在 erase 入队时即置为 `erased`（即时清除，见上方 2026-09-26
 更新），数据面收敛由 `syncStatus` 表达。旧客户端（逐条 items 路由）在硬切期间收到 404，不保留兼容层。
 
-已落实的验证：`go test ./apps/execution-control/...`（合同、fence、profile handler、排空与
+已落实的验证：`go test ./apps/agent-control/...`（合同、fence、profile handler、排空与
 复活）、execution-control `test:database-integration`（含多实例并发：同一 erase 命令并发准入
 仅执行一次、并发 owner 删除幂等、新调用不得穿越已提交的删除）、app-api `test:node:fast` /
 `test:node:isolated` / `test:shared-db-integration`、campus-web `test:node:*` / `test:dom:*` /

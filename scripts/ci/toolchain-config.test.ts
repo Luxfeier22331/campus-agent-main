@@ -11,7 +11,7 @@ function capture(source: string, pattern: RegExp, label: string): string {
 	return value;
 }
 
-for (const app of ["execution-control", "model-config"]) {
+for (const app of ["agent-control", "model-config"]) {
 	test(`${app} Docker image follows the go.mod toolchain version`, () => {
 		const goMod = readFileSync(path.join(ROOT, `apps/${app}/go.mod`), "utf8");
 		const dockerfile = readFileSync(path.join(ROOT, `apps/${app}/Dockerfile`), "utf8");

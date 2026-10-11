@@ -63,8 +63,11 @@ export function validatePublicationArtifacts(
 			!candidate ||
 			candidate.workerName !== name ||
 			candidate.sourceSha !== plan.head ||
-			typeof candidate.versionId !== "string" ||
-			!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu.test(candidate.versionId)
+			typeof candidate.artifactRef !== "string" ||
+			!candidate.artifactRef.startsWith(
+				`ghcr.io/muc-wiki/campus-agent/worker-${name.replace(/-staging$/u, "")}@sha256:`,
+			) ||
+			!/@sha256:[a-f0-9]{64}$/u.test(candidate.artifactRef)
 		) {
 			throw new Error(`Missing or mismatched published Worker candidate: ${name}`);
 		}

@@ -105,7 +105,7 @@ test("a vertex shared by multiple Bake targets is not attributed to the last tar
 	const report = parseBuildkit(
 		vertex({
 			digest: "shared",
-			name: "[execution-control build 1/9] FROM golang",
+			name: "[agent-control build 1/9] FROM golang",
 			started: time(0),
 		}) +
 			vertex({

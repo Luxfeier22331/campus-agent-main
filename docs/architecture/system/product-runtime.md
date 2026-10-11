@@ -19,7 +19,7 @@ status: active
 | `app-api` | 浏览器认证、聊天接收与终结、公开问答可用性信号和产品 API | 产品可用性状态快照、Temporal worker、内部检索、在线模型配置、通用运维数据 API |
 | `status-web` | 独立的产品可用性状态页、公共状态快照和第一方入口黑盒探测 | 校园业务状态、用户账号、聊天、内部运行时和观测平台原始数据 |
 | `ops-web` | 自托管运行记录、运行概况、在线模型配置、Dining 内容运营和固定通知维护工作流操作入口 | 学生账号、聊天和请求写入，任意工作流控制或通用 Kubernetes 资源管理 |
-| `execution-control` | 持久运行准入、工作流业务逻辑、内部查询和执行投影 | 浏览器认证、页面合同和模型凭据所有权 |
+| `agent-control` | 持久运行准入、启动取消、内部查询、receipt 和执行投影 | 浏览器认证、页面合同和模型凭据所有权 |
 | `campus-search-service` | 共享 Campus Docs/Notice 检索、当前索引读取和 MCP 客户端 HTTP 合同 | Agent run 生命周期、个人记忆、通知采集和 Bot 写操作 |
 | `model-config` | 具名在线模型配置、Provider 凭据、验证和内部读取合同 | 模型流量代理、执行编排和产品页面 |
 | `agent-runtime` | 当前模型 operation 及其内部模型与获准工具循环 | 持久编排和产品数据持久化 |
@@ -31,7 +31,7 @@ status: active
   `campus-web` 或 `app-api` 代理状态数据。
 - `status-web` Cron 通过 App API 的匿名 `GET /api/chat/availability` 探测问答，通过 Campus
   公开入口的 `/` 探测问答之外的整体站点；文档和地图等静态页面不单独探测。
-- 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant、PostgreSQL 或外部观测平台。
+- 浏览器不直连 agent-control、Temporal、Hindsight、Qdrant、PostgreSQL 或外部观测平台。
 - `ops-web` 是独立受保护的自托管站点；其浏览器只调用同一进程的 `/api/ops/*`。
 
 ## 聊天路径
@@ -41,7 +41,7 @@ flowchart LR
   Browser[campus-web]
   AppAPI[app-api]
   ProductDB[(chat + request observability)]
-  Control[execution-control]
+  Control[agent-control]
   Temporal[Temporal]
   Agent[agent-runtime]
   RunDB[(runtime.agent projections)]
@@ -58,14 +58,14 @@ flowchart LR
   Control --> RunDB
 ```
 
-app-api 保存用户轮次并创建持久 request；execution-control 和 Temporal 推进执行并写入
+app-api 保存用户轮次并创建持久 request；agent-runtime 的 Temporal Workflow 推进执行，经 agent-control 写入
 `execution_control.agent_*`；app-api 消费有界事件并保存产品终态。事务与幂等规则只在
 [聊天请求生命周期](../../contracts/app-api/request-lifecycle.md) 维护。
 
 ## 数据边界
 
 - 会话、消息和轮次派发：`apps/app-api`；
-- 工作流 run、event、step、tool 和 memory 投影：`apps/execution-control`；
+- 工作流 run、event、step、tool 和 memory 投影：`apps/agent-control`；
 - 完整 Temporal history：Temporal；
 - Agent 模型和工具调用 trace：Langfuse；
 - 离线评测输入与结果：调用方和所属评分器；需要关联运行时再把 score 发布到 Langfuse；
@@ -75,17 +75,17 @@ app-api 保存用户轮次并创建持久 request；execution-control 和 Tempor
   响应、Langfuse trace 或数据库记录。
 
 产品和跨服务诊断统一通过 `request_id` 关联，`conversation_id` 只用于产品会话。workflow、Temporal
-run、step、attempt、result 和 provider response ID 仅属于 execution-control 内部；OTel 和 Langfuse
+run、step、attempt、result 和 provider response ID 仅属于 agent-control 内部；OTel 和 Langfuse
 的原生 trace ID 只在各自技术系统内存在，不进入产品 API 或持久业务投影。
 
 ## 配置与运行记录
 
 - `ops-web -> model-config` 通过同源 BFF 管理在线模型配置；浏览器不获得 Provider API Key。
-- execution-control 读取 `primary_agent` target 并冻结服务返回的 hash；Agent Runtime 按该 hash 读取完整
+- agent-control 读取 `primary_agent` target 并冻结服务返回的 hash；Agent Runtime 按该 hash 读取完整
   配置。普通 Job 直接读取所属具名配置。内部 consumer 位于共同受信任边界，不使用 Model Config
   consumer token 或注册表。Campus Search service 在检索时读取 Embedding 与 Reranker 连接，具体查询与
   失败语义见[检索服务](./retrieval-serving.md#在线消费边界)。
-- `ops-web -> PostgreSQL/execution-control` 提供有界运行摘要和执行诊断事实。
+- `ops-web -> PostgreSQL/agent-control` 提供有界运行摘要和执行诊断事实。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开菜单并以受限权限处理学生评价和举报；校园地图由 campus-web 的静态资产直接提供。
 - Dining 投稿由 App API 提供学生入口、媒体编排与生命周期清理，Ops Web 提供治理入口，Campus Web

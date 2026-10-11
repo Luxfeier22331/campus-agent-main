@@ -121,7 +121,6 @@ describe("local development profiles", () => {
 			memoryWorker: 27256,
 			campusSearch: 27254,
 			executionControl: 27251,
-			executionWorker: 27252,
 			modelConfig: 27253,
 		});
 	});
@@ -764,7 +763,7 @@ describe("managed worktree environment", () => {
 			readFileSync(resolve(repoRoot, "apps/agent-runtime/.env.local"), "utf8"),
 		);
 		const executionControlEnvironment = parseEnv(
-			readFileSync(resolve(repoRoot, "apps/execution-control/.env.local"), "utf8"),
+			readFileSync(resolve(repoRoot, "apps/agent-control/.env.local"), "utf8"),
 		);
 		const modelConfigEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/model-config/.env.local"), "utf8"),
@@ -983,7 +982,7 @@ describe("managed worktree environment", () => {
 		assert.equal(written.length, 4);
 		assert(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")));
 		assert(existsSync(resolve(repoRoot, "apps/model-config/.env.local")));
-		assert(!existsSync(resolve(repoRoot, "apps/execution-control/.env.local")));
+		assert(!existsSync(resolve(repoRoot, "apps/agent-control/.env.local")));
 		assert(!existsSync(resolve(repoRoot, "jobs/document-ocr/.env.local")));
 	});
 
@@ -1287,7 +1286,7 @@ describe("local development lifecycle guards", () => {
 		const schemaPackage = readPackageJson("jobs/campus-agent-schema/package.json");
 		const executionPackage = JSON.parse(
 			readFileSync(
-				resolve(import.meta.dirname, "../../../apps/execution-control/package.json"),
+				resolve(import.meta.dirname, "../../../apps/agent-control/package.json"),
 				"utf8",
 			),
 		) as { scripts?: { dev?: string } };
@@ -1315,17 +1314,16 @@ describe("local development lifecycle guards", () => {
 		assert.equal(executionPackage.scripts?.dev, "bash scripts/dev.sh");
 		assert.match(
 			readFileSync(
-				resolve(import.meta.dirname, "../../../apps/execution-control/scripts/dev.sh"),
+				resolve(import.meta.dirname, "../../../apps/agent-control/scripts/dev.sh"),
 				"utf8",
 			),
-			/go build -o .*execution-api \.\/cmd\/execution-api/u,
+			/go build -o .*agent-control \.\/cmd\/agent-control/u,
 		);
 		assert.equal(agentPackage.scripts?.dev, "bash scripts/dev.sh");
 		const agentDev = readFileSync(
 			resolve(import.meta.dirname, "../../../apps/agent-runtime/scripts/dev.sh"),
 			"utf8",
 		);
-		assert.match(agentDev, /--experimental-strip-types.*src\/server\.ts/u);
 		assert.match(agentDev, /--import=tsx src\/worker\.ts/u);
 		assert.equal(opsWebPackage.scripts?.dev, undefined);
 		assert.match(opsWebPackage.scripts?.["dev:api"] ?? "", /--experimental-strip-types/u);
@@ -1356,7 +1354,7 @@ function createRepositoryShape(): string {
 	for (const app of [
 		"app-api",
 		"campus-web",
-		"execution-control",
+		"agent-control",
 		"model-config",
 		"agent-runtime",
 		"ops-web",

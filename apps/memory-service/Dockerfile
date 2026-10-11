@@ -2,7 +2,8 @@
 FROM --platform=$BUILDPLATFORM golang:1.26.7-bookworm AS build
 ARG TARGETOS=linux
 ARG TARGETARCH
-WORKDIR /src
+WORKDIR /src/apps/memory-service
+COPY packages/memory-api-go/ /src/packages/memory-api-go/
 COPY apps/memory-service/go.mod apps/memory-service/go.sum ./
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod go mod download
 COPY apps/memory-service/ ./

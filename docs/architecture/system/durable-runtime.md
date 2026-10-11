@@ -1,6 +1,6 @@
 ---
 doc_type: architecture
-owner_boundary: execution-control
+owner_boundary: agent-control
 status: active
 ---
 # 持久 Agent 运行时
@@ -9,11 +9,11 @@ status: active
 
 本文定义在线回答的持久生命周期。agent-runtime 的 TypeScript Temporal Workflow 拥有 Solve、
 Execute、Replan、Synthesize 顺序和预算，单次模型请求与外部工具调用分别作为 Activity。
-execution-control 拥有执行准入、启动/取消命令、运行载荷、事件和终态投影；app-api 拥有产品请求、
+agent-control 拥有执行准入、启动/取消命令、运行载荷、事件和终态投影；app-api 拥有产品请求、
 原始输入和产品终态。Memory 是独立 API、Worker、Workflow 与数据库，通过 API 接收召回和管理请求。
 
-部署采用按 owner 稳定分桶的双轨切换，run 的队列在准入时冻结。旧 Go Workflow 与 HTTP operation
-循环在旧队列排空前保留；本文标注为旧路径的内容只描述该迁移期实现。
+新运行固定进入 TypeScript AgentWorkflow。旧 Go Workflow、Worker 和 HTTP Runtime 已归档为
+非编译源码，不提供旧 history 支持。数据库身份与 Temporal 队列等持久身份保持不变。
 
 ## 主要对象
 
@@ -25,7 +25,7 @@ Executor 步骤状态与检索材料是否可用分别表达：`model_output_inv
 - `Conversation`、`Turn`：app-api 产品事实；
 - `Run`：产品可见持久执行对象；
 - `Agent Workflow`：Solve 直接回答，或进入 Execute Step、按需 Replan 与 Synthesize 的产品编排；
-- `AgentWorkflow`：TypeScript Temporal Workflow；旧 Go `ToolExecutionWorkflow` 在双轨期间保留；
+- `AgentWorkflow`：TypeScript Temporal Workflow，负责全部新 Agent 运行；
 - `WorkflowStartCommand`、`CancellationCommand`：将已提交的 PostgreSQL 意图投递给 Temporal
   的持久命令；
 - `AgentInvocationReceipt`：约束同一模型调用只能开始一次，保存已完成结果供恢复；
@@ -41,7 +41,7 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
   Temporal SDK、HTTP 或 PostgreSQL driver；
 - `internal/executionapplication` 负责构造冻结 workflow input、原子提交 run/start intent、提交取消命令，
   并拥有 run/receipt、workflow control 和执行 outbound ports，负责 receipt、运行内工具身份校验
-  和账号删除协调；`operation` 编排 Runtime 调用、回执与事件投影，`finalization` 统一处理回答终态
+  和账号删除协调；`operation` 负责输入准备、结果归一化与事件投影，`finalization` 统一处理回答终态
   和恢复，`projection` 负责业务投影；具体工具合同文件读取由 `internal/toolcontract` 实现注入端口；
 - `apps/agent-runtime/src/workflows.ts` 拥有 Agent 推进，`activities.ts` 执行模型和工具，
   `domain-tools.ts` 直接调用 Search/Memory API；`internal/runtimeapi` 是 control 的类型化读写入口；
@@ -50,24 +50,18 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 - `internal/httpapi` 只完成认证、wire 解码、错误映射和响应编码，不拥有执行生命周期、admission、检索
   query 或 recall request 规则；
 - `internal/executionreconciler` 通过 application starter/control/finalizer 合同收敛持久命令；
-- 旧 Go 路径的 `internal/temporaladapter/execution`、`memory`、`finalization` 分别拥有 activity 实现，
-  `answermemory` 桥接拥有追加前的回答完成校验、输入读取和步骤/attempt/result 投影；记忆 adapter
-  通过接口接收桥接，不直接持有回答 store 或 InputReader；
-  `executioncontext` 校验活动身份并提取显式调用元数据，`projection` 将其交给应用 Writer；
-  `activitysupport` 提供无状态 heartbeat 与错误映射，输入读取由 application `InputReader` 单独注入，
-  记忆和回答终态各自依赖所需的回调接口；`contract` 负责独立 workflow DTO 与领域合同转换；
-- `internal/executioncontract` 拥有 operation 数据和计划规则；Runtime HTTP/JSON/SSE 解码由
-  `outboundadapter` 负责，应用消费类型化事件。API reconciler 与 Activity 共用终态应用服务；
-- `internal/runtimeassembly` 是唯一生产 composition root，按回答执行与个人记忆分组创建依赖，
-  创建 Temporal client、starter 和 worker，注册 workflow/activity 并组装 application ports；
+- `internal/executioncontract` 拥有 operation 数据和投影准入规则；Runtime 通过 typed API 提交结果；
+- `internal/runtimeassembly` 是 Control API 的生产 composition root，装配 Temporal client、starter、
+  reconciler 和 Memory dispatcher，不注册 Workflow 或 Activity，也不装配 Hindsight；
+
 - `apps/campus-search` 独立拥有检索实现，Agent 的工具 Activity 通过 API 消费。
 
 ## 进程停机
 
-`execution-control` 收到停机信号后先进入 draining，禁止新的 HTTP 业务请求；已进入的请求在有界的
+`agent-control` 收到停机信号后先进入 draining，禁止新的 HTTP 业务请求；已进入的请求在有界的
 `ShutdownGraceMS` 窗口内继续使用尚未关闭的 runtime 和 store。HTTP listener 完成 shutdown 或超时
 强制关闭后，API 才停止 reconciler，最后关闭共享数据库和 Temporal client。
-独立 `execution-worker` 先撤销 readiness，再并行停止三类 poller，最后关闭数据库和 client；
+独立 `agent-runtime-worker` 先撤销 readiness，再停止三类 poller，最后关闭连接和遥测资源；
 停止 API 不会停止 Worker，扩容 API 不会增加 poller。具体退出上限与探针见执行模块 README。
 停机不会删除或伪造已持久化的 workflow start/cancellation intent；未完成命令由下一实例继续租约和收敛。
 
@@ -93,7 +87,7 @@ Solve 失败但保留 evidence 时，使用独立的 recovery synthesis 分支�
 
 ## 启动与取消命令
 
-execution-control 的 application service 在同一事务写入 run 与 workflow 启动命令，然后 HTTP adapter
+agent-control 的 application service 在同一事务写入 run 与 workflow 启动命令，然后 HTTP adapter
 即可把稳定 run 返回给 app-api。后台 reconciler 租约并幂等投递命令，因此 API 响应、进程退出或
 Temporal 返回不确定时都不会要求删除 run 或猜测 workflow 是否已启动。
 
@@ -132,7 +126,7 @@ Workflow ID 与 Memo，并以当前固定一分钟的 `StartDelay` 创建或取�
 启动命令一致时才确认已有执行；visibility 暂不可读、Memo 缺失或尚不可解码都保持可重试。明确
 不一致时，run 与启动命令失败关闭，且不得取消该未知所有权的 Temporal execution。
 
-取消由 app-api 校验归属后调用 execution-control。execution-control 将
+取消由 app-api 校验归属后调用 agent-control。agent-control 将
 `cancel_requested` 与 Temporal 取消命令持久化后由 reconciler 投递；临时网络错误只推进命令重试，
 不丢失用户意图，也不直接伪造已取消终态。尚无绑定时，取消路径先通过无 Run ID 的 Describe 发现候选，
 再对该候选的精确 Run ID 校验 Memo、root 和 reset state；latest 只用于发现候选，不是绑定条件。身份未知时重试，Memo 明确冲突时只完成本地产品取消，
@@ -157,7 +151,7 @@ Continue-As-New、Workflow Retry、Cron 和 Reset，因而“相同 `first_run_i
 ## 执行输入所有权
 
 app-api 为已经分配 run 的产品请求保留完整执行输入及其 hash，产品终态不会改变这份数据。
-execution-control 只保存 ref/hash，不维护输入清理发件箱，也不在 Workflow、Activity 或 reconciler
+agent-control 只保存 ref/hash，不维护输入清理发件箱，也不在 Workflow、Activity 或 reconciler
 中调用删除接口。执行输入随 app-api 的会话和用户数据生命周期删除。
 
 当前在线回答不支持 Temporal Reset。Activity、取消和超时收敛始终使用持久绑定的精确 root Run ID；
@@ -165,89 +159,32 @@ Reset 或其他 successor 不能改写产品终态或被重新绑定到原产品
 
 ## Temporal poller
 
-- workflow poller：`campus-agent.workflow.v3`；
-- core activity poller：`campus-agent.activity.core.v3`；
-- agent activity poller：`campus-agent.activity.agent.v3`。
+agent-runtime Worker 注册 `campus-agent.agent.workflow.v1`、`campus-agent.agent.model.v1` 和
+`campus-agent.agent.tool.v1`。同一个进程拥有三类 poller，不按模型或工具单独部署 Worker。
+Memory 使用自己的 Worker 和 Workflow；Control 只持有 Temporal client，不运行 poller。
 
-三个 poller 运行在独立 `execution-worker` 进程，HTTP API 与 reconciler 运行在 `execution-control`
-Deployment。两个角色仍属于同一执行领域、Go module、数据库角色和发布版本；默认各一个副本。
-不按知识类型、工具或检索能力继续拆分 Worker；`agent-runtime` 仍是独立 Deployment。
-选择理由见 [API 与 Worker 部署边界](../../../.agents/notes/implemented/architecture/2026-10-02-execution-api-worker.md)。
+## 模型与工具 Activity
 
-## 双轨期间的旧 Go operation
+Workflow 调度单次模型调用和单次本地函数调用。Runtime 从 Control 读取冻结输入，通过 Model Config
+解析匹配目标的凭据，再执行模型请求；工具 Activity 直接调用 Search/Memory API。供应商 continuation
+由 Control 作为载荷持久化，Temporal history 只携带引用和有界决策。
 
-execution-control 为每个 operation 提供运行标识、当前步骤/计划、已准入的模型可见工具、历史配置槽位
-`primary_agent` 的预期 Model Target hash 和有界会话上下文。Agent Runtime 从共同受信任的 Model Config
-按预期 hash 读取实际供应商配置，再在真实 `AgentInputItem[]` 上执行字符预算裁剪，并返回 operation
-结果、真实 SDK 工具摘要、证据、上下文用量、模型用量和 trace 关联。
+Control typed API 校验精确 Workflow/Run 身份，拥有 receipt、输入输出载荷、结果归一化与投影。
+模型调用先读取 receipt；已完成时直接恢复，已开始但结果未知时返回不确定结果，不能重新调用模型。
+新调用先领取 receipt，返回后先保存结果再推进投影。Activity 重试可修复投影，不承诺外部模型的
+exactly-once 执行。工具 Activity 保持冻结准入、工具预算和引用合同。
 
-plan、候选来源、依赖和 replan decision 的语义规则由 execution-control 的共享纯规则入口实现；Adapter
-与 Temporal workflow 只在各自信任边界调用，不复制同一套语义实现。
-Replan 的模型决策不满足这些语义时保存 `model_output_invalid` 失败结果及用量，继续既有获准路径，
-不执行无效决策。Runtime 输出格式失败保留的工具失败记录仍需满足本步骤来源边界，但不因工具自身
-失败再次拒收整个明确失败结果；是否恢复由 Workflow 按具体 operation 错误裁决。
-
-SDK `maxTurns` 只限制当前 operation 的代理与工具轮次，不是重试次数或重规划预算。重规划次数和
-步骤数量由外层 Agent Workflow 预算限制。内部 SDK 工具在当前 operation 生命周期内调用带认证的
-execution-control 查询接口。
-HTTP adapter 将 typed request 分别交给 Campus Search 和 Personal Memory Recall 服务；两者通过共享
-`RunToolAuthorizer` 校验 run 正在执行、activity attempt 是最新 attempt，且工具位于该 attempt 的
-已准入可见工具集合。
-Campus Search 的检索表达式、当前索引读取和搜索调用，以及 personal-memory recall 的冻结 workflow
-admission 校验、执行输入加载和 recall request 构造都不属于 HTTP owner。Recall 经记忆访问 fence
-返回有序事实和字符预算；中文上下文格式化由 Runtime 在 runner 消费和工具记录前完成。
-
-每个 source-side Temporal Activity 在读取 run 或写入任何投影前，都从当前 Activity context 取得
-Workflow ID 与精确 Temporal Run ID，并与持久 start intent 的 Workflow ID 和 root Run ID 绑定逐项
-比较。root 绑定尚未确认时返回可重试失败；Workflow ID 或 Run ID 不同，包括 Reset 产生的 successor，
-都返回非重试身份失败。start 已 `superseded` 时，只有 cancellation finalizer 可以继续使用已绑定的
-root execution，Agent、查询和普通 Finalization Activity 都必须停止。该 fence 不能只信任 Workflow
-input 中携带的产品 run ID。
-
-Agent operation Activity 的 Temporal `MaximumAttempts` 为 `0`，允许在 workflow 生命周期内重试
-Activity 调度和投影修复，但供应商调用仍然只能开始一次。Activity 在调用供应商前计算 canonical
-provider invocation envelope 的摘要并写入 invocation receipt；只有 receipt 不存在时可进入首次调用。
-receipt 为 `started` 时结果不确定，以 `workflow_attempt_uncertain` 阻断，不重新调用模型；
-`completed` receipt 则解码已保存的 operation output，校验身份、修复投影后返回原结果。
-恢复前严格检查字段、1 MiB 完整输出预算及已有 output hash。JSONB 读回后按类型化 DTO 重新编码校验，
-不使用存储引擎的文本键序或空白；失败时不再次调用供应商。
-已领取的 invocation 返回明确失败结果时，application receipt service 写入 `failed` 和完整类型化
-operation output，保留已完成工具、证据、来源尝试及用量；传输或调用异常没有完整结果时只保存有界
-错误码。后续投递返回该失败，不再次执行供应商调用。进程在写入终态前退出时仍保留 `started`，按不确定结果处理。
-该约束承认 Activity dispatch 和外部模型 API 之间不存在原子事务。
-
-provider invocation envelope 的摘要是 receipt 的输入 fingerprint，绑定 request、step、operation、
-invocation、execution input hash、admission snapshot hash 和逻辑请求摘要。逻辑请求摘要排除
-`activity_attempt`；实际 HTTP 请求仍携带它来约束工具调用。它不是精确 HTTP bytes 的摘要，也不是
-agent-runtime 后续加工后的最终模型输入摘要。
-明确终态的 receipt 保存完整类型化 operation output、输出 hash 和完成时间，可能包含回答正文、证据及
-工具结果；先完成 receipt，再写诊断投影，使 Activity 重投递能够恢复结果而不重复供应商调用。
-各 operation 的 StepResult 仍保存有界摘要和正文 hash；receipt 是执行恢复载荷，不取代 app-api 的
-产品答案所有权。独立 receipt store 负责记录与冲突检查，保留期限随父 run；内存 owner 在共享锁下删除，
-PostgreSQL 通过外键级联删除，不另设 receipt TTL。
-Runtime 拥有模型输出结构解析；workflow 拥有计划预算、图依赖和 replan decision 语义；adapter 拥有
-身份、来源准入及恢复校验。Solve/Replan 各只传递一份类型化决策，workflow 自行构造 completed step；
-Synthesis 的输入不重复 plan/completed steps，只传递回答所需的材料与剩余事实。
-各传输与恢复边界的字节预算及无旧合同兼容的切换要求见
-[执行合同](../../contracts/tool-execution.md#agent-结果传递)。
-准入快照在 builder、持久输入解码和 Activity 边界校验，不与自身工具列表重复比较。
-
-Solve 直接检索后转为计划时，已有 evidence/source attempts 继续传给 Executor 和 Replanner，
-并进入最终合成。引用预算耗尽立即结束模型循环；有材料的 Solve 失败使用显式 recovery synthesis，
-不制造计划步骤、不重新检索、不重置 deadline。已有正文片段时恢复使用缓冲生成，最终答案替换草稿。
-恢复失败和无材料分别使用 `answer_synthesis_failed`、`materials_insufficient`；无材料但发生
-供应商或工具故障时保留具体技术错误。上述规则针对失败的模型 operation，不把合法 Solve answer
-或正常 Executor 的来源不可用结果改判失败。个人记忆只是辅助上下文；recall 失败允许后续检索、
-合成和直接回答，append 继续位于回答最终化之后。失败 operation 的原始错误仍进入步骤诊断，
-不因产品恢复成功而丢失；Ops 分别展示阶段失败和 run 终态失败。
+Solve 转为计划时保留已有 evidence/source attempts；失败且已获得材料时允许 recovery synthesis。
+恢复不重新检索、不重置 deadline，已有正文片段由最终答案替换。个人记忆仅作为辅助上下文，
+召回失败沿用原工具失败合同，append 位于产品最终化之后。
 
 ## 取消、超时与终态处理
 
 Temporal cancellation 和 activity deadline 必须传播到 agent-runtime 以及进行中的
-供应商或内部查询调用。workflow 收到取消后使用 `workflow.NewDisconnectedContext` 执行有界、
+供应商或内部查询调用。workflow 收到取消后使用 `CancellationScope.nonCancellable` 执行有界、
 可重试的终态持久化，再结束为 canceled；不能因为原 workflow context 已取消而跳过 closeout。
 
-app-api 产品行和 `finalization_fingerprint` 是跨系统终态裁决。execution-control 只有在产品终态
+app-api 产品行和 `finalization_fingerprint` 是跨系统终态裁决。agent-control 只有在产品终态
 被幂等接受后才发布相应浏览器终态；终态投影区分取消、超时、失败关闭和较晚完成，较晚成功不得
 覆盖已经提交的产品终态。
 
@@ -287,7 +224,7 @@ Finalization 不调用 LLM、不生成第二个答案、不改写 SDK 答案；a
 过滤。只有 `FinalizeRunProjection` 成功后的 `run.completed` 才是浏览器成功终态。
 Finalization 在 callback 前先持久化 internal `finalization.reserved` event，绑定
 `workflow_result_ref`、projection fingerprint、首次 durable `run.progress(finalizing)` 的
-`started_at` 与 execution-control 生成的 wall-clock `completed_at`。重试必须复用 reservation 的
+`started_at` 与 agent-control 生成的 wall-clock `completed_at`。重试必须复用 reservation 的
 时间和身份；canonical Step/Result、run.CompletedAt、callback `completed_at` 与 `run.completed`
 统一使用该 completion boundary。workflow DTO 不再保留旧 `FinalizedAt` 字段或 history 兼容分支；
 离线 replay fixture 直接由当前生产 workflow 生成。
@@ -304,7 +241,7 @@ callback，也不发布 `run.failed`。只有同一 fingerprint/identity 的重�
 浏览器流式传输订阅有界 run event。HTTP 连接生命周期不拥有执行生命周期；
 重新连接读取持久事件投影和当前运行状态，不启动另一条执行路径。
 
-事件读取使用 execution-control 返回的 `next_sequence` 推进，即使这一段序列只有内部事件而没有
+事件读取使用 agent-control 返回的 `next_sequence` 推进，即使这一段序列只有内部事件而没有
 浏览器可见 event。`request.accepted` 只确认产品请求和稳定 run 已持久化，不代表 Temporal 已
 排队；`run.canceled` 则是浏览器可见的持久终态。
 
@@ -313,7 +250,7 @@ app-api 只把持久事件投影为固定产品事件：排队、开始执行、
 worker 和 task queue 不进入 Campus Web。回答过程读取同一事件时间线，固定派生 `queued`、
 `preparing`、`generating`、`finalizing` 四个协议步骤及其时间，不透传原始步骤轨迹。
 
-execution-control 通过执行输入和 admission snapshot 校验准备新 run，将 run 与 start intent 持久化后
+agent-control 通过执行输入和 admission snapshot 校验准备新 run，将 run 与 start intent 持久化后
 交由 reconciler 启动 Temporal workflow。HTTP server 不维护本地执行限流队列或执行 registry；
 admission snapshot 描述本轮能力和预算，不承担并发控制。实际执行容量由 Temporal task queue 和
 worker 配置约束，HTTP 请求排空与持久执行生命周期分别由 API 进程和执行层负责。缺少 Temporal、
@@ -343,7 +280,7 @@ polling `maxAttempts` 是连续空页预算，不是严格 elapsed-time SLA；�
 - 将检索服务内部的候选处理、embedding、重排拆成 Agent Workflow Activity；
 - 从 SDK 轮次派生持久重新规划状态；
 - app-api 或 finalization 改写答案；
-- 把冻结输入正文放入 execution-control metadata、Temporal history、event、step、日志或 trace；
+- 把冻结输入正文放入 agent-control metadata、Temporal history、event、step、日志或 trace；
 - 为旧版本请求保留执行合同、双读、双写或失败回退；
 - 已索引知识回退到实时公网搜索。
 

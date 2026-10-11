@@ -15,7 +15,7 @@ status: active
 请求，不因词面相似而自动查询 Campus RAG。工具调用时读取 PostgreSQL
 `campus_docs_serving.current_index` 的当前 collection，并从 Model Config 读取当前
 `campus_docs_embedding` 与 `campus_docs_reranker` 连接；collection、provider 和检索参数不进入准入快照
-或 Temporal workflow input。execution-control 在首次合法响应后绑定 run 的 collection，后续响应须匹配；
+或 Temporal workflow input。agent-control 在首次合法响应后绑定 run 的 collection，后续响应须匹配；
 完整读取与绑定时序见[检索服务](./retrieval-serving.md#在线消费边界)。
 
 查询 Embedding 使用检索适配器持有的进程内精确 LRU：最多 512 条，从成功加载起保留 24 小时，
@@ -39,7 +39,7 @@ Ops 现有 `embedding/retrieval/rerank/selection` 阶段语义不变，Embedding
 检索只保留 rerank `relevance_score >= 0.5` 的候选，每次返回最多 5 条；
 没有候选时返回 `no_match`。该分数只表示查询与候选文本的相关性，不判断机构、人群或规则适用主体。
 工具返回的 `results` 是供 Agent 选择的候选，不等于答案已经使用。模型只对实际采用的结果使用其
-全局递增的 `citation_index` 写入 `[n]`；execution-control 在 Finalization 时从引用和真实工具
+全局递增的 `citation_index` 写入 `[n]`；agent-control 在 Finalization 时从引用和真实工具
 结果派生公开 source cards。未知或越界引用使 Finalization 失败。模型不能自行创建来源，也不能把
 `result_ref` 写入答案。
 

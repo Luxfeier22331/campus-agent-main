@@ -21,7 +21,7 @@
 
 `campus-agent-source-wt-*` 与 `campus-agent-derived-wt-*` 是当前 profile bucket；同一 worktree 的同步或回填仍需保持单写者。
 
-execution-control 与 agent-runtime 不由 Compose 启动。`pnpm dev` 从当前 worktree 源码启动两者，并
+agent-control 与 agent-runtime Worker 不由 Compose 启动。`pnpm dev` 从当前 worktree 源码启动两者，并
 使用当前 profile 派生的 loopback 端口、Temporal namespace、数据库和 provider 配置加密密钥；不同
 worktree 不共享这两个宿主进程。Temporal 服务和 Temporal PostgreSQL 也按 worktree 独立，业务隔离使用当前 profile namespace。
 
@@ -34,4 +34,4 @@ core 与 ops-web target 使用同一完整产品 seed，或通过显式协作者
 显式 `--replace`；初始化前停止该 worktree 的应用。notice-publisher target 仍只初始化通知分类。seed 不创建表，也不维护 migration ledger。internal-portal-collection 和 notice-classifier
 只在各自 target 需要时生成运行环境，采集任务不由 Compose 常驻启动。
 `pnpm dev:destroy` 只删除确认的当前 Compose project、全部数据卷、托管环境文件和注册记录。依赖 compose 不负责启动 app-api、
-Campus Web、Ops Web、execution-control、agent-runtime 或同步任务，也不在容器启动时写入业务 seed。
+Campus Web、Ops Web、agent-control、agent-runtime Worker 或同步任务，也不在容器启动时写入业务 seed。

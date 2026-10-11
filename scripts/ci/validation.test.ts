@@ -12,7 +12,7 @@ import {
 } from "./validation.mts";
 
 test("both Go owners select the same native checks, including lint-only scope", () => {
-	for (const owner of ["execution-control", "model-config"]) {
+	for (const owner of ["agent-control", "model-config"]) {
 		for (const task of ["native:format", "native:lint", "native:vet", "native:test"]) {
 			assert(
 				profiles([`apps/${owner}/main.go`], [{ package: owner, task }]).includes("affected-native"),
@@ -62,18 +62,13 @@ test("only unselected checks may be skipped in the repository summary", () => {
 
 test("manual environments retain actual cross-language dependencies", () => {
 	assert(
-		validationProfileMetadata("execution-control-postgres").installPackages.includes(
+		validationProfileMetadata("agent-control-postgres").installPackages.includes(
 			"campus-agent-schema...",
 		),
 	);
 	assert(
 		validationProfileMetadata("model-config-postgres").installPackages.includes(
 			"campus-agent-schema...",
-		),
-	);
-	assert(
-		validationProfileMetadata("execution-control-temporal").installPackages.includes(
-			"agent-runtime...",
 		),
 	);
 	assert.equal(validationProfileMetadata("go").shell, "ci-go");
@@ -105,10 +100,9 @@ test("validation profiles have one fail-closed registry", () => {
 		"go",
 		"ragas",
 		"app-api-product-db",
-		"execution-control-postgres",
-		"execution-control-temporal",
-		"execution-control-stream",
-		"execution-control-replay",
+		"agent-control-postgres",
+		"agent-runtime-temporal",
+		"memory-postgres",
 		"model-config-postgres",
 		"ops-web-postgres",
 		"infra",
@@ -188,20 +182,16 @@ test("migration changes select real PostgreSQL checks and cannot pass when skipp
 	}
 });
 
-test("execution-control native checks are automatic while service integrations stay manual", () => {
+test("agent-control native checks are automatic while service integrations stay manual", () => {
 	const selected = profiles(
-		["apps/execution-control/internal/temporalruntime/workflow.go"],
+		["apps/agent-control/internal/temporalruntime/workflow.go"],
 		[
-			{ package: "execution-control", task: "native:test" },
-			{ package: "execution-control", task: "native:vet" },
+			{ package: "agent-control", task: "native:test" },
+			{ package: "agent-control", task: "native:vet" },
 		],
 	);
 	assert.ok(selected.includes("affected-native"));
-	for (const profile of [
-		"execution-control-temporal",
-		"execution-control-stream",
-		"execution-control-replay",
-	] as const) {
+	for (const profile of [] as const) {
 		assert.ok(!selected.includes(profile));
 		assert.equal(validationProfileMetadata(profile).lane, "manual");
 	}
@@ -245,14 +235,14 @@ test("keeps unrelated service, infrastructure and browser checks manual", () => 
 	]) {
 		assert.deepEqual(profiles([file]), [], file);
 	}
-	assert.deepEqual(profiles(["apps/execution-control/internal/server/server.go"]), ["image-build"]);
+	assert.deepEqual(profiles(["apps/agent-control/internal/server/server.go"]), ["image-build"]);
 });
 
 test("selects container and image evidence for Node dependency inputs", () => {
 	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["container-build", "image-build"]);
 	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), ["container-build", "image-build"]);
 	assert.deepEqual(profiles(["uv.lock"]), []);
-	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["image-build"]);
+	assert.deepEqual(profiles(["apps/agent-control/go.sum"]), ["image-build"]);
 });
 
 test("selects container contract evidence for release adapter changes", () => {

@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service-account.yaml
+  - workloads.yaml
+  - availability.yaml
+  - network-policy.yaml
+  - database-roles.yaml

@@ -195,48 +195,37 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresDocker: true,
 		requiresUv: false,
 	},
-	"execution-control-postgres": {
+	"agent-control-postgres": {
 		shell: "ci-full",
 		installPackages: ["campus-agent-schema..."],
 		executor: {
-			commands: [turboCommand("execution-control", "test:database-integration")],
+			commands: [turboCommand("agent-control", "test:database-integration")],
 			kind: "commands",
 		},
 		lane: "manual",
 		requiresDocker: true,
 		requiresUv: false,
 	},
-	"execution-control-temporal": {
+	"agent-runtime-temporal": {
 		shell: "ci-go",
 		installPackages: ["agent-runtime..."],
 		executor: {
-			commands: [["pnpm", "--dir", "apps/execution-control", "test:temporal-integration"]],
+			commands: [turboCommand("agent-runtime", "test:temporal-integration")],
 			kind: "commands",
 		},
 		lane: "manual",
 		requiresDocker: false,
 		requiresUv: false,
 	},
-	"execution-control-stream": {
-		shell: "ci-go",
-		installPackages: [],
+	"memory-postgres": {
+		shell: "ci-full",
+		installPackages: ["campus-agent-schema..."],
 		executor: {
-			commands: [["pnpm", "--dir", "apps/execution-control", "test:stream-integration"]],
+			commands: [turboCommand("memory-service", "test:database-integration")],
 			kind: "commands",
 		},
 		lane: "manual",
-		requiresDocker: false,
-		requiresUv: false,
-	},
-	"execution-control-replay": {
-		shell: "ci-go",
-		installPackages: [],
-		executor: {
-			commands: [["pnpm", "--dir", "apps/execution-control", "test:temporal-replay"]],
-			kind: "commands",
-		},
-		lane: "manual",
-		requiresDocker: false,
+		requiresDocker: true,
 		requiresUv: false,
 	},
 	"model-config-postgres": {

@@ -11,10 +11,9 @@ on:
           - go
           - ragas
           - app-api-product-db
-          - execution-control-postgres
-          - execution-control-temporal
-          - execution-control-stream
-          - execution-control-replay
+          - agent-control-postgres
+          - agent-runtime-temporal
+          - memory-postgres
           - model-config-postgres
           - ops-web-postgres
           - infra

@@ -123,7 +123,7 @@ status/list/cancel/retry API 或 reconciliation schedule。
 ## 仓库验证
 
 ```bash
-go -C apps/execution-control test ./internal/httpapi ./internal/temporalruntime ./internal/telemetry
+go -C apps/agent-control test ./internal/httpapi ./internal/temporalruntime ./internal/telemetry
 ```
 
 这些检查验证 adapter、workflow 和 telemetry 配置，不证明外部环境已收到数据。

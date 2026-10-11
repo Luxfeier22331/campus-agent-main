@@ -18,7 +18,7 @@ group "default" {
     "campus-docs-index-publisher",
 	"campus-rag-index-publisher",
     "notice-pipeline-worker",
-    "execution-control",
+    "agent-control",
     "memory-service",
     "cluster-private-ingress",
     "campus-search-service",
@@ -31,7 +31,7 @@ group "default" {
 group "heavy" {
   targets = [
     "ops-web",
-    "execution-control",
+    "agent-control",
     "memory-service",
     "campus-search-service",
     "model-config",
@@ -84,9 +84,9 @@ target "campus-rag-index-publisher" {
   dockerfile = "jobs/campus-rag-index-publisher/Dockerfile"
 }
 
-target "execution-control" {
+target "agent-control" {
   inherits   = ["_common"]
-  dockerfile = "apps/execution-control/Dockerfile"
+  dockerfile = "apps/agent-control/Dockerfile"
 }
 
 target "model-config" {

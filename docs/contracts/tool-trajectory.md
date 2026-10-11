@@ -1,6 +1,6 @@
 ---
 doc_type: contract
-owner_boundary: apps/execution-control
+owner_boundary: apps/agent-control
 status: active
 ---
 
@@ -70,5 +70,5 @@ trajectory 必须在写入前拒绝：
 
 ## 可执行来源
 
-- `apps/execution-control/internal/httpapi/tool_trajectory_projection_test.go`
+- `apps/agent-control/internal/httpapi/tool_trajectory_projection_test.go`
 - `packages/eval-langfuse/src/tool-trajectory.ts`

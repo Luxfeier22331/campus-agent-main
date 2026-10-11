@@ -1,0 +1,35 @@
+package memory
+
+import (
+	"context"
+
+	workflowcontract "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporaladapter/contract"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime"
+)
+
+type AnswerAppendPort interface {
+	PrepareAppend(context.Context, string) (memoryapplication.PreparedAppend, memoryapplication.AppendProgressStore, error)
+}
+type Adapter struct {
+	*memoryapplication.Service
+	AppendClient interface {
+		Append(context.Context, memoryruntime.AppendConversationTurnRequest) error
+	}
+	AnswerAppend       AnswerAppendPort
+	MemoryResultClient memoryapplication.MemoryCommandResultClient
+}
+
+func New(adapter Adapter) *Adapter { return &adapter }
+func (a *Adapter) ExecutePersonalMemoryCommandActivity(ctx context.Context, in temporalruntime.PersonalMemoryCommandRequest) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
+	return a.ExecutePersonalMemoryCommand(ctx, workflowcontract.MemoryCommandToDomain(in))
+}
+func (a *Adapter) FinalizePersonalMemoryCommandReceiptActivity(ctx context.Context, in temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
+	return a.FinalizePersonalMemoryCommandReceipt(ctx, in)
+}
+func (a *Adapter) WritePersonalMemoryCommandResultActivity(ctx context.Context, in temporalruntime.PersonalMemoryCommandActivityOutput) error {
+	return a.WritePersonalMemoryCommandResult(ctx, in)
+}
+
+var _ Activities = (*Adapter)(nil)

@@ -19,7 +19,7 @@ status: active
 ```
 
 代码负责认证、授权、步骤准入、期限、非空文本与工具结果校验以及终态写入。Agent Runtime 负责输出
-结构解析；execution-control 负责计划与重规划的语义准入。在线回答由
+结构解析；agent-control 负责计划与重规划的语义准入。在线回答由
 `solve`、`execute_step`、`replan` 和 `synthesize` 四类 operation 按分支完成；Solve 可以使用已开放工具
 直接检索并回答，也可以返回计划。代码负责依赖与预算约束，模型在当前 operation 的能力边界内选择来源。
 机构知识由 Solve 或 Executor 按需通过 `campus_search` 查询；当前 operation 已开放的供应商原生
@@ -29,7 +29,7 @@ status: active
 提示词不能替代代码检查，也不能扩大当前 operation 已提供的能力。
 
 提示词不实现第二套编排器，也不把模型的隐性思维当作持久状态。计划、实际证据和后续路径由
-execution-control 的 Agent Workflow 合同显式传递；提示词只约束每个 operation 如何消费输入、输出
+agent-control 的 Agent Workflow 合同显式传递；提示词只约束每个 operation 如何消费输入、输出
 结构化结果或用户正文。
 
 ## 规则治理
@@ -48,7 +48,7 @@ execution-control 的 Agent Workflow 合同显式传递；提示词只约束每�
 
 1. 仓库级稳定边界；
 2. 当前 Agent Workflow operation 的角色指令；
-3. execution-control 提供的当前 operation、步骤和有界运行上下文；
+3. agent-control 提供的当前 operation、步骤和有界运行上下文；
 4. 当前用户输入和近期会话；
 5. 工具返回的有界数据与依据；
 6. 当前 operation 的输出合同、用户答案风格和正文引用要求。
@@ -59,7 +59,7 @@ execution-control 的 Agent Workflow 合同显式传递；提示词只约束每�
 只引用本轮实际采用的结果。历史助手正文在组装模型输入时移除裸编号、分组编号与数字标签的
 Markdown 引用链接，保留正文、普通链接和代码；用户消息、持久化历史及历史 UI 不变。历史回答只帮助
 识别追问对象，不能把旧编号当作当前证据；需要引用的机构事实使用本轮检索资料。
-execution-control 传入类型化数据，不在 Go 侧维护另一套 Agent prompt 或答案合成 prompt。
+agent-control 传入类型化数据，不在 Go 侧维护另一套 Agent prompt 或答案合成 prompt。
 
 Executor 用 `summary` 与 `remainingFacts` 表达已确认内容和具体缺项；相关候选不自动视为答案充分。
 Replanner 的 `synthesize` 同时用于资料足够、部分可答以及没有进一步适用路径的收尾，不区分回答模式。
@@ -88,7 +88,7 @@ Finalization 按实际引用生成来源链接。Google 搜索建议不进入产
 ## 输入与输出
 
 当前用户消息只出现一次。Agent Runtime 在真实模型输入数组上按字符预算裁剪最旧完整会话片段，
-并加入工具结果。runner 返回中立 operation 结果；Agent Runtime 要求非空 `final_output`，execution-control
+并加入工具结果。runner 返回中立 operation 结果；Agent Runtime 要求非空 `final_output`，agent-control
 校验工具结果并从正文引用派生来源，但不调用第二个模型改写答案。
 
 具体上下文行为见 [多轮对话](../../product/run-context.md)，Agent 输入输出见 [Agent 框架](./agent-framework.md)，终态

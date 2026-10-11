@@ -96,7 +96,7 @@ test("Campus Search mounts the existing Qdrant and Postgres trust roots", () => 
 	const search = manifests("execution-runtime/base/runtime/campus-search-service.yaml").find(
 		(doc) => doc.kind === "Deployment",
 	).spec.template.spec;
-	const execution = manifests("execution-runtime/base/runtime/execution-control.yaml").find(
+	const execution = manifests("agent-control/base/workloads.yaml").find(
 		(doc) => doc.kind === "Deployment",
 	).spec.template.spec;
 	const [database] = manifests("data-postgres/base/database-config.yaml");

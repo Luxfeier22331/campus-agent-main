@@ -52,7 +52,7 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 	write("pnpm-workspace.yaml", 'packages:\n  - "apps/*"\n');
 	write(
 		"pnpm-lock.yaml",
-		"lockfileVersion: '9.0'\nimporters:\n  .: {}\n  apps/execution-control: {}\n  apps/model-config: {}\n  apps/web: {}\n  apps/shared: {}\n",
+		"lockfileVersion: '9.0'\nimporters:\n  .: {}\n  apps/agent-control: {}\n  apps/model-config: {}\n  apps/web: {}\n  apps/shared: {}\n",
 	);
 	const tasks: Record<string, unknown> = Object.fromEntries(
 		[...NODE_TASKS, ...BUILD_TASKS].map((task) => [task, { outputs: [] }]),
@@ -62,13 +62,13 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 	}
 	tasks["test:unit"] = { dependsOn: ["^test:unit"], outputs: ["result.txt"] };
 	json("turbo.json", { futureFlags: { affectedUsingTaskInputs: true }, tasks });
-	write("go.work", "go 1.26\nuse (\n ./apps/execution-control\n ./apps/model-config\n)\n");
+	write("go.work", "go 1.26\nuse (\n ./apps/agent-control\n ./apps/model-config\n)\n");
 	write("go.work.sum", "");
 	write("flake.nix", "# fixture\n");
 	write("flake.lock", "{}");
 	write("nix/tools.nix", "# fixture\n");
 	write("scripts/ci/turbo.mts", readFileSync(path.join(ROOT, "scripts/ci/turbo.mts"), "utf8"));
-	for (const owner of ["execution-control", "model-config"]) {
+	for (const owner of ["agent-control", "model-config"]) {
 		json(`apps/${owner}/package.json`, {
 			name: owner,
 			scripts: Object.fromEntries(NATIVE_TASKS.map((task) => [task, "node task.cjs"])),
@@ -94,7 +94,7 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 	git("config", "user.email", "fixture@example.invalid");
 	git("config", "commit.gpgSign", "false");
 	const base = commit();
-	for (const owner of ["execution-control", "model-config"]) {
+	for (const owner of ["agent-control", "model-config"]) {
 		git("checkout", "-q", "--detach", base);
 		write(`apps/${owner}/main.go`, "package fixture\n// source change\n");
 		const head = commit();
@@ -125,7 +125,7 @@ test("real Turbo selects each Go owner, respects dependencies, and invalidates w
 	const changed = plan(target).tasks[0];
 	assert.notEqual(changed.hash, before);
 	assert.equal(changed.cache.local, false);
-	for (const owner of ["execution-control", "model-config"]) {
+	for (const owner of ["agent-control", "model-config"]) {
 		assert(
 			resolveAffectedScope({ base, head, repositoryRoot: root }).tasks.some(
 				(item) => item.package === owner && item.task === "native:test",
@@ -177,7 +177,7 @@ test("resolved native tasks include workspace/toolchain files and pass cache dir
 			"turbo",
 			"run",
 			...NATIVE_TASKS,
-			"--filter=execution-control",
+			"--filter=agent-control",
 			"--filter=model-config",
 			"--dry-run=json",
 		],

@@ -14,9 +14,9 @@ status: active
 
 | 所有者 | 负责 |
 | --- | --- |
-| 源码仓 | 构建镜像、按目标 Worker 配置上传不可变 Cloudflare Worker 候选版本、产出 schema 和发布清单 |
-| 环境仓 | 选择镜像摘要和 Cloudflare Worker 版本，维护环境配置并发起实际发布 |
-| Cloudflare Terraform | Worker 绑定、域名、路由、非密配置和流量版本 |
+| 源码仓 | 构建镜像和无凭据 Worker OCI bundle、产出 schema 和发布合同 |
+| 环境仓 | 准备固定 Docs 快照与公开构建值、注入环境与凭据、上传原生 Worker version 并选择发布 |
+| Cloudflare Terraform | Worker 连接资源、域名、路由和流量版本 |
 | Argo CD | Kubernetes 资源和镜像摘要 |
 | schema Job | 在依赖新结构的服务接收流量前完成数据库迁移和授权 |
 
@@ -27,10 +27,11 @@ status: active
 
 ```text
 源码 main
--> 构建不可变镜像并上传 Cloudflare Worker 候选版本
+-> GitOps 准备固定构建输入，Source 构建不可变镜像与无凭据 Worker bundle
 -> 从环境仓 staging 游标计算累计受影响范围
--> 环境仓滚动 PR 选择镜像摘要和 Cloudflare Worker 版本
+-> 环境仓滚动 PR 选择镜像摘要和 Worker artifactRef
 -> 机器字段校验通过后自动合并
+-> GitOps 注入环境并上传原生 Worker version，保存到 Deployment payload
 -> 数据库 schema 与平台配置收敛
 -> Argo CD 同步 Kubernetes
 -> Terraform 切换 Worker 流量
@@ -38,8 +39,8 @@ status: active
 
 规则如下：
 
-- Cloudflare Worker 候选上传使用版本接口，目标 Worker 必须已由环境仓完成首次部署；源码仓不直接
-  创建 Worker、修改路由或切换流量；
+- GitOps 使用版本接口上传已构建 bundle，目标 Worker 必须已完成首次部署；Source 不读取 Cloudflare、
+  对象存储或集群服务凭据，也不创建 Worker、修改路由或切换流量；
 - Kubernetes 使用镜像摘要，不用可变标签表达环境目标；
 - 依赖新 schema 的运行时必须在迁移成功后才能接收流量；
 - 删除列或收紧约束必须采用 expand/contract：先部署同时兼容新旧 schema 的运行时，确认旧版本不再
@@ -62,7 +63,7 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 已选择 Source SHA 作为下一次候选计算基线；Argo CD 和 Cloudflare 状态写回该 Source SHA，分别表达
 对应部署单元的结果。
 
-`DEPLOYMENT_RELEASE` 是单个 execution runtime 的非密发布身份。execution-control 和 agent-runtime
+`DEPLOYMENT_RELEASE` 是单个 execution runtime 的非密发布身份。agent-control 和 agent-runtime
 分别记录自己的 release，允许独立发布且不要求值相同；release 只用于诊断和变更关联，不进入工具
 兼容性判断。已部署进程必须取得自身的非空发布标识，不能以本地默认值或环境名称补齐。工具兼容性
 只由 `tool_contract_fingerprint.v1` 判断，精确合同见 [执行合同](../../contracts/tool-execution.md)。
@@ -73,7 +74,8 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 minor，兼容修复递增 patch；不批量改写各 package 的版本，不把版本号作为服务兼容性判断。
 `main` 仍自动产生增量候选物并进入 staging。
 
-Source 的 `formal-release` workflow 从一个已完整成功的 GitOps staging Deployment 确认正式版本。
+Source 的 `formal-release` workflow 请求 GitOps 发布，provider 核验与发布工具在 GitOps 执行。
+正式版本从已完整成功的 GitOps staging Deployment 确认。
 GitOps 工具读取该 Deployment 的精确 revision，导出所有活跃第一方镜像 digest、Source base ref、
 Application revision、实际 execution runtime identity、三个目标 Worker 的 `versionId/sourceSha`
 以及 schema 镜像和其 producer SHA。未变化的组件保留其原始提交，不要求全部制品来自一个 SHA。
@@ -88,8 +90,8 @@ Secret、网络和能识别已应用 migration 的 schema owner。目标 schema 
 运行中 Temporal history 由维护者结合完整 diff 与已有测试评审；不兼容时使用已有维护、排空和恢复
 流程，不能将切回镜像当作撤销迁移或历史。
 
-Cloudflare 回滚仅选择平台仍可部署的原生 version；不保存长期 Worker 构建包，不重建或重传以替代
-原版本。原生回滚有最近 100 个版本与绑定/资源兼容限制；应用代码回退不回退连接资源，最终应用由
+Cloudflare 回滚仅选择平台仍可部署的原生 version；Worker bundle 保存在 GHCR，仍不能重建或重传以替代
+已验证的原生回滚版本。原生回滚有最近 100 个版本与绑定/资源兼容限制；应用代码回退不回退连接资源，最终应用由
 现有 traffic Terraform root 验证。仓库版本不引入 Temporal Worker Versioning，也不承诺不停机更新。
 
 未退役正式版本、环境当前选择、最后成功部署、在途和恢复目标共同构成 GHCR 保留根；共享 digest

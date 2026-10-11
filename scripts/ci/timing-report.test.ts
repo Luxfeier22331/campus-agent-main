@@ -31,7 +31,7 @@ test("Go restore warnings remain errors even when the action succeeds", () => {
 			line(
 				"00:03",
 				"GO_CACHE action_outcome=success exact_hit= primary=go-v2-key matched=",
-				"Check execution-control native code",
+				"Check agent-control native code",
 			),
 	);
 	assert.equal(parsed.cacheRestores[0].state, "restore-error");
@@ -42,7 +42,7 @@ test("Go restore warnings remain errors even when the action succeeds", () => {
 				line(
 					"00:02",
 					`GO_CACHE action_outcome=success exact_hit=${exact} primary=go-v2-key matched=go-v2-old`,
-					"Check execution-control native code",
+					"Check agent-control native code",
 				),
 		);
 		assert.equal(restored.cacheRestores[0].state, exact ? "exact-hit" : "prefix-hit");
@@ -65,7 +65,7 @@ test("report CLI runs with only Node and gh for success, failure and cancelled l
 			try {
 				const status = conclusion === "unavailable" ? "cancelled" : conclusion;
 				const log =
-					line("00:02", 'CI_PLAN {"validationProfiles":["execution-control-native"]}') +
+					line("00:02", 'CI_PLAN {"validationProfiles":["agent-control-native"]}') +
 					line("00:04", `CI_EVIDENCE {"profile":"go","status":"${status}"}`);
 				writeFileSync(
 					path.join(directory, "fixture.json"),
@@ -167,8 +167,8 @@ test("separates environment startup from body and preserves actual continue-on-e
 test("Go cache observations distinguish prefix hits and misses without implying lint hit rates", () => {
 	const signal = "GO_CACHE restore=success exact_hit=false primary=go-new matched=go-old";
 	const parsed = parseEvidence(
-		line("00:07", signal, "Check execution-control native code") +
-			line("00:08", `printf '${signal}'`, "Check execution-control native code") +
+		line("00:07", signal, "Check agent-control native code") +
+			line("00:08", `printf '${signal}'`, "Check agent-control native code") +
 			line("00:09", signal, "Test repository scripts"),
 	);
 	assert.deepEqual(parsed.cacheSignals.go, [signal]);

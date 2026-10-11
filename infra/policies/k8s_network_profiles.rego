@@ -155,7 +155,7 @@ allowed_ops_web_peer_port(peer, allowed_port) if {
 }
 
 allowed_ops_web_peer_port(peer, allowed_port) if {
-	exact_pod_peer(peer, "app.kubernetes.io/name", "execution-control")
+	exact_pod_peer(peer, "app.kubernetes.io/name", "agent-control")
 	exact_port(allowed_port, "TCP", 8000)
 }
 
@@ -170,8 +170,8 @@ allowed_ops_web_peer_port(peer, allowed_port) if {
 }
 
 allowed_ops_web_peer_port(peer, allowed_port) if {
-	exact_pod_peer(peer, "app.kubernetes.io/name", "agent-runtime")
-	exact_port(allowed_port, "TCP", 27062)
+	exact_pod_peer(peer, "app.kubernetes.io/name", "agent-runtime-worker")
+	exact_port(allowed_port, "TCP", 8000)
 }
 
 allowed_ops_web_peer_port(peer, allowed_port) if {
@@ -222,10 +222,10 @@ ops_web_egress_allowlist_is_complete(egress) if {
 	allows_dns(egress, "UDP")
 	allows_dns(egress, "TCP")
 	allows_pod(egress, "cnpg.io/cluster", "campus-agent-postgres", 5432)
-	allows_pod(egress, "app.kubernetes.io/name", "execution-control", 8000)
+	allows_pod(egress, "app.kubernetes.io/name", "agent-control", 8000)
 	allows_pod(egress, "app.kubernetes.io/name", "model-config", 8000)
 	allows_pod(egress, "app.kubernetes.io/name", "object-store", 9000)
-	allows_pod(egress, "app.kubernetes.io/name", "agent-runtime", 27062)
+	allows_pod(egress, "app.kubernetes.io/name", "agent-runtime-worker", 8000)
 	allows_external_https(egress)
 	allows_kubernetes_api(egress)
 	allows_pod(egress, "app.kubernetes.io/part-of", "temporal", 7233)
@@ -338,8 +338,8 @@ violation contains msg if {
 	input.kind == "NetworkPolicy"
 	input.metadata.name == "ops-web-egress"
 	egress := object.get(input.spec, "egress", [])
-	not allows_pod(egress, "app.kubernetes.io/name", "execution-control", 8000)
-	msg := "NetworkPolicy ops-web-egress must allow execution-control on TCP 8000"
+	not allows_pod(egress, "app.kubernetes.io/name", "agent-control", 8000)
+	msg := "NetworkPolicy ops-web-egress must allow agent-control on TCP 8000"
 }
 
 violation contains msg if {
@@ -362,8 +362,8 @@ violation contains msg if {
 	input.kind == "NetworkPolicy"
 	input.metadata.name == "ops-web-egress"
 	egress := object.get(input.spec, "egress", [])
-	not allows_pod(egress, "app.kubernetes.io/name", "agent-runtime", 27062)
-	msg := "NetworkPolicy ops-web-egress must allow agent-runtime on TCP 27062"
+	not allows_pod(egress, "app.kubernetes.io/name", "agent-runtime-worker", 8000)
+	msg := "NetworkPolicy ops-web-egress must allow agent-runtime on TCP 8000"
 }
 
 violation contains msg if {

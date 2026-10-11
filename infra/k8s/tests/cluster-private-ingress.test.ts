@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parseAllDocuments } from "yaml";
 
-const base = new URL("../execution-runtime/base/runtime/", import.meta.url);
+const base = new URL("../", import.meta.url);
 const load = (name: string) =>
 	parseAllDocuments(readFileSync(new URL(name, base), "utf8")).map((d) => d.toJS());
 const matches = (selector: any, labels: Record<string, string>): boolean =>
@@ -14,7 +14,13 @@ const matches = (selector: any, labels: Record<string, string>): boolean =>
 const labels = (name: string) => ({ "app.kubernetes.io/name": name });
 
 test("connector reaches ingress but cannot directly reach application backends", () => {
-	const policies = load("network-policy.yaml");
+	const policies = [
+		"execution-runtime/base/runtime",
+		"agent-control/base",
+		"agent-runtime/base",
+		"memory/base",
+		"cluster-private-ingress/base",
+	].flatMap((owner) => load(`${owner}/network-policy.yaml`));
 	const connector = { "app.kubernetes.io/component": "private-service-connector" };
 	const allowed = (from: Record<string, string>, to: Record<string, string>) =>
 		policies
@@ -27,23 +33,25 @@ test("connector reaches ingress but cannot directly reach application backends",
 				),
 			);
 	assert.equal(allowed(connector, labels("cluster-private-ingress")), true);
-	for (const backend of ["execution-control", "memory-service"]) {
+	for (const backend of ["agent-control", "memory-service"]) {
 		assert.equal(allowed(connector, labels(backend)), false);
 		assert.equal(allowed(labels("cluster-private-ingress"), labels(backend)), true);
 		assert.equal(allowed(labels("agent-runtime-worker"), labels(backend)), true);
 	}
-	const ingress = policies.find((p) => p.metadata.name === "cluster-private-ingress");
+	const ingress = policies.find((p) => p.metadata.name.endsWith("cluster-private-ingress"));
 	const services = ingress.spec.egress.flatMap((r: any) => r.to).filter((p: any) => p.podSelector);
 	assert.deepEqual(services[0].podSelector.matchExpressions[0].values, [
-		"execution-control",
+		"agent-control",
 		"memory-service",
 	]);
 	assert.equal(services.length, 1);
 });
 
 test("ingress and control share the backend identity separately from product callbacks", () => {
-	const deployment = load("cluster-private-ingress.yaml").find((d) => d.kind === "Deployment");
-	const control = load("execution-control.yaml").find((d) => d.kind === "Deployment");
+	const deployment = load("cluster-private-ingress/base/workloads.yaml").find(
+		(d) => d.kind === "Deployment",
+	);
+	const control = load("agent-control/base/workloads.yaml").find((d) => d.kind === "Deployment");
 	const env = deployment.spec.template.spec.containers[0].env;
 	const upstream = env.find((e: any) => e.name === "EXECUTION_CONTROL_INGRESS_SHARED_SECRET");
 	const controlEnv = control.spec.template.spec.containers[0].env;

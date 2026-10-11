@@ -173,7 +173,7 @@ test("an existing plan executes exact native tasks without recomputing Git or Tu
 				changedFiles: [],
 				tasks: [
 					{ package: "model-config", task: "native:lint" },
-					{ package: "execution-control", task: "native:test" },
+					{ package: "agent-control", task: "native:test" },
 				],
 			},
 		},
@@ -186,7 +186,7 @@ test("an existing plan executes exact native tasks without recomputing Git or Tu
 	);
 	assert.equal(commands.length, 1);
 	assert(commands[0]?.includes("model-config#native:lint"));
-	assert(commands[0]?.includes("execution-control#native:test"));
+	assert(commands[0]?.includes("agent-control#native:test"));
 	assert(!commands[0]?.includes("--only"));
 });
 
@@ -517,7 +517,7 @@ test("workspace tests select each leaf once and preserve resource/tooling contex
 		{ package: "web", task: "test:unit", command: "vitest" },
 		{ package: "web", task: "test:worker", command: "vitest" },
 		{ package: "web", task: "source", command: "<NONEXISTENT>" },
-		{ package: "execution-control", task: "native:test", command: "go test" },
+		{ package: "agent-control", task: "native:test", command: "go test" },
 		{ package: "ragas-runner", task: "test:eval", command: "uv run" },
 		{ package: "@campus-agent/tooling", task: "test:ci", command: "tsx" },
 	];
@@ -538,7 +538,7 @@ test("workspace tests select each leaf once and preserve resource/tooling contex
 				assert(options.env.CAMPUS_TOOLING_TRACKED_CI);
 				assert(args.includes("--concurrency=1"));
 			}
-			if (args.includes("execution-control#native:test")) {
+			if (args.includes("agent-control#native:test")) {
 				assert(args.includes("--concurrency=1"));
 				assert.equal(options.env.GOTOOLCHAIN, "local");
 			}
@@ -548,7 +548,7 @@ test("workspace tests select each leaf once and preserve resource/tooling contex
 	const executed = calls.flat().filter((arg) => arg.includes("#") && !arg.startsWith(".#"));
 	assert.deepEqual(executed.sort(), [
 		"@campus-agent/tooling#test:ci",
-		"execution-control#native:test",
+		"agent-control#native:test",
 		"ragas-runner#test:eval",
 		"web#test:unit",
 		"web#test:worker",
@@ -604,7 +604,7 @@ test("workspace failures stop later task families", () => {
 						stdout: JSON.stringify({
 							tasks: [
 								{ package: "web", task: "test:unit", command: "vitest" },
-								{ package: "execution-control", task: "native:test", command: "go test" },
+								{ package: "agent-control", task: "native:test", command: "go test" },
 							],
 						}),
 					};
@@ -613,7 +613,7 @@ test("workspace failures stop later task families", () => {
 			}),
 		/exit code 23/u,
 	);
-	assert(!calls.some((args) => args.includes("execution-control#native:test")));
+	assert(!calls.some((args) => args.includes("agent-control#native:test")));
 });
 
 test("the full Campus E2E flow builds once, marks suites prebuilt, and stops on build failure", () => {

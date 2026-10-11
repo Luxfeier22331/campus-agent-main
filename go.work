@@ -3,9 +3,10 @@ go 1.26.0
 toolchain go1.26.7
 
 use (
+	./packages/memory-api-go
 	./apps/cluster-private-ingress
 	./apps/campus-search
-	./apps/execution-control
+	./apps/agent-control
 	./apps/memory-service
 	./apps/model-config
 )

@@ -1,0 +1,115 @@
+package adaptertest
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionpersistence"
+)
+
+func assertMemoryAppendProjectionHasElapsedTiming(
+	t *testing.T,
+	store *executionpersistence.InMemoryRunProjectionStore,
+	runID string,
+) {
+	t.Helper()
+	steps, err := store.ListRunSteps(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list memory append steps: %v", err)
+	}
+	if len(steps) != 1 {
+		t.Fatalf("memory append steps = %#v, want one step", steps)
+	}
+	step := steps[0]
+	if step.Status != "running" && !step.CompletedAt.After(step.StartedAt) {
+		t.Fatalf("memory append step timing = %s..%s, want elapsed interval", step.StartedAt, step.CompletedAt)
+	}
+	attempts, err := store.ListStepAttempts(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list memory append attempts: %v", err)
+	}
+	if len(attempts) != 1 {
+		t.Fatalf("memory append attempts = %#v, want one attempt", attempts)
+	}
+	if !attempts[0].CompletedAt.After(attempts[0].StartedAt) || attempts[0].DurationMS <= 0 {
+		t.Fatalf("memory append attempt timing = %#v, want elapsed duration", attempts[0])
+	}
+}
+
+func createMemoryAppendRunForTest(
+	t *testing.T,
+	store *executionpersistence.InMemoryRunProjectionStore,
+	runID string,
+	userGoal string,
+	memoryEnabled *bool,
+	now time.Time,
+) {
+	t.Helper()
+	contextProjection := map[string]any{
+		"actor": map[string]any{"user_id": "user-executor"},
+		"conversation": map[string]any{
+			"user_message_id": "msg-" + runID,
+			"current_user_message": map[string]any{
+				"created_at": now.Format(time.RFC3339),
+			},
+		},
+	}
+	if memoryEnabled != nil {
+		contextProjection["memory"] = map[string]any{"append_enabled": *memoryEnabled, "recall_enabled": *memoryEnabled, "owner_generation": 1}
+	}
+	wire := executionPayloadWireForTemporalTest(
+		runID,
+		"conv-"+runID,
+		userGoal,
+		contextProjection,
+	)
+	wire.TenantID = "tenant-main"
+	_, err := store.CreateRun(context.Background(), execution.DurableRun{
+		RequestID:      runID,
+		ConversationID: "conv-" + runID,
+		OwnerUserID:    "user-executor",
+		Surface:        "campus-web",
+		TaskQueue:      "campus-agent.workflow",
+		Status:         execution.DurableRunStatusRunning,
+		CreatedAt:      now,
+		StartedAt:      now,
+		UpdatedAt:      now,
+		Metadata:       v3ExecutionMetadataForTemporalTest(runID),
+	})
+	if err != nil {
+		t.Fatalf("create memory append run: %v", err)
+	}
+	registerTestExecutionInputForTemporalAdapter(t, store, execution.DurableRun{RequestID: runID}, wire)
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             runID + ":finalization.write",
+		RequestID:            runID,
+		StepID:               "finalization.write",
+		ResultKind:           "final_answer_projection",
+		ProjectionRef:        projectionapp.ProjectionRef(runID, "finalization/write"),
+		PayloadSchemaVersion: "run-step-result-v1",
+		SanitizedPayload: map[string]any{
+			"finalization_summary": map[string]any{
+				"answer_text": "好的，我会在后续回答中结合保研材料准备这个目标。",
+			},
+		},
+		Status:    "completed",
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("put finalization result: %v", err)
+	}
+	if _, err := store.CompleteRunProjection(context.Background(), execution.DurableRunCompleteRequest{
+		RequestID:        runID,
+		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
+		FinalResponseRef: projectionapp.ProjectionRef(runID, "finalization/write"),
+		Now:              now,
+	}); err != nil {
+		t.Fatalf("complete memory append run: %v", err)
+	}
+}
+
+func ptrBool(value bool) *bool {
+	return &value
+}

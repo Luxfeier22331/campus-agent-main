@@ -9,7 +9,7 @@ const bundle = await bundleWorkflowCode({
 });
 await writeFile("dist/workflows.cjs", bundle.code);
 await build({
-	entryPoints: ["src/worker.ts", "src/server.ts"],
+	entryPoints: ["src/worker.ts"],
 	outdir: "dist",
 	bundle: true,
 	packages: "external",

@@ -1,99 +1,35 @@
 name: formal-release
-
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 创建正式版本（从 v0.1.0 开始，手动递增）
+        description: 正式版本号
         required: true
         type: string
       gitops_deployment_id:
-        description: 已完整成功的 staging GitHub Deployment ID
+        description: 已成功的 GitOps staging Deployment ID
         required: true
         type: string
-
 permissions:
   contents: read
-
-concurrency:
-  group: campus-agent-ghcr-mutation
-  cancel-in-progress: false
-  queue: max
-
 jobs:
-  publish:
+  dispatch:
     if: github.ref == 'refs/heads/main'
-    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
-    environment:
-      name: staging
-      deployment: false
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      packages: read
-    defaults:
-      run:
-        shell: nix develop ./gitops#ci-control --command bash -e {0}
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
-        if: runner.environment != 'self-hosted'
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         id: gitops-token
         with:
           client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
           private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
           owner: MUC-WIKI
           repositories: campus-agent-gitops
-          permission-contents: read
-          permission-deployments: read
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: MUC-WIKI/campus-agent-gitops
-          ref: main
-          token: ${{ steps.gitops-token.outputs.token }}
-          path: gitops
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Create Source settings read token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
-        id: settings-token
-        with:
-          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
-          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
-          owner: MUC-WIKI
-          repositories: campus-agent
-          permission-administration: read
-      - name: Create Source publication token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
-        id: publication-token
-        with:
-          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
-          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
-          owner: MUC-WIKI
-          repositories: campus-agent
-          permission-contents: write
-          permission-workflows: write
-      - name: Install trusted GitOps release tools
-        run: pnpm --dir gitops install --frozen-lockfile
-      - name: Publish verified snapshot without rebuilding
+          permission-actions: write
+      - name: Request GitOps formal publication
         env:
-          SETTINGS_TOKEN: ${{ steps.settings-token.outputs.token }}
-          REGISTRY_TOKEN: ${{ github.token }}
-          SOURCE_TOKEN: ${{ steps.publication-token.outputs.token }}
-          GITHUB_TOKEN: ${{ steps.gitops-token.outputs.token }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
           RELEASE_VERSION: ${{ inputs.version }}
           DEPLOYMENT_ID: ${{ inputs.gitops_deployment_id }}
         run: >-
-          pnpm --dir gitops exec tsx tools/release-command.ts publish
-          --root "$GITHUB_WORKSPACE/gitops"
-          --version "$RELEASE_VERSION"
-          --deployment-id "$DEPLOYMENT_ID"
-          --output "$RUNNER_TEMP/release.json"
+          gh workflow run publish-formal-release.yml --repo MUC-WIKI/campus-agent-gitops
+          --ref main -f version="$RELEASE_VERSION" -f gitops_deployment_id="$DEPLOYMENT_ID"

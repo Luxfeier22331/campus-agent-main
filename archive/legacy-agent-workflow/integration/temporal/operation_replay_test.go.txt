@@ -1,0 +1,53 @@
+//go:build temporal_replay || temporal_integration
+
+package temporal_test
+
+import (
+	"encoding/json"
+	"os"
+	"testing"
+
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime"
+	historypb "go.temporal.io/api/history/v1"
+	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
+	"google.golang.org/protobuf/encoding/protojson"
+)
+
+func TestReplayCommittedToolExecutionHistory(t *testing.T) {
+	data, err := os.ReadFile("testdata/replay/tool_execution_current.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture replayFixture
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.WorkflowType != temporalruntime.ToolExecutionWorkflowType || fixture.GenerationVersion != "tool-execution/current" || fixture.Producer != "production-node-runtime" {
+		t.Fatal("unexpected operation history")
+	}
+	var history historypb.History
+	if err := protojson.Unmarshal(fixture.History, &history); err != nil {
+		t.Fatal(err)
+	}
+	if len(history.Events) == 0 {
+		t.Fatal("empty history")
+	}
+	completed := history.Events[len(history.Events)-1].GetWorkflowExecutionCompletedEventAttributes()
+	if completed == nil {
+		t.Fatal("workflow did not complete")
+	}
+	var result temporalruntime.ToolExecutionWorkflowResult
+	if err := converter.GetDefaultDataConverter().FromPayloads(completed.Result, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "completed" || result.Status != fixture.ExpectedStatus {
+		t.Fatal(result.Status)
+	}
+	replayer := worker.NewWorkflowReplayer()
+	replayer.RegisterWorkflowWithOptions(temporalruntime.ToolExecutionWorkflow, workflow.RegisterOptions{Name: fixture.WorkflowType})
+	if err := replayer.ReplayWorkflowHistory(nil, &history); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -9,7 +9,7 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"campus-rag-index-publisher",
 	"notice-pipeline-worker",
 	"document-ocr",
-	"execution-control",
+	"agent-control",
 	"memory-service",
 	"cluster-private-ingress",
 	"campus-search-service",
@@ -22,7 +22,7 @@ export const NODE_IMAGE_TARGETS = ACTIVE_IMAGE_TARGETS.filter(
 	(image) =>
 		image !== "memory-service" &&
 		image !== "cluster-private-ingress" &&
-		image !== "execution-control" &&
+		image !== "agent-control" &&
 		image !== "campus-search-service" &&
 		image !== "model-config",
 );
@@ -36,7 +36,7 @@ export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> 
 export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map(
 	[
 		["apps/agent-runtime/Dockerfile", ["agent-runtime"]],
-		["apps/execution-control/Dockerfile", ["execution-control"]],
+		["apps/agent-control/Dockerfile", ["agent-control"]],
 		["apps/memory-service/Dockerfile", ["memory-service"]],
 		["apps/cluster-private-ingress/Dockerfile", ["cluster-private-ingress"]],
 		["apps/campus-search/Dockerfile", ["campus-search-service"]],
@@ -80,12 +80,13 @@ const BUILD_WORKSPACES: Partial<Record<ImageTarget, string[]>> = {
 	"ops-web": ["@campus-agent/dining", "@campus-agent/ui"],
 };
 const EXTRA_INPUTS: Partial<Record<ImageTarget, string[]>> = {
+	"memory-service": ["packages/memory-api-go/"],
 	"agent-runtime": [
 		"configs/runtime/tools.v7.json",
 		"configs/runtime/tool-function-schemas.v4.json",
 	],
-	"execution-control": [
-		"apps/memory-service/",
+	"agent-control": [
+		"packages/memory-api-go/",
 		"apps/campus-search/go.mod",
 		"apps/campus-search/go.sum",
 		"apps/campus-search/campussearch/",
@@ -218,7 +219,7 @@ export function imageTargetsForScope(
 					image === "memory-service" ||
 					image === "cluster-private-ingress" ||
 					image === "model-config" ||
-					image === "execution-control" ||
+					image === "agent-control" ||
 					image === "campus-search-service"
 				) {
 					return (

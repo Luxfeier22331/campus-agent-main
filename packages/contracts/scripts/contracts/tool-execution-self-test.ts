@@ -6,7 +6,7 @@ import { generateToolExecutionContracts } from "./tool-execution-generate.ts";
 
 const openApiPath = "docs/contracts/schemas/tool-execution.openapi.yaml";
 const generatedTsPath = "apps/app-api/src/modules/integration/generated/tool-execution-contract.ts";
-const generatedGoPath = "apps/execution-control/internal/contracts/tool_execution_contract.go";
+const generatedGoPath = "apps/agent-control/internal/contracts/tool_execution_contract.go";
 
 export function runToolExecutionSelfTest(): void {
 	checkOpenApiMetadata();

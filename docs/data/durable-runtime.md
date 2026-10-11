@@ -1,6 +1,6 @@
 ---
 doc_type: data
-owner_boundary: apps/execution-control
+owner_boundary: apps/agent-control
 status: active
 ---
 # 持久执行数据
@@ -268,4 +268,4 @@ Ops 的回答终态失败读取 `execution_control.ops_terminal_failures`：只�
 - [执行合同](../contracts/tool-execution.md)
 - [持久 Agent 运行时](../architecture/system/durable-runtime.md)
 
-可执行数据结构和状态迁移由 `apps/execution-control/internal/execution` 及其测试维护。
+可执行数据结构和状态迁移由 `apps/agent-control/internal/execution` 及其测试维护。

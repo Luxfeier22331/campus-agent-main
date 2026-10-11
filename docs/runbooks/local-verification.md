@@ -217,12 +217,8 @@ tenant key / owner salt，重启服务，再请求先回忆偏好、然后检索
 Hindsight 部署修复应在环境仓单独处理：使用该服务自己的 Secret 验证实际 retain 与 recall，
 `/models` 出现某个模型不能代替 retain 验收；不得通过切换聊天模型隐式修复记忆模型。
 
-网关无法稳定返回 supports 时，显式启动 `apps/agent-runtime/test/fixtures/search-boundaries-server.ts`
-补充受控端到端测试。启动方式与上面的格式错误 fixture 相同，必须监听 loopback；普通请求仍用
-真实 provider。分别在新会话发送 `[smoke:grounding]` 和 `[smoke:contract-failure]`：前者应保留
-正文与两个明确标记的测试来源，不展示搜索建议，Ops 显示转换 2、丢弃 1；后者应产生失败终态与可见原因。
-这只验证供应商响应之后的真实传输、Temporal、数据库与 UI，不代表真实搜索结果。结束后恢复
-普通 Runtime 和连接地址，不保留测试入口在线。
+模型响应边界由 agent-runtime 的 Activities、domain-tools 与 runner 测试覆盖。
+旧 HTTP Runtime fixture 已退役，不能再把模型地址指向该入口。
 
 可选应用不由根 `pnpm dev` 启动，初始化仍由根 CLI 拥有：
 
@@ -412,15 +408,15 @@ SHA-256，并在产品回调成功后发布终结事件；它不会连接 stagin
 Temporal 集成测试按需在本地执行。测试会启动 Temporal Dev Server，不连接 staging 或其他部署环境：
 
 ```bash
-go -C apps/execution-control test -tags=temporal_integration ./integration/temporal ./integration/execution_http -count=1 -timeout=2m
+go -C apps/agent-control test -tags=temporal_integration ./integration/temporal ./integration/execution_http -count=1 -timeout=2m
 ```
 
 专项验证通过独立入口执行：
 
 ```bash
-pnpm --dir apps/execution-control test:temporal-replay
-pnpm --dir apps/execution-control test:stream-integration
-pnpm --dir apps/execution-control test:database-integration
+pnpm --dir apps/agent-control test:temporal-replay
+pnpm --dir apps/agent-control test:stream-integration
+pnpm --dir apps/agent-control test:database-integration
 ```
 
 replay 只读取已提交 history；stream 只启动测试自己的 SSE HTTP server；database 使用现有

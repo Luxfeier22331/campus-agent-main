@@ -22,7 +22,7 @@ schema 定义，连接拓扑见 [采集数据面](../architecture/system/data-pl
 | --- | --- | --- |
 | `campus_agent` | 数据库 schema 与显式 bootstrap Job | schema 安装、授权和一次性业务初始化，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
-| `execution_control` | `apps/execution-control` | 执行投影、Runtime 载荷和 Memory 投递意图读写 |
+| `execution_control` | `apps/agent-control` | 执行投影、Runtime 载荷和 Memory 投递意图读写 |
 | `memory_service` | `apps/memory-service` | 独立 `memory` 数据库中的 schema、命令、追加与生命周期状态 |
 | `campus_search` | `apps/campus-search` | 只读 `campus_docs_serving.current_index` |
 | `model_config` | `apps/model-config` | 当前具名模型配置与加密凭据读写 |

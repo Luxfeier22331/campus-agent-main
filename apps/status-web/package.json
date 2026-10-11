@@ -7,7 +7,6 @@
 	"scripts": {
 		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home pnpm exec wrangler deploy --dry-run --outdir dist/worker --env local",
 		"dev": "pnpm exec wrangler dev --local --env local",
-		"upload:staging": "pnpm exec tsx ./scripts/upload-staging-version.ts",
 		"test:browser": "playwright test --config browser.config.ts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
 		"typecheck": "tsc --noEmit",

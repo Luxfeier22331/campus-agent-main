@@ -73,8 +73,8 @@ test("active selected images run serially in two groups with PR and canonical ca
 	assert.deepEqual(
 		calls.map((args) => args.at(-1)),
 		[
+			"agent-control",
 			"campus-search-service",
-			"execution-control",
 			"memory-service",
 			"model-config",
 			"ops-web",
@@ -82,7 +82,7 @@ test("active selected images run serially in two groups with PR and canonical ca
 				.filter(
 					(image) =>
 						![
-							"execution-control",
+							"agent-control",
 							"memory-service",
 							"model-config",
 							"ops-web",
@@ -131,7 +131,7 @@ test("publication preserves completed targets and stops on failure or cancellati
 	for (const failure of ["exit code 1", "context canceled"]) {
 		await t.test(failure, async (t) => {
 			const { options } = await fixture(t);
-			options.images = ["ops-web", "model-config", "execution-control", "agent-runtime"];
+			options.images = ["ops-web", "model-config", "agent-control", "agent-runtime"];
 			options.summaryFile = path.join(options.repositoryRoot, "summary.md");
 			const calls: string[] = [];
 			await assert.rejects(
@@ -144,7 +144,7 @@ test("publication preserves completed targets and stops on failure or cancellati
 					}
 					const target = args.at(-1) as string;
 					calls.push(target);
-					if (target === "execution-control") {
+					if (target === "agent-control") {
 						await writeFile(
 							args[args.indexOf("--metadata-file") + 1],
 							JSON.stringify({ [target]: { "containerimage.digest": FIRST_DIGEST } }),
@@ -165,9 +165,9 @@ test("publication preserves completed targets and stops on failure or cancellati
 				}),
 				new RegExp(failure, "u"),
 			);
-			assert.deepEqual(calls, ["execution-control", "model-config"]);
+			assert.deepEqual(calls, ["agent-control", "model-config"]);
 			const summary = await readFile(options.summaryFile, "utf8");
-			assert(summary.includes("| `execution-control` | built |"));
+			assert(summary.includes("| `agent-control` | built |"));
 			assert(
 				summary.includes(
 					`| \`model-config\` | ${failure === "context canceled" ? "unfinished" : "failed (build)"} |`,
@@ -240,7 +240,7 @@ function bakePrint(targets: string[]): CommandResult {
 					targets: targets.filter((target) =>
 						[
 							"ops-web",
-							"execution-control",
+							"agent-control",
 							"memory-service",
 							"campus-search-service",
 							"model-config",
@@ -252,7 +252,7 @@ function bakePrint(targets: string[]): CommandResult {
 						(target) =>
 							![
 								"ops-web",
-								"execution-control",
+								"agent-control",
 								"memory-service",
 								"campus-search-service",
 								"model-config",
@@ -298,7 +298,7 @@ test("Docker Bake groups cover all targets without overlap", async () => {
 			"campus-docs-index-publisher",
 			"campus-rag-index-publisher",
 			"notice-pipeline-worker",
-			"execution-control",
+			"agent-control",
 			"memory-service",
 			"cluster-private-ingress",
 			"model-config",
@@ -366,7 +366,7 @@ test("rejects image names that Docker Bake does not declare", async (t) => {
 
 test("publication excludes reused targets and publishes each missing target with separate metadata", async (t) => {
 	const { options } = await fixture(t);
-	options.images = ["ops-web", "model-config", "execution-control", "agent-runtime"];
+	options.images = ["ops-web", "model-config", "agent-control", "agent-runtime"];
 	const calls: string[][] = [];
 	const runner: CommandRunner = async (command, args) => {
 		if (args.includes("--print")) {
@@ -404,12 +404,12 @@ test("publication excludes reused targets and publishes each missing target with
 	const digests = await publishImages(options, runner);
 	assert.deepEqual(
 		calls.map((args) => args.filter((arg) => options.images.includes(arg))),
-		[["execution-control"], ["ops-web"], ["agent-runtime"]],
+		[["agent-control"], ["ops-web"], ["agent-runtime"]],
 	);
 	assert.equal(new Set(calls.map((args) => args[args.indexOf("--metadata-file") + 1])).size, 3);
 	assert.deepEqual(digests, {
 		"agent-runtime": SECOND_DIGEST,
-		"execution-control": SECOND_DIGEST,
+		"agent-control": SECOND_DIGEST,
 		"model-config": FIRST_DIGEST,
 		"ops-web": SECOND_DIGEST,
 	});

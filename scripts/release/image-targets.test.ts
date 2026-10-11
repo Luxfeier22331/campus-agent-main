@@ -26,9 +26,9 @@ test("model-config local CLI does not select the service image", () => {
 	assert.deepEqual(
 		targets([
 			"apps/model-config/cmd/model-config-local/main.go",
-			"apps/execution-control/cmd/execution-worker/main.go",
+			"apps/agent-control/cmd/execution-worker/main.go",
 		]),
-		["execution-control"],
+		["agent-control"],
 	);
 });
 
@@ -40,7 +40,7 @@ test("active image target registry excludes the historical schema image", () => 
 		"campus-rag-index-publisher",
 		"notice-pipeline-worker",
 		"document-ocr",
-		"execution-control",
+		"agent-control",
 		"memory-service",
 		"cluster-private-ingress",
 		"campus-search-service",
@@ -128,10 +128,7 @@ test("maps non-Turbo notice and execution inputs to their consumers", () => {
 		"document-ocr",
 		"notice-artifacts-worker",
 	]);
-	assert.deepEqual(targets(["configs/runtime/tools.v7.json"]), [
-		"agent-runtime",
-		"execution-control",
-	]);
+	assert.deepEqual(targets(["configs/runtime/tools.v7.json"]), ["agent-runtime", "agent-control"]);
 });
 
 test("maps notice index and embedding runtime changes to their artifact images", () => {

@@ -24,7 +24,9 @@ Object Store 仍使用独立 binding，因为 AWS SigV4 依赖 Host、query 和�
 
 Source 交付应用、镜像、K8s base、Worker 消费合同；GitOps 拥有环境 Secret、VPC Service、connector
 与部署选版。Memory 客户端与 Hindsight 服务端的 NetworkPolicy 使用不同名称，避免跨 Application
-争用同一对象。本次沿用 Source 的 Worker 上传流程；发布 owner 迁入 GitOps 由既有 issue 453 处理。
+争用同一对象。Worker 发布也按此边界迁移：Source 仅构建 digest 固定的 bundle；GitOps 准备固定 Docs 快照和公开构建值，
+上传时注入环境配置、binding 和共享凭据，创建原生版本并选择流量。原生私有 secret 由 Wrangler 继承。
+正式发布的 provider 可用性核验在 GitOps 运行，Source 只转交发布请求。
 
 ## 未采用方案
 
@@ -34,6 +36,11 @@ Kubernetes Gateway API 能统一声明路由，适合已有 controller 和多个
 
 Worker 直接绑定各服务最少增加一跳，但会继续承担内部拓扑和凭据分发，不满足本次边界调整。
 通用任意路径反代更易扩展，却会把仅供集群的写接口变成 Worker 能力；新增产品操作应显式加入路由表。
+
+Source build 不读取对象存储或 Cloudflare 凭据。Docs 快照由 GitOps 调用所选 Source 的发布与读取逻辑生成，
+同一次快照固定每个对象的读取结果。GitOps 上传 bundle 不重新编译；Deployment 创建时记录所选工件与
+解析后的原生 versionId，恢复重用该记录。选版文件保留 artifactRef；正式版本从成功 Deployment
+读取原生 versionId，并与该 revision 的 artifactRef/sourceSha 核对，正式回滚选择已验证的原生版本。
 
 ## 后果
 

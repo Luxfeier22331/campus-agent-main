@@ -3,7 +3,6 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-
 import {
 	ACTIVE_PACKAGE_NAMES,
 	applyRetentionPlan,
@@ -27,6 +26,7 @@ import {
 	runPrCacheCleanup,
 	verifyRetentionDeletion,
 } from "./ghcr-retention.mts";
+import { ACTIVE_IMAGE_TARGETS } from "./image-targets.mts";
 
 const NOW = new Date("2026-09-04T00:00:00.000Z");
 const digest = (character: string) => `sha256:${character.repeat(64)}`;
@@ -633,7 +633,11 @@ test("scoped inventory directly probes candidates and never reads outside the PR
 	};
 	assert.deepEqual(await readPackageInventory("MUC-WIKI", runner, "442"), [{ name, versions: [] }]);
 	assert.equal(calls.filter((call) => call.includes("/versions?")).length, 1);
-	assert.equal(calls.length, ACTIVE_PACKAGE_NAMES.length + 1);
+	assert.equal(calls.length, ACTIVE_IMAGE_TARGETS.length + 1);
+	assert(
+		calls.every((call) => !call.includes("worker-")),
+		"Worker bundles have no BuildKit PR cache",
+	);
 });
 
 test("manual cleanup rechecks PR state and never queries or cancels builds", async (t) => {

@@ -1,6 +1,6 @@
 ---
 doc_type: contract
-owner_boundary: apps/execution-control
+owner_boundary: apps/agent-control
 status: active
 ---
 # 请求阶段耗时合同
@@ -47,20 +47,20 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 | 字段 | Producer | 含义 |
 | --- | --- | --- |
 | `request.total_ms` | `apps/app-api` | 从 app-api 接受请求到终态投影对 app-api 可见。 |
-| `execution.dispatch_ms` | `apps/execution-control` | run 从创建到进入 queued 状态的耗时。 |
-| `workflow.schedule_to_start_ms` | `apps/execution-control` | 本次 Workflow 中 Solve、Executor、Replanner 和 Synthesizer Activity 从 Temporal 调度到 worker 开始执行的累计耗时。 |
-| `stream.first_delta_persist_ms` | `apps/execution-control` | run 从 running 到首条 answer delta 与 streaming 状态原子提交的耗时。 |
+| `execution.dispatch_ms` | `apps/agent-control` | run 从创建到进入 queued 状态的耗时。 |
+| `workflow.schedule_to_start_ms` | `apps/agent-control` | 本次 Workflow 中 Solve、Executor、Replanner 和 Synthesizer Activity 从 Temporal 调度到 worker 开始执行的累计耗时。 |
+| `stream.first_delta_persist_ms` | `apps/agent-control` | run 从 running 到首条 answer delta 与 streaming 状态原子提交的耗时。 |
 | `stream.app_api_ttft_ms` | `apps/app-api` | 从 app-api 接受新请求到实际收到首条 answer delta 的耗时。 |
 | `stream.orchestration_overhead_ms` | `apps/app-api` | `stream.app_api_ttft_ms - workflow.first_delta_ms`；仅在两者都存在且差值非负时写入。 |
-| `execution.admission_ms` | `apps/execution-control` | run 进入执行路径前的准入耗时。 |
-| `memory.recall_ms` | `apps/execution-control` | 已执行 personal memory recall 工具调用的耗时。 |
+| `execution.admission_ms` | `apps/agent-control` | run 进入执行路径前的准入耗时。 |
+| `memory.recall_ms` | `apps/agent-control` | 已执行 personal memory recall 工具调用的耗时。 |
 | `workflow.solve_ms` | `apps/agent-runtime` | Solve 模型 operation 的累计耗时；该 operation 可以直接回答，也可以返回任务计划。 |
 | `workflow.execute_step_ms` | `apps/agent-runtime` | Executor 模型 operation 的累计耗时，包括本地工具和 hosted Web Search 调用。 |
 | `workflow.replan_ms` | `apps/agent-runtime` | Replanner 模型 operation 的累计耗时。 |
 | `workflow.synthesize_ms` | `apps/agent-runtime` | Synthesizer 模型 operation 的耗时。 |
 | `workflow.first_delta_ms` | `apps/agent-runtime` | Synthesizer operation 开始到第一个可见 answer delta 的耗时。 |
-| `tool.total_ms` | `apps/execution-control` | 本次 run 中所有已投影 SDK tool call 的总耗时。 |
-| `finalization.write_ms` | `apps/execution-control` | 写入有界 finalization projection 的耗时。 |
+| `tool.total_ms` | `apps/agent-control` | 本次 run 中所有已投影 SDK tool call 的总耗时。 |
+| `finalization.write_ms` | `apps/agent-control` | 写入有界 finalization projection 的耗时。 |
 | `projection.closeout_ms` | `apps/app-api` | 接收 execution finalization 到完成 app-api observability fact。 |
 
 不得增加供应商专用字段。只在 Langfuse、SDK trace 或 Temporal UI 有意义的

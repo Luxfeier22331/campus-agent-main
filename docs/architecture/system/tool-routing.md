@@ -19,7 +19,7 @@ timeout 由以下可执行注册表维护：
 ## 当前状态
 
 当前注册表中的 model-visible 工具为 `campus_search` 和 `personal_memory_recall`。二者都是只读
-function tool；注册表、handler 和内部可用性字段的存在不会单独开放工具，execution-control 根据
+function tool；注册表、handler 和内部可用性字段的存在不会单独开放工具，agent-control 根据
 准入时的可用性决定本轮工具集合。
 模型可见的工具名称保持代码标识，description 与参数说明使用简体中文。`campus_search` 的 description
 明确其机构范围是中央民族大学当前 Campus Web 文档与已发布通知。
@@ -31,13 +31,13 @@ function tool；注册表、handler 和内部可用性字段的存在不会单�
 
 模型配置启用托管搜索时，Agent Runtime 为 Solve 附加供应商原生搜索工具；Executor 还要求当前步骤允许
 `web_search`。原生工具为 OpenAI Web Search 或 Gemini Google Search。它不在
-`tools.v7.json`、`visible_function_tool_names` 或 execution-control handler 中登记，也不由客户端
+`tools.v7.json`、`visible_function_tool_names` 或 agent-control handler 中登记，也不由客户端
 选择。它只用于校园问题的公开网页证据。
 
 ## 职责
 
 - app-api 负责身份、会话和产品传输，不接收客户端指定的工具、索引或检索参数；
-- execution-control 根据注册表和冻结准入策略确定模型可见工具，并执行工具 handler；
+- agent-control 根据注册表和冻结准入策略确定模型可见工具；agent-runtime 的工具 Activity 执行实际调用；
 - Solve 可使用准入工具直接检索并回答，也可为计划步骤声明候选来源；Executor 在当前步骤内选择来源，
   Runtime 依据函数 schema 验证模型生成的本地工具参数；
 - handler 负责运行身份、业务前置条件和结果合同，不重复实现同一份 SDK 函数 schema 校验；
@@ -59,18 +59,16 @@ Solve、Executor、Replanner 和 Synthesizer 共同完成 Agent Workflow。问�
 operation 内选择其他已开放来源；Replanner 负责按目标和证据调整剩余步骤及其候选来源。no-match 或
 函数工具失败不会由代码自动触发 `web_search`，也不会把失败结果作为答案依据。
 
-`campus_search` handler 通过内部 HTTP client 调用 Campus Search service；后者读取当前索引、解析
-embedding 与 reranker 连接并执行查询，handler 负责 run 校验、索引绑定和 citation 编号。读取和绑定时序见
+`campus_search` Activity 通过内部 HTTP client 调用 Campus Search service；后者读取当前索引、解析
+embedding 与 reranker 连接并执行查询，Runtime 与 Control 共同完成运行校验和结果投影，Workflow 保持 citation 的确定顺序。读取和绑定时序见
 [检索服务](./retrieval-serving.md#在线消费边界)。模型不能指定 collection、provider、top-k 或向量参数。
 每次检索最多返回 5 条结果，同一 run 累计最多 10 条；正文中的 `[1]` 到 `[10]` 对应结果携带的
 本轮全局 `citation_index`。检索结果只是候选，只有正文实际引用的结果进入公开来源投影。
 
-`execution_control_internal_query` handler 在同一个 Solve 或 Execute Step operation 内调用 execution-control 的有界
-读取接口。个人记忆 handler 重新校验冻结策略和运行身份，经记忆访问 fence 调用 Hindsight，返回
-`PersonalMemoryRecallResponse`：有序 `facts` 和现有配置的 `context_char_budget`。Provider adapter
-负责结果数量和单条 UTF-8 字节截断；Runtime 负责中文标题、完整行预算及 matched/no_match。Runtime
-在工具执行器内转换为原有 `PersonalMemoryRecallResult`（`outcome`、`memory_text`），再交给 runner
-与工具记录。该调用不创建额外 Temporal Activity，也不自动向 prompt 注入记忆。
+`personal_memory_recall` 工具 Activity 直接调用 Memory API，Memory 通过访问 fence 调用 Hindsight，
+返回有序 `facts` 和 `context_char_budget`。Provider adapter 负责结果数量和单条 UTF-8 字节截断；
+Runtime 负责中文标题、完整行预算及 matched/no_match，将其转换为 `outcome` 与 `memory_text`。
+每次模型或本地函数调用由独立 Activity 承载，不自动向 prompt 注入记忆。
 
 普通工具失败不得贡献候选或来源，也不得回退到未注册数据源、强制预检索或旧工具；其他成功工具或
 非机构事实已经足以支持回答时，整轮仍可完成。合同、身份、运行指纹或结果结构错误继续失败关闭。
@@ -88,7 +86,7 @@ embedding 与 reranker 连接并执行查询，handler 负责 run 校验、索�
 
 - 由浏览器或 app-api 选择工具、索引、collection 或检索参数；
 - 把非工具能力伪装成 SDK tool call；
-- 为每个 SDK 工具创建 Temporal Activity 或专用队列；
+- 为每种工具创建独立 Deployment 或专用队列；工具 Activity 共用 Agent tool 队列；
 - 绕过 Agent Workflow 直接在 SDK 终态之后启动额外规划、反思或答案改写；
 - 函数工具失败时由代码自动回退到 hosted Web Search、未注册供应商搜索、旧工具或现场采集。
 

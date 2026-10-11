@@ -91,5 +91,5 @@ Ops Web 也没有该表的列读取权限。它不能成为新的跨所有者接
 - `apps/app-api/src/db/schema/runtime.ts`
 - `apps/app-api/src/db/schema/chat.ts`
 - `jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration.sql`
-- `apps/execution-control/internal/executionpersistence/run_projection_postgres_store.go`
+- `apps/agent-control/internal/executionpersistence/run_projection_postgres_store.go`
 - `apps/ops-web/ops/db/ops-web-database.ts`

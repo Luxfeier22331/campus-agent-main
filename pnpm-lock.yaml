@@ -434,7 +434,7 @@ importers:
 
   apps/cluster-private-ingress: {}
 
-  apps/execution-control: {}
+  apps/agent-control: {}
 
   apps/memory-service: {}
 

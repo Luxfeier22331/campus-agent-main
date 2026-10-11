@@ -57,11 +57,12 @@ export function parseCampusWebBuildArgs(argv: string[]): CampusWebBuildArgs {
 }
 
 export async function buildCampusWeb(input: CampusWebBuildInput): Promise<void> {
-	const sourceEnvironment = input.docsClient
-		? (input.env ?? process.env)
-		: loadCampusWebBuildEnvironment(
-				input.env === undefined ? {} : { processEnvironment: input.env },
-			);
+	const sourceEnvironment =
+		input.docsClient || (input.env ?? process.env).CAMPUS_WEB_DOCS_SNAPSHOT
+			? (input.env ?? process.env)
+			: loadCampusWebBuildEnvironment(
+					input.env === undefined ? {} : { processEnvironment: input.env },
+				);
 	const content = await prepareDocsContent({
 		...(input.docsClient ? { client: input.docsClient } : {}),
 		env: sourceEnvironment,

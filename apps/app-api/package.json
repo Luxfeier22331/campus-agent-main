@@ -6,7 +6,6 @@
 	"description": "Shared Worker-native application backend for campus-agent v2.",
 	"scripts": {
 		"dev": "bash scripts/dev.sh",
-		"upload:staging": "pnpm exec tsx ./scripts/upload-staging-version.ts",
 		"test:node:fast": "vitest run -c vitest.node-fast.config.mts",
 		"test:node:isolated": "vitest run -c vitest.node-isolated.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",

@@ -72,7 +72,7 @@ test("Turbo affected selection uses task inputs and no phantom CI tasks", () => 
 		Object.keys(tasks).some((task) => task.startsWith("//#ci:")),
 		false,
 	);
-	assert.equal(tasks["execution-control#build"], undefined);
+	assert.equal(tasks["agent-control#build"], undefined);
 
 	for (const task of ["typecheck", "test:unit", "test:worker"]) {
 		const inputs = inputsFor(tasks, task);
@@ -133,7 +133,7 @@ test("expensive package tasks declare boundary-specific affected inputs", () => 
 	const owners: [string, string[]][] = [
 		["apps/app-api/turbo.json", ["test:shared-db-integration"]],
 		["apps/campus-web/turbo.json", ["test:e2e:full"]],
-		["apps/execution-control/turbo.json", ["test:database-integration"]],
+		["apps/agent-control/turbo.json", ["test:database-integration"]],
 		["apps/model-config/turbo.json", ["test:database-integration"]],
 		["apps/ops-web/turbo.json", ["test:browser", "test:database-integration"]],
 		["apps/status-web/turbo.json", ["test:browser"]],

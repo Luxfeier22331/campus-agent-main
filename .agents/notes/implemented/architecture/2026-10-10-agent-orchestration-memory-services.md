@@ -36,11 +36,12 @@ Status: implemented
   排空超时。未启动的旧代命令直接失败并回调，不调用 Hindsight；旧代命令收尾不得覆盖新代 lifecycle。
 - 产品终态确认后，由 control 持久投递最小 append 输入；Memory 接收后由它负责后续执行。
   终态输入清理必须晚于租约释放。Memory 不读取 execution run、step 或产品消息。
-  外部投递装配不创建旧 `memory.append` 步骤，追加进度由 Memory 管理；本地模式仍保留该步骤。
+  投递装配不创建旧 `memory.append` 步骤，追加进度由 Memory 管理。
   关闭个人记忆时不准备外部投递，也不创建旧步骤。
-- Agent 双轨切换按 owner 稳定分桶，路由在接收时冻结。旧运行排空后删除旧 Go Workflow 与 HTTP
-  模型操作入口。Memory 使用短维护窗口复制状态，保持 owner salt、bank identity 和 generation，
-  单写切换，不双写。
+- 双轨结束后，新运行固定进入 TypeScript AgentWorkflow；旧 Go Worker、Workflow 和 HTTP 模型入口
+  归档为非编译源码，不承担旧 history 支持。Control 不再装配本地 Memory/Hindsight 或工具执行服务。
+  应用身份统一为 agent-control；数据库 schema/role、Secret 对象与键、Temporal namespace/queue
+  保持既有持久身份。
 - 账户删除由 app-api 协调 Agent 排空、Memory erase 和 tombstone、execution 清理、产品清理。
 
 ## 未采用方案
@@ -68,8 +69,7 @@ receipt 回放；Memory Activity 数据库回归覆盖 erase 越过未启动命�
 “操作不存在”错误而遗漏实际响应合同；已有操作和查询失败不触发新的提交。
 实际 Hindsight 与产品部署的端到端切换由环境发布步骤验收。
 
-双轨部署期间仍保留 Go Workflow、HTTP operation runner，以及 control 的本地 Memory 装配分支。
-独立模式的部署不向 control 注入 Hindsight 配置；新的投影 API 复用提取后的 operation 结果归一化与投影逻辑。
-路由按 owner 分桶，在 run 接收时冻结；100% 切换且旧运行排空后，才能删除旧执行路径和装配分支。
-Memory 复制在旧写入停止后运行，不双写；新服务产生写入后，不能仅回退服务镜像恢复旧数据库。
-源码实施不等于环境已经切流，部署与退役顺序由执行运维文档维护。
+四个部署 owner 分别是 agent-control、agent-runtime、Memory 和 cluster-private-ingress。
+Memory 已独立的数据及 Hindsight owner salt 保持原样，不重复复制或清空数据库。
+源码与环境清单分别通过 Source 和 GitOps PR 交付；旧 Application 的资源转移在自动同步暂停期间进行，
+新 owner 接管后再恢复协调，避免旧 owner 的 prune 删除已接管对象。

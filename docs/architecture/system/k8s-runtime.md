@@ -13,10 +13,9 @@ namespace、不可变镜像、环境配置、凭据对象和实际资源额度�
 
 ## 运行时基础
 
-`infra/k8s/execution-runtime/base`、`infra/k8s/model-config/base`、`infra/k8s/ops-web/base` 与
-`infra/k8s/ingestion-runtime/base` 分别提供 execution、模型配置、运维应用和采集 Job 的源码期望状态。
-常驻 workload 位于各自 `runtime/` 或 base。内部门户凭据 API 与检查由 Ops Web 及其
-`ops-web-internal-portal-check` CronJob 执行；ingestion runtime 只保留采集 Job 模板。
+`infra/k8s/agent-control/base`、`infra/k8s/agent-runtime/base`、`infra/k8s/memory/base` 与
+`infra/k8s/cluster-private-ingress/base` 分别提供独立 owner 的期望状态。`execution-runtime/base`
+保留通知流水线等剩余服务；Model Config、Ops Web 和采集 Job 仍使用各自 base。
 
 精确资源、标签、探针和配置引用以 Kustomize 清单为准，不在架构文档维护副本。源码 base 不选择
 具体环境或可变镜像标签。子单元可以引用同 namespace 中由运行时或 foundation 唯一拥有的
@@ -24,19 +23,20 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 
 当前稳定进程形态是：
 
-- `execution-control`：执行 API Deployment 与原 Service，拥有业务 HTTP 和 reconciler；
-- `execution-worker`：独立 Deployment，承载三类 Temporal poller，仅开放 Pod 健康 listener；
-  与 API 使用同一镜像 digest，分别设置副本、资源和停机窗口；
+- `agent-control`：HTTP API 与 reconciler，拥有运行投影和可靠 Memory 投递；
+- `agent-runtime-worker`：TypeScript Temporal Workflow、模型 Activity 和工具 Activity 三类 poller；
+- `memory-service` 与 `memory-worker`：独立 Memory API、命令恢复、Workflow 与自有状态库；
+- `cluster-private-ingress`：Worker 到集群产品 API 的固定私有入口；
+
 - `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；数据库结构由 data-postgres
   Application 中的统一 `campus-agent-schema` Job 安装；
-- `agent-runtime`：一个独立 Deployment；
 - `ops-web`：一个运维 API Deployment，管理 `notice-pipeline` Temporal Schedule 启停与周期，并查询通知维护工作流的运行投影；
 - `notice-pipeline-worker`：独立离线流水线 Deployment，在 `notice-pipeline` 队列执行通知采集、分类、发布和 RAG 刷新编排；
 - `notice-artifacts-worker`：独立离线流水线 Deployment，在 `notice-artifacts` 队列执行通知制品、Embedding、Qdrant 发布、清理和 rollback；
 - `ops-web-internal-portal-check`：使用 Ops Web 凭据 store 顺序检查凭据池的 CronJob；
 - `internal-portal-collection` 及通知分类、发布包保留镜像和共用实现，供流水线 Activity 与手动恢复使用；旧通知 CronJob 模板仅作为迁移期手动入口，不再承担自动调度。统一 RAG publisher 保留为共享 package 和手动 CLI，不再部署独立 CronJob。
 
-Temporal Server 是 execution-control、notice-pipeline-worker 与 notice-artifacts-worker 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
+Temporal Server 是 agent-control、agent-runtime-worker、memory-worker、notice-pipeline-worker 与 notice-artifacts-worker 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
 WorkerDeployment 或 WorkerResourceTemplate；KEDA 控制器与 ScaledObject 由环境仓管理。
 
 Agent Runtime 的可选 OTLP endpoint 由环境仓选择。源码仓不把 OpenTelemetry Agent/Gateway、节点
@@ -48,15 +48,8 @@ Agent Runtime 的可选 OTLP endpoint 由环境仓选择。源码仓不把 OpenT
 replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通过第二套长期 worker 路由兼容旧合同。
 应用不自行部署、重启或修改 Kubernetes 资源。
 
-环境仓可用 KEDA 独立管理 `execution-worker` 与 `agent-runtime` 的副本。Worker 采用 Temporal
-队列 backlog 与 SDK 已用 slots；Agent Runtime 采用活跃执行请求数，计数覆盖完整流式响应。
-Prometheus 只采集直接被策略消费的指标；指标缺失不能解释为空闲。副本上限、稳定窗口、资源额度和
-Provider 约束由环境策略负责，API 保持独立的副本管理。应用不维护容量数据库或自研扩缩器。
-
-同一个 Deployment 只由一个 ScaledObject/HPA 管理动态副本，启用时环境渲染去除固定 replicas，
-Argo CD 精确忽略该字段并启用 RespectIgnoreDifferences。最小副本保持为 1，避免停止全部执行能力。
-排空等待覆盖现有 activity/request 预算，不能用队列为空或缩容稳定窗口替代排空。实施理由见
-[执行面自动扩缩容](../../../.agents/notes/implemented/architecture/2026-10-09-runtime-autoscaling.md)。
+本次拆分保留固定副本，不启用自动扩缩容。旧 Go Worker 和 HTTP Runtime 已退役，原负载指标与
+扩缩容规则不能作为新 Worker 的容量合同；将来启用时需根据实际 Temporal Activity 负载重新设计。
 
 ## Job 运行合同
 

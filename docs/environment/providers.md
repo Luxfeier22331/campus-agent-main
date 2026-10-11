@@ -73,12 +73,12 @@ bucket 或投稿专用凭据。两组身份各有 access key 和 secret key；Ku
 
 | 身份 | 凭据名称 | 消费者与交付位置 |
 | --- | --- | --- |
-| derived 读写 | `OBJECT_STORE_DERIVED_ACCESS_KEY`、`OBJECT_STORE_DERIVED_SECRET_KEY` | 既有 Kubernetes 写入者；同值同步到 Source GitHub `staging` Environment，由 App API candidate 上传脚本交付为 Worker Secret |
-| derived 只读 | `OBJECT_STORE_DERIVED_READ_ACCESS_KEY`、`OBJECT_STORE_DERIVED_READ_SECRET_KEY` | Source 发布及 App API 通知图片读取；Ops 图片代理通过既有 `object-store-secrets` 注入同一只读身份 |
+| derived 读写 | `OBJECT_STORE_DERIVED_ACCESS_KEY`、`OBJECT_STORE_DERIVED_SECRET_KEY` | 既有 Kubernetes 写入者；同值同步到 GitOps GitHub `staging` Environment，由 App API candidate 上传脚本交付为 Worker Secret |
+| derived 只读 | `OBJECT_STORE_DERIVED_READ_ACCESS_KEY`、`OBJECT_STORE_DERIVED_READ_SECRET_KEY` | GitOps 快照准备及 App API 通知图片读取；Ops 图片代理通过既有 `object-store-secrets` 注入同一只读身份 |
 
 GitOps `staging` Environment 是共享凭据的投递入口；`secrets.yml` 的 `all` 流程先生成 SealedSecret PR，
-合并并完成 Argo CD 同步后再投递 Source `staging`。已有凭据只补交付位置，不因增加消费者重新生成。
-精确上传要求见 [App API 发布配置](../../apps/app-api/scripts/staging-upload-config.ts)，缺少要求的
+合并并完成 Argo CD 同步后再投递 GitOps `staging`。已有凭据只补交付位置，不因增加消费者重新生成。
+精确上传要求见 GitOps 的 `tools/resolve-workers.ts`，缺少要求的
 Secret 会阻止 candidate 上传。Ops 图片代理复用现有 endpoint 与 bucket 配置；缺少只读凭据时
 仅图片读取不可用，文字治理仍可运行，不使用 derived 写身份代替。
 

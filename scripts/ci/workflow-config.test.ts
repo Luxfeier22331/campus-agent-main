@@ -787,10 +787,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.match(String(publishWorkers.if), /outputs\.action/u);
 	assert.equal(publishWorkers["runs-on"], runnerSelector("ubuntu-24.04"));
 	assert.equal(namedStep(publishWorkers, "Install Nix").if, "runner.environment != 'self-hosted'");
-	assert.deepEqual(publishWorkers.environment, {
-		name: "staging",
-		deployment: false,
-	});
+	assert.equal(publishWorkers.environment, undefined);
 
 	const candidateStatus = workflowJob(workflow, "candidate-status");
 	assert.deepEqual(candidateStatus.needs, ["release-plan", "publish-images", "publish-workers"]);
@@ -860,99 +857,21 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert(!String(installGitOpsTooling.run).includes("--ignore-workspace"));
 });
 
-test("Worker publication matches the candidate registry and secret boundaries", async () => {
-	const workflow = await loadWorkflow("execution-runtime-publish.yml");
-	const workers = workflowJob(workflow, "publish-workers");
-	const steps = jobSteps(workers);
-	const install = namedStep(workers, "Install selected Worker workspaces");
-	assert.equal(install.id, "install_workers");
-	assert.match(String(install.run), /scripts\/release\/workers\.mts --workers "\$WORKERS"/u);
-
-	const selectedWorkers = new Set(steps.flatMap((step) => workerCandidatesInExpression(step.if)));
-	assert.deepEqual([...selectedWorkers].sort(), [...WORKER_CANDIDATES].sort());
-
-	const outputWorkers = new Set(
-		steps.flatMap((step) => {
-			if (!isObject(step.env) || typeof step.env.WORKER_VERSION_OUTPUT !== "string") {
-				return [];
-			}
-			const match = step.env.WORKER_VERSION_OUTPUT.match(/worker-candidates\/([^/]+)\.json$/u);
-			return match?.[1] ? [match[1]] : [];
-		}),
+test("Worker publication builds immutable artifacts without environment credentials", async () => {
+	const workers = workflowJob(
+		await loadWorkflow("execution-runtime-publish.yml"),
+		"publish-workers",
 	);
-	assert.deepEqual([...outputWorkers].sort(), [...WORKER_CANDIDATES].sort());
-
-	const finalize = namedStep(workers, "Finalize Worker publication");
-	assert.equal(finalize.if, "!cancelled()");
-	assert(isObject(finalize.env));
-	const finalizedWorkers = new Set(
-		Object.values(finalize.env).flatMap(workerCandidatesInExpression),
+	assert.equal(workers.environment, undefined);
+	const serialized = JSON.stringify(workers);
+	assert.doesNotMatch(
+		serialized,
+		/secrets\.(?:CLOUDFLARE|OBJECT_STORE|APP_API|EDGE_INGRESS|MEMORY)/u,
 	);
-	assert.deepEqual([...finalizedWorkers].sort(), [...WORKER_CANDIDATES].sort());
-
-	const artifact = steps.find(
-		(step) => typeof step.uses === "string" && step.uses.startsWith("actions/upload-artifact@"),
-	);
-	assert(artifact);
-	assert(isObject(artifact.with));
-	assert.equal(artifact.with.name, "release-worker-candidates");
-	assert.equal(artifact.with.path, "worker-candidates/*.json");
-	assert.equal(artifact.with["if-no-files-found"], "error");
-
-	const appApi = namedStep(workers, "Upload app-api candidate");
-	assert(isObject(appApi.env));
-	assert.equal(appApi.env.AUTH_EMAIL_FROM, githubExpression("vars.AUTH_EMAIL_FROM"));
-	assert.equal(
-		appApi.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
-		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
-	);
-	assert.equal(
-		appApi.env.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
-		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
-	);
-	assert.equal(
-		appApi.env.OBJECT_STORE_DERIVED_ACCESS_KEY,
-		githubExpression("secrets.OBJECT_STORE_DERIVED_ACCESS_KEY"),
-	);
-	assert.equal(
-		appApi.env.OBJECT_STORE_DERIVED_SECRET_KEY,
-		githubExpression("secrets.OBJECT_STORE_DERIVED_SECRET_KEY"),
-	);
-	assert.equal(
-		appApi.env.OBJECT_STORE_VPC_SERVICE_ID,
-		githubExpression("vars.OBJECT_STORE_VPC_SERVICE_ID"),
-	);
-
-	const docsSource = namedStep(workers, "Publish generated Docs source");
-	assert.equal(docsSource.run, "pnpm --dir apps/campus-web docs:source:publish");
-	assert(isObject(docsSource.env));
-	assert.equal(
-		docsSource.env.OBJECT_STORE_DERIVED_ACCESS_KEY,
-		githubExpression("secrets.OBJECT_STORE_DERIVED_ACCESS_KEY"),
-	);
-	assert.equal(
-		docsSource.env.OBJECT_STORE_DERIVED_SECRET_KEY,
-		githubExpression("secrets.OBJECT_STORE_DERIVED_SECRET_KEY"),
-	);
-	const campusWeb = namedStep(workers, "Build Campus Web staging candidate");
-	assert.match(String(campusWeb.if), /steps\.campus_web_docs\.outcome == 'success'/u);
-	assert(steps.indexOf(docsSource) < steps.indexOf(campusWeb));
-	assert(isObject(campusWeb.env));
-	assert.equal(
-		campusWeb.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
-		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
-	);
-	assert.equal(campusWeb.env.OBJECT_STORE_ENDPOINT, githubExpression("vars.OBJECT_STORE_ENDPOINT"));
-	assert.equal(campusWeb.env.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
-	assert.equal(campusWeb.env.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
-
-	const statusWeb = namedStep(workers, "Upload status-web candidate");
-	assert(isObject(statusWeb.env));
-	assert.equal(
-		statusWeb.env.CLOUDFLARE_API_TOKEN,
-		githubExpression("secrets.CLOUDFLARE_API_TOKEN"),
-	);
-	assert.equal(statusWeb.env.STATUS_SNAPSHOT_KV_ID, githubExpression("vars.STATUS_SNAPSHOT_KV_ID"));
+	assert.match(serialized, /request-worker-input/u);
+	assert.match(serialized, /build-worker-artifact/u);
+	assert.match(serialized, /oras push/u);
+	assert.match(serialized, /release-worker-candidates/u);
 });
 
 test("retention schedules full apply on trusted main and serializes mutations with publication", async () => {
@@ -1028,22 +947,12 @@ test("PR image evidence only imports caches and requires no PR write coordinatio
 	assert.equal(trusted.permissions["pull-requests"], undefined);
 });
 
-test("formal release serializes publication and separates read and write credentials", async () => {
+test("formal publication delegates provider validation to GitOps", async () => {
 	const workflow = await loadWorkflow("formal-release.yml");
-	assert.deepEqual(workflow.concurrency, {
-		group: "campus-agent-ghcr-mutation",
-		"cancel-in-progress": false,
-		queue: "max",
-	});
-	const publish = workflowJob(workflow, "publish");
-	assert.deepEqual(publish.permissions, { contents: "read", packages: "read" });
-	const settings = namedStep(publish, "Create Source settings read token");
-	assert.equal(settings.with["permission-administration"], "read");
-	const publication = namedStep(publish, "Create Source publication token");
-	assert.equal(publication.with["permission-contents"], "write");
-	assert.equal(publication.with["permission-workflows"], "write");
-	const run = namedStep(publish, "Publish verified snapshot without rebuilding");
-	assert.match(String(run.env?.SOURCE_TOKEN), /publication-token/u);
+	const dispatch = workflowJob(workflow, "dispatch");
+	assert.equal(dispatch.environment, undefined);
+	assert.match(JSON.stringify(dispatch), /publish-formal-release.yml/u);
+	assert.doesNotMatch(JSON.stringify(dispatch), /CLOUDFLARE_API_TOKEN/u);
 });
 
 test("duplicate publication never marks pending or publishes, while reuse can promote", async () => {

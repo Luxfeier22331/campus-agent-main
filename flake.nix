@@ -73,6 +73,7 @@
             tools.nodejs
             pnpmToolchain
             ripgrep
+            pkgs.oras
           ];
           lightPackages = corePackages ++ (with pkgs; [
             tools.actionlint

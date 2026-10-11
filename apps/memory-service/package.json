@@ -8,6 +8,7 @@
 		"native:test": "go test ./...",
 		"native:vet": "go vet ./...",
 		"native:format": "gofmt -l .",
-		"build": "go build ./cmd/..."
+		"build": "go build ./cmd/...",
+		"test:database-integration": "go test -v -tags=postgres_integration ./integration/postgres -count=1 -timeout=10m"
 	}
 }

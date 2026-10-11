@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type { SdkToolRuntime } from "../../src/agent-run-contract.ts";
+import { formatMemoryRecall } from "../../src/memory-context.ts";
 import { loadToolCatalog } from "../../src/tool-catalog.ts";
-import { createExecutionControlToolExecutor } from "../../src/tool-executor.ts";
 
 export const recalledMemory = {
 	outcome: "matched",
@@ -15,11 +15,6 @@ export function memoryRecallTool(): SdkToolRuntime {
 	if (!tool) {
 		throw new Error("missing memory tool");
 	}
-	const executor = createExecutionControlToolExecutor({
-		baseUrl: "http://execution-control:8000",
-		sharedSecret: "test",
-		fetchImpl: async () => Response.json({ facts: ["喜欢安静😀"], context_char_budget: 2500 }),
-	});
 	return {
 		name: tool.name,
 		description: tool.description,
@@ -29,7 +24,9 @@ export function memoryRecallTool(): SdkToolRuntime {
 			properties: { query: { type: "string" } },
 			required: ["query"],
 		},
-		execute: (argumentsJson, context) =>
-			executor({ tool, argumentsJson, requestId: "req-memory", ...context }),
+		execute: async () => ({
+			status: "completed",
+			result: formatMemoryRecall({ facts: ["喜欢安静😀"], context_char_budget: 2500 }),
+		}),
 	};
 }

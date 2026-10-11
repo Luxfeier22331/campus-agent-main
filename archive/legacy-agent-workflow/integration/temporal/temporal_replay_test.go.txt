@@ -1,0 +1,66 @@
+//go:build temporal_replay || temporal_integration
+
+package temporal_test
+
+import (
+	"encoding/json"
+	"os"
+	"testing"
+
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime"
+	historypb "go.temporal.io/api/history/v1"
+	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
+	"google.golang.org/protobuf/encoding/protojson"
+)
+
+type replayFixture struct {
+	WorkflowType      string          `json:"workflow_type"`
+	GenerationVersion string          `json:"generation_version"`
+	Producer          string          `json:"producer"`
+	ExpectedStatus    string          `json:"expected_status"`
+	History           json.RawMessage `json:"history"`
+}
+
+// This test is also runnable with temporal_replay alone: no TestMain, Dev
+// Server, activity workers, provider or database is needed to replay history.
+func TestReplayCommittedPersonalMemoryHistory(t *testing.T) {
+	data, err := os.ReadFile("testdata/replay/personal_memory_erase_v1.json")
+	if err != nil {
+		t.Fatalf("load committed history fixture: %v", err)
+	}
+	var fixture replayFixture
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatalf("decode fixture metadata: %v", err)
+	}
+	if fixture.WorkflowType != temporalruntime.PersonalMemoryCommandWorkflowType ||
+		fixture.GenerationVersion != "personal-memory-command/current" ||
+		fixture.Producer != "temporalruntime.PersonalMemoryCommandWorkflow" || fixture.ExpectedStatus != "succeeded" {
+		t.Fatalf("unexpected replay fixture provenance: %+v", fixture)
+	}
+	var history historypb.History
+	if err := protojson.Unmarshal(fixture.History, &history); err != nil {
+		t.Fatalf("decode Temporal history: %v", err)
+	}
+	if len(history.Events) == 0 {
+		t.Fatal("fixture history is empty")
+	}
+	last := history.Events[len(history.Events)-1].GetWorkflowExecutionCompletedEventAttributes()
+	if last == nil {
+		t.Fatal("fixture did not reach the expected completed terminal event")
+	}
+	var result temporalruntime.PersonalMemoryCommandWorkflowResult
+	if err := converter.GetDefaultDataConverter().FromPayloads(last.Result, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != fixture.ExpectedStatus {
+		t.Fatalf("recorded terminal status=%s", result.Status)
+	}
+	replayer := worker.NewWorkflowReplayer()
+	replayer.RegisterWorkflowWithOptions(temporalruntime.PersonalMemoryCommandWorkflow, workflow.RegisterOptions{Name: fixture.WorkflowType})
+	t.Logf("history replay: type=%s generation=%s", fixture.WorkflowType, fixture.GenerationVersion)
+	if err := replayer.ReplayWorkflowHistory(nil, &history); err != nil {
+		t.Fatalf("registered workflow cannot replay committed history: %v", err)
+	}
+}

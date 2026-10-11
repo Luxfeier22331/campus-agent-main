@@ -29,9 +29,12 @@ export const RETIRED_IMAGE_NAMES = [
 	"source-collector",
 ] as const;
 
-export const ACTIVE_PACKAGE_NAMES = ACTIVE_IMAGE_TARGETS.map(
-	(image) => `${PACKAGE_PREFIX}${image}`,
-);
+export const ACTIVE_PACKAGE_NAMES = [
+	...ACTIVE_IMAGE_TARGETS,
+	"worker-app-api",
+	"worker-campus-web",
+	"worker-status-web",
+].map((image) => `${PACKAGE_PREFIX}${image}`);
 
 // These jobs are still selected by the current GitOps runtime but are not part
 // of the Source image build target list. They remain retention-managed while

@@ -34,7 +34,7 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 		"CAMPUS_WEB_DEV_PORT",
 		"OBJECT_STORE_BUCKET_DERIVED",
 	],
-	"apps/execution-control/.env.local": [
+	"apps/agent-control/.env.local": [
 		"EXECUTION_CONTROL_DATABASE_URL",
 		"EXECUTION_CONTROL_TEMPORAL_ADDRESS",
 		"PORT",
@@ -51,7 +51,7 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 		"MEMORY_SERVICE_BASE_URL",
 		"MEMORY_INTERNAL_SHARED_SECRET",
 	],
-	"apps/agent-runtime/.env.local": ["AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL", "PORT"],
+	"apps/agent-runtime/.env.local": ["AGENT_CONTROL_BASE_URL", "AGENT_WORKER_PORT"],
 	"apps/ops-web/.env.local": [
 		"OPS_WEB_DATABASE_URL",
 		"OPS_WEB_INTERNAL_TOKEN",
@@ -220,10 +220,8 @@ export async function diagnoseLocalDevelopment(
 				for (const [name, port] of Object.entries({
 					"app-api": profile.ports.appApi,
 					"campus-web": profile.ports.campusWeb,
-					"execution-control": rp.executionControl,
-					"execution-worker": rp.executionWorker,
+					"agent-control": rp.executionControl,
 					"model-config": rp.modelConfig,
-					"agent-runtime": rp.agentRuntime,
 					"agent-runtime-worker": rp.agentWorker,
 					"cluster-private-ingress": rp.clusterPrivateIngress,
 					"memory-service": rp.memoryApi,

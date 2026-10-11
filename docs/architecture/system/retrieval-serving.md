@@ -14,8 +14,8 @@ status: active
 
 发布链把纳入范围的文档和已发布通知写入同一个不可变 Qdrant collection，不按来源类型拆分物理
 collection。在线 Agent 不直接选择 collection、索引版本或查询配置；Campus Search service 在请求时读取当前
-绑定并执行固定查询。`execution-control` 只通过内部适配器调用该服务，Agent 的 run 绑定和 citation 仍由
-execution-control 持有。
+绑定并执行固定查询。`agent-runtime` 的工具 Activity 通过内部 HTTP 调用该服务，Agent 的 run 绑定和 citation 仍由
+agent-control 持有。
 
 ## 输入与索引身份
 
@@ -126,7 +126,7 @@ PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或
 `current_index` 的逻辑 owner 是统一 Campus RAG serving；唯一的 current pointer writer 是
 `jobs/campus-rag-index-publisher`。`campus_docs_serving` 是沿用的 schema/table 名，不表示 Docs builder
 仍拥有发布职责。Publisher 当前复用 `execution_control` 数据库身份完成读取和激活；该身份是部署层共享
-的技术 writer，不是 execution-control 在线服务的逻辑写入职责。数据库 ACL 因此授予该身份
+的技术 writer，不是 agent-control 在线服务的逻辑写入职责。数据库 ACL 因此授予该身份
 `SELECT`、`INSERT`、`UPDATE`，并拒绝 `DELETE`、`TRUNCATE`、`REFERENCES` 和 `TRIGGER`。
 
 源码包含 Job、schema、制品或 collection 只能证明发布链可执行，不能证明任一环境已经运行这些 Job
@@ -135,7 +135,7 @@ PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或
 ## 在线消费边界
 
 `campus_docs_serving.current_index` 是统一 Publisher 维护的单一当前绑定，不是当前在线 Agent 的准入输入。
-`campus_search` 被 Primary Agent 按需调用后，execution-control 通过内部 Campus Search service 请求检索。
+`campus_search` 被 Primary Agent 按需调用后，agent-runtime 工具 Activity 通过内部 Campus Search service 请求检索。
 该 service 从 Campus Search 专属只读数据库连接读取绑定，从 Model Config 读取 `campus_docs_embedding` 和
 `campus_docs_reranker` 连接，向对应 collection 发起 dense/sparse hybrid 查询。工具不接受客户端或模型传入
 collection、provider、vector name、top-k 或版本字段。
@@ -143,18 +143,18 @@ collection、provider、vector name、top-k 或版本字段。
 在线 Campus Search service 只读取 `current_index`；它不执行 publisher 的激活流程。Publisher 的写权限与
 Campus Search 的只读权限通过独立数据库 role 和 Secret 分离。
 
-索引绑定发生在 execution-control 首次收到合法搜索响应后，包括 `no_match` 响应：handler 将返回的
+索引绑定发生在 agent-control 首次收到合法搜索响应后，包括 `no_match` 响应：handler 将返回的
 collection 保存到 run metadata，后续响应必须匹配该绑定，否则拒绝本次工具结果。搜索服务仍在每次调用时
 读取当前索引；内部请求不携带已绑定 collection，也不会在发布切换后自动改查旧索引。因此运行中切换索引
 可能导致后续检索被拒绝，而不是让同一回答混用两个 collection。该绑定不冻结 embedding 或 reranker 配置。
 读取入口见[Search service](../../../apps/campus-search/internal/service/service.go)，绑定与拒绝逻辑见
-[CampusSearchToolService](../../../apps/execution-control/internal/executionapplication/campus_search_tool_service.go)。
+[CampusSearchToolService](../../../apps/agent-control/internal/executionapplication/campus_search_tool_service.go)。
 
 当前查询先根据问题中的版本意图生成检索范围：默认只允许 Docs 的当前版本；培养方案可按入学年份选择适用版本；明确历史或版本问题只有在索引中存在对应版本时才可能命中。对通知问题，`今年`、`去年`、`前年` 会基于同一 run 冻结的创建日期归一化为具体年份，并把同一结果用于召回和 rerank；其他相对时间不作推断。该范围作为 Qdrant payload filter 同时应用到 dense/sparse hybrid RRF 的两个 prefetch。随后最多取得 24 个候选，再使用当前 `campus_docs_reranker`
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。数量和字符预算前
 排除本轮已返回的 `result_ref`；同一通知的不同片段仍可返回，不按通知来源折叠互补章节，
 也不按通知发布时间自动排除旧通知。结果中的 `released_at` 只能证明通知发布时间，不能证明截止日期、适用年度、学期、申请窗口或当前有效性；正文没有适用信息时，答案必须说明无法确认。版本过滤不改变 Notices 的已发布通知范围。最终返回
-每次最多 5 条候选结果，正文总字符预算为 4000。execution-control 校验 point schema、文本 hash、section
+每次最多 5 条候选结果，正文总字符预算为 4000。agent-control 校验 point schema、文本 hash、section
 URL、版本字段和 `root_unit_ids` 后才把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
 score 必须是有限数值；调用或校验失败直接使检索失败，不回退到未重排候选。过滤后无结果返回成功的
 `no_match`。该阈值只判断查询与候选文本的相关性，不判断学校、人群或规则适用主体。

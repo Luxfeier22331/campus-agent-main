@@ -209,7 +209,7 @@ test("publishes the first product availability candidate before GitOps selects i
 test("package-local task graph configuration does not publish business artifacts", async (t) => {
 	const root = await fixture(t);
 	const runner = syntheticScopeRunner(
-		changed("apps/execution-control/turbo.json", "infra/k8s/data-object-store/base/bootstrap.yaml"),
+		changed("apps/agent-control/turbo.json", "infra/k8s/data-object-store/base/bootstrap.yaml"),
 		[],
 	);
 	const plan = await planCandidates(options(root), runner);
@@ -254,7 +254,7 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 		"campus-rag-index-publisher",
 		"notice-pipeline-worker",
 		"document-ocr",
-		"execution-control",
+		"agent-control",
 		"memory-service",
 		"cluster-private-ingress",
 		"campus-search-service",
@@ -392,7 +392,7 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 		changed(
 			"jobs/campus-docs-index-publisher/src/cli.ts",
 			"jobs/campus-rag-index-publisher/src/cli.ts",
-			"apps/execution-control/internal/executionpersistence/run_projection_postgres_store.go",
+			"apps/agent-control/internal/executionpersistence/run_projection_postgres_store.go",
 		),
 		[],
 	);
@@ -402,7 +402,7 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 		images: [
 			"campus-docs-index-publisher",
 			"campus-rag-index-publisher",
-			"execution-control",
+			"agent-control",
 			"notice-artifacts-worker",
 		],
 		sourceBases: [],
@@ -432,7 +432,7 @@ test("a Node lockfile change selects all active Node images but not the independ
 		if (command === "pnpm") {
 			return result({
 				stdout: JSON.stringify({
-					tasks: [{ command: "<NONEXISTENT>", package: "execution-control", task: "build" }],
+					tasks: [{ command: "<NONEXISTENT>", package: "agent-control", task: "build" }],
 				}),
 			});
 		}

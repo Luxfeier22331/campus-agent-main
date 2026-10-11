@@ -3,6 +3,10 @@ name: staging-candidate-publish
 on:
   workflow_dispatch:
     inputs:
+      worker_build_input_ref:
+        description: Fixed GitOps OCI build input (first deployment bootstrap)
+        type: string
+        required: false
       candidate_scope:
         description: Select the accumulated diff or republish a Worker with current environment
         required: true
@@ -301,215 +305,85 @@ jobs:
       fromJSON(needs.release-plan.outputs.workers)[0] != null &&
       needs.release-plan.outputs.action == 'publish'
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
-    timeout-minutes: 30
-    environment:
-      name: staging
-      deployment: false
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
     defaults:
       run:
         shell: nix develop .#ci-core --command bash -e {0}
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-
       - name: Verify current main revision before Worker publication
         shell: bash -e {0}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
           current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          if [[ "$GITHUB_SHA" != "$current_main" ]]; then
-            echo "Source revision $GITHUB_SHA is no longer the current main revision $current_main." >&2
-            exit 1
-          fi
-
+          test "$GITHUB_SHA" = "$current_main"
       - name: Install Nix
         if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-      - name: Create credential status read token
-        id: credential-status-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24
+      - name: Create GitOps input request token
+        id: gitops-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
           client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
           private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
           owner: MUC-WIKI
           repositories: campus-agent-gitops
+          permission-actions: write
           permission-contents: read
-          permission-statuses: read
-
-      - name: Verify credential delivery before Worker build
+      - name: Request fixed build inputs
         env:
-          GH_TOKEN: ${{ steps.credential-status-token.outputs.token }}
+          GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
           WORKERS: ${{ needs.release-plan.outputs.workers }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          APP_API_EXECUTION_SHARED_SECRET: ${{ secrets.APP_API_EXECUTION_SHARED_SECRET }}
-          EDGE_INGRESS_SHARED_SECRET: ${{ secrets.EDGE_INGRESS_SHARED_SECRET }}
-          OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
-          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_SECRET_KEY }}
-          OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
-        run: node scripts/release/credential-preflight.mts
-
-      - name: Install selected Worker workspaces
-        id: install_workers
+          WORKER_BUILD_INPUT_REF: ${{ inputs.worker_build_input_ref }}
+        run: node scripts/release/request-worker-input.mts
+      - name: Read immutable build inputs
         env:
-          WORKERS: ${{ needs.release-plan.outputs.workers }}
+          REGISTRY_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          filters=()
-          while read -r filter; do
-            filters+=(--filter "$filter")
-          done < <(
-            node --experimental-strip-types scripts/release/workers.mts --workers "$WORKERS"
-          )
-          pnpm install --frozen-lockfile "${filters[@]}"
-
-      - name: Upload app-api candidate
-        id: app_api
-        if: >-
-          !cancelled() &&
-          steps.install_workers.outcome == 'success' &&
-          contains(fromJSON(needs.release-plan.outputs.workers), 'app-api-staging')
-        env:
-          EXECUTION_MAINTENANCE: ${{ vars.EXECUTION_MAINTENANCE || 'false' }}
-          APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
-          AUTH_EMAIL_FROM: ${{ vars.AUTH_EMAIL_FROM }}
-          APP_API_EXECUTION_SHARED_SECRET: ${{ secrets.APP_API_EXECUTION_SHARED_SECRET }}
-          EDGE_INGRESS_SHARED_SECRET: ${{ secrets.EDGE_INGRESS_SHARED_SECRET }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLUSTER_PRIVATE_VPC_SERVICE_ID: ${{ vars.CLUSTER_PRIVATE_VPC_SERVICE_ID }}
-          OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
-          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_SECRET_KEY }}
-          OBJECT_STORE_VPC_SERVICE_ID: ${{ vars.OBJECT_STORE_VPC_SERVICE_ID }}
-          OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
-          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/app-api-staging.json
-        run: |
-          mkdir -p worker-candidates
-          pnpm --dir apps/app-api upload:staging
-
-      - name: Publish generated Docs source
-        id: campus_web_docs
-        if: >-
-          !cancelled() &&
-          steps.install_workers.outcome == 'success' &&
-          contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
-        env:
-          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_SECRET_KEY }}
-          OBJECT_STORE_ENDPOINT: ${{ vars.OBJECT_STORE_ENDPOINT }}
-        run: pnpm --dir apps/campus-web docs:source:publish
-
-      - name: Build Campus Web staging candidate
-        id: campus_web_build
-        if: >-
-          !cancelled() &&
-          steps.install_workers.outcome == 'success' &&
-          steps.campus_web_docs.outcome == 'success' &&
-          contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
-        env:
-          OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
-          OBJECT_STORE_ENDPOINT: ${{ vars.OBJECT_STORE_ENDPOINT }}
-        run: pnpm --dir apps/campus-web build:staging
-
-      - name: Upload Campus Web candidate
-        id: campus_web
-        if: >-
-          !cancelled() &&
-          steps.install_workers.outcome == 'success' &&
-          steps.campus_web_build.outcome == 'success' &&
-          contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
-        env:
-          CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          STATUS_WEB_PUBLIC_ORIGIN: ${{ vars.STATUS_WEB_PUBLIC_ORIGIN }}
-          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
-        run: |
-          mkdir -p worker-candidates
-          pnpm --dir apps/campus-web upload:staging
-
-      - name: Upload status-web candidate
-        id: status_web
-        if: >-
-          !cancelled() &&
-          steps.install_workers.outcome == 'success' &&
-          contains(fromJSON(needs.release-plan.outputs.workers), 'status-web-staging')
-        env:
-          CAMPUS_WEB_PUBLIC_ORIGIN: ${{ vars.CAMPUS_WEB_PUBLIC_ORIGIN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          STATUS_CAMPUS_ORIGIN: ${{ vars.STATUS_CAMPUS_ORIGIN }}
-          STATUS_QA_ORIGIN: ${{ vars.STATUS_QA_ORIGIN }}
-          STATUS_SNAPSHOT_KV_ID: ${{ vars.STATUS_SNAPSHOT_KV_ID }}
-          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/status-web-staging.json
-        run: |
-          mkdir -p worker-candidates
-          pnpm --dir apps/status-web upload:staging
-
-      - name: Validate selected Worker candidates
-        if: >-
-          !cancelled()
+          printf '%s' "$REGISTRY_TOKEN" | oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          mkdir -p worker-input
+          oras pull "$WORKER_BUILD_INPUT_REF" -o worker-input
+          tar -xf worker-input/input.tar -C worker-input
+          node --input-type=module <<'JS'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const input = JSON.parse(readFileSync('worker-input/build-input.json', 'utf8'));
+          if (input.sourceSha !== process.env.GITHUB_SHA) throw new Error('Build input Source mismatch');
+          for (const key of ['CAMPUS_AUTH_TURNSTILE_SITE_KEY', 'STATUS_WEB_PUBLIC_ORIGIN']) {
+            const value = input.variables[key];
+            if (typeof value !== 'string' || /[\r\n]/.test(value)) throw new Error(`Invalid public build input ${key}`);
+            appendFileSync(process.env.GITHUB_ENV, `${key}=${value}\n`);
+          }
+          appendFileSync(process.env.GITHUB_ENV, `CAMPUS_WEB_DOCS_SNAPSHOT=${process.cwd()}/worker-input/docs\n`);
+          JS
+      - name: Build and publish Worker bundles
         env:
           WORKERS: ${{ needs.release-plan.outputs.workers }}
         run: |
-          set -euo pipefail
+          pnpm install --frozen-lockfile
+          mkdir -p worker-candidates
           while read -r worker; do
-            candidate="worker-candidates/${worker}.json"
-            test -s "$candidate"
-            jq -e . "$candidate" >/dev/null
+            app="${worker%-staging}"
+            directory="$RUNNER_TEMP/worker-bundles/$worker"
+            pnpm exec tsx scripts/release/build-worker-artifact.mts "$app" "$directory" "$GITHUB_SHA"
+            tar -cf "$directory/bundle.tar" --exclude=bundle.tar -C "$directory" .
+            repository="ghcr.io/muc-wiki/campus-agent/worker-$app"
+            (cd "$directory" && oras push "$repository:$GITHUB_SHA-$GITHUB_RUN_ID" --artifact-type application/vnd.campus.worker.v1 bundle.tar --format json) > "$directory/push.json"
+            digest="$(jq -r .digest "$directory/push.json")"
+            jq -n --arg workerName "$worker" --arg sourceSha "$GITHUB_SHA" --arg artifactRef "$repository@$digest" '{workerName:$workerName,sourceSha:$sourceSha,artifactRef:$artifactRef}' > "worker-candidates/$worker.json"
           done < <(jq -r '.[]' <<< "$WORKERS")
-
       - name: Upload Worker candidates
-        if: >-
-          !cancelled()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-worker-candidates
           path: worker-candidates/*.json
           if-no-files-found: error
-          overwrite: true
           retention-days: 7
-
-      - name: Finalize Worker publication
-        if: >-
-          !cancelled()
-        env:
-          APP_API_SELECTED: ${{ contains(fromJSON(needs.release-plan.outputs.workers), 'app-api-staging') }}
-          APP_API_RESULT: ${{ steps.app_api.outcome }}
-          INSTALL_RESULT: ${{ steps.install_workers.outcome }}
-          CAMPUS_WEB_SELECTED: ${{ contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging') }}
-          CAMPUS_WEB_RESULT: ${{ steps.campus_web.outcome }}
-          STATUS_WEB_SELECTED: ${{ contains(fromJSON(needs.release-plan.outputs.workers), 'status-web-staging') }}
-          STATUS_WEB_RESULT: ${{ steps.status_web.outcome }}
-        run: |
-          set -euo pipefail
-          if [[ "$INSTALL_RESULT" != success ]]; then
-            echo "Worker workspace installation failed: $INSTALL_RESULT" >&2
-            exit 1
-          fi
-          if [[ "$APP_API_SELECTED" == true && "$APP_API_RESULT" != success ]]; then
-            echo "app-api Worker publication failed: $APP_API_RESULT" >&2
-            exit 1
-          fi
-          if [[ "$CAMPUS_WEB_SELECTED" == true && "$CAMPUS_WEB_RESULT" != success ]]; then
-            echo "campus-web Worker publication failed: $CAMPUS_WEB_RESULT" >&2
-            exit 1
-          fi
-          if [[ "$STATUS_WEB_SELECTED" == true && "$STATUS_WEB_RESULT" != success ]]; then
-            echo "status-web Worker publication failed: $STATUS_WEB_RESULT" >&2
-            exit 1
-          fi
 
   candidate-status:
     needs: [release-plan, publish-images, publish-workers]

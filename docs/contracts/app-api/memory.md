@@ -122,6 +122,6 @@ fence 分叉后继续调用 provider。清除命令失败后由 memory 定时任
 删除或裁剪会话只修改聊天数据，不触发记忆清理；完整清除和账号注销才承诺删除长期记忆。暂停
 保留 bank，恢复不重新导入历史消息。
 
-实现所有者：`apps/app-api/src/modules/profile-memory/`、`apps/execution-control/internal/` 和
+实现所有者：`apps/app-api/src/modules/profile-memory/`、`apps/agent-control/internal/` 和
 `apps/campus-web/src/features/profile-memory/`。运行时所有权与生命周期屏障见
 [个人记忆架构](../../architecture/system/memory-plane.md)。

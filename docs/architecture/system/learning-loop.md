@@ -58,7 +58,7 @@ app-api 只保存产品运行所需的反馈、请求关联和受控观测字段
 | 所有者 | 负责 |
 | --- | --- |
 | `apps/app-api` | 保存消息反馈、请求观测和关联标识 |
-| `apps/execution-control` | 保存运行、步骤、工具结果和终结的受控记录 |
+| `apps/agent-control` | 保存运行、步骤、工具结果和终结的受控记录 |
 | `apps/agent-runtime` | 发出 Agents SDK 与模型调用轨迹，不保存问题状态 |
 | `packages/eval-langfuse` | Agent case 解析、产品路径评测和评分适配 |
 | Langfuse | 在线轨迹和按需发布的评分 |

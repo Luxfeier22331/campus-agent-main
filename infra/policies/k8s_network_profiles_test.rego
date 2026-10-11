@@ -49,7 +49,7 @@ valid_ops_web_egress_policy := {
 				"ports": [{"protocol": "TCP", "port": 5432}],
 			},
 			{
-				"to": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "execution-control"}}}],
+				"to": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "agent-control"}}}],
 				"ports": [{"protocol": "TCP", "port": 8000}],
 			},
 			{
@@ -61,8 +61,8 @@ valid_ops_web_egress_policy := {
 				"ports": [{"protocol": "TCP", "port": 9000}],
 			},
 			{
-				"to": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "agent-runtime"}}}],
-				"ports": [{"protocol": "TCP", "port": 27062}],
+				"to": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "agent-runtime-worker"}}}],
+				"ports": [{"protocol": "TCP", "port": 8000}],
 			},
 			{
 				"to": [{"podSelector": {"matchLabels": {"app.kubernetes.io/part-of": "temporal"}}}],
@@ -232,7 +232,7 @@ test_ops_web_internal_peer_cannot_add_namespace_selector if {
 			"egress": [{
 				"to": [{
 					"namespaceSelector": {},
-					"podSelector": {"matchLabels": {"app.kubernetes.io/name": "execution-control"}},
+					"podSelector": {"matchLabels": {"app.kubernetes.io/name": "agent-control"}},
 				}],
 				"ports": [{"protocol": "TCP", "port": 8000}],
 			}],
@@ -266,7 +266,7 @@ test_ops_web_port_cannot_add_end_port if {
 		"metadata": {"name": "ops-web-egress"},
 		"spec": {
 			"egress": [{
-				"to": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "execution-control"}}}],
+				"to": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "agent-control"}}}],
 				"ports": [{"endPort": 8001, "protocol": "TCP", "port": 8000}],
 			}],
 			"podSelector": {"matchLabels": {"app.kubernetes.io/name": "ops-web"}},
@@ -300,7 +300,7 @@ test_ops_web_agent_runtime_egress_is_required if {
 	)
 	policy := object.union(valid_ops_web_egress_policy, {"spec": object.union(valid_ops_web_egress_policy.spec, {"egress": egress})})
 	violations := violation with input as policy
-	"NetworkPolicy ops-web-egress must allow agent-runtime on TCP 27062" in violations
+	"NetworkPolicy ops-web-egress must allow agent-runtime on TCP 8000" in violations
 }
 
 test_ops_web_object_store_egress_is_required if {

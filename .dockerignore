@@ -23,8 +23,8 @@ apps/campus-web/**
 !apps/campus-web/src/docs-reader-build/**
 !apps/campus-search/
 !apps/campus-search/**
-!apps/execution-control/
-!apps/execution-control/**
+!apps/agent-control/
+!apps/agent-control/**
 !apps/cluster-private-ingress/
 !apps/cluster-private-ingress/**
 !apps/memory-service/
@@ -55,6 +55,8 @@ jobs/document-ocr/.env*
 !jobs/notice-publisher/**
 jobs/notice-publisher/.env
 jobs/notice-publisher/.env.*
+!packages/memory-api-go/
+!packages/memory-api-go/**
 !packages/domains/
 !packages/domains/**
 !packages/embedding-runtime/

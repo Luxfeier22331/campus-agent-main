@@ -157,10 +157,7 @@ export function parseEvidence(log: string) {
 				/* Interrupted batch record. */
 			}
 		}
-		if (
-			location.step === "Check execution-control native code" &&
-			payload.startsWith("GO_CACHE ")
-		) {
+		if (location.step === "Check agent-control native code" && payload.startsWith("GO_CACHE ")) {
 			cacheSignals.go.push(payload);
 			const restore = [...cacheRestores.values()].find((entry) => entry.job === location.job);
 			if (restore && restore.state !== "restore-error" && /matched=\S+/u.test(payload)) {
@@ -346,7 +343,7 @@ const outcomeKeys: Record<string, string> = {
 	"Check repository": "repository-check",
 	"Run affected Node and image evidence": "affected-node-and-images",
 	"Run container build contract evidence": "container-build",
-	"Check execution-control native code": "execution-control-native",
+	"Check agent-control native code": "agent-control-native",
 	"Check affected native code": "affected-native",
 	"Install affected workspaces": "install-affected",
 	"Login for image cache reads": "image-cache-login",

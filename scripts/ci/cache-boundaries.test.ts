@@ -124,7 +124,7 @@ test("real workspace inputs invalidate consumers without invalidating unrelated 
 		);
 		check(
 			"packages/contracts/fixtures/citation-markers.v1.json",
-			["execution-control#native:test", "campus-web#test:dom:fast"],
+			["agent-control#native:test", "campus-web#test:dom:fast"],
 			[
 				"ingestion-contracts#test:unit",
 				"@campus-agent/embedding-runtime#test:unit",
@@ -136,7 +136,7 @@ test("real workspace inputs invalidate consumers without invalidating unrelated 
 		);
 		check(
 			"packages/contracts/fixtures/citation-diagnostic.v1.json",
-			["execution-control#native:test", "campus-contracts#test:unit"],
+			["agent-control#native:test", "campus-contracts#test:unit"],
 			["ingestion-contracts#test:unit"],
 		);
 		check(
@@ -169,7 +169,7 @@ test("real workspace inputs invalidate consumers without invalidating unrelated 
 			["app-api#test:node:fast", "campus-web#test:dom:fast", "app-api#build"],
 		);
 		check(
-			"apps/campus-web/test/date-picker.test.tsx",
+			"apps/campus-web/test/docs-reader-components.test.tsx",
 			["campus-web#test:dom:fast", "campus-web#typecheck"],
 			["campus-web#test:node:fast", "app-api#test:worker", "campus-web#build:fixture"],
 		);

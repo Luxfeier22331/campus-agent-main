@@ -23,6 +23,7 @@ import {
 	resolveDocsContentPaths,
 	resolveSourceDocsContentPaths,
 } from "../src/docs-reader-build/docs-content.ts";
+import { snapshotReader } from "../src/docs-reader-build/docs-snapshot.ts";
 import { writeNativeDocsHtmlPages } from "../src/docs-reader-build/native-reader-prerender.tsx";
 import { createS3ReaderObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
@@ -76,7 +77,12 @@ export async function prepareDocsContent(
 	input: PrepareDocsContentInput,
 ): Promise<DocsContentPaths> {
 	const appRoot = resolve(input.appRoot ?? APP_ROOT);
-	const remoteClient = input.client ?? createS3ReaderObjectStore(input.env);
+	const env = input.env ?? process.env;
+	const remoteClient =
+		input.client ??
+		(env.CAMPUS_WEB_DOCS_SNAPSHOT
+			? snapshotReader(env.CAMPUS_WEB_DOCS_SNAPSHOT)
+			: createS3ReaderObjectStore(env));
 	const sourceBytes = await readCurrentDocsSource(remoteClient);
 	const source = normalizeSourceManifest(parseSourceManifest(parseJson(sourceBytes)));
 	const canonicalSourceBytes = canonicalJsonBytes(source);

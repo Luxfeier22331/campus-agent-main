@@ -8,7 +8,7 @@ const openApiPath = repoPath("docs/contracts/schemas/tool-execution.openapi.yaml
 const tsPath = repoPath(
 	"apps/app-api/src/modules/integration/generated/tool-execution-contract.ts",
 );
-const goPath = repoPath("apps/execution-control/internal/contracts/tool_execution_contract.go");
+const goPath = repoPath("apps/agent-control/internal/contracts/tool_execution_contract.go");
 const header = "AUTO-GENERATED FROM tool-execution.openapi.yaml";
 
 export function generateToolExecutionContracts({ check = false }: { check?: boolean } = {}): void {

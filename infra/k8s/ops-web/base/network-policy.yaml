@@ -27,7 +27,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: execution-control
+              app.kubernetes.io/name: agent-control
       ports:
         - protocol: TCP
           port: 8000
@@ -48,10 +48,10 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: agent-runtime
+              app.kubernetes.io/name: agent-runtime-worker
       ports:
         - protocol: TCP
-          port: 27062
+          port: 8000
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

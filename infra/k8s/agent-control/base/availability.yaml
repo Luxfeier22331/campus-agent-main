@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agent-control
+  labels:
+    app.kubernetes.io/name: agent-control
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-control

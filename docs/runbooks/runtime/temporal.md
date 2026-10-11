@@ -7,19 +7,19 @@ status: active
 
 ## 边界
 
-本文说明 Temporal Server 与 execution-worker poller 的稳定运维规则。具体 chart 版本、Helm
+本文说明 Temporal Server 与 agent-runtime-worker poller 的稳定运维规则。具体 chart 版本、Helm
 value、namespace、endpoint 和资源尺寸由环境仓库拥有，不在本文复制。
 
 本文不定义应用工作流语义：在线回答见 [持久 Agent 运行时](../../architecture/system/durable-runtime.md)，个人记忆见
 [个人记忆](../../architecture/system/memory-plane.md)。平台运维不得改变这些工作流的业务状态。
 
-execution-worker 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
+agent-runtime-worker 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
 poller。副本数与滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套
 自动扩缩状态。通知采集到 RAG 刷新的编排由 `notice-pipeline-worker` 在独立的 `notice-pipeline` 与
-`notice-artifacts` 队列执行，不占用 execution-worker 的 poller，见[采集与离线数据运维](../ingestion/ingestion.md)。
+`notice-artifacts` 队列执行，不占用 agent-runtime-worker 的 poller，见[采集与离线数据运维](../ingestion/ingestion.md)。
 
 本地 Temporal 测试属于 integration 验证，不是完整产品 E2E。它使用 Temporal Dev Server、测试 worker
-和测试 projection，不连接 staging、真实 Agent Runtime 或 PostgreSQL。运行入口由 execution-control
+和测试 projection，不连接 staging、真实 Agent Runtime 或 PostgreSQL。运行入口由 agent-control
 package script 管理，禁止使用已废弃的混合 `temporal_e2e` build tag。
 
 `test:temporal-integration` 按 package 复用 Dev Server，按测试启动 worker；日志分别标记 server、worker、
@@ -43,7 +43,7 @@ workflow 不调用 Argo CD 或 Kubernetes；deployment 不改写 workflow histor
 
 ## 在线回答超时配置
 
-execution-control 网关为新建在线回答固定设置 900 秒的 Temporal `WorkflowExecutionTimeout`。该值由
+agent-control 网关为新建在线回答固定设置 900 秒的 Temporal `WorkflowExecutionTimeout`。该值由
 源码常量拥有，不是环境变量；source K8s manifest、本地 compose 和环境仓均不投递覆盖值。修改超时
 必须调整源码并验证受影响的启动合同，只影响之后启动的 workflow，不能缩短已经运行的 execution，
 也不能代替 activity deadline。
@@ -71,7 +71,7 @@ execution-control 网关为新建在线回答固定设置 900 秒的 Temporal `W
 
 `task_replan.v3` 删除旧 `insufficient` 决策及综合回答的模式字段；不支持跨版本恢复旧运行。
 发布采用维护窗口排空：
-先暂停新在线 run 准入，保持旧 execution-control 与 agent-runtime 运行，等待已接受的在线 run、
+先暂停新在线 run 准入，保持旧 agent-control 与 agent-runtime 运行，等待已接受的在线 run、
 待投递启动命令和开放的在线回答 workflow 收敛；旧 poller 退出后协调升级两个服务，再恢复准入。
 排空未完成不得发布该版本，不添加 alias、兼容 worker 或 version marker。
 历史记录不删除；需要离线回放旧 history 时使用对应旧版本。
@@ -85,101 +85,11 @@ kubectl get deployment
 kubectl get pod
 ```
 
-检查 execution-worker Deployment rollout、Pod readiness、task queue poller、backlog 与旧 Pod
+检查 agent-runtime-worker Deployment rollout、Pod readiness、task queue poller、backlog 与旧 Pod
 退出状态。
 
-## 自动扩缩容检查
+## 当前部署边界
 
-环境仓拥有 KEDA、Prometheus、ScaledObject 和动态副本策略。使用前确认已发布包含指标端口与排空
-行为的 Source 版本；未发布的配置和本地测试不证明环境已启用。生产者合同见
-[Execution Control](../../../apps/execution-control/README.md) 与
-[Agent Runtime](../../../apps/agent-runtime/README.md)。
-
-发布后检查两个 ScaledObject 的 Ready/Active、关联 HPA 的取值及事件、所有目标 Pod 的抓取状态和
-指标时效。backlog 由 KEDA 直接读取 Temporal，已用 slots 和活跃请求由 Prometheus 聚合；队列没有
-积压但仍有 activity 执行时，不应因 backlog 为零就缩到最小副本。缺失指标应显示错误而不是零。
-
-用可控慢 Provider 验证单副本基线、突发扩容、持续负载保持副本、恢复空闲后缩容，并分别覆盖 Worker、
-Agent Runtime 与二者同时缩容。对比等待时间、吞吐和产品终态；已有输出不得因正常缩容中断或重复
-调用 Provider。断开指标采集后核对 HPA 不错误缩容，Argo CD 同步不得恢复固定 replicas。
-
-上线前核对节点剩余资源、数据库连接和 Provider 额度；排空 Pod 在退出前仍消耗资源，最大副本不能
-当作所有存活 Pod 的硬上限。首次阈值仅是受限环境起点，不代表生产容量或突发请求的延迟保证。
-达到上限仍持续积压、Pod Pending、指标失效或依赖错误时才需要人工调整；Provider 限流不直接触发扩容。
-
-回退在环境 GitOps 暂停扩缩容，恢复固定副本所有权后移除 ScaledObject；继续保留排空能力，不直接
-patch Deployment 或关闭运行中的 workflow。具体环境操作与首版参数见环境仓的执行面自动扩缩容运行文档。
-
-## 常见故障
-
-### task queue 没有 poller
-
-- 检查 Deployment 副本、Pod startup、task queue 与 Temporal namespace；
-- 检查运行进程是否包含预期 poller，以及 Temporal 连接与认证；
-- 检查 Pod readiness 与日志中的 worker fatal error。
-
-### Deployment 无法滚动更新
-
-- 检查 image digest、ConfigMap、Secret、资源和 NetworkPolicy；
-- 检查新 Pod 是否在旧 Pod 退出前完成 readiness；
-- workflow replay 不兼容时停止发布，按明确维护窗口排空，不新增长期兼容 worker。
-
-### 旧 Pod 无法退出
-
-- 检查仍由旧进程执行的 workflow、Activity 与 task queue；
-- workflow 或 Activity 未完成时不得强制删除旧 Pod 或迁移 CRD；
-- 只按产品策略 cancel/terminate workflow。
-
-### 在线回答身份或超时无法收敛
-
-- 用 Temporal Describe 检查 execution 状态以及 Memo 中的 `campus_agent_workflow_id`、
-  `campus_agent_run_id`、`campus_agent_payload_sha256`、`campus_agent_input_sha256`；
-- 首次绑定时 Describe 暂不可用、Memo 或 reset state 缺失属于身份未知，应恢复读取后等待重试，
-  不能据此手工确认启动。已有绑定时只检查精确 Workflow ID/Run ID 的状态，Memo、reset state 或
-  latest 不再阻断取消和终态收敛；
-- 启动命令已置位 `dispatch_attempted` 但 Describe 返回 `NotFound` 时，先区分是否已有持久 Run ID。
-  已有绑定表示 Temporal 身份暂不可见，取消应以 `temporal_start_identity_unresolved` 保持 pending；
-  尚无绑定、start 已 `superseded` 的崩溃窗口应由 recovery starter 使用原 canonical input 和当前一分钟
-  `StartDelay` 创建或取得 root；starter 完成首次精确 Run ID 校验，reconciler 首写绑定后读取当前
-  状态并走精确 Run ID 取消，不重复 starter 的身份校验。检查
-  `temporal_cancel_recovery_*` 错误和 starter 可用性；不得手工启动替代 Workflow 或取消 latest；
-- Activity 报 `temporal_execution_binding_pending` 时检查 start 是否尚未确认精确 root Run ID；该错误
-  可重试。`temporal_execution_binding_mismatch` 表示当前 Activity 的 Workflow ID 或 Run ID 与持久
-  root 不同，包含 Reset successor，属于非重试身份故障；不得修改绑定来接纳它。start 已
-  `superseded` 时，除 cancellation finalizer 外的 Activity 应停在
-  `temporal_execution_cancellation_pending`；
-- 首次绑定的 Memo 与持久命令明确冲突时保留该 execution，由应用收口本地 run；不得将冲突 execution
-  当作目标 run 强制取消；
-- execution 为 `TIMED_OUT` 但尚无 `run.expired` 时，检查产品终态回调和投影存储错误；产品终态与
-  `run.expired` 必须在同一投影事务中提交，app-api 持有的执行输入不随该终态清空；
-- start 为 `superseded` 且 `dispatch_attempted=true` 时，必须先存在不可变的 Temporal Run ID 绑定再
-  投递取消；不得将 superseded 本身当作“没有 execution”的证明；
-- 当前在线回答没有 Workflow RetryPolicy、Cron 或 Continue-As-New 路径，不支持 successor；未来引入
-  任一机制前必须先设计持久 chain binding，不能直接放宽 exact-run 校验；
-- `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_NEW` 和 `TIMED_OUT` 都是
-  closed 状态。若对应产品 run 仍为 active，检查 active-run reconciler、产品终态回调和投影事务；
-  超时应收敛为 `expired`，其余缺失产品终态的关闭应收敛为失败，取消路径对已取消 root 沿用本地
-  取消收口。`CONTINUED_AS_NEW` 直接以不可重试的 `runtime_invariant_failed` 收口，不需要查找
-  successor。latest 改变不影响 root 按自身状态收敛；其他 execution 不得被绑定或取消；
-- 在线回答不支持 Reset。平台运维不得用 Reset 绕过应用的产品终态和运行绑定；应用会拒绝把 Reset
-  successor 重新绑定到原产品 run。
-
-## 回滚与持久化
-
-回滚通过环境 GitOps 选择已知可用 image/config template，由 Kubernetes 滚动更新所属 Deployment。
-不得手工修改 Temporal history 或应用数据库来伪造回滚结果。
-
-Temporal persistence 与 visibility database 是 platform data。backup、restore、schema upgrade
-与 retention 使用 Temporal/database platform 流程，不复用 application schema migration job。
-
-## 相关文档
-
-- [Temporal 执行面](../../../.agents/notes/implemented/architecture/2026-06-06-temporal.md)
-- [Kubernetes 运行时](../../architecture/system/k8s-runtime.md)
-
-## 仓库版本与执行兼容
-
-仓库正式版本记录发布组合，不引入 Temporal Worker Versioning、Worker Controller 或版本路由。
-现有 Deployment 和 task queue owner 保持不变。选择历史正式版本前仍要审查运行中 Workflow 的
-history replay、Activity/DTO 与工具合同兼容；不兼容时按既有维护与排空流程处理。
-版本号或镜像回退不会回退已经写入的 history。发布入口见[发布](../release/release.md)。
+AgentWorkflow 的三个 poller 由 agent-runtime-worker 拥有，Memory 的 Workflow 与 Activity 由 memory-worker 拥有。
+Control 只启动、取消和查询 Workflow。旧 Go Worker 与 HTTP Runtime 已从生产 base 移除，不支持旧 Go history。
+本次保持固定副本，不启用新的自动扩缩容。已有 Memory 数据库、Hindsight bank 与 owner salt 不变。

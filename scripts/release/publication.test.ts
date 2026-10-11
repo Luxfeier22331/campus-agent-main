@@ -31,7 +31,7 @@ const run: PublicationRun = {
 const candidate = {
 	workerName: "app-api-staging",
 	sourceSha: sha,
-	versionId: "12345678-1234-1234-1234-123456789abc",
+	artifactRef: `ghcr.io/muc-wiki/campus-agent/worker-app-api@sha256:${"a".repeat(64)}`,
 };
 const input = { plan, event: "push", currentRunId: 20 };
 function io(overrides: Partial<PublicationIO> = {}): PublicationIO {
@@ -354,7 +354,13 @@ test("explicit recovery restores same-SHA App API and Campus Web refresh candida
 				},
 				async readArtifact(_id, name) {
 					reads.push(name);
-					return { [`${worker}.json`]: { ...candidate, workerName: worker } };
+					return {
+						[`${worker}.json`]: {
+							...candidate,
+							workerName: worker,
+							artifactRef: `ghcr.io/muc-wiki/campus-agent/worker-${worker.replace(/-staging$/, "")}@sha256:${"a".repeat(64)}`,
+						},
+					};
 				},
 			}),
 		);

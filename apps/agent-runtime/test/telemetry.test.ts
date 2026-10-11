@@ -8,11 +8,8 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { WorkflowOperationRuntime } from "../src/agent-run-contract.ts";
-import { createAgentRuntimeHandler } from "../src/http-server.ts";
 import { isAgentLangfuseSpan } from "../src/telemetry.ts";
 import { createSafeSpanProcessor } from "../src/telemetry-sanitizer.ts";
-import { testToolContractFingerprint } from "./helpers/runtime-contract.ts";
 
 const agentScope = "@arizeai/openinference-instrumentation-openai-agents";
 const exporter = new InMemorySpanExporter();
@@ -183,120 +180,4 @@ describe("agent runtime Langfuse telemetry", () => {
 		expect(sanitizedFalseRoot?.attributes).not.toHaveProperty("langfuse.internal.is_app_root");
 		await localProvider.shutdown();
 	});
-
-	it("keeps only product correlation attributes active while a response stream is consumed", async () => {
-		exporter.reset();
-		const runtime: WorkflowOperationRuntime = {
-			async run() {
-				throw new Error("blocking runtime is not expected");
-			},
-			stream(input) {
-				return (async function* () {
-					provider.getTracer(agentScope).startSpan("stream-model-call").end();
-					yield {
-						event: "completed" as const,
-						data: completedResult(input),
-					};
-				})();
-			},
-		};
-		const handler = createAgentRuntimeHandler({
-			modelConfig: {
-				baseUrl: "http://model-config",
-				fetchImplementation: async () =>
-					Response.json({
-						api_key: "test-key",
-						api_protocol: "openai.responses",
-						base_url: "https://api.openai.com/v1",
-						model: "test-model",
-						name: "primary_agent",
-						provider: "openai",
-						schema_version: "model_runtime_config.v1",
-						target_sha256: "5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
-					}),
-			},
-			runtime,
-			runtimeRelease: "test-release",
-			sharedSecret: "secret",
-		});
-		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-requests/stream", {
-				body: JSON.stringify(validRunBody()),
-				headers: { authorization: "Bearer secret" },
-				method: "POST",
-			}),
-		);
-
-		expect(response.status).toBe(200);
-		await response.text();
-		await provider.forceFlush();
-		const [span] = exporter.getFinishedSpans();
-		expect(span?.attributes).toMatchObject({
-			"session.id": "conversation-1",
-			"langfuse.trace.metadata.request_id": "request-1",
-			"langfuse.trace.name": "workflow-synthesize",
-			"langfuse.trace.tags": ["surface:agent-runtime", "operation:synthesize"],
-			"user.id": "user-1",
-		});
-		expect(span?.attributes).not.toHaveProperty("langfuse.trace.metadata.activity_attempt");
-	});
 });
-
-function validRunBody() {
-	return {
-		activity_attempt: 2,
-		conversation_id: "conversation-1",
-		operation: "synthesize" as const,
-		operation_input: {
-			source_attempts: [{ source: "campus_search", status: "no_match" as const }],
-			remaining_facts: [{ objective: "资料", facts: ["资料"] }],
-			evidence: [],
-			goal: "你好",
-		},
-		limits: {
-			agent_deadline_ms: 10_000,
-			context_char_limit: 16_000,
-			current_input_char_limit: 4_000,
-			max_output_tokens: 1_000,
-			max_function_tool_calls: 0,
-			max_turns: 1,
-			max_plan_steps: 4,
-			max_replans: 1,
-		},
-		expected_model_target_sha256:
-			"5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
-		request_id: "request-1",
-		deadline_at: new Date(Date.now() + 240_000).toISOString(),
-		user_id: "user-1",
-		visible_function_tool_names: ["campus_search"],
-		expected_tool_contract_fingerprint: {
-			function_schema_sha256: testToolContractFingerprint().functionSchemaSha256,
-			schema_version: testToolContractFingerprint().schemaVersion,
-			tools_sha256: testToolContractFingerprint().toolsSha256,
-		},
-	};
-}
-
-function completedResult(input: { requestId: string }) {
-	return {
-		operation: "synthesize" as const,
-		contextUsage: {
-			contextChars: 44,
-			currentInputChars: 2,
-			modelVisibleItemCount: 1,
-		},
-		finalOutput: "你好",
-		modelName: "test-model",
-		modelProvider: "openai",
-		providerResponseId: "response-1",
-		requestId: input.requestId,
-		stageTiming: {},
-		status: "completed" as const,
-		terminalReason: "operation_completed" as const,
-		toolResults: [],
-		evidence: [],
-		sourceAttempts: [{ source: "campus_search" as const, status: "no_match" as const }],
-		toolContractFingerprint: testToolContractFingerprint(),
-		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
-	};
-}

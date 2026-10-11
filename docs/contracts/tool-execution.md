@@ -1,13 +1,13 @@
 ---
 doc_type: contract
-owner_boundary: apps/execution-control
+owner_boundary: apps/agent-control
 status: active
 ---
 # 执行合同
 
 ## 边界
 
-本文规定 `apps/app-api` 与 `apps/execution-control` 之间的私有命令和查询合同。可执行
+本文规定 `apps/app-api` 与 `apps/agent-control` 之间的私有命令和查询合同。可执行
 来源是 `schemas/tool-execution.openapi.yaml`，生成的 TypeScript 与 Go 类型必须与其一致。
 
 - app-api 拥有浏览器认证、会话事实和浏览器传输；

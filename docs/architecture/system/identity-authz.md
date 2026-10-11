@@ -9,13 +9,13 @@ status: active
 ## 边界
 
 App API 拥有产品账号、邮箱准入、会话、账号生命周期、调用方映射、用量限制和权限判断。Campus Web 组合账号界面，
-execution-control 只消费执行所需的最小身份投影；Agent、检索和个人记忆运行时不读取认证材料。
+agent-control 只消费执行所需的最小身份投影；Agent、检索和个人记忆运行时不读取认证材料。
 
 ## 数据所有权
 
 - App API：Better Auth 账号与会话、邮箱准入授权、账号管理记录和注销任务；
 - 身份来源：校园身份验证和所属身份声明；
-- execution-control：消费已确认的调用方和权限投影，执行工具与文档范围准入；
+- agent-control：消费已确认的调用方和权限投影，执行工具与文档范围准入；
 - 机构知识：来源信任、版本和证据；
 - Hindsight：当前用户范围内的个人记忆。
 
@@ -23,8 +23,8 @@ execution-control 只消费执行所需的最小身份投影；Agent、检索和
 
 ## 产品请求
 
-App API 在接收产品请求时确认会话、账号状态、调用方类别和产品限制，再向 execution-control
-发送有界身份与授权投影。execution-control 根据当前工具注册表、文档范围和所属数据权限执行
+App API 在接收产品请求时确认会话、账号状态、调用方类别和产品限制，再向 agent-control
+发送有界身份与授权投影。agent-control 根据当前工具注册表、文档范围和所属数据权限执行
 准入；工具自身继续校验领域输入和访问范围。
 
 普通聊天用户只能使用注册表已经开放且本轮可用的只读模型工具。个人记忆是否可用由其生命周期派生，
@@ -53,15 +53,15 @@ Campus Web 使用 App API 的认证接口和当前用户投影组合登录、注
 再按以下顺序收敛账号生命周期：
 
 1. App API 接受删除请求并撤销会话；
-2. execution-control 为 `owner_user_id` 建立 deletion fence，阻止新 run，并为活动 run 写入或复用取消命令；
+2. agent-control 为 `owner_user_id` 建立 deletion fence，阻止新 run，并为活动 run 写入或复用取消命令；
 3. 等待活动 run 进入终态；
 4. Hindsight 清除 bank 和 memory，并确认个人记忆调用与命令已排空；
-5. execution-control 删除该 owner 的 execution projection；
+5. agent-control 删除该 owner 的 execution projection；
 6. App API 清理自己的账号关联数据，最后删除 Better Auth user。
 
-execution-control 保留 `owner_deletion_fences(state=deleted)` 这一条最小 tombstone，用于阻止旧 workflow
+agent-control 保留 `owner_deletion_fences(state=deleted)` 这一条最小 tombstone，用于阻止旧 workflow
 或旧请求使 owner 复活；它不保存用户内容。Temporal history 不在账号删除事务中即时删除，由 Temporal
-或平台 retention 合同负责。任务状态仍由 App API 生命周期拥有，不是 execution-control 或 Temporal 的
+或平台 retention 合同负责。任务状态仍由 App API 生命周期拥有，不是 agent-control 或 Temporal 的
 产品工作流状态。
 
 外部 relying party 只能通过 App API 已登记的 OAuth/OIDC client 接入。双方不共享 Cookie、密码、

@@ -11,11 +11,11 @@ Model Config 是具名在线模型配置与 Provider API Key 的唯一所有者�
 
 消费链路为：
 
-1. execution-control 读取 `primary_agent` 的 `model_target.v1`，并把 Model Config 返回的 opaque hash
+1. agent-control 读取 `primary_agent` 的 `model_target.v1`，并把 Model Config 返回的 opaque hash
    写入持久执行准入；
 2. Agent Runtime 携带该 hash 读取 `model_runtime_config.v1`，hash 不匹配时失败关闭；
 3. Campus Search service 在工具调用时读取 Embedding 与 Reranker 完整配置并直接调用 Provider；
-   execution-control 只通过该服务的 typed HTTP client 消费检索结果，不把这些配置冻结到 Agent 的准入输入；
+   agent-runtime 工具 Activity 只通过该服务的 typed HTTP client 消费检索结果，不把这些配置冻结到 Agent 的准入输入；
 4. Campus Docs Embedding 与 Notice Classifier 等普通 Job 一次读取所属具名配置的完整
    `model_runtime_config.v1` 并直接调用 Provider；
 5. Embedding Set 等需要记录目标身份的制品直接保存响应中的 target hash。
@@ -30,7 +30,7 @@ profile 保持独立。
 
 | name | 消费者 |
 | --- | --- |
-| `primary_agent` | execution-control（执行准入读取 target）、agent-runtime（携带预期 hash 读取完整配置） |
+| `primary_agent` | agent-control（执行准入读取 target）、agent-runtime（携带预期 hash 读取完整配置） |
 | `campus_docs_embedding` | Campus Search service、campus-docs-index-publisher、notice-index-publisher、notice-artifacts-worker（目标一致性检查） |
 | `campus_docs_reranker` | Campus Search service |
 | `notice_classification` | notice-pipeline-worker（分类 activity，复用 notice-classifier 运行时） |
@@ -42,6 +42,6 @@ Ops Web 通过管理接口保存和重新验证全部五个 name，不直接调�
 数据库保存每个 name 的当前配置和加密 API key；验证是可选状态。新建或重建数据库由
 `campus-agent-schema` 使用既有 `campus_agent` owner 安装并拥有 `model_config` schema，与其他产品
 schema 共用 `drizzle.campus_agent_migrations`；常驻服务使用 `model_config` runtime role，后者不执行
-DDL。Ops Web 与 execution-control 没有该表的数据库权限。详细决定见
+DDL。Ops Web 与 agent-control 没有该表的数据库权限。详细决定见
 [Model Config 独立边界](../../../.agents/notes/implemented/architecture/2026-08-22-model-config-boundary.md)，HTTP 管理投影见
 [Ops Web Provider 合同](../../contracts/ops-web/providers.md)。

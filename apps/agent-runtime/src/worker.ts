@@ -23,7 +23,7 @@ const connection = await NativeConnection.connect({
 const namespace = process.env.AGENT_RUNTIME_TEMPORAL_NAMESPACE ?? "default";
 const control = new AgentControlClient(
 	required("AGENT_CONTROL_BASE_URL"),
-	required("EXECUTION_AGENT_RUNTIME_SHARED_SECRET"),
+	required("AGENT_CONTROL_RUNTIME_SHARED_SECRET"),
 );
 const root =
 	process.env.REPOSITORY_ROOT ?? resolve(fileURLToPath(new URL("../../..", import.meta.url)));

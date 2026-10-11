@@ -43,7 +43,6 @@ export async function assertProductAppsOffline(profile: LocalDevProfile) {
 		profile.ports.campusWeb,
 		profile.ports.opsWebApi,
 		calculateLocalDevRuntimePorts(profile.slot).executionControl,
-		calculateLocalDevRuntimePorts(profile.slot).executionWorker,
 	];
 	const result = await probeLocalPorts(ports);
 	if (result.occupied.length > 0 || result.unknown.length > 0) {
