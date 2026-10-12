@@ -8,9 +8,54 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
+
+type upgradeTransport func(*http.Request) (*http.Response, error)
+
+func (f upgradeTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestConfigUpgradeWaitsForInitialConnectivity(t *testing.T) {
+	for _, scenario := range []string{"recovers", "deadline", "unauthorized"} {
+		t.Run(scenario, func(t *testing.T) {
+			calls := 0
+			u := configUpgrader{client: newHindsightHTTPClient(hindsightClientOptions{baseURL: "http://hindsight.test", apiSecret: "test"}), pollInterval: time.Millisecond, output: io.Discard}
+			u.client.client.GetConfig().HTTPClient.Transport = upgradeTransport(func(r *http.Request) (*http.Response, error) {
+				calls++
+				if r.Method != http.MethodGet || r.URL.Path != "/v1/default/banks" {
+					t.Fatalf("unexpected request before connectivity: %s %s", r.Method, r.URL)
+				}
+				if scenario == "deadline" || scenario == "recovers" && calls == 1 {
+					return nil, syscall.ECONNREFUSED
+				}
+				status := http.StatusOK
+				if scenario == "unauthorized" {
+					status = http.StatusUnauthorized
+				}
+				return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(`{"banks":[]}`)), Header: http.Header{}}, nil
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			err := u.run(ctx)
+			switch scenario {
+			case "recovers":
+				if err != nil || calls != 2 {
+					t.Fatalf("calls=%d error=%v", calls, err)
+				}
+			case "deadline":
+				if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("error=%v", err)
+				}
+			case "unauthorized":
+				if err == nil || calls != 1 {
+					t.Fatalf("calls=%d error=%v", calls, err)
+				}
+			}
+		})
+	}
+}
 
 func TestConfigUpgradeResumesFailedRefreshAndSkipsCurrentConfig(t *testing.T) {
 	const bank = "hindsight_bank_0123456789abcdef0123456789abcdef"

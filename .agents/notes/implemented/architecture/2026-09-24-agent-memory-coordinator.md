@@ -181,3 +181,9 @@ app-api 对 stale/404 重新准入（vitest）。覆盖缺口：真实 Hindsight
 升级过程中关闭该画像的整合后自动刷新，等待旧任务结束，再显式刷新，成功才恢复。
 失败重跑复用该字段识别未完成对象，不增加独立台账。配置一致且自动刷新已恢复时跳过。
 新建 bank 的 HTTP 请求和回读必须包含 `retain_mission`，不能只测试内部配置结构。
+
+实际发布发现候选计划仍使用拆分前的 base 清单，Memory 镜像已更新但 Kubernetes ref 未推进，
+因此 PostSync Job 没有部署。发布选择补齐 Agent Control、Agent Runtime、Memory 和私有入口的
+独立 base，并验证仅清单变化也会选中；已经越过发布游标的 Memory base 由 GitOps 显式推进。
+升级 Job 实测在 Pod 启动瞬间连接被拒绝，同标签探针两秒后恢复；命令在任何写入前对首次
+bank 查询的连接拒绝最多等待 30 秒，不扩大到配置写入或刷新提交的重试。

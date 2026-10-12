@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -46,7 +48,7 @@ func (u configUpgrader) run(ctx context.Context) error {
 			Name string `json:"name"`
 		} `json:"banks"`
 	}
-	if found, err := u.request(ctx, http.MethodGet, "/v1/default/banks", nil, &page); err != nil {
+	if found, err := u.listBanksWhenConnected(ctx, &page); err != nil {
 		return err
 	} else if !found {
 		return fmt.Errorf("Hindsight bank list endpoint not found")
@@ -63,6 +65,26 @@ func (u configUpgrader) run(ctx context.Context) error {
 	}
 	_, err := fmt.Fprintf(u.output, "Memory configuration upgrade complete: %d banks checked\n", count)
 	return err
+}
+
+// New Job pods can start before the cluster network policy admits traffic.
+// Retry only the initial read on connection refusal, before any mutation.
+func (u configUpgrader) listBanksWhenConnected(ctx context.Context, page any) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	for {
+		found, err := u.request(ctx, http.MethodGet, "/v1/default/banks", nil, page)
+		if !errors.Is(err, syscall.ECONNREFUSED) {
+			return found, err
+		}
+		timer := time.NewTimer(u.pollInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return false, ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func (u configUpgrader) upgradeBank(ctx context.Context, bank string) error {

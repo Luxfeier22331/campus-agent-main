@@ -14,11 +14,15 @@ const SOURCE_REPOSITORY = "MUC-WIKI/campus-agent";
 const CAMPUS_WEB_WORKER: WorkerCandidate = "campus-web-staging";
 const CAMPUS_MAP_ASSET_PATH = "apps/campus-web/assets/campus-map";
 const SOURCE_BASE_PATHS = [
+	"infra/k8s/agent-control/base",
+	"infra/k8s/agent-runtime/base",
+	"infra/k8s/cluster-private-ingress/base",
 	"infra/k8s/data-object-store/base",
 	"infra/k8s/data-postgres/base",
 	"infra/k8s/data-qdrant/base",
 	"infra/k8s/execution-runtime/base/runtime",
 	"infra/k8s/ingestion-runtime/base",
+	"infra/k8s/memory/base",
 	"infra/k8s/model-config/base",
 	"infra/k8s/ops-web/base",
 	"infra/k8s/platform-temporal/base",

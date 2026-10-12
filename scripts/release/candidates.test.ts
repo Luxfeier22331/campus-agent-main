@@ -218,6 +218,25 @@ test("package-local task graph configuration does not publish business artifacts
 	assert.deepEqual(plan.sourceBases, ["infra/k8s/data-object-store/base"]);
 });
 
+test("selects split service manifests without requiring image changes", async (t) => {
+	const root = await fixture(t);
+	const bases = [
+		"infra/k8s/agent-control/base",
+		"infra/k8s/agent-runtime/base",
+		"infra/k8s/cluster-private-ingress/base",
+		"infra/k8s/memory/base",
+	];
+	for (const base of bases) {
+		const plan = await planCandidates(
+			options(root),
+			syntheticScopeRunner(changed(`${base}/kustomization.yaml`), []),
+		);
+		assert.deepEqual(plan.sourceBases, [base]);
+		assert.deepEqual(plan.images, []);
+		assert.deepEqual(plan.workers, []);
+	}
+});
+
 test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit", async (t) => {
 	const root = await fixture(t);
 	const runner = syntheticScopeRunner(

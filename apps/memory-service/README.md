@@ -41,6 +41,7 @@ TLS CA 配置；源码不部署占位凭据。owner salt 必须沿用迁移前�
 `memory-config-upgrade` 由 Memory Application 的 PostSync Job 执行，使用同镜像中的当前规则，
 通过 Hindsight API 更新本应用已有 bank 的提取配置和 `user-profile` 指令。新建对象使用同一组默认值；
 正常读写不做配置比较。该命令不访问 Memory 数据库，不执行 schema 或 `memory-cutover`。
+新 Pod 网络策略生效前若连接被拒绝，首次只读 bank 查询最多等待 30 秒；后续写入不自动重试。
 
 当前 Hindsight 0.9.1 的 bank 列表没有分页，画像 API 也不暴露 `last_refreshed_source_query`。
 升级先保留其他 trigger 字段并关闭目标画像的整合后自动刷新，等待在途刷新结束，再显式刷新；
