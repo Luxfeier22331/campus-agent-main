@@ -233,6 +233,7 @@ func hindsightBankConfigUpdate(cfg hindsightBankConfig) map[string]interface{} {
 		})
 	}
 	return map[string]interface{}{
+		"retain_mission":            cfg.RetainMission,
 		"enable_auto_consolidation": cfg.EnableAutoConsolidation,
 		"enable_observations":       cfg.EnableObservations,
 		"memory_defense": map[string]interface{}{
@@ -245,6 +246,9 @@ func hindsightBankConfigUpdate(cfg hindsightBankConfig) map[string]interface{} {
 func requireHindsightBankConfig(response *hindsight.BankConfigResponse, expected hindsightBankConfig) error {
 	if response == nil {
 		return errors.New("hindsight bank config returned no response")
+	}
+	if got, _ := response.GetConfig()["retain_mission"].(string); got != expected.RetainMission {
+		return fmt.Errorf("hindsight retain_mission does not match the application policy")
 	}
 	for key, want := range map[string]bool{
 		"enable_auto_consolidation": expected.EnableAutoConsolidation,

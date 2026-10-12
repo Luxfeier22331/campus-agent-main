@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -182,5 +184,44 @@ func TestHindsightHTTPClientTreatsMissingBankAsDeleted(t *testing.T) {
 	client := newHindsightHTTPClient(hindsightClientOptions{apiSecret: "hindsight-secret", baseURL: server.URL})
 	if err := client.DeleteBank(context.Background(), "bank-01"); err != nil {
 		t.Fatalf("delete missing bank: %v", err)
+	}
+}
+
+func TestBankCreationSendsAndVerifiesRetainMission(t *testing.T) {
+	for _, omitMission := range []bool{false, true} {
+		t.Run(fmt.Sprint(omitMission), func(t *testing.T) {
+			var updates map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/bank") {
+					_ = json.NewEncoder(w).Encode(map[string]any{"bank_id": "bank", "name": "campus-agent personal memory", "mission": "", "disposition": map[string]any{"skepticism": 3, "literalism": 3, "empathy": 3}})
+					return
+				}
+				if r.Method == http.MethodPatch {
+					var body struct {
+						Updates map[string]any `json:"updates"`
+					}
+					_ = json.NewDecoder(r.Body).Decode(&body)
+					updates = body.Updates
+					if updates["retain_mission"] != defaultHindsightBankConfig().RetainMission {
+						t.Error("mission missing from wire")
+					}
+				}
+				config := map[string]any{}
+				for k, v := range updates {
+					config[k] = v
+				}
+				if omitMission {
+					delete(config, "retain_mission")
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"bank_id": "bank", "config": config, "overrides": config})
+			}))
+			defer server.Close()
+			client := newHindsightHTTPClient(hindsightClientOptions{baseURL: server.URL, apiSecret: "test"})
+			err := client.EnsureBank(context.Background(), "bank", defaultHindsightBankConfig())
+			if (err != nil) != omitMission {
+				t.Fatalf("error=%v omitMission=%v", err, omitMission)
+			}
+		})
 	}
 }

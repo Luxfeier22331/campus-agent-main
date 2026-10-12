@@ -169,3 +169,15 @@ app-api 对 stale/404 重新准入（vitest）。覆盖缺口：真实 Hindsight
 - [Hindsight 记忆生命周期](./2026-07-17-hindsight-lifecycle.md)
 - [异步记忆追加](../../implemented/bug-fix/2026-09-19-async-memory-append.md)
 - [命令结果不确定性修复](./2026-10-10-memory-command-uncertainty.md)
+
+### 持久化配置随发布升级
+
+画像和 bank 中的指令属于应用配置，不能仅在首次创建时应用。Memory 负责默认值、实际 HTTP
+序列化和配置升级；GitOps 在新 workload 就绪后执行同镜像的 PostSync Job，覆盖已有对象。
+正常请求不增加配置查询。纠正采用最新明确表述，要求撤回的内容从当前画像中省略，
+不通过作废说明复述，也不将自然语言纠正转换为底层删除。
+
+部署合同按实际 Hindsight API 实现：bank 列表不分页，画像 API 未暴露最后合成指令；
+升级过程中关闭该画像的整合后自动刷新，等待旧任务结束，再显式刷新，成功才恢复。
+失败重跑复用该字段识别未完成对象，不增加独立台账。配置一致且自动刷新已恢复时跳过。
+新建 bank 的 HTTP 请求和回读必须包含 `retain_mission`，不能只测试内部配置结构。

@@ -15,7 +15,7 @@ import (
 // the same model.
 const hindsightProfileModelID = "user-profile"
 
-const hindsightProfileSourceQuery = "综合这位用户已存储的个人记忆，生成一份当前的用户画像：稳定的偏好、长期目标、重要事实与背景。只依据已存储的记忆，不要臆测，不要编造。单次咨询、提问、测试标记不视为稳定偏好。用简体中文，条理清晰。"
+const hindsightProfileSourceQuery = "综合这位用户已存储的个人记忆，生成一份当前的用户画像：稳定的偏好、长期目标、重要事实与背景。只依据已存储的记忆，不要臆测，不要编造。单次咨询、提问、测试标记、临时意图不视为稳定偏好或长期目标。对于同一事实，以用户最新的明确纠正为准。用户要求撤回、删除或不再展示的内容必须从画像中省略；不得在已作废信息、历史偏好、测试记录、免责声明或其他章节复述其内容或标记。只输出当前有效的用户画像，不输出纠正历史或内部处理说明。用简体中文，条理清晰。"
 
 const hindsightProfileMaxTokens int32 = 2048
 

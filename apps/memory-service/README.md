@@ -35,3 +35,17 @@ TLS CA 配置；源码不部署占位凭据。owner salt 必须沿用迁移前�
 
 迁移步骤见 [执行服务运维](../../docs/runbooks/runtime/execution.md)，选择理由见
 [Agent 编排与 Memory 独立服务](../../.agents/notes/implemented/architecture/2026-10-10-agent-orchestration-memory-services.md)。
+
+## Hindsight 配置升级
+
+`memory-config-upgrade` 由 Memory Application 的 PostSync Job 执行，使用同镜像中的当前规则，
+通过 Hindsight API 更新本应用已有 bank 的提取配置和 `user-profile` 指令。新建对象使用同一组默认值；
+正常读写不做配置比较。该命令不访问 Memory 数据库，不执行 schema 或 `memory-cutover`。
+
+当前 Hindsight 0.9.1 的 bank 列表没有分页，画像 API 也不暴露 `last_refreshed_source_query`。
+升级先保留其他 trigger 字段并关闭目标画像的整合后自动刷新，等待在途刷新结束，再显式刷新；
+成功后恢复自动刷新。失败时 Job 保留，重新 sync 可重跑；自动刷新仍关闭的对象会继续升级，
+已完成且配置一致的对象不会再次刷新。升级期间普通记忆读写继续工作。
+
+命令只处理名称为 `campus-agent personal memory` 且 ID 符合本应用规则的 bank；
+不创建缺失 bank 或画像，不删除记忆，不修改其他应用的配置。
