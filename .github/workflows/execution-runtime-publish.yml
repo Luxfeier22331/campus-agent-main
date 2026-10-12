@@ -3,10 +3,6 @@ name: staging-candidate-publish
 on:
   workflow_dispatch:
     inputs:
-      worker_build_input_ref:
-        description: Fixed GitOps OCI build input (first deployment bootstrap)
-        type: string
-        required: false
       candidate_scope:
         description: Select the accumulated diff or republish a Worker with current environment
         required: true
@@ -22,7 +18,7 @@ on:
         default: false
         type: boolean
       promotion_recovery_run_id:
-        description: Reuse published artifacts from an earlier Source run without republishing
+        description: Reuse image publication and Worker selection from an earlier Source run
         required: false
         default: ''
         type: string
@@ -180,6 +176,25 @@ jobs:
           RECOVERY_RUN_ID: ${{ inputs.promotion_recovery_run_id || '' }}
         run: node --experimental-strip-types scripts/release/publication.mts
 
+      - name: Write Source release handoff
+        if: steps.publication.outputs.action != 'skip'
+        env:
+          PLAN: ${{ steps.plan.outputs.candidate_plan }}
+          WORKERS: ${{ steps.publication.outputs.workers }}
+          IMAGE_RUN_ID: ${{ steps.publication.outputs.run_id }}
+        run: |
+          jq --argjson workers "$WORKERS" --argjson imageRunId "$IMAGE_RUN_ID" \
+            '.workers = $workers | . + {imageRunId: $imageRunId}' <<< "$PLAN" > source-release.json
+      - name: Upload Source release handoff
+        if: steps.publication.outputs.action != 'skip'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: source-release
+          path: source-release.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
       - name: Mark staging candidate pending
         id: pending
         if: >-
@@ -298,95 +313,8 @@ jobs:
           overwrite: true
           retention-days: 7
 
-  publish-workers:
-    needs: release-plan
-    if: >-
-      needs.release-plan.result == 'success' &&
-      fromJSON(needs.release-plan.outputs.workers)[0] != null &&
-      needs.release-plan.outputs.action == 'publish'
-    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      packages: write
-    defaults:
-      run:
-        shell: nix develop .#ci-core --command bash -e {0}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - name: Verify current main revision before Worker publication
-        shell: bash -e {0}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          test "$GITHUB_SHA" = "$current_main"
-      - name: Install Nix
-        if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24
-      - name: Create GitOps input request token
-        id: gitops-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
-        with:
-          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
-          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
-          owner: MUC-WIKI
-          repositories: campus-agent-gitops
-          permission-actions: write
-          permission-contents: read
-      - name: Request fixed build inputs
-        env:
-          GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
-          WORKERS: ${{ needs.release-plan.outputs.workers }}
-          WORKER_BUILD_INPUT_REF: ${{ inputs.worker_build_input_ref }}
-        run: node scripts/release/request-worker-input.mts
-      - name: Read immutable build inputs
-        env:
-          REGISTRY_TOKEN: ${{ github.token }}
-        run: |
-          printf '%s' "$REGISTRY_TOKEN" | oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          mkdir -p worker-input
-          oras pull "$WORKER_BUILD_INPUT_REF" -o worker-input
-          tar -xf worker-input/input.tar -C worker-input
-          node --input-type=module <<'JS'
-          import { readFileSync, appendFileSync } from 'node:fs';
-          const input = JSON.parse(readFileSync('worker-input/build-input.json', 'utf8'));
-          if (input.sourceSha !== process.env.GITHUB_SHA) throw new Error('Build input Source mismatch');
-          for (const key of ['CAMPUS_AUTH_TURNSTILE_SITE_KEY', 'STATUS_WEB_PUBLIC_ORIGIN']) {
-            const value = input.variables[key];
-            if (typeof value !== 'string' || /[\r\n]/.test(value)) throw new Error(`Invalid public build input ${key}`);
-            appendFileSync(process.env.GITHUB_ENV, `${key}=${value}\n`);
-          }
-          appendFileSync(process.env.GITHUB_ENV, `CAMPUS_WEB_DOCS_SNAPSHOT=${process.cwd()}/worker-input/docs\n`);
-          JS
-      - name: Build and publish Worker bundles
-        env:
-          WORKERS: ${{ needs.release-plan.outputs.workers }}
-        run: |
-          pnpm install --frozen-lockfile
-          mkdir -p worker-candidates
-          while read -r worker; do
-            app="${worker%-staging}"
-            directory="$RUNNER_TEMP/worker-bundles/$worker"
-            pnpm exec tsx scripts/release/build-worker-artifact.mts "$app" "$directory" "$GITHUB_SHA"
-            tar -cf "$directory/bundle.tar" --exclude=bundle.tar -C "$directory" .
-            repository="ghcr.io/muc-wiki/campus-agent/worker-$app"
-            (cd "$directory" && oras push "$repository:$GITHUB_SHA-$GITHUB_RUN_ID" --artifact-type application/vnd.campus.worker.v1 bundle.tar --format json) > "$directory/push.json"
-            digest="$(jq -r .digest "$directory/push.json")"
-            jq -n --arg workerName "$worker" --arg sourceSha "$GITHUB_SHA" --arg artifactRef "$repository@$digest" '{workerName:$workerName,sourceSha:$sourceSha,artifactRef:$artifactRef}' > "worker-candidates/$worker.json"
-          done < <(jq -r '.[]' <<< "$WORKERS")
-      - name: Upload Worker candidates
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: release-worker-candidates
-          path: worker-candidates/*.json
-          if-no-files-found: error
-          retention-days: 7
-
   candidate-status:
-    needs: [release-plan, publish-images, publish-workers]
+    needs: [release-plan, publish-images]
     if: >-
       always() &&
       (
@@ -404,7 +332,6 @@ jobs:
       - name: Finalize staging candidate status
         id: status
         env:
-          WORKER_RESULT: ${{ needs.publish-workers.result }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGES: ${{ needs.release-plan.outputs.images || '[]' }}
           IMAGE_RESULT: ${{ needs.publish-images.result }}
@@ -418,8 +345,8 @@ jobs:
           set -euo pipefail
           if [ "$PUBLICATION_ACTION" = reuse ]; then
             gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${CANDIDATE_SHA}" \
-              -f state=success -f context=staging/candidate \
-              -f description='Reusing verified published candidates' -f target_url="$TARGET_URL"
+              -f state=pending -f context=staging/candidate \
+              -f description='Images reused; awaiting GitOps Worker publication' -f target_url="$TARGET_URL"
             echo "approved=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -435,18 +362,14 @@ jobs:
               [ "$IMAGE_RESULT" != success ]; then
               valid=false
             fi
-            if jq -e 'length > 0' <<< "$WORKERS" >/dev/null && \
-              [ "$WORKER_RESULT" != success ]; then
-              valid=false
-            fi
           fi
           if [ "$valid" = true ]; then
-            state=success
+            state=pending
             approved=true
             if jq -e 'length > 0' <<< "$IMAGES" >/dev/null || \
               jq -e 'length > 0' <<< "$WORKERS" >/dev/null || \
               jq -e 'length > 0' <<< "$TOPOLOGY_MIGRATIONS" >/dev/null; then
-              description='Selected artifacts were published; image Trivy feedback was recorded when applicable'
+              description='Images published; awaiting GitOps Worker publication'
             else
               description='No immutable artifact publication was required'
             fi
@@ -458,270 +381,45 @@ jobs:
             -f target_url="$TARGET_URL"
           echo "approved=$approved" >> "$GITHUB_OUTPUT"
 
-  promote:
-    needs: [release-plan, candidate-status, publish-images, publish-workers]
+  dispatch-gitops-release:
+    needs: [release-plan, publish-images, candidate-status]
     if: >-
       !cancelled() &&
       needs.release-plan.result == 'success' &&
-      needs.candidate-status.result == 'success' &&
       needs.candidate-status.outputs.approved == 'true' &&
-      github.ref == 'refs/heads/main' &&
-      (
-        github.event_name == 'push' ||
-        inputs.promote ||
-        needs.release-plan.outputs.action == 'reuse'
-      ) &&
-      contains(fromJSON('["success","skipped"]'), needs.publish-images.result) &&
-      contains(fromJSON('["success","skipped"]'), needs.publish-workers.result) &&
-      (
-        needs.publish-images.result == 'success' ||
-        needs.publish-workers.result == 'success' ||
-        needs.release-plan.outputs.source_bases != '[]' ||
-        needs.release-plan.outputs.topology_migrations != '[]' ||
-        needs.release-plan.outputs.action == 'reuse'
-      )
+      github.ref == 'refs/heads/main'
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
-    timeout-minutes: 15
+    timeout-minutes: 5
     permissions:
       contents: read
-      actions: read
-    outputs:
-      promotion_disposition: ${{ steps.promotion.outputs.promotion_disposition }}
+      statuses: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Verify current main revision before promotion
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROMOTION_SOURCE_SHA: ${{ inputs.promotion_recovery_source_sha || github.sha }}
-        shell: bash -e {0}
-        run: |
-          set -euo pipefail
-          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          if [[ "$PROMOTION_SOURCE_SHA" != "$current_main" ]]; then
-            git merge-base --is-ancestor "$PROMOTION_SOURCE_SHA" "$current_main" || {
-              echo "Source revision $PROMOTION_SOURCE_SHA is not reachable from current main $current_main." >&2
-              exit 1
-            }
-          fi
-
-      - name: Install Nix
-        if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-      - name: Prepare release inputs
-        shell: bash -e {0}
-        run: |
-          printf '{}\n' > image-digests.json
-          mkdir -p worker-candidates
-
-      - name: Download image digests
-        if: >-
-          fromJSON(needs.release-plan.outputs.images)[0] != null &&
-          (needs.publish-images.result == 'success' || needs.release-plan.outputs.action == 'reuse')
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: release-image-digests
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ needs.release-plan.outputs.publication_run_id }}
-
-      - name: Download Worker candidates
-        if: >-
-          fromJSON(needs.release-plan.outputs.workers)[0] != null &&
-          (needs.publish-workers.result == 'success' || needs.release-plan.outputs.action == 'reuse')
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: release-worker-candidates
-          path: worker-candidates
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ needs.release-plan.outputs.publication_run_id }}
-
-      - name: Keep only selected candidates
-        env:
-          IMAGES: ${{ needs.release-plan.outputs.images }}
-          WORKERS: ${{ needs.release-plan.outputs.workers }}
-        shell: bash -e {0}
-        run: |
-          set -euo pipefail
-          jq --argjson images "$IMAGES" 'with_entries(select(.key as $name | $images | index($name) != null))' \
-            image-digests.json > selected-image-digests.json
-          mv selected-image-digests.json image-digests.json
-          while IFS= read -r -d '' candidate; do
-            worker="$(basename "$candidate" .json)"
-            if ! jq -e --arg worker "$worker" 'index($worker) != null' <<< "$WORKERS" >/dev/null; then
-              rm -f "$candidate"
-            fi
-          done < <(find worker-candidates -type f -name '*.json' -print0)
-
-      - name: Create GitOps promotion token
+      - name: Create GitOps dispatch token
         id: gitops-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
           client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
           private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            campus-agent
-            campus-agent-gitops
-          permission-contents: write
-          permission-pull-requests: write
-          permission-statuses: write
-
-      - name: Checkout GitOps repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-          repository: MUC-WIKI/campus-agent-gitops
-          token: ${{ steps.gitops-token.outputs.token }}
-          path: gitops
-
-      - name: Install GitOps tooling
-        shell: nix develop ./gitops#ci-control --command bash -e {0}
-        # GitOps owns its pnpm workspace and dependency build policy.
-        run: pnpm --dir gitops install --frozen-lockfile
-
-      - name: Update GitOps desired state
-        id: promotion
-        env:
-          EXPECTED_WORKERS: ${{ needs.release-plan.outputs.workers }}
-          PROMOTION_SOURCE_SHA: ${{ inputs.promotion_recovery_source_sha || github.sha }}
-          SOURCE_BASES: ${{ needs.release-plan.outputs.source_bases }}
-          TOPOLOGY_MIGRATIONS: ${{ needs.release-plan.outputs.topology_migrations }}
-        shell: nix develop ./gitops#ci-control --command bash -e {0}
-        run: |
-          set -euo pipefail
-          migration_args=()
-          if jq -e 'length > 0' <<< "$TOPOLOGY_MIGRATIONS" >/dev/null; then
-            jq -n \
-              --arg source_sha "$PROMOTION_SOURCE_SHA" \
-              --argjson retirements "$TOPOLOGY_MIGRATIONS" \
-              '{schemaVersion: 1, sourceSha: $source_sha, operations: ($retirements | map(.operations) | add)}' \
-              > "$GITHUB_WORKSPACE/topology-migration.json"
-            migration_args=(
-              --topology-migration-file "$GITHUB_WORKSPACE/topology-migration.json"
-              --topology-migration-path "releases/staging-migrations/${PROMOTION_SOURCE_SHA}.json"
-            )
-          fi
-          pnpm --dir gitops --silent gitops promote-source \
-            --expected-source-sha "${{ needs.release-plan.outputs.base }}" \
-            --expected-workers "$EXPECTED_WORKERS" \
-            --image-digests "$GITHUB_WORKSPACE/image-digests.json" \
-            --source-bases "$SOURCE_BASES" \
-            --root "$GITHUB_WORKSPACE/gitops" \
-            --source-repository "$GITHUB_REPOSITORY" \
-            --source-sha "$PROMOTION_SOURCE_SHA" \
-            --worker-candidates "$GITHUB_WORKSPACE/worker-candidates" \
-            "${migration_args[@]}" \
-            > promotion-result.json
-          jq -e --arg source_sha "$PROMOTION_SOURCE_SHA" '
-            type == "object" and
-            (keys_unsorted == ["disposition", "sourceSha", "changed", "expectedApplications", "missingImageConsumers", "topologyChanges"]) and
-            (.disposition == "ready" or .disposition == "topology-required") and
-            (.sourceSha | type == "string" and test("^[0-9a-f]{40}$")) and
-            (.sourceSha == $source_sha) and
-            (.changed | type == "boolean") and
-            (.expectedApplications | type == "array") and
-            (all(.expectedApplications[];
-              type == "object" and
-              (keys | sort == ["name", "revision"]) and
-              (.name | type == "string" and length > 0) and
-              (.revision | type == "string" and test("^[0-9a-f]{40}$"))
-            )) and
-            ((.expectedApplications | sort_by(.name)) == .expectedApplications) and
-            (.missingImageConsumers | type == "array") and
-            (all(.missingImageConsumers[]; type == "string" and test("^[a-z0-9][a-z0-9-]*$"))) and
-            ((.missingImageConsumers | sort) == .missingImageConsumers) and
-            (.topologyChanges | type == "array") and
-            (if .disposition == "ready" then
-              .missingImageConsumers == []
-            else
-              .changed == false and (.missingImageConsumers | length > 0)
-            end)
-          ' promotion-result.json >/dev/null
-          disposition="$(jq -r '.disposition' promotion-result.json)"
-          changed="$(jq -r '.changed' promotion-result.json)"
-          case "$disposition" in
-            ready)
-              jq -e '.missingImageConsumers == []' promotion-result.json >/dev/null
-              ;;
-            topology-required)
-              if [ "$changed" != false ]; then
-                echo "topology-required promotion must not change GitOps state" >&2
-                exit 1
-              fi
-              ;;
-            *)
-              echo "Unexpected promotion disposition: $disposition" >&2
-              exit 1
-              ;;
-          esac
-          {
-            echo "promotion_disposition=$disposition"
-            echo "changed=$changed"
-          } >> "$GITHUB_OUTPUT"
-          {
-            echo "### GitOps promotion"
-            jq . promotion-result.json
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Open GitOps deployment pull request
-        id: deployment-pr
-        if: >-
-          steps.promotion.outputs.promotion_disposition == 'ready' &&
-          steps.promotion.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8
-        env:
-          # create-pull-request detects whether git stash created an entry by
-          # matching git's English output. The self-hosted runner locale is
-          # Chinese, so force a stable locale to avoid a false stash-pop.
-          LC_ALL: C
-        with:
-          token: ${{ steps.gitops-token.outputs.token }}
-          path: gitops
-          base: main
-          branch: deploy/staging
-          delete-branch: true
-          commit-message: "chore: 部署 staging 候选版本 ${{ inputs.promotion_recovery_source_sha || github.sha }}"
-          title: "chore: 部署 staging 候选版本 ${{ inputs.promotion_recovery_source_sha || github.sha }}"
-          body: |
-            ## 变更内容
-
-            - 更新 `campus-agent@${{ inputs.promotion_recovery_source_sha || github.sha }}` 产生的活跃镜像（如有）
-            - 更新 App API、Campus Web 与 status-web Worker 的不可变版本（如有）
-            - 受影响的 Kubernetes Source base 变化时同步实际消费者的源码引用
-
-            ## 验证结果
-
-            - [x] 发布镜像（如有）均为单一 `linux/arm64` 索引，Trivy 反馈已运行并记录
-            - [x] Worker 候选通过 `versions upload` 产生，流量仍由 GitOps 选择
-            - [x] `promote-source` 已校验候选身份和活跃消费者
-            - [ ] GitOps PR 的完整仓库与受影响 Kustomize、schema、策略、Terraform/Helm 检查
-
-      - name: Mark staging promotion pending
-        if: >-
-          steps.promotion.outputs.promotion_disposition == 'ready' &&
-          steps.promotion.outputs.changed == 'true'
+          owner: MUC-WIKI
+          repositories: campus-agent-gitops
+          permission-actions: write
+      - name: Dispatch GitOps publication
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
-          PROMOTION_SOURCE_SHA: ${{ inputs.promotion_recovery_source_sha || github.sha }}
-          TARGET_URL: ${{ steps.deployment-pr.outputs.pull-request-url }}
-        shell: nix develop ./gitops#ci-control --command bash -e {0}
+          SOURCE_SHA: ${{ needs.release-plan.outputs.head }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+          PROMOTE: ${{ github.event_name == 'push' || inputs.promote || needs.release-plan.outputs.action == 'reuse' }}
+        run: |
+          gh api --method POST repos/MUC-WIKI/campus-agent-gitops/actions/workflows/publish-source.yml/dispatches \
+            -f ref=main -f "inputs[source_sha]=$SOURCE_SHA" \
+            -f "inputs[source_run_id]=$SOURCE_RUN_ID" -f "inputs[promote]=$PROMOTE"
+      - name: Report dispatch failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.release-plan.outputs.head }}
         run: >-
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${PROMOTION_SOURCE_SHA}"
-          -f state=pending
-          -f context=staging/promotion
-          -f description='GitOps is validating the staging promotion'
-          -f target_url="$TARGET_URL"
-
-      - name: Complete staging handoff
-        if: steps.promotion.outputs.promotion_disposition == 'ready'
-        shell: bash -e {0}
-        run: echo 'GitOps handoff completed or desired state was already current.'
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$SOURCE_SHA"
+          -f state=failure -f context=staging/candidate
+          -f description='GitOps publication dispatch failed'
+          -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

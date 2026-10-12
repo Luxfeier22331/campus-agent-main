@@ -10,6 +10,9 @@ Status: implemented
 
 ## 决策
 
+Worker 构建 owner 的后续调整见[Worker 发布闭环迁入 GitOps](../process/2026-10-11-worker-publication-gitops.md)，
+该篇取代下述 Source 构建 bundle 与跨仓输入传递安排；其余入口与凭据边界继续有效。
+
 使用独立 Go 应用 `cluster-private-ingress`，让 Worker 通过一个 VPC Service binding 消费集群产品
 接口。入口拥有认证、固定产品路由和后端凭据注入；Control、Memory 保留业务状态和错误语义。
 入口不访问数据库，不编排业务、不验证用户所有权，也不成为集群内部互调的中转站。

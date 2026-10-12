@@ -28,11 +28,6 @@ const run: PublicationRun = {
 	conclusion: "success",
 	head_repository: { full_name: "MUC-WIKI/campus-agent" },
 };
-const candidate = {
-	workerName: "app-api-staging",
-	sourceSha: sha,
-	artifactRef: `ghcr.io/muc-wiki/campus-agent/worker-app-api@sha256:${"a".repeat(64)}`,
-};
 const input = { plan, event: "push", currentRunId: 20 };
 function io(overrides: Partial<PublicationIO> = {}): PublicationIO {
 	return {
@@ -43,16 +38,15 @@ function io(overrides: Partial<PublicationIO> = {}): PublicationIO {
 			return run;
 		},
 		async jobs() {
-			return [
-				"release-plan",
-				"publish-images",
-				"publish-workers",
-				"candidate-status",
-				"promote",
-			].map((name) => ({ name, conclusion: name === "promote" ? "failure" : "success" }));
+			return ["release-plan", "publish-images", "candidate-status", "dispatch-gitops-release"].map(
+				(name) => ({
+					name,
+					conclusion: name === "dispatch-gitops-release" ? "failure" : "success",
+				}),
+			);
 		},
 		async artifacts() {
-			return ["release-image-digests", "release-worker-candidates"].map((name) => ({
+			return ["release-image-digests", "source-release"].map((name) => ({
 				name,
 				expired: false,
 			}));
@@ -60,13 +54,13 @@ function io(overrides: Partial<PublicationIO> = {}): PublicationIO {
 		async readArtifact(_id, name) {
 			return name === "release-image-digests"
 				? { "image-digests.json": { "model-config": `sha256:${"c".repeat(64)}` } }
-				: { "app-api-staging.json": candidate };
+				: { "source-release.json": { ...plan, imageRunId: 10 } };
 		},
 		...overrides,
 	};
 }
 
-test("duplicate push skips a complete handoff without requiring retained artifacts", async () => {
+test("duplicate push skips a handoff for the same release cursor", async () => {
 	assert.deepEqual(
 		await decidePublication(
 			input,
@@ -78,8 +72,9 @@ test("duplicate push skips a complete handoff without requiring retained artifac
 						steps: [{ name: "Complete staging handoff", conclusion: "success" }],
 					}));
 				},
-				async artifacts() {
-					throw new Error("must not read artifacts");
+				async readArtifact(id, name) {
+					assert.equal(name, "source-release");
+					return io().readArtifact(id, name);
 				},
 			}),
 		),
@@ -103,7 +98,7 @@ test("first publication and failed publication run normally", async () => {
 		).action,
 		"publish",
 	);
-	for (const failed of ["release-plan", "publish-images", "publish-workers"]) {
+	for (const failed of ["release-plan", "publish-images"]) {
 		assert.equal(
 			(
 				await decidePublication(
@@ -191,16 +186,7 @@ test("missing, expired or mismatched candidates fail instead of silently republi
 		),
 		/unavailable/,
 	);
-	assert.throws(() => validatePublicationArtifacts(plan, {}, {}), /digest/);
-	assert.throws(
-		() =>
-			validatePublicationArtifacts(
-				{ ...plan, images: [] },
-				{},
-				{ "app-api-staging.json": { ...candidate, sourceSha: "b".repeat(40) } },
-			),
-		/mismatched/,
-	);
+	assert.throws(() => validatePublicationArtifacts(plan, {}), /digest/);
 });
 test("downloads only the artifact kinds needed by the current cumulative plan", async () => {
 	for (const selected of [
@@ -218,10 +204,7 @@ test("downloads only the artifact kinds needed by the current cumulative plan", 
 				},
 			}),
 		);
-		assert.deepEqual(reads, [
-			...(selected.images.length > 0 ? ["release-image-digests"] : []),
-			...(selected.workers.length > 0 ? ["release-worker-candidates"] : []),
-		]);
+		assert.deepEqual(reads, [...(selected.images.length > 0 ? ["release-image-digests"] : [])]);
 	}
 });
 test("rerun looks at its completed previous attempt", async () => {
@@ -309,7 +292,7 @@ test("a failed new publication cannot reuse overwritten artifacts from its older
 			async jobs(attempt) {
 				attempts.push(attempt.run_attempt);
 				return (await io().jobs(attempt)).map((job) =>
-					attempt.run_attempt === 2 && job.name === "publish-workers"
+					attempt.run_attempt === 2 && job.name === "publish-images"
 						? { ...job, conclusion: "failure" }
 						: job,
 				);
@@ -318,22 +301,6 @@ test("a failed new publication cannot reuse overwritten artifacts from its older
 	);
 	assert.equal(decision.action, "publish");
 	assert.deepEqual(attempts, [2]);
-});
-
-test("topology-required is not a completed handoff and reuses publication", async () => {
-	const decision = await decidePublication(
-		input,
-		io({
-			async jobs() {
-				return (await io().jobs(run)).map((job) => ({
-					...job,
-					conclusion: "success",
-					steps: [{ name: "Complete staging handoff", conclusion: "skipped" }],
-				}));
-			},
-		}),
-	);
-	assert.deepEqual(decision, { action: "reuse", runId: 10 });
 });
 
 test("explicit recovery restores same-SHA App API and Campus Web refresh candidates", async () => {
@@ -354,23 +321,17 @@ test("explicit recovery restores same-SHA App API and Campus Web refresh candida
 				},
 				async readArtifact(_id, name) {
 					reads.push(name);
-					return {
-						[`${worker}.json`]: {
-							...candidate,
-							workerName: worker,
-							artifactRef: `ghcr.io/muc-wiki/campus-agent/worker-${worker.replace(/-staging$/, "")}@sha256:${"a".repeat(64)}`,
-						},
-					};
+					return { "source-release.json": { ...plan, workers: [worker], imageRunId: 10 } };
 				},
 			}),
 		);
 		assert.deepEqual(decision, { action: "reuse", runId: 10, workers: [worker] });
-		assert.deepEqual(reads, ["release-worker-candidates"]);
+		assert.deepEqual(reads, ["source-release"]);
 	}
 });
 
 test("explicit recovery fails on unavailable or invalid refresh artifacts even with an empty diff", async () => {
-	for (const defect of ["missing", "expired", "empty", "wrong-sha", "wrong-worker"]) {
+	for (const defect of ["missing", "expired", "empty", "wrong-sha", "unknown-worker"]) {
 		await assert.rejects(
 			decidePublication(
 				{
@@ -388,24 +349,97 @@ test("explicit recovery fails on unavailable or invalid refresh artifacts even w
 					async artifacts() {
 						return defect === "missing"
 							? []
-							: [{ name: "release-worker-candidates", expired: defect === "expired" }];
+							: [{ name: "source-release", expired: defect === "expired" }];
 					},
 					async readArtifact() {
 						return defect === "empty"
 							? {}
 							: {
-									"app-api-staging.json": {
-										...candidate,
-										sourceSha: defect === "wrong-sha" ? "b".repeat(40) : sha,
-										workerName:
-											defect === "wrong-worker" ? "campus-web-staging" : candidate.workerName,
+									"source-release.json": {
+										...plan,
+										head: defect === "wrong-sha" ? "b".repeat(40) : sha,
+										workers: defect === "unknown-worker" ? ["unknown"] : plan.workers,
+										imageRunId: 10,
 									},
 								};
 					},
 				}),
 			),
-			/unavailable|empty|mismatched/,
+			/unavailable|empty|mismatched|Unsupported/,
 			defect,
 		);
 	}
+});
+
+// B merged while C's asynchronous GitOps publication was queued. C's new
+// release-plan uses B as base, while its previous dispatch still selected A.
+test("a newer release cursor reuses image candidates and permits a new handoff", async () => {
+	const nextPlan = {
+		...plan,
+		base: "d".repeat(40),
+		workers: ["campus-web-staging"] as CandidatePlan["workers"],
+	};
+	const reads: string[] = [];
+	const decision = await decidePublication(
+		{ ...input, plan: nextPlan },
+		io({
+			async jobs() {
+				return (await io().jobs(run)).map((job) => ({ ...job, conclusion: "success" }));
+			},
+			async readArtifact(id, name) {
+				reads.push(name);
+				return io().readArtifact(id, name);
+			},
+		}),
+	);
+	assert.deepEqual(decision, { action: "reuse", runId: 10 });
+	assert.deepEqual(reads, ["source-release", "release-image-digests"]);
+	assert.equal(decision.workers, undefined, "the new plan, not the old handoff, selects Workers");
+});
+
+test("cursor movement exposing an unpublished revert publishes the missing image", async () => {
+	const nextPlan = { ...plan, base: "d".repeat(40), images: ["agent-runtime"] };
+	const decision = await decidePublication(
+		{ ...input, plan: nextPlan },
+		io({
+			async jobs() {
+				return (await io().jobs(run)).map((job) => ({ ...job, conclusion: "success" }));
+			},
+		}),
+	);
+	assert.deepEqual(decision, { action: "publish", runId: 20 });
+});
+
+test("a fully selected duplicate does not need expired handoff artifacts", async () => {
+	const selected = { ...plan, base: sha, images: [], workers: [], sourceBases: [] };
+	const decision = await decidePublication(
+		{ ...input, plan: selected },
+		io({
+			async jobs() {
+				return (await io().jobs(run)).map((job) => ({ ...job, conclusion: "success" }));
+			},
+			async artifacts() {
+				throw new Error("already selected");
+			},
+		}),
+	);
+	assert.deepEqual(decision, { action: "skip", runId: 10 });
+});
+
+test("an earlier empty publication cannot suppress changes exposed by a newer cursor", async () => {
+	const decision = await decidePublication(
+		input,
+		io({
+			async jobs() {
+				return [
+					{ name: "release-plan", conclusion: "success" },
+					...["publish-images", "candidate-status", "dispatch-gitops-release"].map((name) => ({
+						name,
+						conclusion: "skipped",
+					})),
+				];
+			},
+		}),
+	);
+	assert.deepEqual(decision, { action: "publish", runId: 20 });
 });

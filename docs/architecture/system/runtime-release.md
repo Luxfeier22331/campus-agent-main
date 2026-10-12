@@ -14,21 +14,21 @@ status: active
 
 | 所有者 | 负责 |
 | --- | --- |
-| 源码仓 | 构建镜像和无凭据 Worker OCI bundle、产出 schema 和发布合同 |
-| 环境仓 | 准备固定 Docs 快照与公开构建值、注入环境与凭据、上传原生 Worker version 并选择发布 |
+| 源码仓 | 验证源码、构建镜像、产出 schema 和发布合同 |
+| 环境仓 | 构建 Worker bundle、准备 Docs 快照与公开构建值、注入环境与凭据、上传原生 Worker version 并选择发布 |
 | Cloudflare Terraform | Worker 连接资源、域名、路由和流量版本 |
 | Argo CD | Kubernetes 资源和镜像摘要 |
 | schema Job | 在依赖新结构的服务接收流量前完成数据库迁移和授权 |
 
-源码仓产出候选物，不直接声明某个环境已经上线。环境仓选择并应用候选版本后，环境状态才
+源码仓产出镜像和候选计划，GitOps 产出 Worker 候选物；两者都不直接声明某个环境已经上线。环境仓选择并应用候选版本后，环境状态才
 构成部署事实。
 
 ## 发布链
 
 ```text
 源码 main
--> GitOps 准备固定构建输入，Source 构建不可变镜像与无凭据 Worker bundle
--> 从环境仓 staging 游标计算累计受影响范围
+-> Source 从环境仓 staging 游标计算累计受影响范围并构建不可变镜像
+-> Source 异步交接候选计划和镜像发布 run；GitOps 构建 Worker bundle 并保存在自有 GHCR
 -> 环境仓滚动 PR 选择镜像摘要和 Worker artifactRef
 -> 机器字段校验通过后自动合并
 -> GitOps 注入环境并上传原生 Worker version，保存到 Deployment payload
@@ -36,6 +36,10 @@ status: active
 -> Argo CD 同步 Kubernetes
 -> Terraform 切换 Worker 流量
 ```
+
+Source 不读取 GitOps Worker package，也不等待 GitOps workflow 完成。GitOps 验证 Source main 发布
+job 和所选镜像 digest，再准备 Worker 候选与 promotion；原生版本和流量仍由既有 deploy owner 应用。
+具体交接理由见[Worker 发布闭环迁入 GitOps](../../../.agents/notes/implemented/process/2026-10-11-worker-publication-gitops.md)。
 
 规则如下：
 

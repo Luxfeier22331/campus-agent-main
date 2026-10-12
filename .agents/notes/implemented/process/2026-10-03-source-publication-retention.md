@@ -11,6 +11,9 @@ Status: implemented
 
 ## 决策
 
+Worker 发布与恢复 owner 后续迁入 GitOps，见[Worker 发布闭环迁入 GitOps](2026-10-11-worker-publication-gitops.md)。
+该调整取代下述 Source 读取 Worker 候选制品的安排；Source 镜像复用、去重和清理规则继续有效。
+
 - Source 发布 owner 在写候选状态前读取同 workflow、仓库、main 和 SHA 的既有 jobs，选择发布、
   复用或跳过。完整发布后只补齐状态和 promotion；重复已处理的自动事件不写 pending。
   手动配置刷新保留显式重新发布，显式 recovery 验证原始 producer 和现有 artifact。

@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
-	ACTIVE_PACKAGE_NAMES,
 	applyRetentionPlan,
 	type CommandRunner,
 	extractGitopsImageDigests,
@@ -962,4 +961,32 @@ test("full plan refreshes GitOps refs and dependencies, exports roots, then insp
 		[...positions].sort((a, b) => a - b),
 	);
 	assert(calls.some((call) => call.includes("ls-tree -r --name-only origin/deploy/staging")));
+});
+
+test("mixed GitOps export protects Source images without inventorying GitOps Worker packages", () => {
+	const roots: Record<string, string[]> = {};
+	const packages = inventory({
+		"campus-agent/agent-runtime": [version(1, "a", [tag("a")], NOW.toISOString())],
+	});
+	mergeReleaseRoots(
+		roots,
+		{
+			images: {
+				"campus-agent/agent-runtime": [digest("a")],
+				"campus-agent-gitops/worker-app-api": [digest("b")],
+			},
+			candidateSourceShas: [],
+		},
+		packages,
+	);
+	assert.deepEqual(roots, { "campus-agent/agent-runtime": [digest("a")] });
+	assert.deepEqual(protectedRootsForInventory({ gitopsDigests: roots, packages }).errors, []);
+	mergeReleaseRoots(
+		roots,
+		{ images: { "campus-agent/unregistered": [digest("c")] }, candidateSourceShas: [] },
+		packages,
+	);
+	assert.deepEqual(protectedRootsForInventory({ gitopsDigests: roots, packages }).errors, [
+		"GitOps references unmanaged package campus-agent/unregistered",
+	]);
 });

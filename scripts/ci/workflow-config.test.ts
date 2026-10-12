@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,7 +8,6 @@ import { runInNewContext } from "node:vm";
 
 import { parseAllDocuments } from "yaml";
 
-import { WORKER_CANDIDATES } from "../release/workers.mts";
 import { MANUAL_VALIDATION_PROFILES } from "./validation-profiles.mts";
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
@@ -41,7 +40,10 @@ function condition(expression: unknown, context: Record<string, unknown>): boole
 		String(expression)
 			.replaceAll(".cache-matched-key", '["cache-matched-key"]')
 			.replaceAll(".cache-hit", '["cache-hit"]')
-			.replaceAll(/\.(release-plan|candidate-status|publish-images|publish-workers)/gu, '["$1"]')
+			.replaceAll(
+				/\.(release-plan|candidate-status|publish-images|dispatch-gitops-release)/gu,
+				'["$1"]',
+			)
 			.replaceAll(".repository-validation", '["repository-validation"]'),
 		{
 			always: () => true,
@@ -557,17 +559,6 @@ function environmentPrefixedConfig(value: unknown, location = "workflow"): strin
 	]);
 }
 
-function workerCandidatesInExpression(value: unknown): string[] {
-	if (typeof value !== "string") {
-		return [];
-	}
-	return [
-		...value.matchAll(/contains\(fromJSON\(needs\.release-plan\.outputs\.workers\), '([^']+)'\)/gu),
-	]
-		.map((match) => match[1])
-		.filter((candidate): candidate is string => candidate !== undefined);
-}
-
 test("environment-prefixed workflow configuration is rejected", () => {
 	assert.deepEqual(
 		environmentPrefixedConfig({
@@ -741,7 +732,7 @@ test("scheduled dependency evidence has a bounded read-only lane", async () => {
 
 test("candidate publication keeps permissions, runners, and job dependencies explicit", async () => {
 	const workflow = await loadWorkflow("execution-runtime-publish.yml");
-	for (const name of ["release-plan", "publish-images", "publish-workers", "promote"]) {
+	for (const name of ["release-plan", "publish-images"]) {
 		const steps = jobSteps(workflowJob(workflow, name));
 		const guard = steps.findIndex((step) => String(step.name).startsWith("Verify current main"));
 		assert(guard >= 0 && guard < steps.findIndex((step) => step.name === "Install Nix"), name);
@@ -782,96 +773,40 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 		"runner.environment == 'self-hosted'",
 	);
 
-	const publishWorkers = workflowJob(workflow, "publish-workers");
-	assert.equal(publishWorkers.needs, "release-plan");
-	assert.match(String(publishWorkers.if), /outputs\.action/u);
-	assert.equal(publishWorkers["runs-on"], runnerSelector("ubuntu-24.04"));
-	assert.equal(namedStep(publishWorkers, "Install Nix").if, "runner.environment != 'self-hosted'");
-	assert.equal(publishWorkers.environment, undefined);
-
 	const candidateStatus = workflowJob(workflow, "candidate-status");
-	assert.deepEqual(candidateStatus.needs, ["release-plan", "publish-images", "publish-workers"]);
-	assert.equal(candidateStatus["runs-on"], runnerSelector("ubuntu-24.04"));
-	assert.deepEqual(candidateStatus.permissions, { contents: "read", statuses: "write" });
+	assert.deepEqual(candidateStatus.needs, ["release-plan", "publish-images"]);
 	assert.match(String(candidateStatus.if), /^always\(\)/u);
-
-	const promote = workflowJob(workflow, "promote");
-	assert.deepEqual(promote.needs, [
-		"release-plan",
-		"candidate-status",
-		"publish-images",
-		"publish-workers",
-	]);
-	assert.equal(promote["runs-on"], runnerSelector("ubuntu-24.04"));
-	assert.deepEqual(promote.permissions, { contents: "read", actions: "read" });
-	assert.equal(namedStep(promote, "Install Nix").if, "runner.environment != 'self-hosted'");
-	assert.equal(promote.environment, undefined);
-	assert.match(String(promote.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
-	assert.match(String(promote.if), /github\.ref == 'refs\/heads\/main'/u);
-	assert.match(String(promote.if), /inputs\.promote/u);
-	assert.match(String(promote.if), /outputs\.action == 'reuse'/u);
-	const releaseRevision = namedStep(releasePlan, "Verify current main revision");
-	assert.match(String(releaseRevision.env.RECOVERY_RUN_ID), /promotion_recovery_run_id/u);
-	assert.match(String(releaseRevision.run), /promotion_recovery_run_id is required/u);
-	const promoteRevision = namedStep(promote, "Verify current main revision before promotion");
-	assert.match(String(promoteRevision.run), /git merge-base --is-ancestor/u);
-	assert.match(String(releaseRevision.run), /promotion_recovery_source_sha is required/u);
-	assert.equal(releasePlan.outputs.workers, githubExpression("steps.publication.outputs.workers"));
+	const dispatch = workflowJob(workflow, "dispatch-gitops-release");
+	assert.deepEqual(dispatch.needs, ["release-plan", "publish-images", "candidate-status"]);
+	assert.equal(dispatch.environment, undefined);
+	assert.match(String(dispatch.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
+	assert.match(String(dispatch.if), /github\.ref == 'refs\/heads\/main'/u);
+	const token = namedStep(dispatch, "Create GitOps dispatch token");
+	assert.equal(token.with.repositories, "campus-agent-gitops");
+	assert.equal(token.with["permission-actions"], "write");
+	assert.equal(token.with["permission-contents"], undefined);
+	assert.equal(namedStep(releasePlan, "Upload Source release handoff").with.name, "source-release");
 	assert.equal(namedStep(publishImages, "Upload image digests").with["retention-days"], 7);
-	assert.equal(namedStep(publishWorkers, "Upload Worker candidates").with["retention-days"], 7);
-	assert(isObject(workflow.on));
-	assert(isObject(workflow.on.workflow_dispatch));
-	assert(isObject(workflow.on.workflow_dispatch.inputs));
-	assert.equal(workflow.on.workflow_dispatch.inputs.promotion_recovery_run_id.type, "string");
-	assert.equal(workflow.on.workflow_dispatch.inputs.promotion_recovery_source_sha.type, "string");
-	const plan = namedStep(releasePlan, "Select release candidates");
-	assert.match(String(plan.run), /\.sourceBases/u);
-	assert.match(String(plan.run), /\.topologyMigrations/u);
-	assert.doesNotMatch(String(plan.run), /\.kubernetes/u);
-	const promotion = namedStep(promote, "Update GitOps desired state");
-	assert.match(String(promotion.run), /--source-bases "\$SOURCE_BASES"/u);
-	assert.match(String(promotion.run), /--topology-migration-file/u);
-	assert.match(
-		String(promotion.run),
-		/--topology-migration-path "releases\/staging-migrations\/\$\{PROMOTION_SOURCE_SHA\}\.json"/u,
-	);
-	assert.match(String(promotion.env.PROMOTION_SOURCE_SHA), /promotion_recovery_source_sha/u);
-	const recoveryImageDownload = namedStep(promote, "Download image digests");
-	assert.match(String(recoveryImageDownload.if), /outputs\.action/u);
-	assert.equal(
-		recoveryImageDownload.with["run-id"],
-		githubExpression("needs.release-plan.outputs.publication_run_id"),
-	);
-	const recoveryWorkerDownload = namedStep(promote, "Download Worker candidates");
-	assert.match(String(recoveryWorkerDownload.if), /outputs\.action/u);
-	assert.equal(
-		recoveryWorkerDownload.with["run-id"],
-		githubExpression("needs.release-plan.outputs.publication_run_id"),
-	);
-	assert.doesNotMatch(String(promotion.run), /--kubernetes/u);
-	assert(!jobSteps(promote).some((step) => step.name === "Preflight GitOps promotion render"));
-	const deploymentPr = namedStep(promote, "Open GitOps deployment pull request");
-	assert.deepEqual(deploymentPr.env, { LC_ALL: "C" });
-	const installGitOpsTooling = namedStep(promote, "Install GitOps tooling");
-	assert.equal(installGitOpsTooling.run, "pnpm --dir gitops install --frozen-lockfile");
-	assert(!String(installGitOpsTooling.run).includes("--ignore-workspace"));
+	assert.equal(releasePlan.outputs.workers, githubExpression("steps.publication.outputs.workers"));
 });
 
-test("Worker publication builds immutable artifacts without environment credentials", async () => {
-	const workers = workflowJob(
-		await loadWorkflow("execution-runtime-publish.yml"),
-		"publish-workers",
+test("Source dispatches publication without waiting for GitOps or reading Worker packages", async () => {
+	const workflow = await loadWorkflow("execution-runtime-publish.yml");
+	const serialized = JSON.stringify(workflow);
+	assert.doesNotMatch(
+		serialized,
+		/request-worker-input|build-worker-artifact|oras pull|oras push|promote-source|create-pull-request/u,
 	);
-	assert.equal(workers.environment, undefined);
-	const serialized = JSON.stringify(workers);
 	assert.doesNotMatch(
 		serialized,
 		/secrets\.(?:CLOUDFLARE|OBJECT_STORE|APP_API|EDGE_INGRESS|MEMORY)/u,
 	);
-	assert.match(serialized, /request-worker-input/u);
-	assert.match(serialized, /build-worker-artifact/u);
-	assert.match(serialized, /oras push/u);
-	assert.match(serialized, /release-worker-candidates/u);
+	const dispatch = namedStep(
+		workflowJob(workflow, "dispatch-gitops-release"),
+		"Dispatch GitOps publication",
+	);
+	assert.match(String(dispatch.run), /publish-source\.yml\/dispatches/u);
+	assert.doesNotMatch(String(dispatch.run), /sleep|watch|while/u);
 });
 
 test("retention schedules full apply on trusted main and serializes mutations with publication", async () => {
@@ -973,10 +908,10 @@ test("duplicate publication never marks pending or publishes, while reuse can pr
 				"release-plan": { result: "success", outputs },
 				"candidate-status": {
 					result: action === "skip" ? "skipped" : "success",
-					outputs: { approved: "true" },
+					outputs: { approved: action === "skip" ? "" : "true" },
 				},
 				"publish-images": { result: action === "publish" ? "success" : "skipped" },
-				"publish-workers": { result: "skipped" },
+				"dispatch-gitops-release": { result: "skipped" },
 			},
 			github: { ref: "refs/heads/main", event_name: "push" },
 			inputs: { promote: false },
@@ -993,7 +928,10 @@ test("duplicate publication never marks pending or publishes, while reuse can pr
 			condition(workflowJob(workflow, "candidate-status").if, context),
 			action !== "skip",
 		);
-		assert.equal(condition(workflowJob(workflow, "promote").if, context), action !== "skip");
+		assert.equal(
+			condition(workflowJob(workflow, "dispatch-gitops-release").if, context),
+			action !== "skip",
+		);
 	}
 	assert.equal(
 		condition(workflowJob(workflow, "candidate-status").if, {
@@ -1003,32 +941,35 @@ test("duplicate publication never marks pending or publishes, while reuse can pr
 	);
 });
 
-test("promotion narrows reused artifacts to the current selection", async (t) => {
-	const root = await mkdtemp(path.join(os.tmpdir(), "selected-candidates-"));
+test("Source handoff preserves the selected plan and original image producer", async (t) => {
+	const root = await mkdtemp(path.join(os.tmpdir(), "source-handoff-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
-	await mkdir(path.join(root, "worker-candidates"));
-	await writeFile(
-		path.join(root, "image-digests.json"),
-		JSON.stringify({ "model-config": "keep", "agent-runtime": "drop" }),
-	);
-	for (const name of ["app-api-staging", "campus-web-staging"]) {
-		await writeFile(
-			path.join(root, "worker-candidates", `${name}.json`),
-			JSON.stringify({ workerName: name }),
-		);
-	}
 	const step = namedStep(
-		workflowJob(await loadWorkflow("execution-runtime-publish.yml"), "promote"),
-		"Keep only selected candidates",
+		workflowJob(await loadWorkflow("execution-runtime-publish.yml"), "release-plan"),
+		"Write Source release handoff",
 	);
+	const plan = {
+		base: "b".repeat(40),
+		head: "a".repeat(40),
+		images: ["model-config"],
+		workers: [],
+		sourceBases: [],
+		topologyMigrations: [],
+	};
 	execFileSync("bash", ["-e", "-c", String(step.run)], {
 		cwd: root,
-		env: { ...process.env, IMAGES: '["model-config"]', WORKERS: '["app-api-staging"]' },
+		env: {
+			...process.env,
+			PLAN: JSON.stringify(plan),
+			WORKERS: '["app-api-staging"]',
+			IMAGE_RUN_ID: "17",
+		},
 	});
-	assert.deepEqual(JSON.parse(await readFile(path.join(root, "image-digests.json"), "utf8")), {
-		"model-config": "keep",
+	assert.deepEqual(JSON.parse(await readFile(path.join(root, "source-release.json"), "utf8")), {
+		...plan,
+		workers: ["app-api-staging"],
+		imageRunId: 17,
 	});
-	assert.deepEqual(await readdir(path.join(root, "worker-candidates")), ["app-api-staging.json"]);
 });
 
 test("recovery requires both identity inputs before remote queries or candidate status writes", async () => {

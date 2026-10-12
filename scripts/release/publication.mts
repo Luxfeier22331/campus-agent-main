@@ -42,11 +42,7 @@ export interface PublicationDecision {
 	workers?: CandidatePlan["workers"];
 }
 
-export function validatePublicationArtifacts(
-	plan: CandidatePlan,
-	images: unknown,
-	workers: Record<string, unknown>,
-): void {
+export function validatePublicationArtifacts(plan: CandidatePlan, images: unknown): void {
 	if (plan.images.length > 0) {
 		if (!images || typeof images !== "object" || Array.isArray(images)) {
 			throw new Error("Invalid image candidate artifact");
@@ -55,21 +51,6 @@ export function validatePublicationArtifacts(
 			if (!/^sha256:[a-f0-9]{64}$/u.test(String((images as Record<string, unknown>)[name]))) {
 				throw new Error(`Missing or invalid published digest for ${name}`);
 			}
-		}
-	}
-	for (const name of plan.workers) {
-		const candidate = workers[`${name}.json`] as Record<string, unknown> | undefined;
-		if (
-			!candidate ||
-			candidate.workerName !== name ||
-			candidate.sourceSha !== plan.head ||
-			typeof candidate.artifactRef !== "string" ||
-			!candidate.artifactRef.startsWith(
-				`ghcr.io/muc-wiki/campus-agent/worker-${name.replace(/-staging$/u, "")}@sha256:`,
-			) ||
-			!/@sha256:[a-f0-9]{64}$/u.test(candidate.artifactRef)
-		) {
-			throw new Error(`Missing or mismatched published Worker candidate: ${name}`);
 		}
 	}
 }
@@ -121,47 +102,34 @@ export async function decidePublication(
 		const jobs = new Map(attemptJobs.map((job) => [job.name, job.conclusion]));
 		// A new publication attempt may overwrite this run's artifacts, so older
 		// attempts are usable only if the newer attempt did not publish anything.
-		if (
-			["publish-images", "publish-workers"].some((name) => {
-				const result = jobs.get(name);
-				return result !== undefined && result !== "skipped";
-			})
-		) {
+		const imageResult = jobs.get("publish-images");
+		if (imageResult !== undefined && imageResult !== "skipped") {
 			replacedAttempts.add(run.id);
 		}
 		const complete =
 			jobs.get("release-plan") === "success" &&
-			["publish-images", "publish-workers"].every((name) =>
-				["success", "skipped"].includes(jobs.get(name) ?? ""),
-			) &&
-			(jobs.get("candidate-status") === "success" ||
-				["publish-images", "publish-workers"].some((name) => jobs.get(name) === "success"));
+			["success", "skipped"].includes(imageResult ?? "") &&
+			(jobs.get("candidate-status") === "success" || imageResult === "success");
 		const empty =
 			jobs.get("release-plan") === "success" &&
-			["publish-images", "publish-workers", "candidate-status"].every(
+			["publish-images", "candidate-status", "dispatch-gitops-release"].every(
 				(name) => jobs.get(name) === "skipped",
 			);
 		if (!(complete || empty)) {
 			continue;
 		}
-		const handedOff =
-			jobs.get("promote") === "success" &&
-			attemptJobs
-				.find((job) => job.name === "promote")
-				?.steps?.some(
-					(step) =>
-						["Complete staging handoff", "Mark staging promotion pending"].includes(step.name) &&
-						step.conclusion === "success",
-				);
-		if (!input.recoveryRunId && (handedOff || empty)) {
-			return { action: "skip", runId: run.id };
-		}
+		const handedOff = jobs.get("dispatch-gitops-release") === "success";
+		const noCandidates = [
+			input.plan.images,
+			input.plan.workers,
+			input.plan.sourceBases,
+			input.plan.topologyMigrations,
+		].every((items) => items.length === 0);
 		if (
 			!input.recoveryRunId &&
-			((input.plan.images.length > 0 && jobs.get("publish-images") !== "success") ||
-				(input.plan.workers.length > 0 && jobs.get("publish-workers") !== "success"))
+			((empty && noCandidates) || (handedOff && input.plan.base === input.plan.head))
 		) {
-			continue;
+			return { action: "skip", runId: run.id };
 		}
 		const artifacts = await io.artifacts(run.id);
 		const read = async (name: string, needed: boolean) => {
@@ -175,35 +143,55 @@ export async function decidePublication(
 			}
 			return io.readArtifact(run.id, name);
 		};
-		const images = await read("release-image-digests", input.plan.images.length > 0);
-		// Explicit recovery restores the selected publication, including same-SHA
-		// configuration refreshes that are absent from the current source diff.
-		const recoverWorkers =
-			Boolean(input.recoveryRunId) &&
-			(jobs.get("publish-workers") === "success" ||
-				artifacts.some((artifact) => artifact.name === "release-worker-candidates"));
-		const workers = await read(
-			"release-worker-candidates",
-			input.plan.workers.length > 0 || recoverWorkers,
-		);
-		const selectedWorkers = recoverWorkers
-			? [
-					...new Set([
-						...input.plan.workers,
-						...parseWorkerCandidates(
-							JSON.stringify(Object.keys(workers).map((file) => file.replace(/\.json$/u, ""))),
-						),
-					]),
-				].sort()
-			: input.plan.workers;
-		if (recoverWorkers && Object.keys(workers).length === 0) {
-			throw new Error("Published Worker candidate artifact is empty");
+		let handoff: Record<string, unknown> | undefined;
+		if (handedOff || input.recoveryRunId) {
+			const value = (await read("source-release", true))["source-release.json"];
+			if (
+				!value ||
+				typeof value !== "object" ||
+				Array.isArray(value) ||
+				(value as Record<string, unknown>).head !== input.plan.head ||
+				typeof (value as Record<string, unknown>).base !== "string" ||
+				!/^[0-9a-f]{40}$/.test(String((value as Record<string, unknown>).base))
+			) {
+				throw new Error("Missing or mismatched Source release handoff");
+			}
+			handoff = value as Record<string, unknown>;
+			// A dispatch only completes the plan for that release cursor. A newer
+			// cursor needs the freshly computed plan even for the same Source SHA.
+			if (!input.recoveryRunId && handedOff && handoff.base === input.plan.base) {
+				return { action: "skip", runId: run.id };
+			}
 		}
-		validatePublicationArtifacts(
-			{ ...input.plan, workers: selectedWorkers },
-			images["image-digests.json"],
-			workers,
-		);
+		if (
+			!input.recoveryRunId &&
+			input.plan.images.length > 0 &&
+			jobs.get("publish-images") !== "success"
+		) {
+			continue;
+		}
+
+		const images = await read("release-image-digests", input.plan.images.length > 0);
+		let selectedWorkers = input.plan.workers;
+		if (input.recoveryRunId && handoff) {
+			selectedWorkers = [
+				...new Set([...selectedWorkers, ...parseWorkerCandidates(JSON.stringify(handoff.workers))]),
+			].sort();
+		}
+		// Moving the cursor can expose a revert absent from the original cumulative
+		// diff. Such an image has no reusable candidate and must be published.
+		if (!input.recoveryRunId && handoff && handoff.base !== input.plan.base) {
+			const digests = images["image-digests.json"];
+			if (
+				digests &&
+				typeof digests === "object" &&
+				!Array.isArray(digests) &&
+				input.plan.images.some((name) => !Object.hasOwn(digests, name))
+			) {
+				return { action: "publish", runId: input.currentRunId };
+			}
+		}
+		validatePublicationArtifacts(input.plan, images["image-digests.json"]);
 		return {
 			action: "reuse",
 			runId: run.id,
