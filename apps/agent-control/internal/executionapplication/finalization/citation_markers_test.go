@@ -2,20 +2,20 @@ package finalization
 
 import (
 	"fmt"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 )
 
 func TestGroupedCitationClosure(t *testing.T) {
 	first, second := citationSearchItem("notice", "a"), citationSearchItem("notice", "b")
 	payload := map[string]any{"tool_results": []map[string]any{
-		citationToolResult([]campussearch.SearchResultItem{first}, 1),
-		citationToolResult([]campussearch.SearchResultItem{second}, 5),
+		citationToolResult([]searchapi.SearchResultItem{first}, 1),
+		citationToolResult([]searchapi.SearchResultItem{second}, 5),
 	}}
 	for _, answer := range []string{"答案[5,1,5]", "答案[5, 1, 5]"} {
 		closure, err := (&FinalizationService{}).WorkflowCitationClosureForFinalization(payload, answer)
@@ -97,7 +97,7 @@ func TestGroundedRawMarkers(t *testing.T) {
 func TestGroundedMixedCampusGroup(t *testing.T) {
 	answer := "😀学校[1, 5]"
 	payload := map[string]any{
-		"tool_results": []map[string]any{citationToolResult([]campussearch.SearchResultItem{citationSearchItem("notice", "a")}, 1)},
+		"tool_results": []map[string]any{citationToolResult([]searchapi.SearchResultItem{citationSearchItem("notice", "a")}, 1)},
 		"web_evidence": []executioncontract.WebEvidence{
 			{Title: "学校", URL: "https://muc.edu.cn/", Excerpt: "😀学校[1,", StartIndex: 0, EndIndex: 6},
 			{Title: "校区", URL: "https://muc.edu.cn/campus", Excerpt: "学校[1, 5]", StartIndex: 1, EndIndex: 9},
@@ -126,7 +126,7 @@ func TestAdjacentCitationClosure(t *testing.T) {
 	evidence := []executioncontract.WorkflowEvidence{}
 	for _, index := range indexes {
 		item := citationSearchItem("notice", fmt.Sprint(index))
-		results = append(results, citationToolResult([]campussearch.SearchResultItem{item}, index))
+		results = append(results, citationToolResult([]searchapi.SearchResultItem{item}, index))
 		evidence = append(evidence, executioncontract.WorkflowEvidence{ID: fmt.Sprint(index), Source: executioncontract.WorkflowSourceWebSearch, Title: "学校", Excerpt: "资料", URL: fmt.Sprintf("https://muc.edu.cn/%d", index), CitationIndex: index})
 	}
 	answer := "答案[1][2][3][5]；补充[2][8]"

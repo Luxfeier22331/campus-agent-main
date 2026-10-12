@@ -43,7 +43,7 @@ func TestEraseOrderingPostgres(t *testing.T) {
 		t.Skip("MEMORY_TEST_DATABASE_URL required")
 	}
 	ctx := t.Context()
-	store, err := memorypersistence.NewPostgresStateStore(ctx, memorypersistence.PostgresStateStoreOptions{DatabaseURL: url, Schema: "memory"})
+	store, err := memorypersistence.NewPostgresStateStore(ctx, memorypersistence.PostgresStateStoreOptions{DatabaseURL: url})
 	if err != nil {
 		t.Fatal(err)
 	}

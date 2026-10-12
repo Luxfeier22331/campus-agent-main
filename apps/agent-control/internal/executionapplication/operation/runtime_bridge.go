@@ -13,8 +13,8 @@ import (
 
 // PrepareRuntimeOperation builds the admitted input without claiming a model
 // invocation. Model-turn receipts are claimed separately by the Runtime Worker.
-func (s *OperationService) PrepareRuntimeOperation(ctx context.Context, req OperationRequest) (executionapplication.AgentRuntimeRequest, error) {
-	run, err := s.TemporalActivityRun(ctx, req.RequestID)
+func (s *RuntimeInputService) PrepareRuntimeOperation(ctx context.Context, req OperationRequest) (executionapplication.AgentRuntimeRequest, error) {
+	run, err := s.Projection.TemporalActivityRun(ctx, req.RequestID)
 	if err != nil {
 		return executionapplication.AgentRuntimeRequest{}, err
 	}
@@ -24,7 +24,7 @@ func (s *OperationService) PrepareRuntimeOperation(ctx context.Context, req Oper
 	if err := execution.ValidateAdmissionSnapshot(req.AdmissionSnapshot); err != nil {
 		return executionapplication.AgentRuntimeRequest{}, err
 	}
-	run, err = s.BeginWorkflowRun(ctx, run, time.Now().UTC())
+	run, err = s.Projection.BeginWorkflowRun(ctx, run, time.Now().UTC())
 	if err != nil {
 		return executionapplication.AgentRuntimeRequest{}, err
 	}
@@ -53,9 +53,12 @@ func (s *OperationService) PrepareRuntimeOperation(ctx context.Context, req Oper
 		req.Stream = s.streamModelAnswers()
 	}
 	startedAt := time.Now().UTC()
-	if err := s.ProjectStep(ctx, activityprojection.StepProjection{
+	if evidence := s.Projection.InvocationEvidence(ctx); evidence.Present {
+		startedAt = evidence.StartedTime
+	}
+	if err := s.Projection.ProjectStep(ctx, activityprojection.StepProjection{
 		Run: run, Attempt: 1, Status: "started", StepID: req.StepID, StepKind: req.StepKind,
-		TaskQueue: "campus-agent.agent.model.v1", WorkerID: s.WorkerID,
+		WorkerID:  s.Projection.WorkerID,
 		StartedAt: startedAt, UpdatedAt: startedAt,
 		ProjectionRef: activityprojection.WorkflowOperationResultRef(run.RequestID, req.StepID),
 		Payload:       map[string]any{"operation": string(req.Operation), "visible_function_tool_names": req.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames},
@@ -63,4 +66,17 @@ func (s *OperationService) PrepareRuntimeOperation(ctx context.Context, req Oper
 		return executionapplication.AgentRuntimeRequest{}, err
 	}
 	return WorkflowOperationRuntimeRequest(run, req, conversation, limits, 1), nil
+}
+
+func (s *RuntimeInputService) LoadToolContext(ctx context.Context, requestID string) (map[string]any, time.Time, error) {
+	run, err := s.Projection.RunProjectionStore.GetRun(ctx, requestID)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	payload, err := s.LoadExecutionPayload(ctx, run)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	payload["user_id"] = run.OwnerUserID
+	return payload, run.CreatedAt, nil
 }

@@ -168,7 +168,7 @@ describe("Agent Temporal orchestration", () => {
 	}, 30_000);
 	it("executes dependencies, replans, then synthesizes references", async () => {
 		const step = {
-			id: "first",
+			id: "step.first",
 			objective: "find notice",
 			candidateSources: ["campus_search" as const],
 			dependsOn: [],
@@ -206,17 +206,22 @@ describe("Agent Temporal orchestration", () => {
 			"replan",
 			"synthesize",
 		]);
-		expect(result.stages.at(-1)?.completedRefs).toEqual(["task.step.first"]);
+		expect(result.stages.at(-1)?.completedRefs).toEqual(["task.step.step.first"]);
 		expect(result.finalized).toEqual(["answer.synthesize"]);
 	}, 30_000);
 	it("continues the admitted plan when Control rejects a replan", async () => {
 		const first = {
-			id: "first",
+			id: "step.first",
 			objective: "find date",
 			candidateSources: ["campus_search" as const],
 			dependsOn: [],
 		};
-		const second = { ...first, id: "second", objective: "find location", dependsOn: ["first"] };
+		const second = {
+			...first,
+			id: "step.second",
+			objective: "find location",
+			dependsOn: ["step.first"],
+		};
 		const result = await run((s) => {
 			if (s.operation === "solve") {
 				return decision(s.key, {
@@ -228,7 +233,7 @@ describe("Agent Temporal orchestration", () => {
 				return decision(s.key, {
 					evidenceCount: 1,
 					sourceSucceeded: true,
-					remainingFacts: s.step?.id === "first" ? ["location"] : [],
+					remainingFacts: s.step?.id === "step.first" ? ["location"] : [],
 				});
 			}
 			if (s.operation === "replan") {
@@ -238,7 +243,7 @@ describe("Agent Temporal orchestration", () => {
 		});
 		expect(
 			result.stages.filter((s) => s.operation === "execute_step").map((s) => s.step?.id),
-		).toEqual(["first", "second"]);
+		).toEqual(["step.first", "step.second"]);
 		expect(result.finalized).toEqual(["answer.synthesize"]);
 		expect(result.failures).toEqual([]);
 	}, 30_000);

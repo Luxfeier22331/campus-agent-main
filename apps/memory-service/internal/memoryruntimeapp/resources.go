@@ -89,7 +89,7 @@ type Resources struct {
 }
 
 func NewResources(ctx context.Context, c Config) Resources {
-	store, err := memorypersistence.NewPostgresStateStore(ctx, memorypersistence.PostgresStateStoreOptions{DatabaseURL: c.DatabaseURL, Schema: "memory"})
+	store, err := memorypersistence.NewPostgresStateStore(ctx, memorypersistence.PostgresStateStoreOptions{DatabaseURL: c.DatabaseURL})
 	provider, providerErr := hindsightadapter.New(hindsightadapter.Options{BaseURL: c.HindsightURL, APISecret: c.HindsightSecret, OwnerSalt: c.OwnerSalt, Timeout: c.Timeout})
 	var rec memoryapplication.MemoryRecaller
 	var cmd memoryapplication.MemoryCommandExecutor

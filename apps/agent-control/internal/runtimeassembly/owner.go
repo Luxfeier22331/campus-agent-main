@@ -9,12 +9,12 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/outboundadapter"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalclient"
 )
 
 type resources struct {
 	execution          executionResources
-	temporalStarter    *temporalruntime.Starter
+	temporalStarter    *temporalclient.Starter
 	temporalStarterErr error
 	closeOnce          sync.Once
 }
@@ -38,13 +38,13 @@ func (r *resources) Close() {
 	})
 }
 
-func newTemporalStarter(ctx context.Context, cfg config.Config) (*temporalruntime.Starter, error) {
+func newTemporalStarter(ctx context.Context, cfg config.Config) (*temporalclient.Starter, error) {
 	if strings.TrimSpace(cfg.TemporalAddress) == "" && strings.TrimSpace(cfg.TemporalNamespace) == "" {
-		return nil, temporalruntime.ErrTemporalStarterNotConfigured
+		return nil, temporalclient.ErrTemporalStarterNotConfigured
 	}
 	connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return NewStarter(connectCtx, temporalruntime.StarterOptions{
+	return NewStarter(connectCtx, temporalclient.StarterOptions{
 		ActivityTaskQueues:       []string{"campus-agent.agent.model.v1", "campus-agent.agent.tool.v1"},
 		Address:                  cfg.TemporalAddress,
 		Namespace:                cfg.TemporalNamespace,

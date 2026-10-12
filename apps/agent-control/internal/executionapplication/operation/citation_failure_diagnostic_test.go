@@ -2,24 +2,20 @@ package operation
 
 import (
 	"encoding/json"
-	"strings"
-	"testing"
-	"time"
-
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
+	"testing"
 )
 
 func TestRuntimeCitationErrorProjection(t *testing.T) {
 	citation := json.RawMessage(`{"schema_version":1,"validation_stage":"provider_annotation","start":0,"end":9,"text_length":4,"offset_unit":"utf16_code_unit"}`)
-	for _, cause := range []error{executionapplication.AgentRuntimeFailure{Code: "citation_validation_failed", Reason: "span_out_of_bounds", Citation: citation, Operation: "workflow.solve"}, executionapplication.AgentRuntimeFailure{Code: "citation_validation_failed", Reason: "span_out_of_bounds", Citation: citation, Operation: "workflow.solve"}} {
-		payload := map[string]any{"failure": map[string]any{"code": "citation_validation_failed"}}
-		AddWorkflowFailureEvidence(payload, cause)
-		failure := payload["failure"].(map[string]any)
-		if failure["reason"] != "span_out_of_bounds" || string(failure["citation"].(json.RawMessage)) != string(citation) {
-			t.Fatalf("facts lost: %#v", failure)
-		}
+	response := executionapplication.AgentRuntimeResult{Status: "failed", Failure: &executioncontract.ExecutionFailure{Code: "citation_validation_failed", Reason: "span_out_of_bounds", Citation: citation, Operation: "workflow.solve"}}
+	output, err := WorkflowOperationOutputFromRuntimeResponse(response, executioncontract.WorkflowOperationSolve, "result")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.Failure.Reason != "span_out_of_bounds" || string(output.Failure.Citation) != string(citation) {
+		t.Fatalf("facts lost: %#v", output.Failure)
 	}
 	normalized := normalizedRuntimeFailure(&executioncontract.ExecutionFailure{Code: "citation_validation_failed", Reason: "missing_evidence", Citation: json.RawMessage(`{"schema_version":2,"private":"not persisted"}`)})
 	if normalized.Code != "citation_validation_failed" || string(normalized.Citation) != `{"schema_version":0}` {
@@ -27,25 +23,19 @@ func TestRuntimeCitationErrorProjection(t *testing.T) {
 	}
 }
 
-func TestCitationDiagnosticRuntimeWire(t *testing.T) {
-	body := `{"code":"citation_validation_failed","reason":"span_out_of_bounds","citation":{"schema_version":1,"validation_stage":"provider_annotation","start":0,"end":9,"text_length":4,"offset_unit":"utf16_code_unit"},"operation":"workflow.solve"}`
-	for _, stream := range []bool{false, true} {
-		adapter := &OperationService{AgentRuntimeClient: payloadRuntimeClient{body: `{"error":` + body + `}`, status: 422}}
-		run := execution.DurableRun{RequestID: "citation-wire", CreatedAt: time.Now()}
-		var err error
-		if stream {
-			_, err = adapter.ConsumeWorkflowRuntimeStream(t.Context(), run, executioncontract.WorkflowOperationSolve, runtimeEvents(strings.NewReader("event: error\ndata: "+body+"\n\n")))
-		} else {
-			_, err = adapter.CallWorkflowOperationRuntime(t.Context(), run, executioncontract.WorkflowOperationSolve, "", executionapplication.AgentRuntimeRequest{}, 60000, false)
+func TestRuntimeFailureProjectionPreservesSourceStatusAndOperation(t *testing.T) {
+	for _, status := range []int{400, 502} {
+		response := executionapplication.AgentRuntimeResult{Status: "failed", Failure: &executioncontract.ExecutionFailure{
+			Code: "provider_http_failed", Operation: "workflow.execute_step", HTTPStatus: status,
+			Detail: "provider rejection", InvocationID: "req:step.a",
+		}}
+		output, err := WorkflowOperationOutputFromRuntimeResponse(response, executioncontract.WorkflowOperationExecuteStep, "result")
+		if err != nil {
+			t.Fatal(err)
 		}
-		if err == nil {
-			t.Fatal("expected runtime rejection")
-		}
-		payload := map[string]any{"failure": map[string]any{"code": "citation_validation_failed"}}
-		AddWorkflowFailureEvidence(payload, err)
-		failure := payload["failure"].(map[string]any)
-		if failure["reason"] != "span_out_of_bounds" || failure["citation"] == nil {
-			t.Fatalf("stream=%v lost wire facts: %#v (%v)", stream, failure, err)
+		failure := output.Failure
+		if failure.HTTPStatus != status || failure.Operation != "workflow.execute_step" || failure.Detail != "provider rejection" || failure.InvocationID != "req:step.a" {
+			t.Fatalf("failure evidence = %#v", failure)
 		}
 	}
 }

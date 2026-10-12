@@ -107,7 +107,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 		}
 		if (args[0] === "diff") {
 			return result({
-				stdout: changed("infra/k8s/execution-runtime/base/runtime/deployment.yaml"),
+				stdout: changed("infra/k8s/campus-search/base/deployment.yaml"),
 			});
 		}
 		return result();
@@ -116,7 +116,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 		base: BASE,
 		head: HEAD,
 		images: [],
-		sourceBases: ["infra/k8s/execution-runtime/base/runtime"],
+		sourceBases: ["infra/k8s/campus-search/base"],
 		topologyMigrations: [],
 		workers: ["app-api-staging", "campus-web-staging"],
 	});

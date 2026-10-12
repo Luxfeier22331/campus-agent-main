@@ -8,6 +8,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
@@ -88,10 +89,10 @@ require (
 	google.golang.org/grpc v1.83.2 // indirect
 )
 
-require github.com/MUC-WIKI/campus-agent/apps/campus-search v0.0.0
-
-replace github.com/MUC-WIKI/campus-agent/apps/campus-search => ../campus-search
-
 require github.com/MUC-WIKI/campus-agent/packages/memory-api-go v0.0.0
 
 replace github.com/MUC-WIKI/campus-agent/packages/memory-api-go => ../../packages/memory-api-go
+
+require github.com/MUC-WIKI/campus-agent/packages/search-api-go v0.0.0
+
+replace github.com/MUC-WIKI/campus-agent/packages/search-api-go => ../../packages/search-api-go

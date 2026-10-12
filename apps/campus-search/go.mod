@@ -15,3 +15,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 )
+
+require github.com/MUC-WIKI/campus-agent/packages/search-api-go v0.0.0
+
+replace github.com/MUC-WIKI/campus-agent/packages/search-api-go => ../../packages/search-api-go

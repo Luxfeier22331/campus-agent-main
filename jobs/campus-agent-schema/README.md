@@ -34,8 +34,8 @@ pnpm --dir jobs/campus-agent-schema new add_example_column
 名称应为小写 snake_case；同名同秒创建会失败，不覆盖已有文件。填入 SQL 后同步所属应用 schema
 并运行迁移集成测试。
 
-遗漏的个人记忆迁移修复涉及开发数据硬切，先按 `docs/runbooks/runtime/execution.md` 完成目标环境维护步骤；
-不能直接把自动补跑用于仍在写入的旧个人记忆服务。
+个人记忆状态由独立数据库的 `memory` schema 拥有，使用 `--target memory` 及
+`memory_service` owner 执行迁移。主库新迁移退役旧状态表，不复制或重置独立 Memory 数据。
 
 本地运行：
 

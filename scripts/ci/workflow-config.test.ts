@@ -675,7 +675,7 @@ test("pull request validation keeps the shared required-check contract", async (
 test("Source diff consumers check out complete immutable history", async () => {
 	for (const [workflowName, jobName, persistCredentials] of [
 		["pr.yml", "repository-validation", false],
-		["execution-runtime-publish.yml", "release-plan", true],
+		["staging-candidate-publish.yml", "release-plan", true],
 	] as const) {
 		const workflow = await loadWorkflow(workflowName);
 		const checkouts = sourceCheckouts(workflow, jobName);
@@ -731,7 +731,7 @@ test("scheduled dependency evidence has a bounded read-only lane", async () => {
 });
 
 test("candidate publication keeps permissions, runners, and job dependencies explicit", async () => {
-	const workflow = await loadWorkflow("execution-runtime-publish.yml");
+	const workflow = await loadWorkflow("staging-candidate-publish.yml");
 	for (const name of ["release-plan", "publish-images"]) {
 		const steps = jobSteps(workflowJob(workflow, name));
 		const guard = steps.findIndex((step) => String(step.name).startsWith("Verify current main"));
@@ -791,7 +791,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 });
 
 test("Source dispatches publication without waiting for GitOps or reading Worker packages", async () => {
-	const workflow = await loadWorkflow("execution-runtime-publish.yml");
+	const workflow = await loadWorkflow("staging-candidate-publish.yml");
 	const serialized = JSON.stringify(workflow);
 	assert.doesNotMatch(
 		serialized,
@@ -891,7 +891,7 @@ test("formal publication delegates provider validation to GitOps", async () => {
 });
 
 test("duplicate publication never marks pending or publishes, while reuse can promote", async () => {
-	const workflow = await loadWorkflow("execution-runtime-publish.yml");
+	const workflow = await loadWorkflow("staging-candidate-publish.yml");
 	const plan = workflowJob(workflow, "release-plan");
 	for (const action of ["publish", "reuse", "skip"]) {
 		const outputs = {
@@ -945,7 +945,7 @@ test("Source handoff preserves the selected plan and original image producer", a
 	const root = await mkdtemp(path.join(os.tmpdir(), "source-handoff-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
 	const step = namedStep(
-		workflowJob(await loadWorkflow("execution-runtime-publish.yml"), "release-plan"),
+		workflowJob(await loadWorkflow("staging-candidate-publish.yml"), "release-plan"),
 		"Write Source release handoff",
 	);
 	const plan = {
@@ -973,7 +973,7 @@ test("Source handoff preserves the selected plan and original image producer", a
 });
 
 test("recovery requires both identity inputs before remote queries or candidate status writes", async () => {
-	const job = workflowJob(await loadWorkflow("execution-runtime-publish.yml"), "release-plan");
+	const job = workflowJob(await loadWorkflow("staging-candidate-publish.yml"), "release-plan");
 	const guard = namedStep(job, "Verify current main revision");
 	const steps = jobSteps(job);
 	assert(steps.indexOf(guard) < steps.indexOf(namedStep(job, "Resolve publication reuse")));

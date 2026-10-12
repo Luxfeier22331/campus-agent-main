@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"io"
 	"log/slog"
 	"math"
@@ -84,7 +85,7 @@ func SHA256TextRef(value string) string {
 
 type campusDocsCandidate struct {
 	dedupKey   string
-	result     campussearch.SearchResultItem
+	result     searchapi.SearchResultItem
 	diagnostic *campussearch.Candidate
 }
 
@@ -182,7 +183,7 @@ func (client *campusDocsHTTPClient) Search(
 	index campussearch.Index,
 	queries campussearch.SearchQuery,
 	resultLimit int,
-) ([]campussearch.SearchResultItem, error) {
+) ([]searchapi.SearchResultItem, error) {
 	query := strings.TrimSpace(queries.RetrievalQuery)
 	rerankQuery := strings.TrimSpace(queries.RerankQuery)
 	observer := campussearch.SearchObservation(ctx)
@@ -269,7 +270,7 @@ func (client *campusDocsHTTPClient) Search(
 		snapshot.Durations["selection"] = 0
 		snapshot.FailedStage = ""
 		observer.Phase("selected")
-		return []campussearch.SearchResultItem{}, nil
+		return []searchapi.SearchResultItem{}, nil
 	}
 	started = time.Now()
 	stage, snapshot.FailedStage = "rerank", "rerank"
@@ -295,7 +296,7 @@ func (client *campusDocsHTTPClient) Search(
 		excluded[ref] = true
 	}
 	snapshot.SourceGroupedCount = len(rankedCandidates)
-	results := make([]campussearch.SearchResultItem, 0, resultLimit)
+	results := make([]searchapi.SearchResultItem, 0, resultLimit)
 	characterCount := 0
 	type sourceCap struct {
 		noticeCount map[string]int
@@ -345,7 +346,7 @@ func (client *campusDocsHTTPClient) Search(
 			continue
 		}
 		textLength := utf8.RuneCountInString(candidate.result.Text)
-		if characterCount+textLength > campussearch.EvidenceCharBudget {
+		if characterCount+textLength > searchapi.EvidenceCharBudget {
 			if candidate.diagnostic != nil {
 				candidate.diagnostic.ExclusionReason = "evidence_char_budget"
 			}
@@ -370,7 +371,7 @@ func (client *campusDocsHTTPClient) Search(
 			break
 		}
 		textLength := utf8.RuneCountInString(candidate.result.Text)
-		if characterCount+textLength > campussearch.EvidenceCharBudget {
+		if characterCount+textLength > searchapi.EvidenceCharBudget {
 			if candidate.diagnostic != nil {
 				candidate.diagnostic.ExclusionReason = "evidence_char_budget"
 			}
@@ -569,8 +570,8 @@ func campusDocsCandidateFromQdrantPoint(
 			return campusDocsCandidate{}, errors.New("campus docs Qdrant version routing payload is required")
 		}
 	}
-	if !campussearch.ValidVersionSlug(required["version_slug"]) ||
-		!campussearch.ValidVersionedSectionRef(required["section_ref"], required["version_slug"]) {
+	if !searchapi.ValidVersionSlug(required["version_slug"]) ||
+		!searchapi.ValidVersionedSectionRef(required["section_ref"], required["version_slug"]) {
 		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload section_ref is invalid")
 	}
 	if !ValidSHA256Ref(required["text_sha256"]) ||
@@ -583,17 +584,17 @@ func campusDocsCandidateFromQdrantPoint(
 	if math.IsNaN(point.Score) || math.IsInf(point.Score, 0) {
 		return campusDocsCandidate{}, errors.New("campus docs Qdrant score is invalid")
 	}
-	rootUnitIDs, ok := campussearch.DecodeRootUnitIDs(payload["root_unit_ids"])
+	rootUnitIDs, ok := searchapi.DecodeRootUnitIDs(payload["root_unit_ids"])
 	if !ok {
 		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload root_unit_ids is invalid")
 	}
-	if textLength := utf8.RuneCountInString(required["text"]); textLength < 1 || textLength > campussearch.EvidenceCharBudget {
+	if textLength := utf8.RuneCountInString(required["text"]); textLength < 1 || textLength > searchapi.EvidenceCharBudget {
 		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload text length is invalid")
 	}
 	dedupKey := strings.Join([]string{index.Collection, required["chunk_id"], required["text_sha256"]}, "\x00")
 	return campusDocsCandidate{
 		dedupKey: dedupKey,
-		result: campussearch.SearchResultItem{
+		result: searchapi.SearchResultItem{
 			ResultRef:    "result://" + strings.TrimPrefix(SHA256TextRef(dedupKey), "sha256:"),
 			SourceKind:   "document",
 			DocumentID:   required["document_id"],
@@ -632,7 +633,7 @@ func campusNoticeCandidateFromQdrantPoint(
 	if required["schema_version"] != "campus_rag_point.v1" && required["schema_version"] != "campus_rag_point.v2" && required["schema_version"] != "campus_rag_point.v3" {
 		return campusDocsCandidate{}, fmt.Errorf("campus notice Qdrant payload schema %q is unsupported", required["schema_version"])
 	}
-	if !campussearch.ValidNoticeCitationHrefForNoticeID(required["citation_href"], required["notice_id"]) ||
+	if !searchapi.ValidNoticeCitationHrefForNoticeID(required["citation_href"], required["notice_id"]) ||
 		!ValidSHA256Ref(required["text_sha256"]) ||
 		SHA256TextRef(required["text"]) != required["text_sha256"] ||
 		!ValidSHA256Ref(required["retrieval_text_sha256"]) {
@@ -641,7 +642,7 @@ func campusNoticeCandidateFromQdrantPoint(
 	if math.IsNaN(point.Score) || math.IsInf(point.Score, 0) {
 		return campusDocsCandidate{}, errors.New("campus notice Qdrant score is invalid")
 	}
-	if textLength := utf8.RuneCountInString(required["text"]); textLength < 1 || textLength > campussearch.EvidenceCharBudget {
+	if textLength := utf8.RuneCountInString(required["text"]); textLength < 1 || textLength > searchapi.EvidenceCharBudget {
 		return campusDocsCandidate{}, errors.New("campus notice Qdrant payload text length is invalid")
 	}
 	releasedAt := FirstNonEmptyText(payload["released_at"])
@@ -655,7 +656,7 @@ func campusNoticeCandidateFromQdrantPoint(
 	dedupKey := strings.Join([]string{index.Collection, "notice", required["chunk_id"], required["text_sha256"]}, "\x00")
 	return campusDocsCandidate{
 		dedupKey: dedupKey,
-		result: campussearch.SearchResultItem{
+		result: searchapi.SearchResultItem{
 			CitationHref: required["citation_href"],
 			NoticeID:     required["notice_id"],
 			ReleasedAt:   releasedAt,

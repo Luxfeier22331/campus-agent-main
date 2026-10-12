@@ -439,8 +439,6 @@ export function renderLocalEnvironmentFiles(input: {
 
 			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
 			MEMORY_INTERNAL_SHARED_SECRET: localSecrets?.memoryInternalSecret ?? "",
-			RETRIEVAL_BASE_URL: `http://127.0.0.1:${runtimePorts.campusSearch}`,
-			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			EXECUTION_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,

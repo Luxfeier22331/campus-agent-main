@@ -5,7 +5,7 @@
 		"dev": "bash scripts/dev.sh",
 		"native:format": "golangci-lint fmt --diff",
 		"native:lint": "golangci-lint run ./...",
-		"native:test": "go test ./...",
+		"native:test": "go test ./... ../../packages/search-api-go/...",
 		"native:vet": "go vet ./..."
 	}
 }

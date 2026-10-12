@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/runtimeapi"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type runtimeTestPayloads struct {
@@ -36,7 +38,9 @@ func (s *runtimeTestPayloads) GetRuntimePayload(_ context.Context, id, ref strin
 }
 func runtimePost(t *testing.T, s *runtimeapi.Server, action string, v any) *httptest.ResponseRecorder {
 	t.Helper()
-	data, e := json.Marshal(v)
+	request := v.(map[string]any)
+	request["activity"] = map[string]any{"workflow_id": "test", "temporal_run_id": "test", "activity_id": action, "activity_type": action, "activity_attempt": 1, "task_queue": "test", "scheduled_at": time.Now().UTC(), "started_at": time.Now().UTC()}
+	data, e := json.Marshal(request)
 	require.NoError(t, e)
 	r := httptest.NewRequestWithContext(t.Context(), "POST", "/internal/agent-runtime/"+action, strings.NewReader(string(data)))
 	r.Header.Set("x-agent-runtime-auth", "test")
@@ -51,7 +55,7 @@ func TestRuntimeAPICitationFailureIsPermanent(t *testing.T) {
 	data, e := json.Marshal(in.WorkflowResult)
 	require.NoError(t, e)
 	require.NoError(t, p.PutRuntimePayload(t.Context(), in.RequestID, "answer", data))
-	server := &runtimeapi.Server{SharedSecret: "test", Finalization: a.FinalizationAdapter, Store: p}
+	server := &runtimeapi.Server{SharedSecret: "test", ActivityStore: runtimeActivityStore{StepProjectionStore: store}, Finalization: a.FinalizationAdapter, Store: p}
 	req := map[string]any{"request_id": in.RequestID, "ref": "answer", "operation_request": map[string]any{"admission_snapshot": in.AdmissionSnapshot}}
 	w := runtimePost(t, server, "finalize", req)
 	require.Equal(t, 422, w.Code, w.Body.String())
@@ -102,4 +106,12 @@ func TestFinalizationMemoryStepOwnership(t *testing.T) {
 			require.Equal(t, !external, found)
 		})
 	}
+}
+
+type runtimeActivityStore struct {
+	executionapplication.StepProjectionStore
+}
+
+func (s runtimeActivityStore) GetWorkflowStartIntent(context.Context, string) (execution.WorkflowStartIntent, error) {
+	return execution.WorkflowStartIntent{WorkflowID: "test", TemporalRunID: "test", State: execution.LifecycleIntentStateConfirmed}, nil
 }

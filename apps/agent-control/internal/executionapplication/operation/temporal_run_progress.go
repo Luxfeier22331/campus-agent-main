@@ -7,7 +7,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 )
 
-func (s *OperationService) AppendTemporalRunProgress(
+func (s *RunProjectionService) AppendTemporalRunProgress(
 	ctx context.Context,
 	run execution.DurableRun,
 	phase execution.DurableRunProgressPhase,

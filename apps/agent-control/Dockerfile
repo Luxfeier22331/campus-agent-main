@@ -11,16 +11,15 @@ ENV GOPROXY=${GOPROXY} \
   GOSUMDB=${GOSUMDB}
 
 WORKDIR /src
+COPY packages/search-api-go/ packages/search-api-go/
 
 COPY apps/agent-control/go.mod apps/agent-control/go.sum apps/agent-control/
 COPY packages/memory-api-go/ packages/memory-api-go/
-COPY apps/campus-search/go.mod apps/campus-search/go.sum apps/campus-search/
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod cd apps/agent-control && go mod download
 
 COPY apps/agent-control/cmd apps/agent-control/cmd
 COPY apps/agent-control/internal apps/agent-control/internal
 
-COPY apps/campus-search/campussearch apps/campus-search/campussearch
 COPY configs/runtime/tool-function-schemas.v4.json /src/configs/runtime/tool-function-schemas.v4.json
 COPY configs/runtime/tools.v7.json /src/configs/runtime/tools.v7.json
 COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts/fixtures/tool_execution_contract

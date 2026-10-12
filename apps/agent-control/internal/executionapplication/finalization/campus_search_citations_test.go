@@ -1,12 +1,12 @@
 package finalization
 
 import (
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 )
 
 func TestCampusSearchRepeatedResultsFinalize(t *testing.T) {
@@ -16,9 +16,9 @@ func TestCampusSearchRepeatedResultsFinalize(t *testing.T) {
 			other := citationSearchItem(kind, "b")
 			// Keep the same document/notice URL: only result_ref determines merging.
 			agentResult := map[string]any{"tool_results": []map[string]any{
-				citationToolResult([]campussearch.SearchResultItem{first, other}, 1),
-				citationToolResult([]campussearch.SearchResultItem{first}, 5),
-				citationToolResult([]campussearch.SearchResultItem{other}, 11),
+				citationToolResult([]searchapi.SearchResultItem{first, other}, 1),
+				citationToolResult([]searchapi.SearchResultItem{first}, 5),
+				citationToolResult([]searchapi.SearchResultItem{other}, 11),
 			}}
 			for _, tc := range []struct {
 				name, answer, linked string
@@ -68,13 +68,13 @@ func TestCampusSearchCitationValidationRemainsStrict(t *testing.T) {
 		name, answer, errorText string
 		calls                   []map[string]any
 	}{
-		{"within call", "[1]", "result_ref is duplicated within one call", []map[string]any{citationToolResult([]campussearch.SearchResultItem{item, item}, 1)}},
-		{"across call index", "[1]", "citation_index 1 is duplicated", []map[string]any{citationToolResult([]campussearch.SearchResultItem{item}, 1), citationToolResult([]campussearch.SearchResultItem{other}, 1)}},
-		{"unknown", "[2]", "引用编号没有对应证据", []map[string]any{citationToolResult([]campussearch.SearchResultItem{item}, 1)}},
-		{"zero", "[0]", "引用标记非法", []map[string]any{citationToolResult([]campussearch.SearchResultItem{item}, 1)}},
-		{"out of range", "[11]", "引用编号没有对应证据", []map[string]any{citationToolResult([]campussearch.SearchResultItem{item}, 1)}},
-		{"invalid result index", "[0]", "result fields are invalid", []map[string]any{citationToolResult([]campussearch.SearchResultItem{item}, 0)}},
-		{"source identity", "[1]", "notice result fields are invalid", []map[string]any{citationToolResult([]campussearch.SearchResultItem{invalid}, 1)}},
+		{"within call", "[1]", "result_ref is duplicated within one call", []map[string]any{citationToolResult([]searchapi.SearchResultItem{item, item}, 1)}},
+		{"across call index", "[1]", "citation_index 1 is duplicated", []map[string]any{citationToolResult([]searchapi.SearchResultItem{item}, 1), citationToolResult([]searchapi.SearchResultItem{other}, 1)}},
+		{"unknown", "[2]", "引用编号没有对应证据", []map[string]any{citationToolResult([]searchapi.SearchResultItem{item}, 1)}},
+		{"zero", "[0]", "引用标记非法", []map[string]any{citationToolResult([]searchapi.SearchResultItem{item}, 1)}},
+		{"out of range", "[11]", "引用编号没有对应证据", []map[string]any{citationToolResult([]searchapi.SearchResultItem{item}, 1)}},
+		{"invalid result index", "[0]", "result fields are invalid", []map[string]any{citationToolResult([]searchapi.SearchResultItem{item}, 0)}},
+		{"source identity", "[1]", "notice result fields are invalid", []map[string]any{citationToolResult([]searchapi.SearchResultItem{invalid}, 1)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := (&FinalizationService{}).WorkflowCitationClosureForFinalization(map[string]any{"tool_results": tc.calls}, tc.answer)
@@ -105,8 +105,8 @@ func TestCampusSearchCitedRefsFromSynthesizedSources(t *testing.T) {
 	}
 }
 
-func citationSearchItem(kind, hash string) campussearch.SearchResultItem {
-	return campussearch.SearchResultItem{
+func citationSearchItem(kind, hash string) searchapi.SearchResultItem {
+	return searchapi.SearchResultItem{
 		SourceKind: kind, ResultRef: "result://" + strings.Repeat(hash, 64),
 		Title: "校园资料", Text: "申请要求", SectionTitle: "申请",
 		NoticeID: "12345", CitationHref: "/notices/12345",
@@ -115,6 +115,6 @@ func citationSearchItem(kind, hash string) campussearch.SearchResultItem {
 	}
 }
 
-func citationToolResult(items []campussearch.SearchResultItem, start int) map[string]any {
-	return map[string]any{"tool_name": "campus_search", "status": "completed", "result": campussearch.EncodeSearchResult(items, start)}
+func citationToolResult(items []searchapi.SearchResultItem, start int) map[string]any {
+	return map[string]any{"tool_name": "campus_search", "status": "completed", "result": searchapi.EncodeSearchResult(items, start)}
 }

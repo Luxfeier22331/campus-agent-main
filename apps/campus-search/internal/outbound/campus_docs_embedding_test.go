@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"encoding/json"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -35,7 +36,7 @@ func TestRepeatedSearchCachesOnlyEmbedding(t *testing.T) {
 	defer provider.Close()
 	resolver := campusDocsRuntimeConfigResolverForTest(provider.URL + "/v1///")
 	client := newCampusDocsHTTPClientForTest(t, Config{DeploymentEnvironment: "local", QdrantURL: provider.URL, QdrantReadOnlyAPIKey: "test"}, resolver)
-	search := func(rerankQuery string) []campussearch.SearchResultItem {
+	search := func(rerankQuery string) []searchapi.SearchResultItem {
 		t.Helper()
 		result, err := client.Search(t.Context(), campussearch.Index{Collection: collection}, campussearch.SearchQuery{RetrievalQuery: "图书馆 开放时间", RerankQuery: rerankQuery}, 5)
 		if err != nil {

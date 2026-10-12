@@ -15,7 +15,7 @@ import (
 	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/finalization"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionpersistence"
 
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalclient"
 )
 
 func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation(t *testing.T) {
@@ -36,10 +36,10 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		t.Fatalf("load run before agent attempts: %v", err)
 	}
 	for attempt, marker := range []string{"agent-attempt-1", "agent-attempt-2"} {
-		if err := server.ProjectTemporalStep(context.Background(), projectionapp.StepProjection{
+		if err := server.ProjectStep(context.Background(), projectionapp.StepProjection{
 			ActivityAttempt: attempt + 1,
 			ActivityID:      marker,
-			ActivityType:    temporalruntime.SolveTaskActivityName,
+			ActivityType:    applicationcontract.AgentSolveOperation,
 			Attempt:         attempt + 1,
 			CompletedAt:     now.Add(time.Duration(attempt+1) * time.Second),
 			Payload:         map[string]any{"attempt_marker": marker},
@@ -48,7 +48,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 			Status:          "failed",
 			StepID:          "solve.initial",
 			StepKind:        "solver",
-			TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
+			TaskQueue:       temporalclient.ActivityTaskQueueAgent,
 			UpdatedAt:       now.Add(time.Duration(attempt+1) * time.Second),
 		}); err != nil {
 			t.Fatalf("seed agent attempt %d: %v", attempt+1, err)
@@ -107,7 +107,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 	}
 	for _, attempt := range attempts {
 		marker := []string{"agent-attempt-1", "agent-attempt-2"}[attempt.Attempt-1]
-		if attempt.ActivityType != temporalruntime.SolveTaskActivityName ||
+		if attempt.ActivityType != applicationcontract.AgentSolveOperation ||
 			attempt.SanitizedPayload["attempt_marker"] != marker {
 			t.Fatalf("agent attempt %d was overwritten by finalizer: %#v", attempt.Attempt, attempt)
 		}

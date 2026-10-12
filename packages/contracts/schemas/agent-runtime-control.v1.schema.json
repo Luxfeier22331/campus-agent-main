@@ -1,0 +1,4306 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.invalid/contracts/agent-runtime-control.v1",
+	"$defs": {
+		"AgentAdmissionSnapshot": {
+			"type": "object",
+			"properties": {
+				"agent_limits": {
+					"$ref": "#/$defs/AgentRuntimeLimitsSnapshot",
+					"x-go-name": "AgentLimits",
+					"x-go-type": "AgentRuntimeLimitsSnapshot"
+				},
+				"agent_capabilities": {
+					"$ref": "#/$defs/AgentCapabilitiesSnapshot",
+					"x-go-name": "AgentCapabilities",
+					"x-go-type": "AgentCapabilitiesSnapshot"
+				},
+				"agent_budget": {
+					"$ref": "#/$defs/AgentRuntimeBudgetSnapshot",
+					"x-go-name": "AgentBudget",
+					"x-go-type": "AgentRuntimeBudgetSnapshot"
+				},
+				"provider_config_sha256": {
+					"type": "string",
+					"x-go-name": "ModelTargetSHA256",
+					"x-go-type": "string"
+				},
+				"tool_contract_fingerprint": {
+					"$ref": "#/$defs/ToolContractFingerprintSnapshot",
+					"x-go-name": "ToolContractFingerprint",
+					"x-go-type": "ToolContractFingerprintSnapshot"
+				}
+			},
+			"required": [
+				"agent_limits",
+				"agent_capabilities",
+				"agent_budget",
+				"provider_config_sha256",
+				"tool_contract_fingerprint"
+			],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "AgentAdmissionSnapshot"
+		},
+		"AgentCapabilitiesSnapshot": {
+			"type": "object",
+			"properties": {
+				"schema_version": {
+					"type": "string",
+					"x-go-name": "SchemaVersion",
+					"x-go-type": "string"
+				},
+				"hosted_web_search": {
+					"type": "boolean",
+					"x-go-name": "HostedWebSearch",
+					"x-go-type": "bool"
+				},
+				"visible_function_tool_names": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"x-go-name": "VisibleFunctionToolNames",
+					"x-go-type": "[]string"
+				}
+			},
+			"required": ["schema_version", "hosted_web_search", "visible_function_tool_names"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "AgentCapabilitiesSnapshot"
+		},
+		"AgentRuntimeBudgetSnapshot": {
+			"type": "object",
+			"properties": {
+				"max_function_tool_calls": {
+					"type": "integer",
+					"x-go-name": "MaxFunctionToolCalls",
+					"x-go-type": "int"
+				},
+				"max_model_turns": {
+					"type": "integer",
+					"x-go-name": "MaxModelTurns",
+					"x-go-type": "int"
+				},
+				"max_plan_steps": {
+					"type": "integer",
+					"x-go-name": "MaxPlanSteps",
+					"x-go-type": "int"
+				},
+				"max_replans": {
+					"type": "integer",
+					"x-go-name": "MaxReplans",
+					"x-go-type": "int"
+				},
+				"schema_version": {
+					"type": "string",
+					"x-go-name": "SchemaVersion",
+					"x-go-type": "string"
+				}
+			},
+			"required": [
+				"max_function_tool_calls",
+				"max_model_turns",
+				"max_plan_steps",
+				"max_replans",
+				"schema_version"
+			],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "AgentRuntimeBudgetSnapshot"
+		},
+		"AgentRuntimeLimitsSnapshot": {
+			"type": "object",
+			"properties": {
+				"agent_deadline_ms": {
+					"type": "integer",
+					"x-go-name": "AgentDeadlineMS",
+					"x-go-type": "int"
+				},
+				"context_char_limit": {
+					"type": "integer",
+					"x-go-name": "ContextCharLimit",
+					"x-go-type": "int"
+				},
+				"current_input_char_limit": {
+					"type": "integer",
+					"x-go-name": "CurrentInputCharLimit",
+					"x-go-type": "int"
+				},
+				"max_output_tokens": {
+					"type": "integer",
+					"x-go-name": "MaxOutputTokens",
+					"x-go-type": "int"
+				}
+			},
+			"required": [
+				"agent_deadline_ms",
+				"context_char_limit",
+				"current_input_char_limit",
+				"max_output_tokens"
+			],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "AgentRuntimeLimitsSnapshot"
+		},
+		"AgentToolResult": {
+			"type": "object",
+			"properties": {
+				"started_at": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "StartedAt",
+					"x-go-type": "*time.Time"
+				},
+				"completed_at": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "CompletedAt",
+					"x-go-type": "*time.Time"
+				},
+				"duration_ms": {
+					"type": "number",
+					"x-go-name": "DurationMS",
+					"x-go-type": "float64"
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ExecutionFailure"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Failure",
+					"x-go-type": "*ExecutionFailure"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"result": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "Result",
+					"x-go-type": "map[string]any"
+				},
+				"status": {
+					"type": "string",
+					"x-go-name": "Status",
+					"x-go-type": "string"
+				},
+				"tool_name": {
+					"type": "string",
+					"x-go-name": "ToolName",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["duration_ms", "invocation_id", "result", "status", "tool_name"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "AgentToolResult"
+		},
+		"AgentUsageSummary": {
+			"type": "object",
+			"properties": {
+				"model_request_count": {
+					"type": "integer",
+					"x-go-name": "ModelRequestCount",
+					"x-go-type": "int64"
+				},
+				"cached_input_tokens": {
+					"type": "integer",
+					"x-go-name": "CachedInputTokens",
+					"x-go-type": "int64"
+				},
+				"input_tokens": {
+					"type": "integer",
+					"x-go-name": "InputTokens",
+					"x-go-type": "int64"
+				},
+				"output_tokens": {
+					"type": "integer",
+					"x-go-name": "OutputTokens",
+					"x-go-type": "int64"
+				},
+				"usage_observed": {
+					"type": "boolean",
+					"x-go-name": "UsageObserved",
+					"x-go-type": "bool"
+				}
+			},
+			"required": [
+				"model_request_count",
+				"cached_input_tokens",
+				"input_tokens",
+				"output_tokens",
+				"usage_observed"
+			],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "AgentUsageSummary"
+		},
+		"ExecutionFailure": {
+			"type": "object",
+			"properties": {
+				"reason": {
+					"type": "string",
+					"x-go-name": "Reason",
+					"x-go-type": "string"
+				},
+				"citation": {
+					"x-go-name": "Citation",
+					"x-go-type": "json.RawMessage"
+				},
+				"stage": {
+					"type": "string",
+					"x-go-name": "Stage",
+					"x-go-type": "string"
+				},
+				"code": {
+					"type": "string",
+					"x-go-name": "Code",
+					"x-go-type": "string"
+				},
+				"operation": {
+					"type": "string",
+					"x-go-name": "Operation",
+					"x-go-type": "string"
+				},
+				"detail": {
+					"type": "string",
+					"x-go-name": "Detail",
+					"x-go-type": "string"
+				},
+				"http_status": {
+					"type": "integer",
+					"x-go-name": "HTTPStatus",
+					"x-go-type": "int"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["code", "operation"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "ExecutionFailure"
+		},
+		"CancellationInput": {
+			"type": "object",
+			"properties": {
+				"canceled_at": {
+					"type": "string",
+					"format": "date-time",
+					"x-go-name": "CanceledAt",
+					"x-go-type": "time.Time"
+				},
+				"reason": {
+					"type": "string",
+					"x-go-name": "Reason",
+					"x-go-type": "string"
+				},
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["canceled_at", "reason", "request_id"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "CancellationInput"
+		},
+		"CancellationOutput": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"status": {
+					"type": "string",
+					"x-go-name": "Status",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["request_id", "status"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "CancellationOutput"
+		},
+		"FailureInput": {
+			"type": "object",
+			"properties": {
+				"failure_kind": {
+					"type": "string",
+					"x-go-name": "FailureKind",
+					"x-go-type": "string"
+				},
+				"failed_at": {
+					"type": "string",
+					"format": "date-time",
+					"x-go-name": "FailedAt",
+					"x-go-type": "time.Time"
+				},
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"stage": {
+					"type": "string",
+					"x-go-name": "Stage",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["failure_kind", "failed_at", "request_id", "stage"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "FailureInput"
+		},
+		"FailureOutput": {
+			"type": "object",
+			"properties": {
+				"completed_at": {
+					"type": "string",
+					"format": "date-time",
+					"x-go-name": "CompletedAt",
+					"x-go-type": "time.Time"
+				},
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"status": {
+					"type": "string",
+					"x-go-name": "Status",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["completed_at", "request_id", "status"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "FailureOutput"
+		},
+		"SourceLink": {
+			"type": "object",
+			"properties": {
+				"href": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Href",
+					"x-go-type": "*string"
+				}
+			},
+			"required": ["href"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "SourceLink"
+		},
+		"ToolContractFingerprintSnapshot": {
+			"type": "object",
+			"properties": {
+				"function_schema_sha256": {
+					"type": "string",
+					"x-go-name": "FunctionSchemaSHA256",
+					"x-go-type": "string"
+				},
+				"schema_version": {
+					"type": "string",
+					"x-go-name": "SchemaVersion",
+					"x-go-type": "string"
+				},
+				"tools_sha256": {
+					"type": "string",
+					"x-go-name": "ToolsSHA256",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["function_schema_sha256", "schema_version", "tools_sha256"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "ToolContractFingerprintSnapshot"
+		},
+		"WebEvidence": {
+			"type": "object",
+			"properties": {
+				"source_link": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/SourceLink"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "SourceLink",
+					"x-go-type": "*SourceLink"
+				},
+				"title": {
+					"type": "string",
+					"x-go-name": "Title",
+					"x-go-type": "string"
+				},
+				"url": {
+					"type": "string",
+					"x-go-name": "URL",
+					"x-go-type": "string"
+				},
+				"excerpt": {
+					"type": "string",
+					"x-go-name": "Excerpt",
+					"x-go-type": "string"
+				},
+				"start_index": {
+					"type": "integer",
+					"x-go-name": "StartIndex",
+					"x-go-type": "int"
+				},
+				"end_index": {
+					"type": "integer",
+					"x-go-name": "EndIndex",
+					"x-go-type": "int"
+				}
+			},
+			"required": ["title", "url", "excerpt", "start_index", "end_index"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WebEvidence"
+		},
+		"WebSearchDiagnostic": {
+			"type": "object",
+			"properties": {
+				"schema_version": {
+					"type": "integer",
+					"x-go-name": "SchemaVersion",
+					"x-go-type": "int"
+				},
+				"state": {
+					"type": "string",
+					"x-go-name": "State",
+					"x-go-type": "string"
+				},
+				"query_count": {
+					"type": "integer",
+					"x-go-name": "QueryCount",
+					"x-go-type": "int"
+				},
+				"chunk_count": {
+					"type": "integer",
+					"x-go-name": "ChunkCount",
+					"x-go-type": "int"
+				},
+				"support_count": {
+					"type": "integer",
+					"x-go-name": "SupportCount",
+					"x-go-type": "int"
+				},
+				"converted_count": {
+					"type": "integer",
+					"x-go-name": "ConvertedCount",
+					"x-go-type": "int"
+				},
+				"discarded_count": {
+					"type": "integer",
+					"x-go-name": "DiscardedCount",
+					"x-go-type": "int"
+				},
+				"discard_reasons": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "integer"
+					},
+					"x-go-name": "DiscardReasons",
+					"x-go-type": "map[string]int"
+				}
+			},
+			"required": [
+				"schema_version",
+				"state",
+				"query_count",
+				"chunk_count",
+				"support_count",
+				"converted_count",
+				"discarded_count",
+				"discard_reasons"
+			],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WebSearchDiagnostic"
+		},
+		"WorkflowCompletedStep": {
+			"type": "object",
+			"properties": {
+				"remaining_facts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"x-go-name": "RemainingFacts",
+					"x-go-type": "[]string"
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ExecutionFailure"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Failure",
+					"x-go-type": "*ExecutionFailure"
+				},
+				"step": {
+					"$ref": "#/$defs/WorkflowTaskPlanStep",
+					"x-go-name": "Step",
+					"x-go-type": "WorkflowTaskPlanStep"
+				},
+				"execution_index": {
+					"type": "integer",
+					"x-go-name": "ExecutionIndex",
+					"x-go-type": "int"
+				},
+				"summary": {
+					"type": "string",
+					"x-go-name": "Summary",
+					"x-go-type": "string"
+				},
+				"evidence": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowEvidence"
+					},
+					"x-go-name": "Evidence",
+					"x-go-type": "[]WorkflowEvidence"
+				},
+				"source_attempts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowSourceAttempt"
+					},
+					"x-go-name": "SourceAttempts",
+					"x-go-type": "[]WorkflowSourceAttempt"
+				}
+			},
+			"required": [
+				"remaining_facts",
+				"step",
+				"execution_index",
+				"summary",
+				"evidence",
+				"source_attempts"
+			],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WorkflowCompletedStep"
+		},
+		"WorkflowEvidence": {
+			"type": "object",
+			"properties": {
+				"source_link": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/SourceLink"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "SourceLink",
+					"x-go-type": "*SourceLink"
+				},
+				"schema_version": {
+					"type": "string",
+					"x-go-name": "SchemaVersion",
+					"x-go-type": "string",
+					"const": "workflow_evidence.v1"
+				},
+				"id": {
+					"type": "string",
+					"x-go-name": "ID",
+					"x-go-type": "string"
+				},
+				"source": {
+					"$ref": "#/$defs/WorkflowSource",
+					"x-go-name": "Source",
+					"x-go-type": "WorkflowSource"
+				},
+				"title": {
+					"type": "string",
+					"x-go-name": "Title",
+					"x-go-type": "string"
+				},
+				"excerpt": {
+					"type": "string",
+					"x-go-name": "Excerpt",
+					"x-go-type": "string"
+				},
+				"citation_index": {
+					"type": "integer",
+					"x-go-name": "CitationIndex",
+					"x-go-type": "int"
+				},
+				"url": {
+					"type": "string",
+					"x-go-name": "URL",
+					"x-go-type": "string"
+				},
+				"result_ref": {
+					"type": "string",
+					"x-go-name": "ResultRef",
+					"x-go-type": "string"
+				},
+				"document_id": {
+					"type": "string",
+					"x-go-name": "DocumentID",
+					"x-go-type": "string"
+				},
+				"notice_id": {
+					"type": "string",
+					"x-go-name": "NoticeID",
+					"x-go-type": "string"
+				},
+				"released_at": {
+					"type": "string",
+					"x-go-name": "ReleasedAt",
+					"x-go-type": "string"
+				},
+				"citation_href": {
+					"type": "string",
+					"x-go-name": "CitationHref",
+					"x-go-type": "string"
+				},
+				"section_ref": {
+					"type": "string",
+					"x-go-name": "SectionRef",
+					"x-go-type": "string"
+				},
+				"section_title": {
+					"type": "string",
+					"x-go-name": "SectionTitle",
+					"x-go-type": "string"
+				},
+				"root_unit_ids": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"x-go-name": "RootUnitIDs",
+					"x-go-type": "[]string"
+				},
+				"version_id": {
+					"type": "string",
+					"x-go-name": "VersionID",
+					"x-go-type": "string"
+				},
+				"version_slug": {
+					"type": "string",
+					"x-go-name": "VersionSlug",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["schema_version", "id", "source", "title", "excerpt"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WorkflowEvidence"
+		},
+		"FinalizationOutput": {
+			"type": "object",
+			"properties": {
+				"completed_at": {
+					"type": "string",
+					"format": "date-time",
+					"x-go-name": "CompletedAt",
+					"x-go-type": "time.Time"
+				},
+				"projection_ref": {
+					"type": "string",
+					"x-go-name": "ProjectionRef",
+					"x-go-type": "string"
+				},
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"status": {
+					"type": "string",
+					"x-go-name": "Status",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["completed_at", "projection_ref", "request_id", "status"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "FinalizationOutput"
+		},
+		"OperationOutput": {
+			"type": "object",
+			"properties": {
+				"web_evidence": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WebEvidence"
+					},
+					"x-go-name": "WebEvidence",
+					"x-go-type": "[]WebEvidence"
+				},
+				"web_search_diagnostic": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/WebSearchDiagnostic"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "WebSearchDiagnostic",
+					"x-go-type": "*WebSearchDiagnostic"
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ExecutionFailure"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Failure",
+					"x-go-type": "*ExecutionFailure"
+				},
+				"answer_started": {
+					"type": "boolean",
+					"x-go-name": "AnswerStarted",
+					"x-go-type": "bool"
+				},
+				"operation": {
+					"$ref": "#/$defs/WorkflowOperation",
+					"x-go-name": "Operation",
+					"x-go-type": "WorkflowOperation"
+				},
+				"solve_outcome": {
+					"type": "string",
+					"x-go-name": "SolveOutcome",
+					"x-go-type": "string"
+				},
+				"agent_result_ref": {
+					"type": "string",
+					"x-go-name": "WorkflowResultRef",
+					"x-go-type": "string"
+				},
+				"final_output": {
+					"type": "string",
+					"x-go-name": "FinalOutput",
+					"x-go-type": "string"
+				},
+				"plan": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/WorkflowTaskPlan"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Plan",
+					"x-go-type": "*WorkflowTaskPlan"
+				},
+				"replan": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/WorkflowTaskReplan"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Replan",
+					"x-go-type": "*WorkflowTaskReplan"
+				},
+				"remaining_facts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"x-go-name": "RemainingFacts",
+					"x-go-type": "[]string"
+				},
+				"evidence": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowEvidence"
+					},
+					"x-go-name": "Evidence",
+					"x-go-type": "[]WorkflowEvidence"
+				},
+				"source_attempts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowSourceAttempt"
+					},
+					"x-go-name": "SourceAttempts",
+					"x-go-type": "[]WorkflowSourceAttempt"
+				},
+				"model_name": {
+					"type": "string",
+					"x-go-name": "ModelName",
+					"x-go-type": "string"
+				},
+				"model_provider": {
+					"type": "string",
+					"x-go-name": "ModelProvider",
+					"x-go-type": "string"
+				},
+				"provider_response_id": {
+					"type": "string",
+					"x-go-name": "ProviderResponseID",
+					"x-go-type": "string"
+				},
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"stage_timing": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "StageTiming",
+					"x-go-type": "map[string]any"
+				},
+				"status": {
+					"type": "string",
+					"x-go-name": "Status",
+					"x-go-type": "string"
+				},
+				"terminal_reason": {
+					"type": "string",
+					"x-go-name": "TerminalReason",
+					"x-go-type": "string"
+				},
+				"tool_results": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/AgentToolResult"
+					},
+					"x-go-name": "ToolResults",
+					"x-go-type": "[]AgentToolResult"
+				},
+				"tool_contract_fingerprint": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "ToolContractFingerprint",
+					"x-go-type": "map[string]any"
+				},
+				"runtime_release": {
+					"type": "string",
+					"x-go-name": "RuntimeRelease",
+					"x-go-type": "string"
+				},
+				"usage": {
+					"$ref": "#/$defs/AgentUsageSummary",
+					"x-go-name": "Usage",
+					"x-go-type": "AgentUsageSummary"
+				}
+			},
+			"required": [
+				"operation",
+				"agent_result_ref",
+				"final_output",
+				"evidence",
+				"source_attempts",
+				"model_name",
+				"model_provider",
+				"provider_response_id",
+				"request_id",
+				"status",
+				"terminal_reason",
+				"tool_results",
+				"tool_contract_fingerprint",
+				"runtime_release",
+				"usage"
+			],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "OperationOutput"
+		},
+		"WorkflowRemainingFacts": {
+			"type": "object",
+			"properties": {
+				"objective": {
+					"type": "string",
+					"x-go-name": "Objective",
+					"x-go-type": "string"
+				},
+				"facts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"x-go-name": "Facts",
+					"x-go-type": "[]string"
+				}
+			},
+			"required": ["objective", "facts"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WorkflowRemainingFacts"
+		},
+		"WorkflowSourceAttempt": {
+			"type": "object",
+			"properties": {
+				"source": {
+					"$ref": "#/$defs/WorkflowSource",
+					"x-go-name": "Source",
+					"x-go-type": "WorkflowSource"
+				},
+				"status": {
+					"type": "string",
+					"x-go-name": "Status",
+					"x-go-type": "string",
+					"enum": ["completed", "failed", "matched", "no_match"]
+				},
+				"failure_code": {
+					"type": "string",
+					"x-go-name": "FailureCode",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["source", "status"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WorkflowSourceAttempt"
+		},
+		"WorkflowTaskPlan": {
+			"type": "object",
+			"properties": {
+				"schema_version": {
+					"type": "string",
+					"x-go-name": "SchemaVersion",
+					"x-go-type": "string",
+					"const": "task_plan.v1"
+				},
+				"goal": {
+					"type": "string",
+					"x-go-name": "Goal",
+					"x-go-type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowTaskPlanStep"
+					},
+					"x-go-name": "Steps",
+					"x-go-type": "[]WorkflowTaskPlanStep"
+				}
+			},
+			"required": ["schema_version", "goal", "steps"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WorkflowTaskPlan"
+		},
+		"WorkflowTaskPlanStep": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"x-go-name": "ID",
+					"x-go-type": "string"
+				},
+				"objective": {
+					"type": "string",
+					"x-go-name": "Objective",
+					"x-go-type": "string"
+				},
+				"candidate_sources": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowSource"
+					},
+					"x-go-name": "CandidateSources",
+					"x-go-type": "[]WorkflowSource"
+				},
+				"depends_on": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"x-go-name": "DependsOn",
+					"x-go-type": "[]string"
+				}
+			},
+			"required": ["id", "objective", "candidate_sources", "depends_on"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WorkflowTaskPlanStep"
+		},
+		"WorkflowTaskReplan": {
+			"type": "object",
+			"properties": {
+				"schema_version": {
+					"type": "string",
+					"x-go-name": "SchemaVersion",
+					"x-go-type": "string",
+					"const": "task_replan.v3"
+				},
+				"decision": {
+					"type": "string",
+					"x-go-name": "Decision",
+					"x-go-type": "string"
+				},
+				"reason": {
+					"type": "string",
+					"x-go-name": "Reason",
+					"x-go-type": "string"
+				},
+				"remaining_steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowTaskPlanStep"
+					},
+					"x-go-name": "RemainingSteps",
+					"x-go-type": "[]WorkflowTaskPlanStep"
+				}
+			},
+			"required": ["schema_version", "decision", "reason", "remaining_steps"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "WorkflowTaskReplan"
+		},
+		"FinalizationInput": {
+			"type": "object",
+			"properties": {
+				"workflow_result": {
+					"$ref": "#/$defs/OperationOutput",
+					"x-go-name": "WorkflowResult",
+					"x-go-type": "OperationOutput"
+				},
+				"admission_snapshot": {
+					"$ref": "#/$defs/AgentAdmissionSnapshot",
+					"x-go-name": "AdmissionSnapshot",
+					"x-go-type": "AgentAdmissionSnapshot"
+				},
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["workflow_result", "admission_snapshot", "request_id"],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "FinalizationInput"
+		},
+		"AgentRuntimeResponse": {
+			"type": "object",
+			"properties": {
+				"operation": {
+					"type": "string",
+					"x-go-name": "Operation",
+					"x-go-type": "string"
+				},
+				"solve_outcome": {
+					"type": "string",
+					"x-go-name": "SolveOutcome",
+					"x-go-type": "string"
+				},
+				"status": {
+					"type": "string",
+					"x-go-name": "Status",
+					"x-go-type": "string"
+				},
+				"error": {
+					"$ref": "#/$defs/AgentRuntimeError",
+					"x-go-name": "Error",
+					"x-go-type": "AgentRuntimeError"
+				},
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"context_usage": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "ContextUsage",
+					"x-go-type": "map[string]any"
+				},
+				"final_output": {
+					"type": "string",
+					"x-go-name": "FinalOutput",
+					"x-go-type": "string"
+				},
+				"plan": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/WorkflowTaskPlan"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Plan",
+					"x-go-type": "*executioncontract.WorkflowTaskPlan"
+				},
+				"replan": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/WorkflowTaskReplan"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Replan",
+					"x-go-type": "*executioncontract.WorkflowTaskReplan"
+				},
+				"remaining_facts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"x-go-name": "RemainingFacts",
+					"x-go-type": "[]string"
+				},
+				"evidence": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": {}
+					},
+					"x-go-name": "Evidence",
+					"x-go-type": "[]map[string]any"
+				},
+				"source_attempts": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": {}
+					},
+					"x-go-name": "SourceAttempts",
+					"x-go-type": "[]map[string]any"
+				},
+				"model_name": {
+					"type": "string",
+					"x-go-name": "ModelName",
+					"x-go-type": "string"
+				},
+				"model_provider": {
+					"type": "string",
+					"x-go-name": "ModelProvider",
+					"x-go-type": "string"
+				},
+				"provider_response_id": {
+					"type": "string",
+					"x-go-name": "ProviderResponseID",
+					"x-go-type": "string"
+				},
+				"stage_timing": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "StageTiming",
+					"x-go-type": "map[string]any"
+				},
+				"tool_results": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/RuntimeToolResult"
+					},
+					"x-go-name": "ToolResults",
+					"x-go-type": "[]AgentToolResult"
+				},
+				"terminal_reason": {
+					"type": "string",
+					"x-go-name": "TerminalReason",
+					"x-go-type": "string"
+				},
+				"tool_contract_fingerprint": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "ToolContractFingerprint",
+					"x-go-type": "map[string]any"
+				},
+				"runtime_release": {
+					"type": "string",
+					"x-go-name": "RuntimeRelease",
+					"x-go-type": "string"
+				},
+				"usage": {
+					"$ref": "#/$defs/AgentRuntimeUsage",
+					"x-go-name": "Usage",
+					"x-go-type": "AgentRuntimeUsage"
+				},
+				"model_output_diagnostic": {
+					"x-go-name": "ModelOutputDiagnostic",
+					"x-go-type": "json.RawMessage"
+				},
+				"web_evidence": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WebEvidence"
+					},
+					"x-go-name": "WebEvidence",
+					"x-go-type": "[]executioncontract.WebEvidence"
+				},
+				"web_search_diagnostic": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/WebSearchDiagnostic"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "WebSearchDiagnostic",
+					"x-go-type": "*executioncontract.WebSearchDiagnostic"
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ExecutionFailure"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Failure",
+					"x-go-type": "*executioncontract.ExecutionFailure"
+				},
+				"answer_started": {
+					"type": "boolean",
+					"x-go-name": "AnswerStarted",
+					"x-go-type": "bool"
+				}
+			},
+			"required": ["request_id", "operation", "status"],
+			"additionalProperties": false,
+			"x-go-package": "agentruntimeprotocol",
+			"x-go-name": "AgentRuntimeResponse"
+		},
+		"RuntimeToolResult": {
+			"type": "object",
+			"properties": {
+				"arguments_json": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "ArgumentsJSON",
+					"x-go-type": "map[string]any"
+				},
+				"started_at": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "StartedAt",
+					"x-go-type": "*time.Time"
+				},
+				"completed_at": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "CompletedAt",
+					"x-go-type": "*time.Time"
+				},
+				"duration_ms": {
+					"type": "number",
+					"x-go-name": "DurationMS",
+					"x-go-type": "float64"
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ExecutionFailure"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Failure",
+					"x-go-type": "*executioncontract.ExecutionFailure"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"status": {
+					"type": "string",
+					"x-go-name": "Status",
+					"x-go-type": "string"
+				},
+				"tool_name": {
+					"type": "string",
+					"x-go-name": "ToolName",
+					"x-go-type": "string"
+				},
+				"result": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "Result",
+					"x-go-type": "map[string]any"
+				},
+				"activity": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ActivityMetadata"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Activity",
+					"x-go-type": "*executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["invocation_id", "status", "tool_name", "result"],
+			"additionalProperties": false,
+			"x-go-package": "agentruntimeprotocol",
+			"x-go-name": "AgentToolResult"
+		},
+		"AgentRuntimeUsage": {
+			"type": "object",
+			"properties": {
+				"model_request_count": {
+					"type": "integer",
+					"x-go-name": "ModelRequestCount",
+					"x-go-type": "int64"
+				},
+				"input_tokens": {
+					"type": "integer",
+					"x-go-name": "InputTokens",
+					"x-go-type": "int64"
+				},
+				"output_tokens": {
+					"type": "integer",
+					"x-go-name": "OutputTokens",
+					"x-go-type": "int64"
+				},
+				"cached_input_tokens": {
+					"type": "integer",
+					"x-go-name": "CachedInputTokens",
+					"x-go-type": "int64"
+				},
+				"usage_observed": {
+					"type": "boolean",
+					"x-go-name": "UsageObserved",
+					"x-go-type": "bool"
+				}
+			},
+			"required": [
+				"model_request_count",
+				"input_tokens",
+				"output_tokens",
+				"cached_input_tokens",
+				"usage_observed"
+			],
+			"additionalProperties": false,
+			"x-go-package": "agentruntimeprotocol",
+			"x-go-name": "AgentRuntimeUsage"
+		},
+		"AgentRuntimeError": {
+			"type": "object",
+			"properties": {
+				"reason": {
+					"type": "string",
+					"x-go-name": "Reason",
+					"x-go-type": "string"
+				},
+				"citation": {
+					"x-go-name": "Citation",
+					"x-go-type": "json.RawMessage"
+				},
+				"code": {
+					"type": "string",
+					"x-go-name": "Code",
+					"x-go-type": "string"
+				},
+				"message": {
+					"type": "string",
+					"x-go-name": "Message",
+					"x-go-type": "string"
+				},
+				"operation": {
+					"type": "string",
+					"x-go-name": "Operation",
+					"x-go-type": "string"
+				},
+				"detail": {
+					"type": "string",
+					"x-go-name": "Detail",
+					"x-go-type": "string"
+				},
+				"http_status": {
+					"type": "integer",
+					"x-go-name": "HTTPStatus",
+					"x-go-type": "int"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				}
+			},
+			"required": [],
+			"additionalProperties": false,
+			"x-go-package": "agentruntimeprotocol",
+			"x-go-name": "AgentRuntimeError"
+		},
+		"ActivityMetadata": {
+			"type": "object",
+			"properties": {
+				"workflow_id": {
+					"type": "string",
+					"x-go-name": "WorkflowID",
+					"x-go-type": "string",
+					"minLength": 1
+				},
+				"temporal_run_id": {
+					"type": "string",
+					"x-go-name": "TemporalRunID",
+					"x-go-type": "string",
+					"minLength": 1
+				},
+				"activity_id": {
+					"type": "string",
+					"x-go-name": "ActivityID",
+					"x-go-type": "string",
+					"minLength": 1
+				},
+				"activity_type": {
+					"type": "string",
+					"x-go-name": "ActivityType",
+					"x-go-type": "string",
+					"minLength": 1
+				},
+				"activity_attempt": {
+					"type": "integer",
+					"x-go-name": "ActivityAttempt",
+					"x-go-type": "int32",
+					"minimum": 1
+				},
+				"task_queue": {
+					"type": "string",
+					"x-go-name": "TaskQueue",
+					"x-go-type": "string",
+					"minLength": 1
+				},
+				"scheduled_at": {
+					"type": "string",
+					"format": "date-time",
+					"x-go-name": "ScheduledAt",
+					"x-go-type": "time.Time",
+					"minLength": 1
+				},
+				"started_at": {
+					"type": "string",
+					"format": "date-time",
+					"x-go-name": "StartedAt",
+					"x-go-type": "time.Time",
+					"minLength": 1
+				}
+			},
+			"required": [
+				"workflow_id",
+				"temporal_run_id",
+				"activity_id",
+				"activity_type",
+				"activity_attempt",
+				"task_queue",
+				"scheduled_at",
+				"started_at"
+			],
+			"additionalProperties": false,
+			"x-go-package": "executioncontract",
+			"x-go-name": "ActivityMetadata"
+		},
+		"TerminalRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"payload": {
+					"x-go-name": "Payload",
+					"x-go-type": "json.RawMessage"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "payload", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "TerminalRequest"
+		},
+		"PayloadGetRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"ref": {
+					"type": "string",
+					"x-go-name": "Ref",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "ref", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "PayloadGetRequest"
+		},
+		"PayloadPutRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"ref": {
+					"type": "string",
+					"x-go-name": "Ref",
+					"x-go-type": "string"
+				},
+				"payload": {
+					"x-go-name": "Payload",
+					"x-go-type": "json.RawMessage"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "ref", "payload", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "PayloadPutRequest"
+		},
+		"PrepareRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"ref": {
+					"type": "string",
+					"x-go-name": "Ref",
+					"x-go-type": "string"
+				},
+				"operation_request": {
+					"$ref": "#/$defs/OperationRequest",
+					"x-go-name": "Operation",
+					"x-go-type": "operation.OperationRequest"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "ref", "operation_request", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "PrepareRequest"
+		},
+		"InvocationGetRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"input_sha256": {
+					"type": "string",
+					"x-go-name": "InputSHA256",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "invocation_id", "input_sha256", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "InvocationGetRequest"
+		},
+		"InvocationBeginRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"input_sha256": {
+					"type": "string",
+					"x-go-name": "InputSHA256",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "invocation_id", "input_sha256", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "InvocationBeginRequest"
+		},
+		"InvocationCompleteRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"payload": {
+					"x-go-name": "Payload",
+					"x-go-type": "json.RawMessage"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "payload", "invocation_id", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "InvocationCompleteRequest"
+		},
+		"ProjectRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"completed_at": {
+					"type": "string",
+					"format": "date-time",
+					"x-go-name": "CompletedAt",
+					"x-go-type": "time.Time"
+				},
+				"ref": {
+					"type": "string",
+					"x-go-name": "Ref",
+					"x-go-type": "string"
+				},
+				"payload": {
+					"x-go-name": "Payload",
+					"x-go-type": "json.RawMessage",
+					"$ref": "#/$defs/AgentRuntimeResponse"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "completed_at", "ref", "payload", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "ProjectRequest"
+		},
+		"AnswerCompletedRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "invocation_id", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "AnswerCompletedRequest"
+		},
+		"AnswerDeltaRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"sequence": {
+					"type": "integer",
+					"x-go-name": "Sequence",
+					"x-go-type": "int"
+				},
+				"delta": {
+					"type": "string",
+					"x-go-name": "Delta",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "invocation_id", "sequence", "delta", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "AnswerDeltaRequest"
+		},
+		"RetrievalStatusRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"retrieval_status": {
+					"type": "string",
+					"x-go-name": "RetrievalStatus",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "invocation_id", "retrieval_status", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "RetrievalStatusRequest"
+		},
+		"CollectionBindRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"collection": {
+					"type": "string",
+					"x-go-name": "Collection",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "collection", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "CollectionBindRequest"
+		},
+		"FinalizeRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"ref": {
+					"type": "string",
+					"x-go-name": "Ref",
+					"x-go-type": "string"
+				},
+				"operation_request": {
+					"$ref": "#/$defs/FinalizationAdmission",
+					"x-go-name": "Operation",
+					"x-go-type": "FinalizationAdmission"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "ref", "operation_request", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "FinalizeRequest"
+		},
+		"OperationRequest": {
+			"type": "object",
+			"properties": {
+				"prior_evidence": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowEvidence"
+					},
+					"x-go-name": "PriorEvidence",
+					"x-go-type": "[]executioncontract.WorkflowEvidence"
+				},
+				"prior_source_attempts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowSourceAttempt"
+					},
+					"x-go-name": "PriorSourceAttempts",
+					"x-go-type": "[]executioncontract.WorkflowSourceAttempt"
+				},
+				"admission_snapshot": {
+					"$ref": "#/$defs/AgentAdmissionSnapshot",
+					"x-go-name": "AdmissionSnapshot",
+					"x-go-type": "execution.AgentAdmissionSnapshot"
+				},
+				"completed_steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowCompletedStep"
+					},
+					"x-go-name": "CompletedSteps",
+					"x-go-type": "[]executioncontract.WorkflowCompletedStep"
+				},
+				"conversation_id": {
+					"type": "string",
+					"x-go-name": "ConversationID",
+					"x-go-type": "string"
+				},
+				"citation_start": {
+					"type": "integer",
+					"x-go-name": "CitationStart",
+					"x-go-type": "int"
+				},
+				"evidence": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowEvidence"
+					},
+					"x-go-name": "Evidence",
+					"x-go-type": "[]executioncontract.WorkflowEvidence"
+				},
+				"mode": {
+					"type": "string",
+					"x-go-name": "Mode",
+					"x-go-type": "string"
+				},
+				"recovery_reason": {
+					"type": "string",
+					"x-go-name": "RecoveryReason",
+					"x-go-type": "string"
+				},
+				"source_attempts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowSourceAttempt"
+					},
+					"x-go-name": "SourceAttempts",
+					"x-go-type": "[]executioncontract.WorkflowSourceAttempt"
+				},
+				"goal": {
+					"type": "string",
+					"x-go-name": "Goal",
+					"x-go-type": "string"
+				},
+				"max_steps": {
+					"type": "integer",
+					"x-go-name": "MaxSteps",
+					"x-go-type": "int"
+				},
+				"max_remaining_steps": {
+					"type": "integer",
+					"x-go-name": "MaxRemainingSteps",
+					"x-go-type": "int"
+				},
+				"operation": {
+					"$ref": "#/$defs/WorkflowOperation",
+					"x-go-name": "Operation",
+					"x-go-type": "executioncontract.WorkflowOperation"
+				},
+				"payload": {
+					"type": "object",
+					"additionalProperties": {},
+					"x-go-name": "Payload",
+					"x-go-type": "map[string]any"
+				},
+				"plan": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/WorkflowTaskPlan"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Plan",
+					"x-go-type": "*executioncontract.WorkflowTaskPlan"
+				},
+				"remaining_steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/WorkflowTaskPlanStep"
+					},
+					"x-go-name": "RemainingSteps",
+					"x-go-type": "[]executioncontract.WorkflowTaskPlanStep"
+				},
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"replan_index": {
+					"type": "integer",
+					"x-go-name": "ReplanIndex",
+					"x-go-type": "int"
+				},
+				"step_id": {
+					"type": "string",
+					"x-go-name": "StepID",
+					"x-go-type": "string"
+				},
+				"step_kind": {
+					"type": "string",
+					"x-go-name": "StepKind",
+					"x-go-type": "string"
+				},
+				"stream": {
+					"type": "boolean",
+					"x-go-name": "Stream",
+					"x-go-type": "bool"
+				},
+				"step": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/WorkflowTaskPlanStep"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"x-go-name": "Step",
+					"x-go-type": "*executioncontract.WorkflowTaskPlanStep"
+				},
+				"traceparent": {
+					"type": "string",
+					"x-go-name": "TraceParent",
+					"x-go-type": "string"
+				}
+			},
+			"required": [
+				"request_id",
+				"conversation_id",
+				"admission_snapshot",
+				"operation",
+				"step_id",
+				"step_kind",
+				"payload"
+			],
+			"additionalProperties": false,
+			"x-go-package": "operation",
+			"x-go-name": "OperationRequest"
+		},
+		"WorkflowOperation": {
+			"type": "string",
+			"enum": ["solve", "execute_step", "replan", "synthesize"]
+		},
+		"WorkflowSource": {
+			"type": "string",
+			"enum": ["campus_search", "web_search", "personal_memory_recall"]
+		},
+		"AgentRunRequest": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"model_answer_transport": {
+							"type": "string",
+							"enum": ["stream", "buffered"]
+						},
+						"deadline_at": {
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						"prior_evidence": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"schema_version": {
+										"type": "string",
+										"const": "workflow_evidence.v1"
+									},
+									"source_link": {
+										"type": "object",
+										"properties": {
+											"href": {
+												"anyOf": [
+													{
+														"type": "string",
+														"format": "uri"
+													},
+													{
+														"type": "null"
+													}
+												]
+											}
+										},
+										"required": ["href"],
+										"additionalProperties": false
+									},
+									"id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"source": {
+										"type": "string",
+										"enum": ["campus_search", "web_search", "personal_memory_recall"]
+									},
+									"title": {
+										"type": "string",
+										"minLength": 1
+									},
+									"excerpt": {
+										"type": "string",
+										"minLength": 1
+									},
+									"citation_index": {
+										"type": "integer",
+										"exclusiveMinimum": 0,
+										"maximum": 9007199254740991
+									},
+									"url": {
+										"type": "string",
+										"format": "uri"
+									},
+									"result_ref": {
+										"type": "string",
+										"minLength": 1
+									},
+									"document_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"notice_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"released_at": {
+										"type": "string",
+										"format": "date-time",
+										"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+									},
+									"citation_href": {
+										"type": "string",
+										"minLength": 1
+									},
+									"section_ref": {
+										"type": "string",
+										"minLength": 1
+									},
+									"section_title": {
+										"type": "string",
+										"minLength": 1
+									},
+									"root_unit_ids": {
+										"minItems": 1,
+										"type": "array",
+										"items": {
+											"type": "string",
+											"minLength": 1
+										}
+									},
+									"version_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"version_slug": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": ["schema_version", "id", "source", "title", "excerpt"],
+								"additionalProperties": false
+							}
+						},
+						"prior_source_attempts": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"source": {
+										"type": "string",
+										"enum": ["campus_search", "web_search", "personal_memory_recall"]
+									},
+									"status": {
+										"type": "string",
+										"enum": ["matched", "no_match", "completed", "failed"]
+									},
+									"failure_code": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": ["source", "status"],
+								"additionalProperties": false
+							}
+						},
+						"activity_attempt": {
+							"type": "integer",
+							"exclusiveMinimum": 0,
+							"maximum": 9007199254740991
+						},
+						"user_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"request_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"conversation_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"visible_function_tool_names": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"expected_tool_contract_fingerprint": {
+							"type": "object",
+							"properties": {
+								"function_schema_sha256": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								},
+								"schema_version": {
+									"type": "string",
+									"const": "tool_contract_fingerprint.v1"
+								},
+								"tools_sha256": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								}
+							},
+							"required": ["function_schema_sha256", "schema_version", "tools_sha256"],
+							"additionalProperties": false
+						},
+						"expected_model_target_sha256": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
+						},
+						"limits": {
+							"type": "object",
+							"properties": {
+								"agent_deadline_ms": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"context_char_limit": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"current_input_char_limit": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_output_tokens": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_function_tool_calls": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_turns": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_plan_steps": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_replans": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": [
+								"agent_deadline_ms",
+								"context_char_limit",
+								"current_input_char_limit",
+								"max_output_tokens",
+								"max_function_tool_calls",
+								"max_turns",
+								"max_plan_steps",
+								"max_replans"
+							],
+							"additionalProperties": false
+						},
+						"conversation_context": {
+							"type": "object",
+							"properties": {
+								"schema_version": {
+									"type": "string",
+									"const": "agent_conversation_context.v1"
+								},
+								"recent_turns": {
+									"default": [],
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"message_id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"role": {
+												"type": "string",
+												"enum": ["assistant", "user"]
+											},
+											"content": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["role", "content"],
+										"additionalProperties": false
+									}
+								},
+								"session_state": {
+									"type": "object",
+									"properties": {
+										"confirmed_slots": {
+											"default": [],
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"confirmed": {
+														"type": "boolean"
+													},
+													"name": {
+														"type": "string",
+														"minLength": 1
+													},
+													"value": {
+														"type": "string",
+														"minLength": 1
+													}
+												},
+												"required": ["confirmed", "name", "value"],
+												"additionalProperties": false
+											}
+										}
+									},
+									"required": ["confirmed_slots"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["schema_version", "recent_turns"],
+							"additionalProperties": false
+						},
+						"operation": {
+							"type": "string",
+							"const": "solve"
+						},
+						"operation_input": {
+							"type": "object",
+							"properties": {
+								"goal": {
+									"type": "string",
+									"minLength": 1
+								},
+								"max_steps": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": ["goal", "max_steps"],
+							"additionalProperties": false
+						}
+					},
+					"required": [
+						"deadline_at",
+						"prior_evidence",
+						"prior_source_attempts",
+						"activity_attempt",
+						"user_id",
+						"request_id",
+						"conversation_id",
+						"visible_function_tool_names",
+						"expected_tool_contract_fingerprint",
+						"expected_model_target_sha256",
+						"limits",
+						"operation",
+						"operation_input"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"model_answer_transport": {
+							"type": "string",
+							"enum": ["stream", "buffered"]
+						},
+						"deadline_at": {
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						"prior_evidence": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"schema_version": {
+										"type": "string",
+										"const": "workflow_evidence.v1"
+									},
+									"source_link": {
+										"type": "object",
+										"properties": {
+											"href": {
+												"anyOf": [
+													{
+														"type": "string",
+														"format": "uri"
+													},
+													{
+														"type": "null"
+													}
+												]
+											}
+										},
+										"required": ["href"],
+										"additionalProperties": false
+									},
+									"id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"source": {
+										"type": "string",
+										"enum": ["campus_search", "web_search", "personal_memory_recall"]
+									},
+									"title": {
+										"type": "string",
+										"minLength": 1
+									},
+									"excerpt": {
+										"type": "string",
+										"minLength": 1
+									},
+									"citation_index": {
+										"type": "integer",
+										"exclusiveMinimum": 0,
+										"maximum": 9007199254740991
+									},
+									"url": {
+										"type": "string",
+										"format": "uri"
+									},
+									"result_ref": {
+										"type": "string",
+										"minLength": 1
+									},
+									"document_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"notice_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"released_at": {
+										"type": "string",
+										"format": "date-time",
+										"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+									},
+									"citation_href": {
+										"type": "string",
+										"minLength": 1
+									},
+									"section_ref": {
+										"type": "string",
+										"minLength": 1
+									},
+									"section_title": {
+										"type": "string",
+										"minLength": 1
+									},
+									"root_unit_ids": {
+										"minItems": 1,
+										"type": "array",
+										"items": {
+											"type": "string",
+											"minLength": 1
+										}
+									},
+									"version_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"version_slug": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": ["schema_version", "id", "source", "title", "excerpt"],
+								"additionalProperties": false
+							}
+						},
+						"prior_source_attempts": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"source": {
+										"type": "string",
+										"enum": ["campus_search", "web_search", "personal_memory_recall"]
+									},
+									"status": {
+										"type": "string",
+										"enum": ["matched", "no_match", "completed", "failed"]
+									},
+									"failure_code": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": ["source", "status"],
+								"additionalProperties": false
+							}
+						},
+						"activity_attempt": {
+							"type": "integer",
+							"exclusiveMinimum": 0,
+							"maximum": 9007199254740991
+						},
+						"user_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"request_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"conversation_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"visible_function_tool_names": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"expected_tool_contract_fingerprint": {
+							"type": "object",
+							"properties": {
+								"function_schema_sha256": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								},
+								"schema_version": {
+									"type": "string",
+									"const": "tool_contract_fingerprint.v1"
+								},
+								"tools_sha256": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								}
+							},
+							"required": ["function_schema_sha256", "schema_version", "tools_sha256"],
+							"additionalProperties": false
+						},
+						"expected_model_target_sha256": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
+						},
+						"limits": {
+							"type": "object",
+							"properties": {
+								"agent_deadline_ms": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"context_char_limit": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"current_input_char_limit": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_output_tokens": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_function_tool_calls": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_turns": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_plan_steps": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_replans": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": [
+								"agent_deadline_ms",
+								"context_char_limit",
+								"current_input_char_limit",
+								"max_output_tokens",
+								"max_function_tool_calls",
+								"max_turns",
+								"max_plan_steps",
+								"max_replans"
+							],
+							"additionalProperties": false
+						},
+						"conversation_context": {
+							"type": "object",
+							"properties": {
+								"schema_version": {
+									"type": "string",
+									"const": "agent_conversation_context.v1"
+								},
+								"recent_turns": {
+									"default": [],
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"message_id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"role": {
+												"type": "string",
+												"enum": ["assistant", "user"]
+											},
+											"content": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["role", "content"],
+										"additionalProperties": false
+									}
+								},
+								"session_state": {
+									"type": "object",
+									"properties": {
+										"confirmed_slots": {
+											"default": [],
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"confirmed": {
+														"type": "boolean"
+													},
+													"name": {
+														"type": "string",
+														"minLength": 1
+													},
+													"value": {
+														"type": "string",
+														"minLength": 1
+													}
+												},
+												"required": ["confirmed", "name", "value"],
+												"additionalProperties": false
+											}
+										}
+									},
+									"required": ["confirmed_slots"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["schema_version", "recent_turns"],
+							"additionalProperties": false
+						},
+						"operation": {
+							"type": "string",
+							"const": "execute_step"
+						},
+						"operation_input": {
+							"type": "object",
+							"properties": {
+								"goal": {
+									"type": "string",
+									"minLength": 1
+								},
+								"plan": {
+									"type": "object",
+									"properties": {
+										"schema_version": {
+											"type": "string",
+											"const": "task_plan.v1"
+										},
+										"goal": {
+											"type": "string",
+											"minLength": 1
+										},
+										"steps": {
+											"minItems": 1,
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string",
+														"minLength": 1
+													},
+													"objective": {
+														"type": "string",
+														"minLength": 1
+													},
+													"candidate_sources": {
+														"type": "array",
+														"items": {
+															"type": "string",
+															"enum": ["campus_search", "web_search", "personal_memory_recall"]
+														}
+													},
+													"depends_on": {
+														"type": "array",
+														"items": {
+															"type": "string",
+															"minLength": 1
+														}
+													}
+												},
+												"required": ["id", "objective", "candidate_sources", "depends_on"],
+												"additionalProperties": false
+											}
+										}
+									},
+									"required": ["schema_version", "goal", "steps"],
+									"additionalProperties": false
+								},
+								"step": {
+									"type": "object",
+									"properties": {
+										"id": {
+											"type": "string",
+											"minLength": 1
+										},
+										"objective": {
+											"type": "string",
+											"minLength": 1
+										},
+										"candidate_sources": {
+											"type": "array",
+											"items": {
+												"type": "string",
+												"enum": ["campus_search", "web_search", "personal_memory_recall"]
+											}
+										},
+										"depends_on": {
+											"type": "array",
+											"items": {
+												"type": "string",
+												"minLength": 1
+											}
+										}
+									},
+									"required": ["id", "objective", "candidate_sources", "depends_on"],
+									"additionalProperties": false
+								},
+								"completed_steps": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"step": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string",
+														"minLength": 1
+													},
+													"objective": {
+														"type": "string",
+														"minLength": 1
+													},
+													"candidate_sources": {
+														"type": "array",
+														"items": {
+															"type": "string",
+															"enum": ["campus_search", "web_search", "personal_memory_recall"]
+														}
+													},
+													"depends_on": {
+														"type": "array",
+														"items": {
+															"type": "string",
+															"minLength": 1
+														}
+													}
+												},
+												"required": ["id", "objective", "candidate_sources", "depends_on"],
+												"additionalProperties": false
+											},
+											"execution_index": {
+												"type": "integer",
+												"exclusiveMinimum": 0,
+												"maximum": 9007199254740991
+											},
+											"summary": {
+												"type": "string",
+												"minLength": 1
+											},
+											"remaining_facts": {
+												"maxItems": 32,
+												"type": "array",
+												"items": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 1000
+												}
+											},
+											"failure": {
+												"type": "object",
+												"properties": {
+													"code": {
+														"type": "string",
+														"minLength": 1
+													},
+													"operation": {
+														"type": "string",
+														"minLength": 1
+													}
+												},
+												"required": ["code", "operation"],
+												"additionalProperties": false
+											},
+											"evidence": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"schema_version": {
+															"type": "string",
+															"const": "workflow_evidence.v1"
+														},
+														"source_link": {
+															"type": "object",
+															"properties": {
+																"href": {
+																	"anyOf": [
+																		{
+																			"type": "string",
+																			"format": "uri"
+																		},
+																		{
+																			"type": "null"
+																		}
+																	]
+																}
+															},
+															"required": ["href"],
+															"additionalProperties": false
+														},
+														"id": {
+															"type": "string",
+															"minLength": 1
+														},
+														"source": {
+															"type": "string",
+															"enum": ["campus_search", "web_search", "personal_memory_recall"]
+														},
+														"title": {
+															"type": "string",
+															"minLength": 1
+														},
+														"excerpt": {
+															"type": "string",
+															"minLength": 1
+														},
+														"citation_index": {
+															"type": "integer",
+															"exclusiveMinimum": 0,
+															"maximum": 9007199254740991
+														},
+														"url": {
+															"type": "string",
+															"format": "uri"
+														},
+														"result_ref": {
+															"type": "string",
+															"minLength": 1
+														},
+														"document_id": {
+															"type": "string",
+															"minLength": 1
+														},
+														"notice_id": {
+															"type": "string",
+															"minLength": 1
+														},
+														"released_at": {
+															"type": "string",
+															"format": "date-time",
+															"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+														},
+														"citation_href": {
+															"type": "string",
+															"minLength": 1
+														},
+														"section_ref": {
+															"type": "string",
+															"minLength": 1
+														},
+														"section_title": {
+															"type": "string",
+															"minLength": 1
+														},
+														"root_unit_ids": {
+															"minItems": 1,
+															"type": "array",
+															"items": {
+																"type": "string",
+																"minLength": 1
+															}
+														},
+														"version_id": {
+															"type": "string",
+															"minLength": 1
+														},
+														"version_slug": {
+															"type": "string",
+															"minLength": 1
+														}
+													},
+													"required": ["schema_version", "id", "source", "title", "excerpt"],
+													"additionalProperties": false
+												}
+											},
+											"source_attempts": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"source": {
+															"type": "string",
+															"enum": ["campus_search", "web_search", "personal_memory_recall"]
+														},
+														"status": {
+															"type": "string",
+															"enum": ["matched", "no_match", "completed", "failed"]
+														},
+														"failure_code": {
+															"type": "string",
+															"minLength": 1
+														}
+													},
+													"required": ["source", "status"],
+													"additionalProperties": false
+												}
+											}
+										},
+										"required": [
+											"step",
+											"execution_index",
+											"summary",
+											"remaining_facts",
+											"evidence",
+											"source_attempts"
+										],
+										"additionalProperties": false
+									}
+								},
+								"citation_start": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": ["goal", "plan", "step", "completed_steps", "citation_start"],
+							"additionalProperties": false
+						}
+					},
+					"required": [
+						"deadline_at",
+						"prior_evidence",
+						"prior_source_attempts",
+						"activity_attempt",
+						"user_id",
+						"request_id",
+						"conversation_id",
+						"visible_function_tool_names",
+						"expected_tool_contract_fingerprint",
+						"expected_model_target_sha256",
+						"limits",
+						"operation",
+						"operation_input"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"model_answer_transport": {
+							"type": "string",
+							"enum": ["stream", "buffered"]
+						},
+						"deadline_at": {
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						"prior_evidence": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"schema_version": {
+										"type": "string",
+										"const": "workflow_evidence.v1"
+									},
+									"source_link": {
+										"type": "object",
+										"properties": {
+											"href": {
+												"anyOf": [
+													{
+														"type": "string",
+														"format": "uri"
+													},
+													{
+														"type": "null"
+													}
+												]
+											}
+										},
+										"required": ["href"],
+										"additionalProperties": false
+									},
+									"id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"source": {
+										"type": "string",
+										"enum": ["campus_search", "web_search", "personal_memory_recall"]
+									},
+									"title": {
+										"type": "string",
+										"minLength": 1
+									},
+									"excerpt": {
+										"type": "string",
+										"minLength": 1
+									},
+									"citation_index": {
+										"type": "integer",
+										"exclusiveMinimum": 0,
+										"maximum": 9007199254740991
+									},
+									"url": {
+										"type": "string",
+										"format": "uri"
+									},
+									"result_ref": {
+										"type": "string",
+										"minLength": 1
+									},
+									"document_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"notice_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"released_at": {
+										"type": "string",
+										"format": "date-time",
+										"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+									},
+									"citation_href": {
+										"type": "string",
+										"minLength": 1
+									},
+									"section_ref": {
+										"type": "string",
+										"minLength": 1
+									},
+									"section_title": {
+										"type": "string",
+										"minLength": 1
+									},
+									"root_unit_ids": {
+										"minItems": 1,
+										"type": "array",
+										"items": {
+											"type": "string",
+											"minLength": 1
+										}
+									},
+									"version_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"version_slug": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": ["schema_version", "id", "source", "title", "excerpt"],
+								"additionalProperties": false
+							}
+						},
+						"prior_source_attempts": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"source": {
+										"type": "string",
+										"enum": ["campus_search", "web_search", "personal_memory_recall"]
+									},
+									"status": {
+										"type": "string",
+										"enum": ["matched", "no_match", "completed", "failed"]
+									},
+									"failure_code": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": ["source", "status"],
+								"additionalProperties": false
+							}
+						},
+						"activity_attempt": {
+							"type": "integer",
+							"exclusiveMinimum": 0,
+							"maximum": 9007199254740991
+						},
+						"user_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"request_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"conversation_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"visible_function_tool_names": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"expected_tool_contract_fingerprint": {
+							"type": "object",
+							"properties": {
+								"function_schema_sha256": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								},
+								"schema_version": {
+									"type": "string",
+									"const": "tool_contract_fingerprint.v1"
+								},
+								"tools_sha256": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								}
+							},
+							"required": ["function_schema_sha256", "schema_version", "tools_sha256"],
+							"additionalProperties": false
+						},
+						"expected_model_target_sha256": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
+						},
+						"limits": {
+							"type": "object",
+							"properties": {
+								"agent_deadline_ms": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"context_char_limit": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"current_input_char_limit": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_output_tokens": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_function_tool_calls": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_turns": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_plan_steps": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_replans": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": [
+								"agent_deadline_ms",
+								"context_char_limit",
+								"current_input_char_limit",
+								"max_output_tokens",
+								"max_function_tool_calls",
+								"max_turns",
+								"max_plan_steps",
+								"max_replans"
+							],
+							"additionalProperties": false
+						},
+						"conversation_context": {
+							"type": "object",
+							"properties": {
+								"schema_version": {
+									"type": "string",
+									"const": "agent_conversation_context.v1"
+								},
+								"recent_turns": {
+									"default": [],
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"message_id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"role": {
+												"type": "string",
+												"enum": ["assistant", "user"]
+											},
+											"content": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["role", "content"],
+										"additionalProperties": false
+									}
+								},
+								"session_state": {
+									"type": "object",
+									"properties": {
+										"confirmed_slots": {
+											"default": [],
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"confirmed": {
+														"type": "boolean"
+													},
+													"name": {
+														"type": "string",
+														"minLength": 1
+													},
+													"value": {
+														"type": "string",
+														"minLength": 1
+													}
+												},
+												"required": ["confirmed", "name", "value"],
+												"additionalProperties": false
+											}
+										}
+									},
+									"required": ["confirmed_slots"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["schema_version", "recent_turns"],
+							"additionalProperties": false
+						},
+						"operation": {
+							"type": "string",
+							"const": "replan"
+						},
+						"operation_input": {
+							"type": "object",
+							"properties": {
+								"goal": {
+									"type": "string",
+									"minLength": 1
+								},
+								"plan": {
+									"type": "object",
+									"properties": {
+										"schema_version": {
+											"type": "string",
+											"const": "task_plan.v1"
+										},
+										"goal": {
+											"type": "string",
+											"minLength": 1
+										},
+										"steps": {
+											"minItems": 1,
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string",
+														"minLength": 1
+													},
+													"objective": {
+														"type": "string",
+														"minLength": 1
+													},
+													"candidate_sources": {
+														"type": "array",
+														"items": {
+															"type": "string",
+															"enum": ["campus_search", "web_search", "personal_memory_recall"]
+														}
+													},
+													"depends_on": {
+														"type": "array",
+														"items": {
+															"type": "string",
+															"minLength": 1
+														}
+													}
+												},
+												"required": ["id", "objective", "candidate_sources", "depends_on"],
+												"additionalProperties": false
+											}
+										}
+									},
+									"required": ["schema_version", "goal", "steps"],
+									"additionalProperties": false
+								},
+								"completed_steps": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"step": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string",
+														"minLength": 1
+													},
+													"objective": {
+														"type": "string",
+														"minLength": 1
+													},
+													"candidate_sources": {
+														"type": "array",
+														"items": {
+															"type": "string",
+															"enum": ["campus_search", "web_search", "personal_memory_recall"]
+														}
+													},
+													"depends_on": {
+														"type": "array",
+														"items": {
+															"type": "string",
+															"minLength": 1
+														}
+													}
+												},
+												"required": ["id", "objective", "candidate_sources", "depends_on"],
+												"additionalProperties": false
+											},
+											"execution_index": {
+												"type": "integer",
+												"exclusiveMinimum": 0,
+												"maximum": 9007199254740991
+											},
+											"summary": {
+												"type": "string",
+												"minLength": 1
+											},
+											"remaining_facts": {
+												"maxItems": 32,
+												"type": "array",
+												"items": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 1000
+												}
+											},
+											"failure": {
+												"type": "object",
+												"properties": {
+													"code": {
+														"type": "string",
+														"minLength": 1
+													},
+													"operation": {
+														"type": "string",
+														"minLength": 1
+													}
+												},
+												"required": ["code", "operation"],
+												"additionalProperties": false
+											},
+											"evidence": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"schema_version": {
+															"type": "string",
+															"const": "workflow_evidence.v1"
+														},
+														"source_link": {
+															"type": "object",
+															"properties": {
+																"href": {
+																	"anyOf": [
+																		{
+																			"type": "string",
+																			"format": "uri"
+																		},
+																		{
+																			"type": "null"
+																		}
+																	]
+																}
+															},
+															"required": ["href"],
+															"additionalProperties": false
+														},
+														"id": {
+															"type": "string",
+															"minLength": 1
+														},
+														"source": {
+															"type": "string",
+															"enum": ["campus_search", "web_search", "personal_memory_recall"]
+														},
+														"title": {
+															"type": "string",
+															"minLength": 1
+														},
+														"excerpt": {
+															"type": "string",
+															"minLength": 1
+														},
+														"citation_index": {
+															"type": "integer",
+															"exclusiveMinimum": 0,
+															"maximum": 9007199254740991
+														},
+														"url": {
+															"type": "string",
+															"format": "uri"
+														},
+														"result_ref": {
+															"type": "string",
+															"minLength": 1
+														},
+														"document_id": {
+															"type": "string",
+															"minLength": 1
+														},
+														"notice_id": {
+															"type": "string",
+															"minLength": 1
+														},
+														"released_at": {
+															"type": "string",
+															"format": "date-time",
+															"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+														},
+														"citation_href": {
+															"type": "string",
+															"minLength": 1
+														},
+														"section_ref": {
+															"type": "string",
+															"minLength": 1
+														},
+														"section_title": {
+															"type": "string",
+															"minLength": 1
+														},
+														"root_unit_ids": {
+															"minItems": 1,
+															"type": "array",
+															"items": {
+																"type": "string",
+																"minLength": 1
+															}
+														},
+														"version_id": {
+															"type": "string",
+															"minLength": 1
+														},
+														"version_slug": {
+															"type": "string",
+															"minLength": 1
+														}
+													},
+													"required": ["schema_version", "id", "source", "title", "excerpt"],
+													"additionalProperties": false
+												}
+											},
+											"source_attempts": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"source": {
+															"type": "string",
+															"enum": ["campus_search", "web_search", "personal_memory_recall"]
+														},
+														"status": {
+															"type": "string",
+															"enum": ["matched", "no_match", "completed", "failed"]
+														},
+														"failure_code": {
+															"type": "string",
+															"minLength": 1
+														}
+													},
+													"required": ["source", "status"],
+													"additionalProperties": false
+												}
+											}
+										},
+										"required": [
+											"step",
+											"execution_index",
+											"summary",
+											"remaining_facts",
+											"evidence",
+											"source_attempts"
+										],
+										"additionalProperties": false
+									}
+								},
+								"remaining_steps": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"objective": {
+												"type": "string",
+												"minLength": 1
+											},
+											"candidate_sources": {
+												"type": "array",
+												"items": {
+													"type": "string",
+													"enum": ["campus_search", "web_search", "personal_memory_recall"]
+												}
+											},
+											"depends_on": {
+												"type": "array",
+												"items": {
+													"type": "string",
+													"minLength": 1
+												}
+											}
+										},
+										"required": ["id", "objective", "candidate_sources", "depends_on"],
+										"additionalProperties": false
+									}
+								},
+								"max_remaining_steps": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": [
+								"goal",
+								"plan",
+								"completed_steps",
+								"remaining_steps",
+								"max_remaining_steps"
+							],
+							"additionalProperties": false
+						}
+					},
+					"required": [
+						"deadline_at",
+						"prior_evidence",
+						"prior_source_attempts",
+						"activity_attempt",
+						"user_id",
+						"request_id",
+						"conversation_id",
+						"visible_function_tool_names",
+						"expected_tool_contract_fingerprint",
+						"expected_model_target_sha256",
+						"limits",
+						"operation",
+						"operation_input"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"model_answer_transport": {
+							"type": "string",
+							"enum": ["stream", "buffered"]
+						},
+						"deadline_at": {
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						"prior_evidence": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"schema_version": {
+										"type": "string",
+										"const": "workflow_evidence.v1"
+									},
+									"source_link": {
+										"type": "object",
+										"properties": {
+											"href": {
+												"anyOf": [
+													{
+														"type": "string",
+														"format": "uri"
+													},
+													{
+														"type": "null"
+													}
+												]
+											}
+										},
+										"required": ["href"],
+										"additionalProperties": false
+									},
+									"id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"source": {
+										"type": "string",
+										"enum": ["campus_search", "web_search", "personal_memory_recall"]
+									},
+									"title": {
+										"type": "string",
+										"minLength": 1
+									},
+									"excerpt": {
+										"type": "string",
+										"minLength": 1
+									},
+									"citation_index": {
+										"type": "integer",
+										"exclusiveMinimum": 0,
+										"maximum": 9007199254740991
+									},
+									"url": {
+										"type": "string",
+										"format": "uri"
+									},
+									"result_ref": {
+										"type": "string",
+										"minLength": 1
+									},
+									"document_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"notice_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"released_at": {
+										"type": "string",
+										"format": "date-time",
+										"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+									},
+									"citation_href": {
+										"type": "string",
+										"minLength": 1
+									},
+									"section_ref": {
+										"type": "string",
+										"minLength": 1
+									},
+									"section_title": {
+										"type": "string",
+										"minLength": 1
+									},
+									"root_unit_ids": {
+										"minItems": 1,
+										"type": "array",
+										"items": {
+											"type": "string",
+											"minLength": 1
+										}
+									},
+									"version_id": {
+										"type": "string",
+										"minLength": 1
+									},
+									"version_slug": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": ["schema_version", "id", "source", "title", "excerpt"],
+								"additionalProperties": false
+							}
+						},
+						"prior_source_attempts": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"source": {
+										"type": "string",
+										"enum": ["campus_search", "web_search", "personal_memory_recall"]
+									},
+									"status": {
+										"type": "string",
+										"enum": ["matched", "no_match", "completed", "failed"]
+									},
+									"failure_code": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": ["source", "status"],
+								"additionalProperties": false
+							}
+						},
+						"activity_attempt": {
+							"type": "integer",
+							"exclusiveMinimum": 0,
+							"maximum": 9007199254740991
+						},
+						"user_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"request_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"conversation_id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"visible_function_tool_names": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"expected_tool_contract_fingerprint": {
+							"type": "object",
+							"properties": {
+								"function_schema_sha256": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								},
+								"schema_version": {
+									"type": "string",
+									"const": "tool_contract_fingerprint.v1"
+								},
+								"tools_sha256": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								}
+							},
+							"required": ["function_schema_sha256", "schema_version", "tools_sha256"],
+							"additionalProperties": false
+						},
+						"expected_model_target_sha256": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
+						},
+						"limits": {
+							"type": "object",
+							"properties": {
+								"agent_deadline_ms": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"context_char_limit": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"current_input_char_limit": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_output_tokens": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_function_tool_calls": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_turns": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_plan_steps": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991
+								},
+								"max_replans": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": [
+								"agent_deadline_ms",
+								"context_char_limit",
+								"current_input_char_limit",
+								"max_output_tokens",
+								"max_function_tool_calls",
+								"max_turns",
+								"max_plan_steps",
+								"max_replans"
+							],
+							"additionalProperties": false
+						},
+						"conversation_context": {
+							"type": "object",
+							"properties": {
+								"schema_version": {
+									"type": "string",
+									"const": "agent_conversation_context.v1"
+								},
+								"recent_turns": {
+									"default": [],
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"message_id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"role": {
+												"type": "string",
+												"enum": ["assistant", "user"]
+											},
+											"content": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["role", "content"],
+										"additionalProperties": false
+									}
+								},
+								"session_state": {
+									"type": "object",
+									"properties": {
+										"confirmed_slots": {
+											"default": [],
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"confirmed": {
+														"type": "boolean"
+													},
+													"name": {
+														"type": "string",
+														"minLength": 1
+													},
+													"value": {
+														"type": "string",
+														"minLength": 1
+													}
+												},
+												"required": ["confirmed", "name", "value"],
+												"additionalProperties": false
+											}
+										}
+									},
+									"required": ["confirmed_slots"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["schema_version", "recent_turns"],
+							"additionalProperties": false
+						},
+						"operation": {
+							"type": "string",
+							"const": "synthesize"
+						},
+						"operation_input": {
+							"type": "object",
+							"properties": {
+								"goal": {
+									"type": "string",
+									"minLength": 1
+								},
+								"mode": {
+									"default": "planned",
+									"type": "string",
+									"enum": ["planned", "recovery"]
+								},
+								"remaining_facts": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"objective": {
+												"type": "string",
+												"minLength": 1
+											},
+											"facts": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											}
+										},
+										"required": ["objective", "facts"],
+										"additionalProperties": false
+									}
+								},
+								"evidence": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"schema_version": {
+												"type": "string",
+												"const": "workflow_evidence.v1"
+											},
+											"source_link": {
+												"type": "object",
+												"properties": {
+													"href": {
+														"anyOf": [
+															{
+																"type": "string",
+																"format": "uri"
+															},
+															{
+																"type": "null"
+															}
+														]
+													}
+												},
+												"required": ["href"],
+												"additionalProperties": false
+											},
+											"id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"source": {
+												"type": "string",
+												"enum": ["campus_search", "web_search", "personal_memory_recall"]
+											},
+											"title": {
+												"type": "string",
+												"minLength": 1
+											},
+											"excerpt": {
+												"type": "string",
+												"minLength": 1
+											},
+											"citation_index": {
+												"type": "integer",
+												"exclusiveMinimum": 0,
+												"maximum": 9007199254740991
+											},
+											"url": {
+												"type": "string",
+												"format": "uri"
+											},
+											"result_ref": {
+												"type": "string",
+												"minLength": 1
+											},
+											"document_id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"notice_id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"released_at": {
+												"type": "string",
+												"format": "date-time",
+												"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+											},
+											"citation_href": {
+												"type": "string",
+												"minLength": 1
+											},
+											"section_ref": {
+												"type": "string",
+												"minLength": 1
+											},
+											"section_title": {
+												"type": "string",
+												"minLength": 1
+											},
+											"root_unit_ids": {
+												"minItems": 1,
+												"type": "array",
+												"items": {
+													"type": "string",
+													"minLength": 1
+												}
+											},
+											"version_id": {
+												"type": "string",
+												"minLength": 1
+											},
+											"version_slug": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["schema_version", "id", "source", "title", "excerpt"],
+										"additionalProperties": false
+									}
+								},
+								"source_attempts": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"source": {
+												"type": "string",
+												"enum": ["campus_search", "web_search", "personal_memory_recall"]
+											},
+											"status": {
+												"type": "string",
+												"enum": ["matched", "no_match", "completed", "failed"]
+											},
+											"failure_code": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": ["source", "status"],
+										"additionalProperties": false
+									}
+								},
+								"recovery_reason": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 500
+								}
+							},
+							"required": ["goal", "mode", "remaining_facts", "evidence", "source_attempts"],
+							"additionalProperties": false
+						}
+					},
+					"required": [
+						"deadline_at",
+						"prior_evidence",
+						"prior_source_attempts",
+						"activity_attempt",
+						"user_id",
+						"request_id",
+						"conversation_id",
+						"visible_function_tool_names",
+						"expected_tool_contract_fingerprint",
+						"expected_model_target_sha256",
+						"limits",
+						"operation",
+						"operation_input"
+					],
+					"additionalProperties": false
+				}
+			]
+		},
+		"RuntimeInvocationResult": {
+			"type": "object",
+			"properties": {
+				"disposition": {
+					"type": "string",
+					"enum": ["new", "claimed", "ambiguous", "replay"],
+					"x-go-name": "Disposition",
+					"x-go-type": "string"
+				},
+				"output": {
+					"x-go-name": "Output",
+					"x-go-type": "json.RawMessage"
+				}
+			},
+			"additionalProperties": false,
+			"x-go-package": "executionapplication",
+			"x-go-name": "RuntimeInvocationResult"
+		},
+		"PreparedOperation": {
+			"type": "object",
+			"properties": {
+				"operation_request": {
+					"$ref": "#/$defs/OperationRequest",
+					"x-go-name": "Request",
+					"x-go-type": "operation.OperationRequest"
+				},
+				"wire": {
+					"type": "object",
+					"additionalProperties": true,
+					"x-go-name": "Wire",
+					"x-go-type": "map[string]any"
+				}
+			},
+			"required": ["operation_request", "wire"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "PreparedOperation"
+		},
+		"PrepareResponse": {
+			"type": "object",
+			"properties": {
+				"prepared": {
+					"$ref": "#/$defs/PreparedOperation",
+					"x-go-name": "Prepared",
+					"x-go-type": "PreparedOperation"
+				},
+				"tool_context": {
+					"type": "object",
+					"additionalProperties": true,
+					"x-go-name": "ToolContext",
+					"x-go-type": "map[string]any"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time",
+					"x-go-name": "CreatedAt",
+					"x-go-type": "time.Time"
+				}
+			},
+			"required": ["prepared", "tool_context", "created_at"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "PrepareResponse"
+		},
+		"PayloadResponse": {
+			"type": "object",
+			"properties": {
+				"payload": {
+					"x-go-name": "Payload",
+					"x-go-type": "json.RawMessage"
+				}
+			},
+			"required": ["payload"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "PayloadResponse"
+		},
+		"ProjectionResponse": {
+			"type": "object",
+			"properties": {
+				"ref": {
+					"type": "string",
+					"x-go-name": "Ref",
+					"x-go-type": "string"
+				}
+			},
+			"required": ["ref"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "ProjectionResponse"
+		},
+		"RuntimeAcknowledgement": {
+			"type": "object",
+			"properties": {},
+			"required": [],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "RuntimeAcknowledgement"
+		},
+		"FinalizationAdmission": {
+			"type": "object",
+			"properties": {
+				"admission_snapshot": {
+					"$ref": "#/$defs/AgentAdmissionSnapshot",
+					"x-go-name": "AdmissionSnapshot",
+					"x-go-type": "execution.AgentAdmissionSnapshot"
+				}
+			},
+			"required": ["admission_snapshot"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "FinalizationAdmission"
+		}
+	}
+}

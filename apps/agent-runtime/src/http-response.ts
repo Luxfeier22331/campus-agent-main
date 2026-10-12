@@ -163,7 +163,6 @@ export function agentRunStreamResponse(
 }
 
 export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelease: string) {
-	const isSynthesis = result.operation === "synthesize";
 	const payload = {
 		...(result.webEvidence && result.webEvidence.length > 0
 			? {
@@ -227,21 +226,18 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 		...(result.plan ? { plan: structuredOutputWire(result.plan) } : {}),
 		...(result.replan ? { replan: structuredOutputWire(result.replan) } : {}),
 		...(result.remainingFacts ? { remaining_facts: result.remainingFacts } : {}),
-		...(isSynthesis
-			? {}
-			: {
-					evidence: result.evidence.map(evidenceWire),
-					source_attempts: result.sourceAttempts.map((attempt) => ({
-						source: attempt.source,
-						status: attempt.status,
-						...(attempt.failureCode ? { failure_code: attempt.failureCode } : {}),
-					})),
-				}),
+		evidence: result.evidence.map(evidenceWire),
+		source_attempts: result.sourceAttempts.map((attempt) => ({
+			source: attempt.source,
+			status: attempt.status,
+			...(attempt.failureCode ? { failure_code: attempt.failureCode } : {}),
+		})),
 		model_name: result.modelName,
 		model_provider: result.modelProvider,
 		provider_response_id: result.providerResponseId,
 		stage_timing: result.stageTiming,
 		tool_results: result.toolResults.map((toolResult) => ({
+			...(toolResult.activity ? { activity: toolResult.activity } : {}),
 			duration_ms: toolResult.durationMs,
 			invocation_id: toolResult.invocationId,
 			status: toolResult.status,

@@ -17,7 +17,11 @@ function fixture() {
 			citationStart: 1,
 			workflow: {
 				deadline_at: deadline,
-				admission_snapshot: { provider_config_sha256: "a".repeat(64) },
+				admission_snapshot: {
+					provider_config_sha256: "a".repeat(64),
+					agent_budget: { max_plan_steps: 8 },
+					agent_capabilities: { visible_function_tool_names: [], hosted_web_search: false },
+				},
 			},
 		},
 		preparedRef: "prepared",
@@ -184,7 +188,7 @@ describe("real Agent activity completion", () => {
 			expect(f.call).toHaveBeenCalledTimes(1);
 		},
 	);
-	it("uses normalized output without completing a buffered answer twice", async () => {
+	it("owns the decision and does not load Control output or complete a buffered answer twice", async () => {
 		const f = fixture();
 		f.call.mockImplementation(async (action, input) => {
 			if (action === "project") {
@@ -199,6 +203,7 @@ describe("real Agent activity completion", () => {
 			f.activities.completeStage({ requestId: "run", stageRef: "stage", turnRef: "turn" }),
 		);
 		expect(out).toMatchObject({ answerStarted: true });
+		expect(f.load.mock.calls.some(([, ref]) => ref === "output")).toBe(false);
 		expect(f.call.mock.calls.map(([action]) => action)).toEqual(["project"]);
 		expect(f.rows.get("stage:result")).toMatchObject({ result: { answerStarted: true } });
 	});

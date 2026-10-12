@@ -14,7 +14,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/httpapi"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/outboundadapter"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/runtimeapi"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporaladapter/control"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalclient/control"
 )
 
 type APIOwner struct {
@@ -31,8 +31,10 @@ func NewAPI(cfg config.Config, logger *slog.Logger) (*APIOwner, error) {
 	if err != nil {
 		return nil, err
 	}
+	payloads, _ := r.execution.store.(executionapplication.RuntimePayloadLifecycle)
 	reconciler := executionreconciler.New(executionreconciler.Options{
 		Finalizer:        r.execution.finalization,
+		Payloads:         payloads,
 		Logger:           logger,
 		OperationTimeout: time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
 		Starter:          &control.Gateway{Starter: r.temporalStarter},
@@ -55,7 +57,13 @@ func NewAPI(cfg config.Config, logger *slog.Logger) (*APIOwner, error) {
 	})
 	var runtimeHandler http.Handler
 	if store, ok := r.execution.store.(*executionpersistence.PostgresRunProjectionStore); ok {
-		runtimeHandler = &runtimeapi.Server{SharedSecret: cfg.AgentRuntimeSharedSecret, Store: store, MetadataWriter: store, Receipts: store.Receipts, Finalization: r.execution.finalization, Operations: &operationapp.OperationService{StateWriter: store, Writer: r.execution.writer.Application(context.Background()), InputReader: r.execution.inputReader, Options: operationapp.Options{AnswerTransport: cfg.AnswerTransport, Configured: true, DeploymentRelease: cfg.DeploymentRelease}, Receipts: executionapplication.NewReceiptService(store.Receipts)}}
+
+		projection := &operationapp.RunProjectionService{StateWriter: store, Writer: r.execution.writer, DeploymentRelease: cfg.DeploymentRelease}
+		runtimeHandler = &runtimeapi.Server{
+			SharedSecret: cfg.AgentRuntimeSharedSecret, ActivityStore: store, Store: store, MetadataWriter: store, Finalization: r.execution.finalization,
+			Input:      &operationapp.RuntimeInputService{Projection: projection, InputReader: r.execution.inputReader, AnswerTransport: cfg.AnswerTransport},
+			Projection: projection, Invocation: &executionapplication.RuntimeInvocationService{Receipts: store.Receipts, Runs: projection},
+		}
 	}
 	server := httpapi.NewServerWithOptions(cfg, httpapi.ServerOptions{
 		RuntimeHandler:          runtimeHandler,

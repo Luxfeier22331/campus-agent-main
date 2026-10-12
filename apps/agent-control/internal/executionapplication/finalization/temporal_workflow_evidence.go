@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"math"
 	"net/url"
 	"regexp"
@@ -15,7 +16,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 )
 
 const WorkflowCitationLimit = 10
@@ -245,7 +245,7 @@ func WorkflowEvidenceSource(
 		noticeID := strings.TrimSpace(item.NoticeID)
 		citationHref := strings.TrimSpace(item.CitationHref)
 		if noticeID != "" || citationHref != "" {
-			if noticeID == "" || !campussearch.ValidNoticeCitationHrefForNoticeID(citationHref, noticeID) ||
+			if noticeID == "" || !searchapi.ValidNoticeCitationHrefForNoticeID(citationHref, noticeID) ||
 				strings.TrimSpace(item.SectionTitle) == "" {
 				return nil, "", citationError("invalid_source_identity", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
 			}
@@ -255,7 +255,7 @@ func WorkflowEvidenceSource(
 				"kind":          "campus_notice",
 				"notice_id":     noticeID,
 				"section_title": item.SectionTitle,
-				"snippet":       campussearch.BoundedSourceSnippet(item.Excerpt),
+				"snippet":       searchapi.BoundedSourceSnippet(item.Excerpt),
 				"title":         item.Title,
 			}
 			if item.ReleasedAt != "" {
@@ -274,7 +274,7 @@ func WorkflowEvidenceSource(
 			"citation_href": href,
 			"evidence_ref":  item.ID,
 			"kind":          "campus_document",
-			"snippet":       campussearch.BoundedSourceSnippet(item.Excerpt),
+			"snippet":       searchapi.BoundedSourceSnippet(item.Excerpt),
 			"title":         item.Title,
 		}
 		if item.DocumentID != "" {
@@ -306,7 +306,7 @@ func WorkflowEvidenceSource(
 			return nil, "", err
 		}
 		source["evidence_ref"] = item.ID
-		source["snippet"] = campussearch.BoundedSourceSnippet(item.Excerpt)
+		source["snippet"] = searchapi.BoundedSourceSnippet(item.Excerpt)
 		return source, "web:" + urlValue, nil
 	case executioncontract.WorkflowSourcePersonalMemoryRecall:
 		return nil, "", citationError("unsupported_source", "evidence.source", map[string]any{"citation_index": item.CitationIndex})
@@ -347,7 +347,7 @@ func WorkflowResultsFromAgentResult(agentResult map[string]any) ([]WorkflowRunRe
 			strings.TrimSpace(execution.StringValue(toolResult["tool_name"])) != activityprojection.WorkflowCampusSearchToolName {
 			continue
 		}
-		_, parsedResults, err := campussearch.DecodeSearchResult(
+		_, parsedResults, err := searchapi.DecodeSearchResult(
 			execution.CloneAnyMapFromValue(toolResult["result"]),
 		)
 		if err != nil {
@@ -366,7 +366,7 @@ func WorkflowResultsFromAgentResult(agentResult map[string]any) ([]WorkflowRunRe
 	return results, nil
 }
 
-func WorkflowRunResultFromCampusSearch(item campussearch.SearchResultItem) WorkflowRunResult {
+func WorkflowRunResultFromCampusSearch(item searchapi.SearchResultItem) WorkflowRunResult {
 	if item.SourceKind == "notice" {
 		source := map[string]any{
 			"citation_href": item.CitationHref,
@@ -374,7 +374,7 @@ func WorkflowRunResultFromCampusSearch(item campussearch.SearchResultItem) Workf
 			"kind":          "campus_notice",
 			"notice_id":     item.NoticeID,
 			"section_title": item.SectionTitle,
-			"snippet":       campussearch.BoundedSourceSnippet(item.Text),
+			"snippet":       searchapi.BoundedSourceSnippet(item.Text),
 			"title":         item.Title,
 		}
 		if item.ReleasedAt != "" {
@@ -399,7 +399,7 @@ func WorkflowRunResultFromCampusSearch(item campussearch.SearchResultItem) Workf
 			"root_unit_ids": append([]string{}, item.RootUnitIDs...),
 			"section_ref":   item.SectionRef,
 			"section_title": item.SectionTitle,
-			"snippet":       campussearch.BoundedSourceSnippet(item.Text),
+			"snippet":       searchapi.BoundedSourceSnippet(item.Text),
 			"title":         item.Title,
 			"version_id":    item.VersionID,
 			"version_slug":  item.VersionSlug,

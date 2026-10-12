@@ -19,7 +19,8 @@
 		"./product-availability": "./src/product-availability.ts",
 		"./chat-sources": "./src/chat-sources.ts",
 		"./chat-conversations": "./src/chat-conversations.ts",
-		"./citation-diagnostic": "./src/citation-diagnostic.ts"
+		"./citation-diagnostic": "./src/citation-diagnostic.ts",
+		"./agent-runtime-control": "./src/agent-runtime-control.ts"
 	},
 	"scripts": {
 		"generate": "pnpm exec tsx ./scripts/generate_contracts.ts",

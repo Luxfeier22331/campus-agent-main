@@ -16,6 +16,9 @@
 
 - `docs/contracts/schemas/tool-execution.openapi.yaml`：run create/read、event、step、cancel 与
   finalization wire；
+- `schemas/agent-runtime-control.v1.schema.json`：Runtime-Control 输入、结果、投影、调用 receipt、
+  finalization 与 Activity 元数据；生成 Go wire 和 `campus-contracts/agent-runtime-control` TypeScript 类型，
+  两种语言使用同一 fixture 验证；
 - `schemas/personal-memory-tool-contracts.v1.schema.json`：个人记忆召回的有界 payload/result；
 - `src/product-availability.ts`：App API 问答可用性响应与状态页固定双服务快照的 Zod 运行时合同；
   快照 JSON Schema 生成到 `schemas/product-availability-snapshot.v1.schema.json`；

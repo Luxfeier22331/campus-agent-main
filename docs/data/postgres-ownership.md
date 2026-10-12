@@ -79,8 +79,9 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 个人记忆的调用租约、命令回执和 owner fence 由独立数据库中的
 `memory.personal_memory_call_leases`、`memory.personal_memory_command_receipts` 和
 `memory.personal_memory_owner_fences` 承载；`memory.requests` 保存接收与派发、恢复输入。
-原 `execution_control.personal_memory_*` 仅作为双轨部署迁移源和旧本地模式状态保留。
-迁移在排空窗口复制，保持 owner salt、generation 和序号；服务间不跨数据库查询。
+原 `execution_control.personal_memory_*` 三张状态表由新增 retirement migration 删除；
+`execution_control.agent_memory_deliveries` 与 `profile.memory_commands` 仍分别承担投递和产品投影。
+当前服务使用独立数据库，保持原 owner salt、generation 和序号；服务间不跨数据库查询。
 
 Campus Web 静态文档发布只使用对象存储和构建产物。Campus RAG serving 逻辑上拥有
 `campus_docs_serving.current_index` 单行绑定；唯一 current pointer writer 是
@@ -131,7 +132,7 @@ Notice Chunk/Embedding builder 不写入该表。独立 Campus Search service �
 | execution run/event/step/attempt/result projection | execution-control | 账号删除完成前保留，删除时 cascade 清理 |
 | `owner_deletion_fences(state=deleted)` | execution-control | 保留最小 tombstone，阻止 owner 复活；不含用户内容 |
 | Temporal history | Temporal/platform | 按平台 retention；不由 PostgreSQL 删除任务即时清理 |
-| Hindsight personal memory | Hindsight；execution-control 推进删除命令 | 账号清除合同；execution-control 不保存正文 |
+| Hindsight personal memory | Hindsight；Memory Worker 推进删除命令 | 账号清除合同；Memory 独立管理操作状态 |
 | `transport.routes`、`transport.schedule_periods`、`transport.schedule_items` | Ops Web | 当前线路和完整班次表由 Ops Web 直接维护；没有自动清理或通知回放 |
 | 门户原始 source/file/source.json | 采集/来源数据面 | 按来源清单和业务引用决定；由来源 owner 人工核对清理 |
 | normalized reader/source manifest | Campus Docs/Campus Web 数据面 | 当前及仍被清单引用的历史对象保留 |
@@ -152,7 +153,7 @@ embedding 制品的存活判断。未有明确引用或删除清单时，本仓�
 | 消费方 | 单实例上限 | 说明 |
 | --- | ---: | --- |
 | execution-control projection | 8 | `pgxpool` runtime pool |
-| execution-control personal memory state | 4 | 与 projection 分开的 pool |
+| Memory state | 4 | 独立 Memory 数据库的 pool |
 | Campus Search service | 2 | 独立 `pgxpool`，使用 `campus_search` 只读当前索引 |
 | Model Config runtime | 4 | 只供在线配置服务 |
 | Ops Web runtime | 4 | internal-portal check 也复用该 pool 上限 |

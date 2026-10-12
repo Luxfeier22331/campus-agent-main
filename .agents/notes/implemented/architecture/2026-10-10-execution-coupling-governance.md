@@ -14,6 +14,11 @@ Hindsight 已作为独立服务拥有记忆内容及 provider operation，但 ex
 保留[个人记忆协调器](./2026-09-24-agent-memory-coordinator.md)及
 [记忆访问边界](./2026-09-24-memory-access-boundary.md)规定的生命周期和清除行为。
 
+本篇的进程内拆分已由[Agent 编排与 Memory 独立服务](./2026-10-10-agent-orchestration-memory-services.md)
+继续演进：旧 Go Activity adapter、同步 Runtime HTTP 和 `OperationService` 已退役，
+现行服务边界、共享 wire 和投影身份以该篇为准。下文保留前一阶段的取舍；Writer 仅持有所需依赖、
+输入与终态回调分别注入的原则仍有效。
+
 ## 决策
 
 ### 记忆应用拥有自己的用例

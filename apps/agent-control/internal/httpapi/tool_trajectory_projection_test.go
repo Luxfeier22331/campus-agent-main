@@ -2,12 +2,12 @@ package httpapi
 
 import (
 	"encoding/json"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 )
 
 func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
@@ -147,7 +147,7 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 				"parent_step_id":   "task.step.lookup",
 				"search_query":     "本科生转专业 申请条件",
 				"search_goal":      "确认本科生转专业的申请条件",
-				"result": campussearch.EncodeSearchResult([]campussearch.SearchResultItem{{
+				"result": searchapi.EncodeSearchResult([]searchapi.SearchResultItem{{
 					ResultRef:    "result://" + strings.Repeat("c", 64),
 					SourceKind:   "document",
 					DocumentID:   "curriculum-document",

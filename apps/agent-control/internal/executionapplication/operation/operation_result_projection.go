@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
@@ -14,106 +13,32 @@ import (
 	"time"
 )
 
-// NormalizeOperationResult validates completed model output without invoking a provider.
-func (s *OperationService) NormalizeOperationResult(ctx context.Context, run execution.DurableRun, request OperationRequest, response executionapplication.AgentRuntimeResult) (executioncontract.OperationOutput, error) {
-	resultRef := activityprojection.WorkflowOperationResultRef(run.RequestID, request.StepID)
-	if response.Operation != "" && strings.TrimSpace(response.Operation) != string(request.Operation) {
-		return s.FailOperation(
-			ctx,
-			run,
-			request,
-			"workflow_operation_result_invalid",
-			fmt.Errorf("runtime operation %q does not match %q", response.Operation, request.Operation),
-		)
+// AcceptOperationResult validates the projection envelope without deciding Agent behavior.
+func (s *RuntimeResultBoundary) AcceptOperationResult(run execution.DurableRun, request OperationRequest, response executionapplication.AgentRuntimeResult) (executioncontract.OperationOutput, error) {
+	if response.Operation != string(request.Operation) {
+		return executioncontract.OperationOutput{}, errors.New("runtime operation identity mismatch")
 	}
-	if err := execution.ValidateAgentRuntimeToolContract(
-		request.AdmissionSnapshot.ToolContractFingerprint,
-		response.ToolContractFingerprint,
-	); err != nil {
-		return s.FailOperation(ctx, run, request, "tool_contract_mismatch", err)
+	if err := execution.ValidateAgentRuntimeToolContract(request.AdmissionSnapshot.ToolContractFingerprint, response.ToolContractFingerprint); err != nil {
+		return executioncontract.OperationOutput{}, err
 	}
-	output, err := WorkflowOperationOutputFromRuntimeResponse(response, request.Operation, resultRef)
+	output, err := WorkflowOperationOutputFromRuntimeResponse(response, request.Operation, activityprojection.WorkflowOperationResultRef(run.RequestID, request.StepID))
 	if err != nil {
-		return s.FailOperation(ctx, run, request, "workflow_operation_result_invalid", err)
+		return output, err
 	}
 	output.RequestID = run.RequestID
-	output.WorkflowResultRef = resultRef
-	output.RuntimeRelease = strings.TrimSpace(response.RuntimeRelease)
-
 	if output.Status != "completed" && output.Status != "failed" {
-		return s.FailOperation(
-			ctx,
-			run,
-			request,
-			"workflow_operation_incomplete",
-			fmt.Errorf("runtime operation status is %q", output.Status),
-		)
+		return output, errors.New("runtime operation is not terminal")
 	}
-	if output.Status == "failed" {
-		if output.Failure == nil || strings.TrimSpace(output.Failure.Code) == "" {
-			return s.FailOperation(ctx, run, request, "workflow_operation_result_invalid", errors.New("failed runtime result has no classified failure"))
-		}
-	}
-	if err := ValidateWorkflowOperationOutputSources(request, output); err != nil {
-		return s.FailOperation(ctx, run, request, "workflow_operation_result_invalid", err)
-	}
-	if request.Operation == executioncontract.WorkflowOperationSynthesize {
-		// Validate the runtime response before restoring already-admitted materials
-		// for finalization and receipt replay.
-		output.Evidence = append([]executioncontract.WorkflowEvidence{}, request.Evidence...)
-		output.SourceAttempts = append([]executioncontract.WorkflowSourceAttempt{}, request.SourceAttempts...)
-	}
-	if output.Status != "failed" && request.Operation == executioncontract.WorkflowOperationSolve {
-		if output.SolveOutcome != "answer" && output.SolveOutcome != "plan" {
-			return s.FailOperation(ctx, run, request, "workflow_operation_result_invalid", errors.New("solver result has no valid outcome"))
-		}
-		if output.SolveOutcome == "answer" && strings.TrimSpace(output.FinalOutput) == "" {
-			return s.FailOperation(ctx, run, request, "workflow_operation_result_invalid", errors.New("solver answer is empty"))
-		}
-		if output.SolveOutcome == "plan" && output.Plan == nil {
-			return s.FailOperation(ctx, run, request, "workflow_operation_result_invalid", errors.New("solver plan is missing"))
-		}
-	}
-	if output.Status != "failed" && request.Operation == executioncontract.WorkflowOperationReplan && output.Replan == nil {
-		return s.FailOperation(ctx, run, request, "workflow_operation_result_invalid", errors.New("replanner result has no decision"))
-	}
-	if output.Status != "failed" && request.Operation == executioncontract.WorkflowOperationReplan {
-		decisionErr := executioncontract.ValidateWorkflowReplanDecision(*output.Replan)
-		if decisionErr == nil {
-			decisionErr = executioncontract.ValidateWorkflowRemainingSteps(
-				output.Replan.RemainingSteps,
-				request.AdmissionSnapshot.AgentBudget.MaxPlanSteps,
-				request.CompletedSteps,
-				executioncontract.AgentCapabilitiesSnapshot(request.AdmissionSnapshot.AgentCapabilities),
-			)
-		}
-		if decisionErr != nil {
-			// A rejected model decision is not a transport failure. Preserve its
-			// usage and let the workflow continue the existing admitted plan.
-			output.Status = "failed"
-			output.TerminalReason = "agent_runtime_failed"
-			output.Failure = &executioncontract.ExecutionFailure{Code: "model_output_invalid", Operation: "workflow.replan", Detail: decisionErr.Error()}
-			output.Replan = nil
-		}
-	}
-	if output.Status != "failed" && (request.Operation == executioncontract.WorkflowOperationSolve || request.Operation == executioncontract.WorkflowOperationExecuteStep || request.Operation == executioncontract.WorkflowOperationSynthesize) &&
-		strings.TrimSpace(output.FinalOutput) == "" {
-		if request.Operation != executioncontract.WorkflowOperationSolve || output.SolveOutcome == "answer" {
-			return s.FailOperation(ctx, run, request, "workflow_operation_result_invalid", errors.New("text operation result is empty"))
-		}
+	if output.Status == "failed" && (output.Failure == nil || strings.TrimSpace(output.Failure.Code) == "") {
+		return output, errors.New("failed runtime result has no classified failure")
 	}
 	if err := ValidateOperationOutputFields(output); err != nil {
-		kind := "workflow_operation_result_invalid"
-		var sizeError *execution.OperationPayloadTooLargeError
-		if errors.As(err, &sizeError) {
-			kind = "workflow_operation_payload_too_large"
-		}
-		return s.FailOperation(ctx, run, request, kind, err)
+		return output, err
 	}
 	return output, nil
 }
 
-func (s *OperationService) ProjectBufferedSolveAnswer(ctx context.Context, run execution.DurableRun, request OperationRequest, output *executioncontract.OperationOutput) error {
+func (s *RunProjectionService) ProjectBufferedSolveAnswer(ctx context.Context, run execution.DurableRun, request OperationRequest, output *executioncontract.OperationOutput) error {
 	// Buffered solve answers arrive as one FinalOutput payload without streaming
 	// answer_delta events. Project the full text as a single delta + completion so
 	// the browser-visible event sequence matches the streaming shape and the
@@ -139,10 +64,10 @@ func (s *OperationService) ProjectBufferedSolveAnswer(ctx context.Context, run e
 	return nil
 }
 
-func (s *OperationService) ProjectOperationCompletion(ctx context.Context, run execution.DurableRun, request OperationRequest, response executionapplication.AgentRuntimeResult, output executioncontract.OperationOutput, startedProjection activityprojection.StepProjection, completedAt time.Time) error {
+func (s *RunProjectionService) ProjectOperationCompletion(ctx context.Context, run execution.DurableRun, request OperationRequest, response executionapplication.AgentRuntimeResult, output executioncontract.OperationOutput, startedProjection activityprojection.StepProjection, completedAt time.Time) error {
 	startedAt := startedProjection.StartedAt
 	resultRef := activityprojection.WorkflowOperationResultRef(run.RequestID, request.StepID)
-	resultPayload, err := WorkflowOperationResultPayload(request, output, startedProjection.Attempt, s.Options.DeploymentRelease)
+	resultPayload, err := WorkflowOperationResultPayload(request, output, startedProjection.Attempt, s.DeploymentRelease)
 	if err != nil {
 		return err
 	}

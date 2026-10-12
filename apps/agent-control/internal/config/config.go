@@ -11,9 +11,6 @@ const (
 	defaultTemporalTaskQueue          = "campus-agent.agent.workflow.v1"
 	defaultAgentRuntimeDeadlineMS     = 240_000
 	defaultAgentRuntimeInputCharLimit = 8_000
-	defaultMemoryContextCharBudget    = 2_500
-	defaultMemoryRecallLimit          = 8
-	defaultMemoryRecallMaxTokens      = 2_500
 	defaultMemoryTimeoutSeconds       = 90
 	defaultProductCallbackTimeoutMS   = 5_000
 	defaultRequestBodyLimitBytes      = 1_048_576
@@ -51,11 +48,7 @@ type Config struct {
 	TemporalWorkerIdentity                  string
 	TemporalStartTimeoutMS                  int
 	TemporalWorkflowExecutionTimeoutSeconds int
-	AgentRuntimeBaseURL                     string
 	AgentRuntimeSharedSecret                string
-	RetrievalBaseURL                        string
-	RetrievalInternalToken                  string
-	CampusSearchTimeoutMS                   int
 	AgentRuntimeDeadlineMS                  int
 	AgentRuntimeMaxOutputTokens             int
 	AgentRuntimeInputCharLimit              int
@@ -67,10 +60,7 @@ type Config struct {
 	MemoryServiceBaseURL                    string
 	MemoryServiceSecret                     string
 
-	PersonalMemoryTimeoutSeconds    float64
-	PersonalMemoryRecallLimit       int
-	PersonalMemoryRecallMaxTokens   int
-	PersonalMemoryContextCharBudget int
+	PersonalMemoryTimeoutSeconds float64
 }
 
 type envValues struct {
@@ -86,8 +76,6 @@ type envValues struct {
 	TemporalNamespace           string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
 	TemporalWorkerIdentity      string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
 	AgentRuntimeSharedSecret    string `env:"AGENT_CONTROL_RUNTIME_SHARED_SECRET"`
-	RetrievalBaseURL            string `env:"RETRIEVAL_BASE_URL"`
-	RetrievalInternalToken      string `env:"RETRIEVAL_INTERNAL_TOKEN"`
 	ModelConfigBaseURL          string `env:"MODEL_CONFIG_URL"`
 	AnswerTransport             string `env:"EXECUTION_CONTROL_ANSWER_TRANSPORT"`
 	ProductCallbackBaseURL      string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
@@ -142,25 +130,19 @@ func loadFromEnv() (Config, error) {
 		TemporalStartTimeoutMS:                  5_000,
 		TemporalWorkflowExecutionTimeoutSeconds: fixedTemporalWorkflowTimeoutSec,
 		AgentRuntimeSharedSecret:                values.AgentRuntimeSharedSecret,
-		RetrievalBaseURL:                        strings.TrimRight(strings.TrimSpace(values.RetrievalBaseURL), "/"),
-		RetrievalInternalToken:                  strings.TrimSpace(values.RetrievalInternalToken),
-		CampusSearchTimeoutMS:                   60_000,
 		AgentRuntimeDeadlineMS:                  defaultAgentRuntimeDeadlineMS,
 		// Zero means no application-imposed output-token limit. Provider defaults
 		// remain authoritative until a model-specific limit is configured.
-		AgentRuntimeMaxOutputTokens:     0,
-		AgentRuntimeInputCharLimit:      defaultAgentRuntimeInputCharLimit,
-		AgentRuntimeContextCharLimit:    16_000,
-		AnswerTransport:                 normalizeAnswerTransport(values.AnswerTransport),
-		ProductCallbackBaseURL:          strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
-		ProductCallbackTimeoutMS:        defaultProductCallbackTimeoutMS,
-		ModelConfigBaseURL:              strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
-		MemoryServiceBaseURL:            strings.TrimRight(strings.TrimSpace(values.MemoryServiceBaseURL), "/"),
-		MemoryServiceSecret:             values.MemoryServiceSecret,
-		PersonalMemoryTimeoutSeconds:    defaultMemoryTimeoutSeconds,
-		PersonalMemoryRecallLimit:       defaultMemoryRecallLimit,
-		PersonalMemoryRecallMaxTokens:   defaultMemoryRecallMaxTokens,
-		PersonalMemoryContextCharBudget: defaultMemoryContextCharBudget,
+		AgentRuntimeMaxOutputTokens:  0,
+		AgentRuntimeInputCharLimit:   defaultAgentRuntimeInputCharLimit,
+		AgentRuntimeContextCharLimit: 16_000,
+		AnswerTransport:              normalizeAnswerTransport(values.AnswerTransport),
+		ProductCallbackBaseURL:       strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
+		ProductCallbackTimeoutMS:     defaultProductCallbackTimeoutMS,
+		ModelConfigBaseURL:           strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
+		MemoryServiceBaseURL:         strings.TrimRight(strings.TrimSpace(values.MemoryServiceBaseURL), "/"),
+		MemoryServiceSecret:          values.MemoryServiceSecret,
+		PersonalMemoryTimeoutSeconds: defaultMemoryTimeoutSeconds,
 	}, nil
 }
 

@@ -2,6 +2,7 @@ package finalization
 
 import (
 	"encoding/json"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"strings"
 	"testing"
 
@@ -9,12 +10,11 @@ import (
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 )
 
 // Real notice output as produced by the campus-search builder.
-func contractNoticeItem() campussearch.SearchResultItem {
-	return campussearch.SearchResultItem{
+func contractNoticeItem() searchapi.SearchResultItem {
+	return searchapi.SearchResultItem{
 		SourceKind: "notice", ResultRef: "result://" + strings.Repeat("a1", 32),
 		Title: "关于国庆放假的通知", Text: "放假安排以通知为准", SectionTitle: "正文",
 		NoticeID: "952401", CitationHref: "/notices/952401",
@@ -23,8 +23,8 @@ func contractNoticeItem() campussearch.SearchResultItem {
 }
 
 // Real document output as produced by the campus-search builder.
-func contractDocumentItem() campussearch.SearchResultItem {
-	return campussearch.SearchResultItem{
+func contractDocumentItem() searchapi.SearchResultItem {
+	return searchapi.SearchResultItem{
 		SourceKind: "document", ResultRef: "result://" + strings.Repeat("b2", 32),
 		Title: "学生守则", Text: "考勤管理要求", SectionTitle: "考勤",
 		DocumentID: "handbook:student-rules", VersionID: "version-2026", VersionSlug: "2026",
@@ -41,7 +41,7 @@ func contractWebEvidence() executioncontract.WorkflowEvidence {
 	}
 }
 
-func contractEvidenceFromNotice(item campussearch.SearchResultItem, index int) executioncontract.WorkflowEvidence {
+func contractEvidenceFromNotice(item searchapi.SearchResultItem, index int) executioncontract.WorkflowEvidence {
 	return executioncontract.WorkflowEvidence{
 		SchemaVersion: "workflow-evidence.v1", ID: "notice-evidence-1",
 		Source: executioncontract.WorkflowSourceCampusSearch, Title: item.Title, Excerpt: item.Text,
@@ -50,7 +50,7 @@ func contractEvidenceFromNotice(item campussearch.SearchResultItem, index int) e
 	}
 }
 
-func contractEvidenceFromDocument(item campussearch.SearchResultItem, index int) executioncontract.WorkflowEvidence {
+func contractEvidenceFromDocument(item searchapi.SearchResultItem, index int) executioncontract.WorkflowEvidence {
 	return executioncontract.WorkflowEvidence{
 		SchemaVersion: "workflow-evidence.v1", ID: "document-evidence-1",
 		Source: executioncontract.WorkflowSourceCampusSearch, Title: item.Title, Excerpt: item.Text,
@@ -87,7 +87,7 @@ func TestDirectAnswerCampusSourcesSurviveRecovery(t *testing.T) {
 	_, restored := finalizedRecoveryResponse(t, map[string]any{
 		"final_output": "放假安排[1]，考勤要求[2]",
 		"tool_results": []map[string]any{
-			citationToolResult([]campussearch.SearchResultItem{notice, document}, 1),
+			citationToolResult([]searchapi.SearchResultItem{notice, document}, 1),
 		},
 	})
 	if len(restored.Result.Sources) != 2 {
@@ -163,7 +163,7 @@ func TestRecoveryRejectsUnknownFieldsOnEverySourceKind(t *testing.T) {
 	response, _ := finalizedRecoveryResponse(t, map[string]any{
 		"final_output": "放假安排[1]",
 		"tool_results": []map[string]any{
-			citationToolResult([]campussearch.SearchResultItem{notice}, 1),
+			citationToolResult([]searchapi.SearchResultItem{notice}, 1),
 		},
 	})
 	sources := WorkflowToolResultMaps(response["result"].(map[string]any)["sources"])

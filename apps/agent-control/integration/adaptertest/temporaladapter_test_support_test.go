@@ -18,7 +18,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionpersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/outboundadapter"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalclient"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/toolcontract"
 )
 
@@ -36,7 +36,6 @@ var temporalTestExecutionInputs = struct {
 func newAdapterForTest(cfg config.Config) *Adapter {
 	return New(Options{
 		Config:                cfg,
-		AgentRuntimeClient:    outboundadapter.NewAgentRuntimeClient(cfg),
 		ProductCallbackClient: outboundadapter.NewProductCallbackClient(cfg),
 	})
 }
@@ -144,10 +143,6 @@ func attachRunProjectionStoreForAdapterTest(
 	store executionapplication.RunStore,
 ) {
 	adapter.SetProjectionStore(store)
-	switch store := store.(type) {
-	case *executionpersistence.InMemoryRunProjectionStore:
-		adapter.Receipts = executionapplication.NewReceiptService(store.Receipts)
-	}
 	adapter.ExecutionInputLoader = temporalTestExecutionInputLoader{}
 	adapter.ProductFinalizationWriter = func(context.Context, execution.DurableRun, time.Time, map[string]any) error {
 		return nil
@@ -191,7 +186,7 @@ func createQueuedDurableRunForTest(
 		ConversationID: conversationID,
 		OwnerUserID:    "user-executor",
 		Surface:        "campus-web",
-		TaskQueue:      temporalruntime.WorkflowTaskQueue,
+		TaskQueue:      temporalclient.WorkflowTaskQueue,
 		Status:         execution.DurableRunStatusCreated,
 		CreatedAt:      now,
 		Metadata:       metadata,

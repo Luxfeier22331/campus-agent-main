@@ -148,7 +148,7 @@ collection 保存到 run metadata，后续响应必须匹配该绑定，否则�
 读取当前索引；内部请求不携带已绑定 collection，也不会在发布切换后自动改查旧索引。因此运行中切换索引
 可能导致后续检索被拒绝，而不是让同一回答混用两个 collection。该绑定不冻结 embedding 或 reranker 配置。
 读取入口见[Search service](../../../apps/campus-search/internal/service/service.go)，绑定与拒绝逻辑见
-[CampusSearchToolService](../../../apps/agent-control/internal/executionapplication/campus_search_tool_service.go)。
+[CampusSearchToolService](../../../apps/agent-runtime/src/domain-tools.ts)。
 
 当前查询先根据问题中的版本意图生成检索范围：默认只允许 Docs 的当前版本；培养方案可按入学年份选择适用版本；明确历史或版本问题只有在索引中存在对应版本时才可能命中。对通知问题，`今年`、`去年`、`前年` 会基于同一 run 冻结的创建日期归一化为具体年份，并把同一结果用于召回和 rerank；其他相对时间不作推断。该范围作为 Qdrant payload filter 同时应用到 dense/sparse hybrid RRF 的两个 prefetch。随后最多取得 24 个候选，再使用当前 `campus_docs_reranker`
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。数量和字符预算前

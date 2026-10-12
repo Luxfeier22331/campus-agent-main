@@ -26,21 +26,22 @@ HTTP 监听由 `MEMORY_HOST`、`MEMORY_PORT` 控制，两进程均提供 `/healt
 `pnpm dev:init` 为 core 创建独立 Memory 数据库、应用 schema 并生成环境文件；`pnpm dev`
 启动两个进程，本地 Worker 使用 `MEMORY_WORKER_PORT`。Hindsight 仍按已有 memory domain
 初始化流程单独准备。`pnpm --filter memory-service native:test` 运行单元测试。
-独立数据库、迁移与 control 投递事务由 execution-control 的 PostgreSQL 集成套件联合验证。
+`pnpm --filter memory-service test:database-integration` 验证独立数据库、状态和命令恢复；
+Control 投递事务由 agent-control 的 PostgreSQL 集成套件验证。
 
 长期进程不执行 DDL；`campus-agent-schema migrate --target memory` 是 schema 入口。
 部署 Secret 由环境仓已有 backend 注入：`memory-service-secrets` 提供数据库 URL 与内部密钥，
 `campus-agent-postgres-memory-owner` 提供匹配的 database role 凭据。数据库 URL 必须包含环境的
 TLS CA 配置；源码不部署占位凭据。owner salt 必须沿用迁移前值。
 
-迁移步骤见 [执行服务运维](../../docs/runbooks/runtime/execution.md)，选择理由见
+部署与排查见 [执行服务运维](../../docs/runbooks/runtime/execution.md)，选择理由见
 [Agent 编排与 Memory 独立服务](../../.agents/notes/implemented/architecture/2026-10-10-agent-orchestration-memory-services.md)。
 
 ## Hindsight 配置升级
 
 `memory-config-upgrade` 由 Memory Application 的 PostSync Job 执行，使用同镜像中的当前规则，
 通过 Hindsight API 更新本应用已有 bank 的提取配置和 `user-profile` 指令。新建对象使用同一组默认值；
-正常读写不做配置比较。该命令不访问 Memory 数据库，不执行 schema 或 `memory-cutover`。
+正常读写不做配置比较。该命令不访问 Memory 数据库，不执行 schema 迁移或状态复制。
 新 Pod 网络策略生效前若连接被拒绝，首次只读 bank 查询最多等待 30 秒；后续写入不自动重试。
 
 当前 Hindsight 0.9.1 的 bank 列表没有分页，画像 API 也不暴露 `last_refreshed_source_query`。

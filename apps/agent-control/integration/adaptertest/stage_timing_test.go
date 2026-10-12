@@ -64,7 +64,7 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 		upsertStageTimingResult(t, store, run.RequestID, result.stepID, result.stageTiming, now)
 	}
 
-	timing, err := NewFinalizationAdapter(server).Service.StageTimingForRun(context.Background(), run, nil)
+	timing, err := server.StageTimingForRun(context.Background(), run, nil)
 	if err != nil {
 		t.Fatalf("stage timing: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
 	run := createStageTimingRun(t, store, now)
 	upsertStageTimingAttempt(t, store, run.RequestID, 1, "task.step.step.lookup", 120, nil, now)
 
-	timing, err := NewFinalizationAdapter(server).Service.StageTimingForRun(context.Background(), run, nil)
+	timing, err := server.StageTimingForRun(context.Background(), run, nil)
 	if err != nil {
 		t.Fatalf("stage timing: %v", err)
 	}

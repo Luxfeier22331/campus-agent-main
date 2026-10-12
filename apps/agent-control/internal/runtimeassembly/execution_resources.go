@@ -10,11 +10,11 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	finalizationapp "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/finalization"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioninput"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionpersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/modelconfigclient"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporaladapter/answermemory"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporaladapter/projection"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/runtimeprojection/answermemory"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/toolcontract"
 )
 
@@ -51,7 +51,7 @@ func newExecutionResources(ctx context.Context, cfg config.Config, logger *slog.
 
 	writer := projection.New(projection.Writer{WorkerID: cfg.TemporalWorkerIdentity, RunProjectionStore: runProjectionStore})
 	inputReader := &executionapplication.InputReader{ExecutionInputLoader: executionInputLoader, ExecutionInputErr: executionInputErr}
-	finalizationAdapter := finalizationapp.New(finalizationapp.FinalizationService{StateWriter: runProjectionStore, Writer: writer.Application(ctx), FinalizationClient: productCallbackClient, AdmissionService: admissionService, Logger: logger})
+	finalizationAdapter := finalizationapp.New(finalizationapp.FinalizationService{StateWriter: runProjectionStore, Writer: writer, FinalizationClient: productCallbackClient, AdmissionService: admissionService, Logger: logger})
 	if cfg.MemoryServiceBaseURL != "" {
 		if store, ok := runProjectionStore.(*executionpersistence.PostgresRunProjectionStore); ok {
 			finalizationAdapter.PrepareMemoryDelivery = func(ctx context.Context, run execution.DurableRun) error {

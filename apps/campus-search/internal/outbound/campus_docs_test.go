@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -71,7 +72,7 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 		t.Context(),
 		campussearch.Index{Collection: collection},
 		campussearch.SearchQuery{RetrievalQuery: "学籍规定", RerankQuery: "学籍规定"},
-		campussearch.SearchResultLimit,
+		searchapi.SearchResultLimit,
 	)
 	if err != nil {
 		t.Fatalf("retrieve Campus docs evidence: %v", err)
@@ -79,7 +80,7 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 	if len(evidence) != 0 {
 		t.Fatalf("no-match evidence = %#v", evidence)
 	}
-	result := campussearch.EncodeSearchResult(evidence, 1)
+	result := searchapi.EncodeSearchResult(evidence, 1)
 	if result["outcome"] != "no_match" {
 		t.Fatalf("no-match result = %#v", result)
 	}
@@ -178,13 +179,13 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 		ctx,
 		campussearch.Index{Collection: collection},
 		campussearch.SearchQuery{RetrievalQuery: retrievalQuery, RerankQuery: rerankQuery},
-		campussearch.SearchResultLimit,
+		searchapi.SearchResultLimit,
 	)
 	if err != nil {
 		t.Fatalf("retrieve Campus docs evidence: %v", err)
 	}
-	if len(evidence) != campussearch.SearchResultLimit {
-		t.Fatalf("evidence count = %d, want %d", len(evidence), campussearch.SearchResultLimit)
+	if len(evidence) != searchapi.SearchResultLimit {
+		t.Fatalf("evidence count = %d, want %d", len(evidence), searchapi.SearchResultLimit)
 	}
 	for index, item := range evidence {
 		want := fmt.Sprintf("chunk-%d", len(points)-index-1)
@@ -311,12 +312,12 @@ func TestCampusDocsRetrievalReturnsNoMatchWhenAllRerankerScoresAreBelowThreshold
 		ctx,
 		campussearch.Index{Collection: collection},
 		campussearch.SearchQuery{RetrievalQuery: "火星校区服务", RerankQuery: "火星校区服务"},
-		campussearch.SearchResultLimit,
+		searchapi.SearchResultLimit,
 	)
 	if err != nil {
 		t.Fatalf("retrieve Campus docs evidence: %v", err)
 	}
-	result := campussearch.EncodeSearchResult(evidence, 1)
+	result := searchapi.EncodeSearchResult(evidence, 1)
 	if !rerankCalled || len(evidence) != 0 || result["outcome"] != "no_match" {
 		t.Fatalf("low-score retrieval result = %#v; rerank called = %t", result, rerankCalled)
 	}
@@ -365,7 +366,7 @@ func TestCampusDocsRetrievalDoesNotFallbackWhenRerankerResponseIsInvalid(t *test
 		t.Context(),
 		campussearch.Index{Collection: collection},
 		campussearch.SearchQuery{RetrievalQuery: "学籍规定", RerankQuery: "学籍规定"},
-		campussearch.SearchResultLimit,
+		searchapi.SearchResultLimit,
 	)
 	if err == nil || !strings.Contains(err.Error(), "reranker response index is invalid") {
 		t.Fatalf("invalid reranker response error = %v", err)
@@ -446,8 +447,8 @@ func TestCampusNoticeCandidatePreservesEvidenceAcrossPublishedVersions(t *testin
 			if err != nil {
 				t.Fatal(err)
 			}
-			encoded := campussearch.EncodeSearchResult([]campussearch.SearchResultItem{candidate.result}, 1)
-			_, decoded, err := campussearch.DecodeSearchResult(encoded)
+			encoded := searchapi.EncodeSearchResult([]searchapi.SearchResultItem{candidate.result}, 1)
+			_, decoded, err := searchapi.DecodeSearchResult(encoded)
 			if err != nil || len(decoded) != 1 || decoded[0].Text != text {
 				t.Fatalf("evidence changed: %#v, %v", decoded, err)
 			}

@@ -13,13 +13,11 @@ import (
 )
 
 type PostgresStateStore struct {
-	pool   *pgxpool.Pool
-	schema string
+	pool *pgxpool.Pool
 }
 
 type PostgresStateStoreOptions struct {
 	DatabaseURL string
-	Schema      string
 }
 
 func NewPostgresStateStore(ctx context.Context, options PostgresStateStoreOptions) (*PostgresStateStore, error) {
@@ -30,20 +28,13 @@ func NewPostgresStateStore(ctx context.Context, options PostgresStateStoreOption
 	if err != nil {
 		return nil, fmt.Errorf("parse personal memory state database url: %w", err)
 	}
-	schema := options.Schema
-	if schema == "" {
-		schema = "execution_control"
-	}
-	if schema != "execution_control" && schema != "memory" {
-		return nil, errors.New("invalid memory schema")
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema
+	config.ConnConfig.RuntimeParams["search_path"] = "memory"
 	config.MaxConns = 4
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("create personal memory state pool: %w", err)
 	}
-	return &PostgresStateStore{pool: pool, schema: schema}, nil
+	return &PostgresStateStore{pool: pool}, nil
 }
 
 func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, callID string, generation int64, kind string, ttl time.Duration) error {
@@ -185,13 +176,11 @@ func (s *PostgresStateStore) MarkOwnerDeleted(ctx context.Context, ownerHash str
 		or exists(select 1 from personal_memory_command_receipts where owner_scope_hash = $1 and status not in ('succeeded', 'failed'))`, ownerHash).Scan(&active); err != nil {
 		return err
 	}
-	if s.schema == "memory" {
-		var pending bool
-		if err := tx.QueryRow(ctx, `select exists(select 1 from memory.requests where owner_scope_hash=$1 and (status not in ('succeeded','completed','failed','skipped') or payload is not null))`, ownerHash).Scan(&pending); err != nil {
-			return err
-		}
-		active = active || pending
+	var pending bool
+	if err := tx.QueryRow(ctx, `select exists(select 1 from memory.requests where owner_scope_hash=$1 and (status not in ('succeeded','completed','failed','skipped') or payload is not null))`, ownerHash).Scan(&pending); err != nil {
+		return err
 	}
+	active = active || pending
 	if active {
 		return memoryruntime.ErrMemoryOwnerNotDrained
 	}
@@ -353,10 +342,7 @@ func (s *PostgresStateStore) MarkCommandRetryable(ctx context.Context, commandID
 }
 
 func (s *PostgresStateStore) HealthCheck(ctx context.Context) error {
-	tables := []string{"personal_memory_owner_fences", "personal_memory_call_leases", "personal_memory_command_receipts"}
-	if s.schema == "memory" {
-		tables = append(tables, "requests")
-	}
+	tables := []string{"personal_memory_owner_fences", "personal_memory_call_leases", "personal_memory_command_receipts", "requests"}
 	for _, table := range tables {
 		if _, err := s.pool.Exec(ctx, "select 1 from "+table+" limit 0"); err != nil {
 			return fmt.Errorf("read personal memory state table %s: %w", table, err)

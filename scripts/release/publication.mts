@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import type { CandidatePlan } from "./candidates.mts";
 import { parseWorkerCandidates } from "./workers.mts";
 
-const WORKFLOW = ".github/workflows/execution-runtime-publish.yml";
+const WORKFLOW = ".github/workflows/staging-candidate-publish.yml";
 const REPOSITORY = "MUC-WIKI/campus-agent";
 
 export interface PublicationRun {
@@ -231,7 +231,7 @@ function githubIO(): PublicationIO {
 	return {
 		async runs(sha) {
 			return pages(
-				`${prefix}/workflows/execution-runtime-publish.yml/runs?head_sha=${sha}&event=push`,
+				`${prefix}/workflows/staging-candidate-publish.yml/runs?head_sha=${sha}&event=push`,
 				"workflow_runs",
 			);
 		},

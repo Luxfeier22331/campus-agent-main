@@ -3,6 +3,7 @@ package outbound
 import (
 	"encoding/json"
 	"fmt"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -165,7 +166,7 @@ func TestCampusSearchDiagnosticsRecordsEvidenceBudgetExclusion(t *testing.T) {
 	if len([]rune(snapshot.Candidates[0].Text)) != 3000 || len([]rune(snapshot.Candidates[1].Text)) != 160 || snapshot.Candidates[1].ExclusionReason != "evidence_char_budget" {
 		t.Fatal("diagnostic body bounds or exclusion reason are incorrect")
 	}
-	encoded := campussearch.EncodeSearchResult(results, 1)
+	encoded := searchapi.EncodeSearchResult(results, 1)
 	if len(encoded) != 2 {
 		t.Fatal("diagnostics leaked into tool response")
 	}
@@ -218,7 +219,7 @@ func TestNoticeEvidenceContextSurvivesResultBudget(t *testing.T) {
 	if len(results) != 3 {
 		t.Fatalf("budget must retain three complete results, got %d", len(results))
 	}
-	_, decoded, err := campussearch.DecodeSearchResult(campussearch.EncodeSearchResult(results, 1))
+	_, decoded, err := searchapi.DecodeSearchResult(searchapi.EncodeSearchResult(results, 1))
 	if err != nil {
 		t.Fatal(err)
 	}

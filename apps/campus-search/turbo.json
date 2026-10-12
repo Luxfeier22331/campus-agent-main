@@ -1,0 +1,8 @@
+{
+	"extends": ["//"],
+	"tasks": {
+		"native:test": { "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/search-api-go/**"] },
+		"native:vet": { "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/search-api-go/**"] },
+		"native:lint": { "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/search-api-go/**"] }
+	}
+}

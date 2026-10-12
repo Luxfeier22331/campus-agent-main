@@ -21,17 +21,11 @@ import (
 )
 
 const (
-	postgresImage     = "postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193"
-	adminUser         = "postgres"
-	adminPassword     = "postgres-integration-admin"
-	ownerRole         = "campus_agent"
-	ownerPassword     = "campus-agent-password"
-	executionRole     = "execution_control"
-	executionPassword = "execution-control-password"
-	appAPIRole        = "app_api"
-	opsWebRole        = "ops_web"
-	opsWebPassword    = "ops-web-password"
-	modelConfigRole   = "model_config"
+	postgresImage = "postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193"
+	adminUser     = "postgres"
+	adminPassword = "postgres-integration-admin"
+	ownerRole     = "memory_service"
+	ownerPassword = "memory-integration-password"
 )
 
 type postgresHarness struct {
@@ -60,7 +54,7 @@ func TestPostgresIntegration(t *testing.T) {
 	harness := &postgresHarness{adminURL: adminURL, repositoryRoot: repositoryRoot(t)}
 
 	harness.installClusterRoles(t)
-	t.Run("independent memory database and cutover", func(t *testing.T) { testIndependentMemoryDatabase(t, harness) })
+	t.Run("independent memory database", func(t *testing.T) { testIndependentMemoryDatabase(t, harness) })
 	t.Run("personal memory state store", func(t *testing.T) { testPersonalMemoryStateStore(t, harness) })
 	t.Run("personal memory concurrent state store", func(t *testing.T) { testPersonalMemoryConcurrentStateStore(t, harness) })
 }
@@ -80,13 +74,6 @@ func (h *postgresHarness) installClusterRoles(t *testing.T) {
 	defer closeConn(t, conn)
 	statements := []string{
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{ownerRole}.Sanitize(), ownerPassword),
-		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{executionRole}.Sanitize(), executionPassword),
-		fmt.Sprintf("create role %s nologin", pgx.Identifier{appAPIRole}.Sanitize()),
-		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{opsWebRole}.Sanitize(), opsWebPassword),
-		fmt.Sprintf("create role %s nologin", pgx.Identifier{modelConfigRole}.Sanitize()),
-		"create role product_data_ro nologin",
-		"create role campus_search nologin",
-		"create role memory_service login password 'memory-integration-password'",
 	}
 	for _, statement := range statements {
 		if _, err := conn.Exec(t.Context(), statement); err != nil {
@@ -97,7 +84,7 @@ func (h *postgresHarness) installClusterRoles(t *testing.T) {
 
 func (h *postgresHarness) createDatabase(t *testing.T, owner string) string {
 	t.Helper()
-	databaseName := randomIdentifier(t, "execution_integration")
+	databaseName := randomIdentifier(t, "memory_integration")
 	conn := connect(t, h.adminURL)
 	defer closeConn(t, conn)
 	statement := fmt.Sprintf("create database %s", pgx.Identifier{databaseName}.Sanitize())
@@ -154,7 +141,7 @@ func closeConn(t *testing.T, conn *pgx.Conn) {
 	}
 }
 
-func requireSchema(t *testing.T, databaseURL string, target ...string) {
+func requireSchema(t *testing.T, databaseURL string) {
 	t.Helper()
 	parsed, err := url.Parse(databaseURL)
 	if err != nil {
@@ -164,10 +151,7 @@ func requireSchema(t *testing.T, databaseURL string, target ...string) {
 	if !ok {
 		t.Fatal("schema database URL is missing a password")
 	}
-	command := exec.CommandContext(t.Context(), "pnpm", "--dir", "jobs/campus-agent-schema", "migrate")
-	if len(target) > 0 {
-		command.Args = append(command.Args, "--target", target[0])
-	}
+	command := exec.CommandContext(t.Context(), "pnpm", "--dir", "jobs/campus-agent-schema", "migrate", "--target", "memory")
 	command.Dir = repositoryRoot(t)
 	command.Env = append(os.Environ(),
 		"PGHOST="+parsed.Hostname(),
@@ -178,6 +162,6 @@ func requireSchema(t *testing.T, databaseURL string, target ...string) {
 		"PGSSLMODE=disable",
 	)
 	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("migrate execution-control schema with campus-agent-schema: %v\n%s", err, output)
+		t.Fatalf("migrate memory schema with campus-agent-schema: %v\n%s", err, output)
 	}
 }

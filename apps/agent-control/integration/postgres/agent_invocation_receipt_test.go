@@ -3,24 +3,15 @@
 package postgres_test
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	"strings"
 	"testing"
 	"time"
-
-	temporaladapter "github.com/MUC-WIKI/campus-agent/apps/agent-control/integration/adaptertest"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/integration/agenttest"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/outboundadapter"
-	workflowcontract "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporaladapter/contract"
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime"
 )
 
 func testAgentInvocationReceipt(t *testing.T, harness *postgresHarness) {
@@ -133,128 +124,4 @@ func testAgentInvocationReceipt(t *testing.T, harness *postgresHarness) {
 		t.Fatalf("failed receipt survived parent deletion: %v", err)
 	}
 
-	t.Run("adapter replay repairs projection without repeating provider execution", func(t *testing.T) {
-		input := agenttest.CreateQueuedRun(t, store, "run-provider-replay")
-		snapshot := agenttest.AdmissionSnapshot(t)
-		provider := &receiptProvider{requestID: input.Wire.RequestID, fingerprint: execution.ToolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint)}
-		adapter := temporaladapter.New(temporaladapter.Options{
-			Config:             config.Config{AgentRuntimeBaseURL: "http://fixture.invalid", AgentRuntimeSharedSecret: "integration-secret"},
-			RunProjectionStore: &receiptProjectionFailureStore{RunStore: store},
-			ReceiptStore:       store.Receipts, ExecutionInputLoader: input, AgentRuntimeClient: provider,
-		})
-		request := temporalruntime.SolveTaskActivityInput{
-			WorkflowOperationActivityInputBase: temporalruntime.WorkflowOperationActivityInputBase{
-				RequestID: input.Wire.RequestID, ConversationID: input.Wire.ConversationID, AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot),
-			}, MaxSteps: 2,
-		}
-		_, err := adapter.SolveTask(t.Context(), request)
-		if err == nil {
-			t.Fatal("expected injected projection failure after receipt completion")
-		}
-		completedReceipt, err := store.Receipts.GetAgentInvocationReceipt(t.Context(), input.Wire.RequestID+":solve.initial")
-		if err != nil {
-			t.Fatal(err)
-		}
-		var first temporalruntime.WorkflowOperationActivityOutput
-		if err := json.Unmarshal(completedReceipt.OutputJSON, &first); err != nil {
-			t.Fatal(err)
-		}
-		restored, err := adapter.SolveTask(t.Context(), request)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if provider.calls != 1 || execution.HashAdmissionJSON(first) != execution.HashAdmissionJSON(restored) {
-			t.Fatalf("provider calls=%d; first=%#v restored=%#v", provider.calls, first, restored)
-		}
-		stored, err := store.Receipts.GetAgentInvocationReceipt(t.Context(), input.Wire.RequestID+":solve.initial")
-		if err != nil {
-			t.Fatal(err)
-		}
-		var persisted temporalruntime.WorkflowOperationActivityOutput
-		if err := json.Unmarshal(stored.OutputJSON, &persisted); err != nil {
-			t.Fatal(err)
-		}
-		if execution.HashAdmissionJSON(persisted) != execution.HashAdmissionJSON(first) || stored.OutputSHA256 != execution.HashAdmissionJSON(first) {
-			t.Fatalf("receipt did not retain full operation result and hash: %#v", stored)
-		}
-		conn := connect(t, databaseURL)
-		defer closeConn(t, conn)
-		if _, err := conn.Exec(t.Context(), "update execution_control.agent_invocation_receipts set output_json=$1::jsonb where invocation_id=$2", "{broken", stored.InvocationID); err == nil {
-			t.Fatal("PostgreSQL accepted malformed receipt JSON")
-		}
-		for _, kind := range []string{"unknown", "type", "digest", "oversize"} {
-			t.Run(kind, func(t *testing.T) {
-				var payload map[string]any
-				if err := json.Unmarshal(stored.OutputJSON, &payload); err != nil {
-					t.Fatal(err)
-				}
-				switch kind {
-				case "unknown":
-					payload["raw_debug"] = "private receipt debug"
-				case "type":
-					payload["status"] = 42
-				case "digest":
-					payload["final_output"] = "tampered answer"
-				case "oversize":
-					payload["final_output"] = strings.Repeat("x", execution.MaxAgentOperationPayloadBytes)
-				}
-				encoded, err := json.Marshal(payload)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if _, err := conn.Exec(t.Context(), "update execution_control.agent_invocation_receipts set output_json=$1::jsonb where invocation_id=$2", string(encoded), stored.InvocationID); err != nil {
-					t.Fatal(err)
-				}
-				if _, err := adapter.SolveTask(t.Context(), request); err == nil {
-					t.Fatal("invalid receipt was replayed")
-				}
-				if provider.calls != 1 {
-					t.Fatal("invalid receipt invoked provider")
-				}
-				if _, err := conn.Exec(t.Context(), "update execution_control.agent_invocation_receipts set output_json=$1::jsonb where invocation_id=$2", string(stored.OutputJSON), stored.InvocationID); err != nil {
-					t.Fatal(err)
-				}
-			})
-		}
-		if _, err := adapter.SolveTask(t.Context(), request); err != nil {
-			t.Fatal(err)
-		}
-	})
-}
-
-type receiptProjectionFailureStore struct {
-	executionapplication.RunStore
-	failed bool
-}
-
-func (s *receiptProjectionFailureStore) UpsertStepResult(ctx context.Context, result execution.StepResultProjection) (execution.StepResultProjection, error) {
-	if result.StepID == "solve.initial" && result.Status == "completed" && !s.failed {
-		s.failed = true
-		return execution.StepResultProjection{}, errors.New("injected projection failure after completed receipt")
-	}
-	return s.RunStore.UpsertStepResult(ctx, result)
-}
-
-type receiptProvider struct {
-	calls       int
-	requestID   string
-	fingerprint map[string]any
-}
-
-func (p *receiptProvider) Execute(_ context.Context, request executionapplication.AgentRuntimeRequest, handle func(executionapplication.AgentRuntimeEvent) error) (executionapplication.AgentRuntimeResult, error) {
-	p.calls++
-	completed, err := json.Marshal(map[string]any{
-		"request_id": p.requestID, "operation": "solve", "solve_outcome": "answer", "status": "completed",
-		"final_output": "保存在 receipt 中的完整回答", "tool_contract_fingerprint": p.fingerprint,
-		"usage": map[string]any{"input_tokens": 12, "output_tokens": 8, "model_request_count": 1, "usage_observed": true},
-	})
-	if err != nil {
-		return executionapplication.AgentRuntimeResult{}, err
-	}
-	body := fmt.Sprintf("event: solve_decision\ndata: {\"schema_version\":\"workflow_runtime_solve_decision.v1\",\"outcome\":\"answer\"}\n\nevent: completed\ndata: %s\n\n", completed)
-	return outboundadapter.DecodeAgentRuntimeResponse(200, strings.NewReader(body), request.Stream, handle)
-}
-
-func (c *receiptProvider) Prepare(r executionapplication.AgentRuntimeRequest) (string, error) {
-	return outboundadapter.NewAgentRuntimeClient(config.Config{}).Prepare(r)
 }

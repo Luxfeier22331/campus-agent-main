@@ -30,7 +30,7 @@ func TestInternalDependencyBoundaries(t *testing.T) {
 		t.Fatalf("list package graph: %v", err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(output))
-	infrastructure := []string{"go.temporal.io", "github.com/jackc/pgx", internal + "httpapi", internal + "executionpersistence", internal + "memorypersistence", internal + "outboundadapter", internal + "hindsightadapter", internal + "temporalruntime", internal + "temporaladapter", internal + "runtimeassembly", internal + "toolcontract"}
+	infrastructure := []string{"go.temporal.io", "github.com/jackc/pgx", internal + "httpapi", internal + "executionpersistence", internal + "memorypersistence", internal + "outboundadapter", internal + "hindsightadapter", internal + "temporalclient", internal + "runtimeprojection", internal + "runtimeassembly", internal + "toolcontract"}
 	for {
 		var info packageInfo
 		if err := decoder.Decode(&info); err != nil {
@@ -61,25 +61,20 @@ func TestInternalDependencyBoundaries(t *testing.T) {
 			check(info.Deps, infrastructure)
 			check(info.Deps, []string{internal + "execution", internal + "executionapplication", internal + "config"})
 		case internal + "httpapi", internal + "executionreconciler":
-			check(info.Deps, []string{"go.temporal.io", internal + "temporalruntime", internal + "temporaladapter"})
-		case internal + "temporaladapter/memory":
-			check(info.Deps, []string{internal + "temporaladapter/finalization", internal + "executionapplication"})
-			check(info.Imports, []string{internal + "executionapplication", internal + "temporaladapter/projection", internal + "temporaladapter/answermemory"})
-		case internal + "temporaladapter/execution":
-			check(info.Deps, []string{internal + "temporaladapter/finalization"})
-		case internal + "temporaladapter/projection", internal + "temporaladapter/activitysupport":
-			check(info.Deps, []string{internal + "config", internal + "temporaladapter/execution", internal + "temporaladapter/memory", internal + "temporaladapter/finalization"})
+			check(info.Deps, []string{"go.temporal.io", internal + "temporalclient", internal + "runtimeprojection"})
+		case internal + "temporalclient", internal + "temporalclient/control":
+			check(info.Deps, []string{internal + "runtimeprojection", internal + "runtimeapi"})
 		case internal + "config":
-			check(info.Deps, []string{internal + "temporalruntime", internal + "temporaladapter"})
+			check(info.Deps, []string{internal + "temporalclient", internal + "runtimeprojection"})
 		}
 		check(info.Imports, []string{module + "integration", "github.com/testcontainers/testcontainers-go"})
 		if info.ImportPath != internal+"runtimeassembly" {
 			check(info.Imports, []string{"go.temporal.io/sdk/worker"})
 		}
-		if within(info.ImportPath, internal+"temporaladapter") {
+		if within(info.ImportPath, internal+"runtimeprojection") {
 			check(info.Imports, []string{internal + "executionpersistence", internal + "memorypersistence", internal + "outboundadapter"})
 			for _, dependency := range info.Imports {
-				if dependency == internal+"temporaladapter" {
+				if dependency == internal+"runtimeprojection" {
 					t.Errorf("activity owner depends on aggregate adapter: %s", info.ImportPath)
 				}
 			}

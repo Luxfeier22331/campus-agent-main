@@ -11,7 +11,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/runtimepolicy"
 )
 
-func (s *OperationService) BeginWorkflowRun(
+func (s *RunProjectionService) BeginWorkflowRun(
 	ctx context.Context,
 	run execution.DurableRun,
 	startedAt time.Time,

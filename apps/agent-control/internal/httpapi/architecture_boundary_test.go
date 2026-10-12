@@ -99,7 +99,7 @@ func TestExecutionHandlersDoNotImportTheirFormerRuleOwners(t *testing.T) {
 		"execution_run_handlers.go": {
 			"github.com/MUC-WIKI/campus-agent/apps/memory-service/memoryruntime",
 			"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/outboundadapter",
-			"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime",
+			"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalclient",
 		},
 	}
 	for name, forbidden := range tests {

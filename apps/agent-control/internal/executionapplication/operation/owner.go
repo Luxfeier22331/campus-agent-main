@@ -5,17 +5,19 @@ import (
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
 )
 
-type OperationService struct {
-	StateWriter executionapplication.OperationStateWriter
-	*activityprojection.Writer
+// RuntimeInputService prepares frozen model inputs; it never invokes a model.
+type RuntimeInputService struct {
+	Projection *RunProjectionService
 	*executionapplication.InputReader
-	Options            Options
-	AgentRuntimeClient executionapplication.AgentRuntimeClient
-	Receipts           *executionapplication.ReceiptService
+	AnswerTransport string
 }
 
-type Options struct {
-	AnswerTransport   string
-	Configured        bool
+// RunProjectionService is the sole writer of runtime stage and answer projections.
+type RunProjectionService struct {
+	StateWriter executionapplication.OperationStateWriter
+	*activityprojection.Writer
 	DeploymentRelease string
 }
+
+// RuntimeResultBoundary checks the received result without making agent decisions.
+type RuntimeResultBoundary struct{}

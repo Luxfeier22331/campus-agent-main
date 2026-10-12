@@ -11,6 +11,11 @@ Status: implemented
 HTTP handler 还直接编排记忆命令与账号删除，两者共用的资源容器平铺回答存储、输入、
 记忆 provider 和状态存储。由此 HTTP 持有整套记忆状态操作，删除顺序也藏在传输层。
 
+本篇的进程内拆分已由[Agent 编排与 Memory 独立服务](./2026-10-10-agent-orchestration-memory-services.md)
+继续演进：旧 Go Activity adapter、同步 Runtime HTTP 和 `OperationService` 已退役，
+现行服务边界、共享 wire 和投影身份以该篇为准。下文保留前一阶段的取舍；Writer 仅持有所需依赖、
+输入与终态回调分别注入的原则仍有效。
+
 ## 决策
 
 步骤/事件投影规则由 `executionapplication/projection.Writer` 拥有，只接收投影所需的窄存储接口、

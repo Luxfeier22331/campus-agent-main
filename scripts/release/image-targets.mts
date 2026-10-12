@@ -81,15 +81,14 @@ const BUILD_WORKSPACES: Partial<Record<ImageTarget, string[]>> = {
 };
 const EXTRA_INPUTS: Partial<Record<ImageTarget, string[]>> = {
 	"memory-service": ["packages/memory-api-go/"],
+	"campus-search-service": ["packages/search-api-go/"],
 	"agent-runtime": [
 		"configs/runtime/tools.v7.json",
 		"configs/runtime/tool-function-schemas.v4.json",
 	],
 	"agent-control": [
 		"packages/memory-api-go/",
-		"apps/campus-search/go.mod",
-		"apps/campus-search/go.sum",
-		"apps/campus-search/campussearch/",
+		"packages/search-api-go/",
 		"configs/runtime/tools.v7.json",
 		"configs/runtime/tool-function-schemas.v4.json",
 		"packages/contracts/fixtures/tool_execution_contract/",

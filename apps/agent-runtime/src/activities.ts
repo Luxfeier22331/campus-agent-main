@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Context } from "@temporalio/activity";
 import { ApplicationFailure } from "@temporalio/common";
 import { z } from "zod";
+import { beginActivity, currentActivityMetadata } from "./activity-metadata.ts";
 import type {
 	AgentRunnerResult,
 	CompletedTaskStep,
@@ -11,11 +12,6 @@ import type {
 } from "./agent-run-contract.ts";
 import { createCampusSearchReporter } from "./campus-search-observer.ts";
 import { type AgentControlClient, ControlHTTPError } from "./control-client.ts";
-import {
-	type ControlOperationOutput,
-	type StageResult,
-	stageResultFromControl,
-} from "./control-operation-output.ts";
 import {
 	createDomainToolExecutor,
 	type DomainToolConfig,
@@ -33,6 +29,7 @@ import {
 import { agentRunRequestSchema, runtimeInputFromAgentRunRequest } from "./http-run-contract.ts";
 import { resolveModelRuntimeConfig } from "./model-config-client.ts";
 import { continueWithTools, type ModelTurn, type ProviderContinuation } from "./model-turn.ts";
+import { normalizeStageResult } from "./operation-rules.ts";
 import { partialJSONStringField } from "./runner-output.ts";
 import {
 	AgentRuntimeError,
@@ -72,6 +69,21 @@ interface TurnRecord {
 	completedAt: string;
 	turnIndex: number;
 }
+type StageResult = Pick<
+	WorkflowOperationResult,
+	| "operation"
+	| "status"
+	| "finalOutput"
+	| "answerStarted"
+	| "solveOutcome"
+	| "plan"
+	| "replan"
+	| "remainingFacts"
+	| "failure"
+	| "evidence"
+	| "sourceAttempts"
+	| "usage"
+>;
 interface SavedStage {
 	input: StageInput;
 	result: StageResult;
@@ -125,6 +137,7 @@ function mergeResult(previous: AgentRunnerResult, next: AgentRunnerResult): Agen
 	};
 }
 async function heartbeating<T>(fn: () => Promise<T>): Promise<T> {
+	beginActivity();
 	const timer = setInterval(() => Context.current().heartbeat(), 10_000);
 	try {
 		return await fn();
@@ -535,7 +548,7 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 					}
 					throw error;
 				}
-				const result = ctx.functionToolResults.get(id)!;
+				const result = { ...ctx.functionToolResults.get(id)!, activity: currentActivityMetadata() };
 				await control.save(input.requestId, ref, {
 					result,
 					context: {
@@ -597,23 +610,45 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 					};
 				}
 				const { input: runtimeInput, prepared } = hydrate(stage);
-				const localResult = operationResultFromRunner({
-					input: runtimeInput,
-					prepared,
-					runnerResult: record.state.result,
-					startedAt: new Date(stage.startedAt),
-					completedAt: new Date(record.completedAt),
-					toolContractFingerprint: catalog.contractFingerprint,
-				});
+				const localResult = normalizeStageResult(
+					runtimeInput,
+					operationResultFromRunner({
+						input: runtimeInput,
+						prepared,
+						runnerResult: record.state.result,
+						startedAt: new Date(stage.startedAt),
+						completedAt: new Date(record.completedAt),
+						toolContractFingerprint: catalog.contractFingerprint,
+					}),
+					stage.input.workflow.admission_snapshot,
+				);
 				const projected = await control.call<{ ref: string }>("project", {
 					request_id: input.requestId,
 					ref: stage.preparedRef,
 					payload: agentRunResultWire(localResult, options.release),
 					completed_at: record.completedAt,
 				});
-				const result = stageResultFromControl(
-					await control.load<ControlOperationOutput>(input.requestId, projected.ref),
-				);
+				const result: StageResult = {
+					operation: localResult.operation,
+					status: localResult.status,
+					finalOutput: localResult.finalOutput,
+					...(localResult.solveOutcome === undefined
+						? {}
+						: { solveOutcome: localResult.solveOutcome }),
+					...(localResult.plan === undefined ? {} : { plan: localResult.plan }),
+					...(localResult.replan === undefined ? {} : { replan: localResult.replan }),
+					...(localResult.remainingFacts === undefined
+						? {}
+						: { remainingFacts: localResult.remainingFacts }),
+					...(localResult.failure === undefined ? {} : { failure: localResult.failure }),
+					evidence: localResult.evidence,
+					sourceAttempts: localResult.sourceAttempts,
+					usage: localResult.usage,
+					// project emits the buffered solve answer before acknowledging completion.
+					answerStarted:
+						localResult.answerStarted === true ||
+						(localResult.status === "completed" && localResult.solveOutcome === "answer"),
+				};
 				if (
 					result.status === "completed" &&
 					localResult.answerStarted &&

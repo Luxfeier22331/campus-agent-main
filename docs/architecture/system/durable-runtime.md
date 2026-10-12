@@ -12,8 +12,7 @@ Execute、Replan、Synthesize 顺序和预算，单次模型请求与外部工�
 agent-control 拥有执行准入、启动/取消命令、运行载荷、事件和终态投影；app-api 拥有产品请求、
 原始输入和产品终态。Memory 是独立 API、Worker、Workflow 与数据库，通过 API 接收召回和管理请求。
 
-新运行固定进入 TypeScript AgentWorkflow。旧 Go Workflow、Worker 和 HTTP Runtime 已归档为
-非编译源码，不提供旧 history 支持。数据库身份与 Temporal 队列等持久身份保持不变。
+新运行固定进入 TypeScript AgentWorkflow。旧 Go Workflow、Worker 和 HTTP Runtime 已删除，不提供旧 history 支持。数据库身份与 Temporal 队列等持久身份保持不变。
 
 ## 主要对象
 

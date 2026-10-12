@@ -780,7 +780,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		WorkflowID:            "campus-agent.chat.run-temporal-trajectory",
 		TemporalRunID:         "temporal-run-trajectory",
 		ActivityID:            "activity-agent-1",
-		ActivityType:          "ExecuteTaskStepActivity",
+		ActivityType:          "agent.execute_step",
 		ActivityAttempt:       1,
 		ScheduledAt:           now.Add(-25 * time.Millisecond),
 		StartedAt:             now,
@@ -802,7 +802,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		UpdatedAt:             now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload: map[string]any{
-			"activity_type": "ExecuteTaskStepActivity",
+			"activity_type": "agent.execute_step",
 		},
 	}); err != nil {
 		t.Fatalf("upsert attempt: %v", err)
@@ -866,7 +866,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"workflow_id":             "campus-agent.chat.run-temporal-trajectory",
 		"temporal_run_id":         "temporal-run-trajectory",
 		"activity_id":             "activity-agent-1",
-		"activity_type":           "ExecuteTaskStepActivity",
+		"activity_type":           "agent.execute_step",
 		"activity_attempt":        float64(1),
 		"schedule_to_start_ms":    float64(25),
 		"duration_ms":             float64(100),

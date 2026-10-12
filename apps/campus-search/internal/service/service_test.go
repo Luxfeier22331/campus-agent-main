@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"testing"
 	"time"
 
@@ -23,9 +24,9 @@ type testSearcher struct {
 	query campussearch.SearchQuery
 }
 
-func (s *testSearcher) Search(_ context.Context, _ campussearch.Index, query campussearch.SearchQuery, _ int) ([]campussearch.SearchResultItem, error) {
+func (s *testSearcher) Search(_ context.Context, _ campussearch.Index, query campussearch.SearchQuery, _ int) ([]searchapi.SearchResultItem, error) {
 	s.query = query
-	return []campussearch.SearchResultItem{{
+	return []searchapi.SearchResultItem{{
 		ResultRef:    "result://" + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		SourceKind:   "notice",
 		NoticeID:     "notice-1",
@@ -84,8 +85,8 @@ func TestReadinessRequiresCurrentIndex(t *testing.T) {
 }
 
 func TestPublicResultOmitsAgentFields(t *testing.T) {
-	item := campussearch.SearchResultItem{ResultRef: "result://internal", CitationIndex: 2, SourceKind: "notice", NoticeID: "n", Title: "标题", SectionTitle: "段落", CitationHref: "/notices/n", Text: "正文"}
-	result := PublicResult([]campussearch.SearchResultItem{item})
+	item := searchapi.SearchResultItem{ResultRef: "result://internal", CitationIndex: 2, SourceKind: "notice", NoticeID: "n", Title: "标题", SectionTitle: "段落", CitationHref: "/notices/n", Text: "正文"}
+	result := PublicResult([]searchapi.SearchResultItem{item})
 	encoded := result["results"].([]map[string]any)[0]
 	if _, ok := encoded["result_ref"]; ok {
 		t.Fatal("public result leaked result_ref")
@@ -97,7 +98,7 @@ func TestPublicResultOmitsAgentFields(t *testing.T) {
 
 func TestPublicResultUsesSourceLinks(t *testing.T) {
 	section := "/docs/undergraduate/rules/registration/v/2026#section-1"
-	results := PublicResult([]campussearch.SearchResultItem{
+	results := PublicResult([]searchapi.SearchResultItem{
 		{SourceKind: "document", SectionRef: section},
 		{SourceKind: "notice", CitationHref: "/notices/notice-1"},
 	})["results"].([]map[string]any)
@@ -115,13 +116,13 @@ type phaseSearcher struct {
 	err          error
 }
 
-func (searcher phaseSearcher) Search(ctx context.Context, _ campussearch.Index, _ campussearch.SearchQuery, _ int) ([]campussearch.SearchResultItem, error) {
+func (searcher phaseSearcher) Search(ctx context.Context, _ campussearch.Index, _ campussearch.SearchQuery, _ int) ([]searchapi.SearchResultItem, error) {
 	observer := campussearch.SearchObservation(ctx)
 	for _, phase := range searcher.phases {
 		observer.Phase(phase)
 	}
 	observer.Snapshot.FailedStage = searcher.failureStage
-	return []campussearch.SearchResultItem{}, searcher.err
+	return []searchapi.SearchResultItem{}, searcher.err
 }
 
 func TestSearchRecordsOnlyCompletedPhases(t *testing.T) {

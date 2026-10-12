@@ -357,8 +357,8 @@ func (s *Writer) WithInvocationEvidence(
 	// A receipt replay must use the exact evidence captured by the original
 	// Activity attempt. Mixing in the current retry's identity or timestamps
 	// makes an otherwise equivalent repair conflict with its durable rows.
-	if s.Evidence.Present && !projection.PreserveAttempt {
-		info := s.Evidence
+	if s.InvocationEvidence(ctx).Present && !projection.PreserveAttempt {
+		info := s.InvocationEvidence(ctx)
 		if projection.WorkflowID == "" {
 			projection.WorkflowID = info.WorkflowID
 		}
@@ -419,11 +419,15 @@ func (s *Writer) WithInvocationEvidence(
 		startedAt = projection.AttemptStartedAt
 		completedAt = projection.AttemptCompletedAt
 	}
+	queueStartedAt := projection.AttemptStartedAt
+	if queueStartedAt.IsZero() {
+		queueStartedAt = startedAt
+	}
 	if projection.ScheduleToStartMS <= 0 &&
 		!projection.ScheduledAt.IsZero() &&
-		!startedAt.IsZero() &&
-		!startedAt.Before(projection.ScheduledAt) {
-		projection.ScheduleToStartMS = startedAt.Sub(projection.ScheduledAt).Milliseconds()
+		!queueStartedAt.IsZero() &&
+		!queueStartedAt.Before(projection.ScheduledAt) {
+		projection.ScheduleToStartMS = queueStartedAt.Sub(projection.ScheduledAt).Milliseconds()
 	}
 	if projection.DurationMS <= 0 &&
 		!startedAt.IsZero() &&
@@ -435,8 +439,8 @@ func (s *Writer) WithInvocationEvidence(
 }
 
 func (s *Writer) InvocationAttempt(ctx context.Context) int {
-	if s.Evidence.Present {
-		if attempt := int(s.Evidence.Attempt); attempt > 0 {
+	if s.InvocationEvidence(ctx).Present {
+		if attempt := int(s.InvocationEvidence(ctx).Attempt); attempt > 0 {
 			return attempt
 		}
 	}
@@ -447,19 +451,19 @@ func ActivityTypeForStep(stepID string) string {
 	normalized := strings.TrimSpace(stepID)
 	switch normalized {
 	case "memory.append":
-		return executioncontract.AdvanceMemoryAppendActivityName
+		return executioncontract.MemoryAppendOperation
 	case "solve.initial":
-		return executioncontract.SolveTaskActivityName
+		return executioncontract.AgentSolveOperation
 	case "answer.synthesize":
-		return executioncontract.SynthesizeAnswerActivityName
+		return executioncontract.AgentSynthesizeOperation
 	case "finalization.write":
-		return executioncontract.WriteWorkflowFinalizationActivityName
+		return executioncontract.FinalizationWriteOperation
 	default:
 		if strings.HasPrefix(normalized, "solve.replan.") {
-			return executioncontract.ReplanTaskActivityName
+			return executioncontract.AgentReplanOperation
 		}
 		if strings.HasPrefix(normalized, "step.") {
-			return executioncontract.ExecuteTaskStepActivityName
+			return executioncontract.AgentExecuteStepOperation
 		}
 		return ""
 	}

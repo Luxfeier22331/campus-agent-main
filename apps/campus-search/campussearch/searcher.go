@@ -1,6 +1,9 @@
 package campussearch
 
-import "context"
+import (
+	"context"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
+)
 
 type SearchQuery struct {
 	RetrievalQuery     string
@@ -15,5 +18,5 @@ type RetrievalScope struct {
 }
 
 type Searcher interface {
-	Search(context.Context, Index, SearchQuery, int) ([]SearchResultItem, error)
+	Search(context.Context, Index, SearchQuery, int) ([]searchapi.SearchResultItem, error)
 }

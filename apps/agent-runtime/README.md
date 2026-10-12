@@ -1,11 +1,12 @@
 # agent-runtime
 
 TypeScript Temporal Worker 拥有 AgentWorkflow、模型 Activity 和工具 Activity。唯一生产入口是
-`src/worker.ts`；旧 HTTP Runtime 已归档到 `archive/legacy-agent-workflow`，不提供旧 history 支持。
+`src/worker.ts`；旧 HTTP Runtime 已删除，不提供旧 history 支持。
 
 ## 所有权
 
 `workflows.ts` 拥有 Solve、Execute、Replan、Synthesize 的持久顺序、取消与请求级预算。
+`operation-rules.ts` 统一阶段结果与计划规则；Workflow 使用 Runtime 自己的持久阶段决定。
 `activities.ts` 执行单次模型请求和单次本地工具调用，`domain-tools.ts` 直接调用 Campus Search
 和 Memory API。模型托管 Web Search 属于模型调用，不伪装成本地函数工具。
 
@@ -78,3 +79,7 @@ OTel/Langfuse 记录受控模型标识、用量、阶段结果和关联信息，
 - [持久运行时](../../docs/architecture/system/durable-runtime.md)
 - [工具路由](../../docs/architecture/system/tool-routing.md)
 - [Temporal 运维](../../docs/runbooks/runtime/temporal.md)
+
+Runtime-Control 的 wire schema 与生成类型由 `campus-contracts/agent-runtime-control` 提供。
+Activity 调用 Control 时携带真实执行身份和 retry attempt；`started_at` 在 Activity 函数进入时记录，
+同一次 Activity 内保持不变。工具结果保存工具 Activity 元数据，阶段投影重试不改写已保存身份。

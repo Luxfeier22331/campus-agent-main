@@ -10,6 +10,7 @@ ENV GOPROXY=${GOPROXY} \
   GOSUMDB=${GOSUMDB}
 
 WORKDIR /src
+COPY packages/search-api-go/ packages/search-api-go/
 COPY apps/campus-search/go.mod apps/campus-search/go.sum apps/campus-search/
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod cd apps/campus-search && go mod download
 COPY apps/campus-search/campussearch apps/campus-search/campussearch

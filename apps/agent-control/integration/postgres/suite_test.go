@@ -60,6 +60,7 @@ func TestPostgresIntegration(t *testing.T) {
 	harness := &postgresHarness{adminURL: adminURL, repositoryRoot: repositoryRoot(t)}
 
 	harness.installClusterRoles(t)
+	t.Run("runtime payload lifecycle", func(t *testing.T) { testRuntimePayloadLifecycle(t, harness) })
 	t.Run("runtime activity projection", func(t *testing.T) { testRuntimeActivityProjection(t, harness) })
 	t.Run("runtime payload and memory delivery", func(t *testing.T) { testRuntimeMemoryDelivery(t, harness) })
 	t.Run("independent API instances", func(t *testing.T) { testAPIInstances(t, harness) })

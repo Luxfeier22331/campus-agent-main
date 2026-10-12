@@ -23,7 +23,7 @@ const run: PublicationRun = {
 	head_sha: sha,
 	head_branch: "main",
 	event: "push",
-	path: ".github/workflows/execution-runtime-publish.yml",
+	path: ".github/workflows/staging-candidate-publish.yml",
 	status: "completed",
 	conclusion: "success",
 	head_repository: { full_name: "MUC-WIKI/campus-agent" },

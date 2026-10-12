@@ -9,7 +9,7 @@ status: active
 ## 执行器选择
 
 源码仓库的六个执行工作流读取仓库变量 `CI_RUNNER_MODE`：`pr.yml`、`pr-image-evidence.yml`、
-`execution-runtime-publish.yml`、`manual-evidence.yml`、`dependencies.yml` 和 `ghcr-retention.yml`。
+`staging-candidate-publish.yml`、`manual-evidence.yml`、`dependencies.yml` 和 `ghcr-retention.yml`。
 当前两个仓库都将该变量设置为 `self-hosted`，因此作业默认运行在已注册并通过能力探针的 self-hosted
 Runner（当前为 `nc-arm-6c`）。为保留平台故障下的人工恢复能力，变量仍支持切换到 GitHub-hosted Runner：
 

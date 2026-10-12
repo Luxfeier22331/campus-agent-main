@@ -28,6 +28,7 @@ const (
 )
 
 type Options struct {
+	Payloads         executionapplication.RuntimePayloadLifecycle
 	Finalizer        executionapplication.WorkflowFinalizer
 	Logger           *slog.Logger
 	OperationTimeout time.Duration
@@ -36,6 +37,8 @@ type Options struct {
 }
 
 type Reconciler struct {
+	payloads             executionapplication.RuntimePayloadLifecycle
+	payloadCursor        string
 	activeWorkflowCursor string
 	finalizer            executionapplication.WorkflowFinalizer
 	logger               *slog.Logger
@@ -61,6 +64,7 @@ func New(options Options) *Reconciler {
 	}
 	return &Reconciler{
 		finalizer:        options.Finalizer,
+		payloads:         options.Payloads,
 		logger:           options.Logger,
 		operationTimeout: operationTimeout,
 		projectionStore:  options.Store,
@@ -171,6 +175,7 @@ func (r *Reconciler) reconcile(ctx context.Context) {
 	r.ReconcileCancellations(ctx)
 	r.ReconcileStarts(ctx)
 	r.ReconcileWorkflowTimeouts(ctx)
+	r.ReconcileRuntimePayloads(ctx)
 }
 
 func LifecycleNow() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }

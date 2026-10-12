@@ -5,6 +5,7 @@ import {
 	proxyActivities,
 } from "@temporalio/workflow";
 import type { TaskPlan, TaskPlanStep } from "./agent-run-contract.ts";
+import { planIssue } from "./operation-rules.ts";
 import type {
 	AgentActivities,
 	AgentWorkflowInput,
@@ -36,45 +37,12 @@ const recoverable = new Set([
 	"personal_memory_recall_failed",
 ]);
 function validatePlan(plan: TaskPlan, workflow: AgentWorkflowInput, completedIds: string[] = []) {
-	const steps = plan.steps;
-	if (
-		steps.length + completedIds.length >
-		workflow.admission_snapshot.agent_budget.max_plan_steps
-	) {
-		throw ApplicationFailure.nonRetryable("Plan exceeds admitted steps", "workflow_plan_invalid");
-	}
-	const ids = new Set([...completedIds, ...steps.map((s) => s.id)]);
-	if (ids.size !== completedIds.length + steps.length) {
-		throw ApplicationFailure.nonRetryable("Duplicate plan step", "workflow_plan_invalid");
-	}
-	const done = new Set(completedIds);
-	const available = new Set([
-		...workflow.admission_snapshot.agent_capabilities.visible_function_tool_names,
-		...(workflow.admission_snapshot.agent_capabilities.hosted_web_search ? ["web_search"] : []),
-	]);
-	for (const s of steps) {
-		if (
-			!(s.id && s.objective) ||
-			s.candidateSources.length === 0 ||
-			s.candidateSources.some((x) => !available.has(x)) ||
-			s.dependsOn.some((x) => !ids.has(x))
-		) {
-			throw ApplicationFailure.nonRetryable(
-				"Invalid plan source or dependency",
-				"workflow_plan_invalid",
-			);
-		}
-	}
-	while (done.size < ids.size) {
-		const ready = steps.filter((s) => !done.has(s.id) && s.dependsOn.every((x) => done.has(x)));
-		if (ready.length === 0) {
-			throw ApplicationFailure.nonRetryable("Plan dependency cycle", "workflow_dependency_cycle");
-		}
-		for (const s of ready) {
-			done.add(s.id);
-		}
+	const issue = planIssue(plan.steps, workflow.admission_snapshot, completedIds);
+	if (issue) {
+		throw ApplicationFailure.nonRetryable(issue.message, issue.code);
 	}
 }
+
 function failureCode(error: unknown): string {
 	let cause = error;
 	while (cause instanceof Error) {

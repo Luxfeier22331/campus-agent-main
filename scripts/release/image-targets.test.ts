@@ -200,3 +200,13 @@ test("ingress production code selects its standalone image", () => {
 	}
 	assert.deepEqual(targets(["apps/cluster-private-ingress/internal/ingress/server_test.go"]), []);
 });
+
+test("shared Search response contract selects both Go consumers", () => {
+	assert.deepEqual(targets(["packages/search-api-go/search_result.go"]), [
+		"agent-control",
+		"campus-search-service",
+	]);
+	assert.deepEqual(targets(["apps/campus-search/campussearch/searcher.go"]), [
+		"campus-search-service",
+	]);
+});

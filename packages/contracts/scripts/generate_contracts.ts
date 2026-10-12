@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { generateAgentRuntimeContract } from "./contracts/agent-runtime-generate.ts";
 import {
 	generateCampusGroupsContract,
 	runCampusGroupsContractSelfTest,
@@ -38,6 +39,7 @@ async function main(argv: string[]): Promise<number> {
 		return 0;
 	}
 	generateToolExecutionContracts({ check: args.check });
+	generateAgentRuntimeContract({ check: args.check });
 	generateCampusGroupsContract({ check: args.check });
 	generateAccountContracts({ check: args.check });
 	generateProductAvailabilityContract({ check: args.check });

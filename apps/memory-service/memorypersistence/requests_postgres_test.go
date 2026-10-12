@@ -15,7 +15,7 @@ func TestDurableAdmissionPostgres(t *testing.T) {
 		t.Skip("MEMORY_TEST_DATABASE_URL required")
 	}
 	ctx := context.Background()
-	s, err := NewPostgresStateStore(ctx, PostgresStateStoreOptions{DatabaseURL: url, Schema: "memory"})
+	s, err := NewPostgresStateStore(ctx, PostgresStateStoreOptions{DatabaseURL: url})
 	if err != nil {
 		t.Fatal(err)
 	}

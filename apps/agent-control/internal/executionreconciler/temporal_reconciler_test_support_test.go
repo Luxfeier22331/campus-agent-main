@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	temporaladapter "github.com/MUC-WIKI/campus-agent/apps/agent-control/integration/adaptertest"
+	runtimeprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/integration/adaptertest"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
@@ -50,9 +50,9 @@ func (resolver staticModelTargetResolver) ResolveModelTarget(
 }
 
 type reconcilerTestHarness struct {
-	adapter                   *temporaladapter.Adapter
+	adapter                   *runtimeprojection.Adapter
 	reconciler                *Reconciler
-	productFinalizationWriter temporaladapter.ProductFinalizationWriter
+	productFinalizationWriter runtimeprojection.ProductFinalizationWriter
 }
 
 func newReconcilerTestHarness(
@@ -62,7 +62,7 @@ func newReconcilerTestHarness(
 ) *reconcilerTestHarness {
 	harness := &reconcilerTestHarness{}
 	admissionService := newAdmissionServiceForReconcilerTest()
-	harness.adapter = temporaladapter.New(temporaladapter.Options{
+	harness.adapter = runtimeprojection.New(runtimeprojection.Options{
 		Config:               cfg,
 		AdmissionService:     admissionService,
 		ExecutionInputLoader: noOpExecutionInputLoader{},
@@ -92,7 +92,7 @@ func newReconcilerForTest(
 	cfg config.Config,
 	store executionapplication.RunStore,
 	starter executionapplication.WorkflowStarter,
-	writer temporaladapter.ProductFinalizationWriter,
+	writer runtimeprojection.ProductFinalizationWriter,
 ) *Reconciler {
 	harness := newReconcilerTestHarness(cfg, store, starter)
 	harness.productFinalizationWriter = writer

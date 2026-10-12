@@ -103,7 +103,7 @@ func (s *FinalizationService) CommitWorkflowFinalization(
 		return executioncontract.FinalizationOutput{}, err
 	}
 	expectedToolContract := execution.CloneAnyMapFromValue(agentResult["admitted_tool_contract_fingerprint"])
-	if len(expectedToolContract) == 0 && s.Evidence.Present {
+	if len(expectedToolContract) == 0 && s.InvocationEvidence(ctx).Present {
 		return s.FailFinalizationActivity(
 			ctx,
 			run,

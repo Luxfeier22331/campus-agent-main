@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	temporaladapter "github.com/MUC-WIKI/campus-agent/apps/agent-control/integration/adaptertest"
+	runtimeprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/integration/adaptertest"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionreconciler"
@@ -14,7 +14,7 @@ func reconcileTemporalRunsOnceForTest(ctx context.Context, server *Server) {
 	if server == nil {
 		return
 	}
-	adapter := temporaladapter.New(temporaladapter.Options{
+	adapter := runtimeprojection.New(runtimeprojection.Options{
 		Config:             server.config,
 		RunProjectionStore: server.runProjectionStore,
 		ProductFinalizationWriter: func(

@@ -7,12 +7,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
 )
 
-// AgentRuntimeClient delivers decoded results and synchronous ordered stream events.
-type AgentRuntimeClient interface {
-	Prepare(AgentRuntimeRequest) (string, error)
-	Execute(context.Context, AgentRuntimeRequest, func(AgentRuntimeEvent) error) (AgentRuntimeResult, error)
-}
-
 type AgentRuntimeRequest struct {
 	RequestID                string
 	ConversationID           string
@@ -40,28 +34,6 @@ type RuntimeLimits struct {
 	MaxTurns              int
 	MaxPlanSteps          int
 	MaxReplans            int
-}
-
-// AgentRuntimeRequestError keeps request construction failures distinct from
-// transport failures without exposing HTTP implementation details to the
-// Temporal activity.
-type AgentRuntimeRequestError struct {
-	Build bool
-	Cause error
-}
-
-func (err *AgentRuntimeRequestError) Error() string {
-	if err == nil || err.Cause == nil {
-		return "agent runtime request failed"
-	}
-	return "agent runtime request failed"
-}
-
-func (err *AgentRuntimeRequestError) Unwrap() error {
-	if err == nil {
-		return nil
-	}
-	return err.Cause
 }
 
 type ExecutionFinalizationClient interface {

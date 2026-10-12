@@ -1,10 +1,10 @@
 package httpapi
 
 import (
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 )
 
 func projectedRAGForEval(results []execution.StepResultProjection) map[string]any {
@@ -55,7 +55,7 @@ func projectedRAGCitedContexts(
 	answer string,
 	results []execution.StepResultProjection,
 ) ([]string, []string) {
-	cited, err := campussearch.CitedSearchResults(answer, projectedRAGSearchResults(results))
+	cited, err := searchapi.CitedSearchResults(answer, projectedRAGSearchResults(results))
 	if err != nil {
 		return []string{}, []string{}
 	}
@@ -68,15 +68,15 @@ func projectedRAGCitedContexts(
 	return contexts, contextIDs
 }
 
-func projectedRAGSearchResults(results []execution.StepResultProjection) []campussearch.SearchResultItem {
-	projected := []campussearch.SearchResultItem{}
+func projectedRAGSearchResults(results []execution.StepResultProjection) []searchapi.SearchResultItem {
+	projected := []searchapi.SearchResultItem{}
 	for _, result := range results {
 		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.campus_search.") ||
 			result.Status != "completed" {
 			continue
 		}
 		payload := execution.CloneAnyMap(result.SanitizedPayload)
-		_, searchResults, err := campussearch.DecodeSearchResult(execution.CloneAnyMapFromValue(payload["result"]))
+		_, searchResults, err := searchapi.DecodeSearchResult(execution.CloneAnyMapFromValue(payload["result"]))
 		if err != nil {
 			continue
 		}

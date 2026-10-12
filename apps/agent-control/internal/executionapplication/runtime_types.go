@@ -46,6 +46,7 @@ type AgentToolResult struct {
 	Status        string
 	ToolName      string
 	Result        map[string]any
+	Activity      *executioncontract.ActivityMetadata
 }
 
 type AgentRuntimeUsage struct {
@@ -65,51 +66,4 @@ type AgentRuntimeError struct {
 	Detail       string
 	HTTPStatus   int
 	InvocationID string
-}
-
-type AgentRuntimeEvent struct {
-	Event        string
-	Retrieval    RuntimeRetrievalStatus
-	Decision     SolveDecision
-	Delta        AnswerDelta
-	Invalidation AnswerInvalidation
-	Result       AgentRuntimeResult
-	Failure      AgentRuntimeFailure
-}
-type RuntimeRetrievalStatus struct {
-	Source     string
-	Status     string
-	OccurredAt time.Time
-}
-type SolveDecision struct {
-	Outcome string
-}
-type AnswerDelta struct {
-	Delta       string
-	Provisional *bool
-}
-type AnswerInvalidation struct {
-	Reason string
-}
-
-// AgentRuntimeFailure is a classified invocation failure. HTTPStatus is bounded
-// diagnostic evidence; application control flow uses Kind, never HTTP status.
-type AgentRuntimeFailure struct {
-	SafeMessage    string
-	Kind           string
-	Code           string
-	Reason         string
-	Citation       json.RawMessage
-	Operation      string
-	Detail         string
-	HTTPStatus     int
-	InvocationID   string
-	RuntimeRelease string
-}
-
-func (e AgentRuntimeFailure) Error() string {
-	if e.SafeMessage != "" {
-		return e.SafeMessage
-	}
-	return "The agent runtime could not complete the request."
 }

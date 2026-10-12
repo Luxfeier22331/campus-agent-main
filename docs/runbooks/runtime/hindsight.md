@@ -111,8 +111,8 @@ Hindsight `user-profile` mental model 原生合成；派生内容由 Hindsight c
 | --- | --- |
 | `/version` 或 health 失败 | 服务地址、tenant API secret、网络和实际镜像版本 |
 | bank bootstrap 失败 | observations、consolidation、Memory Defense 配置和 provider 可用性 |
-| recall/append timeout | recall 对应 Agent Activity 与 SDK tool attempt；append 对应 core Activity；同时检查 Hindsight provider latency 和 worker backlog |
-| 记忆命令长期 pending/admitted | app-api profile-memory command outbox、execution-control command admission 和 receipt callback |
+| recall/append timeout | recall 对应 Agent Runtime 工具 Activity；append 对应 Memory Worker；同时检查 Hindsight provider latency 和 worker backlog |
+| 记忆命令长期 pending/admitted | app-api 命令投递、Memory API 命令接收、Memory Worker 和 receipt callback |
 | 清除长期未完成 | 代次租约、retired bank 删除和 receipt callback |
 | 画像与用户纠正不符 | 纠正命令 receipt、`user-profile` mental model 刷新（`refresh_after_consolidation`）和 consolidation 进度 |
 | 外部观测平台出现记忆正文 | 立即停止对应 producer，并按 Langfuse 字段合同检查清理边界 |
@@ -123,7 +123,7 @@ status/list/cancel/retry API 或 reconciliation schedule。
 ## 仓库验证
 
 ```bash
-go -C apps/agent-control test ./internal/httpapi ./internal/temporalruntime ./internal/telemetry
+go -C apps/memory-service test ./...
 ```
 
 这些检查验证 adapter、workflow 和 telemetry 配置，不证明外部环境已收到数据。

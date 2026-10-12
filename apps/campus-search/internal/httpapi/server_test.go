@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,7 +25,7 @@ func (s testIndexStore) CurrentIndex(context.Context) (campussearch.Index, bool,
 
 type testSearcher struct {
 	query        campussearch.SearchQuery
-	results      []campussearch.SearchResultItem
+	results      []searchapi.SearchResultItem
 	err          error
 	failureStage string
 }
@@ -33,13 +34,13 @@ type blockingSearcher struct {
 	started chan struct{}
 }
 
-func (s blockingSearcher) Search(ctx context.Context, _ campussearch.Index, _ campussearch.SearchQuery, _ int) ([]campussearch.SearchResultItem, error) {
+func (s blockingSearcher) Search(ctx context.Context, _ campussearch.Index, _ campussearch.SearchQuery, _ int) ([]searchapi.SearchResultItem, error) {
 	close(s.started)
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
 
-func (s *testSearcher) Search(ctx context.Context, _ campussearch.Index, query campussearch.SearchQuery, _ int) ([]campussearch.SearchResultItem, error) {
+func (s *testSearcher) Search(ctx context.Context, _ campussearch.Index, query campussearch.SearchQuery, _ int) ([]searchapi.SearchResultItem, error) {
 	s.query = query
 	if s.err != nil {
 		snapshot := campussearch.SearchObservation(ctx).Snapshot
@@ -51,7 +52,7 @@ func (s *testSearcher) Search(ctx context.Context, _ campussearch.Index, query c
 	if s.results != nil {
 		return s.results, nil
 	}
-	return []campussearch.SearchResultItem{{SourceKind: "notice", NoticeID: "n", Title: "标题", SectionTitle: "正文", CitationHref: "/notices/n", Text: "内容", ResultRef: "result://0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}, nil
+	return []searchapi.SearchResultItem{{SourceKind: "notice", NoticeID: "n", Title: "标题", SectionTitle: "正文", CitationHref: "/notices/n", Text: "内容", ResultRef: "result://0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}, nil
 }
 
 func TestPublicSearchRequiresMCPClientTokenAndOmitsInternalFields(t *testing.T) {
@@ -143,7 +144,7 @@ func TestPublicSearchMapsAvailabilityTimeoutAndNoMatch(t *testing.T) {
 	if response := requestFor(New(service.New(testIndexStore{found: true}, &testSearcher{err: context.DeadlineExceeded}), "internal", map[string]string{"astrbot": "mcp-client-token"}).Handler()); response.Code != http.StatusGatewayTimeout {
 		t.Fatalf("timeout status = %d", response.Code)
 	}
-	if response := requestFor(New(service.New(testIndexStore{found: true}, &testSearcher{results: []campussearch.SearchResultItem{}}), "internal", map[string]string{"astrbot": "mcp-client-token"}).Handler()); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"outcome":"no_match"`) {
+	if response := requestFor(New(service.New(testIndexStore{found: true}, &testSearcher{results: []searchapi.SearchResultItem{}}), "internal", map[string]string{"astrbot": "mcp-client-token"}).Handler()); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"outcome":"no_match"`) {
 		t.Fatalf("no-match response = %d %s", response.Code, response.Body.String())
 	}
 }
@@ -200,7 +201,7 @@ func TestInternalSearchAllowsNormalizedInputBounds(t *testing.T) {
 		context.Background(),
 		http.MethodPost,
 		"/internal/v1/search",
-		strings.NewReader(`{"query":"`+strings.Repeat("字", campussearch.InternalSearchQueryLimit)+`","search_goal":"`+strings.Repeat("条", campussearch.InternalSearchGoalLimit)+`"}`),
+		strings.NewReader(`{"query":"`+strings.Repeat("字", searchapi.InternalSearchQueryLimit)+`","search_goal":"`+strings.Repeat("条", searchapi.InternalSearchGoalLimit)+`"}`),
 	)
 	request.Header.Set("authorization", "Bearer internal")
 	recorder := httptest.NewRecorder()

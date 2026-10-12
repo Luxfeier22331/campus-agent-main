@@ -2,13 +2,13 @@ package finalization
 
 import (
 	"encoding/json"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 )
 
 func TestNoticeCitationRecoveryAcceptsReleasedAt(t *testing.T) {
@@ -16,7 +16,7 @@ func TestNoticeCitationRecoveryAcceptsReleasedAt(t *testing.T) {
 	item.ReleasedAt = "2026-10-01T08:00:00Z"
 	adapter := &FinalizationService{Writer: &activityprojection.Writer{RunProjectionStore: executionpersistence.NewInMemoryRunProjectionStore()}}
 	response, err := adapter.WorkflowFinalizedResponse(t.Context(), execution.DurableRun{RequestID: "notice-recovery"}, map[string]any{
-		"final_output": "申请要求 [1]", "tool_results": []map[string]any{citationToolResult([]campussearch.SearchResultItem{item}, 1)},
+		"final_output": "申请要求 [1]", "tool_results": []map[string]any{citationToolResult([]searchapi.SearchResultItem{item}, 1)},
 	})
 	if err != nil {
 		t.Fatal(err)

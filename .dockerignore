@@ -149,3 +149,6 @@ jobs/*/build
 apps/*/target
 jobs/*/target
 **/test-results
+
+!packages/search-api-go/
+!packages/search-api-go/**

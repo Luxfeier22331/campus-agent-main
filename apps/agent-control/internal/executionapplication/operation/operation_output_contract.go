@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"io"
 	"math"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 )
 
 func decodeOperationValue(value any, target any) error {
@@ -22,19 +22,6 @@ func decodeOperationValue(value any, target any) error {
 		return err
 	}
 	return decodeOperationJSON(encoded, target)
-}
-
-func decodeReceiptOutput(encoded []byte, output *executioncontract.OperationOutput) error {
-	// PostgreSQL jsonb adds whitespace and changes key order. Check the restored
-	// typed output budget, not the storage engine's text representation.
-	var compact bytes.Buffer
-	if err := json.Compact(&compact, encoded); err != nil {
-		return err
-	}
-	if err := decodeOperationJSON(compact.Bytes(), output); err != nil {
-		return err
-	}
-	return ValidateOperationOutputFields(*output)
 }
 
 func decodeOperationJSON(encoded []byte, target any) error {
@@ -108,7 +95,7 @@ func ValidateOperationOutputFields(output executioncontract.OperationOutput) err
 				(tool.Result["outcome"] == "matched" || tool.Result["outcome"] == "no_match") {
 				continue
 			}
-			if _, _, err := campussearch.DecodeSearchResult(tool.Result); err != nil {
+			if _, _, err := searchapi.DecodeSearchResult(tool.Result); err != nil {
 				return err
 			}
 		case "personal_memory_recall":
@@ -128,7 +115,7 @@ func temporalToolResult(result executionapplication.AgentToolResult, operation e
 	}
 	switch strings.TrimSpace(result.ToolName) {
 	case "campus_search":
-		outcome, _, err := campussearch.DecodeSearchResult(result.Result)
+		outcome, _, err := searchapi.DecodeSearchResult(result.Result)
 		if err != nil {
 			return nil, err
 		}

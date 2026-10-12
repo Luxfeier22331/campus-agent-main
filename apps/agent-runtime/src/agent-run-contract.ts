@@ -1,3 +1,4 @@
+import type { ActivityMetadata } from "campus-contracts/agent-runtime-control";
 import type { CitationDiagnostic } from "campus-contracts/citation-diagnostic";
 import type { CampusSearchObservation, CampusSearchReporter } from "./campus-search-observer.ts";
 import type { RetrievalObservation, RetrievalReporter } from "./retrieval-status.ts";
@@ -238,6 +239,7 @@ export interface UntimedToolExecutionResult {
 }
 
 export interface ToolExecutionResult extends UntimedToolExecutionResult {
+	activity?: ActivityMetadata;
 	toolName: string;
 	invocationId: string;
 	argumentsJson: Record<string, unknown>;

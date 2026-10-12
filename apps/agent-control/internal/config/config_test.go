@@ -142,13 +142,10 @@ func setRuntimeEnv(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "execution-control-abcde")
 	t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", "https://app-api.internal")
-	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
 	t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "app-api-secret")
 	t.Setenv("EXECUTION_CONTROL_INGRESS_SHARED_SECRET", "ingress-secret")
 	t.Setenv("AGENT_CONTROL_RUNTIME_SHARED_SECRET", "agent-secret")
 	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-token")
-	t.Setenv("RETRIEVAL_BASE_URL", "http://campus-search:8000")
-	t.Setenv("RETRIEVAL_INTERNAL_TOKEN", "retrieval-internal-token")
 	t.Setenv("MODEL_CONFIG_URL", "http://model-config:8000")
 }
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"io"
 	"log/slog"
 	"net/http"
@@ -90,7 +91,7 @@ func (s *Server) handlePublic(w http.ResponseWriter, r *http.Request) {
 	}
 	searchCtx, cancel := s.searchContext(r.Context())
 	defer cancel()
-	response, err := s.service.Search(searchCtx, service.SearchRequest{Query: request.Query, SearchGoal: request.SearchGoal, QueryLimit: campussearch.SearchQueryLimit, SearchGoalLimit: campussearch.SearchGoalLimit})
+	response, err := s.service.Search(searchCtx, service.SearchRequest{Query: request.Query, SearchGoal: request.SearchGoal, QueryLimit: searchapi.SearchQueryLimit, SearchGoalLimit: searchapi.SearchGoalLimit})
 	if err != nil {
 		s.writeSearchError(w, err, response.Diagnostics, false)
 		return
@@ -114,7 +115,7 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request) {
 	}
 	searchCtx, cancel := s.searchContext(r.Context())
 	defer cancel()
-	response, err := s.service.Search(searchCtx, service.SearchRequest{Query: request.Query, SearchGoal: request.SearchGoal, ExcludedResultRefs: request.ExcludeResultRefs, ResultLimit: request.ResultLimit, CitationStart: 1, QueryLimit: campussearch.InternalSearchQueryLimit, SearchGoalLimit: campussearch.InternalSearchGoalLimit})
+	response, err := s.service.Search(searchCtx, service.SearchRequest{Query: request.Query, SearchGoal: request.SearchGoal, ExcludedResultRefs: request.ExcludeResultRefs, ResultLimit: request.ResultLimit, CitationStart: 1, QueryLimit: searchapi.InternalSearchQueryLimit, SearchGoalLimit: searchapi.InternalSearchGoalLimit})
 	if err != nil {
 		s.writeSearchError(w, err, response.Diagnostics, true)
 		return

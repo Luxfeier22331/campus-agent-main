@@ -8,7 +8,7 @@ import (
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
 )
 
-func (s *OperationService) TemporalActivityRun(
+func (s *RunProjectionService) TemporalActivityRun(
 	ctx context.Context,
 	requestID string,
 ) (execution.DurableRun, error) {
@@ -23,4 +23,12 @@ func (s *OperationService) TemporalActivityRun(
 		return execution.DurableRun{}, fmt.Errorf("request %s is already terminal: %s", run.RequestID, run.Status)
 	}
 	return run, nil
+}
+
+func (s *RunProjectionService) ListRunSteps(ctx context.Context, requestID string) ([]execution.RunStepProjection, error) {
+	return s.RunProjectionStore.ListRunSteps(ctx, requestID)
+}
+
+func (s *RunProjectionService) ListStepAttempts(ctx context.Context, requestID string) ([]execution.StepAttemptProjection, error) {
+	return s.RunProjectionStore.ListStepAttempts(ctx, requestID)
 }

@@ -126,7 +126,7 @@ mental model，中文 source query），用户以自然语言纠正，不再逐�
 
 provider-backed `owner_transition`、callback-only recovery 与 raw management reader（`items/list`、
 `items/get`）已删除；`memory_update` 命令 kind 与其 item 编辑载荷也在 staging 清理中移除，未保留
-历史回放兼容路径。旧 Temporal 个人记忆 workflow 停止旧执行并确认没有新任务后删除；旧 Go Memory Worker 已归档，不支持旧 history。现有 Hindsight bank 内容不因代码切换迁移或重导入。
+历史回放兼容路径。旧 Temporal 个人记忆 workflow 停止旧执行并确认没有新任务后删除；旧 Go Memory Worker 已删除，不支持旧 history。现有 Hindsight bank 内容不因代码切换迁移或重导入。
 
 接口细节见 [App API 个人记忆接口](../../contracts/app-api/memory.md)。
 

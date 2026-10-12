@@ -1,3 +1,4 @@
+import { currentActivityMetadata } from "./activity-metadata.ts";
 export class ControlHTTPError extends Error {
 	readonly status: number;
 	readonly code: string;
@@ -20,7 +21,7 @@ export class AgentControlClient {
 		const response = await fetch(`${this.baseUrl}/internal/agent-runtime/${action}`, {
 			method: "POST",
 			headers: { "content-type": "application/json", "x-agent-runtime-auth": this.secret },
-			body: JSON.stringify(input),
+			body: JSON.stringify({ ...input, activity: currentActivityMetadata() }),
 			redirect: "error",
 			signal: AbortSignal.any([AbortSignal.timeout(95_000), ...(signal ? [signal] : [])]),
 		});

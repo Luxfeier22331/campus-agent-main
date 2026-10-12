@@ -6,6 +6,7 @@ import (
 	"errors"
 	projectionapp "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
 	applicationcontract "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"reflect"
 	"strings"
 	"testing"
@@ -16,9 +17,8 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/finalization"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/campus-search/campussearch"
 
-	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/temporalclient"
 )
 
 func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
@@ -203,7 +203,7 @@ func TestCommitWorkflowFinalizationMapsActiveProjectionConflictAfterSuccessEvide
 			RequestID:         runID,
 		},
 	}
-	_, err = NewFinalizationAdapter(adapter).Service.CommitWorkflowFinalizationStep(
+	_, err = adapter.CommitWorkflowFinalizationStep(
 		context.Background(),
 		run,
 		input,
@@ -291,7 +291,7 @@ func TestFinalizeExecutionFailureBlocksAfterProductFinalizationEvidence(t *testi
 		ConversationID: conversationID,
 		OwnerUserID:    "user-executor",
 		Surface:        "campus-web",
-		TaskQueue:      temporalruntime.WorkflowTaskQueue,
+		TaskQueue:      temporalclient.WorkflowTaskQueue,
 		Status:         execution.DurableRunStatusCreated,
 		CreatedAt:      now.Add(3 * time.Second),
 		Metadata:       v3ExecutionMetadataForTemporalTest(runID + "-successor"),
@@ -446,10 +446,10 @@ func TestWorkflowFinalizationProjectsCitationsOnCompletionAndRepair(t *testing.T
 				input.WorkflowResult.SolveOutcome = "answer"
 				input.WorkflowResult.WorkflowResultRef = projectionapp.WorkflowOperationResultRef(input.RequestID, "solve.initial")
 				input.WorkflowResult.FinalOutput = "报名要求见 [5]。"
-				item := campussearch.SearchResultItem{ResultRef: ref, SourceKind: "notice", Title: "通知", Text: "报名要求", SectionTitle: "报名", NoticeID: "12345", CitationHref: "/notices/12345"}
+				item := searchapi.SearchResultItem{ResultRef: ref, SourceKind: "notice", Title: "通知", Text: "报名要求", SectionTitle: "报名", NoticeID: "12345", CitationHref: "/notices/12345"}
 				for _, start := range []int{1, 5} {
 					input.WorkflowResult.ToolResults = append(input.WorkflowResult.ToolResults, applicationcontract.AgentToolResult{
-						ToolName: "campus_search", Status: "completed", Result: campussearch.EncodeSearchResult([]campussearch.SearchResultItem{item}, start),
+						ToolName: "campus_search", Status: "completed", Result: searchapi.EncodeSearchResult([]searchapi.SearchResultItem{item}, start),
 					})
 				}
 			}
@@ -528,12 +528,12 @@ func TestFinalizationTimingReservationClampsClockRollback(t *testing.T) {
 	}
 	startedAt := finalizationactivities.CanonicalFinalizationTime(time.Now().Add(time.Hour))
 	agentResult := finalizationactivities.WorkflowFinalizationResultMap(input)
-	finalizedResponse, err := NewFinalizationAdapter(adapter).Service.WorkflowFinalizedResponse(context.Background(), run, agentResult)
+	finalizedResponse, err := adapter.WorkflowFinalizedResponse(context.Background(), run, agentResult)
 	if err != nil {
 		t.Fatalf("build finalization response: %v", err)
 	}
 	payload := finalizationactivities.TemporalFinalizationResultPayload(finalizedResponse, input, run)
-	reservation, err := NewFinalizationAdapter(adapter).Service.EnsureFinalizationTimingReservation(
+	reservation, err := adapter.EnsureFinalizationTimingReservation(
 		context.Background(),
 		run,
 		input,

@@ -1,0 +1,125 @@
+[
+	{
+		"name": "activity_retry",
+		"schema": "ActivityMetadata",
+		"valid": true,
+		"value": {
+			"workflow_id": "workflow",
+			"temporal_run_id": "root",
+			"activity_id": "prepare",
+			"activity_type": "prepareStage",
+			"activity_attempt": 2,
+			"task_queue": "campus-agent.agent.model.v1",
+			"scheduled_at": "2026-10-12T00:00:00Z",
+			"started_at": "2026-10-12T00:00:01Z"
+		}
+	},
+	{
+		"name": "activity_attempt_zero",
+		"schema": "ActivityMetadata",
+		"valid": false,
+		"value": {
+			"workflow_id": "workflow",
+			"temporal_run_id": "root",
+			"activity_id": "prepare",
+			"activity_type": "prepareStage",
+			"activity_attempt": 0,
+			"task_queue": "campus-agent.agent.model.v1",
+			"scheduled_at": "2026-10-12T00:00:00Z",
+			"started_at": "2026-10-12T00:00:01Z"
+		}
+	},
+	{
+		"name": "activity_missing_execution",
+		"schema": "ActivityMetadata",
+		"valid": false,
+		"value": {
+			"workflow_id": "workflow",
+			"activity_id": "prepare",
+			"activity_type": "prepareStage",
+			"activity_attempt": 2,
+			"task_queue": "campus-agent.agent.model.v1",
+			"scheduled_at": "2026-10-12T00:00:00Z",
+			"started_at": "2026-10-12T00:00:01Z"
+		}
+	},
+	{
+		"name": "project",
+		"schema": "ProjectRequest",
+		"valid": true,
+		"value": {
+			"request_id": "run",
+			"ref": "stage",
+			"completed_at": "2026-10-12T00:00:02Z",
+			"payload": {
+				"request_id": "run",
+				"operation": "solve",
+				"status": "completed"
+			},
+			"activity": {
+				"workflow_id": "workflow",
+				"temporal_run_id": "root",
+				"activity_id": "prepare",
+				"activity_type": "prepareStage",
+				"activity_attempt": 2,
+				"task_queue": "campus-agent.agent.model.v1",
+				"scheduled_at": "2026-10-12T00:00:00Z",
+				"started_at": "2026-10-12T00:00:01Z"
+			}
+		}
+	},
+	{
+		"name": "receipt",
+		"schema": "RuntimeInvocationResult",
+		"valid": true,
+		"value": {
+			"disposition": "replay",
+			"output": {
+				"saved": true
+			}
+		}
+	},
+	{
+		"name": "result",
+		"schema": "AgentRuntimeResponse",
+		"valid": true,
+		"value": {
+			"request_id": "run",
+			"operation": "solve",
+			"status": "completed",
+			"final_output": "hello"
+		}
+	},
+	{
+		"name": "result_unknown_field",
+		"schema": "AgentRuntimeResponse",
+		"valid": false,
+		"value": {
+			"request_id": "run",
+			"operation": "solve",
+			"status": "completed",
+			"prompt_trace": {}
+		}
+	},
+	{
+		"name": "plan_version",
+		"schema": "WorkflowTaskPlan",
+		"valid": true,
+		"value": {
+			"schema_version": "task_plan.v1",
+			"goal": "answer",
+			"steps": []
+		}
+	},
+	{
+		"name": "replan_version",
+		"schema": "WorkflowTaskReplan",
+		"valid": true,
+		"value": {
+			"schema_version": "task_replan.v3",
+			"decision": "continue",
+			"reason": "more facts",
+			"remaining_steps": []
+		}
+	}
+]

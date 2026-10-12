@@ -10,7 +10,6 @@ COPY apps/memory-service/ ./
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod --mount=type=cache,id=go-build,target=/root/.cache/go-build \
  CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/memory-api ./cmd/memory-api \
  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/memory-worker ./cmd/memory-worker \
- && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/memory-cutover ./cmd/memory-cutover \
  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/memory-config-upgrade ./cmd/memory-config-upgrade
 FROM debian:bookworm-slim
 RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin appuser \

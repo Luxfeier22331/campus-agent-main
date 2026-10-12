@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	searchapi "github.com/MUC-WIKI/campus-agent/packages/search-api-go"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -25,7 +26,7 @@ type SearchRequest struct {
 
 type SearchResponse struct {
 	Collection  string
-	Results     []campussearch.SearchResultItem
+	Results     []searchapi.SearchResultItem
 	Diagnostics *campussearch.Snapshot
 }
 
@@ -56,8 +57,8 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (response S
 	query := strings.TrimSpace(request.Query)
 	goal := strings.TrimSpace(request.SearchGoal)
 	limit := request.ResultLimit
-	if limit <= 0 || limit > campussearch.SearchResultLimit {
-		limit = campussearch.SearchResultLimit
+	if limit <= 0 || limit > searchapi.SearchResultLimit {
+		limit = searchapi.SearchResultLimit
 	}
 	snapshot := &campussearch.Snapshot{
 		PhaseTimes:     map[string]time.Time{},
@@ -78,11 +79,11 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (response S
 	}
 	queryLimit := request.QueryLimit
 	if queryLimit <= 0 {
-		queryLimit = campussearch.SearchQueryLimit
+		queryLimit = searchapi.SearchQueryLimit
 	}
 	searchGoalLimit := request.SearchGoalLimit
 	if searchGoalLimit <= 0 {
-		searchGoalLimit = campussearch.SearchGoalLimit
+		searchGoalLimit = searchapi.SearchGoalLimit
 	}
 	if utf8.RuneCountInString(query) > queryLimit {
 		return response, fmt.Errorf("query must not exceed %d characters", queryLimit)
@@ -121,7 +122,7 @@ func (s *Service) Search(ctx context.Context, request SearchRequest) (response S
 	return response, err
 }
 
-func PublicResult(results []campussearch.SearchResultItem) map[string]any {
+func PublicResult(results []searchapi.SearchResultItem) map[string]any {
 	items := make([]map[string]any, 0, len(results))
 	for _, item := range results {
 		citationHref := item.CitationHref
@@ -170,7 +171,7 @@ func InternalResult(response SearchResponse) map[string]any {
 	if response.Diagnostics != nil {
 		citationStart = response.Diagnostics.CitationStart
 	}
-	encoded := campussearch.EncodeSearchResult(response.Results, citationStart)
+	encoded := searchapi.EncodeSearchResult(response.Results, citationStart)
 	encoded["collection"] = response.Collection
 	if response.Diagnostics != nil {
 		encoded["diagnostics"] = response.Diagnostics

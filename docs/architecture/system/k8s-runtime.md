@@ -14,8 +14,9 @@ namespace、不可变镜像、环境配置、凭据对象和实际资源额度�
 ## 运行时基础
 
 `infra/k8s/agent-control/base`、`infra/k8s/agent-runtime/base`、`infra/k8s/memory/base` 与
-`infra/k8s/cluster-private-ingress/base` 分别提供独立 owner 的期望状态。`execution-runtime/base`
-保留通知流水线等剩余服务；Model Config、Ops Web 和采集 Job 仍使用各自 base。
+`infra/k8s/cluster-private-ingress/base` 分别提供独立 owner 的期望状态。Campus Search、Notice Pipeline、Model Config、Ops Web
+和采集 Job 也使用各自 base。旧 `execution-runtime/base` 仅在 GitOps 完成资源接管前保留；
+新候选登记独立 owner，旧目录退役不改变数据库、Secret 或 Temporal 队列身份。
 
 精确资源、标签、探针和配置引用以 Kustomize 清单为准，不在架构文档维护副本。源码 base 不选择
 具体环境或可变镜像标签。子单元可以引用同 namespace 中由运行时或 foundation 唯一拥有的

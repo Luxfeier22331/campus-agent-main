@@ -1,4 +1,16 @@
+import {
+	type AgentRunRequest,
+	agentRunRequestWireSchema,
+	type WorkflowEvidence as WireEvidence,
+	type WorkflowCompletedStep,
+	type WorkflowTaskPlan,
+	type WorkflowTaskPlanStep,
+} from "campus-contracts/agent-runtime-control";
+import { CitationDiagnosticSchema } from "campus-contracts/citation-diagnostic";
 import { z } from "zod";
+
+export type { AgentRunRequest } from "campus-contracts/agent-runtime-control";
+
 import type {
 	AgentConversationContext,
 	CompletedTaskStep,
@@ -15,247 +27,40 @@ import type {
 } from "./agent-run-contract.ts";
 import type { ToolContractFingerprint } from "./tool-catalog.ts";
 
-const toolContractFingerprintSchema = z
-	.object({
-		function_schema_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
-		schema_version: z.literal("tool_contract_fingerprint.v1"),
-		tools_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
-	})
-	.strict();
-
-const conversationContextSchema = z
-	.object({
-		schema_version: z.literal("agent_conversation_context.v1"),
-		recent_turns: z
-			.array(
-				z
-					.object({
-						message_id: z.string().min(1).optional(),
-						role: z.enum(["assistant", "user"]),
-						content: z.string().min(1),
-					})
-					.strict(),
-			)
-			.default([]),
-		session_state: z
-			.object({
-				confirmed_slots: z
-					.array(
-						z
-							.object({
-								confirmed: z.boolean(),
-								name: z.string().min(1),
-								value: z.string().min(1),
-							})
-							.strict(),
-					)
-					.default([]),
-			})
-			.strict()
-			.optional(),
-	})
-	.strict();
-
-const runtimeLimitsSchema = z
-	.object({
-		agent_deadline_ms: z.number().int().positive(),
-		context_char_limit: z.number().int().positive(),
-		current_input_char_limit: z.number().int().positive(),
-		// Zero means the application does not impose a provider output cap.
-		max_output_tokens: z.number().int().nonnegative(),
-		max_function_tool_calls: z.number().int().nonnegative(),
-		max_turns: z.number().int().positive(),
-		max_plan_steps: z.number().int().positive(),
-		max_replans: z.number().int().nonnegative(),
-	})
-	.strict();
-
-const sourceSchema = z.enum(["campus_search", "web_search", "personal_memory_recall"]);
-
-const taskPlanStepSchema = z
-	.object({
-		id: z.string().min(1),
-		objective: z.string().min(1),
-		candidate_sources: z.array(sourceSchema),
-		depends_on: z.array(z.string().min(1)),
-	})
-	.strict();
-
-const taskPlanSchema = z
-	.object({
-		schema_version: z.literal("task_plan.v1"),
-		goal: z.string().min(1),
-		steps: z.array(taskPlanStepSchema).min(1),
-	})
-	.strict();
-
-const sourceAttemptSchema = z
-	.object({
-		source: sourceSchema,
-		status: z.enum(["matched", "no_match", "completed", "failed"]),
-		failure_code: z.string().min(1).optional(),
-	})
-	.strict();
-
-const evidenceSchema = z
-	.object({
-		schema_version: z.literal("workflow_evidence.v1"),
-		source_link: z.object({ href: z.string().url().nullable() }).strict().optional(),
-		id: z.string().min(1),
-		source: sourceSchema,
-		title: z.string().min(1),
-		excerpt: z.string().min(1),
-		citation_index: z.number().int().positive().optional(),
-		url: z.string().url().optional(),
-		result_ref: z.string().min(1).optional(),
-		document_id: z.string().min(1).optional(),
-		notice_id: z.string().min(1).optional(),
-		released_at: z.string().datetime({ offset: true }).optional(),
-		citation_href: z.string().min(1).optional(),
-		section_ref: z.string().min(1).optional(),
-		section_title: z.string().min(1).optional(),
-		root_unit_ids: z.array(z.string().min(1)).min(1).optional(),
-		version_id: z.string().min(1).optional(),
-		version_slug: z.string().min(1).optional(),
-	})
-	.strict();
-
-const stepFailureSchema = z
-	.object({ code: z.string().min(1), operation: z.string().min(1) })
-	.strict();
-
-const completedStepSchema = z
-	.object({
-		step: taskPlanStepSchema,
-		execution_index: z.number().int().positive(),
-		summary: z.string().min(1),
-		remaining_facts: z.array(z.string().trim().min(1).max(1_000)).max(32),
-		failure: stepFailureSchema.optional(),
-		evidence: z.array(evidenceSchema),
-		source_attempts: z.array(sourceAttemptSchema),
-	})
-	.strict();
-
-const commonRequestShape = {
-	model_answer_transport: z.enum(["stream", "buffered"]).optional(),
-	deadline_at: z.string().datetime({ offset: true }),
-	prior_evidence: z.array(evidenceSchema).default([]),
-	prior_source_attempts: z.array(sourceAttemptSchema).default([]),
-	activity_attempt: z.number().int().positive(),
-	user_id: z.string().min(1),
-	request_id: z.string().min(1),
-	conversation_id: z.string().min(1),
-	visible_function_tool_names: z.array(z.string().min(1)).default([]),
-	expected_tool_contract_fingerprint: toolContractFingerprintSchema,
-	expected_model_target_sha256: z.string().regex(/^[0-9a-f]{64}$/u),
-	limits: runtimeLimitsSchema,
-	conversation_context: conversationContextSchema.optional(),
-};
-
-const solveRequestSchema = z
-	.object({
-		...commonRequestShape,
-		operation: z.literal("solve"),
-		operation_input: z
-			.object({ goal: z.string().min(1), max_steps: z.number().int().positive() })
-			.strict(),
-	})
-	.strict();
-
-const executeStepRequestSchema = z
-	.object({
-		...commonRequestShape,
-		operation: z.literal("execute_step"),
-		operation_input: z
-			.object({
-				goal: z.string().min(1),
-				plan: taskPlanSchema,
-				step: taskPlanStepSchema,
-				completed_steps: z.array(completedStepSchema),
-				citation_start: z.number().int().positive(),
-			})
-			.strict(),
-	})
-	.strict();
-
-const replanRequestSchema = z
-	.object({
-		...commonRequestShape,
-		operation: z.literal("replan"),
-		operation_input: z
-			.object({
-				goal: z.string().min(1),
-				plan: taskPlanSchema,
-				completed_steps: z.array(completedStepSchema),
-				remaining_steps: z.array(taskPlanStepSchema),
-				max_remaining_steps: z.number().int().nonnegative(),
-			})
-			.strict(),
-	})
-	.strict();
-
-const synthesizeRequestSchema = z
-	.object({
-		...commonRequestShape,
-		operation: z.literal("synthesize"),
-		operation_input: z
-			.object({
-				goal: z.string().min(1),
-				mode: z.enum(["planned", "recovery"]).default("planned"),
-				remaining_facts: z.array(
-					z.object({ objective: z.string().min(1), facts: z.array(z.string()) }).strict(),
-				),
-				evidence: z.array(evidenceSchema),
-				source_attempts: z.array(sourceAttemptSchema),
-				recovery_reason: z.string().trim().min(1).max(500).optional(),
-			})
-			.strict(),
-	})
-	.strict();
-
-export const agentRunRequestSchema = z
-	.discriminatedUnion("operation", [
-		solveRequestSchema,
-		executeStepRequestSchema,
-		replanRequestSchema,
-		synthesizeRequestSchema,
-	])
-	.superRefine((value, context) => {
-		const goal = value.operation_input.goal;
-		if ([...goal].length > value.limits.current_input_char_limit) {
-			context.addIssue({
-				code: "custom",
-				message: "operation_input.goal exceeds limits.current_input_char_limit",
-				path: ["operation_input", "goal"],
-			});
-		}
-		if (
-			value.operation === "solve" &&
-			value.operation_input.max_steps > value.limits.max_plan_steps
-		) {
-			context.addIssue({
-				code: "custom",
-				message: "operation_input.max_steps exceeds limits.max_plan_steps",
-				path: ["operation_input", "max_steps"],
-			});
-		}
-		if (
-			value.operation === "synthesize" &&
-			value.operation_input.mode === "recovery" &&
-			(value.operation_input.evidence.length === 0 || !value.operation_input.recovery_reason)
-		) {
-			context.addIssue({
-				code: "custom",
-				message: "recovery synthesis requires evidence and a failure reason",
-				path: ["operation_input"],
-			});
-		}
-	});
-
-export type AgentRunRequest = z.infer<typeof agentRunRequestSchema>;
+export const agentRunRequestSchema = agentRunRequestWireSchema.superRefine((value, context) => {
+	const goal = value.operation_input.goal;
+	if ([...goal].length > value.limits.current_input_char_limit) {
+		context.addIssue({
+			code: "custom",
+			message: "operation_input.goal exceeds limits.current_input_char_limit",
+			path: ["operation_input", "goal"],
+		});
+	}
+	if (
+		value.operation === "solve" &&
+		value.operation_input.max_steps > value.limits.max_plan_steps
+	) {
+		context.addIssue({
+			code: "custom",
+			message: "operation_input.max_steps exceeds limits.max_plan_steps",
+			path: ["operation_input", "max_steps"],
+		});
+	}
+	if (
+		value.operation === "synthesize" &&
+		value.operation_input.mode === "recovery" &&
+		(value.operation_input.evidence.length === 0 || !value.operation_input.recovery_reason)
+	) {
+		context.addIssue({
+			code: "custom",
+			message: "recovery synthesis requires evidence and a failure reason",
+			path: ["operation_input"],
+		});
+	}
+});
 
 function mapToolContractFingerprint(
-	fingerprint: z.infer<typeof toolContractFingerprintSchema>,
+	fingerprint: AgentRunRequest["expected_tool_contract_fingerprint"],
 ): ToolContractFingerprint {
 	return {
 		functionSchemaSha256: fingerprint.function_schema_sha256,
@@ -358,7 +163,7 @@ export function runtimeInputFromAgentRunRequest(
 }
 
 function mapConversationContext(
-	value: z.infer<typeof conversationContextSchema>,
+	value: NonNullable<AgentRunRequest["conversation_context"]>,
 ): AgentConversationContext {
 	return {
 		schemaVersion: value.schema_version,
@@ -381,7 +186,7 @@ function mapConversationContext(
 	};
 }
 
-function mapTaskPlan(value: z.infer<typeof taskPlanSchema>): TaskPlan {
+function mapTaskPlan(value: WorkflowTaskPlan): TaskPlan {
 	return {
 		goal: value.goal,
 		schemaVersion: value.schema_version,
@@ -389,7 +194,7 @@ function mapTaskPlan(value: z.infer<typeof taskPlanSchema>): TaskPlan {
 	};
 }
 
-export function mapTaskPlanStep(value: z.infer<typeof taskPlanStepSchema>): TaskPlanStep {
+export function mapTaskPlanStep(value: WorkflowTaskPlanStep): TaskPlanStep {
 	return {
 		candidateSources: [...value.candidate_sources] as WorkflowSource[],
 		dependsOn: [...value.depends_on],
@@ -398,7 +203,7 @@ export function mapTaskPlanStep(value: z.infer<typeof taskPlanStepSchema>): Task
 	};
 }
 
-export function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
+export function mapEvidence(value: WireEvidence): WorkflowEvidence {
 	const result: WorkflowEvidence = {
 		excerpt: value.excerpt,
 		...(value.source_link ? { sourceLink: value.source_link } : {}),
@@ -431,10 +236,24 @@ export function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvid
 	return result;
 }
 
-function mapCompletedStep(value: z.infer<typeof completedStepSchema>): CompletedTaskStep {
+function mapCompletedStep(value: WorkflowCompletedStep): CompletedTaskStep {
+	const { citation, http_status, invocation_id, ...failure } = value.failure ?? {};
 	return {
 		remainingFacts: value.remaining_facts,
-		...(value.failure ? { failure: value.failure } : {}),
+		...(value.failure
+			? {
+					failure: {
+						...failure,
+						code: value.failure.code,
+						operation: value.failure.operation,
+						...(citation === undefined
+							? {}
+							: { citation: CitationDiagnosticSchema.parse(citation) }),
+						...(http_status === undefined ? {} : { httpStatus: http_status }),
+						...(invocation_id === undefined ? {} : { invocationId: invocation_id }),
+					},
+				}
+			: {}),
 		evidence: value.evidence.map(mapEvidence),
 		executionIndex: value.execution_index,
 		sourceAttempts: value.source_attempts.map((attempt) => ({
