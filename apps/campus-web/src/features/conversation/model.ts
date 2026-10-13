@@ -154,6 +154,7 @@ export interface ChatRequestStreamEvent {
 		requestId: string;
 		phase?: "finalizing" | "generating" | "preparing";
 		sequence?: number;
+		answerIndex?: number;
 		status: string;
 	};
 	event: ChatRequestStreamEventName;

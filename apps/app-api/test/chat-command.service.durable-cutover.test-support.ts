@@ -56,7 +56,7 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 				},
 			],
 		},
-		status: "completed",
+		status: "completed" as const,
 	};
 }
 

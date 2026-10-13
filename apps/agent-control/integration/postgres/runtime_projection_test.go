@@ -40,7 +40,7 @@ func testRuntimeActivityProjection(t *testing.T, h *postgresHarness) {
 	store := newRunProjectionStore(t, url, true)
 	interrupted := &interruptedProjectionStore{PostgresRunProjectionStore: store}
 
-	service := &operation.RunProjectionService{StateWriter: store, Writer: projection.New(projection.Writer{RunProjectionStore: interrupted, WorkerID: "runtime-test"}), DeploymentRelease: "test"}
+	service := &operation.RunProjectionService{Answers: store, StateWriter: store, Writer: projection.New(projection.Writer{RunProjectionStore: interrupted, WorkerID: "runtime-test"}), DeploymentRelease: "test"}
 	server := httptest.NewServer(&runtimeapi.Server{SharedSecret: "test", ActivityStore: store, Projection: service, Input: &operation.RuntimeInputService{Projection: service, InputReader: &executionapplication.InputReader{ExecutionInputLoader: instanceInputs{}}, AnswerTransport: "buffered"}, Store: store, Invocation: &executionapplication.RuntimeInvocationService{Receipts: store.Receipts, Runs: service}})
 
 	defer server.Close()

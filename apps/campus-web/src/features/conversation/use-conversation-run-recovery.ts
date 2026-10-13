@@ -94,6 +94,9 @@ export function useConversationRunRecovery({
 						...(currentRun.conversationId ? { conversationId: currentRun.conversationId } : {}),
 						operation,
 						initialEvents: resumeRunEventsStream({
+							...(operationMachine.activeRun?.answerIndex === undefined
+								? {}
+								: { afterAnswerIndex: operationMachine.activeRun.answerIndex }),
 							...(currentRun.sequence === undefined ? {} : { afterSequence: currentRun.sequence }),
 							requestId: currentRun.requestId,
 							signal: operation.controller.signal,
@@ -221,6 +224,9 @@ export function useConversationRunRecovery({
 					conversationId,
 					operation,
 					initialEvents: resumeRunEventsStream({
+						...(operationMachine.activeRun?.answerIndex === undefined
+							? {}
+							: { afterAnswerIndex: operationMachine.activeRun.answerIndex }),
 						afterSequence: replay.nextSequence,
 						requestId,
 						signal: operation.controller.signal,

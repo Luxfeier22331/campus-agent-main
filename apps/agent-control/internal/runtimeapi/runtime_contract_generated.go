@@ -73,9 +73,9 @@ type AnswerCompletedRequest struct {
 type AnswerDeltaRequest struct {
 	RequestID    string                             `json:"request_id"`
 	InvocationID string                             `json:"invocation_id"`
-	Sequence     int                                `json:"sequence"`
 	Delta        string                             `json:"delta"`
 	Activity     executioncontract.ActivityMetadata `json:"activity"`
+	AnswerIndex  int                                `json:"answer_index"`
 }
 
 type RetrievalStatusRequest struct {
@@ -122,4 +122,10 @@ type RuntimeAcknowledgement struct {
 
 type FinalizationAdmission struct {
 	AdmissionSnapshot execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
+}
+
+type AnswerStartedRequest struct {
+	RequestID    string                             `json:"request_id"`
+	InvocationID string                             `json:"invocation_id"`
+	Activity     executioncontract.ActivityMetadata `json:"activity"`
 }

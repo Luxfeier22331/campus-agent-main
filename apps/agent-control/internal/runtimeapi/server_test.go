@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
 	"testing"
 	"time"
 
@@ -48,13 +49,28 @@ func (s *failingProjection) UpsertStepResult(ctx context.Context, result executi
 	}
 	return s.RunStore.UpsertStepResult(ctx, result)
 }
+
+type unavailableAnswerPublisher struct{}
+
+func (unavailableAnswerPublisher) PublishAnswerDelta(context.Context, answerstream.Delta) error {
+	return answerstream.ErrUnavailable
+}
+
 func TestProjectRetryPreservesReceiptAndRepairsBufferedAnswer(t *testing.T) {
+	for _, offline := range []bool{false, true} {
+		t.Run(fmt.Sprint("offline=", offline), func(t *testing.T) { testBufferedProject(t, offline) })
+	}
+}
+func testBufferedProject(t *testing.T, offline bool) {
 	store := executionpersistence.NewInMemoryRunProjectionStore()
 	frozen := agenttest.CreateQueuedRun(t, store, "runtime-project")
 	snapshot := agenttest.AdmissionSnapshot(t)
 	broken := &failingProjection{RunStore: store}
 
-	projectionOwner := &operation.RunProjectionService{StateWriter: store, Writer: &projection.Writer{RunProjectionStore: broken}}
+	projectionOwner := &operation.RunProjectionService{Answers: store, StateWriter: store, Writer: &projection.Writer{RunProjectionStore: broken}}
+	if offline {
+		projectionOwner.Answers = unavailableAnswerPublisher{}
+	}
 	api := &Server{Store: testPayloadStore{}, Projection: projectionOwner, Input: &operation.RuntimeInputService{Projection: projectionOwner, InputReader: &executionapplication.InputReader{ExecutionInputLoader: frozen}}, Invocation: &executionapplication.RuntimeInvocationService{Receipts: store.Receipts, Runs: projectionOwner}}
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	stageStarted := now.Add(-4 * time.Second)
@@ -114,8 +130,16 @@ func TestProjectRetryPreservesReceiptAndRepairsBufferedAnswer(t *testing.T) {
 	for _, event := range events {
 		counts[event.EventType]++
 	}
-	if counts[execution.DurableRunEventTypeRunAnswerDelta] != 1 || counts[execution.DurableRunEventTypeRunAnswerCompleted] != 1 {
-		t.Fatalf("duplicate answer events: %v", counts)
+	if counts["run.answer_delta"] != 0 || counts[execution.DurableRunEventTypeRunAnswerCompleted] != 1 {
+		t.Fatalf("unexpected durable answer events: %v", counts)
+	}
+	deltas, err := store.ReadAnswerDeltas(t.Context(), req.RequestID, 0)
+	wantDeltas := 1
+	if offline {
+		wantDeltas = 0
+	}
+	if err != nil || len(deltas) != wantDeltas {
+		t.Fatalf("buffered answer repair duplicated/lost temporary text: %v %v", deltas, err)
 	}
 	attempts, err := store.ListStepAttempts(t.Context(), req.RequestID)
 	if err != nil || len(attempts) != 3 {
@@ -138,5 +162,52 @@ func TestProjectRetryPreservesReceiptAndRepairsBufferedAnswer(t *testing.T) {
 		if attempt.Attempt != 3 || attempt.ActivityType != "executeTool" || attempt.TaskQueue != "tool-queue" || !attempt.StartedAt.Equal(toolStarted) || attempt.ScheduleToStartMS != wantDelay {
 			t.Fatalf("lost tool activity metadata: %#v", attempt)
 		}
+	}
+}
+
+func TestAnswerDeltaCannotStartLifecycleOrPublishInvalidContract(t *testing.T) {
+	store := executionpersistence.NewInMemoryRunProjectionStore()
+	const id = "delta-contract"
+	agenttest.CreateQueuedRun(t, store, id)
+	if _, err := store.TransitionRun(t.Context(), id, execution.DurableRunStatusAdmitted, "", time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	run, err := store.TransitionRun(t.Context(), id, execution.DurableRunStatusRunning, "", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &operation.RunProjectionService{StateWriter: store, Answers: store}
+	if err := service.ProjectWorkflowAnswerDelta(t.Context(), run, id+":answer", 1, "draft"); err == nil {
+		t.Fatal("delta before started must fail")
+	}
+	unchanged, err := store.GetRun(t.Context(), id)
+	if err != nil || unchanged.Status != execution.DurableRunStatusRunning {
+		t.Fatalf("run changed: %v %v", unchanged.Status, err)
+	}
+	events, err := store.ListRunEvents(t.Context(), id)
+	if err != nil || len(events) != 0 {
+		t.Fatalf("delta changed lifecycle: %v %v", events, err)
+	}
+	if err := service.ProjectWorkflowAnswerStarted(t.Context(), run, id+":answer"); err != nil {
+		t.Fatal(err)
+	}
+	run, err = store.GetRun(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		message string
+		index   int
+		text    string
+	}{
+		{id + ":answer", 0, "draft"}, {"wrong", 1, "draft"}, {id + ":answer", 1, ""},
+	} {
+		if err := service.ProjectWorkflowAnswerDelta(t.Context(), run, test.message, test.index, test.text); err == nil {
+			t.Fatal("invalid delta accepted")
+		}
+	}
+	deltas, err := store.ReadAnswerDeltas(t.Context(), id, 0)
+	if err != nil || len(deltas) != 0 {
+		t.Fatalf("invalid delta was published: %v %v", deltas, err)
 	}
 }

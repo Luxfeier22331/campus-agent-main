@@ -25,6 +25,17 @@ export function durableRunEventsPath(query: ExecutionControlRunEventQuery): stri
 		}
 		params.set("after_sequence", String(query.afterSequence));
 	}
+	if (query.afterAnswerIndex !== undefined) {
+		if (!Number.isSafeInteger(query.afterAnswerIndex) || query.afterAnswerIndex < 0) {
+			throw new ExecutionControlTransportError({
+				code: "invalid_request",
+				message: "afterAnswerIndex must be a non-negative integer.",
+				retryable: false,
+				status: 400,
+			});
+		}
+		params.set("after_answer_index", String(query.afterAnswerIndex));
+	}
 	if (query.waitMs !== undefined) {
 		if (!(Number.isInteger(query.waitMs) && Number.isFinite(query.waitMs)) || query.waitMs < 0) {
 			throw new ExecutionControlTransportError({
@@ -108,6 +119,9 @@ export function parseDurableRunEvents(payload: JsonRecord): ExecutionControlRunE
 		throw invalidDurableResponse("next_sequence must be a non-negative integer.");
 	}
 	return {
+		...(payload.answer_deltas === undefined
+			? {}
+			: { answerDeltas: parseAnswerDeltas(payload.answer_deltas) }),
 		events: events.map((event, index) => {
 			if (!event || typeof event !== "object" || Array.isArray(event)) {
 				throw invalidDurableResponse(`events[${index}] must be an object.`);
@@ -159,5 +173,34 @@ function invalidDurableResponse(detail: string): ExecutionControlTransportError 
 		message: `Execution control runtime response violates the contract: ${detail}`,
 		retryable: true,
 		status: 502,
+	});
+}
+
+function parseAnswerDeltas(value: unknown) {
+	if (!Array.isArray(value)) {
+		throw invalidDurableResponse("answer_deltas must be an array.");
+	}
+	let previous = 0;
+	return value.map((item: unknown) => {
+		if (!item || typeof item !== "object" || Array.isArray(item)) {
+			throw invalidDurableResponse("Invalid answer delta.");
+		}
+		const record = item as JsonRecord;
+		const index = readRequiredNumber(record, "index");
+		if (!Number.isSafeInteger(index) || index <= previous) {
+			throw invalidDurableResponse("Answer indices must increase.");
+		}
+		previous = index;
+		const delta = readRequiredString(record, "delta");
+		if (!delta) {
+			throw invalidDurableResponse("Answer delta must not be empty.");
+		}
+		return {
+			index,
+			delta,
+			requestId: readRequiredString(record, "request_id"),
+			messageId: readRequiredString(record, "message_id"),
+			occurredAt: readRequiredString(record, "occurred_at"),
+		};
 	});
 }

@@ -186,7 +186,7 @@ describe("campus app-api client", () => {
 					'event: request.accepted\ndata: {"requestId":"req_01","sequence":1,"status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
 					'event: execution.queued\ndata: {"requestId":"req_01","status":"queued","occurredAt":"2026-06-08T00:00:00.250Z"}',
 					'event: execution.running\ndata: {"requestId":"req_01","status":"running","occurredAt":"2026-06-08T00:00:00.500Z"}',
-					'event: answer.delta\ndata: {"requestId":"req_01","sequence":2,"status":"streaming","occurredAt":"2026-06-08T00:00:01.000Z","messageId":"msg_answer","delta":"图书馆开放到"}',
+					'event: answer.delta\ndata: {"requestId":"req_01","answerIndex":1,"status":"streaming","occurredAt":"2026-06-08T00:00:01.000Z","messageId":"msg_answer","delta":"图书馆开放到"}',
 					'event: request.completed\ndata: {"requestId":"req_01","sequence":3,"status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}',
 					"",
 				].join("\n\n"),
@@ -569,13 +569,6 @@ describe("campus app-api client", () => {
 							requestId: "req_01",
 							sequence: 7,
 						},
-						{
-							eventType: "answer.delta",
-							occurredAt: "2026-06-08T00:00:02.000Z",
-							payload: { delta: "校园资料", message_id: "msg_01" },
-							requestId: "req_01",
-							sequence: 8,
-						},
 					],
 					nextSequence: 9,
 					run: {
@@ -596,13 +589,7 @@ describe("campus app-api client", () => {
 		await expect(getRunEvents({ afterSequence: 6, requestId: "req_01" })).resolves.toMatchObject({
 			nextSequence: 9,
 			run: { requestId: "req_01", status: "streaming" },
-			events: [
-				{ event: "execution.phase", data: { phase: "generating", sequence: 7 } },
-				{
-					event: "answer.delta",
-					data: { delta: "校园资料", messageId: "msg_01", sequence: 8 },
-				},
-			],
+			events: [{ event: "execution.phase", data: { phase: "generating", sequence: 7 } }],
 		});
 		expect(fetchMock).toHaveBeenCalledWith("/api/chat/requests/req_01/events?after_sequence=6", {
 			credentials: "same-origin",

@@ -121,6 +121,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		serveAction(w, r, s.handleInvocationComplete)
 	case "project":
 		serveAction(w, r, s.handleProject)
+	case "answer/started":
+		serveAction(w, r, s.handleAnswerStarted)
 	case "answer/completed":
 		serveAction(w, r, s.handleAnswerCompleted)
 	case "answer/delta":
@@ -285,6 +287,14 @@ func (s *Server) handleProject(ctx context.Context, in ProjectRequest) (*Project
 
 }
 
+func (s *Server) handleAnswerStarted(ctx context.Context, in AnswerStartedRequest) (*RuntimeAcknowledgement, error) {
+	run, err := s.Projection.TemporalActivityRun(ctx, in.RequestID)
+	if err != nil {
+		return nil, err
+	}
+	return &RuntimeAcknowledgement{}, s.Projection.ProjectWorkflowAnswerStarted(ctx, run, in.InvocationID)
+}
+
 func (s *Server) handleAnswerCompleted(ctx context.Context, in AnswerCompletedRequest) (*RuntimeAcknowledgement, error) {
 	run, err := s.Projection.TemporalActivityRun(ctx, in.RequestID)
 	if err != nil {
@@ -298,7 +308,7 @@ func (s *Server) handleAnswerDelta(ctx context.Context, in AnswerDeltaRequest) (
 	if err != nil {
 		return nil, err
 	}
-	return &RuntimeAcknowledgement{}, s.Projection.ProjectWorkflowAnswerDelta(ctx, run, in.InvocationID, in.Sequence, in.Delta)
+	return &RuntimeAcknowledgement{}, s.Projection.ProjectWorkflowAnswerDelta(ctx, run, in.InvocationID, in.AnswerIndex, in.Delta)
 }
 
 func (s *Server) handleRetrievalStatus(ctx context.Context, in RetrievalStatusRequest) (*RuntimeAcknowledgement, error) {

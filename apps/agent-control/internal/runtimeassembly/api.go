@@ -58,7 +58,7 @@ func NewAPI(cfg config.Config, logger *slog.Logger) (*APIOwner, error) {
 	var runtimeHandler http.Handler
 	if store, ok := r.execution.store.(*executionpersistence.PostgresRunProjectionStore); ok {
 
-		projection := &operationapp.RunProjectionService{StateWriter: store, Writer: r.execution.writer, DeploymentRelease: cfg.DeploymentRelease}
+		projection := &operationapp.RunProjectionService{Answers: store, StateWriter: store, Writer: r.execution.writer, DeploymentRelease: cfg.DeploymentRelease}
 		runtimeHandler = &runtimeapi.Server{
 			SharedSecret: cfg.AgentRuntimeSharedSecret, ActivityStore: store, Store: store, MetadataWriter: store, Finalization: r.execution.finalization,
 			Input:      &operationapp.RuntimeInputService{Projection: projection, InputReader: r.execution.inputReader, AnswerTransport: cfg.AnswerTransport},

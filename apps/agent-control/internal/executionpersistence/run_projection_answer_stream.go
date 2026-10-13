@@ -21,6 +21,12 @@ func (s *InMemoryRunProjectionStore) StartRunAnswerStream(
 	if !exists {
 		return execution.DurableRun{}, fmt.Errorf("%w: %s", execution.ErrDurableRunNotFound, request.RequestID)
 	}
+	if err := validateRunAnswerStreamStartRequest(run, request); err != nil {
+		return execution.DurableRun{}, err
+	}
+	if run.Status == execution.DurableRunStatusStreaming {
+		return execution.CloneDurableRun(run), nil
+	}
 	if run.Status != execution.DurableRunStatusRunning {
 		return execution.DurableRun{}, fmt.Errorf(
 			"%w: %s -> %s",
@@ -28,9 +34,6 @@ func (s *InMemoryRunProjectionStore) StartRunAnswerStream(
 			run.Status,
 			execution.DurableRunStatusStreaming,
 		)
-	}
-	if err := validateRunAnswerStreamStartRequest(run, request); err != nil {
-		return execution.DurableRun{}, err
 	}
 
 	updated := execution.CloneDurableRun(run)
@@ -70,6 +73,12 @@ func (s *PostgresRunProjectionStore) StartRunAnswerStream(
 		}
 		return execution.DurableRun{}, err
 	}
+	if err := validateRunAnswerStreamStartRequest(run, request); err != nil {
+		return execution.DurableRun{}, err
+	}
+	if run.Status == execution.DurableRunStatusStreaming {
+		return execution.CloneDurableRun(run), nil
+	}
 	if run.Status != execution.DurableRunStatusRunning {
 		return execution.DurableRun{}, fmt.Errorf(
 			"%w: %s -> %s",
@@ -77,9 +86,6 @@ func (s *PostgresRunProjectionStore) StartRunAnswerStream(
 			run.Status,
 			execution.DurableRunStatusStreaming,
 		)
-	}
-	if err := validateRunAnswerStreamStartRequest(run, request); err != nil {
-		return execution.DurableRun{}, err
 	}
 	run.Status = execution.DurableRunStatusStreaming
 	run.UpdatedAt = request.Now
@@ -93,9 +99,6 @@ func (s *PostgresRunProjectionStore) StartRunAnswerStream(
 	if err := insertDurableRunEventInTx(ctx, tx, run, request.AnswerStartedEvent); err != nil {
 		return execution.DurableRun{}, err
 	}
-	if err := insertDurableRunEventInTx(ctx, tx, run, request.FirstDeltaEvent); err != nil {
-		return execution.DurableRun{}, err
-	}
 	if err := tx.Commit(ctx); err != nil {
 		return execution.DurableRun{}, err
 	}
@@ -107,31 +110,25 @@ func validateRunAnswerStreamStartRequest(run execution.DurableRun, request execu
 		return fmt.Errorf("%w: answer stream identity is invalid", execution.ErrInvalidRunEvent)
 	}
 	started := request.AnswerStartedEvent
-	delta := request.FirstDeltaEvent
-	if started.RequestID != run.RequestID || delta.RequestID != run.RequestID ||
-		started.ConversationID != run.ConversationID || delta.ConversationID != run.ConversationID ||
+	if started.RequestID != run.RequestID ||
+		started.ConversationID != run.ConversationID ||
 		started.EventType != execution.DurableRunEventTypeRunAnswerStarted ||
-		delta.EventType != execution.DurableRunEventTypeRunAnswerDelta ||
-		started.Sequence != 0 || delta.Sequence != 0 {
+		started.Sequence != 0 {
 		return fmt.Errorf("%w: answer stream events are invalid", execution.ErrInvalidRunEvent)
 	}
 	started.Sequence = 1
-	delta.Sequence = 2
-	if err := execution.ValidateDurableRunEventBase(started); err != nil {
-		return err
-	}
-	return execution.ValidateDurableRunEventBase(delta)
+	return execution.ValidateDurableRunEventBase(started)
 }
 
 func prepareAnswerStreamEvents(
 	existing []execution.DurableRunEvent,
 	request execution.RunAnswerStreamStartRequest,
 ) ([]execution.DurableRunEvent, error) {
-	seen := make(map[string]struct{}, len(existing)+2)
+	seen := make(map[string]struct{}, len(existing)+1)
 	for _, event := range existing {
 		seen[event.EventID] = struct{}{}
 	}
-	prepared := []execution.DurableRunEvent{request.AnswerStartedEvent, request.FirstDeltaEvent}
+	prepared := []execution.DurableRunEvent{request.AnswerStartedEvent}
 	for index := range prepared {
 		if _, duplicate := seen[prepared[index].EventID]; duplicate {
 			return nil, fmt.Errorf("%w: event_id %s already exists", execution.ErrInvalidRunEvent, prepared[index].EventID)

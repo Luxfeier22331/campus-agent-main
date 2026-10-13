@@ -2,7 +2,9 @@ package executionpersistence
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -77,7 +79,7 @@ func (s *PostgresRunProjectionStore) ensureRunEventListener(ctx context.Context)
 	if err != nil {
 		return fmt.Errorf("acquire run event listener connection: %w", err)
 	}
-	if _, err := connection.Exec(ctx, "listen "+runEventNotificationChannel); err != nil {
+	if _, err := connection.Exec(ctx, "listen "+runEventNotificationChannel+"; listen "+answerNotificationChannel); err != nil {
 		connection.Release()
 		return fmt.Errorf("listen for run events: %w", err)
 	}
@@ -120,6 +122,13 @@ func (s *PostgresRunProjectionStore) listenForRunEvents(
 			s.notifyPostgresRunEventWaitersLocked("")
 			s.eventMu.Unlock()
 			return
+		}
+		if notification.Channel == answerNotificationChannel {
+			var delta answerstream.Delta
+			if json.Unmarshal([]byte(notification.Payload), &delta) == nil {
+				_ = s.answers.PublishAnswerDelta(ctx, delta)
+			}
+			continue
 		}
 		s.eventMu.Lock()
 		s.notifyPostgresRunEventWaitersLocked(notification.Payload)

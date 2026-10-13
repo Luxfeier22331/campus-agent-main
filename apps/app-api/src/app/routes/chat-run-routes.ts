@@ -162,7 +162,9 @@ function toChatRunResumeStreamEvent(input: {
 	const baseData = {
 		occurredAt: input.event.occurredAt,
 		requestId: input.event.requestId,
-		sequence: input.event.sequence,
+		...(input.event.answerIndex === undefined
+			? { sequence: input.event.sequence }
+			: { answerIndex: input.event.answerIndex }),
 	};
 	if (input.event.eventType === "execution.queued") {
 		return {
@@ -358,7 +360,9 @@ export function registerChatRunRoutes(input: {
 			});
 			const abortController = new AbortController();
 			const afterSequence = readAfterSequenceQuery(c.req.query("after_sequence"));
+			const afterAnswerIndex = readAfterSequenceQuery(c.req.query("after_answer_index"));
 			const events = runtimeRunService.subscribeEvents({
+				...(afterAnswerIndex === undefined ? {} : { afterAnswerIndex }),
 				...(afterSequence === undefined ? {} : { afterSequence }),
 				principal: resolved.principal,
 				requestId: c.req.param("requestId"),

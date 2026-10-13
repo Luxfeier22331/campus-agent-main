@@ -10,6 +10,7 @@ import type {
 	ToolExecutionResult,
 	WorkflowOperationResult,
 } from "./agent-run-contract.ts";
+import { createAnswerPublisher } from "./answer-publisher.ts";
 import { createCampusSearchReporter } from "./campus-search-observer.ts";
 import { type AgentControlClient, ControlHTTPError } from "./control-client.ts";
 import {
@@ -61,7 +62,7 @@ interface TurnState {
 	citation: number;
 	excludedRefs: string[];
 	reserved: number;
-	sequence: number;
+	answerIndex: number;
 }
 interface TurnRecord {
 	state: TurnState;
@@ -366,7 +367,7 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 							citation: initialContext.campusSearch.nextCitationIndex,
 							excludedRefs: [...initialContext.campusSearch.resultRefs],
 							reserved: 0,
-							sequence: 0,
+							answerIndex: 0,
 						};
 				const invocationId = `${input.requestId}:${stage.input.key}:model:${input.turn}`;
 				const ref = `${input.stageRef}:turn:${input.turn}`;
@@ -401,7 +402,18 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 					const { prepared } = executionPrepared!;
 					let raw = "";
 					let emitted = "";
-					let sequence = state.sequence;
+					let answerIndex = state.answerIndex;
+					let answerStarted = state.result.answerStarted === true;
+					let projectionError: unknown;
+					const answerSignal = prepared.runnerInput.signal ?? Context.current().cancellationSignal;
+					const publishAnswer = createAnswerPublisher({
+						control,
+						signal: answerSignal,
+						onUnavailable: () =>
+							Context.current().log.warn("Temporary answer publishing stopped", {
+								request_id: input.requestId,
+							}),
+					});
 					const onDelta = stage.input.bufferAnswer
 						? undefined
 						: async (delta: string) => {
@@ -414,13 +426,29 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 									text = raw;
 								}
 								if (text?.startsWith(emitted) && text.length > emitted.length) {
-									sequence++;
-									await control.call("answer/delta", {
-										request_id: input.requestId,
-										invocation_id: `${input.requestId}:answer`,
-										sequence,
-										delta: text.slice(emitted.length),
-									});
+									if (!answerStarted) {
+										try {
+											await control.call(
+												"answer/started",
+												{ request_id: input.requestId, invocation_id: `${input.requestId}:answer` },
+												answerSignal,
+											);
+										} catch (error) {
+											projectionError = error;
+											throw error;
+										}
+										answerStarted = true;
+									}
+									const points = Array.from(text.slice(emitted.length));
+									for (let offset = 0; offset < points.length; offset += 512) {
+										answerIndex++;
+										await publishAnswer({
+											request_id: input.requestId,
+											invocation_id: `${input.requestId}:answer`,
+											answer_index: answerIndex,
+											delta: points.slice(offset, offset + 512).join(""),
+										});
+									}
 									emitted = text;
 								}
 							};
@@ -449,6 +477,9 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 									);
 					} catch (error) {
 						Context.current().cancellationSignal.throwIfAborted();
+						if (error === projectionError || error instanceof ControlHTTPError) {
+							throw error;
+						}
 						const failure = agentRuntimeErrorPayload(
 							error,
 							prepared.runnerInput.signal ? { deadlineSignal: prepared.runnerInput.signal } : {},
@@ -477,8 +508,8 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 						};
 					}
 					state.result = mergeResult(state.result, turn.result);
-					state.sequence = sequence;
-					if (emitted) {
+					state.answerIndex = answerIndex;
+					if (answerStarted) {
 						state.result.answerStarted = true;
 					}
 					record = { state, turn, completedAt: new Date().toISOString(), turnIndex: input.turn };

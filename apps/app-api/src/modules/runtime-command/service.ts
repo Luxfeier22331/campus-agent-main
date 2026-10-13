@@ -275,9 +275,10 @@ export function buildChatCommandService(
 							context: closeoutContext,
 							executionResponse,
 						}),
-					listRunEvents: (afterSequence, waitMs) =>
+					listRunEvents: (afterSequence, waitMs, afterAnswerIndex) =>
 						executionRuntime.listRunEvents({
 							afterSequence,
+							...(afterAnswerIndex === undefined ? {} : { afterAnswerIndex }),
 							requestId: context.requestId,
 							...(waitMs === undefined ? {} : { waitMs }),
 						}),

@@ -25,7 +25,8 @@
 		"typecheck": "tsc --noEmit --checkers 1",
 		"test:dom:fast": "vitest run -c vitest.config.mts --project=campus-dom-fast",
 		"test:dom:isolated": "vitest run -c vitest.config.mts --project=campus-dom-isolated",
-		"build:fixture": "CLOUDFLARE_ENV=local pnpm exec tsx ./test/build-browser-test-content.ts"
+		"build:fixture": "CLOUDFLARE_ENV=local pnpm exec tsx ./test/build-browser-test-content.ts",
+		"test:e2e:answer-transport": "playwright test -c e2e.answer-transport.config.ts"
 	},
 	"dependencies": {
 		"@assistant-ui/react": "0.15.22",

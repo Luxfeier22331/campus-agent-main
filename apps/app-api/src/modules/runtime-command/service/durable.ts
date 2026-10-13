@@ -1,11 +1,11 @@
 import {
 	EXECUTION_CONTROL_FAILURE_MESSAGE,
-	type ExecutionControlRunEvent,
 	ExecutionControlTransportError,
 	isSafeExecutionControlErrorCode,
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
 } from "../../integration";
+import type { LiveRunEvent } from "../../integration/live-run-events";
 import { executionFinalizationErrorResponse, toTerminalChatStreamEvent } from "./stream";
 import type { ChatCommandResponse, ChatCommandStreamEvent } from "./types";
 
@@ -30,48 +30,9 @@ function asJsonRecord(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
-function firstAssistantMessage(input: ChatCommandResponse): {
-	id: string;
-	text: string;
-} | null {
-	const messages = input.answer.conversation.messages;
-	const message = [...messages].reverse().find((item) => item.role === "assistant");
-	if (!message || message.text.trim() === "") {
-		return null;
-	}
-	return { id: message.id, text: message.text };
-}
-
-export function answerDeltaEvent(input: {
-	context: DurableRunEventContext;
-	finalized: ChatCommandResponse;
-	occurredAt: string;
-	sequence?: number;
-}): ChatCommandStreamEvent | null {
-	if (input.finalized.answer.result.kind !== "answer") {
-		return null;
-	}
-	const assistantMessage = firstAssistantMessage(input.finalized);
-	if (!assistantMessage) {
-		return null;
-	}
-	return {
-		data: {
-			delta: assistantMessage.text,
-			messageId: assistantMessage.id,
-			occurredAt: input.occurredAt,
-			requestId: input.context.requestId,
-			...(input.sequence === undefined ? {} : { sequence: input.sequence }),
-			status: "streaming",
-		},
-		event: "answer.delta",
-	};
-}
-
 export function chatStreamEventsForFinalized(input: {
 	context: DurableRunEventContext;
 	finalized: ChatCommandResponse;
-	hasStreamedAnswerDelta?: boolean;
 	occurredAt: string;
 	sourceEvent?: DurableTerminalSourceEvent;
 	sequence?: number;
@@ -82,23 +43,14 @@ export function chatStreamEventsForFinalized(input: {
 		...(input.sequence === undefined ? {} : { sequence: input.sequence }),
 		...(input.sourceEvent ? { sourceEvent: input.sourceEvent } : {}),
 	});
-	if (input.hasStreamedAnswerDelta) {
-		return [terminal];
-	}
-	const delta = answerDeltaEvent({
-		context: input.context,
-		finalized: input.finalized,
-		occurredAt: input.occurredAt,
-		...(input.sequence === undefined ? {} : { sequence: input.sequence }),
-	});
-	return delta ? [delta, terminal] : [terminal];
+	return [terminal];
 }
 
 export function answerDeltaEventFromDurableRunEvent(
 	context: DurableRunEventContext,
-	event: ExecutionControlRunEvent,
+	event: LiveRunEvent,
 ): ChatCommandStreamEvent | null {
-	if (event.eventType !== "run.answer_delta") {
+	if (event.eventType !== "answer.delta") {
 		return null;
 	}
 	assertDurableEventRunMatches(
@@ -138,7 +90,9 @@ export function answerDeltaEventFromDurableRunEvent(
 			messageId,
 			occurredAt: event.occurredAt,
 			requestId: context.requestId,
-			sequence: event.sequence,
+			...(event.answerIndex === undefined
+				? { sequence: event.sequence }
+				: { answerIndex: event.answerIndex }),
 			status: "streaming",
 		},
 		event: "answer.delta",
@@ -177,7 +131,7 @@ function getRequiredBoolean(
 
 export function assertDurableEventRunMatches(
 	context: DurableRunEventContext,
-	event: ExecutionControlRunEvent,
+	event: LiveRunEvent,
 	message: string,
 ) {
 	if (event.requestId !== context.requestId) {
@@ -192,8 +146,11 @@ export function assertDurableEventRunMatches(
 
 export function lifecycleEventFromDurableRunEvent(
 	context: DurableRunEventContext,
-	event: ExecutionControlRunEvent,
+	event: LiveRunEvent,
 ): ChatCommandStreamEvent | null {
+	if (event.answerIndex !== undefined) {
+		return null;
+	}
 	assertDurableEventRunMatches(
 		context,
 		event,
@@ -272,7 +229,7 @@ export function lifecycleEventFromDurableRunEvent(
 
 export function finalizationResponseFromDurableRunEvent(
 	context: DurableRunEventContext,
-	event: ExecutionControlRunEvent,
+	event: LiveRunEvent,
 ): ToolExecutionResponse | null {
 	const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, event);
 	return terminalOutcome?.response ?? null;
@@ -280,7 +237,7 @@ export function finalizationResponseFromDurableRunEvent(
 
 export function durableTerminalOutcomeFromDurableRunEvent(
 	context: DurableRunEventContext,
-	event: ExecutionControlRunEvent,
+	event: LiveRunEvent,
 ): DurableTerminalRunOutcome | null {
 	if (event.eventType === "run.canceled") {
 		assertDurableEventRunMatches(

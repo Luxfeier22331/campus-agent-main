@@ -148,11 +148,15 @@ Temporal-facing allowlist 和既有 evidence 字符上限；不得把 provider �
 调试载荷写入 history。PostgreSQL run/event 删除不代表平台 history 立即消失，账号删除合同必须同时遵守
 Temporal retention、访问控制和 replay 可见性边界。
 
-Agent Runtime 的流式 `answer_delta` 只携带临时展示用的 `delta` 和
-`agent_runtime_answer_delta.v3`；execution-control 在合并后为浏览器事件分配本地 `chunk_index`。
-`answer_completed` 只表示增量流已结束，不复制累积正文；`answer_delta` 是 provisional 展示事实，
-`final_output` 是 Finalization 使用的 canonical 答案正文。若最终校验失败，消费者必须丢弃或标记
-provisional 增量，不得把它当作有效最终答案。
+Agent Runtime 通过 Control typed API 发布临时回答增量，Control 不再将正文片段写入
+`agent_run_events`。独立 `answer/started` API 将 `answer_started` 与 streaming 状态幂等、原子提交，`answer_completed` 和产品终态继续持久化。
+增量经 PostgreSQL 通知广播到在线 Control 副本，各副本保留有界内存缓冲；App API 从现有长轮询接口
+读取状态与增量，再通过浏览器 SSE 输出。持久事件使用 `sequence`，临时增量使用 Runtime 产生的
+独立 `answerIndex`，两者不得互相推进或充当完成证据。
+
+内存缓冲只提供有限补发；过期、淘汰、重启或广播中断后不保证恢复完整草稿。`final_output` 仍是
+Finalization 使用的权威正文；最终校验失败时消费者不得将临时增量当作有效答案。
+边界与取舍见[临时回答传输](../../.agents/notes/implemented/architecture/2026-10-13-answer-delta-transport.md)。
 
 ## Agent Workflow operation 投影
 

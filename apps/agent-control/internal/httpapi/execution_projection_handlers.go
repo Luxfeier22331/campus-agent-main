@@ -71,6 +71,10 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
+	if request.URL.Query().Has("after_answer_index") {
+		s.handleLiveRunEvents(response, request, strings.TrimSpace(requestID), afterSequence, waitBudget)
+		return
+	}
 	events, err := s.listRunEventsAfterWithOptionalWait(
 		request.Context(),
 		strings.TrimSpace(requestID),

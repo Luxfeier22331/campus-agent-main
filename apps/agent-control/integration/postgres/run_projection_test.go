@@ -6,6 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
+	operationapp "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/operation"
+	projectionapp "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
 	"sort"
 	"strings"
 	"sync"
@@ -18,6 +21,78 @@ import (
 )
 
 func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
+	t.Run("answer transport crosses control replicas without persistent deltas", func(t *testing.T) {
+		_, url := harness.ownerDatabase(t)
+		writer := newRunProjectionStore(t, url, true)
+		reader := newRunProjectionStore(t, url, false)
+		if err := reader.HealthCheck(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		run := createPostgresRunningRun(t, writer, "run-temporary-answer", time.Now().UTC())
+		projection := &operationapp.RunProjectionService{Answers: writer, StateWriter: writer, Writer: projectionapp.New(projectionapp.Writer{RunProjectionStore: writer})}
+		if err := projection.ProjectWorkflowAnswerStarted(t.Context(), run, run.RequestID+":answer"); err != nil {
+			t.Fatal(err)
+		}
+		run.Status = execution.DurableRunStatusStreaming
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		done := make(chan []answerstream.Delta, 1)
+		go func() {
+			ds, err := reader.WaitForAnswerDeltas(ctx, run.RequestID, 0)
+			if err != nil {
+				t.Error(err)
+			}
+			done <- ds
+		}()
+		if err := projection.ProjectWorkflowAnswerDelta(ctx, run, run.RequestID+":answer", 1, strings.Repeat("😀", 512)); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case ds := <-done:
+			if len(ds) != 1 || ds[0].Index != 1 || ds[0].Text != strings.Repeat("😀", 512) {
+				t.Fatalf("cross replica deltas=%v", ds)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if err := projection.ProjectWorkflowAnswerDelta(ctx, run, run.RequestID+":answer", 2, "后续"); err != nil {
+			t.Fatal(err)
+		}
+		ds, err := reader.WaitForAnswerDeltas(ctx, run.RequestID, 1)
+		if err != nil || len(ds) != 1 || ds[0].Index != 2 {
+			t.Fatalf("resume=%v err=%v", ds, err)
+		}
+		events, err := reader.ListRunEvents(ctx, run.RequestID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range events {
+			if e.EventType == "run.answer_delta" {
+				t.Fatal("answer text persisted")
+			}
+		}
+		loaded, err := reader.GetRun(ctx, run.RequestID)
+		if err != nil || loaded.Status != execution.DurableRunStatusStreaming {
+			t.Fatalf("run=%v err=%v", loaded, err)
+		}
+		reader.Close()
+		replacement := newRunProjectionStore(t, url, false)
+		if err := replacement.HealthCheck(ctx); err != nil {
+			t.Fatal(err)
+		}
+		ds, err = replacement.ReadAnswerDeltas(ctx, run.RequestID, 0)
+		if err != nil || len(ds) != 0 {
+			t.Fatalf("temporary answer survived process restart: %v %v", ds, err)
+		}
+		if err := projection.ProjectWorkflowAnswerDelta(ctx, loaded, run.RequestID+":answer", 3, "新连接"); err != nil {
+			t.Fatal(err)
+		}
+		ds, err = replacement.WaitForAnswerDeltas(ctx, run.RequestID, 2)
+		if err != nil || len(ds) != 1 || ds[0].Index != 3 {
+			t.Fatalf("replacement delivery: %v %v", ds, err)
+		}
+	})
+
 	t.Run("schema health CRUD and idempotent install", func(t *testing.T) {
 		_, databaseURL := harness.ownerDatabase(t)
 		store := newRunProjectionStore(t, databaseURL, true)
@@ -81,7 +156,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		now := time.Date(2026, 7, 25, 8, 0, 0, 0, time.UTC)
 		run := createPostgresRunningRun(t, store, "run-answer-stream", now)
 		conflict := postgresAnswerStreamStartRequest(run, now.Add(4*time.Second))
-		conflict.FirstDeltaEvent.EventID = conflict.AnswerStartedEvent.EventID
+		conflict.AnswerStartedEvent.PayloadSchemaVersion = ""
 		if _, err := store.StartRunAnswerStream(t.Context(), conflict); !errors.Is(
 			err,
 			execution.ErrInvalidRunEvent,
@@ -128,9 +203,8 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		for range 2 {
 			select {
 			case result := <-waitResults:
-				if result.err != nil || len(result.events) != 2 ||
-					result.events[0].EventType != execution.DurableRunEventTypeRunAnswerStarted ||
-					result.events[1].EventType != execution.DurableRunEventTypeRunAnswerDelta {
+				if result.err != nil || len(result.events) != 1 ||
+					result.events[0].EventType != execution.DurableRunEventTypeRunAnswerStarted {
 					t.Fatalf("LISTEN NOTIFY wait result = %#v, err=%v", result.events, result.err)
 				}
 			case <-waitCtx.Done():
@@ -230,6 +304,14 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			}
 		case <-resumeCtx.Done():
 			t.Fatalf("reconnected listener did not receive notification: %v", resumeCtx.Err())
+		}
+
+		if err := store.PublishAnswerDelta(resumeCtx, answerstream.Delta{RequestID: run.RequestID, MessageID: run.RequestID + ":answer", Index: 7, Text: "重连正文", OccurredAt: time.Now().UTC()}); err != nil {
+			t.Fatal(err)
+		}
+		deltas, err := store.WaitForAnswerDeltas(resumeCtx, run.RequestID, 6)
+		if err != nil || len(deltas) != 1 || deltas[0].Text != "重连正文" {
+			t.Fatalf("answer after reconnect=%v err=%v", deltas, err)
 		}
 	})
 
@@ -1313,16 +1395,6 @@ func postgresAnswerStreamStartRequest(
 			Visibility:           execution.DurableRunEventVisibilityBrowser,
 			PayloadSchemaVersion: "run-answer-event-v2",
 			Payload:              map[string]any{"status": "streaming"},
-		},
-		FirstDeltaEvent: execution.DurableRunEvent{
-			EventID:              run.RequestID + ":answer-delta:1",
-			RequestID:            run.RequestID,
-			ConversationID:       run.ConversationID,
-			EventType:            execution.DurableRunEventTypeRunAnswerDelta,
-			OccurredAt:           now,
-			Visibility:           execution.DurableRunEventVisibilityBrowser,
-			PayloadSchemaVersion: "run-answer-event-v2",
-			Payload:              map[string]any{"chunk_index": 1, "delta": "first"},
 		},
 	}
 }

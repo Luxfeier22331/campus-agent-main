@@ -62,6 +62,7 @@ export interface ChatCommandStreamEvent {
 			retryable: boolean;
 		};
 		delta?: string;
+		answerIndex?: number;
 		messageId?: string;
 		source?: "campus";
 		occurredAt: string;

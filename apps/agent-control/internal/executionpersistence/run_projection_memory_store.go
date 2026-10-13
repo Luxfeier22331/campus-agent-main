@@ -1,12 +1,14 @@
 package executionpersistence
 
 import (
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
 	"sync"
 
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 )
 
 type InMemoryRunProjectionStore struct {
+	*answerstream.Buffer
 	Receipts                *InMemoryReceiptStore
 	mu                      sync.RWMutex
 	runs                    map[string]execution.DurableRun
@@ -24,6 +26,7 @@ type InMemoryRunProjectionStore struct {
 
 func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
 	store := &InMemoryRunProjectionStore{
+		Buffer:                  answerstream.New(),
 		runs:                    map[string]execution.DurableRun{},
 		runEvents:               map[string][]execution.DurableRunEvent{},
 		runSteps:                map[string]execution.RunStepProjection{},

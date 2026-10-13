@@ -69,13 +69,12 @@ export function runtimeRunPhaseFromExecutionStatus(status: string): RuntimeRunPh
 	}
 }
 
-export interface RuntimeRunEventProjection {
+export type RuntimeRunEventProjection = {
 	eventType: RuntimeRunProductEventName;
 	occurredAt: string;
 	payload: Record<string, unknown>;
 	requestId: string;
-	sequence: number;
-}
+} & ({ sequence: number; answerIndex?: never } | { answerIndex: number; sequence?: never });
 
 export type RuntimeRunProductEventName =
 	| "answer.delta"
@@ -123,6 +122,7 @@ export interface RuntimeRunService {
 	}): Promise<{ run: RuntimeRunSummary }>;
 	listEvents(input: {
 		afterSequence?: number;
+		afterAnswerIndex?: number;
 		principal: ResolvedAppPrincipal;
 		requestId: string;
 		signal?: AbortSignal;
@@ -137,6 +137,7 @@ export interface RuntimeRunService {
 	}): Promise<RuntimeRunStepTrajectory>;
 	subscribeEvents(input: {
 		afterSequence?: number;
+		afterAnswerIndex?: number;
 		polling?: RuntimeRunEventSubscriptionPolicy;
 		principal: ResolvedAppPrincipal;
 		requestId: string;

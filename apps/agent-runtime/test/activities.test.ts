@@ -64,7 +64,7 @@ function fixture() {
 		usage: { modelRequestCount: 1, inputTokens: 2, outputTokens: 3, usageObserved: true },
 	};
 	const turn = {
-		state: { result, citation: 1, excludedRefs: [], reserved: 0, sequence: 0 },
+		state: { result, citation: 1, excludedRefs: [], reserved: 0, answerIndex: 0 },
 		turn: { calls: [], result, continuation: { provider: "openai", items: [] } },
 		completedAt: deadline,
 		turnIndex: 0,
@@ -105,6 +105,83 @@ function fixture() {
 }
 afterEach(() => vi.restoreAllMocks());
 describe("real Agent activity completion", () => {
+	it.each([0, 1, 2, "answer/started", "answer/delta"] as const)(
+		"preserves the full result when delta attempt %s fails (0 means healthy)",
+		async (failAt) => {
+			const f = fixture();
+			const deadline = new Date(Date.now() + 60000).toISOString();
+			f.stage.input.workflow.deadline_at = deadline;
+			f.stage.wire.deadline_at = deadline;
+			f.stage.model = { provider: "google", model: "test", transport: "generate_content" };
+			Object.assign(f.stage.wire, { model_answer_transport: "stream" });
+			let deltaCalls = 0;
+			f.call.mockImplementation(async (action) => {
+				if (typeof failAt === "string" && action === failAt) {
+					throw new ControlHTTPError(action, 422, {
+						code: "invalid_answer_state",
+						retryable: false,
+					});
+				}
+				if (action === "answer/delta" && ++deltaCalls === failAt) {
+					throw new TypeError("injected network failure");
+				}
+				return { disposition: "new" } as never;
+			});
+			vi.spyOn(globalThis, "fetch").mockResolvedValue(
+				Response.json({
+					schema_version: "model_runtime_config.v1",
+					name: "primary_agent",
+					provider: "google",
+					api_protocol: "google.generate_content",
+					api_key: "test",
+					base_url: "https://provider.test",
+					model: "test",
+					target_sha256: "a".repeat(64),
+				}),
+			);
+			const text = "😀中\n".repeat(400);
+			vi.spyOn(gemini, "runGeminiModelTurn").mockImplementation(
+				async (_input, _continuation, onDelta) => {
+					if (!onDelta) {
+						throw new Error("Missing streaming callback");
+					}
+					await onDelta(JSON.stringify({ result: { outcome: "answer", answer: text } }));
+					return f.turn.turn as never;
+				},
+			);
+			const env = new MockActivityEnvironment();
+			if (typeof failAt === "string") {
+				await expect(
+					env.run(() => f.activities.modelTurn({ requestId: "run", stageRef: "stage", turn: 0 })),
+				).rejects.toMatchObject({ type: "invalid_answer_state", nonRetryable: true });
+				expect(f.call.mock.calls.some(([action]) => action === "invocation/complete")).toBe(false);
+				if (failAt === "answer/started") {
+					expect(deltaCalls).toBe(0);
+				}
+				return;
+			}
+			await env.run(() => f.activities.modelTurn({ requestId: "run", stageRef: "stage", turn: 0 }));
+			const deltas = f.call.mock.calls
+				.filter(([action]) => action === "answer/delta")
+				.map(([, input]) => input as { answer_index: number; delta: string });
+			if (failAt === 0) {
+				expect(deltas.length).toBeGreaterThan(1);
+				expect(deltas.map((d) => d.delta).join("")).toBe(text);
+			} else {
+				expect(deltas).toHaveLength(failAt);
+			}
+			expect(f.call.mock.calls.filter(([action]) => action === "answer/started")).toHaveLength(1);
+			expect(gemini.runGeminiModelTurn).toHaveBeenCalledTimes(1);
+			expect(f.rows.get("stage:turn:0")).toMatchObject({
+				state: { result: { answerStarted: true, finalOutput: "hello" } },
+				turn: { result: { finalOutput: "hello" } },
+			});
+			expect(f.call.mock.calls.some(([action]) => action === "invocation/complete")).toBe(true);
+			expect(deltas.map((d) => d.answer_index)).toEqual(deltas.map((_, i) => i + 1));
+			expect(deltas.every((d) => Array.from(d.delta).length <= 512)).toBe(true);
+		},
+	);
+
 	it("persists and logs provider diagnostics in the model receipt", async () => {
 		const f = fixture();
 		const deadline = new Date(Date.now() + 60_000).toISOString();

@@ -1814,11 +1814,6 @@
 					"x-go-name": "InvocationID",
 					"x-go-type": "string"
 				},
-				"sequence": {
-					"type": "integer",
-					"x-go-name": "Sequence",
-					"x-go-type": "int"
-				},
 				"delta": {
 					"type": "string",
 					"x-go-name": "Delta",
@@ -1828,9 +1823,14 @@
 					"$ref": "#/$defs/ActivityMetadata",
 					"x-go-name": "Activity",
 					"x-go-type": "executioncontract.ActivityMetadata"
+				},
+				"answer_index": {
+					"type": "integer",
+					"x-go-name": "AnswerIndex",
+					"x-go-type": "int"
 				}
 			},
-			"required": ["request_id", "invocation_id", "sequence", "delta", "activity"],
+			"required": ["request_id", "invocation_id", "answer_index", "delta", "activity"],
 			"additionalProperties": false,
 			"x-go-package": "runtimeapi",
 			"x-go-name": "AnswerDeltaRequest"
@@ -4301,6 +4301,30 @@
 			"additionalProperties": false,
 			"x-go-package": "runtimeapi",
 			"x-go-name": "FinalizationAdmission"
+		},
+		"AnswerStartedRequest": {
+			"type": "object",
+			"properties": {
+				"request_id": {
+					"type": "string",
+					"x-go-name": "RequestID",
+					"x-go-type": "string"
+				},
+				"invocation_id": {
+					"type": "string",
+					"x-go-name": "InvocationID",
+					"x-go-type": "string"
+				},
+				"activity": {
+					"$ref": "#/$defs/ActivityMetadata",
+					"x-go-name": "Activity",
+					"x-go-type": "executioncontract.ActivityMetadata"
+				}
+			},
+			"required": ["request_id", "invocation_id", "activity"],
+			"additionalProperties": false,
+			"x-go-package": "runtimeapi",
+			"x-go-name": "AnswerStartedRequest"
 		}
 	}
 }

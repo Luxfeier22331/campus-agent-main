@@ -4,6 +4,7 @@ import {
 	ExecutionControlTransportError,
 	type ToolExecutionResponse,
 } from "../../integration";
+import { liveRunEvents } from "../../integration/live-run-events";
 import {
 	answerDeltaEventFromDurableRunEvent,
 	chatStreamEventsForFinalized,
@@ -152,7 +153,11 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		executionFinalizationReceivedAt?: string | null;
 		streamAppApiTtftMs?: number | null;
 	}): Promise<ChatCommandResponse>;
-	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEventPage>;
+	listRunEvents(
+		afterSequence: number,
+		waitMs?: number,
+		afterAnswerIndex?: number,
+	): Promise<ExecutionControlRunEventPage>;
 	now: () => Date;
 	polling?: DurableEventPollingPolicy;
 	recordStreamAppApiTtft(input: { durationMs: number; observedAt: string }): Promise<unknown>;
@@ -167,18 +172,28 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 
 	const closeoutTask = (async () => {
 		let lastSequence = 0;
+		let lastAnswerIndex = 0;
 		let emptyPollAttempts = 0;
-		let hasStreamedAnswerDelta = false;
 		let streamAppApiTtftMs: number | null = null;
 		while (emptyPollAttempts < polling.maxAttempts) {
-			const page = await input.listRunEvents(lastSequence, polling.waitMs);
-			if (page.events.length === 0) {
+			const page = await input.listRunEvents(lastSequence, polling.waitMs, lastAnswerIndex);
+			if (page.events.length === 0 && !page.answerDeltas?.length) {
 				emptyPollAttempts += 1;
 			} else {
 				emptyPollAttempts = 0;
 			}
-			for (const runEvent of page.events) {
-				lastSequence = updateLastSequence(context, lastSequence, runEvent);
+			for (const runEvent of liveRunEvents(page)) {
+				if (runEvent.answerIndex === undefined) {
+					lastSequence = updateLastSequence(context, lastSequence, runEvent);
+				} else {
+					if (runEvent.requestId !== context.requestId) {
+						throw new Error("Answer delta request identity mismatch.");
+					}
+					if (runEvent.answerIndex <= lastAnswerIndex) {
+						continue;
+					}
+					lastAnswerIndex = runEvent.answerIndex;
+				}
 				const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
 				if (lifecycleEvent) {
 					queue.push({ event: lifecycleEvent, kind: "event" });
@@ -197,7 +212,6 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 							};
 						}
 					}
-					hasStreamedAnswerDelta = true;
 					queue.push({ event: answerDelta, kind: "event" });
 					if (ttftObservation) {
 						ttftRecordPromise = Promise.resolve()
@@ -219,9 +233,8 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 				for (const event of chatStreamEventsForFinalized({
 					context,
 					finalized,
-					hasStreamedAnswerDelta,
 					occurredAt: runEvent.occurredAt,
-					sequence: runEvent.sequence,
+					...(runEvent.sequence === undefined ? {} : { sequence: runEvent.sequence }),
 					sourceEvent: terminalOutcome.sourceEvent,
 				})) {
 					queue.push({ event, kind: "event" });

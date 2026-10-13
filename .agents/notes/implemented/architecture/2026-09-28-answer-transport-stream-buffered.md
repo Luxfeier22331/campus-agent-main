@@ -12,6 +12,9 @@ Status: implemented
 
 ## 决策
 
+正文增量的持久投影由[临时回答传输](./2026-10-13-answer-delta-transport.md)部分取代：
+stream 与 buffered 的模型消费选择仍保留，正文增量改为临时广播，最终答案继续持久化。
+
 Responses 的模型传输选择由[JSON 输出与流式接收](./2026-10-10-json-output-streaming-transport.md)
 部分取代：缓冲展示仍然保留，Responses 的所有模型阶段使用流式接收；Gemini 原生路径不受影响。
 

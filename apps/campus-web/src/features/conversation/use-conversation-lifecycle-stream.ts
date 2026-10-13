@@ -92,6 +92,14 @@ export function useConversationLifecycleStream({
 				) {
 					continue;
 				}
+				if (
+					event.event === "answer.delta" &&
+					activeRun?.requestId === event.data.requestId &&
+					event.data.answerIndex !== undefined &&
+					event.data.answerIndex <= (activeRun.answerIndex ?? 0)
+				) {
+					continue;
+				}
 				noteRunProgress();
 				applyRunStateEvent(event, operation.id);
 				if (event.event === "request.accepted" && event.data.requestId) {
@@ -116,6 +124,9 @@ export function useConversationLifecycleStream({
 							? { conversationId: current?.conversationId ?? conversationId }
 							: {}),
 						requestId: event.data.requestId,
+						...((event.data.answerIndex ?? current?.answerIndex) === undefined
+							? {}
+							: { answerIndex: event.data.answerIndex ?? current?.answerIndex }),
 						...((event.data.sequence ?? current?.sequence) === undefined
 							? {}
 							: { sequence: event.data.sequence ?? current?.sequence }),

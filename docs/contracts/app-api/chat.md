@@ -182,7 +182,8 @@ type ChatRequest = {
 - 产品 accept transaction 提交并取得可管理的稳定 `requestId` 后发送 `request.accepted`；该事件不
   表示 Temporal 已排队，app-api 只把持久 `run.queued` 证据转换为 `execution.queued`，不能自行
   合成排队状态；
-- `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不代表最终答案；
+- `answer.delta` 来自 Control 的临时回答通道，携带独立的 `answerIndex`，不推进持久 `sequence`；
+  它只用于显示，最终答案仍以产品终态和会话消息为准；
 - `execution.phase` 的 `phase` 只允许 `preparing|generating|finalizing`，用于显示受控产品阶段，
   不暴露 Temporal Activity、SDK tool call 或内部重试。阶段只来自持久阶段事件；
   `run.answer_started` 可以证明 `generating`，`run.answer_completed`、`request.completed` 和 run 摘要
@@ -248,15 +249,16 @@ type RunSummary = {
 ### 事件列表
 
 `GET /api/chat/requests/:requestId/events?after_sequence=<n>` 返回 cursor 后 browser-visible 持久事件，
-不创建请求或重新执行。app-api 使用 execution-control 的 `next_sequence` 推进内部读取位置，
+不创建请求或重新执行。app-api 使用 agent-control 的 `next_sequence` 推进内部读取位置，
 不能以过滤后最后一个 browser event 的 sequence 代替。
 
 ### 事件续传
 
-`GET /api/chat/requests/:requestId/events/stream?after_sequence=<n>` 对既有请求建立有界连续订阅：
+`GET /api/chat/requests/:requestId/events/stream?after_sequence=<n>&after_answer_index=<m>` 对既有请求建立有界连续订阅：
 
 - 不创建请求、不重新执行或重新 finalization；
-- 浏览器从服务端返回的持久 sequence 恢复；
+- 状态事件从持久 `sequence` 恢复；正文从独立 `answerIndex` 去重与有限补发，缺省从 0 开始；
+- 正文缓冲过期、被淘汰或实例重启后可能跳过增量，不重新调用模型；终态由持久结果恢复；
 - terminal completed 只通知完成，最终答案从 conversation detail 的 app-owned projection 读取；
 - 空流表示订阅预算内没有新事件，是合法结果。
 

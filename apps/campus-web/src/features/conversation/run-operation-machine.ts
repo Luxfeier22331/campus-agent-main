@@ -4,6 +4,7 @@ export interface ActiveRun {
 	conversationId?: string | undefined;
 	requestId: string;
 	sequence?: number | undefined;
+	answerIndex?: number | undefined;
 }
 
 export interface RuntimeOperationIdentity {

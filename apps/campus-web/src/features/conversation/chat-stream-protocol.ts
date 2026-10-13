@@ -37,7 +37,8 @@ const phaseEventData = streamBase.extend({
 const deltaEventData = streamBase.extend({
 	delta: z.string().min(1),
 	messageId: nonEmptyString,
-	sequence,
+	answerIndex: z.number().int().positive(),
+	sequence: z.never().optional(),
 });
 const completedEventData = streamBase.extend({
 	answer: answerPayload.optional(),

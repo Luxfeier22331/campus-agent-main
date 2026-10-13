@@ -2,72 +2,46 @@ package operation
 
 import (
 	"context"
-	"fmt"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionfailure"
 	"time"
+	"unicode/utf8"
 
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 )
 
-func (s *RunProjectionService) ProjectWorkflowAnswerDelta(
-	ctx context.Context,
-	run execution.DurableRun,
-	messageID string,
-	chunkIndex int,
-	deltaText string,
-) error {
-	if chunkIndex <= 0 {
-		return fmt.Errorf("run answer_delta chunk_index is required")
-	}
-	if deltaText == "" {
-		return fmt.Errorf("agent runtime answer_delta delta is required")
+// ProjectWorkflowAnswerStarted persists lifecycle state independently of delivery.
+func (s *RunProjectionService) ProjectWorkflowAnswerStarted(ctx context.Context, run execution.DurableRun, messageID string) error {
+	if messageID != run.RequestID+":answer" {
+		return executionfailure.SanitizedError("invalid_answer_identity", nil, true)
 	}
 	now := time.Now().UTC()
-	deltaEvent := execution.DurableRunEvent{
-		EventID:              fmt.Sprintf("%s:answer-delta:%d", run.RequestID, chunkIndex),
-		RequestID:            run.RequestID,
-		ConversationID:       run.ConversationID,
-		EventType:            execution.DurableRunEventTypeRunAnswerDelta,
-		OccurredAt:           now,
-		Visibility:           execution.DurableRunEventVisibilityBrowser,
-		PayloadSchemaVersion: "run-answer-event-v2",
-		Payload: map[string]any{
-			"chunk_index": chunkIndex,
-			"delta":       deltaText,
-			"message_id":  messageID,
-			"request_id":  run.RequestID,
+	_, err := s.StateWriter.StartRunAnswerStream(ctx, execution.RunAnswerStreamStartRequest{
+		RequestID: run.RequestID, Now: now,
+		AnswerStartedEvent: execution.DurableRunEvent{
+			EventID: run.RequestID + ":answer-started", RequestID: run.RequestID, ConversationID: run.ConversationID,
+			EventType: execution.DurableRunEventTypeRunAnswerStarted, OccurredAt: now,
+			Visibility: execution.DurableRunEventVisibilityBrowser, PayloadSchemaVersion: "run-answer-event-v2",
+			Payload: map[string]any{"message_id": messageID, "request_id": run.RequestID, "status": "streaming"},
 		},
-	}
-	if chunkIndex == 1 {
-		_, err := s.StateWriter.StartRunAnswerStream(ctx, execution.RunAnswerStreamStartRequest{
-			RequestID: run.RequestID,
-			Now:       now,
-			AnswerStartedEvent: execution.DurableRunEvent{
-				EventID:              run.RequestID + ":answer-started",
-				RequestID:            run.RequestID,
-				ConversationID:       run.ConversationID,
-				EventType:            execution.DurableRunEventTypeRunAnswerStarted,
-				OccurredAt:           now,
-				Visibility:           execution.DurableRunEventVisibilityBrowser,
-				PayloadSchemaVersion: "run-answer-event-v2",
-				Payload: map[string]any{
-					"message_id": messageID,
-					"request_id": run.RequestID,
-					"status":     string(execution.DurableRunStatusStreaming),
-				},
-			},
-			FirstDeltaEvent: deltaEvent,
-		})
-		return err
-	}
-	latest, err := s.RunProjectionStore.GetRun(ctx, run.RequestID)
-	if err != nil {
-		return err
-	}
-	if latest.Status != execution.DurableRunStatusStreaming {
-		return fmt.Errorf("request %s status %s cannot project answer delta", run.RequestID, latest.Status)
-	}
-	_, err = s.RunProjectionStore.AppendRunEvent(ctx, deltaEvent)
+	})
 	return err
+}
+
+func (s *RunProjectionService) ProjectWorkflowAnswerDelta(ctx context.Context, run execution.DurableRun, messageID string, answerIndex int, deltaText string) error {
+	if answerIndex <= 0 || deltaText == "" || utf8.RuneCountInString(deltaText) > answerstream.MaxChunkRunes {
+		return executionfailure.SanitizedError("invalid_answer_delta", nil, true)
+	}
+	if messageID != run.RequestID+":answer" {
+		return executionfailure.SanitizedError("invalid_answer_identity", nil, true)
+	}
+	if run.Status != execution.DurableRunStatusStreaming {
+		return executionfailure.SanitizedError("invalid_answer_state", nil, true)
+	}
+	if s.Answers == nil {
+		return executionfailure.SanitizedError("answer_transport_not_configured", nil, true)
+	}
+	return s.Answers.PublishAnswerDelta(ctx, answerstream.Delta{RequestID: run.RequestID, MessageID: messageID, Index: answerIndex, Text: deltaText, OccurredAt: time.Now().UTC()})
 }
 
 func (s *RunProjectionService) ProjectWorkflowAnswerCompleted(

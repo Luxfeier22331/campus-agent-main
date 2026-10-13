@@ -2,6 +2,7 @@ package adaptertest
 
 import (
 	"context"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
 	operationapp "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/operation"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executioncontract"
 	"log/slog"
@@ -43,7 +44,8 @@ type ProductFinalizationWriter = finalizationapp.ProductFinalizationWriter
 func New(options Options) *Adapter {
 	writer := activityprojection.New(activityprojection.Writer{WorkerID: options.Config.TemporalWorkerIdentity, RunProjectionStore: options.RunProjectionStore})
 	inputReader := &executionapplication.InputReader{ExecutionInputLoader: options.ExecutionInputLoader, ExecutionInputErr: options.ExecutionInputError}
-	projectionOwner := &operationapp.RunProjectionService{StateWriter: options.RunProjectionStore, Writer: &activityprojection.Writer{WorkerID: writer.WorkerID, RunProjectionStore: writer.RunProjectionStore}, DeploymentRelease: options.Config.DeploymentRelease}
+	answers, _ := options.RunProjectionStore.(answerstream.Publisher)
+	projectionOwner := &operationapp.RunProjectionService{Answers: answers, StateWriter: options.RunProjectionStore, Writer: &activityprojection.Writer{WorkerID: writer.WorkerID, RunProjectionStore: writer.RunProjectionStore}, DeploymentRelease: options.Config.DeploymentRelease}
 	executionOwner := &ExecutionAdapter{RunProjectionService: projectionOwner, RuntimeInputService: &operationapp.RuntimeInputService{Projection: projectionOwner, InputReader: inputReader, AnswerTransport: options.Config.AnswerTransport}, RuntimeResultBoundary: &operationapp.RuntimeResultBoundary{}}
 	finalizationOwner := finalizationapp.New(finalizationapp.FinalizationService{StateWriter: options.RunProjectionStore, Writer: executionOwner.Writer, FinalizationClient: options.ProductCallbackClient, ProductFinalizationWriter: options.ProductFinalizationWriter, AdmissionService: options.AdmissionService, Logger: options.Logger})
 	return &Adapter{AdmissionService: options.AdmissionService, Writer: writer, InputReader: inputReader, Config: options.Config, ExecutionAdapter: executionOwner, FinalizationAdapter: finalizationOwner}

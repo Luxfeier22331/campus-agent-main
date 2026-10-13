@@ -1,4 +1,4 @@
-import type { ExecutionControlRunEvent } from "../integration";
+import type { LiveRunEvent } from "../integration/live-run-events";
 import type {
 	RuntimeRunEventProjection,
 	RuntimeRunProductEventName,
@@ -47,7 +47,7 @@ function pickStringPayloadFields(
 	return result;
 }
 
-function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record<string, unknown> {
+function sanitizeBrowserRunEventPayload(event: LiveRunEvent): Record<string, unknown> {
 	const payload = event.payload;
 	switch (event.eventType) {
 		case "run.retrieval_status":
@@ -62,7 +62,7 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 			return {};
 		case "run.progress":
 			return pickStringPayloadFields(payload, ["phase"]);
-		case "run.answer_delta": {
+		case "answer.delta": {
 			const result = pickStringPayloadFields(payload, ["delta", "message_id"]);
 			const chunkIndex = getNumberPayloadField(payload, "chunk_index");
 			if (chunkIndex !== undefined) {
@@ -99,9 +99,7 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 	}
 }
 
-export function toBrowserRunEvent(
-	event: ExecutionControlRunEvent,
-): RuntimeRunEventProjection | null {
+export function toBrowserRunEvent(event: LiveRunEvent): RuntimeRunEventProjection | null {
 	if (event.visibility !== "browser") {
 		return null;
 	}
@@ -128,7 +126,9 @@ export function toBrowserRunEvent(
 			occurredAt: event.occurredAt,
 			payload: { phase },
 			requestId: event.requestId,
-			sequence: event.sequence,
+			...(event.answerIndex === undefined
+				? { sequence: event.sequence }
+				: { answerIndex: event.answerIndex }),
 		};
 	}
 	return {
@@ -136,7 +136,9 @@ export function toBrowserRunEvent(
 		occurredAt: event.occurredAt,
 		payload,
 		requestId: event.requestId,
-		sequence: event.sequence,
+		...(event.answerIndex === undefined
+			? { sequence: event.sequence }
+			: { answerIndex: event.answerIndex }),
 	};
 }
 
@@ -156,7 +158,7 @@ function toRuntimeRunProductEventType(eventType: string): RuntimeRunProductEvent
 			return "execution.phase";
 		case "run.answer_completed":
 			return null;
-		case "run.answer_delta":
+		case "answer.delta":
 			return "answer.delta";
 		case "finalization.completed":
 			// Kept for historical durable events, but the browser-visible success

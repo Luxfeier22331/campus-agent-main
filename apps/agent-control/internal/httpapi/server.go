@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 )
 
 type Server struct {
+	answers               answerstream.Reader
 	runtimeHandler        http.Handler
 	config                config.Config
 	draining              atomic.Bool
@@ -31,6 +33,7 @@ type Server struct {
 // package wires routes and authentication around these ports; it does not
 // construct persistence, provider, or Temporal clients.
 type ServerOptions struct {
+	Answers                 answerstream.Reader
 	RuntimeHandler          http.Handler
 	Logger                  *slog.Logger
 	OwnerDeletion           executionapplication.OwnerDeletionPort
@@ -60,6 +63,7 @@ func NewServerWithOptions(cfg config.Config, options ServerOptions) *Server {
 		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	server := &Server{
+		answers:               options.Answers,
 		runtimeHandler:        options.RuntimeHandler,
 		config:                cfg,
 		logger:                options.Logger,
@@ -70,6 +74,9 @@ func NewServerWithOptions(cfg config.Config, options ServerOptions) *Server {
 		temporalStarter:       options.TemporalStarter,
 		temporalStarterErr:    options.TemporalStarterError,
 		runService:            options.RunService,
+	}
+	if server.answers == nil {
+		server.answers, _ = options.RunProjectionStore.(answerstream.Reader)
 	}
 	if server.runReader == nil && server.runProjectionStore != nil {
 		server.runReader = executionreadmodel.NewStoreReader(server.runProjectionStore)

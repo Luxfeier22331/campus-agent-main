@@ -26,6 +26,7 @@ type RuntimeProjectionPort interface {
 	ProjectBufferedSolveAnswer(context.Context, execution.DurableRun, operation.OperationRequest, *executioncontract.OperationOutput) error
 	ProjectWorkflowToolResults(context.Context, execution.DurableRun, operation.OperationRequest, []executionapplication.AgentToolResult, activityprojection.StepProjection, ...time.Time) error
 	ProjectOperationCompletion(context.Context, execution.DurableRun, operation.OperationRequest, executionapplication.AgentRuntimeResult, executioncontract.OperationOutput, activityprojection.StepProjection, time.Time) error
+	ProjectWorkflowAnswerStarted(context.Context, execution.DurableRun, string) error
 	ProjectWorkflowAnswerCompleted(context.Context, execution.DurableRun, string) error
 	ProjectWorkflowAnswerDelta(context.Context, execution.DurableRun, string, int, string) error
 	AppendRunEvent(context.Context, execution.DurableRunEvent) error

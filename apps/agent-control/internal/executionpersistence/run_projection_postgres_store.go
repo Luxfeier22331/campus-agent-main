@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
 	"strings"
 	"sync"
 
@@ -32,6 +33,7 @@ type PostgresRunProjectionStoreOptions struct {
 }
 
 type PostgresRunProjectionStore struct {
+	answers             *answerstream.Buffer
 	Receipts            *PostgresReceiptStore
 	pool                *pgxpool.Pool
 	eventMu             sync.Mutex
@@ -62,6 +64,7 @@ func NewPostgresRunProjectionStore(
 		return nil, fmt.Errorf("create run projection postgres pool: %w", err)
 	}
 	return &PostgresRunProjectionStore{
+		answers:      answerstream.New(),
 		pool:         pool,
 		Receipts:     &PostgresReceiptStore{pool: pool},
 		eventWaiters: map[string]map[chan struct{}]struct{}{},

@@ -350,9 +350,9 @@ export interface AnswerCompletedRequest {
 export interface AnswerDeltaRequest {
 	request_id: string;
 	invocation_id: string;
-	sequence: number;
 	delta: string;
 	activity: ActivityMetadata;
+	answer_index: number;
 }
 
 export interface RetrievalStatusRequest {
@@ -872,4 +872,10 @@ export type RuntimeAcknowledgement = Record<string, never>;
 
 export interface FinalizationAdmission {
 	admission_snapshot: AgentAdmissionSnapshot;
+}
+
+export interface AnswerStartedRequest {
+	request_id: string;
+	invocation_id: string;
+	activity: ActivityMetadata;
 }

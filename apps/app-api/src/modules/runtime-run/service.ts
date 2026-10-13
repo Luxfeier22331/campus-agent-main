@@ -5,6 +5,7 @@ import {
 	type ExecutionControlRuntimeClient,
 	ExecutionControlTransportError,
 } from "../integration";
+import { liveRunEvents } from "../integration/live-run-events";
 import { toBrowserRunEvent } from "./browser-projection";
 import {
 	deriveRunSteps,
@@ -163,7 +164,11 @@ export function buildRuntimeRunService(input: {
 		lastSequence: number,
 		event: Pick<RuntimeRunEventProjection, "sequence">,
 	): number {
-		if (!Number.isInteger(event.sequence) || event.sequence <= lastSequence) {
+		if (
+			event.sequence === undefined ||
+			!Number.isInteger(event.sequence) ||
+			event.sequence <= lastSequence
+		) {
 			throw new ExecutionControlTransportError({
 				code: "execution_control_invalid_response",
 				message: "Execution durable run events must advance the requested cursor.",
@@ -176,6 +181,7 @@ export function buildRuntimeRunService(input: {
 
 	async function listDurableEventPage(eventsInput: {
 		afterSequence?: number;
+		afterAnswerIndex?: number;
 		owned: RuntimeRunOwnershipRecord;
 		run: ExecutionControlRun;
 		signal?: AbortSignal;
@@ -189,13 +195,16 @@ export function buildRuntimeRunService(input: {
 			...(eventsInput.afterSequence === undefined
 				? {}
 				: { afterSequence: eventsInput.afterSequence }),
+			...(eventsInput.afterAnswerIndex === undefined
+				? {}
+				: { afterAnswerIndex: eventsInput.afterAnswerIndex }),
 			requestId: eventsInput.owned.requestId,
 			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
 			...(eventsInput.waitMs === undefined ? {} : { waitMs: eventsInput.waitMs }),
 		});
 		let lastSequence = eventsInput.afterSequence ?? 0;
 		const browserEvents: RuntimeRunEventProjection[] = [];
-		for (const event of page.events) {
+		for (const event of liveRunEvents(page)) {
 			if (event.requestId !== eventsInput.owned.requestId) {
 				throw new ExecutionControlTransportError({
 					code: "execution_control_invalid_response",
@@ -204,7 +213,9 @@ export function buildRuntimeRunService(input: {
 					status: 502,
 				});
 			}
-			lastSequence = assertSequenceAdvances(lastSequence, event);
+			if (event.answerIndex === undefined) {
+				lastSequence = assertSequenceAdvances(lastSequence, event);
+			}
 			const browserEvent = toBrowserRunEvent(event);
 			if (browserEvent) {
 				browserEvents.push(browserEvent);
@@ -227,6 +238,7 @@ export function buildRuntimeRunService(input: {
 
 	async function listEvents(eventsInput: {
 		afterSequence?: number;
+		afterAnswerIndex?: number;
 		principal: ResolvedAppPrincipal;
 		requestId: string;
 		signal?: AbortSignal;
@@ -253,6 +265,9 @@ export function buildRuntimeRunService(input: {
 		}
 		assertRunMatchesOwnership(owned, run);
 		return listDurableEventPage({
+			...(eventsInput.afterAnswerIndex === undefined
+				? {}
+				: { afterAnswerIndex: eventsInput.afterAnswerIndex }),
 			...(eventsInput.afterSequence === undefined
 				? {}
 				: { afterSequence: eventsInput.afterSequence }),
@@ -343,19 +358,29 @@ export function buildRuntimeRunService(input: {
 		async *subscribeEvents(eventsInput) {
 			const polling = validateSubscriptionPolicy(eventsInput.polling);
 			let lastSequence = eventsInput.afterSequence ?? 0;
+			let lastAnswerIndex = eventsInput.afterAnswerIndex ?? 0;
 			for (let attempt = 0; attempt < polling.maxAttempts; attempt += 1) {
 				if (eventsInput.signal?.aborted) {
 					throw new DOMException("The operation was aborted.", "AbortError");
 				}
 				const result = await listEvents({
 					afterSequence: lastSequence,
+					afterAnswerIndex: lastAnswerIndex,
 					principal: eventsInput.principal,
 					requestId: eventsInput.requestId,
 					...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
 					waitMs: polling.waitMs,
 				});
 				for (const event of result.events) {
-					lastSequence = assertSequenceAdvances(lastSequence, event);
+					if (event.answerIndex === undefined) {
+						lastSequence = assertSequenceAdvances(lastSequence, event);
+					}
+					if (event.answerIndex !== undefined) {
+						if (event.answerIndex <= lastAnswerIndex) {
+							continue;
+						}
+						lastAnswerIndex = event.answerIndex;
+					}
 					yield event;
 					if (isTerminalRunEvent(event)) {
 						return;

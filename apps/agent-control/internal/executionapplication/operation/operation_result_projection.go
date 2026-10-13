@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/answerstream"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
@@ -39,21 +40,31 @@ func (s *RuntimeResultBoundary) AcceptOperationResult(run execution.DurableRun, 
 }
 
 func (s *RunProjectionService) ProjectBufferedSolveAnswer(ctx context.Context, run execution.DurableRun, request OperationRequest, output *executioncontract.OperationOutput) error {
-	// Buffered solve answers arrive as one FinalOutput payload without streaming
-	// answer_delta events. Project the full text as a single delta + completion so
-	// the browser-visible event sequence matches the streaming shape and the
-	// canonical terminal projection can render it unchanged.
+	// Buffered solve publishes the validated full answer through the temporary transport.
 	if !request.Stream &&
 		request.Operation == executioncontract.WorkflowOperationSolve &&
 		output.Status == "completed" &&
 		output.SolveOutcome == "answer" &&
 		strings.TrimSpace(output.FinalOutput) != "" {
 		messageID := run.RequestID + ":answer"
-		// Starting the stream atomically writes both answer_started and its first
-		// delta. A repair after that commit only needs the completion event.
-		if run.Status != execution.DurableRunStatusStreaming {
-			if err := s.ProjectWorkflowAnswerDelta(ctx, run, messageID, 1, output.FinalOutput); err != nil {
-				return err
+		if err := s.ProjectWorkflowAnswerStarted(ctx, run, messageID); err != nil {
+			return err
+		}
+		run.Status = execution.DurableRunStatusStreaming
+		publishCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		runes := []rune(output.FinalOutput)
+		for offset, index := 0, 1; offset < len(runes); offset, index = offset+answerstream.MaxChunkRunes, index+1 {
+			end := min(offset+answerstream.MaxChunkRunes, len(runes))
+			if err := s.ProjectWorkflowAnswerDelta(publishCtx, run, messageID, index, string(runes[offset:end])); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				if !errors.Is(err, answerstream.ErrUnavailable) {
+					return err
+				}
+				slog.Warn("temporary answer publishing stopped", "request_id", run.RequestID)
+				break
 			}
 		}
 		if err := s.ProjectWorkflowAnswerCompleted(ctx, run, messageID); err != nil {

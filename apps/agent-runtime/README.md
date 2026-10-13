@@ -67,7 +67,7 @@ Solve 直接返回合法答案即可最终化；返回计划时保留已获得�
 
 ## 输出与诊断
 
-Activity 通过 Control API 持久化回答增量、校园检索状态与结果。产品终态仍由 Control 与 App API
+Activity 通过 Control API 发布临时回答增量、持久化校园检索状态与结果。产品终态仍由 Control 与 App API
 按已有合同确认；会话记忆追加由 Control 可靠投递给 Memory，自此由 Memory Workflow 推进。
 
 OTel/Langfuse 记录受控模型标识、用量、阶段结果和关联信息，不包含 prompt、工具原文或供应商凭据。
@@ -83,3 +83,7 @@ OTel/Langfuse 记录受控模型标识、用量、阶段结果和关联信息，
 Runtime-Control 的 wire schema 与生成类型由 `campus-contracts/agent-runtime-control` 提供。
 Activity 调用 Control 时携带真实执行身份和 retry attempt；`started_at` 在 Activity 函数进入时记录，
 同一次 Activity 内保持不变。工具结果保存工具 Activity 元数据，阶段投影重试不改写已保存身份。
+
+回答传输先确认持久 `answer/started`，再以独立 `answer_index` 发布临时正文。
+临时投递最多等待一秒；网络或可重试服务故障停止本次模型调用的后续草稿发送，不改变最终结果。
+取消、执行期限和合同错误仍按原语义处理；`answer/completed` 与最终结果继续可靠保存。

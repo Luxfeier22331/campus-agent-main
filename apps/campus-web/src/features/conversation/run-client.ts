@@ -37,7 +37,6 @@ const runStatusResponseSchema = z.object({
 });
 const productRunEventSchema = z.object({
 	eventType: z.enum([
-		"answer.delta",
 		"retrieval.status",
 		"execution.phase",
 		"execution.queued",
@@ -214,23 +213,6 @@ function productEventToStreamEvent(
 				data: { ...base, phase: payload.phase, status: "running" },
 				event: "execution.phase",
 			};
-		case "answer.delta":
-			if (
-				typeof payload.delta !== "string" ||
-				!payload.delta ||
-				typeof payload.message_id !== "string"
-			) {
-				return null;
-			}
-			return {
-				data: {
-					...base,
-					delta: payload.delta,
-					messageId: payload.message_id,
-					status: "streaming",
-				},
-				event: "answer.delta",
-			};
 		case "request.completed":
 			return { data: { ...base, status: "completed" }, event: "request.completed" };
 		case "request.cancelled":
@@ -343,10 +325,14 @@ export async function* submitChatRequestStream(input: {
 
 export async function* resumeRunEventsStream(input: {
 	afterSequence?: number;
+	afterAnswerIndex?: number;
 	requestId: string;
 	signal?: AbortSignal;
 }): AsyncIterable<ChatRequestStreamEvent> {
 	const params = new URLSearchParams();
+	if (input.afterAnswerIndex !== undefined) {
+		params.set("after_answer_index", String(input.afterAnswerIndex));
+	}
 	if (input.afterSequence !== undefined) {
 		params.set("after_sequence", String(input.afterSequence));
 	}

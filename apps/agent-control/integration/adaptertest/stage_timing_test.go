@@ -201,15 +201,6 @@ func createStageTimingRun(
 				PayloadSchemaVersion: "run-answer-event-v2",
 				Payload:              map[string]any{"status": "streaming"},
 			},
-			FirstDeltaEvent: execution.DurableRunEvent{
-				EventID: running.RequestID + ":answer-delta:1", RequestID: running.RequestID,
-				ConversationID:       running.ConversationID,
-				EventType:            execution.DurableRunEventTypeRunAnswerDelta,
-				OccurredAt:           now.Add(900 * time.Millisecond),
-				Visibility:           execution.DurableRunEventVisibilityBrowser,
-				PayloadSchemaVersion: "run-answer-event-v2",
-				Payload:              map[string]any{"chunk_index": 1, "delta": "答"},
-			},
 		},
 	)
 	if err != nil {

@@ -39,7 +39,6 @@ const (
 	DurableRunEventTypeRunStarted                 DurableRunEventType = "run.started"
 	DurableRunEventTypeRunProgress                DurableRunEventType = "run.progress"
 	DurableRunEventTypeRunAnswerStarted           DurableRunEventType = "run.answer_started"
-	DurableRunEventTypeRunAnswerDelta             DurableRunEventType = "run.answer_delta"
 	DurableRunEventTypeRunAnswerCompleted         DurableRunEventType = "run.answer_completed"
 	DurableRunEventTypeRunCancelRequested         DurableRunEventType = "run.cancel_requested"
 	DurableRunEventTypeRunCompleted               DurableRunEventType = "run.completed"
@@ -106,7 +105,6 @@ type RunAnswerStreamStartRequest struct {
 	RequestID          string
 	Now                time.Time
 	AnswerStartedEvent DurableRunEvent
-	FirstDeltaEvent    DurableRunEvent
 }
 
 type RunStepProjection struct {

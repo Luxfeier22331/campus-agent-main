@@ -22,6 +22,7 @@ export interface ExecutionControlRunQuery {
 }
 
 export interface ExecutionControlRunEventQuery {
+	afterAnswerIndex?: number;
 	afterSequence?: number;
 	requestId: string;
 	signal?: AbortSignal;
@@ -59,6 +60,7 @@ export interface ExecutionControlRun {
 }
 
 export interface ExecutionControlRunEvent {
+	answerIndex?: never;
 	conversationId: string;
 	eventId: string;
 	eventType: string;
@@ -70,7 +72,15 @@ export interface ExecutionControlRunEvent {
 	visibility: string;
 }
 
+export interface ExecutionControlAnswerDelta {
+	requestId: string;
+	messageId: string;
+	index: number;
+	delta: string;
+	occurredAt: string;
+}
 export interface ExecutionControlRunEventPage {
+	answerDeltas?: ExecutionControlAnswerDelta[];
 	events: ExecutionControlRunEvent[];
 	nextSequence: number;
 }
