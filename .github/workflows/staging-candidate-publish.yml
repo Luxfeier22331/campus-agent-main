@@ -1,38 +1,17 @@
 name: staging-candidate-publish
 
 on:
-  workflow_dispatch:
-    inputs:
-      candidate_scope:
-        description: Select the accumulated diff or republish a Worker with current environment
-        required: true
-        default: affected
-        type: choice
-        options:
-          - affected
-          - campus-web-docs
-          - app-api-config
-      promote:
-        description: Open or update the staging GitOps promotion pull request
-        required: true
-        default: false
-        type: boolean
-      promotion_recovery_run_id:
-        description: Reuse image publication and Worker selection from an earlier Source run
-        required: false
-        default: ''
-        type: string
-      promotion_recovery_source_sha:
-        description: Source SHA associated with promotion_recovery_run_id
-        required: false
-        default: ''
-        type: string
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: campus-agent-ghcr-mutation
+  cancel-in-progress: false
+  queue: max
 
 env:
   NIX_CONFIG: |
@@ -40,231 +19,26 @@ env:
     max-jobs = 1
     cores = 2
 
-concurrency:
-  group: campus-agent-ghcr-mutation
-  cancel-in-progress: false
-  queue: max
-
 jobs:
-  release-plan:
-    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      statuses: write
-      actions: read
-    defaults:
-      run:
-        shell: nix develop .#ci-core --command bash -e {0}
-    outputs:
-      action: ${{ steps.publication.outputs.action }}
-      publication_run_id: ${{ steps.publication.outputs.run_id }}
-      pending_written: ${{ steps.pending.outputs.written }}
-      base: ${{ steps.plan.outputs.base }}
-      head: ${{ steps.plan.outputs.head }}
-      images: ${{ steps.plan.outputs.images }}
-      source_bases: ${{ steps.plan.outputs.source_bases }}
-      topology_migrations: ${{ steps.plan.outputs.topology_migrations }}
-      workers: ${{ steps.publication.outputs.workers }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Verify current main revision
-        shell: bash -e {0}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RECOVERY_RUN_ID: ${{ inputs.promotion_recovery_run_id || '' }}
-          RECOVERY_SOURCE_SHA: ${{ inputs.promotion_recovery_source_sha || '' }}
-        run: |
-          set -euo pipefail
-          if [[ -n "$RECOVERY_RUN_ID" && -z "$RECOVERY_SOURCE_SHA" ]]; then
-            echo "promotion_recovery_source_sha is required with promotion_recovery_run_id." >&2
-            exit 1
-          fi
-          if [[ -n "$RECOVERY_SOURCE_SHA" && -z "$RECOVERY_RUN_ID" ]]; then
-            echo "promotion_recovery_run_id is required with promotion_recovery_source_sha." >&2
-            exit 1
-          fi
-          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          candidate_sha="$GITHUB_SHA"
-          if [[ -n "$RECOVERY_SOURCE_SHA" ]]; then
-            [[ "$RECOVERY_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
-              echo "promotion_recovery_source_sha must be a complete lowercase Source SHA." >&2
-              exit 1
-            }
-            candidate_sha="$RECOVERY_SOURCE_SHA"
-            git merge-base --is-ancestor "$candidate_sha" "$current_main" || {
-              echo "Recovery Source revision $candidate_sha is not reachable from current main $current_main." >&2
-              exit 1
-            }
-          elif [[ "$candidate_sha" != "$current_main" ]]; then
-            echo "Source revision $candidate_sha is no longer the current main revision $current_main." >&2
-            exit 1
-          fi
-
-      - name: Install Nix
-        if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-      - name: Create GitOps read token
-        id: gitops-read-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
-        with:
-          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
-          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
-          owner: MUC-WIKI
-          repositories: campus-agent-gitops
-          permission-contents: read
-
-      - name: Checkout GitOps release selection
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-          repository: MUC-WIKI/campus-agent-gitops
-          token: ${{ steps.gitops-read-token.outputs.token }}
-          path: gitops-selection
-          sparse-checkout: |
-            /releases/staging.json
-          sparse-checkout-cone-mode: false
-
-      - name: Install release planner dependencies
-        run: |
-          set -euo pipefail
-          pnpm install --frozen-lockfile \
-            --filter campus-agent-web-workspace
-
-      - name: Select release candidates
-        id: plan
-        env:
-          REFRESH_CAMPUS_WEB_DOCS: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_scope == 'campus-web-docs' || false }}
-          REFRESH_APP_API: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_scope == 'app-api-config' || false }}
-          RECOVERY_SOURCE_SHA: ${{ inputs.promotion_recovery_source_sha || github.sha }}
-        run: |
-          set -euo pipefail
-          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "Staging candidate publication is allowed only from main." >&2
-            exit 1
-          fi
-          plan="$(node --experimental-strip-types scripts/release/candidates.mts \
-            --head "$RECOVERY_SOURCE_SHA" \
-            --refresh-campus-web-docs "$REFRESH_CAMPUS_WEB_DOCS" \
-            --refresh-app-api "$REFRESH_APP_API" \
-            --selection "$GITHUB_WORKSPACE/gitops-selection/releases/staging.json")"
-          jq -e . <<< "$plan" >/dev/null
-          {
-            echo "base=$(jq -r '.base' <<< "$plan")"
-            echo "head=$(jq -r '.head' <<< "$plan")"
-            echo "images=$(jq -c '.images' <<< "$plan")"
-            echo "source_bases=$(jq -c '.sourceBases' <<< "$plan")"
-            echo "topology_migrations=$(jq -c '.topologyMigrations' <<< "$plan")"
-            echo "workers=$(jq -c '.workers' <<< "$plan")"
-          } >> "$GITHUB_OUTPUT"
-          echo "candidate_plan=$(jq -c . <<< "$plan")" >> "$GITHUB_OUTPUT"
-          jq . <<< "$plan"
-
-      - name: Resolve publication reuse
-        id: publication
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CANDIDATE_PLAN: ${{ steps.plan.outputs.candidate_plan }}
-          RECOVERY_RUN_ID: ${{ inputs.promotion_recovery_run_id || '' }}
-        run: node --experimental-strip-types scripts/release/publication.mts
-
-      - name: Write Source release handoff
-        if: steps.publication.outputs.action != 'skip'
-        env:
-          PLAN: ${{ steps.plan.outputs.candidate_plan }}
-          WORKERS: ${{ steps.publication.outputs.workers }}
-          IMAGE_RUN_ID: ${{ steps.publication.outputs.run_id }}
-        run: |
-          jq --argjson workers "$WORKERS" --argjson imageRunId "$IMAGE_RUN_ID" \
-            '.workers = $workers | . + {imageRunId: $imageRunId}' <<< "$PLAN" > source-release.json
-      - name: Upload Source release handoff
-        if: steps.publication.outputs.action != 'skip'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: source-release
-          path: source-release.json
-          if-no-files-found: error
-          overwrite: true
-          retention-days: 7
-
-      - name: Mark staging candidate pending
-        id: pending
-        if: >-
-          steps.publication.outputs.action == 'publish' &&
-          (
-            steps.plan.outputs.images != '[]' ||
-            steps.plan.outputs.workers != '[]' ||
-            steps.plan.outputs.source_bases != '[]' ||
-            steps.plan.outputs.topology_migrations != '[]'
-          )
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CANDIDATE_SHA: ${{ steps.plan.outputs.head }}
-        run: |
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${CANDIDATE_SHA}" \
-            -f state=pending -f context=staging/candidate \
-            -f description='Publishing selected staging candidates' -f target_url="$TARGET_URL"
-          echo "written=true" >> "$GITHUB_OUTPUT"
-
-      - name: Mark empty staging candidate success
-        if: >-
-          steps.publication.outputs.action == 'publish' &&
-          steps.plan.outputs.images == '[]' &&
-          steps.plan.outputs.workers == '[]' &&
-          steps.plan.outputs.source_bases == '[]' &&
-          steps.plan.outputs.topology_migrations == '[]'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CANDIDATE_SHA: ${{ steps.plan.outputs.head }}
-        run: >-
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${CANDIDATE_SHA}"
-          -f state=success
-          -f context=staging/candidate
-          -f description='No immutable artifact publication was required'
-          -f target_url="$TARGET_URL"
-
-  publish-images:
-    needs: release-plan
-    if: >-
-      needs.release-plan.result == 'success' &&
-      fromJSON(needs.release-plan.outputs.images)[0] != null &&
-      needs.release-plan.outputs.action == 'publish'
+  publish:
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04-arm"') }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       packages: write
+      statuses: write
     defaults:
       run:
         shell: nix develop .#ci-release --command bash -e {0}
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Verify current main revision before image publication
+      - name: Require main publication
         shell: bash -e {0}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          if [[ "$GITHUB_SHA" != "$current_main" ]]; then
-            echo "Source revision $GITHUB_SHA is no longer the current main revision $current_main." >&2
-            exit 1
-          fi
-
+        run: test "$GITHUB_REF" = refs/heads/main
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install Nix
         if: runner.environment != 'self-hosted'
         uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
@@ -292,108 +66,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build, publish and scan images
+      - name: Install release planner
+        run: |
+          pnpm install --frozen-lockfile --filter campus-agent-web-workspace
+          echo "CANDIDATE_DIRECTORY=$RUNNER_TEMP/source-candidate" >> "$GITHUB_ENV"
+      - name: Login OCI client
         env:
-          IMAGES: ${{ needs.release-plan.outputs.images }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Plan from the published Source candidate
+        id: plan
+        run: node --experimental-strip-types scripts/release/source-candidate.mts plan
+      - name: Publish changed images
+        if: steps.plan.outputs.images != '[]'
+        env:
+          IMAGES: ${{ steps.plan.outputs.images }}
         run: >-
           node --experimental-strip-types scripts/release/images.mts
-          --images "$IMAGES"
-          --output image-digests.json
-          --repository "$GITHUB_REPOSITORY"
-          --source-sha "$GITHUB_SHA"
-          --trivy-cache "${RUNNER_TOOL_CACHE}/trivy"
-          --summary "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload image digests
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+          --images "$IMAGES" --output "$CANDIDATE_DIRECTORY/image-digests.json"
+          --repository "$GITHUB_REPOSITORY" --source-sha "$GITHUB_SHA"
+          --trivy-cache "${RUNNER_TOOL_CACHE}/trivy" --summary "$GITHUB_STEP_SUMMARY"
+      - name: Publish complete Source candidate
+        id: candidate
+        run: node --experimental-strip-types scripts/release/source-candidate.mts publish
+      - name: Upload candidate output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: release-image-digests
-          path: image-digests.json
-          if-no-files-found: error
+          name: source-release
+          path: ${{ runner.temp }}/source-candidate/source-release.json
           overwrite: true
           retention-days: 7
-
-  candidate-status:
-    needs: [release-plan, publish-images]
-    if: >-
-      always() &&
-      (
-        needs.release-plan.outputs.action == 'reuse' ||
-        needs.release-plan.outputs.pending_written == 'true'
-      )
-    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
-    timeout-minutes: 2
-    permissions:
-      contents: read
-      statuses: write
-    outputs:
-      approved: ${{ steps.status.outputs.approved }}
-    steps:
-      - name: Finalize staging candidate status
-        id: status
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGES: ${{ needs.release-plan.outputs.images || '[]' }}
-          IMAGE_RESULT: ${{ needs.publish-images.result }}
-          PLAN_RESULT: ${{ needs.release-plan.result }}
-          PUBLICATION_ACTION: ${{ needs.release-plan.outputs.action }}
-          CANDIDATE_SHA: ${{ inputs.promotion_recovery_source_sha || github.sha }}
-          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ needs.release-plan.outputs.publication_run_id }}
-          TOPOLOGY_MIGRATIONS: ${{ needs.release-plan.outputs.topology_migrations || '[]' }}
-          WORKERS: ${{ needs.release-plan.outputs.workers || '[]' }}
-        run: |
-          set -euo pipefail
-          if [ "$PUBLICATION_ACTION" = reuse ]; then
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${CANDIDATE_SHA}" \
-              -f state=pending -f context=staging/candidate \
-              -f description='Images reused; awaiting GitOps Worker publication' -f target_url="$TARGET_URL"
-            echo "approved=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          state=failure
-          approved=false
-          description='Candidate planning or publication failed'
-          valid=true
-          if [ "$PLAN_RESULT" != success ]; then
-            valid=false
-          fi
-          if [ "$PUBLICATION_ACTION" = publish ]; then
-            if jq -e 'length > 0' <<< "$IMAGES" >/dev/null && \
-              [ "$IMAGE_RESULT" != success ]; then
-              valid=false
-            fi
-          fi
-          if [ "$valid" = true ]; then
-            state=pending
-            approved=true
-            if jq -e 'length > 0' <<< "$IMAGES" >/dev/null || \
-              jq -e 'length > 0' <<< "$WORKERS" >/dev/null || \
-              jq -e 'length > 0' <<< "$TOPOLOGY_MIGRATIONS" >/dev/null; then
-              description='Images published; awaiting GitOps Worker publication'
-            else
-              description='No immutable artifact publication was required'
-            fi
-          fi
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${CANDIDATE_SHA}" \
-            -f state="$state" \
-            -f context=staging/candidate \
-            -f description="$description" \
-            -f target_url="$TARGET_URL"
-          echo "approved=$approved" >> "$GITHUB_OUTPUT"
-
-  dispatch-gitops-release:
-    needs: [release-plan, publish-images, candidate-status]
-    if: >-
-      !cancelled() &&
-      needs.release-plan.result == 'success' &&
-      needs.candidate-status.outputs.approved == 'true' &&
-      github.ref == 'refs/heads/main'
-    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      statuses: write
-    steps:
       - name: Create GitOps dispatch token
         id: gitops-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
@@ -403,23 +105,19 @@ jobs:
           owner: MUC-WIKI
           repositories: campus-agent-gitops
           permission-actions: write
-      - name: Dispatch GitOps publication
+      - name: Dispatch GitOps candidate assembly
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
-          SOURCE_SHA: ${{ needs.release-plan.outputs.head }}
-          SOURCE_RUN_ID: ${{ github.run_id }}
-          PROMOTE: ${{ github.event_name == 'push' || inputs.promote || needs.release-plan.outputs.action == 'reuse' }}
-        run: |
-          gh api --method POST repos/MUC-WIKI/campus-agent-gitops/actions/workflows/publish-source.yml/dispatches \
-            -f ref=main -f "inputs[source_sha]=$SOURCE_SHA" \
-            -f "inputs[source_run_id]=$SOURCE_RUN_ID" -f "inputs[promote]=$PROMOTE"
-      - name: Report dispatch failure
-        if: failure()
+          CANDIDATE_REF: ${{ steps.candidate.outputs.candidate_ref }}
+        run: >-
+          gh api --method POST repos/MUC-WIKI/campus-agent-gitops/actions/workflows/publish-source.yml/dispatches
+          -f ref=main -f "inputs[candidate_ref]=$CANDIDATE_REF"
+      - name: Report publication failure
+        if: failure() && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ needs.release-plan.outputs.head }}
         run: >-
-          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$SOURCE_SHA"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA"
           -f state=failure -f context=staging/candidate
-          -f description='GitOps publication dispatch failed'
+          -f description='Source candidate publication failed'
           -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

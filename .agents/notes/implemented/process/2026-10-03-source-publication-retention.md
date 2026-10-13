@@ -11,6 +11,10 @@ Status: implemented
 
 ## 决策
 
+候选交接、恢复与编排后续由[无 UI Kargo 发布编排](2026-10-13-kargo-headless-release.md)取代：
+完整 OCI candidate 取代短期 artifact 交接，Kargo 取代旧 deployment coordinator；本文的仓库、
+凭据及 registry 清理 owner 边界仍有效。
+
 Worker 发布与恢复 owner 后续迁入 GitOps，见[Worker 发布闭环迁入 GitOps](2026-10-11-worker-publication-gitops.md)。
 该调整取代下述 Source 读取 Worker 候选制品的安排；Source 镜像复用、去重和清理规则继续有效。
 

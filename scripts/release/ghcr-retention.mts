@@ -3,8 +3,8 @@ import { appendFile, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-
 import { ACTIVE_IMAGE_TARGETS } from "./image-targets.mts";
+import { CANDIDATE_REPOSITORY, parseSourceCandidate } from "./source-candidate.mts";
 
 const execFile = promisify(execFileCallback);
 
@@ -318,7 +318,11 @@ export async function readKnownPackageInventory(
 	runner: CommandRunner = runCommand,
 ): Promise<PackageInventory[]> {
 	const packageNames = [
-		...new Set([...RETENTION_ACTIVE_PACKAGE_NAMES, ...RETIRED_PACKAGE_NAMES]),
+		...new Set([
+			...RETENTION_ACTIVE_PACKAGE_NAMES,
+			...RETIRED_PACKAGE_NAMES,
+			"campus-agent/source-candidate",
+		]),
 	].sort();
 	const inventories: PackageInventory[] = [];
 	for (const packageName of packageNames) {
@@ -488,6 +492,9 @@ export async function readCachePullRequests(
 }
 
 function packageKind(name: string): ImagePackageKind {
+	if (name === "campus-agent/source-candidate") {
+		return "active";
+	}
 	if (cachePullRequest(name) !== undefined) {
 		return "pr-cache";
 	}
@@ -757,6 +764,7 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 						);
 						return decision(version, "keep", "invalid-digest-policy-error");
 					}
+
 					if (gitopsDigests.has(version.name)) {
 						return decision(version, "keep", "release-or-deployment-root");
 					}
@@ -767,7 +775,13 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 						return decision(version, "keep", "child-of-protected-manifest");
 					}
 					const unknownTags = version.tags.filter(
-						(tag) => tag !== CACHE_TAG && !CANDIDATE_TAG_PATTERN.test(tag),
+						(tag) =>
+							tag !== CACHE_TAG &&
+							!CANDIDATE_TAG_PATTERN.test(tag) &&
+							!(
+								inventory.name === "campus-agent/source-candidate" &&
+								(tag === "latest" || /^[a-f0-9]{40}-[0-9]+-[0-9]+$/.test(tag))
+							),
 					);
 					if (unknownTags.length > 0) {
 						return decision(version, "keep", `unknown-tag:${unknownTags.join(",")}`);
@@ -1111,6 +1125,62 @@ export function parseArgs(args: string[]): CliOptions {
 	return options;
 }
 
+export async function sourceCandidateRoots(
+	packages: readonly PackageInventory[],
+	boundaryRef: string | null,
+	runner: CommandRunner = runCommand,
+): Promise<Record<string, string[]>> {
+	const versions =
+		packages.find((item) => item.name === "campus-agent/source-candidate")?.versions ?? [];
+	if (
+		boundaryRef !== null &&
+		!/^ghcr\.io\/muc-wiki\/campus-agent\/source-candidate@sha256:[a-f0-9]{64}$/.test(boundaryRef)
+	) {
+		throw new Error("Invalid Source candidate retention boundary");
+	}
+	const boundary =
+		boundaryRef === null
+			? undefined
+			: versions.find((version) => `${CANDIDATE_REPOSITORY}@${version.name}` === boundaryRef);
+	if (boundaryRef && !boundary) {
+		throw new Error("Successful Source candidate is missing from the registry");
+	}
+	const roots: Record<string, string[]> = {};
+	const add = (name: string, digest: string) => {
+		roots[name] = [...new Set([...(roots[name] ?? []), digest])];
+	};
+	// Publication and cleanup share the Source mutation queue. Retain everything
+	// since the acknowledged successful snapshot, including assembly still queued
+	// in GitOps. createdAt (not updatedAt) prevents retagging from aging roots out.
+	for (const version of versions) {
+		if (boundary && version.createdAt < boundary.createdAt && !version.tags.includes("latest")) {
+			continue;
+		}
+		const reference = `${CANDIDATE_REPOSITORY}@${version.name}`;
+		const manifest = await runner("oras", ["manifest", "fetch", reference]);
+		if (manifest.code !== 0) {
+			throw commandError("oras", ["manifest", "fetch", reference], manifest);
+		}
+		const layer = JSON.parse(manifest.stdout).layers?.find(
+			(layer: { annotations?: Record<string, string> }) =>
+				layer.annotations?.["org.opencontainers.image.title"] === "source-release.json",
+		);
+		if (!(layer && DIGEST_PATTERN.test(layer.digest))) {
+			throw new Error("Source candidate manifest has no snapshot layer");
+		}
+		const blob = await runner("oras", ["blob", "fetch", `${CANDIDATE_REPOSITORY}@${layer.digest}`]);
+		if (blob.code !== 0) {
+			throw new Error(`Cannot read Source candidate snapshot: ${blob.stderr}`);
+		}
+		const candidate = parseSourceCandidate(JSON.parse(blob.stdout));
+		add("campus-agent/source-candidate", version.name);
+		for (const [name, image] of Object.entries(candidate.images)) {
+			add(`campus-agent/${name}`, image.digest);
+		}
+	}
+	return roots;
+}
+
 export function mergeReleaseRoots(
 	gitopsDigests: Record<string, string[]>,
 	exportedRoots: Record<string, unknown>,
@@ -1279,24 +1349,26 @@ export async function refreshedFullPlan(
 		"--output",
 		path.resolve(options.releaseRoots),
 	]);
-	const refs = ["HEAD"];
-	const branches = await execute("git", [
-		"-C",
-		root,
-		"for-each-ref",
-		"--format=%(refname)",
-		"refs/remotes/origin/deploy/staging",
-	]);
-	if (branches.trim()) {
-		refs.push("origin/deploy/staging");
-	}
+
 	const packages = await readKnownPackageInventory(options.owner, runner);
-	const gitopsDigests = await readGitopsImageDigests(root, refs, runner);
-	mergeReleaseRoots(
-		gitopsDigests,
-		parseObject(await readFile(options.releaseRoots, "utf8"), "release roots"),
-		packages,
-	);
+	const gitopsDigests = await readGitopsImageDigests(root, ["HEAD"], runner);
+	const exportedRoots = parseObject(await readFile(options.releaseRoots, "utf8"), "release roots");
+	if (
+		exportedRoots.sourceCandidateBoundary !== null &&
+		typeof exportedRoots.sourceCandidateBoundary !== "string"
+	) {
+		throw new Error("Missing Source candidate retention boundary");
+	}
+	for (const [name, digests] of Object.entries(
+		await sourceCandidateRoots(
+			packages,
+			exportedRoots.sourceCandidateBoundary as string | null,
+			runner,
+		),
+	)) {
+		gitopsDigests[name] = [...new Set([...(gitopsDigests[name] ?? []), ...digests])];
+	}
+	mergeReleaseRoots(gitopsDigests, exportedRoots, packages);
 	const roots = protectedRootsForInventory({ gitopsDigests, packages });
 	if (roots.errors.length > 0) {
 		throw new Error(roots.errors.join("\n"));

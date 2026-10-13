@@ -17,11 +17,12 @@ status: active
 ```text
 main 中已验证的源码
 -> 带完整源码身份的不可变候选物
--> 环境仓选择候选物
--> 环境控制器应用期望状态
+-> GitOps 组装完整 candidate
+-> Kargo 选择、合并 PR 并协调执行 action
+-> Argo CD/Terraform 应用期望状态
 ```
 
-源码仓负责构建、检查并发布镜像候选物，以及按目标 Worker 配置生成的 Worker 版本候选物。镜像内容
+源码仓负责构建、检查并发布镜像和完整 Source candidate；GitOps 按目标环境构建 Worker bundle。镜像内容
 可以跨环境复用，Worker 候选物对应具体目标 Worker。环境仓负责地址、Secret、权限、网络、资源、环境
 配置和实际版本选择。候选物、源码 workflow 或环境变更 PR 存在都不表示环境已经部署。
 
@@ -41,18 +42,19 @@ main 中已验证的源码
 主线发布仍只读写 canonical 缓存。特殊制品和手动
 验证入口只有在明确选择时运行，不提供隐式全量发布或全量验证开关。
 
-同 SHA 的重复自动 push 在写 pending 前检查既有 workflow jobs：发布及 Source promotion 已完成
-时直接跳过；制品已完整发布但状态收尾或 promotion 失败时，验证现有 artifact 并复用，不重新构建
-或上传。复用后按当前累计计划筛选制品，继续交给 GitOps。`topology-required` 仍表示需要先修复
-环境拓扑，不表示完成交接或部署；重复自动事件可复用候选再尝试，也可在修复后用显式 recovery 继续。
+Source 的最新完整 OCI candidate 是累计 diff 基线。未变化的镜像、base 和 Worker source identity
+继承上一份快照；首次发布构建完整集合。交接使用 digest，`latest` 仅用于发现基线。
+GitOps 使用 `publish-source.yml` 组装 Worker candidate；`refresh_worker` 可刷新指定 Worker 或全部。
+交接失败后用同一 OCI candidate_ref 重新组装，候选构建与 Kargo 发布互相独立。
 
-artifact 过期或不完整时失败并指向手动入口，不自动重建。显式 `workflow_dispatch` 不受自动去重
-限制；配置刷新使用 `candidate_scope=app-api-config`。App API staging 上传只允许在 GitHub Actions
-执行，在本地运行会在 preflight 和配置读取前失败。显式 promotion recovery 同时填写原始发布 run ID
-和 Source SHA，缺少任一项都会在查询远端状态或写入候选状态前失败。
-恢复使用原始 Worker artifact 中的候选，保留 `app-api-config` 与 `campus-web-docs` 的同 SHA 刷新
-结果；`candidate_scope` 使用默认 `affected` 即可，不必重新选择刷新入口，也不会重新上传 Worker。
-当前累计计划需要的其他制品仍须完整可用；真实发布失败仍可以重跑发布。
+首次发布会创建 `campus-agent/source-candidate` package。package owner 需要在其 Settings 的
+Manage Actions access 中为 `campus-agent-gitops` 仓库授予 Read，允许 GitOps 的 `GITHUB_TOKEN`
+读取私有快照；workflow 的 `packages` 权限和 promoter App 权限不替代这项跨仓授权。
+如果首次组装因尚未授权而失败，授权后在 GitOps `publish-source.yml` 传入同一 digest 的
+`candidate_ref` 重跑，无需重建 Source 镜像或将 package 改为公开。
+
+Kargo 为候选创建选版 PR，等待分支检查、Argo 健康与 Worker 流量。失败 action 先在 GitHub 重跑，
+再重试对应 Promotion。旧 Source run ID recovery、七天 artifact 交接和滚动 promotion PR 已退役。
 
 ## 正式版本
 
@@ -60,8 +62,7 @@ artifact 过期或不完整时失败并指向手动入口，不自动重建。�
 GitHub Immutable Releases；发布入口检查设置，未开启就失败。正式发布 job 的默认 `GITHUB_TOKEN` 只读；发布使用
 单独限制到 Source 的 App token（contents write、workflows write），并使用 packages read 读取已选镜像。检查
 immutable 设置使用另一个仅有 Source administration read 的 App token，不拥有 settings 写权限。GitOps 选择入口按
-操作签发最小 App token：plan 只读，select/retire 才写 contents 与 pull requests，resume 才写 actions 并读取
-部署状态；Source 读取正式版本或 dispatch 恢复也使用对应的只读或 actions write token。第一方 GHCR package 的
+操作签发最小 App token：plan 只读，pause/select/retire/resume 按操作写 contents 或 pull requests；Source 读取正式版本或 dispatch 恢复也使用对应的只读或 actions write token。第一方 GHCR package 的
 Actions access 必须允许这些 job 读取。权限由现有 promoter App 与 package owner 配置，不自动扩大。
 
 1. 找到 GitOps 中 `environment=staging`、`task=release`、owner 为 `staging-release` 且完整成功的
@@ -79,7 +80,7 @@ Actions access 必须允许这些 job 读取。权限由现有 promoter App 与 
 
 ## 环境交接
 
-环境仓从自身当前选择计算版本变化，并拒绝基于过期游标覆盖已经前进的环境状态。机器版本变更只修改
+Kargo 从 candidate 与当前 main 计算版本变化，并拒绝基于过期游标覆盖已经前进的环境状态。机器版本变更只修改
 环境策略允许的不可变版本字段；Secret、权限、资源、网络、Terraform、workflow、Application 拓扑和
 目标环境选择必须使用普通受审变更。
 

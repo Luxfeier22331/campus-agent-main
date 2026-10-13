@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
-import os from "node:os";
+import { execFileSync } from "node:child_process";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
@@ -675,7 +674,7 @@ test("pull request validation keeps the shared required-check contract", async (
 test("Source diff consumers check out complete immutable history", async () => {
 	for (const [workflowName, jobName, persistCredentials] of [
 		["pr.yml", "repository-validation", false],
-		["staging-candidate-publish.yml", "release-plan", true],
+		["staging-candidate-publish.yml", "publish", false],
 	] as const) {
 		const workflow = await loadWorkflow(workflowName);
 		const checkouts = sourceCheckouts(workflow, jobName);
@@ -730,66 +729,6 @@ test("scheduled dependency evidence has a bounded read-only lane", async () => {
 	assert.equal(namedStep(scan, "Install Nix").if, "runner.environment != 'self-hosted'");
 });
 
-test("candidate publication keeps permissions, runners, and job dependencies explicit", async () => {
-	const workflow = await loadWorkflow("staging-candidate-publish.yml");
-	for (const name of ["release-plan", "publish-images"]) {
-		const steps = jobSteps(workflowJob(workflow, name));
-		const guard = steps.findIndex((step) => String(step.name).startsWith("Verify current main"));
-		assert(guard >= 0 && guard < steps.findIndex((step) => step.name === "Install Nix"), name);
-		assert.equal(steps[guard].shell, "bash -e {0}");
-	}
-	assert.deepEqual(workflow.permissions, { contents: "read" });
-	assert.deepEqual(workflow.concurrency, {
-		"cancel-in-progress": false,
-		group: "campus-agent-ghcr-mutation",
-		queue: "max",
-	});
-
-	const releasePlan = workflowJob(workflow, "release-plan");
-	assert.equal(releasePlan["runs-on"], runnerSelector("ubuntu-24.04"));
-	assert.equal(namedStep(releasePlan, "Install Nix").if, "runner.environment != 'self-hosted'");
-	assert.equal(releasePlan.environment, undefined);
-	assert.deepEqual(releasePlan.permissions, {
-		contents: "read",
-		statuses: "write",
-		actions: "read",
-	});
-
-	const publishImages = workflowJob(workflow, "publish-images");
-	assert.equal(publishImages.needs, "release-plan");
-	assert.match(String(publishImages.if), /outputs\.action/u);
-	assert.equal(publishImages["runs-on"], runnerSelector("ubuntu-24.04-arm"));
-	assert.equal(namedStep(publishImages, "Install Nix").if, "runner.environment != 'self-hosted'");
-	assert.deepEqual(publishImages.permissions, { contents: "read", packages: "write" });
-	const buildx = namedStep(publishImages, "Setup Docker Buildx");
-	assert.equal(buildx.if, "runner.environment != 'self-hosted'");
-	assert.equal(buildx.uses, "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c");
-	assert(isObject(buildx.with));
-	assert.equal(buildx.with["cache-binary"], false);
-	assert.equal(buildx.with.driver, "docker-container");
-	assert.match(String(buildx.with["buildkitd-config-inline"]), /max-parallelism = 2/u);
-	assert.equal(
-		namedStep(publishImages, "Verify runner-owned builder").if,
-		"runner.environment == 'self-hosted'",
-	);
-
-	const candidateStatus = workflowJob(workflow, "candidate-status");
-	assert.deepEqual(candidateStatus.needs, ["release-plan", "publish-images"]);
-	assert.match(String(candidateStatus.if), /^always\(\)/u);
-	const dispatch = workflowJob(workflow, "dispatch-gitops-release");
-	assert.deepEqual(dispatch.needs, ["release-plan", "publish-images", "candidate-status"]);
-	assert.equal(dispatch.environment, undefined);
-	assert.match(String(dispatch.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
-	assert.match(String(dispatch.if), /github\.ref == 'refs\/heads\/main'/u);
-	const token = namedStep(dispatch, "Create GitOps dispatch token");
-	assert.equal(token.with.repositories, "campus-agent-gitops");
-	assert.equal(token.with["permission-actions"], "write");
-	assert.equal(token.with["permission-contents"], undefined);
-	assert.equal(namedStep(releasePlan, "Upload Source release handoff").with.name, "source-release");
-	assert.equal(namedStep(publishImages, "Upload image digests").with["retention-days"], 7);
-	assert.equal(releasePlan.outputs.workers, githubExpression("steps.publication.outputs.workers"));
-});
-
 test("Source dispatches publication without waiting for GitOps or reading Worker packages", async () => {
 	const workflow = await loadWorkflow("staging-candidate-publish.yml");
 	const serialized = JSON.stringify(workflow);
@@ -802,8 +741,8 @@ test("Source dispatches publication without waiting for GitOps or reading Worker
 		/secrets\.(?:CLOUDFLARE|OBJECT_STORE|APP_API|EDGE_INGRESS|MEMORY)/u,
 	);
 	const dispatch = namedStep(
-		workflowJob(workflow, "dispatch-gitops-release"),
-		"Dispatch GitOps publication",
+		workflowJob(workflow, "publish"),
+		"Dispatch GitOps candidate assembly",
 	);
 	assert.match(String(dispatch.run), /publish-source\.yml\/dispatches/u);
 	assert.doesNotMatch(String(dispatch.run), /sleep|watch|while/u);
@@ -890,129 +829,16 @@ test("formal publication delegates provider validation to GitOps", async () => {
 	assert.doesNotMatch(JSON.stringify(dispatch), /CLOUDFLARE_API_TOKEN/u);
 });
 
-test("duplicate publication never marks pending or publishes, while reuse can promote", async () => {
+test("Source publication rejects non-main dispatches before any other step", async () => {
 	const workflow = await loadWorkflow("staging-candidate-publish.yml");
-	const plan = workflowJob(workflow, "release-plan");
-	for (const action of ["publish", "reuse", "skip"]) {
-		const outputs = {
-			action,
-			images: '["model-config"]',
-			workers: "[]",
-			source_bases: "[]",
-			topology_migrations: "[]",
-			pending_written: action === "publish" ? "true" : "",
-		};
-		const context = {
-			steps: { publication: { outputs }, plan: { outputs } },
-			needs: {
-				"release-plan": { result: "success", outputs },
-				"candidate-status": {
-					result: action === "skip" ? "skipped" : "success",
-					outputs: { approved: action === "skip" ? "" : "true" },
-				},
-				"publish-images": { result: action === "publish" ? "success" : "skipped" },
-				"dispatch-gitops-release": { result: "skipped" },
-			},
-			github: { ref: "refs/heads/main", event_name: "push" },
-			inputs: { promote: false },
-		};
-		assert.equal(
-			condition(namedStep(plan, "Mark staging candidate pending").if, context),
-			action === "publish",
-		);
-		assert.equal(
-			condition(workflowJob(workflow, "publish-images").if, context),
-			action === "publish",
-		);
-		assert.equal(
-			condition(workflowJob(workflow, "candidate-status").if, context),
-			action !== "skip",
-		);
-		assert.equal(
-			condition(workflowJob(workflow, "dispatch-gitops-release").if, context),
-			action !== "skip",
-		);
-	}
-	assert.equal(
-		condition(workflowJob(workflow, "candidate-status").if, {
-			needs: { "release-plan": { outputs: { action: "publish", pending_written: "" } } },
-		}),
-		false,
-	);
-});
-
-test("Source handoff preserves the selected plan and original image producer", async (t) => {
-	const root = await mkdtemp(path.join(os.tmpdir(), "source-handoff-"));
-	t.after(() => rm(root, { recursive: true, force: true }));
-	const step = namedStep(
-		workflowJob(await loadWorkflow("staging-candidate-publish.yml"), "release-plan"),
-		"Write Source release handoff",
-	);
-	const plan = {
-		base: "b".repeat(40),
-		head: "a".repeat(40),
-		images: ["model-config"],
-		workers: [],
-		sourceBases: [],
-		topologyMigrations: [],
-	};
-	execFileSync("bash", ["-e", "-c", String(step.run)], {
-		cwd: root,
-		env: {
-			...process.env,
-			PLAN: JSON.stringify(plan),
-			WORKERS: '["app-api-staging"]',
-			IMAGE_RUN_ID: "17",
-		},
-	});
-	assert.deepEqual(JSON.parse(await readFile(path.join(root, "source-release.json"), "utf8")), {
-		...plan,
-		workers: ["app-api-staging"],
-		imageRunId: 17,
-	});
-});
-
-test("recovery requires both identity inputs before remote queries or candidate status writes", async () => {
-	const job = workflowJob(await loadWorkflow("staging-candidate-publish.yml"), "release-plan");
-	const guard = namedStep(job, "Verify current main revision");
-	const steps = jobSteps(job);
-	assert(steps.indexOf(guard) < steps.indexOf(namedStep(job, "Resolve publication reuse")));
-	assert(steps.indexOf(guard) < steps.indexOf(namedStep(job, "Mark staging candidate pending")));
-	for (const [id, sha, message] of [
-		["10", "", "promotion_recovery_source_sha is required"],
-		["", "a".repeat(40), "promotion_recovery_run_id is required"],
-		["", "", ""],
-		["10", "a".repeat(40), ""],
-	]) {
-		const result = spawnSync(
-			"bash",
-			[
-				"-e",
-				"-c",
-				`
-			gh() { echo "remote-query" >&2; echo "$GITHUB_SHA"; }
-			git() { return 0; }
-			${String(guard.run)}
-		`,
-			],
-			{
-				env: {
-					...process.env,
-					GITHUB_REPOSITORY: "MUC-WIKI/campus-agent",
-					GITHUB_SHA: "a".repeat(40),
-					RECOVERY_RUN_ID: id,
-					RECOVERY_SOURCE_SHA: sha,
-				},
-				encoding: "utf8",
-			},
-		);
-		if (message) {
-			assert.notEqual(result.status, 0);
-			assert(result.stderr.includes(message));
-			assert(!result.stderr.includes("remote-query"));
-		} else {
-			assert.equal(result.status, 0, result.stderr);
-			assert(result.stderr.includes("remote-query"));
-		}
+	const job = workflowJob(workflow, "publish");
+	const guard = namedStep(job, "Require main publication");
+	assert.equal(job.steps[0], guard);
+	const { spawnSync } = await import("node:child_process");
+	for (const ref of ["refs/heads/main", "refs/heads/feature", "refs/tags/v0.1.0"]) {
+		const result = spawnSync("bash", ["-e", "-c", String(guard.run)], {
+			env: { ...process.env, GITHUB_REF: ref },
+		});
+		assert.equal(result.status, ref === "refs/heads/main" ? 0 : 1);
 	}
 });

@@ -23,6 +23,7 @@ import {
 	refreshedFullPlan,
 	runFullRetention,
 	runPrCacheCleanup,
+	sourceCandidateRoots,
 	verifyRetentionDeletion,
 } from "./ghcr-retention.mts";
 import { ACTIVE_IMAGE_TARGETS } from "./image-targets.mts";
@@ -896,6 +897,9 @@ test("full plan refreshes GitOps refs and dependencies, exports roots, then insp
 	const name = "campus-agent/agent-runtime";
 	const plan = await refreshedFullPlan(options, async (command, args) => {
 		calls.push(`${command} ${args.join(" ")}`);
+		if (command === "oras") {
+			return { code: 1, stdout: "", stderr: "404 manifest not found" };
+		}
 		if (command === "gh" && args.includes("repos/MUC-WIKI/campus-agent-gitops/commits/main")) {
 			return jsonResult({ sha: tag("b") });
 		}
@@ -912,7 +916,11 @@ test("full plan refreshes GitOps refs and dependencies, exports roots, then insp
 			if (args.includes("roots")) {
 				await writeFile(
 					rootsFile,
-					JSON.stringify({ images: { [name]: [digest("a")] }, candidateSourceShas: [] }),
+					JSON.stringify({
+						images: { [name]: [digest("a")] },
+						candidateSourceShas: [],
+						sourceCandidateBoundary: null,
+					}),
 				);
 			}
 			return jsonResult({});
@@ -922,7 +930,10 @@ test("full plan refreshes GitOps refs and dependencies, exports roots, then insp
 			const packageName = decodeURIComponent(
 				endpoint.split("/container/")[1].split("/versions")[0],
 			);
-			if (RETIRED_PACKAGE_NAMES.includes(packageName)) {
+			if (
+				RETIRED_PACKAGE_NAMES.includes(packageName) ||
+				packageName === "campus-agent/source-candidate"
+			) {
 				return absentResult;
 			}
 			return endpoint.includes("/versions")
@@ -960,7 +971,7 @@ test("full plan refreshes GitOps refs and dependencies, exports roots, then insp
 		positions,
 		[...positions].sort((a, b) => a - b),
 	);
-	assert(calls.some((call) => call.includes("ls-tree -r --name-only origin/deploy/staging")));
+	assert(calls.some((call) => call.includes("ls-tree -r --name-only HEAD")));
 });
 
 test("mixed GitOps export protects Source images without inventorying GitOps Worker packages", () => {
@@ -989,4 +1000,81 @@ test("mixed GitOps export protects Source images without inventorying GitOps Wor
 	assert.deepEqual(protectedRootsForInventory({ gitopsDigests: roots, packages }).errors, [
 		"GitOps references unmanaged package campus-agent/unregistered",
 	]);
+});
+
+test("Source snapshots protect queued handoffs until the successful boundary passes them", async () => {
+	const name = "campus-agent/source-candidate";
+	const reference = (char: string) => `ghcr.io/muc-wiki/${name}@${digest(char)}`;
+	const packages = [
+		...inventory(),
+		{
+			name,
+			versions: [
+				version(1, "a", [`${tag("a")}-1-1`], "2026-10-01T00:00:00Z"),
+				version(2, "b", [`${tag("b")}-2-1`], "2026-10-02T00:00:00Z"),
+				version(3, "c", [`${tag("c")}-3-1`, "latest"], "2026-10-03T00:00:00Z"),
+			],
+		},
+	];
+	const reads: string[] = [];
+	const runner: CommandRunner = async (_command, args) => {
+		const ref = args.at(-1);
+		assert.ok(ref);
+		const char = ref.split("sha256:")[1]?.[0];
+		assert.ok(char);
+		if (args[0] === "manifest") {
+			reads.push(ref);
+			return jsonResult({
+				layers: [
+					{
+						digest: digest(char),
+						annotations: { "org.opencontainers.image.title": "source-release.json" },
+					},
+				],
+			});
+		}
+		return jsonResult({
+			schemaVersion: 2,
+			sourceSha: tag(char),
+			sourceBases: [],
+			baseRevisions: {},
+			topologyMigrations: [],
+			images: Object.fromEntries(
+				ACTIVE_IMAGE_TARGETS.map((image) => [
+					image,
+					{ sourceSha: tag(char), digest: digest(char) },
+				]),
+			),
+			workers: Object.fromEntries(
+				["app-api-staging", "campus-web-staging", "status-web-staging"].map((worker) => [
+					worker,
+					{ sourceSha: tag(char) },
+				]),
+			),
+		});
+	};
+	const initial = await sourceCandidateRoots(packages, null, runner);
+	assert.deepEqual(initial[name], [digest("a"), digest("b"), digest("c")]);
+	reads.length = 0;
+	const roots = await sourceCandidateRoots(packages, reference("b"), runner);
+	assert.deepEqual(reads, [reference("b"), reference("c")]);
+	assert.deepEqual(roots["campus-agent/agent-runtime"], [digest("b"), digest("c")]);
+	const plan = planRetention({ mode: "report", packages, gitopsDigests: roots });
+	assert.deepEqual(
+		plan.packages
+			.find((p) => p.name === name)
+			?.versions.map((v) => [v.digest, v.action])
+			.sort(),
+		[
+			[digest("a"), "delete"],
+			[digest("b"), "keep"],
+			[digest("c"), "keep"],
+		],
+	);
+	const advanced = await sourceCandidateRoots(packages, reference("c"), runner);
+	assert.deepEqual(advanced[name], [digest("c")]);
+	await assert.rejects(
+		sourceCandidateRoots(packages, reference("d"), runner),
+		/missing from the registry/,
+	);
 });

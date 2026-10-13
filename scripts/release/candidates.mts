@@ -13,7 +13,7 @@ const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SOURCE_REPOSITORY = "MUC-WIKI/campus-agent";
 const CAMPUS_WEB_WORKER: WorkerCandidate = "campus-web-staging";
 const CAMPUS_MAP_ASSET_PATH = "apps/campus-web/assets/campus-map";
-const SOURCE_BASE_PATHS = [
+export const SOURCE_BASE_PATHS = [
 	"infra/k8s/agent-control/base",
 	"infra/k8s/agent-runtime/base",
 	"infra/k8s/cluster-private-ingress/base",

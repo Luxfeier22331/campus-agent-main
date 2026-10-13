@@ -10,6 +10,10 @@ Worker 构建依赖 GitOps 的 Docs 快照和公开环境值。Source 等待 Git
 
 ## 决策
 
+候选交接、恢复与编排后续由[无 UI Kargo 发布编排](2026-10-13-kargo-headless-release.md)取代：
+完整 OCI candidate 取代短期 artifact 交接，Kargo 取代旧 deployment coordinator；本文的仓库、
+凭据及 registry 清理 owner 边界仍有效。
+
 Source 保留源码验证、累计受影响计划和镜像发布，将已经计算的计划与镜像 producer run 作为短期
 Actions artifact 交给 GitOps。交接需要保留同 SHA 的显式 Worker 刷新选择，因此不能只传 SHA
 再根据源码 diff 重算。Source 用 App 的 Actions write 异步触发 GitOps，不轮询下游完成。

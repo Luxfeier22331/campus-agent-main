@@ -27,19 +27,17 @@ status: active
 
 ```text
 源码 main
--> Source 从环境仓 staging 游标计算累计受影响范围并构建不可变镜像
--> Source 异步交接候选计划和镜像发布 run；GitOps 构建 Worker bundle 并保存在自有 GHCR
--> 环境仓滚动 PR 选择镜像摘要和 Worker artifactRef
--> 机器字段校验通过后自动合并
--> GitOps 注入环境并上传原生 Worker version，保存到 Deployment payload
--> 数据库 schema 与平台配置收敛
+-> Source 从最新完整 candidate 计算累计受影响范围并构建不可变镜像
+-> Source 异步交接完整 OCI candidate；GitOps 构建 Worker bundle 并保存在自有 GHCR
+-> GitOps 候选分支由 Kargo Warehouse 接收
+-> Kargo 创建并合并选版 PR
+-> Kargo action workflow 注入环境并上传原生 Worker version，保存到 Deployment payload
 -> Argo CD 同步 Kubernetes
--> Terraform 切换 Worker 流量
+-> Kargo 等待健康后执行 Terraform Worker 流量切换
 ```
 
-Source 不读取 GitOps Worker package，也不等待 GitOps workflow 完成。GitOps 验证 Source main 发布
-job 和所选镜像 digest，再准备 Worker 候选与 promotion；原生版本和流量仍由既有 deploy owner 应用。
-具体交接理由见[Worker 发布闭环迁入 GitOps](../../../.agents/notes/implemented/process/2026-10-11-worker-publication-gitops.md)。
+Source 不读取 GitOps Worker package，也不等待 GitOps workflow 完成。GitOps 读取完整 Source 快照与镜像 digest，再准备 Worker 候选；原生版本和流量由 Kargo 指定 action 应用。
+具体交接理由见[Worker 发布闭环迁入 GitOps](../../../.agents/notes/implemented/process/2026-10-11-worker-publication-gitops.md)。候选晋级与跨平台顺序由无 UI Kargo Stage 负责；GitHub Actions 只执行被 Kargo 指定的 action。
 
 规则如下：
 
@@ -51,7 +49,7 @@ job 和所选镜像 digest，再准备 Worker 候选与 promotion；原生版本
   承接流量和即时回滚后，再由后续 migration 收缩结构；
 - 一个应用失败不能被其他应用的健康状态掩盖；
 - 候选版本上传成功、镜像构建成功或清单渲染成功都不等于部署完成。
-- 常规 staging 版本选择使用唯一滚动 PR；Secret、权限、资源、网络、Terraform、Application 拓扑和
+- 常规 staging 版本选择使用每个 Promotion 独立的选版 PR；Secret、权限、资源、网络、Terraform、Application 拓扑和
   其他环境变化不进入自动合并。
 
 Kubernetes 发布以实际故障域为 Application 边界。强依赖 schema 的运行时在同一 Application 内
@@ -64,7 +62,7 @@ Kubernetes 发布以实际故障域为 Application 边界。强依赖 schema 的
 每次构建必须能够关联到源码提交、镜像摘要或 Worker 版本标识。包含静态数据 release 的
 Worker 还必须记录数据 release identity 和二者组合的 build identity。应用日志、观测数据和
 环境仓变更应使用这些不可变标识定位同一次发布，不在源码仓中长期写死某个环境发布号。环境仓用
-已选择 Source SHA 作为下一次候选计算基线；Argo CD 和 Cloudflare 状态写回该 Source SHA，分别表达
+最新完整 Source candidate 作为下一次候选计算基线；Argo CD 和 Cloudflare 状态写回该 Source SHA，分别表达
 对应部署单元的结果。
 
 `DEPLOYMENT_RELEASE` 是单个 execution runtime 的非密发布身份。agent-control 和 agent-runtime
@@ -76,7 +74,7 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 
 仓库使用一个手动指定的 `v0.minor.patch` 版本，从 `v0.1.0` 开始。0.x 的功能或破坏性变化递增
 minor，兼容修复递增 patch；不批量改写各 package 的版本，不把版本号作为服务兼容性判断。
-`main` 仍自动产生增量候选物并进入 staging。
+`main` 自动产生增量候选物并进入 staging；手动发布同样只允许从 main 运行。
 
 Source 的 `formal-release` workflow 请求 GitOps 发布，provider 核验与发布工具在 GitOps 执行。
 正式版本从已完整成功的 GitOps staging Deployment 确认。
@@ -101,6 +99,8 @@ Cloudflare 回滚仅选择平台仍可部署的原生 version；Worker bundle �
 未退役正式版本、环境当前选择、最后成功部署、在途和恢复目标共同构成 GHCR 保留根；共享 digest
 与 OCI 子 manifest 取并集。退役只写 GitOps 中的版本及原因，不删除、修改或复用 Release/tag。
 Source 的 full report/apply 按保护根清理无引用版本，并与候选和正式版本发布串行。
+候选以最后成功发布为保留边界；边界及其后的候选和未完成交接的 Source 快照仍受保护，旧历史不再
+自动成为永久保留根。首次成功前保留全部候选，历史应用选版使用正式版本。
 每日定时清理复用同一 full apply 路径，操作见[GHCR 清理](../../runbooks/release/ghcr-retention.md)。
 
 ## 配置与密钥

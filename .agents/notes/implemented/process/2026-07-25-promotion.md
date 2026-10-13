@@ -2,6 +2,8 @@
 
 Status: implemented
 
+本篇关于 staging 版本选择的 GitHub App、候选游标与机器字段边界仍有效；其中“当前不需要 Kargo”的发布编排结论已被[无 UI Kargo 发布编排](2026-10-13-kargo-headless-release.md)取代。
+
 ## 背景
 
 源码仓与环境仓分离后，每次 `main` 候选都创建独立环境 PR，并以触发提交的前一个 SHA 计算变化。

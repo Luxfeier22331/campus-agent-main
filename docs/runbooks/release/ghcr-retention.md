@@ -18,6 +18,11 @@ full 的保护根来自 GitOps exporter：未退役正式 Release 的不可变 `
 canonical cache。所有根与 OCI child manifest 取并集；版本退役不会删除仍被其他版本或环境引用
 的 digest。已退役组件包只要还有根就继续保留，不能整包删除。
 
+候选历史以最后成功 Deployment 的 candidate 为边界，保留该候选及之后尚可晋级的候选。
+Source OCI 快照按最后成功的常规快照创建时间划界，同时保护该快照和之后快照的引用镜像，覆盖 GitOps
+尚未完成的组装交接；latest 始终保留。首次成功前保留全部候选。被新成功发布取代的普通候选退出
+恢复范围；需要历史选版时使用正式版本。旧选版分支和候选归档文件不再永久保护制品。
+
 正式版本没有独立的 SHA 数量窗口，普通候选也没有默认七天保留承诺。未知 tag 保留；active 包
 保留包本身，清理无引用版本。Release/asset、Deployment、GitOps revision 或 registry 查询失败
 不能当作空根。active 包缺失会阻止 apply；历史 PR 缓存或 retired 包的 metadata 404 仅在可见权限
@@ -49,7 +54,7 @@ GHCR inventory 的完整事实来源。
 - `pr_number`：仅 PR scope 填写。
 
 先运行 report 检查删除范围，再运行 apply。apply 不消费先前报告：full 会刷新 GitOps main 和
-`deploy/staging`、重新导出正式版本/部署/恢复根并读取 registry inventory；删除前再做一次完整刷新，
+候选分支历史，按成功 Deployment 边界重新导出候选、正式版本和部署保留根，并读取 registry inventory；删除前再做一次完整刷新，
 仅执行两次计划中都允许删除的相同 version ID/digest，整包删除也不覆盖新出现的版本。随后重新
 读取 inventory，确认目标消失、active 包及受保护根和子 manifest 仍在。
 
