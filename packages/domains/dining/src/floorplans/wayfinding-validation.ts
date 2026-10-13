@@ -12,7 +12,6 @@ import type {
 	DiningWayfindingPoint,
 } from "./wayfinding-types.ts";
 import {
-	DINING_WAYFINDING_CANVAS,
 	DINING_WAYFINDING_ICON_KEYS,
 	DINING_WAYFINDING_SCHEMA_VERSION,
 	DiningWayfindingValidationError,
@@ -76,11 +75,8 @@ function assertDiningWayfindingLayoutStructure(
 		height: value.canvas.height,
 		width: value.canvas.width,
 	};
-	if (
-		canvas.width !== DINING_WAYFINDING_CANVAS.width ||
-		canvas.height !== DINING_WAYFINDING_CANVAS.height
-	) {
-		throw new Error("Dining wayfinding layouts must use the shared 1280x760 canvas.");
+	if (canvas.width <= 0 || canvas.height <= 0) {
+		throw new Error("Dining wayfinding canvas dimensions must be positive.");
 	}
 	if (!isRecord(value.outline)) {
 		throw new Error("Dining wayfinding layout outline is required.");

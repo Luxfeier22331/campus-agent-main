@@ -2,7 +2,7 @@ import {
 	DINING_WAYFINDING_CANVAS,
 	type DiningWayfindingIconKey,
 } from "@campus-agent/dining/floorplans";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
 	BaseBoxShapeUtil,
 	getIndices,
@@ -22,6 +22,8 @@ import {
 	type TLShapePartial,
 	Vec,
 } from "tldraw";
+
+import { diningCanvasForShape } from "./tldraw-canvas";
 
 export const DINING_EDITOR_PATH_LAYERS = ["outline", "partition", "structure"] as const;
 export const DINING_EDITOR_MIN_MARKER_DIMENSION = 1;
@@ -114,8 +116,8 @@ export class DiningPathShapeUtil extends ShapeUtil<DiningPathShape> {
 		return false;
 	}
 
-	override canResize(shape: DiningPathShape): boolean {
-		return shape.props.layer !== "outline";
+	override canResize(): boolean {
+		return true;
 	}
 
 	override canBeLaidOut(shape: DiningPathShape): boolean {
@@ -127,11 +129,12 @@ export class DiningPathShapeUtil extends ShapeUtil<DiningPathShape> {
 		current: DiningPathShape,
 	): TLShapePartial<DiningPathShape> {
 		const bounds = pathBounds(current);
+		const canvas = diningCanvasForShape(this.editor, current);
 		return {
 			id: current.id,
 			type: current.type,
-			x: clamp(current.x, -bounds.x, DINING_WAYFINDING_CANVAS.width - bounds.width - bounds.x),
-			y: clamp(current.y, -bounds.y, DINING_WAYFINDING_CANVAS.height - bounds.height - bounds.y),
+			x: clamp(current.x, -bounds.x, canvas.width - bounds.width - bounds.x),
+			y: clamp(current.y, -bounds.y, canvas.height - bounds.height - bounds.y),
 		};
 	}
 
@@ -169,9 +172,10 @@ export class DiningPathShapeUtil extends ShapeUtil<DiningPathShape> {
 			return shape;
 		}
 		const point = maybeSnapToGrid(new Vec(handle.x, handle.y), this.editor);
+		const canvas = diningCanvasForShape(this.editor, shape);
 		const bounded = {
-			x: clamp(point.x, -shape.x, DINING_WAYFINDING_CANVAS.width - shape.x),
-			y: clamp(point.y, -shape.y, DINING_WAYFINDING_CANVAS.height - shape.y),
+			x: clamp(point.x, -shape.x, canvas.width - shape.x),
+			y: clamp(point.y, -shape.y, canvas.height - shape.y),
 		};
 		return {
 			...shape,
@@ -259,15 +263,17 @@ abstract class DiningBoxShapeUtil<Shape extends DiningMarkerShape> extends BaseB
 				minHeight: DINING_EDITOR_MIN_MARKER_DIMENSION,
 				minWidth: DINING_EDITOR_MIN_MARKER_DIMENSION,
 			}),
+			diningCanvasForShape(this.editor, shape),
 		);
 	}
 
 	override onTranslate(_initial: Shape, current: Shape): TLShapePartial<Shape> {
+		const canvas = diningCanvasForShape(this.editor, current);
 		return {
 			id: current.id,
 			type: current.type,
-			x: clamp(current.x, 0, DINING_WAYFINDING_CANVAS.width - current.props.w),
-			y: clamp(current.y, 0, DINING_WAYFINDING_CANVAS.height - current.props.h),
+			x: clamp(current.x, 0, canvas.width - current.props.w),
+			y: clamp(current.y, 0, canvas.height - current.props.h),
 		} as TLShapePartial<Shape>;
 	}
 
@@ -285,7 +291,7 @@ abstract class DiningBoxShapeUtil<Shape extends DiningMarkerShape> extends BaseB
 		return path;
 	}
 
-	protected renderMarker(shape: Shape, kind: string, extra?: ReactNode) {
+	protected renderMarker(shape: Shape, kind: string, extra?: ReactNode, style?: CSSProperties) {
 		return (
 			<HTMLContainer
 				className={`dining-editor-marker dining-editor-marker-${kind}`}
@@ -295,7 +301,7 @@ abstract class DiningBoxShapeUtil<Shape extends DiningMarkerShape> extends BaseB
 				data-dining-editor-x={shape.x}
 				data-dining-editor-y={shape.y}
 				data-invalid={shape.meta.diningInvalid === true ? "true" : undefined}
-				style={{ pointerEvents: "none" }}
+				style={{ pointerEvents: "none", ...style }}
 			>
 				{extra}
 				<span className="marker-label">{shape.props.label}</span>
@@ -313,26 +319,31 @@ export class DiningWindowShapeUtil extends DiningBoxShapeUtil<DiningWindowShape>
 	}
 
 	override component(shape: DiningWindowShape) {
-		return this.renderMarker(shape, "window");
+		const canvas = diningCanvasForShape(this.editor, shape);
+		const nominalSize = Math.round(
+			18 *
+				Math.min(
+					canvas.width / DINING_WAYFINDING_CANVAS.width,
+					canvas.height / DINING_WAYFINDING_CANVAS.height,
+				),
+		);
+		// Use one size per canvas; window dimensions and label length only affect wrapping.
+		const fontSize = Math.min(25, Math.max(18, nominalSize));
+		return this.renderMarker(shape, "window", undefined, { fontSize });
 	}
 }
 
 function clampBoxResize<Shape extends DiningMarkerShape>(
 	partial: Shape,
+	canvas: { width: number; height: number },
 ): Omit<TLShapePartial<Shape>, "id" | "type"> {
 	const props = partial.props as Partial<{ h: number; w: number }> | undefined;
-	const width = Math.min(
-		props?.w ?? DINING_WAYFINDING_CANVAS.width,
-		DINING_WAYFINDING_CANVAS.width,
-	);
-	const height = Math.min(
-		props?.h ?? DINING_WAYFINDING_CANVAS.height,
-		DINING_WAYFINDING_CANVAS.height,
-	);
+	const width = Math.min(props?.w ?? canvas.width, canvas.width);
+	const height = Math.min(props?.h ?? canvas.height, canvas.height);
 	return {
 		...partial,
-		x: clamp(partial.x ?? 0, 0, DINING_WAYFINDING_CANVAS.width - width),
-		y: clamp(partial.y ?? 0, 0, DINING_WAYFINDING_CANVAS.height - height),
+		x: clamp(partial.x ?? 0, 0, canvas.width - width),
+		y: clamp(partial.y ?? 0, 0, canvas.height - height),
 		props: { ...partial.props, w: width, h: height } as Shape["props"],
 	} as unknown as Omit<TLShapePartial<Shape>, "id" | "type">;
 }

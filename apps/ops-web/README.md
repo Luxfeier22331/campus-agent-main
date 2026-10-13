@@ -108,6 +108,10 @@ pnpm --dir apps/ops-web test:database-integration
 和固定 fixture token，启动时打印 endpoint、token 与测试凭据 ID。它不读取本地真实凭据，也不会改变
 生产代码或配置。
 
+Dining 地图编辑器的 tldraw 公开许可证由构建环境的 `VITE_TLDRAW_LICENSE_KEY` 提供；本地 loopback
+开发不设置该变量，使用 tldraw 开发模式。部署镜像构建通过 Docker build stage 传入该变量，runtime
+环境不读取它；公开 key 会按预期出现在客户端资源中，不应写入仓库源码、数据库或对象存储。
+
 同好群和账号管理页面通过服务端配置的 `OPS_WEB_APP_API_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 调用 app-api；
 前者是 HTTP(S) 根地址，令牌不下发到浏览器。
 

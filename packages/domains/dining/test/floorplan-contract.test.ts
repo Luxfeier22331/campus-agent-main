@@ -71,9 +71,28 @@ describe("dining rendered floorplan contract", () => {
 		expect(() => assertDiningWayfindingLayout(layout)).toThrow(/outside the canvas/);
 	});
 
-	it("publishes all five calibrated layouts through one stable wayfinding contract", () => {
-		expect(FLOORPLANS).toHaveLength(5);
-		expect(DINING_FLOORPLANS).toHaveLength(5);
+	it("accepts an enlarged layout canvas and still rejects out-of-bounds geometry", () => {
+		const layout = structuredClone(DINING_FLOORPLANS[0]);
+		if (!layout) {
+			throw new Error("Dining bootstrap floorplan needs a layout.");
+		}
+		layout.canvas = { height: 1520, width: 2560 };
+		expect(() => assertDiningWayfindingLayout(layout)).not.toThrow();
+		expect(renderDiningWayfindingSvg(layout)).toContain('viewBox="0 0 2560 1520"');
+		layout.canvas.width = 0;
+		expect(() => assertDiningWayfindingLayout(layout)).toThrow(/must be positive/u);
+		layout.canvas.width = 2560;
+		const window = layout.windows[0];
+		if (!window) {
+			throw new Error("Dining bootstrap floorplan needs a window.");
+		}
+		window.x = 2560;
+		expect(() => assertDiningWayfindingLayout(layout)).toThrow(/outside the canvas/u);
+	});
+
+	it("publishes all nine maintained layouts through one stable wayfinding contract", () => {
+		expect(FLOORPLANS).toHaveLength(9);
+		expect(DINING_FLOORPLANS).toHaveLength(9);
 		for (const floorplan of FLOORPLANS) {
 			const layout = DINING_FLOORPLANS.find((candidate) => candidate.floorId === floorplan.floorId);
 			expect(floorplan.canvas).toEqual({ height: 760, width: 1280 });

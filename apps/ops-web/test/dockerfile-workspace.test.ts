@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const repoRoot = join(import.meta.dirname, "../../..");
 const dockerfile = readFileSync(join(repoRoot, "apps/ops-web/Dockerfile"), "utf8");
 const dockerignore = readFileSync(join(repoRoot, ".dockerignore"), "utf8");
+const dockerBake = readFileSync(join(repoRoot, "docker-bake.hcl"), "utf8");
 
 const workspaceSourceInputs = [
 	"packages/contracts",
@@ -46,6 +47,20 @@ describe("ops-web Dockerfile workspace inputs", () => {
 			expect(dockerfile).not.toContain(source);
 		}
 		expect(dockerfile.indexOf(fullSource)).toBeLessThan(dockerfile.indexOf(build));
+	});
+
+	it("passes the public tldraw key to the build stage only", () => {
+		const buildStart = dockerfile.indexOf(" AS build");
+		const runtimeStart = dockerfile.indexOf(" AS runtime");
+		const buildStage = dockerfile.slice(buildStart, runtimeStart);
+		const runtimeStage = dockerfile.slice(runtimeStart);
+
+		expect(buildStage).toContain("ARG VITE_TLDRAW_LICENSE_KEY");
+		expect(buildStage).toContain("ENV VITE_TLDRAW_LICENSE_KEY=$VITE_TLDRAW_LICENSE_KEY");
+		expect(runtimeStage).not.toContain("VITE_TLDRAW_LICENSE_KEY");
+		expect(dockerBake).toMatch(
+			/target "ops-web"[\s\S]*?args = \{[\s\S]*?VITE_TLDRAW_LICENSE_KEY = VITE_TLDRAW_LICENSE_KEY/u,
+		);
 	});
 
 	it("does not copy integration-only application sources into the build stage", () => {

@@ -9,10 +9,10 @@ import {
 
 describe("dining floorplan bundle", () => {
 	it("keeps the repository bootstrap as the canonical empty-environment input", () => {
-		expect(DINING_BOOTSTRAP_FLOORPLANS.halls).toHaveLength(3);
-		expect(DINING_BOOTSTRAP_FLOORPLANS.layouts).toHaveLength(5);
-		expect(DINING_BOOTSTRAP_FLOORPLANS.halls.every((hall) => hall.campus === "丰台校区")).toBe(
-			true,
+		expect(DINING_BOOTSTRAP_FLOORPLANS.halls).toHaveLength(7);
+		expect(DINING_BOOTSTRAP_FLOORPLANS.layouts).toHaveLength(9);
+		expect(new Set(DINING_BOOTSTRAP_FLOORPLANS.halls.map((hall) => hall.campus))).toEqual(
+			new Set(["丰台校区", "海淀校区"]),
 		);
 		expect(
 			readFileSync(

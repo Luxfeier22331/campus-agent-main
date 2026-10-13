@@ -23,9 +23,12 @@ RUN ./node_modules/.bin/turbo prune ops-web --docker --out-dir=/repo/out \
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 
+ARG VITE_TLDRAW_LICENSE_KEY
+
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 ENV CI=true
+ENV VITE_TLDRAW_LICENSE_KEY=$VITE_TLDRAW_LICENSE_KEY
 
 WORKDIR /app
 

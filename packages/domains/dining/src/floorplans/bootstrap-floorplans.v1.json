@@ -14,6 +14,26 @@
 			"campus": "丰台校区",
 			"hallId": "fengtai-outdoor-dining-zone",
 			"name": "丰台露天餐饮区"
+		},
+		{
+			"campus": "海淀校区",
+			"hallId": "haidian-first-canteen",
+			"name": "海淀第一食堂"
+		},
+		{
+			"campus": "海淀校区",
+			"hallId": "haidian-second-canteen",
+			"name": "海淀第二食堂"
+		},
+		{
+			"campus": "海淀校区",
+			"hallId": "haidian-third-canteen",
+			"name": "海淀第三食堂"
+		},
+		{
+			"campus": "海淀校区",
+			"hallId": "haidian-fourth-canteen",
+			"name": "海淀第四食堂"
 		}
 	],
 	"kind": "dining_floorplan_bundle",
@@ -2379,6 +2399,270 @@
 					"width": 104,
 					"x": 677.169,
 					"y": 435
+				}
+			]
+		},
+		{
+			"canvas": {
+				"height": 760,
+				"width": 1280
+			},
+			"entrances": [],
+			"floorId": "haidian-first-canteen-1f",
+			"floorplanId": "floorplan:haidian-first-canteen:haidian-first-canteen-1f",
+			"hallId": "haidian-first-canteen",
+			"label": "海淀第一食堂",
+			"landmarks": [],
+			"outline": {
+				"points": [
+					{
+						"x": 240,
+						"y": 700
+					},
+					{
+						"x": 240,
+						"y": 355
+					},
+					{
+						"x": 388,
+						"y": 355
+					},
+					{
+						"x": 388,
+						"y": 413
+					},
+					{
+						"x": 700,
+						"y": 413
+					},
+					{
+						"x": 700,
+						"y": 355
+					},
+					{
+						"x": 614,
+						"y": 355
+					},
+					{
+						"x": 614,
+						"y": 132
+					},
+					{
+						"x": 958,
+						"y": 132
+					},
+					{
+						"x": 958,
+						"y": 60
+					},
+					{
+						"x": 1040,
+						"y": 60
+					},
+					{
+						"x": 1040,
+						"y": 355
+					},
+					{
+						"x": 958,
+						"y": 355
+					},
+					{
+						"x": 958,
+						"y": 700
+					}
+				]
+			},
+			"partitions": [],
+			"regions": [],
+			"schemaVersion": 2,
+			"structures": [],
+			"windows": [
+				{
+					"anchorId": "window-01",
+					"height": 72,
+					"label": "待维护窗口",
+					"width": 104,
+					"x": 290,
+					"y": 465
+				}
+			]
+		},
+		{
+			"canvas": {
+				"height": 760,
+				"width": 1280
+			},
+			"entrances": [],
+			"floorId": "haidian-fourth-canteen-1f",
+			"floorplanId": "floorplan:haidian-fourth-canteen:haidian-fourth-canteen-1f",
+			"hallId": "haidian-fourth-canteen",
+			"label": "海淀第四食堂",
+			"landmarks": [],
+			"outline": {
+				"points": [
+					{
+						"x": 80,
+						"y": 80
+					},
+					{
+						"x": 1200,
+						"y": 80
+					},
+					{
+						"x": 1200,
+						"y": 680
+					},
+					{
+						"x": 80,
+						"y": 680
+					}
+				]
+			},
+			"partitions": [],
+			"regions": [],
+			"schemaVersion": 2,
+			"structures": [],
+			"windows": [
+				{
+					"anchorId": "window-01",
+					"height": 72,
+					"label": "待维护窗口",
+					"width": 104,
+					"x": 120,
+					"y": 120
+				}
+			]
+		},
+		{
+			"canvas": {
+				"height": 760,
+				"width": 1280
+			},
+			"entrances": [],
+			"floorId": "haidian-second-canteen-1f",
+			"floorplanId": "floorplan:haidian-second-canteen:haidian-second-canteen-1f",
+			"hallId": "haidian-second-canteen",
+			"label": "海淀第二食堂",
+			"landmarks": [],
+			"outline": {
+				"points": [
+					{
+						"x": 80,
+						"y": 80
+					},
+					{
+						"x": 1200,
+						"y": 80
+					},
+					{
+						"x": 1200,
+						"y": 680
+					},
+					{
+						"x": 80,
+						"y": 680
+					}
+				]
+			},
+			"partitions": [],
+			"regions": [],
+			"schemaVersion": 2,
+			"structures": [],
+			"windows": [
+				{
+					"anchorId": "window-01",
+					"height": 72,
+					"label": "待维护窗口",
+					"width": 104,
+					"x": 120,
+					"y": 120
+				}
+			]
+		},
+		{
+			"canvas": {
+				"height": 760,
+				"width": 1280
+			},
+			"entrances": [],
+			"floorId": "haidian-third-canteen-1f",
+			"floorplanId": "floorplan:haidian-third-canteen:haidian-third-canteen-1f",
+			"hallId": "haidian-third-canteen",
+			"label": "海淀第三食堂",
+			"landmarks": [],
+			"outline": {
+				"points": [
+					{
+						"x": 240,
+						"y": 700
+					},
+					{
+						"x": 240,
+						"y": 355
+					},
+					{
+						"x": 388,
+						"y": 355
+					},
+					{
+						"x": 388,
+						"y": 413
+					},
+					{
+						"x": 700,
+						"y": 413
+					},
+					{
+						"x": 700,
+						"y": 355
+					},
+					{
+						"x": 614,
+						"y": 355
+					},
+					{
+						"x": 614,
+						"y": 132
+					},
+					{
+						"x": 958,
+						"y": 132
+					},
+					{
+						"x": 958,
+						"y": 60
+					},
+					{
+						"x": 1040,
+						"y": 60
+					},
+					{
+						"x": 1040,
+						"y": 355
+					},
+					{
+						"x": 958,
+						"y": 355
+					},
+					{
+						"x": 958,
+						"y": 700
+					}
+				]
+			},
+			"partitions": [],
+			"regions": [],
+			"schemaVersion": 2,
+			"structures": [],
+			"windows": [
+				{
+					"anchorId": "window-01",
+					"height": 72,
+					"label": "待维护窗口",
+					"width": 104,
+					"x": 290,
+					"y": 465
 				}
 			]
 		}

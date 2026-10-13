@@ -414,20 +414,16 @@
 
 .dining-path-node {
 	display: grid;
-	grid-template-columns: 24px minmax(0, 1fr) 30px;
-	align-items: center;
-	min-height: 34px;
-	padding-left: 7px;
+	gap: 6px;
+	padding: 7px;
 	border: 1px solid var(--dining-editor-border-subtle);
 	border-radius: 5px;
 	color: var(--dining-editor-text-subtle);
 	font-size: 12px;
 }
 
-.dining-path-node code {
-	overflow: hidden;
-	color: var(--dining-editor-text);
-	text-overflow: ellipsis;
+.dining-path-node-actions {
+	display: flex;
 }
 
 .dining-path-node button {
@@ -515,7 +511,7 @@
 }
 
 .dining-editor-marker-window .marker-label {
-	max-width: calc(100% - 12px);
+	max-width: calc(100% - 6px);
 	line-height: 1.15;
 	overflow-wrap: anywhere;
 	text-align: center;

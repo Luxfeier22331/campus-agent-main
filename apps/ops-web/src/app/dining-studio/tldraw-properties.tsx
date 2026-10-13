@@ -1,4 +1,3 @@
-import { DINING_WAYFINDING_CANVAS } from "@campus-agent/dining/floorplans";
 import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -16,6 +15,7 @@ import {
 	useValue,
 } from "tldraw";
 
+import { diningCanvasForShape } from "./tldraw-canvas";
 import {
 	DINING_EDITOR_MIN_MARKER_DIMENSION,
 	type DiningMarkerShape,
@@ -31,12 +31,7 @@ export function DiningStylePanel() {
 	if (!(shape && isDiningEditorShape(shape))) {
 		return null;
 	}
-	const restriction =
-		shape.type === "dining-path" && shape.props.layer === "outline"
-			? "外轮廓受保护，不能编辑"
-			: shape.isLocked
-				? "元素已锁定，解锁后可编辑"
-				: null;
+	const restriction = shape.isLocked ? "元素已锁定，解锁后可编辑" : null;
 	return (
 		<section aria-label="元素属性" className="dining-tldraw-properties" key={shape.id}>
 			<div className="dining-tldraw-properties-heading">
@@ -65,6 +60,7 @@ export function DiningStylePanel() {
 }
 
 function MarkerProperties({ editor, shape }: { editor: Editor; shape: DiningMarkerShape }) {
+	const canvas = diningCanvasForShape(editor, shape);
 	const update = (partial: { props?: Record<string, unknown>; x?: number; y?: number }) => {
 		if (!editor.getShape(shape.id)) {
 			return;
@@ -90,28 +86,28 @@ function MarkerProperties({ editor, shape }: { editor: Editor; shape: DiningMark
 			<TransactionalNumber
 				editor={editor}
 				label="X"
-				onValue={(x) => update({ x: clamp(x, 0, DINING_WAYFINDING_CANVAS.width - shape.props.w) })}
+				onValue={(x) => update({ x: clamp(x, 0, canvas.width - shape.props.w) })}
 				shapeId={shape.id}
 				value={shape.x}
 			/>
 			<TransactionalNumber
 				editor={editor}
 				label="Y"
-				onValue={(y) => update({ y: clamp(y, 0, DINING_WAYFINDING_CANVAS.height - shape.props.h) })}
+				onValue={(y) => update({ y: clamp(y, 0, canvas.height - shape.props.h) })}
 				shapeId={shape.id}
 				value={shape.y}
 			/>
 			<TransactionalNumber
 				editor={editor}
 				label="宽"
-				onValue={(w) => update({ props: { w: markerDimension(shape, "width", w) } })}
+				onValue={(w) => update({ props: { w: markerDimension(canvas.width - shape.x, w) } })}
 				shapeId={shape.id}
 				value={shape.props.w}
 			/>
 			<TransactionalNumber
 				editor={editor}
 				label="高"
-				onValue={(h) => update({ props: { h: markerDimension(shape, "height", h) } })}
+				onValue={(h) => update({ props: { h: markerDimension(canvas.height - shape.y, h) } })}
 				shapeId={shape.id}
 				value={shape.props.h}
 			/>
@@ -150,25 +146,38 @@ function MarkerProperties({ editor, shape }: { editor: Editor; shape: DiningMark
 }
 
 function PathProperties({ editor, shape }: { editor: Editor; shape: DiningPathShape }) {
+	const canvas = diningCanvasForShape(editor, shape);
 	const absolutePoints = shape.props.points.map((point) => ({
 		x: shape.x + point.x,
 		y: shape.y + point.y,
 	}));
 	const minimum = shape.props.closed ? 3 : 2;
 	const updatePoints = (points: Array<{ x: number; y: number }>) => {
-		editor.markHistoryStoppingPoint(`update-points:${shape.props.entityId}`);
 		editor.updateShape({
 			id: shape.id,
 			props: {
 				points: points.map((point) => ({
-					x: clamp(point.x, 0, DINING_WAYFINDING_CANVAS.width),
-					y: clamp(point.y, 0, DINING_WAYFINDING_CANVAS.height),
+					x: clamp(point.x, 0, canvas.width),
+					y: clamp(point.y, 0, canvas.height),
 				})),
 			},
 			type: shape.type,
 			x: 0,
 			y: 0,
 		});
+	};
+	const insertPointAfter = (index: number) => {
+		const point = absolutePoints[index];
+		const next = absolutePoints[index + 1] ?? (shape.props.closed ? absolutePoints[0] : null);
+		if (!(point && next)) {
+			return;
+		}
+		editor.markHistoryStoppingPoint(`insert-point:${shape.props.entityId}`);
+		updatePoints([
+			...absolutePoints.slice(0, index + 1),
+			{ x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 },
+			...absolutePoints.slice(index + 1),
+		]);
 	};
 	return (
 		<div className="dining-path-properties">
@@ -180,16 +189,7 @@ function PathProperties({ editor, shape }: { editor: Editor; shape: DiningPathSh
 				<span>{absolutePoints.length} 个节点</span>
 				<TldrawUiButton
 					disabled={absolutePoints.length < 2}
-					onClick={() => {
-						const last = absolutePoints.at(-1);
-						const previous = absolutePoints.at(-2);
-						if (last && previous) {
-							updatePoints([
-								...absolutePoints,
-								{ x: last.x + last.x - previous.x, y: last.y + last.y - previous.y },
-							]);
-						}
-					}}
+					onClick={() => insertPointAfter(absolutePoints.length - (shape.props.closed ? 1 : 2))}
 					title="添加节点"
 					type="icon"
 				>
@@ -198,19 +198,53 @@ function PathProperties({ editor, shape }: { editor: Editor; shape: DiningPathSh
 			</div>
 			<div className="dining-path-node-list">
 				{absolutePoints.map((point, index) => (
-					<div className="dining-path-node" key={`${point.x}:${point.y}`}>
-						<span>{index + 1}</span>
-						<code>{`${Math.round(point.x)}, ${Math.round(point.y)}`}</code>
-						<TldrawUiButton
-							disabled={absolutePoints.length <= minimum}
-							onClick={() =>
-								updatePoints(absolutePoints.filter((_, pointIndex) => pointIndex !== index))
-							}
-							title={`删除节点 ${index + 1}`}
-							type="icon"
-						>
-							<TldrawUiButtonIcon icon={<Minus aria-hidden="true" size={14} />} />
-						</TldrawUiButton>
+					// biome-ignore lint/suspicious/noArrayIndexKey: Path nodes are addressed by position; coordinate edits must preserve the focused input.
+					<div className="dining-path-node" key={index}>
+						<div className="dining-path-node-heading">
+							<span>节点 {index + 1}</span>
+							<div className="dining-path-node-actions">
+								<TldrawUiButton
+									disabled={!shape.props.closed && index === absolutePoints.length - 1}
+									onClick={() => insertPointAfter(index)}
+									title={`在节点 ${index + 1} 后插入节点`}
+									type="icon"
+								>
+									<TldrawUiButtonIcon icon={<Plus aria-hidden="true" size={14} />} />
+								</TldrawUiButton>
+								<TldrawUiButton
+									disabled={absolutePoints.length <= minimum}
+									onClick={() => {
+										editor.markHistoryStoppingPoint(`delete-point:${shape.props.entityId}`);
+										updatePoints(absolutePoints.filter((_, pointIndex) => pointIndex !== index));
+									}}
+									title={`删除节点 ${index + 1}`}
+									type="icon"
+								>
+									<TldrawUiButtonIcon icon={<Minus aria-hidden="true" size={14} />} />
+								</TldrawUiButton>
+							</div>
+						</div>
+						<div className="dining-property-grid">
+							{(["x", "y"] as const).map((axis) => (
+								<TransactionalNumber
+									ariaLabel={`节点 ${index + 1} ${axis.toUpperCase()}`}
+									editor={editor}
+									key={axis}
+									label={axis.toUpperCase()}
+									maximum={canvas[axis === "x" ? "width" : "height"]}
+									minimum={0}
+									onValue={(value) =>
+										updatePoints(
+											absolutePoints.map((current, pointIndex) =>
+												pointIndex === index ? { ...current, [axis]: value } : current,
+											),
+										)
+									}
+									shapeId={shape.id}
+									value={point[axis]}
+								/>
+							))}
+						</div>
 					</div>
 				))}
 			</div>
@@ -219,9 +253,10 @@ function PathProperties({ editor, shape }: { editor: Editor; shape: DiningPathSh
 }
 
 function TransactionalInput(props: {
+	ariaLabel?: string;
 	editor: Editor;
 	label: string;
-	onValue: (value: string) => boolean;
+	onValue: (value: string) => boolean | string;
 	shapeId: string;
 	value: string;
 	wide?: boolean;
@@ -259,13 +294,17 @@ function TransactionalInput(props: {
 			return;
 		}
 		const mark = props.editor.markHistoryStoppingPoint(`update:${props.shapeId}`);
-		if (!onValueRef.current(value)) {
+		const result = onValueRef.current(value);
+		if (result === false) {
 			props.editor.bailToMark(mark);
 			setError(props.label === "名称" ? "请输入名称" : "请输入有效数字");
 			window.setTimeout(() => inputRef.current?.focus(), 0);
 			return;
 		}
-		initialValueRef.current = value;
+		const committedValue = typeof result === "string" ? result : value;
+		initialValueRef.current = committedValue;
+		draftRef.current = committedValue;
+		setDraft(committedValue);
 		setError(null);
 		editingRef.current = false;
 	};
@@ -321,7 +360,7 @@ function TransactionalInput(props: {
 		<div className={props.wide ? "wide" : undefined}>
 			<span>{props.label}</span>
 			<TldrawUiInput
-				aria-label={props.label}
+				aria-label={props.ariaLabel ?? props.label}
 				aria-invalid={error ? true : undefined}
 				ref={inputRef}
 				onBlur={commitDraft}
@@ -343,21 +382,30 @@ function TransactionalInput(props: {
 }
 
 function TransactionalNumber(props: {
+	ariaLabel?: string;
 	editor: Editor;
 	label: string;
+	maximum?: number;
+	minimum?: number;
 	onValue: (value: number) => void;
 	shapeId: string;
 	value: number;
 }) {
 	return (
 		<TransactionalInput
+			ariaLabel={props.ariaLabel ?? props.label}
 			editor={props.editor}
 			label={props.label}
 			onValue={(raw) => {
 				const value = Number(raw);
 				if (raw.trim() && Number.isFinite(value)) {
-					props.onValue(value);
-					return true;
+					const bounded = clamp(
+						value,
+						props.minimum ?? Number.NEGATIVE_INFINITY,
+						props.maximum ?? Number.POSITIVE_INFINITY,
+					);
+					props.onValue(bounded);
+					return String(Math.round(bounded * 100) / 100);
 				}
 				return false;
 			}}
@@ -409,15 +457,7 @@ function pathLayerLabel(layer: DiningPathShape["props"]["layer"]): string {
 	return { outline: "外轮廓", partition: "分隔线", structure: "结构" }[layer];
 }
 
-function markerDimension(
-	shape: DiningMarkerShape,
-	dimension: "height" | "width",
-	value: number,
-): number {
-	const maximum =
-		dimension === "width"
-			? DINING_WAYFINDING_CANVAS.width - shape.x
-			: DINING_WAYFINDING_CANVAS.height - shape.y;
+function markerDimension(maximum: number, value: number): number {
 	return Math.min(Math.max(DINING_EDITOR_MIN_MARKER_DIMENSION, value), maximum);
 }
 

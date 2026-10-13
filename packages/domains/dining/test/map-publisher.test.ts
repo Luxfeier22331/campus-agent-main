@@ -18,13 +18,15 @@ describe("dining map publisher", () => {
 			updatedAt: "2026-07-24T08:00:00.000Z",
 		});
 
-		expect(assets).toHaveLength(5);
-		expect(response.halls).toHaveLength(3);
-		expect(response.halls.every((hall) => hall.campus === "丰台校区")).toBe(true);
-		expect(response.halls.flatMap((hall) => hall.floors)).toHaveLength(5);
+		expect(assets).toHaveLength(9);
+		expect(response.halls).toHaveLength(7);
+		expect(new Set(response.halls.map((hall) => hall.campus))).toEqual(
+			new Set(["丰台校区", "海淀校区"]),
+		);
+		expect(response.halls.flatMap((hall) => hall.floors)).toHaveLength(9);
 		expect(
 			response.halls.flatMap((hall) => hall.floors).flatMap((floor) => floor.windows),
-		).toHaveLength(41);
+		).toHaveLength(45);
 		expect(DiningMapResponseSchema.parse(response)).toEqual(response);
 		for (const asset of assets) {
 			expect(createHash("sha256").update(asset.svgMarkup).digest("hex")).toBe(

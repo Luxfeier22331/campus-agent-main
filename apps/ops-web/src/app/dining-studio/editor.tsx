@@ -63,6 +63,7 @@ import { tldrawRecordsToDraft } from "./tldraw-adapter";
 import {
 	createDiningTldrawOptions,
 	DINING_TLDRAW_ASSET_UTILS,
+	DINING_TLDRAW_OVERLAY_UTILS,
 	DINING_TLDRAW_SHAPE_UTILS,
 	DINING_TLDRAW_TOOLS,
 	installDiningExternalContentHandlers,
@@ -392,10 +393,11 @@ export function DiningFloorplanEditor(props: {
 								className="min-h-11"
 								onValueChange={(nextValue) => switchFloor(nextValue)}
 								value={activeFloorId}
-								options={props.draft.bundle.layouts.map((layout) => ({
-									value: layout.floorId,
-									label: layout.label,
-								}))}
+								options={props.draft.bundle.halls.flatMap((hall) =>
+									props.draft.bundle.layouts
+										.filter((layout) => layout.hallId === hall.hallId)
+										.map((layout) => ({ value: layout.floorId, label: layout.label })),
+								)}
 							/>
 						</Field>
 					</div>
@@ -442,6 +444,7 @@ export function DiningFloorplanEditor(props: {
 								licenseKey={DINING_TLDRAW_LICENSE.key}
 								onMount={setEditor}
 								options={tldrawOptions}
+								overlayUtils={DINING_TLDRAW_OVERLAY_UTILS}
 								shapeUtils={DINING_TLDRAW_SHAPE_UTILS}
 								tools={DINING_TLDRAW_TOOLS}
 								user={tldrawUser}

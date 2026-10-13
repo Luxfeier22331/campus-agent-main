@@ -1,6 +1,7 @@
 import type { TLContent } from "@tldraw/editor";
 import {
 	createShapeId,
+	defaultOverlayUtils,
 	type Editor,
 	HandTool,
 	SelectTool,
@@ -17,6 +18,7 @@ import {
 import { DINING_EDITOR_TOOLS, nextEntityId } from "./tldraw-tools";
 
 export const DINING_TLDRAW_ASSET_UTILS = [] as const;
+export const DINING_TLDRAW_OVERLAY_UTILS = defaultOverlayUtils;
 export const DINING_TLDRAW_SHAPE_UTILS = DINING_EDITOR_SHAPE_UTILS;
 export const DINING_TLDRAW_TOOLS = [
 	SelectTool,

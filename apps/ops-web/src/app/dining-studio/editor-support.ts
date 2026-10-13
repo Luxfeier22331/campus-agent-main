@@ -7,6 +7,7 @@ import {
 import { PageRecordType } from "@tldraw/tlschema";
 import { Box, type Editor, type TLShape } from "tldraw";
 import { layoutToTldrawRecords, tldrawRecordsToLayout } from "./tldraw-adapter";
+import { diningCanvasForEditor } from "./tldraw-canvas";
 import { isDiningEditorShape } from "./tldraw-shapes";
 
 export function eventTargetElement(target: EventTarget | null): Element | null {
@@ -63,8 +64,12 @@ export function loadDiningPages(
 	try {
 		for (const layout of layouts) {
 			const pageId = pageIdForFloor(layout.floorId);
-			if (!editor.getPage(pageId)) {
-				editor.run(() => editor.createPage({ id: pageId, name: layout.label }), {
+			const page = editor.getPage(pageId);
+			const meta = { ...page?.meta, diningCanvas: { ...layout.canvas } };
+			if (page) {
+				editor.run(() => editor.updatePage({ id: pageId, meta }), { history: "ignore" });
+			} else {
+				editor.run(() => editor.createPage({ id: pageId, name: layout.label, meta }), {
 					history: "ignore",
 				});
 				editor.setCurrentPage(pageId);
@@ -127,7 +132,8 @@ export function zoomToDiningCanvas(editor: Editor): void {
 			requestAnimationFrame(fitWhenReady);
 			return;
 		}
-		editor.zoomToBounds(new Box(0, 0, 1280, 760), {
+		const canvas = diningCanvasForEditor(editor);
+		editor.zoomToBounds(new Box(0, 0, canvas.width, canvas.height), {
 			animation: { duration: 180 },
 			inset: 40,
 		});

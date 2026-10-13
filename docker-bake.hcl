@@ -10,6 +10,10 @@ variable "IMAGE_SOURCE" {
   default = "https://github.com/MUC-WIKI/campus-agent"
 }
 
+variable "VITE_TLDRAW_LICENSE_KEY" {
+  default = ""
+}
+
 group "default" {
   targets = [
     "document-ocr",
@@ -97,6 +101,9 @@ target "model-config" {
 target "ops-web" {
   inherits   = ["_common"]
   dockerfile = "apps/ops-web/Dockerfile"
+  args = {
+    VITE_TLDRAW_LICENSE_KEY = VITE_TLDRAW_LICENSE_KEY
+  }
 }
 
 target "document-ocr" {

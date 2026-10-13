@@ -23,6 +23,8 @@ import {
 } from "../src/app/dining-studio/tldraw-adapter";
 import { prepareDiningContent } from "../src/app/dining-studio/tldraw-policy";
 import {
+	type DiningPathShape,
+	DiningPathShapeUtil,
 	type DiningWindowShape,
 	DiningWindowShapeUtil,
 } from "../src/app/dining-studio/tldraw-shapes";
@@ -85,16 +87,206 @@ describe("Dining tldraw adapter", () => {
 	});
 });
 
+describe("Dining outline editing", () => {
+	it("resizes and moves outline nodes through the saved layout adapter", () => {
+		const layout = structuredClone(DINING_BOOTSTRAP_FLOORPLANS.layouts[0]);
+		if (!layout) {
+			throw new Error("Dining bootstrap needs one layout.");
+		}
+		layout.outline.points = [
+			{ x: 20, y: 20 },
+			{ x: 1200, y: 20 },
+			{ x: 1200, y: 680 },
+			{ x: 20, y: 680 },
+		];
+		const records = materializeShapes(layoutToTldrawRecords(layout));
+		const outline = records.find(
+			(shape): shape is DiningPathShape =>
+				shape.type === "dining-path" && shape.props.layer === "outline",
+		);
+		if (!outline) {
+			throw new Error("Dining outline is missing.");
+		}
+		const util = new DiningPathShapeUtil(shapeEditor());
+		expect(util.canResize()).toBe(true);
+		expect(util.canBeLaidOut(outline)).toBe(false);
+		const resized = {
+			...outline,
+			...util.onResize(outline, {
+				handle: "bottom_right",
+				initialBounds: new Box(20, 20, 1180, 660),
+				initialShape: outline,
+				mode: "resize_bounds",
+				newPoint: new Vec(20, 20),
+				scaleX: 0.95,
+				scaleY: 1,
+			}),
+		} as DiningPathShape;
+		const handle = util.getHandles(resized)[0];
+		if (!handle) {
+			throw new Error("Dining outline needs one handle.");
+		}
+		const edited = util.onHandleDrag(resized, {
+			handle: { ...handle, x: 10, y: 15 },
+			initial: resized,
+			isCreatingShape: false,
+			isPrecise: true,
+		});
+		const saved = tldrawRecordsToLayout(
+			records.map((shape) => (shape.id === outline.id ? edited : shape)),
+			layout,
+		);
+		expect(saved.outline.points).toEqual([
+			{ x: 30, y: 35 },
+			{ x: 1141, y: 20 },
+			{ x: 1141, y: 680 },
+			{ x: 20, y: 680 },
+		]);
+		expect({ ...saved, outline: layout.outline }).toEqual(layout);
+		expect(
+			serializeDiningWayfindingLayout(
+				tldrawRecordsToLayout(materializeShapes(layoutToTldrawRecords(saved)), saved),
+			),
+		).toBe(serializeDiningWayfindingLayout(saved));
+	});
+});
+
+describe("Dining partition editing", () => {
+	it("moves an inserted vertex with shape offsets, clamps it to the canvas, and round-trips", () => {
+		const layout = structuredClone(DINING_BOOTSTRAP_FLOORPLANS.layouts[0]);
+		if (!layout) {
+			throw new Error("Dining bootstrap needs one layout.");
+		}
+		layout.partitions = [
+			{
+				id: "partition-node-test",
+				points: [
+					{ x: 100, y: 140 },
+					{ x: 530, y: 300 },
+				],
+			},
+		];
+		const records = materializeShapes(layoutToTldrawRecords(layout));
+		const partition = records.find(
+			(shape): shape is DiningPathShape =>
+				shape.type === "dining-path" &&
+				shape.props.layer === "partition" &&
+				shape.props.entityId === "partition-node-test",
+		);
+		if (!partition) {
+			throw new Error("Dining partition is missing.");
+		}
+
+		const util = new DiningPathShapeUtil(shapeEditor());
+		expect(partition.props.closed).toBe(false);
+		expect(partition.x).toBe(100);
+		expect(partition.y).toBe(140);
+		const withInsertedVertex: DiningPathShape = {
+			...partition,
+			props: {
+				...partition.props,
+				points: [
+					{ x: 0, y: 0 },
+					{ x: 215, y: 80 },
+					{ x: 430, y: 160 },
+				],
+			},
+		};
+		expect(util.getHandles(withInsertedVertex)).toHaveLength(3);
+
+		const vertex = util.getHandles(withInsertedVertex).find((handle) => handle.id === "1");
+		if (!vertex) {
+			throw new Error("Dining partition needs a middle vertex.");
+		}
+		const edited = util.onHandleDrag(withInsertedVertex, {
+			handle: { ...vertex, x: 9999, y: -9999 },
+			initial: withInsertedVertex,
+			isCreatingShape: false,
+			isPrecise: true,
+		});
+		expect(edited.props.points).toEqual([
+			{ x: 0, y: 0 },
+			{ x: 1180, y: -140 },
+			{ x: 430, y: 160 },
+		]);
+
+		const saved = tldrawRecordsToLayout(
+			records.map((shape) => (shape.id === partition.id ? edited : shape)),
+			layout,
+		);
+		expect(saved.partitions).toEqual([
+			{
+				id: "partition-node-test",
+				points: [
+					{ x: 100, y: 140 },
+					{ x: 1280, y: 0 },
+					{ x: 530, y: 300 },
+				],
+			},
+		]);
+		expect(
+			serializeDiningWayfindingLayout(
+				tldrawRecordsToLayout(materializeShapes(layoutToTldrawRecords(saved)), saved),
+			),
+		).toBe(serializeDiningWayfindingLayout(saved));
+	});
+
+	it("keeps vertex drags inside an enlarged layout canvas", () => {
+		const layout = structuredClone(DINING_BOOTSTRAP_FLOORPLANS.layouts[0]);
+		if (!layout) {
+			throw new Error("Dining bootstrap needs one layout.");
+		}
+		layout.canvas = { height: 1520, width: 2560 };
+		layout.partitions = [
+			{
+				id: "partition-scale-test",
+				points: [
+					{ x: 1500, y: 100 },
+					{ x: 1800, y: 100 },
+				],
+			},
+		];
+		const records = materializeShapes(layoutToTldrawRecords(layout));
+		const partition = records.find(
+			(shape): shape is DiningPathShape =>
+				shape.type === "dining-path" && shape.props.entityId === "partition-scale-test",
+		);
+		if (!partition) {
+			throw new Error("Dining partition is missing.");
+		}
+		const util = new DiningPathShapeUtil(shapeEditor(layout.canvas));
+		const handle = util.getHandles(partition)[1];
+		if (!handle) {
+			throw new Error("Dining partition needs an endpoint.");
+		}
+		const edited = util.onHandleDrag(partition, {
+			handle: { ...handle, x: 3000, y: 1700 },
+			initial: partition,
+			isCreatingShape: false,
+			isPrecise: true,
+		});
+		const saved = tldrawRecordsToLayout(
+			records.map((shape) => (shape.id === partition.id ? edited : shape)),
+			layout,
+		);
+		expect(saved.partitions[0]?.points).toEqual([
+			{ x: 1500, y: 100 },
+			{ x: 2560, y: 1520 },
+		]);
+	});
+});
+
 describe("Dining window shape", () => {
 	it("renders the authored label", () => {
 		const shape = diningWindowShape({ entityId: "window-02", label: "广式风味" });
-		const markup = renderToStaticMarkup(DiningWindowShapeUtil.prototype.component(shape));
+		const markup = renderToStaticMarkup(new DiningWindowShapeUtil(shapeEditor()).component(shape));
 		expect(markup).toContain("广式风味");
 	});
 
 	it("allows precise resize while keeping the authored default", () => {
 		const shape = diningWindowShape();
-		const resized = DiningWindowShapeUtil.prototype.onResize(shape, {
+		const util = new DiningWindowShapeUtil(shapeEditor());
+		const resized = util.onResize(shape, {
 			handle: "bottom_right",
 			initialBounds: new Box(0, 0, shape.props.w, shape.props.h),
 			initialShape: shape,
@@ -104,7 +296,27 @@ describe("Dining window shape", () => {
 			scaleY: 0.001,
 		});
 		expect(resized.props).toMatchObject({ h: 1, w: 1 });
-		expect(DiningWindowShapeUtil.prototype.getDefaultProps()).toMatchObject({ h: 72, w: 104 });
+		expect(util.getDefaultProps()).toMatchObject({ h: 72, w: 104 });
+	});
+
+	it("keeps all window labels the same size across names and box sizes", () => {
+		const enlarged = new DiningWindowShapeUtil(shapeEditor({ height: 1520, width: 2560 }));
+		const normal = new DiningWindowShapeUtil(shapeEditor());
+		for (const props of [
+			{ h: 94, label: "冒烤鸭", w: 76 },
+			{ h: 94, label: "云南沾水菜", w: 82 },
+			{ h: 92, label: "新疆炒米粉", w: 62 },
+			{ h: 92, label: "麻辣烫/麻辣香锅", w: 86 },
+			{ h: 72, label: "麻辣烫/麻辣香锅", w: 104 },
+		]) {
+			const shape = diningWindowShape(props);
+			const original = structuredClone(shape);
+			const markup = renderToStaticMarkup(enlarged.component(shape));
+			expect(markup).toContain("font-size:25px");
+			expect(markup).toContain(props.label);
+			expect(renderToStaticMarkup(normal.component(shape))).toContain("font-size:18px");
+			expect(shape).toEqual(original);
+		}
 	});
 });
 
@@ -234,4 +446,13 @@ function clipboardContent(shapes: TLShape[]): TLContent {
 
 function fakeEditor(shapes: TLShape[]): Editor {
 	return { getCurrentPageShapes: () => shapes } as unknown as Editor;
+}
+
+function shapeEditor(canvas = { height: 760, width: 1280 }): Editor {
+	return {
+		getAncestorPageId: () => "page:page",
+		getDocumentSettings: () => ({ gridSize: 10 }),
+		getInstanceState: () => ({ isGridMode: false }),
+		getPage: () => ({ meta: { diningCanvas: canvas } }),
+	} as unknown as Editor;
 }
