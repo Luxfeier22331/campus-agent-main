@@ -31,6 +31,15 @@ PostgreSQL `agent_control` schema/role。工具 registry 升级到 v8；旧 v6/v
 GitOps 同步删除无消费者的 Provider Config bootstrap Secret、旧 admin selector，以及已失去 producer
 和扩缩容消费者的 execution-worker scrape、recording rules、runtime-metrics 和 KEDA。固定副本行为不变。
 
+schema/role 切换由维护窗口的 Kargo Promotion 驱动：数据库 Application 先创建 `agent_control`，
+迁移 Job 检查 durable run、Memory operation、Temporal workflow 和旧连接排空后再 rename；旧 role
+在新消费者验证完成前保留。执行相关接口使用临时维护包装层，其他 App API 路由继续可用；不通过维护者
+手工 `kubectl apply` 或 SQL 把角色和迁移从 GitOps 流程中拆开。
+数据库角色归 data-postgres base，与 schema Job 形成角色先就绪、迁移后执行的顺序。维护包装层只用于
+GitOps 上传的临时 App API 版本：排空时保留回调、查询和取消，冻结时停止执行相关入口及后台派发；
+恢复时回到候选的正常版本。Ops 排空期间关闭外部入口但保留内部凭据解析，避免阻塞在途 Notice
+任务；冻结消费者后再 rename。Schedule 原有暂停状态由维护 Job 保存和恢复，不自动启用原本停用的任务。
+
 ## 未采用方案
 
 - 保留 `EXECUTION_CONTROL_*` 和旧错误码作为长期别名会继续暴露退役架构名称，并使新消费者无法确认
@@ -41,6 +50,9 @@ GitOps 同步删除无消费者的 Provider Config bootstrap Secret、旧 admin 
   在活动文档中更新当前合同。
 - 把 App API 输入读取和产品回调拆成两套凭据会增加轮换与投递合同；当前需求只要求中性命名，继续
   使用一个凭据。
+- 只声明角色和 schema Job 无法跨 Application 排空旧消费者；依靠人工串联会再次拆开发布链路，
+  因此由 GitOps 的 Kargo 维护阶段协调。临时包装层保持应用 bundle 与原生 binding 对应，避免在生产
+  Agent 中长期维护双 schema 行为。维护 profile 与包装层在旧角色、配置和发布路径完成退役后删除。
 - 仅改 SealedSecret metadata 无法迁移 strict 密文；按新名称重新封装原值，发布窗口内保留旧资源。
 
 ## 后果

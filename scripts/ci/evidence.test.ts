@@ -663,3 +663,38 @@ test("the full Campus E2E flow builds once, marks suites prebuilt, and stops on 
 		rmSync(directory, { recursive: true, force: true });
 	}
 });
+
+test("affected build checks use Go when the task graph includes a native package", () => {
+	for (const nativeAffected of [false, true]) {
+		const calls: string[][] = [];
+		runCandidateEvidence(
+			{
+				profiles: ["affected-node"],
+				repositoryRoot: REPOSITORY_ROOT,
+				scope: {
+					base: BASE,
+					head: HEAD,
+					changedFiles: [],
+					tasks: [
+						{ package: "app-api", task: "build:check" },
+						...(nativeAffected
+							? [
+									{ package: "memory-service", task: "native:vet" },
+									{ package: "memory-service", task: "build:check" },
+								]
+							: []),
+					],
+				},
+			},
+			(command, args) => {
+				calls.push([command, ...args]);
+				return { status: 0 };
+			},
+		);
+		const build = calls.find((call) => call.includes("app-api#build:check"));
+		assert(build);
+		assert.equal(build[0], nativeAffected ? "nix" : "node");
+		assert.equal(build.includes(".#ci-go"), nativeAffected);
+		assert.equal(build.includes("memory-service#build:check"), nativeAffected);
+	}
+});

@@ -7,8 +7,10 @@ import test from "node:test";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import { readHistory } from "../src/history.ts";
+import { databaseDrainCounts } from "../src/maintenance.ts";
 import {
 	inspectCampusAgentSchema,
+	MEMORY_MIGRATIONS_FOLDER,
 	MIGRATIONS_FOLDER,
 	migrateCampusAgentSchema,
 } from "../src/migrate.ts";
@@ -220,6 +222,16 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			await rm(join(folder, memoryRetirementMigrationName), { recursive: true });
 			await rm(join(folder, agentControlRenameMigrationName), { recursive: true });
 			await migrateCampusAgentSchema(config, folder);
+			// Both real schemas are present so drain queries cannot silently drift from DDL.
+			for (const migration of readHistory(MEMORY_MIGRATIONS_FOLDER)) {
+				for (const sql of migration.sql) {
+					await client.query(sql);
+				}
+			}
+			assert.equal(
+				Object.values(await databaseDrainCounts(client, client)).every((count) => count === 0),
+				true,
+			);
 			await client.query(`
 			insert into execution_control.personal_memory_owner_fences values ('legacy-owner',1,'active',1,now());
 			insert into execution_control.personal_memory_call_leases (call_id,owner_scope_hash,generation,operation_kind,expires_at)
@@ -235,6 +247,9 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			(command_id,owner_user_id,owner_generation,owner_sequence,command_kind,supersession_scope,accepted_lifecycle_state,source_updated_at,idempotency_key_hash,request_fingerprint,created_at,updated_at,payload)
 			values ('retained-command','retained-owner',1,1,'add','owner','active',now(),'key','fingerprint',now(),now(),'{"text":"retain this"}');
 		`);
+			const pending = await databaseDrainCounts(client, client);
+			assert.equal(pending.deliveries, 1);
+			assert.equal(pending.commands, 1);
 			const legacyTables = [
 				"execution_control.agent_runs",
 				"execution_control.agent_memory_deliveries",

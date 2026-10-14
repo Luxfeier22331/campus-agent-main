@@ -5,4 +5,3 @@ resources:
   - workloads.yaml
   - availability.yaml
   - network-policy.yaml
-  - database-roles.yaml

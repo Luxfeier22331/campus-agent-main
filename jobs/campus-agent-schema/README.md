@@ -51,3 +51,17 @@ pnpm --dir jobs/campus-agent-schema test:migration-integration
 ```bash
 docker build -f jobs/campus-agent-schema/Dockerfile -t campus-agent-schema .
 ```
+
+## Agent Control 维护迁移
+
+`maintenance prepare|drain|quiescent|verify|restore` 由 GitOps 的维护 Job 调用，复用本镜像，不在
+常驻 Agent 中引入迁移逻辑。`prepare` 保存并暂停 Notice Schedule；`drain` 等待 Agent、Memory、
+产品回调、Temporal workflow 和相关 Kubernetes Job 排空；`quiescent` 额外等待旧消费者 Pod 与
+旧角色连接退出；`verify` 检查迁移 ledger、schema、运行角色权限和新 DSN；`restore` 恢复原有
+Schedule 暂停状态。schema rename 仍由数据库 Application 的 `migrate` Job 执行。
+
+维护 Job 还需 `MAINTENANCE_NAMESPACE`、`MAINTENANCE_PROMOTION`、`TEMPORAL_ADDRESS`、
+`TEMPORAL_NAMESPACE`、`MEMORY_PGUSER`、`MEMORY_PGPASSWORD` 和 `AGENT_CONTROL_DATABASE_URL`。
+Kubernetes ServiceAccount 用于读取 Pod/Job 和保存 Schedule 状态；数据库连接分别复用主库与
+Memory 的 owner 凭据，验证时另用 Agent Control DSN。GitOps 拥有维护阶段、副本、网络和流量切换；
+Source 只交付检查能力、数据库角色及临时 App API 包装层。

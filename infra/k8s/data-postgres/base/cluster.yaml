@@ -5,6 +5,8 @@ metadata:
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   instances: 2
   imageName: ghcr.io/cloudnative-pg/postgresql:18.4-202606221003-minimal-trixie@sha256:538f1b327b8dc7621a94aac79c9c3e5c50dfa29115a6c291e19372a5b876f415

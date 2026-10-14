@@ -4,6 +4,7 @@ resources:
   - cluster.yaml
   - backup.yaml
   - roles.yaml
+  - agent-control-role.yaml
   - databases.yaml
   - service-aliases.yaml
   - database-config.yaml

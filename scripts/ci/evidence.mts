@@ -226,7 +226,20 @@ function runAffectedNodeEvidence(
 	const builds = input.scope.tasks.filter(
 		(task) => !(task.task === "build:check" && input.skipBuildPackages?.has(task.package)),
 	);
-	runTasks("affected-node", BUILD_TASKS, runner, options, { scope: builds });
+	// build:check also reaches native package builds through Turbo dependencies.
+	const nativePackages = new Set(
+		input.scope.tasks
+			.filter(({ task }) => NATIVE_TASKS.some((name) => name === task))
+			.map(({ package: name }) => name),
+	);
+	const hasNativeBuild = builds.some(
+		({ package: name, task }) =>
+			BUILD_TASKS.some((build) => build === task) && nativePackages.has(name),
+	);
+	runTasks("affected-node", BUILD_TASKS, runner, options, {
+		scope: builds,
+		...(hasNativeBuild ? { shell: "ci-go" } : {}),
+	});
 }
 
 function runAffectedImageEvidence(

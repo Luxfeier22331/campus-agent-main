@@ -1,4 +1,5 @@
 import { createMigration } from "./history.ts";
+import { maintenance } from "./maintenance.ts";
 import {
 	inspectCampusAgentSchema,
 	MEMORY_MIGRATIONS_FOLDER,
@@ -14,7 +15,9 @@ if (target !== "campus-agent" && target !== "memory") {
 }
 const folder = target === "memory" ? MEMORY_MIGRATIONS_FOLDER : MIGRATIONS_FOLDER;
 const [command, ...args] = raw;
-if (command === "new" && args.length === 1 && args[0] !== undefined) {
+if (command === "maintenance" && args.length === 1) {
+	await maintenance(args[0]!);
+} else if (command === "new" && args.length === 1 && args[0] !== undefined) {
 	try {
 		console.log(createMigration(folder, args[0]));
 	} catch (error) {
@@ -23,7 +26,7 @@ if (command === "new" && args.length === 1 && args[0] !== undefined) {
 	}
 } else if ((command !== "migrate" && command !== "status") || args.length > 0) {
 	console.error(
-		"Usage: campus-agent-schema <migrate|status|new name> [--target campus-agent|memory]",
+		"Usage: campus-agent-schema <migrate|status|maintenance phase|new name> [--target campus-agent|memory]",
 	);
 	process.exitCode = 1;
 } else {
