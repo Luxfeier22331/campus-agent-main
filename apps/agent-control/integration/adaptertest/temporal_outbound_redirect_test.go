@@ -28,9 +28,9 @@ func TestWriteChatProductFinalizationDoesNotFollowRedirect(t *testing.T) {
 	defer redirect.Close()
 
 	server := newAdapterForTest(config.Config{
-		ProductCallbackBaseURL:      redirect.URL,
-		AppAPIExecutionSharedSecret: "callback-secret",
-		ProductCallbackTimeoutMS:    1000,
+		ProductCallbackBaseURL:     redirect.URL,
+		AppAPIInternalSharedSecret: "callback-secret",
+		ProductCallbackTimeoutMS:   1000,
 	})
 	err := server.WriteChatProductFinalization(
 		context.Background(),

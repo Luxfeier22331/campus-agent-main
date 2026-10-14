@@ -1,6 +1,6 @@
 export type AppApiEnvironment = "development" | "test" | "staging" | "production";
 export const APP_API_NAME = "campus-agent-app-api";
-export const EXECUTION_CONTROL_TIMEOUT_MS = 95_000;
+export const AGENT_CONTROL_TIMEOUT_MS = 95_000;
 export const PROFILE_MEMORY_COMMAND_TIMEOUT_MS = 120_000;
 
 export interface HyperdriveBindingLike {
@@ -42,7 +42,7 @@ export interface Env {
 	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
 	OBJECT_STORE_DERIVED_READ_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_READ_SECRET_KEY?: string;
-	APP_API_EXECUTION_SHARED_SECRET?: string;
+	APP_API_INTERNAL_SHARED_SECRET?: string;
 
 	OPS_WEB_INTERNAL_TOKEN?: string;
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET?: string;

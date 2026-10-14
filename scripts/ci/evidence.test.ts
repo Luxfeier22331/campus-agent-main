@@ -216,7 +216,7 @@ test("records completed commands before a failure without running later commands
 					{
 						base: BASE,
 						head: HEAD,
-						profiles: ["ragas", "infra"],
+						profiles: ["inspect", "infra"],
 						repositoryRoot: REPOSITORY_ROOT,
 						eventFile: file,
 					},
@@ -465,7 +465,7 @@ test("runs fixed profiles without consulting Git", () => {
 	const calls: string[] = [];
 	runCandidateEvidence(
 		{
-			profiles: ["go", "ragas", "ops-web-postgres", "infra"],
+			profiles: ["go", "inspect", "ops-web-postgres", "infra"],
 			repositoryRoot: "/repository",
 		},
 		(command, args) => {
@@ -482,7 +482,7 @@ test("runs fixed profiles without consulting Git", () => {
 		"pnpm exec turbo run native:format native:lint native:vet native:test --dry-run=json",
 		"node --experimental-strip-types scripts/ci/turbo.mts fixture#native:format fixture#native:lint fixture#native:test fixture#native:vet --concurrency=1 --summarize",
 		"node --experimental-strip-types scripts/ci/turbo.mts typecheck test --filter=eval-langfuse --summarize",
-		"node --experimental-strip-types scripts/ci/turbo.mts test:eval --filter=ragas-runner --concurrency=1 --summarize",
+		"node --experimental-strip-types scripts/ci/turbo.mts test:eval --filter=inspect-eval --concurrency=1 --summarize",
 		"node --experimental-strip-types scripts/ci/turbo.mts test:database-integration --filter=ops-web --summarize",
 		"scripts/infra/validate.sh",
 	]);
@@ -501,7 +501,7 @@ test("stops on the first failed profile command", () => {
 				{
 					base: BASE,
 					head: HEAD,
-					profiles: ["infra", "ragas"],
+					profiles: ["infra", "inspect"],
 					repositoryRoot: "/repository",
 				},
 				() => ({ status: 2 }),
@@ -518,7 +518,7 @@ test("workspace tests select each leaf once and preserve resource/tooling contex
 		{ package: "web", task: "test:worker", command: "vitest" },
 		{ package: "web", task: "source", command: "<NONEXISTENT>" },
 		{ package: "agent-control", task: "native:test", command: "go test" },
-		{ package: "ragas-runner", task: "test:eval", command: "uv run" },
+		{ package: "inspect-eval", task: "test:eval", command: "uv run" },
 		{ package: "@campus-agent/tooling", task: "test:ci", command: "tsx" },
 	];
 	runWorkspaceCommand(
@@ -549,7 +549,7 @@ test("workspace tests select each leaf once and preserve resource/tooling contex
 	assert.deepEqual(executed.sort(), [
 		"@campus-agent/tooling#test:ci",
 		"agent-control#native:test",
-		"ragas-runner#test:eval",
+		"inspect-eval#test:eval",
 		"web#test:unit",
 		"web#test:worker",
 	]);

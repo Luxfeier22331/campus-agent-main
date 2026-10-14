@@ -1,6 +1,6 @@
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversation, ChatConversationStore } from "../../chat";
-import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../../integration";
+import type { AgentControlRuntimeClient, ToolExecutionResponse } from "../../integration";
 import type { RuntimeRunPhase, RuntimeRunProductPhase } from "../../runtime-run";
 import type {
 	AcceptedChatCommandStore,
@@ -140,7 +140,7 @@ export interface ChatCommandServiceDependencies {
 	safetyIdentifierHmacSecret?: string;
 	observabilityStore: ChatCommandObservabilityStore;
 	durableEventPolling?: DurableEventPollingPolicy;
-	executionRuntime?: ExecutionControlRuntimeClient;
+	executionRuntime?: AgentControlRuntimeClient;
 }
 
 export interface ValidatedChatCommandPayload {

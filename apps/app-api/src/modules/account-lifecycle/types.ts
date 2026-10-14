@@ -6,7 +6,7 @@ export interface AccountDeletionReceipt {
 	status: "deleting";
 }
 
-export interface AccountDeletionExecutionController {
+export interface AccountDeletionAgentController {
 	beginOwnerDeletion(input: { ownerUserId: string }): Promise<{
 		activeRunCount: number;
 		state: "draining" | "deleted";
@@ -67,7 +67,7 @@ export interface AccountLifecycleServiceDependencies {
 		eraseForAccountDeletion(input: PendingAccountDeletion): Promise<boolean>;
 	};
 	memoryController: { finalizeOwnerDeletion(input: { ownerUserId: string }): Promise<void> };
-	executionController: AccountDeletionExecutionController;
+	agentController: AccountDeletionAgentController;
 	profileMemoryService: Pick<ProfileMemoryService, "dispatchPending" | "eraseForAccountDeletion">;
 	removeAuthUser: (userId: string) => Promise<void>;
 	safetyIdentifierForUser: (userId: string) => string | null;

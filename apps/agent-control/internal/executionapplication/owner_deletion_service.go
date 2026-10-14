@@ -41,7 +41,7 @@ func (s *OwnerDeletionService) Begin(ctx context.Context, ownerUserID string) (e
 	return s.options.Store.BeginOwnerDeletion(ctx, ownerUserID, time.Now().UTC().Truncate(time.Microsecond))
 }
 
-// Finalize is the execution-control participant in App API's account deletion.
+// Finalize is the agent-control participant in App API's account deletion.
 // App API coordinates the independent Memory deletion participant.
 func (s *OwnerDeletionService) Finalize(ctx context.Context, ownerUserID string) (execution.OwnerDeletionStatus, error) {
 	status, err := s.Begin(ctx, ownerUserID)

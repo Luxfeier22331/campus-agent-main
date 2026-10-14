@@ -20,6 +20,6 @@ status: active
 - [campus-map-authoring.md](./campus-map-authoring.md)：校园地图点位与路线编写；
 - [data-recovery.md](./data-recovery.md)：数据备份与恢复；
 - [local-verification.md](./local-verification.md)：本地验证；
-- [ragas.md](./ragas.md)：Ragas 评测；
+- [inspect.md](./inspect.md)：Inspect 评测；
 - [runner-buildkit.md](./runner-buildkit.md)：CI runner BuildKit；
 - [safety.md](./safety.md)：产品安全排查。

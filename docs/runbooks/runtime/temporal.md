@@ -13,24 +13,24 @@ value、namespace、endpoint 和资源尺寸由环境仓库拥有，不在本文
 本文不定义应用工作流语义：在线回答见 [持久 Agent 运行时](../../architecture/system/durable-runtime.md)，个人记忆见
 [个人记忆](../../architecture/system/memory-plane.md)。平台运维不得改变这些工作流的业务状态。
 
-agent-runtime-worker 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
+agent-runtime-worker 在一个标准 Deployment 中运行 Workflow、model Activity 和 tool Activity 三类
 poller。副本数与滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套
 自动扩缩状态。通知采集到 RAG 刷新的编排由 `notice-pipeline-worker` 在独立的 `notice-pipeline` 与
 `notice-artifacts` 队列执行，不占用 agent-runtime-worker 的 poller，见[采集与离线数据运维](../ingestion/ingestion.md)。
 
-本地 Temporal 测试属于 integration 验证，不是完整产品 E2E。它使用 Temporal Dev Server、测试 worker
-和测试 projection，不连接 staging、真实 Agent Runtime 或 PostgreSQL。运行入口由 agent-control
-package script 管理，禁止使用已废弃的混合 `temporal_e2e` build tag。
+本地 Temporal 集成测试由 agent-runtime 拥有，使用测试 Temporal 环境验证 TypeScript Workflow，
+不连接 staging 或真实模型：
 
-`test:temporal-integration` 按 package 复用 Dev Server，按测试启动 worker；日志分别标记 server、worker、
-workflow、history replay 和 cleanup。测试失败或超时由 `integration/temporaltest` 关闭 worker、client
-和 server，不依赖 `pnpm dev`。`test:temporal-replay` 只验证已提交 history，不启动外部服务。
+```bash
+pnpm --dir apps/agent-runtime test:temporal-integration
+pnpm --dir apps/agent-control test:database-integration
+pnpm --dir apps/memory-service test:database-integration
+```
 
-`integration/temporal` 用生产 30 秒 heartbeat 验证 activity timeout/retry，用缩短的测试执行预算验证
-workflow 硬超时，并确认 finalization 后 memory append 作为独立 workflow 运行，不阻塞已完成回答。测试不改变生产的
-900 秒总预算。stream 的三类 completed 失败验证位于独立的 `integration/stream`，当前已发布的 delta
-在失败后仍保留；receipt 的完整结果恢复、冲突和随父 run 删除的行为由 PostgreSQL integration 验证。
-这些测试记录 #401、#414、#415、#416 的当前边界，不表示相关产品语义已修改。
+Control 与 Memory 的数据库集成分别验证各自持久状态；具体依赖与覆盖见
+[Agent Runtime](../../../apps/agent-runtime/README.md)、
+[Control](../../../apps/agent-control/README.md)和[Memory](../../../apps/memory-service/README.md)。
+旧 Go Agent Workflow 的 replay、stream 与 Temporal 集成入口已退役。
 
 ## 所有权
 
@@ -63,15 +63,14 @@ agent-control 网关为新建在线回答固定设置 900 秒的 Temporal `Workf
 1. 核对开放 workflow、backlog、Activity error 与产品终态后完成变更。
 
 不得直接 patch Deployment，也不得用普通滚动更新交付无法 replay 已有 history 的 workflow code。
-删除 workflow command、timer 或 activity 时，先用 SDK version marker 保留旧 history 分支，并继续
-注册旧 history 仍会调度的 activity。只有旧 poller 退出前启动的相关开放 workflow 全部终止后，后续
-发布才能删除旧分支和 activity；固定 version marker 继续保留，不能复用其 change ID。
+当前不支持旧 Go history；不兼容的 Workflow 变更采用暂停准入、排空旧运行后配对更新
+Control 与 Runtime 的发布方式。不能把已退役的 Workflow 或 Activity 重新注册为默认兼容路径。
 
 ## Replanner 决策收敛发布
 
 `task_replan.v3` 删除旧 `insufficient` 决策及综合回答的模式字段；不支持跨版本恢复旧运行。
 发布采用维护窗口排空：
-先暂停新在线 run 准入，保持旧 agent-control 与 agent-runtime 运行，等待已接受的在线 run、
+先暂停新在线 run 准入，保持当前 agent-control 与 agent-runtime 运行，等待已接受的在线 run、
 待投递启动命令和开放的在线回答 workflow 收敛；旧 poller 退出后协调升级两个服务，再恢复准入。
 排空未完成不得发布该版本，不添加 alias、兼容 worker 或 version marker。
 历史记录不删除；需要离线回放旧 history 时使用对应旧版本。
@@ -92,4 +91,4 @@ kubectl get pod
 
 AgentWorkflow 的三个 poller 由 agent-runtime-worker 拥有，Memory 的 Workflow 与 Activity 由 memory-worker 拥有。
 Control 只启动、取消和查询 Workflow。旧 Go Worker 与 HTTP Runtime 已从生产 base 移除，不支持旧 Go history。
-本次保持固定副本，不启用新的自动扩缩容。已有 Memory 数据库、Hindsight bank 与 owner salt 不变。
+副本数及伸缩策略以各 owner 的部署配置为准。Memory 数据库、Hindsight bank 与 owner salt 由 Memory 所有者维护。

@@ -31,7 +31,7 @@ const resolver = createGeminiSourceResolver();
 const telemetry = startAgentRuntimeTelemetry();
 const activities = createAgentActivities({
 	control,
-	catalog: loadToolCatalog(resolve(root, "configs/runtime/tools.v7.json")),
+	catalog: loadToolCatalog(resolve(root, "configs/runtime/tools.v8.json")),
 	domains: {
 		searchUrl: required("RETRIEVAL_BASE_URL"),
 		searchToken: required("RETRIEVAL_INTERNAL_TOKEN"),

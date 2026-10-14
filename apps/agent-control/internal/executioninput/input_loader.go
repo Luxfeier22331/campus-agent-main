@@ -29,7 +29,7 @@ type appAPIInputLoader struct {
 
 func NewInputLoader(cfg config.Config) (execution.InputLoader, error) {
 	baseURL := strings.TrimRight(strings.TrimSpace(cfg.ProductCallbackBaseURL), "/")
-	sharedSecret := strings.TrimSpace(cfg.AppAPIExecutionSharedSecret)
+	sharedSecret := strings.TrimSpace(cfg.AppAPIInternalSharedSecret)
 	if baseURL == "" || sharedSecret == "" {
 		return nil, errors.New("app-api execution input endpoint is not configured")
 	}
@@ -117,7 +117,7 @@ func (loader *appAPIInputLoader) do(
 	ctx context.Context,
 	requestID string,
 ) (*http.Response, error) {
-	requestURL := loader.baseURL + "/api/internal/execution/requests/" + url.PathEscape(requestID) + "/input"
+	requestURL := loader.baseURL + "/api/internal/agent/runs/" + url.PathEscape(requestID) + "/input"
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return nil, err

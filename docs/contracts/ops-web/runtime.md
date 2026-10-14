@@ -125,8 +125,8 @@ Unicode code point 和 UTF-8 byte；零值与未记录不同。原因目录、�
 历史缺失值显示 `not_recorded`；非法结构或不支持的版本显示 `invalid`；有效值为 `recorded`。
 可选诊断损坏不替换原失败，不从错误文案猜测历史原因。
 
-Runtime 在 HTTP、SSE 和失败结果中传递 `reason/citation`，execution-control 存入现有步骤、尝试和
-操作收据；返回 Temporal workflow 的决策结果不包含这两个诊断字段。终态收口仅恢复对应失败步骤的
+Runtime 通过 typed Control API 的失败结果传递 `reason/citation`，agent-control 保存步骤与尝试
+诊断；模型 receipt 的范围是单次模型调用，不是整个 operation。终态收口仅恢复对应失败步骤的
 诊断，内部失败事件包含 `step_id`，Ops 通过 `ops_terminal_failures` 的固定投影读取。
 恢复合成将原错误包装为 `answer_synthesis_failed` 时，终态 `code` 保留这一分类，`sourceCode`
 保存原步骤错误码，原因和引用事实仍来自对应的失败 `answer.synthesize` 步骤。其他步骤、成功步骤或
@@ -134,8 +134,8 @@ Runtime 在 HTTP、SSE 和失败结果中传递 `reason/citation`，execution-co
 引用原因时，使用 `failureCode=answer_synthesis_failed` 配合原因或校验阶段。
 本诊断不复制模型正文、搜索词、来源 URL 或认证信息，随原运行投影保留和删除。
 
-发布时先应用视图迁移并发布 execution-control、Ops 读取方，再发布 Runtime 生产方；旧 Go 严格解码器
-不接受新增字段。新增诊断只能解释新记录，不回填历史根因，也不证明原引用失败已修复。
+Runtime 与 Control 使用共享 JSON Schema，字段变更须协调生产方、存储和 Ops 读取方。
+新增诊断只能解释新记录，不回填历史根因，也不证明原引用失败已修复。
 
 ### 其他运行诊断
 
@@ -162,12 +162,13 @@ locator 或 trace card。
 
 - `failure`：当前失败操作的结构化诊断事实，包括 `code`、`operation`、可选 `detail`、
   `httpStatus` 和 `invocationId`。存在多个失败阶段时，按阶段 `updatedAt`、`startedAt`、`stepId` 的降序确定当前失败阶段；
-- `terminalReason`：execution-control 保存的粗粒度运行终态；
+- `terminalReason`：agent-control 保存的粗粒度运行终态；
 - `terminalFailure`：可空的终态失败，字段与 `failure` 相同。代码来自 `run.failed`，同代码的内部
   activity failure 可提供操作与诊断摘要；仅通过受限视图读取，不从阶段失败推断回答失败。
-  已完成回答后的 memory append 失败只出现在阶段失败，不产生此字段；
+  已完成回答后的 Memory append 失败不产生此字段；新路径的追加进度属于独立 Memory 服务，
+  不再创建 `memory.append` 阶段；
 - `failCloseReason`：协调器执行失败收口的原因；
-- `releases`：本次运行实际记录的 execution-control 与 agent-runtime release，二者只用于诊断；
+- `releases`：本次运行实际记录的 agent-control 与 agent-runtime release，二者只用于诊断；
 - `model`：模型与 provider、模型请求数及汇总 token；
 - `stages[]`：阶段类型、状态、工具名和调用 ID（适用时）、起止时间、耗时和有界失败类型；耗时优先
   使用同一 `request_id`、`step_id`、`activity_attempt` 的 attempt 投影 `duration_ms`，缺失时才由阶段
@@ -175,6 +176,10 @@ locator 或 trace card。
 - `campusSearch`：Campus Search 专用诊断，包含 `diagnosticState`、`reason` 与 `calls[]`。每次调用展示
   invocation、workflow step、activity attempt、查询、最后观察阶段、阶段时间、排队和请求往返耗时、
   失败码与 HTTP 状态，以及服务端检索快照。这些 ID 只用于 Ops 关联，不授予操作运行的权限。
+
+当前 Runtime 不转发 Search 的完整诊断快照与阶段时间，Control HTTP 观察类型也不序列化这些字段。
+以下是 Ops 读取已有诊断记录时的字段合同，不保证新会话具有完整记录；缺口见
+[Campus Search 合同](../campus-search.md)。
 
 Campus Search 的 `diagnosticState` 为 `COMPLETE`、`PARTIAL`、`NO_DATA` 或 `UNAVAILABLE`；
 页面分别显示诊断完整、部分可用、无数据、不可用。这是诊断完整性，不表示数据新鲜度、检索成功或
@@ -190,7 +195,7 @@ selection 耗时、召回与去重后候选数、重排输入与保留数、通�
 返回模型与排除数。只有对应阶段已观察完成时，
 该阶段统计才有含义。最多 24 个候选记录来源、标题、章节、融合分数、重排分数、两次排序名次及
 筛选原因（低于重排阈值、同通知已有代表块、返回数量限制、正文预算）。候选保存 noticeId 或
-documentId；同一通知最多返回重排第一块，文档不受影响。返回项保存工具已返回的正文，总计最多 4000
+documentId；当前 Search 保留同一通知的互补片段，不按通知来源只保留一块。返回项保存工具已返回的正文，总计最多 4000
 字符；排除项只有最多 160 字符预览。候选的 `cited` 在 finalization 成功后为实际引用与否，未完成或
 引用投影缺失时为 `null`。这里只反映本次工具的候选与选择，不提供没有标注集支持的 recall / precision。
 
@@ -221,7 +226,7 @@ metadata_only 说明观察到搜索但没有支持段，不能证明无匹配；
 只供现有 Ops 用户定位来源丢失；移除该功能时同时删除 producer、字段与界面，不另建管道。
 历史运行没有某个诊断字段时返回 `null`，没有持久阶段时返回空数组，不从产品错误、终态、日志或外部
 trace 推导根因。
-Ops Web 只以 `requestId` 聚合 `chat.turn_dispatches`、产品消息以及 execution-control 的固定净化列；
+Ops Web 只以 `requestId` 聚合 `chat.turn_dispatches`、产品消息以及 agent-control 的固定净化列；
 不向浏览器暴露 Temporal workflow/run 或 provider response ID；Campus Search 诊断专用的调用、步骤、
 尝试编号和 result ref 仅在上述 Ops 字段返回。
 

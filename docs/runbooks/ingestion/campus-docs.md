@@ -97,7 +97,7 @@ pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
 
 该命令从当前 worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 和 `EMBEDDING_API_KEY`，固定使用
 `Qwen3-Embedding-4B`，并根据规范化 endpoint 和固定模型合同计算 Model Target hash。它只读写当前
-worktree 的 `var/campus-docs/rag/`，不访问 Model Config、execution-control、Ops Web、PostgreSQL、
+worktree 的 `var/campus-docs/rag/`，不访问 Model Config、agent-control、Ops Web、PostgreSQL、
 Qdrant 或集群对象存储。它与线上 Embedding Job 共用制品生成实现；差别只有本地连接和文件 Store。
 
 ## 本地 Notice Chunk 与 Embedding 构建
@@ -273,7 +273,7 @@ kubectl -n <namespace> create job \
 `source_digest` 和 `source_projection_sha256`。`source_digest` 只用于诊断，Chunk Set 身份由有效当前
 文档投影、分块定义和实际 Chunk 数据形成。下一阶段显式使用日志返回的 `chunk_set`。
 
-该 Job 只访问来源、reader 和 derived bucket，不访问 execution-control、PostgreSQL、Qdrant 或
+该 Job 只访问来源、reader 和 derived bucket，不访问 agent-control、PostgreSQL、Qdrant 或
 embedding provider。
 
 ### 2. 构建 Docs Embedding Set
@@ -339,7 +339,7 @@ campus_docs_<sha256>
 
 Publisher 写入并完整校验 Qdrant points 后，原子替换 PostgreSQL `campus_docs_serving.current_index`。成功
 JSON 包含 `collection`、`point_count` 和
-`no_op`。Publisher 是该 current pointer 的唯一写入者，复用 `execution_control` 数据库连接，不创建
+`no_op`。Publisher 是该 current pointer 的唯一写入者，复用 `agent_control` 数据库连接，不创建
 独立 role、DSN 或数据库 Secret。
 
 PostgreSQL advisory lock 只保护发布阶段的当前绑定替换。同一时刻已有 Publisher 时，新 Publisher Job
@@ -392,8 +392,8 @@ collection；已发布的当前 collection 由 `campus_search` 按需消费。
 
 ## Qdrant 清理
 
-旧 collection 不在激活时自动删除，保留它作为回滚候选。在线 execution-control 在每次 `campus_search`
-调用时读取当前绑定，再查询所选 collection；
+旧 collection 不在激活时自动删除，保留它作为回滚候选。在线 agent-runtime 每次调用 `campus_search` 时，由 Campus Search
+读取当前绑定并查询所选 collection；
 运行准入不会冻结它。切换绑定不会迁移已经开始的查询。人工删除前必须：
 
 1. 从 `campus_docs_serving.current_index` 读取当前 collection，永不删除当前值；

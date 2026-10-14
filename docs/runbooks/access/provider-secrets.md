@@ -71,11 +71,11 @@ Secret。Model Config 没有需要轮换的内部调用 token。
 
 - 不在 issue、PR、日志、截图、fixture、工作流载荷或浏览器响应中记录原始密钥；
 - 不让 consumer 从通用环境变量直接获得在线 provider API key；
-- 不恢复 execution-control admin/snapshot listener 或数据库 ownership；
+- 不恢复 agent-control admin/snapshot listener 或数据库 ownership；
 - 不把 Hindsight、eval provider 或未来假设性路由放入 Model Config；
 - 不把渲染成功或源码合并描述为环境迁移已经完成。
 
 ## 相关文档
 
 Hindsight 模型配置见 [Hindsight 个人记忆运维](../runtime/hindsight.md)，评测模型配置见
-[Ragas 评测](../ragas.md)。
+[Inspect 评测](../inspect.md)。

@@ -6,15 +6,15 @@ import { z } from "zod";
 const schemaRefPattern =
 	/^https:\/\/muc\.wiki\/campus-agent\/schemas\/[A-Za-z0-9.-]+\.schema\.json#\/\$defs\/[A-Za-z0-9_]+$/;
 const exposureSchema = z.enum(["model_visible", "closed"]);
-const executionControlInternalQueryEndpointSchema = z
+const agentControlInternalQueryEndpointSchema = z
 	.string()
 	.min(1)
-	.refine(isCanonicalExecutionControlInternalEndpoint, {
+	.refine(isCanonicalAgentControlInternalEndpoint, {
 		message: "endpoint must be a canonical /internal/ path",
 	});
-const executionControlInternalQueryHandlerSchema = z.object({
-	type: z.literal("execution_control_internal_query"),
-	endpoint: executionControlInternalQueryEndpointSchema,
+const agentControlInternalQueryHandlerSchema = z.object({
+	type: z.literal("agent_control_internal_query"),
+	endpoint: agentControlInternalQueryEndpointSchema,
 });
 const rawToolSchema = z.object({
 	name: z.string().min(1),
@@ -24,24 +24,24 @@ const rawToolSchema = z.object({
 	requires_approval: z.boolean(),
 	payload_schema_ref: z.string().regex(schemaRefPattern),
 	result_schema_ref: z.string().regex(schemaRefPattern),
-	handler: executionControlInternalQueryHandlerSchema,
+	handler: agentControlInternalQueryHandlerSchema,
 	timeout_ms: z.number().int().positive(),
 	result_projection_policy: z.literal("bounded_json"),
 });
 const rawCatalogSchema = z.object({
-	schema_version: z.literal("tool-registry-v7"),
+	schema_version: z.literal("tool-registry-v8"),
 	registry_version: z.string().min(1),
 	tools: z.array(rawToolSchema).min(1),
 });
 
 export type ToolExposure = z.infer<typeof exposureSchema>;
 
-export interface ExecutionControlInternalQueryHandler {
-	type: "execution_control_internal_query";
+export interface AgentControlInternalQueryHandler {
+	type: "agent_control_internal_query";
 	endpoint: string;
 }
 
-export type ToolCatalogHandler = ExecutionControlInternalQueryHandler;
+export type ToolCatalogHandler = AgentControlInternalQueryHandler;
 
 export interface ToolCatalogEntry {
 	name: string;
@@ -58,7 +58,7 @@ export interface ToolCatalogEntry {
 }
 
 export interface ToolCatalog {
-	schemaVersion: "tool-registry-v7";
+	schemaVersion: "tool-registry-v8";
 	registryVersion: string;
 	contractFingerprint: ToolContractFingerprint;
 	tools: ToolCatalogEntry[];
@@ -85,7 +85,7 @@ export interface JsonObjectSchema {
 	required: string[];
 }
 
-export function isCanonicalExecutionControlInternalEndpoint(value: string): boolean {
+export function isCanonicalAgentControlInternalEndpoint(value: string): boolean {
 	const endpoint = value.trim();
 	if (
 		endpoint !== value ||
@@ -98,8 +98,8 @@ export function isCanonicalExecutionControlInternalEndpoint(value: string): bool
 		return false;
 	}
 	try {
-		const parsed = new URL(endpoint, "http://execution-control.invalid");
-		return parsed.origin === "http://execution-control.invalid" && parsed.pathname === endpoint;
+		const parsed = new URL(endpoint, "http://agent-control.invalid");
+		return parsed.origin === "http://agent-control.invalid" && parsed.pathname === endpoint;
 	} catch {
 		return false;
 	}

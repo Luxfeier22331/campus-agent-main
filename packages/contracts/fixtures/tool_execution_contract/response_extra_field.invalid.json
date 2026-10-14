@@ -9,5 +9,5 @@
 	},
 	"result": null,
 	"error": null,
-	"legacy_target": "execution-control-core"
+	"legacy_target": "agent-control-core"
 }

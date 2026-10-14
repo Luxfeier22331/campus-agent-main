@@ -598,7 +598,7 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 	await expect(execution).toContainText("320");
 	await expect(execution).toContainText("400");
 	await expect(execution).toContainText("agent-runtime@899f251");
-	await expect(execution).toContainText("execution-control@a77a046");
+	await expect(execution).toContainText("agent-control@a77a046");
 	await expect(page.getByRole("link", { name: "系统记录" })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "加载错误记录" })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /应用日志/u })).toHaveCount(0);

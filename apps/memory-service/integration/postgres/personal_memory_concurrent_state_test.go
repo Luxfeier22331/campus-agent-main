@@ -14,7 +14,7 @@ import (
 
 // testPersonalMemoryConcurrentStateStore covers the multi-instance races the
 // sequential state store tests cannot observe. The mutual exclusion point for
-// concurrent execution-control instances is the fence row lock taken by every
+// concurrent agent-control instances is the fence row lock taken by every
 // store method, so each scenario asserts the invariant that must hold for every
 // interleaving instead of a fixed ordering.
 func testPersonalMemoryConcurrentStateStore(t *testing.T, harness *postgresHarness) {

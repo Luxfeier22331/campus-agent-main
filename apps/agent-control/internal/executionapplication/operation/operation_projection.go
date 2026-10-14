@@ -18,7 +18,7 @@ import (
 
 // streamModelAnswers reports whether solve/execute_step operations should stream
 // model answer deltas to the browser. It is gated by the answer-transport switch
-// (EXECUTION_CONTROL_ANSWER_TRANSPORT) and defaults to buffered while the
+// (AGENT_CONTROL_ANSWER_TRANSPORT) and defaults to buffered while the
 // provider gateway rejects streaming requests that declare function tools.
 func (s *RuntimeInputService) streamModelAnswers() bool {
 	return s.AnswerTransport == "stream"
@@ -276,15 +276,15 @@ func WorkflowOperationResultPayload(
 	runtimeRelease string,
 ) (map[string]any, error) {
 	payload := map[string]any{
-		"activity_attempt":          activityAttempt,
-		"agent_runtime_release":     strings.TrimSpace(output.RuntimeRelease),
-		"execution_control_release": strings.TrimSpace(runtimeRelease),
-		"operation":                 string(request.Operation),
-		"solve_outcome":             output.SolveOutcome,
-		"provider_response_id":      output.ProviderResponseID,
-		"stage_timing":              execution.CloneAnyMapFromValue(output.StageTiming),
-		"status":                    output.Status,
-		"terminal_reason":           output.TerminalReason,
+		"activity_attempt":      activityAttempt,
+		"agent_runtime_release": strings.TrimSpace(output.RuntimeRelease),
+		"agent_control_release": strings.TrimSpace(runtimeRelease),
+		"operation":             string(request.Operation),
+		"solve_outcome":         output.SolveOutcome,
+		"provider_response_id":  output.ProviderResponseID,
+		"stage_timing":          execution.CloneAnyMapFromValue(output.StageTiming),
+		"status":                output.Status,
+		"terminal_reason":       output.TerminalReason,
 		"usage": map[string]any{
 			"model_request_count": output.Usage.ModelRequestCount,
 			"input_tokens":        output.Usage.InputTokens,

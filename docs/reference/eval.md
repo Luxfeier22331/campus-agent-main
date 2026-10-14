@@ -1,116 +1,64 @@
 ---
 doc_type: reference
-owner_boundary: packages/eval-langfuse
+owner_boundary: packages/inspect-eval
 status: active
 ---
 
 # 评测
 
-## 当前形态
+## 所有权
 
-- `packages/eval-langfuse` 负责 Agent 用例解析、产品路径评测、Ragas 输入适配、可选 score 发布和
-  在线 trace 校验；
-- `packages/ragas-runner` 是唯一 Python 包，只调用 Ragas 官方指标；
-- 离线 Ragas 直接消费本地 JSON，不连接 Langfuse，不读取 trace，不选择数据集；
-- Langfuse 只承载在线 trace 和调用方按需发布的 score，不是评测输入来源；
-- 仓库不维护 dataset 同步、第二套报告、评测数据库或 release gate 系统。
+`packages/inspect-eval` 拥有用例加载、Inspect task/solver、确定性和语义 scorer、
+原生评测日志。Inspect 只安排测试轮次，不执行生产 Agent 的内部阶段，不代理模型请求或工具调用。
+Control/Runtime 负责未来的执行层评测入口；Runtime、Control、Memory、Search 继续拥有各自执行事实。
 
-本地 `test` 和 `test:eval` 只验证适配器与合同，不调用外部模型，也不证明模型或索引质量。
+Ragas runner、旧评分命令和 Langfuse score 发布已退役，旧分数不迁移。`packages/eval-langfuse`
+只保留在线 trace 校验；Langfuse 不是评测输入或分数存储。Docs/Notice 的索引制品专项评测继续由所属
+Job 维护，不因 Agent 评分框架迁移而改变。
 
-## 权威来源
+## 输入与输出
 
-评测命令消费调用方显式提供的输入。需要长期复用的输入可以来自仓库文件或私有对象存储，一次性输入
-也可以只在本地提供。当前仓库 Agent 用例位于
-`packages/eval-langfuse/assets/agent/routing/cases.v1.json`。Langfuse 上的 trace、score 和反馈不能
-自动改写这些输入。
-`agent-eval` 通过真实 App API 执行这些用例，并从 execution-control 的受认证内部接口读取
-`agent_runtime_eval_projection.v5` 中的答案、检索上下文、引用上下文和 `tool_trajectory.v4`。Campus Docs 上下文只
-来自真实 `campus_search` tool result 的闭包；Langfuse trace 只提供相关联的 SDK 和模型观测。
+输入由调用方显式提供，不从普通 trace 反查正文。支持已有 `agent_product_eval_result.v3` 的原始产品
+结果和 `agent_eval_sessions.v1` 会话结果；旧目标轮产物缺少 setup 回答时，完整会话维度未评分。
+当前只读取显式保存的执行结果；Control/Runtime 直接执行入口尚未接入。
+用例格式见[评测用例](./eval-cases.md)。
 
-线上 trace 只保存受控关联、模型/工具名称、用量、耗时和有限状态，不保存 answer、prompt、对话、
-retrieval 正文、工具参数或 provider 原始响应。因此 Ragas 不从普通 trace 反查
-正文。
+原始输入、对话和阶段材料保存在 Inspect sample 输入、store 和 transcript；metadata 用于标识和版本。
+`.eval` 是唯一离线结果；报告命令只从该日志读取。日志可能包含评测正文，按调用方的数据边界保存，
+不自动上传、归档或发布到 Langfuse，不写产品数据库。重新评分只消费保存的数据，不重跑产品。
 
-## Ragas 输入合同
+## 分层评分
 
-样本批次使用 `ragas_sample_batch.v3`：
+| 层级 | 判断 | 缺口处理 |
+| --- | --- | --- |
+| 会话 | 用户目标、纠正和跨轮约束 | 没有完整轮次时未评分 |
+| 轮次 | 答案相关性、证据、引用、请求时间 | 缺少所需材料时未评分 |
+| 阶段/尝试 | 完成状态、失败码、决定与证据保留 | 执行状态可判定；缺少实际输入输出时语义未评分 |
+| 工具 | 调用次数、顺序、参数、结果与查询相关性 | 只评价实际保存的字段 |
+| 耗时 | 总耗时、工具及阶段时长 | 目标来自 case；嵌套耗时不相加 |
 
-```json
-{
-  "schema_version": "ragas_sample_batch.v3",
-  "items": [
-    {
-      "case_id": "library-hours",
-      "user_input": "图书馆开放时间是什么？",
-      "response": "图书馆开放时间为 08:00 到 22:00。",
-      "retrieved_contexts": ["图书馆开放时间为 08:00-22:00。"],
-      "cited_contexts": ["图书馆开放时间为 08:00-22:00。"],
-      "reference": "图书馆开放时间为 08:00-22:00。",
-      "metadata": {"surface_key": "app-api.chat"}
-    }
-  ]
-}
-```
+确定性评分检查显式预期和执行事实；语义评分需要显式 grader。报告区分 `scored_pass`、`scored_fail`、
+`unscored_missing_input`、`not_applicable` 和 `execution_error`，同时展示覆盖与失败定位。
+最终回答成功不抹掉失败的中间尝试；裁判解释不是已经验证的根因。
 
-单条样本只包含 `case_id`、`user_input`、`response`、`retrieved_contexts`、`cited_contexts`、
-可选 `reference` 和标量 `metadata`。`retrieved_contexts` 包含全部检索候选，`cited_contexts`
-只包含答案实际引用的候选。不得放入 trace、observation、dataset run、context ID、凭据、本地路径或
-原始正文之外的运行 dump。任一上下文数组为空仍是有效样本，不能因此丢弃整批评测。
+## 当前覆盖
 
-评分结果使用 `ragas_score_batch.v3`，只保留每个 `case_id` 的 `scores` 和实际评分错误，不携带
-产品请求或 Langfuse 身份。缺少 reference 时不运行 `context_precision` 和 `context_recall`，不伪造零分。
+生产 `/steps` 已有 steps、attempts、results；新评测读取保留这些身份和受控字段，不只消费最后成功
+attempt 的聚合答案。Search 查询和结果只使用已保存的投影。阶段输入正文、完整计划变化、Memory
+工具正文和 Search 内部阶段尚未完整导出；明确标记缺失，不读取临时恢复载荷，也不承诺其长期可用。
 
-`faithfulness` 消费 `cited_contexts`，`context_precision` 和 `context_recall` 消费
-`retrieved_contexts`，`answer_relevancy` 不消费上下文。这样答案忠实度只检查实际采用的依据，检索
-质量仍对全部候选负责。默认 Ragas 指标为：
+离线结果不订阅回答 SSE，因此不以轮询首次观察时间冒充 TTFT；当前时间覆盖以
+[阶段耗时合同](../contracts/stage-timing.md)和实际返回值为准。失败样本保留，已完成样本可由 Inspect
+复用；评测重试不等于恢复产品 Workflow，不自动重试 Agent 行为错误以覆盖原失败。
 
-- `faithfulness`；
-- `answer_relevancy`。
+## 依赖和运行
 
-只有样本提供 `reference` 时才启用 `context_precision` 和 `context_recall`。不使用自研的
-`context_precision_without_reference`，也不把 context ID 冒充 Ragas 指标。
-
-## Agent 评测
-
-`agent-eval` 通过真实 App API 执行调用方显式提供的 cases 文件，生成
-`agent_product_eval_result.v3`。随后 `score-ragas` 生成 Agent 工具样本和独立的 RAG v3 样本，
-输出最终 score 文件。发布到 Langfuse 时，TypeScript 适配层用同一批次的显式 case-to-trace 映射
-补回 score target，不把平台身份传给 Python Ragas runner。
-
-是否生成 RAG 样本由 case 是否声明 reference context 决定，不由实际召回是否非空决定。空召回仍须
-作为 RAG 失败样本进入评分。
-
-checked-in routing 用例覆盖直接回答、机构身份、Campus Docs、多轮跟进、其他学校官方网页、跨校比较、
-Campus Docs 与官方网页混合任务、陈旧会话说法和工具注入。`reference_tool_calls` 只描述当前暴露的
-本地函数工具；托管 Web Search 是否实际执行，通过 execution step 的 `web_search_used`、URL citation
-和来源证据检查，不伪装成 `campus_search` 调用。
-
-在线编排评测沿用 `campus/agent/routing` 这一历史 case 集合名称，实际覆盖 Solve、Executor、Replanner
-和 Synthesizer 的产品路径，以及直接回答、`campus_search`、官方 Web Search、跟进和 prompt injection。
-该名称不表示存在 Primary Agent 路由角色。调用方需要评测 RAG 时显式提供 reference context，不把它
-写成在线 workflow 的固定输入。
-
-## Score
-
-Langfuse score 名由 `packages/eval-langfuse/src/score-publisher.ts` 的代码级 allowlist 校验，
-不再维护或同步第二份 score registry。Ragas、Agent 和确定性 score 仍各自保留明确的名称与类型。
-
-线上反馈、trace 和人工标注不自动进入评测输入。是否用于回归、如何处理以及保存在哪里，由具体任务
-决定；不需要评测输入的问题仍由所属模块建立普通修复任务。
-
-## 平台边界
-
-- 离线 Ragas 默认把完整结构化 score JSON 写到 stdout，也可以写入调用方指定的文件；不生成持久报告；
-- Langfuse score 发布是可选的适配步骤，不是 Ragas runner 的职责；
-- Langfuse、Ragas 或 score 不可用不阻塞在线回答；
-- 评测结果用于定位和比较，不自动决定发布；合同测试和所属模块验证负责发布结论。
+依赖声明不精确 pin，也不设置无依据上限；保留 `uv.lock` 并通过显式依赖升级更新解析版本。实际框架
+版本进入评测日志。普通测试使用离线 fixture，不调用外部模型；真实产品执行与 grader 需显式运行。
+Inspect 评分不自动决定发布，生产部署不安装此包。
 
 ## 相关文档
 
+- [Inspect 操作手册](../runbooks/inspect.md)
 - [评测用例](./eval-cases.md)
-- [Langfuse 运行合同](../contracts/langfuse-runtime.md)
-- [Ragas 评测](../runbooks/ragas.md)
-- [评测数据与平台边界（评测数据集）](../../.agents/notes/implemented/testing/2026-08-21-eval-boundaries.md)
-- [评测指标](../../.agents/notes/implemented/testing/2026-03-22-evaluation-metrics.md)
-- [Langfuse 调用链数据](../../.agents/notes/implemented/architecture/2026-07-15-langfuse-trace-data.md)
-- [评测数据与平台边界](../../.agents/notes/implemented/testing/2026-08-21-eval-boundaries.md)
+- [接入决定](../../.agents/notes/implemented/testing/2026-10-13-inspect-agent-evaluation.md)

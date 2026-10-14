@@ -12,13 +12,15 @@ Execute、Replan、Synthesize 顺序和预算，单次模型请求与外部工�
 agent-control 拥有执行准入、启动/取消命令、运行载荷、事件和终态投影；app-api 拥有产品请求、
 原始输入和产品终态。Memory 是独立 API、Worker、Workflow 与数据库，通过 API 接收召回和管理请求。
 
-新运行固定进入 TypeScript AgentWorkflow。旧 Go Workflow、Worker 和 HTTP Runtime 已删除，不提供旧 history 支持。数据库身份与 Temporal 队列等持久身份保持不变。
+新运行固定进入 TypeScript AgentWorkflow。现行控制面为 `apps/agent-control`；`agent_control` 数据库
+schema/role、`AGENT_CONTROL_*` 配置和当前 CLI 参数属于现行合同。对外内部运行路径使用当前的
+`/internal/agent/runs/...` 合同。精确配置由所属模块维护。
 
 ## 主要对象
 
 Executor 步骤状态与检索材料是否可用分别表达：`model_output_invalid` 表示步骤总结的结构化输出
-失败，不否定已经成功执行的工具。Runtime 返回完整失败结果，Execution Control 复用来源检查并保存
-失败 receipt；Workflow 保留步骤失败、材料和来源尝试，再按既有剩余步骤/Replanner/Synthesizer 流程
+失败，不否定已经成功执行的工具。Runtime 归一化阶段失败并通过 Control API 保存结果投影；
+Workflow 保留步骤失败、材料和来源尝试，再按既有剩余步骤/Replanner/Synthesizer 流程
 收敛。不制造成功摘要，不重跑失败 operation，不放宽所有 `run_failed`；取消、截止时间和终态仍优先。
 
 - `Conversation`、`Turn`：app-api 产品事实；
@@ -40,8 +42,9 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
   Temporal SDK、HTTP 或 PostgreSQL driver；
 - `internal/executionapplication` 负责构造冻结 workflow input、原子提交 run/start intent、提交取消命令，
   并拥有 run/receipt、workflow control 和执行 outbound ports，负责 receipt、运行内工具身份校验
-  和账号删除协调；`operation` 负责输入准备、结果归一化与事件投影，`finalization` 统一处理回答终态
-  和恢复，`projection` 负责业务投影；具体工具合同文件读取由 `internal/toolcontract` 实现注入端口；
+  和账号删除协调；`operation` 负责输入准备、结果边界校验与事件投影，`finalization` 处理产品终态
+  提交及其幂等恢复，`projection` 负责业务投影；模型结果归一化与恢复合成由 Runtime 拥有；
+  具体工具合同文件读取由 `internal/toolcontract` 实现注入端口；
 - `apps/agent-runtime/src/workflows.ts` 拥有 Agent 推进，`activities.ts` 执行模型和工具，
   `domain-tools.ts` 直接调用 Search/Memory API；`internal/runtimeapi` 是 control 的类型化读写入口；
 - `apps/memory-service` 拥有记忆管理、命令与追加恢复、provider adapter 和生命周期状态，
@@ -92,8 +95,7 @@ Temporal 返回不确定时都不会要求删除 run 或猜测 workflow 是否�
 
 每个在线回答固定使用 `campus-agent.chat.{requestId}` 作为 Workflow ID。与仍开放的同 ID workflow
 冲突时使用 `USE_EXISTING`，关闭后重放使用 `REJECT_DUPLICATE`；reconciler 读取已有执行并确认
-Temporal Run ID，而不是创建第二个 workflow。Workflow 输入只包含关联标识、输入 ref/hash、有界
-策略版本和执行预算，不包含 prompt、会话正文、认证投影或完整工具载荷。
+Temporal Run ID，而不是创建第二个 workflow。Workflow 输入包含 request/conversation/workflow 标识、`deadline_at` 和 `admission_snapshot`，不包含 prompt、会话正文、认证投影或完整工具载荷。
 
 Temporal 返回 `WorkflowExecutionAlreadyStarted` 只表示同 Workflow ID 已存在，不能直接确认本次
 启动成功。starter 必须取得 `ExecuteWorkflow` 返回的具体 Run ID，或
@@ -168,7 +170,7 @@ Workflow 调度单次模型调用和单次本地函数调用。Runtime 从 Contr
 解析匹配目标的凭据，再执行模型请求；工具 Activity 直接调用 Search/Memory API。供应商 continuation
 由 Control 作为载荷持久化，Temporal history 只携带引用和有界决策。
 
-Control typed API 校验精确 Workflow/Run 身份，拥有 receipt、输入输出载荷、结果归一化与投影。
+Control typed API 校验精确 Workflow/Run 身份，拥有 receipt、输入输出载荷、结果边界校验与投影。
 模型调用先读取 receipt；已完成时直接恢复，已开始但结果未知时返回不确定结果，不能重新调用模型。
 新调用先领取 receipt，返回后先保存结果再推进投影。Activity 重试可修复投影，不承诺外部模型的
 exactly-once 执行。工具 Activity 保持冻结准入、工具预算和引用合同。
@@ -225,8 +227,7 @@ Finalization 在 callback 前先持久化 internal `finalization.reserved` event
 `workflow_result_ref`、projection fingerprint、首次 durable `run.progress(finalizing)` 的
 `started_at` 与 agent-control 生成的 wall-clock `completed_at`。重试必须复用 reservation 的
 时间和身份；canonical Step/Result、run.CompletedAt、callback `completed_at` 与 `run.completed`
-统一使用该 completion boundary。workflow DTO 不再保留旧 `FinalizedAt` 字段或 history 兼容分支；
-离线 replay fixture 直接由当前生产 workflow 生成。
+统一使用该 completion boundary。当前 TypeScript Workflow 不承担旧 Go DTO 或 history 的兼容恢复。
 completed run 的重放必须严格核对 `CompletedAt`、`TerminalReason`、`FinalResponseRef`、
 `finalization_fingerprint_sha256` 以及唯一且内部一致的 canonical Step/Attempt/Result，
 随后返回已提交四元组。它不得写入较晚 candidate，不得修改 canonical 四元组、取消命令或可能属于后续
@@ -261,10 +262,11 @@ worker 配置约束，HTTP 请求排空与持久执行生命周期分别由 API 
 与运行完成同一事务将准备好的 Memory 投递标为 ready，dispatcher 交付独立 Memory API。
 Memory 接收时原子保存完整最小输入与派发意图；回答 Workflow 不等待记忆内容处理完成。
 Memory 接收后的恢复不读取 execution run、finalization 或产品消息，追加失败不回滚产品答案。
-旧本地 Memory 模式仍由 `MemoryAppendWorkflow` 与 `answermemory` 消费，待排空后退役。
+Control 不创建新的 `memory.append` 步骤；追加进度与故障由 Memory API、Worker 和自有数据库查询。
 
 Workflow 的 900 秒 `WorkflowExecutionTimeout` 是硬生命周期上限。Agent operation 的 deadline、
-plan/replan 次数、activity timeout/retry、finalization 和 memory append 都受该上限约束；它们不是
+plan/replan 次数、activity timeout/retry 和 finalization 都受该上限约束；独立 Memory Workflow
+使用自己的执行预算，不占用回答 Workflow 的剩余时间。这些预算不是
 保证一定消耗的时间额度。达到硬上限时由 Temporal timeout/reconciler 以 `expired` 收口，不能把
 `agent_deadline_exceeded`、`workflow_attempt_uncertain` 或取消伪装成同一错误。App API 的 durable
 polling `maxAttempts` 是连续空页预算，不是严格 elapsed-time SLA；一旦观察到 terminal event，

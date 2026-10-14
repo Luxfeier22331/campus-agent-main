@@ -64,7 +64,7 @@ spec:
             - name: HINDSIGHT_OWNER_SALT
               valueFrom:
                 secretKeyRef:
-                  name: execution-memory-client-secrets
+                  name: memory-service-secrets
                   key: HINDSIGHT_OWNER_SALT
           ports:
             - name: http
@@ -151,28 +151,28 @@ spec:
             - name: HINDSIGHT_OWNER_SALT
               valueFrom:
                 secretKeyRef:
-                  name: execution-memory-client-secrets
+                  name: memory-service-secrets
                   key: HINDSIGHT_OWNER_SALT
             - name: MEMORY_TEMPORAL_ADDRESS
               valueFrom:
                 configMapKeyRef:
                   name: memory-config
-                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+                  key: AGENT_CONTROL_TEMPORAL_ADDRESS
             - name: MEMORY_TEMPORAL_NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   name: memory-config
-                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+                  key: AGENT_CONTROL_TEMPORAL_NAMESPACE
             - name: APP_PRODUCT_CALLBACK_BASE_URL
               valueFrom:
                 configMapKeyRef:
                   name: memory-config
-                  key: EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL
+                  key: AGENT_CONTROL_PRODUCT_CALLBACK_BASE_URL
             - name: APP_PRODUCT_CALLBACK_SHARED_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: execution-app-api-internal-secrets
-                  key: APP_API_EXECUTION_SHARED_SECRET
+                  name: app-api-internal-secrets
+                  key: APP_API_INTERNAL_SHARED_SECRET
           ports:
             - name: http
               containerPort: 8000

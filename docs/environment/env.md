@@ -31,8 +31,8 @@ checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离�
 - App API：`.env.local` 和 `.dev.vars.local`；
 - Campus Web：`.dev.vars.local`；
 - Model Config：`.env.local`；
-- execution-control：`.env.local`；
-- agent-runtime：`.env.local`。
+- agent-control：`.env.local`；
+- agent-runtime、memory-service、campus-search、cluster-private-ingress：各自的 `.env.local`。
 
 需要其他边界时显式选择 target：
 
@@ -92,7 +92,7 @@ Model Config 一次读取当前完整配置。
 
 Campus Docs builder 的托管 `.env.local` 保存对象存储 endpoint 和 derived bucket 写入凭据；derived bucket
 使用当前 profile 的 `OBJECT_STORE_BUCKET_DERIVED`。Campus Web 与其他应用共用当前 profile 的 `OBJECT_STORE_*` 配置。统一 Campus RAG publisher 的托管 `.env.local` 保存
-`EXECUTION_CONTROL_DATABASE_URL`、Qdrant endpoint/API key、对象存储 endpoint、当前 worktree 的
+`AGENT_CONTROL_DATABASE_URL`、Qdrant endpoint/API key、对象存储 endpoint、当前 worktree 的
 `OBJECT_STORE_BUCKET_DERIVED` 和该 bucket 的读写凭据；写入凭据用于本地制品导入。Qdrant 连接由
 `scripts/dev` 从当前 v3 profile 读取 HTTP 端口，从当前 profile 专属 infrastructure secret 文件读取凭据，
 经认证检查后写入托管文件。Qdrant 服务与其他数据依赖统一由
@@ -105,7 +105,7 @@ embedding evaluation 和 Notice embedding 抽样验证都从当前 worktree 根 
 构建也使用同一根 `.env`，线上 Campus Docs Embedding Job 仍从 Model Config 获取完整 runtime config。
 
 notice-pipeline-worker 与 notice-artifacts-worker 的托管 `.env.local` 保存本地部署标记、禁用 TLS 的
-本地标记、本 worktree 的 Notices 与 Execution Control 数据库连接、本地 Model Config 地址、当前
+本地标记、本 worktree 的 Notices 与 agent-control 数据库连接、本地 Model Config 地址、当前
 profile 的 Temporal 地址与专属 `campus-agent-local-<instance-id>` namespace，以及 derived bucket 和
 对象存储读写凭据。两个 Worker 运行时通过 `MODEL_CONFIG_URL` 读取完整模型配置，托管文件不保存
 模型 provider 连接；notice-artifacts-worker 额外保存当前 worktree 的 Qdrant endpoint 与凭据。
@@ -194,14 +194,14 @@ profile、按 target 选择的应用文件、端口、数据库和所需的实�
 main checkout 补充维护者共享的 provider 连接和已有门户 TGC。PostgreSQL、RustFS、Qdrant 与 Temporal 容器、网络和数据卷按 worktree 独立，由当前 worktree 的 `dev:init` 启动和检查。真实检索数据由 `pnpm dev:local -- data sync --domain retrieval` 同步；namespace 默认 `campus-agent-staging`，`--namespace` 可覆盖，`--context` 缺省时回落到本机 kubectl current-context，跨集群时显式补 `--context <context>`。
 每个 worktree 可显式请求集群只读 Secret，并只写自己的 Qdrant 和 current index。
 
-每个 worktree 都由自己的 profile 供应并探测本地依赖。execution-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享
+每个 worktree 都由自己的 profile 供应并探测本地依赖。agent-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享
 其他 worktree 的宿主进程。应用统一消费当前 profile 的 `OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入
 应用环境合同。Campus Web 文档使用当前 profile 的 derived bucket；缺少
 `campus-docs/source.json` 时由 Campus Web docs owner 写入确定性样例，不覆盖已有来源。
 
-Execution Control 通过 `EXECUTION_CONTROL_DATABASE_URL` 读取当前 profile 的
-`campus_docs_serving.current_index`；该连接使用独立的本地只读角色，运行记录仍使用当前 worktree 的
-`EXECUTION_CONTROL_DATABASE_URL`。
+campus-search 通过 `CAMPUS_SEARCH_DATABASE_URL` 读取当前 profile 的
+`campus_docs_serving.current_index`，使用独立的检索只读角色。agent-control 通过
+`AGENT_CONTROL_DATABASE_URL` 保存运行投影，不直接查询索引绑定表。
 
 profile 位于当前 worktree 的 `var/dev/profile.json`，机器级实例注册表位于
 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.json`。只支持 schema v3；旧的 v1/v2 profile 或 registry 会 fail-closed，必须人工删除旧文件和旧资源后重新初始化，不会自动转换、迁移或写回；profile 只保存资源身份，

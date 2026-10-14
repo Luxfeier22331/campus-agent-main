@@ -30,5 +30,5 @@ AstrBot 配置时将 `command` 指向 Node，将 `CAMPUS_MCP_UPSTREAM_URL` 和
 - Kubernetes 中，上游配置读取 `campus-search-service-secrets` 的 `CAMPUS_MCP_CLIENT_TOKENS` 键；
   MCP 端由 Bot 管理员在 MCP 子进程环境中配置对应 token。
 
-`RETRIEVAL_INTERNAL_TOKEN` 使用另外生成的值，只在 execution-control 与上游检索服务之间共享，
+`RETRIEVAL_INTERNAL_TOKEN` 使用另外生成的值，在 agent-runtime 与 Campus Search 之间共享，
 不分发给外部 Bot。旧凭据变量不保留兼容读取。

@@ -53,14 +53,14 @@ func newRequestTracker(handler http.Handler) *requestTracker {
 
 func (tracker *requestTracker) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if tracker == nil || tracker.handler == nil {
-		http.Error(response, "execution-control handler is not configured", http.StatusServiceUnavailable)
+		http.Error(response, "agent-control handler is not configured", http.StatusServiceUnavailable)
 		return
 	}
 
 	tracker.mu.Lock()
 	if tracker.draining {
 		tracker.mu.Unlock()
-		http.Error(response, "execution-control is draining", http.StatusServiceUnavailable)
+		http.Error(response, "agent-control is draining", http.StatusServiceUnavailable)
 		return
 	}
 	if tracker.active == 0 {
@@ -148,12 +148,12 @@ func shutdownExecutionRuntime(
 	var shutdownErr error
 	if gatewayServer != nil {
 		if err := gatewayServer.Shutdown(shutdownContext); err != nil {
-			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown execution-control HTTP server: %w", err))
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown agent-control HTTP server: %w", err))
 			if requests != nil {
 				requests.Cancel()
 			}
 			if err := gatewayServer.Close(); err != nil {
-				shutdownErr = errors.Join(shutdownErr, fmt.Errorf("force close execution-control HTTP server: %w", err))
+				shutdownErr = errors.Join(shutdownErr, fmt.Errorf("force close agent-control HTTP server: %w", err))
 			}
 		}
 	}
@@ -163,7 +163,7 @@ func shutdownExecutionRuntime(
 		waitContext, cancelWait := context.WithTimeout(context.Background(), forcedRequestDrainGrace)
 		if err := requests.Wait(waitContext); err != nil {
 			requestsDrained = false
-			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("wait for execution-control HTTP requests: %w", err))
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("wait for agent-control HTTP requests: %w", err))
 		}
 		cancelWait()
 	}

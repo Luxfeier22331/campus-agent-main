@@ -27,14 +27,14 @@ function hasMatchingSecret(
 
 function authorized(request: Request, env: Env): boolean {
 	return hasMatchingSecret(
-		env.APP_API_EXECUTION_SHARED_SECRET,
+		env.APP_API_INTERNAL_SHARED_SECRET,
 		request.headers.get("x-app-product-callback-auth"),
 	);
 }
 
 function executionInputAuthorized(request: Request, env: Env): boolean {
 	return hasMatchingSecret(
-		env.APP_API_EXECUTION_SHARED_SECRET,
+		env.APP_API_INTERNAL_SHARED_SECRET,
 		request.headers.get("x-app-execution-auth"),
 	);
 }
@@ -54,7 +54,7 @@ export function registerInternalRoutes(input: {
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 }) {
-	input.app.get("/api/internal/execution/requests/:requestId/input", async (c) => {
+	input.app.get("/api/internal/agent/runs/:requestId/input", async (c) => {
 		if (!executionInputAuthorized(c.req.raw, input.env)) {
 			return jsonResponse(
 				errorEnvelope({
@@ -127,7 +127,7 @@ export function registerInternalRoutes(input: {
 		});
 	});
 
-	input.app.put("/api/internal/execution/requests/:requestId/product-finalization", async (c) => {
+	input.app.put("/api/internal/agent/runs/:requestId/product-finalization", async (c) => {
 		if (!authorized(c.req.raw, input.env)) {
 			return jsonResponse(
 				errorEnvelope({

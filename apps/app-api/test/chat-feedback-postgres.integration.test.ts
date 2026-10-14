@@ -239,7 +239,7 @@ describe("conversation summaries PostgreSQL queries", () => {
 		owner = `summary-${randomUUID()}`;
 	});
 	afterEach(async () => {
-		await management.query("delete from execution_control.agent_runs where owner_user_id = $1", [
+		await management.query("delete from agent_control.agent_runs where owner_user_id = $1", [
 			owner,
 		]);
 		await runtime.query("delete from chat.conversations where owner_user_id = $1", [owner]);
@@ -281,7 +281,7 @@ describe("conversation summaries PostgreSQL queries", () => {
 		);
 		if (runStatus !== null) {
 			await management.query(
-				`insert into execution_control.agent_runs
+				`insert into agent_control.agent_runs
 				(request_id, conversation_id, owner_user_id, surface, task_queue, status, created_at, updated_at)
 				values ($1, $2, $3, 'campus_web', 'test', $4, $5, $5)`,
 				[requestId, id, owner, runStatus, createdAt],
@@ -388,14 +388,14 @@ describe("conversation summaries PostgreSQL queries", () => {
 
 	it("can read only the two granted execution columns", async () => {
 		await expect(
-			runtime.query("select request_id, status from execution_control.agent_runs limit 0"),
+			runtime.query("select request_id, status from agent_control.agent_runs limit 0"),
 		).resolves.toMatchObject({ rowCount: 0 });
 		for (const statement of [
-			"select * from execution_control.agent_runs limit 0",
-			"select metadata_json from execution_control.agent_runs limit 0",
-			"select request_id from execution_control.agent_run_events limit 0",
-			"update execution_control.agent_runs set status = status where false",
-			"delete from execution_control.agent_runs where false",
+			"select * from agent_control.agent_runs limit 0",
+			"select metadata_json from agent_control.agent_runs limit 0",
+			"select request_id from agent_control.agent_run_events limit 0",
+			"update agent_control.agent_runs set status = status where false",
+			"delete from agent_control.agent_runs where false",
 		]) {
 			await expect(runtime.query(statement)).rejects.toMatchObject({ code: "42501" });
 		}

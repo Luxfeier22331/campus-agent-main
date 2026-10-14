@@ -10,13 +10,13 @@ import (
 
 func updateDurableRunStatusInTx(ctx context.Context, tx pgx.Tx, run execution.DurableRun) error {
 	if execution.DurableRunStatusIsTerminal(run.Status) && run.Status != execution.DurableRunStatusCompleted {
-		if _, err := tx.Exec(ctx, `delete from execution_control.agent_memory_deliveries where request_id=$1 and status='prepared'`, run.RequestID); err != nil {
+		if _, err := tx.Exec(ctx, `delete from agent_control.agent_memory_deliveries where request_id=$1 and status='prepared'`, run.RequestID); err != nil {
 			return err
 		}
 	}
 	_, err := tx.Exec(
 		ctx,
-		`update execution_control.agent_runs
+		`update agent_control.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
 			retryable = $10
@@ -44,7 +44,7 @@ func insertDurableRunEventInTx(
 	var nextSequence int64
 	if err := tx.QueryRow(
 		ctx,
-		`select coalesce(max(sequence), 0) + 1 from execution_control.agent_run_events where request_id = $1`,
+		`select coalesce(max(sequence), 0) + 1 from agent_control.agent_run_events where request_id = $1`,
 		run.RequestID,
 	).Scan(&nextSequence); err != nil {
 		return err
@@ -67,7 +67,7 @@ func insertDurableRunEventInTx(
 	}
 	_, err = tx.Exec(
 		ctx,
-		`insert into execution_control.agent_run_events (
+		`insert into agent_control.agent_run_events (
 			event_id, request_id, conversation_id, sequence, event_type, visibility,
 			payload_schema_version, payload_json, occurred_at
 		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
@@ -106,7 +106,7 @@ func durableRunEventByIDInTx(
 		ctx,
 		`select event_id, request_id, conversation_id, sequence, event_type, visibility,
 			payload_schema_version, payload_json, occurred_at
-		from execution_control.agent_run_events
+		from agent_control.agent_run_events
 		where event_id = $1`,
 		eventID,
 	))
@@ -117,7 +117,7 @@ func runCancellationRequestedInTx(ctx context.Context, tx pgx.Tx, requestID stri
 	err := tx.QueryRow(
 		ctx,
 		`select exists(
-			select 1 from execution_control.agent_run_cancellations
+			select 1 from agent_control.agent_run_cancellations
 			where request_id = $1 and state <> 'confirmed'
 		)`,
 		requestID,

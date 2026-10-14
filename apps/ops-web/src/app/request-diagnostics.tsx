@@ -188,7 +188,7 @@ function ExecutionSection({
 				<KeyValue label="输出 Token" value={formatToken(model.tokens.output)} />
 				<KeyValue label="Token 合计" value={formatToken(model.tokens.total)} />
 				<KeyValue label="Agent Runtime release" value={releases.agentRuntime ?? "未记录"} />
-				<KeyValue label="Execution Control release" value={releases.executionControl ?? "未记录"} />
+				<KeyValue label="Agent Control release" value={releases.agentControl ?? "未记录"} />
 			</div>
 			{stages.length === 0 ? (
 				<p className="mt-4 border-border border-y bg-secondary p-4 text-muted-foreground text-sm">

@@ -11,7 +11,7 @@ status: active
 本文定义模型工具如何开放、由谁选择以及如何投影。精确名称、暴露范围、schema、handler 和
 timeout 由以下可执行注册表维护：
 
-- `configs/runtime/tools.v7.json`；
+- `configs/runtime/tools.v8.json`；
 - `configs/runtime/tool-function-schemas.v4.json`。
 
 注册表、endpoint 或实现存在都不会自动向模型开放工具。
@@ -31,7 +31,7 @@ function tool；注册表、handler 和内部可用性字段的存在不会单�
 
 模型配置启用托管搜索时，Agent Runtime 为 Solve 附加供应商原生搜索工具；Executor 还要求当前步骤允许
 `web_search`。原生工具为 OpenAI Web Search 或 Gemini Google Search。它不在
-`tools.v7.json`、`visible_function_tool_names` 或 agent-control handler 中登记，也不由客户端
+`tools.v8.json`、`visible_function_tool_names` 或 agent-control handler 中登记，也不由客户端
 选择。它只用于校园问题的公开网页证据。
 
 ## 职责

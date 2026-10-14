@@ -21,7 +21,7 @@ COPY apps/agent-control/cmd apps/agent-control/cmd
 COPY apps/agent-control/internal apps/agent-control/internal
 
 COPY configs/runtime/tool-function-schemas.v4.json /src/configs/runtime/tool-function-schemas.v4.json
-COPY configs/runtime/tools.v7.json /src/configs/runtime/tools.v7.json
+COPY configs/runtime/tools.v8.json /src/configs/runtime/tools.v8.json
 COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts/fixtures/tool_execution_contract
 
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod \
@@ -37,7 +37,7 @@ RUN apt-get update \
 
 COPY --from=build /out/ /usr/local/bin/
 COPY configs/runtime/tool-function-schemas.v4.json /etc/campus-agent/tool-function-schemas.v4.json
-COPY configs/runtime/tools.v7.json /etc/campus-agent/tools.v7.json
+COPY configs/runtime/tools.v8.json /etc/campus-agent/tools.v8.json
 
 USER appuser
 EXPOSE 8000

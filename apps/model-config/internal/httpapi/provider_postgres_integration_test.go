@@ -45,7 +45,7 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 		"create role campus_agent login password 'campus-agent-password'",
 		"create role model_config login password 'model-config-password'",
 		"create role app_api nologin",
-		"create role execution_control nologin",
+		"create role agent_control nologin",
 		"create role campus_search nologin",
 		"create role ops_web nologin",
 		"create role product_data_ro nologin",

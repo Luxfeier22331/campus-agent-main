@@ -19,7 +19,7 @@ const SCHEMA_OWNER = "campus_agent";
 const OPS_WEB_ROLE = "ops_web";
 const APP_API_ROLE = "app_api";
 const NOLOGIN_ROLES = [
-	"execution_control",
+	"agent_control",
 	"campus_search",
 	"model_config",
 	"product_data_ro",

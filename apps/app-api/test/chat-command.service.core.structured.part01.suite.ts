@@ -11,7 +11,7 @@ import {
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
-	it("preserves execution-control answer text and consumes finalized public sources", async () => {
+	it("preserves agent-control answer text and consumes finalized public sources", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({

@@ -821,8 +821,8 @@ async function geminiModelTurn(
 					input.operation,
 				),
 			);
-		} catch {
-			result.failure = { code: "model_output_invalid", operation: `workflow.${input.operation}` };
+		} catch (error) {
+			Object.assign(result, failedRunnerResult(error, input, result));
 		}
 		await options.resolveSources?.(input, result);
 	}

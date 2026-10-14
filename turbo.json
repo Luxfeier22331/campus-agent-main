@@ -40,7 +40,7 @@
 				"!**/*.test.*",
 				"!**/*.spec.*",
 				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v4.json",
-				"$TURBO_ROOT$/configs/runtime/tools.v7.json"
+				"$TURBO_ROOT$/configs/runtime/tools.v8.json"
 			],
 			"dependsOn": ["^source"],
 			"env": ["CAMPUS_NODE_RUNTIME"]

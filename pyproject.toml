@@ -107,7 +107,7 @@ package = false
 
 [tool.uv.workspace]
 members = [
-  "packages/ragas-runner",
+  "packages/inspect-eval",
 ]
 
 [build-system]

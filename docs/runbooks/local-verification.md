@@ -12,7 +12,7 @@ status: active
 Kubernetes/GitOps 之外维护第二套 staging 生命周期。`infra/local/docker-compose.execution-runtime.yml` 只用于按需
 启动 Hindsight。
 
-未配置 Hindsight 时，execution-control 不向模型暴露 `personal_memory_recall`，普通对话仍使用真实
+未配置 Hindsight 时，agent-control 不向模型暴露 `personal_memory_recall`，普通对话仍使用真实
 模型链路；验证个人记忆时再显式启动并配置 Hindsight。
 
 产品页面本地开发使用 worktree profile 和应用本地托管环境文件，不读取根 `.env`。仓库生成 loopback
@@ -25,6 +25,27 @@ Langfuse 的转发时，才在进程环境显式提供 `OTEL_EXPORTER_OTLP_TRACE
 `OTEL_EXPORTER_OTLP_ENDPOINT`，并按 Langfuse 运行合同启动对应依赖。
 
 独立数据平面决策见[每个 worktree 的独立本地数据平面](../../.agents/notes/implemented/architecture/2026-09-24-independent-worktree-data-plane.md)；数据域与初始化命令边界见[本地开发初始化与数据域 owner](../../.agents/notes/implemented/architecture/2026-10-03-local-development-initialization-ownership.md)。
+
+### 本地内部凭据改名
+
+已有 `var/dev/local-secrets.json` 的 worktree 在切换到 schema v3 时，停止本地服务后原值更新字段：
+
+```bash
+python3 - <<'PYTHON'
+import json
+from pathlib import Path
+path = Path("var/dev/local-secrets.json")
+value = json.loads(path.read_text())
+if value["schemaVersion"] in (1, 2):
+    value["internalSharedSecret"] = value.pop("executionSharedSecret")
+    value["schemaVersion"] = 3
+    path.write_text(json.dumps(value, indent=2) + "\n")
+PYTHON
+pnpm dev:init -- --target core
+```
+
+该操作保留所有凭据原值；重新渲染后 App API 与 Control 使用 `APP_API_INTERNAL_SHARED_SECRET`。
+新 worktree 直接生成 v3，不需要迁移。
 
 ## Node 工具链
 
@@ -133,7 +154,7 @@ pnpm dev:sync-notices -- --context <context> --namespace campus-agent-staging \
 对象并分页扫描当前 collection，诊断成本随数据量增长。数据库约束和实际引用检查仍然有效。
 
 `pnpm dev` 随后检查 startup scope（所选服务的配置、基础设施、schema 与必要数据入口），再由 Turbo 并行启动
-Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行初始化、迁移或 seed。
+Campus Web、app-api、agent-control 和 agent-runtime。它不隐式执行初始化、迁移或 seed。
 直接执行 `pnpm --dir apps/campus-web build` 也会读取当前 worktree 的托管配置。只有显式访问其他对象
 存储时才通过 `env/commands/campus-docs-source.env` 或进程环境覆盖，进程环境优先级最高。
 
@@ -141,31 +162,17 @@ Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行�
 构建目标和页面运行所需配置，不接收对象存储凭据。没有对象存储访问时，应使用 `build:fixture` 和
 Worker fixture 检查，不要把测试环境改成读取远端文档。
 
-真实流式验收先确认进程已加载当前源码：Agent Runtime 的本地 Node 进程和 Execution Control 的
+真实流式验收先确认进程已加载当前源码：Agent Runtime 的本地 Node 进程和 agent-control 的
 Go 进程需要显式重启。使用已初始化的开发账号发起会话，等待产品终态后再提交下一轮，不把手动
 取消当作正常收尾的验证。检查页面文本增长、`request.completed` 和持久状态；客户端计时上报
 返回 204 只说明接收成功，还应确认两项值同起点、首渲染不早于首 delta，并且不会阻断终态。
 
 ### 模型输出格式失败验收
 
-先用普通服务验证真实检索、回答和通知链接。需要稳定触发格式失败时，等待当前请求结束并停止当前
-worktree 的普通 Agent Runtime，在 `apps/agent-runtime` 目录启动本地专用 fixture：
-
-```bash
-pnpm exec node --env-file-if-exists=.env.local --experimental-strip-types \
-  --network-family-autoselection-attempt-timeout=2000 test/fixtures/model-output-failure-server.ts
-```
-
-fixture 仍调用配置中的真实模型和工具，只在 `citationStart >= 2` 且当前 Executor 已成功调用
-`campus_search` 时，一次性把它的终端可见输出替换成明确标记的非法 JSON。通过已初始化账号发起
-两个依赖检索步骤；只有日志出现 `test.model_output_replaced` 才算命中，Solve 直接回答不算。
-等待请求终态，检查失败步骤保留 `model_output_invalid`、检索材料能继续供合成使用、Ops
-“模型输出诊断”能展开看到替换文本，以及通知链接可打开。最终请求可以成功，失败步骤不能改成成功。
-
-诊断正文仅在 `agent_step_results.model_output_diagnostic_json`，不应出现在 invocation receipt、
-不可变业务 payload 或 Temporal Activity output；未记录诊断不能解释成模型输出为空。
-这属于受控故障验收，不代表真实模型产生了该非法文本。结束后停止 fixture，恢复
-`pnpm --dir apps/agent-runtime dev`，再用普通会话确认服务已恢复。
+模型格式失败的归一化、证据保留与恢复合成由 Runtime 的 runner、Activities 和 Workflow 测试覆盖。
+旧 HTTP Runtime 的 `model-output-failure-server.ts` fixture 已退役。需要真实模型验收时使用普通
+Worker 发起会话；发生格式错误后核对失败步骤、保留的检索材料、最终产品状态及 Ops 的模型输出诊断。
+不能以没有诊断记录推断模型返回空文本，也不能把恢复合成成功改写为原步骤成功。
 
 初始化失败时运行：
 
@@ -209,9 +216,9 @@ internal-portal-collection 和 notice-classifier 不需要再单独运行 notice
 建议而没有 supports，应显示 `metadata_only`，不能把它称为“已验证引用”或“搜索无匹配”。
 有 supports 时确认正文未被引用替换、来源卡为 web_page，并核对丢弃原因与实际最终来源。
 
-验证记忆故障时，仅在本 worktree 临时设置不可达的本地 `HINDSIGHT_API_BASE_URL` 与独立测试
-tenant key / owner salt，重启服务，再请求先回忆偏好、然后检索校内资料。等待回答及 append 阶段
-结束，确认 recall failed、后续回答 completed、append failed 不回滚答案、terminalFailure 为空。
+验证记忆故障时，仅在本 worktree 的 Memory 服务临时设置不可达的本地 `HINDSIGHT_API_BASE_URL` 与独立测试
+tenant key / owner salt，重启 Memory API 与 Worker，再请求先回忆偏好、然后检索校内资料。等待回答终态与 Memory 追加操作结束，
+确认 recall failed、后续回答 completed、Memory append failed 不回滚答案、terminalFailure 为空。
 这是受控的记忆不可用验收，不表示成功写入 Hindsight。结束后移除临时配置并重启普通服务。
 
 Hindsight 部署修复应在环境仓单独处理：使用该服务自己的 Secret 验证实际 retain 与 recall，
@@ -334,19 +341,17 @@ LLM 表单选择“Gemini（原生 API）”后保存，不重跑 seed 覆盖在
 不在运行中换 runner，不自动 fallback。验证时等待每个会话终态后再发送下一个问题，分别检查问候、
 Campus RAG、Google Search 来源卡，以及刷新后仍不出现搜索建议；单独验证配置连接成功不能替代真实会话。
 
-验证查询 Embedding 精确缓存时，重启当前 worktree 的 execution-control 清空进程内缓存，再用已有
-开发账号发起两个独立的相同问题会话，每个都等待终态。核对 Ops 中实际 `effectiveQuery` 相同
-（模型可能改写同一个问题，因此“用户问题相同”不保证 hit），以及 Ops Campus Search 诊断中的
-cacheOutcome 从 miss 变为 hit。hit 的 estimatedSavedMs 是避免的上游耗时估算，不是整轮
-回答的实测加速。对照 Ops 的 embedding、retrieval 和 rerank 耗时与返回候选，确认第二次仍执行召回
-和排序；答案措辞可变化，但引用必须来自本轮检索。不要为验证缓存重建索引或重新注册账号。
+验证查询 Embedding 精确缓存时，重启当前 worktree 的 campus-search 清空进程内缓存，
+使用相同的实际检索表达检查 Search 响应诊断中的 `cacheOutcome` 从 miss 变为 hit。
+模型可能改写问题，因此两个相同用户问题不保证缓存命中。`estimatedSavedMs` 是避免的上游耗时估算，
+不是整轮回答的实测加速；缓存命中仍须执行召回和重排，不需要重建索引。
 
-Campus Search v2 实际验收需要完整跑通已有账号发问、工具完成、Ops 请求详情和引用通知详情：
-核对诊断完整性与调用结果分开展示，实际模型和 collection 不被 DTO 丢弃，Qdrant HTTP/server/
-decode/postprocess 可区分；同一通知的互补片段可同时返回，跨调用重复片段的排除原因可见，最终引用数与
-产品来源一致。先等待会话结束再发下一题。离线标注评测与真实会话各验证自己的链路，不能互相替代。
-schema 0009 只清除旧诊断；先停止本 worktree 的旧 execution-control，执行统一 schema migration，
-再启动新版与 Ops API。不要在仍有旧生产者的 staging 单独提前应用这次硬切。
+当前 Runtime 工具适配器不转发 Search 的完整诊断快照与分阶段时间，Control HTTP 观察类型也不序列化
+这些字段，因此不能以 Ops 页面验证 embedding、Qdrant 或 rerank 的完整耗时。
+Search 侧验证响应与诊断，产品侧验证工具终态、答案和引用；数据缺口见
+[Campus Search 合同](../contracts/campus-search.md)。同一通知的互补片段可同时返回，
+最终引用与产品来源应一致。离线检索评测和真实会话分别验证各自链路。
+
 `pnpm dev:init -- --target core` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline。
 显式模型 seed 和 runtime doctor 会检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
 同一个本地实例。不要复制其他 worktree、staging 或 production 的 encryption key；使用
@@ -357,15 +362,15 @@ schema 0009 只清除旧诊断；先停止本 worktree 的旧 execution-control�
 
 若本地代理拖慢某个供应商，可在当前 worktree 根 `.env` 的 `NO_PROXY` 中追加目标域名，例如
 `NO_PROXY=ai.gitee.com`。这里的 `NO_PROXY` / `no_proxy` 是本地附加名单：`dev:init` 将其与初始化
-进程已有的两个变量合并、去空白和重复项，生成内容一致的大小写变量，仅写入 Execution Control 和
-Model Config 的托管环境文件。前者覆盖 embedding / rerank，后者覆盖供应商连接校验。
+进程已有的两个变量合并、去空白和重复项，生成内容一致的大小写变量，写入 agent-control、memory-service、campus-search 和
+Model Config 的托管环境文件。Search 覆盖 embedding / rerank，Model Config 覆盖供应商连接校验。
 没有非空本地名单时不生成覆盖值，保持启动进程的继承行为。此名单不从 main checkout 自动导入。
 
 修改后先确认当前 bootstrap ready，再运行 `pnpm dev:init -- --target core` 并重启当前 worktree 的
-Execution Control、Model Config；已有 ready 的模型配置不会重新 seed。不要直接编辑托管 `.env.local`。
+agent-control、memory-service、campus-search、Model Config；已有 ready 的模型配置不会重新 seed。不要直接编辑托管 `.env.local`。
 此操作不改写 `HTTP_PROXY` / `HTTPS_PROXY`，不改变 Agent Runtime 的 Gemini 网络路径，也不改线上配置。
 回退时仅删除本轮追加的域名，再初始化并重启；若删除全部本地名单，重新生成会移除旧的托管覆盖值。
-使用真实 RAG 会话和 Ops 分阶段耗时确认效果，不以连接校验成功替代会话验收。
+使用真实 RAG 会话和 Search 侧诊断确认效果，不以连接校验成功替代会话验收。
 
 ## Campus Web 浏览器回归
 
@@ -397,35 +402,26 @@ UI baseline 按适用视口选择 36 个用例：布局覆盖 320/390/1023/1024/
 pnpm --dir apps/campus-web test:e2e:dev:chat
 ```
 
-该命令会在当前 worktree profile 的端口上启动确定性的 execution-control HTTP fixture、App API Wrangler
-和 Campus Web Wrangler。fixture 只读取本地 `APP_API_EXECUTION_SHARED_SECRET`，校验 App API 冻结输入的原始
+该命令会在当前 worktree profile 的端口上启动确定性的 agent-control HTTP fixture、App API Wrangler
+和 Campus Web Wrangler。fixture 只读取本地 `APP_API_INTERNAL_SHARED_SECRET`，校验 App API 冻结输入的原始
 SHA-256，并在产品回调成功后发布终结事件；它不会连接 staging、Cloudflare 远端资源或真实模型。
 测试覆盖本地登录、普通回答、重新生成、记忆设置路由和 `GET /api/me/profile-memory`。
 
-这是本地用户行为和依赖协议证据，不代表 staging、production、部署控制器或真实 execution-control 已经
+这是本地用户行为和依赖协议证据，不代表 staging、production、部署控制器或真实 agent-control 已经
 健康。命令结束后 Playwright 会停止本次启动的 fixture 和两个 Wrangler 进程；当前 worktree 的 Postgres、RustFS、Qdrant、Temporal 和 profile 不由该命令销毁。
 
-Temporal 集成测试按需在本地执行。测试会启动 Temporal Dev Server，不连接 staging 或其他部署环境：
+Temporal 与数据库集成测试按涉及的 owner 手动选择，不要求启动完整产品服务：
 
 ```bash
-go -C apps/agent-control test -tags=temporal_integration ./integration/temporal ./integration/execution_http -count=1 -timeout=2m
-```
-
-专项验证通过独立入口执行：
-
-```bash
-pnpm --dir apps/agent-control test:temporal-replay
-pnpm --dir apps/agent-control test:stream-integration
+pnpm --dir apps/agent-runtime test:temporal-integration
 pnpm --dir apps/agent-control test:database-integration
+pnpm --dir apps/memory-service test:database-integration
 ```
 
-replay 只读取已提交 history；stream 只启动测试自己的 SSE HTTP server；database 使用现有
-testcontainers PostgreSQL 和共享 schema job。这些命令均不要求启动完整产品服务。
+Runtime 使用测试 Temporal 环境；数据库集成使用隔离 PostgreSQL 和共享 schema，不连接 staging。
+测试进程负责清理自己启动的 worker、server 和容器。旧 Go Workflow 的 Temporal、replay 和 stream
+脚本已退役。
 
-Temporal 每个包进程只启动一个 Dev Server，worker 按测试清理。fixture 在 `go test -timeout` 前
-预留关闭时间，失败和超时路径由子进程测试验证。SSE server 由测试关闭，PostgreSQL 容器由
-testcontainers cleanup 回收。
-
-GitHub `manual-validation-profile` 可分别选择 `execution-control-temporal`、`execution-control-stream`、
-`execution-control-replay` 或 `execution-control-postgres`。默认 PR 只自动运行受影响的 native 检查；
-这些服务集成和 history 验证不扩大 required check 范围。
+GitHub `manual-validation-profile` 可分别选择 `agent-runtime-temporal`、`agent-control-postgres`
+或 `memory-postgres`；可用选项以[工作流定义](../../.github/workflows/manual-evidence.yml)为准。
+这些手动集成测试不扩大默认 PR required check 范围。

@@ -32,9 +32,9 @@ const environment = (app: string) => {
 export const answerText = "临时传输验收 😀 中文正文。".repeat(100);
 export class AnswerTransportStack {
 	readonly webOrigin = origin(profile.ports.campusWeb);
-	readonly controlBPort = ports.executionControl + 30;
-	readonly providerPort = ports.executionControl + 31;
-	readonly proxyPort = ports.executionControl + 32;
+	readonly controlBPort = ports.agentControl + 30;
+	readonly providerPort = ports.agentControl + 31;
+	readonly proxyPort = ports.agentControl + 32;
 	readonly processes = new Map<string, ChildProcess>();
 	modelCalls = 0;
 	deltaCalls = 0;
@@ -174,7 +174,7 @@ export class AnswerTransportStack {
 						headers.set(key, Array.isArray(value) ? value.join(",") : value);
 					}
 				}
-				const out = await fetch(origin(ports.executionControl) + (req.url ?? "/"), {
+				const out = await fetch(origin(ports.agentControl) + (req.url ?? "/"), {
 					method: req.method ?? "GET",
 					headers,
 					...(chunks.length > 0 ? { body: Buffer.concat(chunks) } : {}),
@@ -225,11 +225,11 @@ export class AnswerTransportStack {
 		}
 		await this.launch("memory-api", "memory-service", resolve(this.logRoot, "memory-api"), []);
 		await this.launch("control-a", "agent-control", resolve(this.logRoot, "control"), [], {
-			EXECUTION_CONTROL_ANSWER_TRANSPORT: "stream",
+			AGENT_CONTROL_ANSWER_TRANSPORT: "stream",
 		});
 		await this.startControlB();
 		await this.launch("ingress", "cluster-private-ingress", resolve(this.logRoot, "ingress"), [], {
-			EXECUTION_CONTROL_BASE_URL: origin(this.controlBPort),
+			AGENT_CONTROL_BASE_URL: origin(this.controlBPort),
 		});
 		await this.launch("runtime", "agent-runtime", "node", ["--import=tsx", "src/worker.ts"], {
 			AGENT_CONTROL_BASE_URL: origin(this.proxyPort),
@@ -265,7 +265,7 @@ export class AnswerTransportStack {
 			},
 		);
 		await Promise.all([
-			this.wait(`${origin(ports.executionControl)}/readyz`),
+			this.wait(`${origin(ports.agentControl)}/readyz`),
 			this.wait(`${origin(this.controlBPort)}/readyz`),
 			this.wait(`${origin(profile.ports.appApi)}/readyz`),
 			this.wait(`${this.webOrigin}/theme-bootstrap.js`),
@@ -274,7 +274,7 @@ export class AnswerTransportStack {
 	private startControlB() {
 		return this.launch("control-b", "agent-control", resolve(this.logRoot, "control"), [], {
 			PORT: String(this.controlBPort),
-			EXECUTION_CONTROL_ANSWER_TRANSPORT: "stream",
+			AGENT_CONTROL_ANSWER_TRANSPORT: "stream",
 		});
 	}
 	async restartReader() {

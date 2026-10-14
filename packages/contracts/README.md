@@ -4,7 +4,7 @@
 
 负责：
 
-- app-api/execution-control run 与 finalization OpenAPI 合同；
+- app-api/agent-control run 与 finalization OpenAPI 合同；
 - runtime-neutral tool payload/result schema；
 - runtime registry 与 configuration artifact schema；
 - 共享 fixture 与生成的 TypeScript/Go consumer。
@@ -48,7 +48,7 @@ Campus Docs 的 object-store digest、canonical JSON、对象键和 immutable wr
 
 ## 生成产物
 
-`pnpm --dir packages/contracts generate` 生成 app-api TypeScript、execution-control Go wire consumer 和同好群
+`pnpm --dir packages/contracts generate` 生成 app-api TypeScript、agent-control Go wire consumer 和同好群
 公开目录 JSON Schema。生成 type 是本地 parser，生成的 JSON Schema 是跨运行时交换产物，
 都不是第二份事实来源，不得手工修改。
 

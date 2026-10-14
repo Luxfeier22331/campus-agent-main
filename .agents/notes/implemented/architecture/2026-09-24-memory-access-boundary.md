@@ -8,9 +8,15 @@ Status: implemented
 导致管理读取可能与 generation 排空并发。组合根在生命周期 state store 不可用时仍会暴露 provider，
 同时 pause/resume 仅因 provider 不可用而被拒绝，尽管这两个转换只改变 runtime fence。
 
+## 当前适用范围
+
+本文原先由 execution-control 承担的 Memory 所有权已被[Agent 编排与 Memory 独立服务](./2026-10-10-agent-orchestration-memory-services.md)
+取代。当前 memory-service 独立拥有 Hindsight 适配、命令执行和恢复；本文的内容边界与生命周期理由
+继续有效，现行接口以个人记忆架构和合同为准。
+
 ## 决策
 
-Execution Control 组合根只有在 Hindsight provider 和个人记忆 state store 都可用时才暴露记忆能力。
+Memory Service 组合根只有在 Hindsight provider 和个人记忆 state store 都可用时才暴露记忆能力。
 带 fence 的执行器拥有管理读取、recall 和 append 的入口。原生的 list/get 管理读取在后续
 [协调器合同](./2026-09-24-agent-memory-coordinator.md) 中被 profile 合成读取取代：owner 为
 paused 时允许 profile 读取（kind `management_profile`），owner 为 draining 或 erased 时拒绝。

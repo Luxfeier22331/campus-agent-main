@@ -217,7 +217,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		});
 	});
 
-	it("does not project PG profile memory during chat submit because execution-control owns memory recall", async () => {
+	it("does not project PG profile memory during chat submit because agent-control owns memory recall", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const executionClient: ToolExecutionClient = {

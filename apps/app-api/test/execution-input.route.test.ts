@@ -20,7 +20,7 @@ function appWithExecutionInput(input: {
 }) {
 	return createApp(
 		{
-			APP_API_EXECUTION_SHARED_SECRET: callbackSecret,
+			APP_API_INTERNAL_SHARED_SECRET: callbackSecret,
 		},
 		{
 			chatCommandService: {
@@ -39,14 +39,18 @@ describe("execution input routes", () => {
 			executionInputSha256: sha256(executionInputJson),
 		}));
 		const app = appWithExecutionInput({ readExecutionInput });
+		const historical = await app.request("/api/internal/execution/requests/req_1/input", {
+			headers: { "x-app-execution-auth": executionInputSecret },
+		});
+		expect(historical.status).toBe(404);
 
-		const denied = await app.request("/api/internal/execution/requests/req_1/input", {
+		const denied = await app.request("/api/internal/agent/runs/req_1/input", {
 			headers: { "x-app-execution-auth": wrongExecutionSecret },
 		});
 		expect(denied.status).toBe(401);
 		expect(denied.headers.get("cache-control")).toBe("no-store");
 
-		const response = await app.request("/api/internal/execution/requests/req_1/input", {
+		const response = await app.request("/api/internal/agent/runs/req_1/input", {
 			headers: { "x-app-execution-auth": executionInputSecret },
 		});
 		expect(response.status).toBe(200);
@@ -79,7 +83,7 @@ describe("execution input routes", () => {
 			const app = appWithExecutionInput({
 				readExecutionInput: vi.fn(async () => testCase.frozen),
 			});
-			const response = await app.request("/api/internal/execution/requests/req_1/input", {
+			const response = await app.request("/api/internal/agent/runs/req_1/input", {
 				headers: { "x-app-execution-auth": executionInputSecret },
 			});
 			expect(response.status).toBe(testCase.expected);

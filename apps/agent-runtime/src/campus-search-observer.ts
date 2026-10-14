@@ -22,7 +22,7 @@ export function createCampusSearchReporter(options: {
 		}
 		try {
 			const target = new URL(
-				`/internal/execution/requests/${encodeURIComponent(request.requestId)}/campus-search/observations`,
+				`/internal/agent/runs/${encodeURIComponent(request.requestId)}/campus-search/observations`,
 				options.baseUrl,
 			);
 			const response = await (options.fetchImpl ?? fetch)(target, {

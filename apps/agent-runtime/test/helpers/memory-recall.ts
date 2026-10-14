@@ -9,7 +9,7 @@ export const recalledMemory = {
 };
 export function memoryRecallTool(): SdkToolRuntime {
 	const catalog = loadToolCatalog(
-		fileURLToPath(new URL("../../../../configs/runtime/tools.v7.json", import.meta.url)),
+		fileURLToPath(new URL("../../../../configs/runtime/tools.v8.json", import.meta.url)),
 	);
 	const tool = catalog.tools.find((entry) => entry.name === "personal_memory_recall");
 	if (!tool) {

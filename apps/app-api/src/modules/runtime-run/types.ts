@@ -1,5 +1,5 @@
 import type { ResolvedAppPrincipal } from "../auth";
-import { ExecutionControlTransportError } from "../integration";
+import { AgentControlTransportError } from "../integration";
 
 export interface RuntimeRunOwnershipRecord {
 	acceptedAt: string;
@@ -60,8 +60,8 @@ export function runtimeRunPhaseFromExecutionStatus(status: string): RuntimeRunPh
 		case "expired":
 			return "expired";
 		default:
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Execution durable run status is not supported.",
 				retryable: true,
 				status: 502,

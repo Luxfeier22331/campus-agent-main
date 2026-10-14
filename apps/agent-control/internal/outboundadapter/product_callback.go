@@ -34,7 +34,7 @@ func NewProductCallbackClient(cfg config.Config) *productCallbackHTTPClient {
 	}
 	return &productCallbackHTTPClient{
 		baseURL:      strings.TrimRight(strings.TrimSpace(cfg.ProductCallbackBaseURL), "/"),
-		sharedSecret: strings.TrimSpace(cfg.AppAPIExecutionSharedSecret),
+		sharedSecret: strings.TrimSpace(cfg.AppAPIInternalSharedSecret),
 		httpClient: NoRedirectHTTPClient(&http.Client{
 			Timeout: timeout,
 		}),
@@ -59,7 +59,7 @@ func (client *productCallbackHTTPClient) WriteExecutionFinalization(
 		return productCallbackError("product_callback_invalid", err)
 	}
 	callbackURL := client.callbackURL(
-		"/api/internal/execution/requests/" + url.PathEscape(request.RequestID) + "/product-finalization",
+		"/api/internal/agent/runs/" + url.PathEscape(request.RequestID) + "/product-finalization",
 	)
 	return client.do(ctx, callbackURL, payload)
 }

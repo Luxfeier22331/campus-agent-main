@@ -79,7 +79,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	appApi: "apps/app-api/.env.local",
 	appApiVars: "apps/app-api/.dev.vars.local",
 	campusWeb: "apps/campus-web/.dev.vars.local",
-	executionControl: "apps/agent-control/.env.local",
+	agentControl: "apps/agent-control/.env.local",
 	campusSearch: "apps/campus-search/.env.local",
 	modelConfig: "apps/model-config/.env.local",
 	agentRuntime: "apps/agent-runtime/.env.local",
@@ -117,7 +117,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 		"campusWeb",
 		"modelConfig",
 		"campusSearch",
-		"executionControl",
+		"agentControl",
 		"agentRuntime",
 		"memoryService",
 		"clusterPrivateIngress",
@@ -137,7 +137,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 export const LOCAL_DATABASE_PASSWORDS = {
 	memory: "campus-agent-local-memory",
 	appApi: "campus-agent-local-app-api",
-	executionControl: "campus-agent-local-execution-control",
+	agentControl: "campus-agent-local-agent-control",
 	campusSearch: "campus-agent-local-campus-search",
 	modelConfig: "campus-agent-local-model-config",
 	opsWeb: "campus-agent-local-ops-web",
@@ -229,7 +229,7 @@ export function importMainCheckoutExternalCredentials(input: {
 export function localDatabaseUrls(profile: LocalDevProfile): {
 	memory: string;
 	appApi: string;
-	executionControl: string;
+	agentControl: string;
 	campusSearch: string;
 	modelConfig: string;
 	opsWeb: string;
@@ -245,7 +245,7 @@ export function localDatabaseUrls(profile: LocalDevProfile): {
 			`/${profile.databaseName}_memory`,
 		),
 		appApi: url("app_api", LOCAL_DATABASE_PASSWORDS.appApi),
-		executionControl: url("execution_control", LOCAL_DATABASE_PASSWORDS.executionControl),
+		agentControl: url("agent_control", LOCAL_DATABASE_PASSWORDS.agentControl),
 		campusSearch: url("campus_search", LOCAL_DATABASE_PASSWORDS.campusSearch),
 		modelConfig: url("model_config", LOCAL_DATABASE_PASSWORDS.modelConfig),
 		opsWeb: url("ops_web", LOCAL_DATABASE_PASSWORDS.opsWeb),
@@ -354,7 +354,7 @@ export function renderLocalEnvironmentFiles(input: {
 	const rendersOpsWeb = projections.includes("ops-web");
 	const rendersInternalPortalCollection = projections.includes("internal-portal-collection");
 	const existingSecrets = rendersAppApi ? readManagedEnv(paths.appApiVars) : {};
-	const executionControlEnvironment = rendersCore ? readManagedEnv(paths.executionControl) : {};
+	const agentControlEnvironment = rendersCore ? readManagedEnv(paths.agentControl) : {};
 	const opsWebEnvironment = rendersOpsWeb ? readManagedEnv(paths.opsWeb) : {};
 	const existingInternalPortalCollectionEnvironment = rendersInternalPortalCollection
 		? readManagedEnv(paths.internalPortalCollection)
@@ -364,23 +364,21 @@ export function renderLocalEnvironmentFiles(input: {
 			? ensureLocalDevSecrets(repoRoot, {
 					appApiSafetyIdentifierHmacSecret: [existingSecrets.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET],
 					betterAuthSecret: [existingSecrets.BETTER_AUTH_SECRET],
-					executionSharedSecret: [
-						existingSecrets.APP_API_EXECUTION_SHARED_SECRET,
-						executionControlEnvironment.AGENT_CONTROL_RUNTIME_SHARED_SECRET,
+					internalSharedSecret: [
+						existingSecrets.APP_API_INTERNAL_SHARED_SECRET,
+						agentControlEnvironment.AGENT_CONTROL_RUNTIME_SHARED_SECRET,
 					],
 					edgeIngressSecret: [existingSecrets.EDGE_INGRESS_SHARED_SECRET],
-					controlIngressSecret: [
-						executionControlEnvironment.EXECUTION_CONTROL_INGRESS_SHARED_SECRET,
-					],
+					controlIngressSecret: [agentControlEnvironment.AGENT_CONTROL_INGRESS_SHARED_SECRET],
 					memoryInternalSecret: [],
 					opsWebInternalToken: [
 						existingSecrets.OPS_WEB_INTERNAL_TOKEN,
-						executionControlEnvironment.OPS_WEB_INTERNAL_TOKEN,
+						agentControlEnvironment.OPS_WEB_INTERNAL_TOKEN,
 						opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN,
 					],
 				})
 			: undefined;
-	const executionSharedSecret = localSecrets?.executionSharedSecret ?? "";
+	const internalSharedSecret = localSecrets?.internalSharedSecret ?? "";
 	const opsWebInternalToken = localSecrets?.opsWebInternalToken ?? "";
 	const shouldRender = (name: ManagedLocalEnvironment): boolean =>
 		projections.some((target) => LOCAL_DEV_ENVIRONMENT_TARGETS[target].includes(name));
@@ -394,7 +392,7 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("appApiVars")) {
 		writeManagedEnv(paths.appApiVars, {
-			APP_API_EXECUTION_SHARED_SECRET: executionSharedSecret,
+			APP_API_INTERNAL_SHARED_SECRET: internalSharedSecret,
 			APP_API_SAFETY_IDENTIFIER_HMAC_SECRET: localSecrets?.appApiSafetyIdentifierHmacSecret ?? "",
 			AUTH_SHELL_ORIGIN: `http://127.0.0.1:${profile.ports.campusWeb}`,
 			AUTH_TURNSTILE_SECRET_KEY: "local-turnstile-disabled",
@@ -421,31 +419,31 @@ export function renderLocalEnvironmentFiles(input: {
 		writeManagedEnv(paths.clusterPrivateIngress, {
 			LISTEN_ADDR: `127.0.0.1:${runtimePorts.clusterPrivateIngress}`,
 			EDGE_INGRESS_SHARED_SECRET: localSecrets?.edgeIngressSecret ?? "",
-			EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
-			EXECUTION_CONTROL_INGRESS_SHARED_SECRET: localSecrets?.controlIngressSecret ?? "",
+			AGENT_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.agentControl}`,
+			AGENT_CONTROL_INGRESS_SHARED_SECRET: localSecrets?.controlIngressSecret ?? "",
 			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
 			MEMORY_INTERNAL_SHARED_SECRET: localSecrets?.memoryInternalSecret ?? "",
 		});
 	}
-	if (shouldRender("executionControl")) {
-		writeManagedEnv(paths.executionControl, {
-			EXECUTION_CONTROL_INGRESS_SHARED_SECRET: localSecrets?.controlIngressSecret ?? "",
+	if (shouldRender("agentControl")) {
+		writeManagedEnv(paths.agentControl, {
+			AGENT_CONTROL_INGRESS_SHARED_SECRET: localSecrets?.controlIngressSecret ?? "",
 			...noProxy,
-			APP_API_EXECUTION_SHARED_SECRET: executionSharedSecret,
+			APP_API_INTERNAL_SHARED_SECRET: internalSharedSecret,
 			DEPLOYMENT_ENVIRONMENT: "development",
-			DEPLOYMENT_RELEASE: `execution-runtime@${profile.instanceId}`,
-			AGENT_CONTROL_RUNTIME_SHARED_SECRET: executionSharedSecret,
-			EXECUTION_CONTROL_DATABASE_URL: database.executionControl,
+			DEPLOYMENT_RELEASE: `agent-control@${profile.instanceId}`,
+			AGENT_CONTROL_RUNTIME_SHARED_SECRET: internalSharedSecret,
+			AGENT_CONTROL_DATABASE_URL: database.agentControl,
 
 			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
 			MEMORY_INTERNAL_SHARED_SECRET: localSecrets?.memoryInternalSecret ?? "",
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
-			EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
-			EXECUTION_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
-			EXECUTION_CONTROL_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
-			EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: `${profile.instanceId}:execution-control`,
+			AGENT_CONTROL_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
+			AGENT_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
+			AGENT_CONTROL_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
+			AGENT_CONTROL_TEMPORAL_WORKER_IDENTITY: `${profile.instanceId}:agent-control`,
 			HOST: "127.0.0.1",
-			PORT: String(runtimePorts.executionControl),
+			PORT: String(runtimePorts.agentControl),
 		});
 	}
 	if (shouldRender("memoryService")) {
@@ -459,7 +457,7 @@ export function renderLocalEnvironmentFiles(input: {
 			MEMORY_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			MEMORY_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			APP_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
-			APP_PRODUCT_CALLBACK_SHARED_SECRET: executionSharedSecret,
+			APP_PRODUCT_CALLBACK_SHARED_SECRET: internalSharedSecret,
 			HINDSIGHT_API_BASE_URL: `http://127.0.0.1:${infraPorts.hindsightApi}`,
 			HINDSIGHT_API_TENANT_API_KEY: infrastructure.hindsightTenantKey,
 			HINDSIGHT_OWNER_SALT: infrastructure.hindsightOwnerSalt,
@@ -471,7 +469,7 @@ export function renderLocalEnvironmentFiles(input: {
 			DEPLOYMENT_ENVIRONMENT: "development",
 			CAMPUS_SEARCH_DATABASE_URL: database.campusSearch,
 			CAMPUS_SEARCH_MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
-			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
+			RETRIEVAL_INTERNAL_TOKEN: internalSharedSecret,
 			HOST: "127.0.0.1",
 			PORT: String(runtimePorts.campusSearch),
 			...(input.qdrant
@@ -493,18 +491,18 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("agentRuntime")) {
 		writeManagedEnv(paths.agentRuntime, {
-			AGENT_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
+			AGENT_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.agentControl}`,
 			AGENT_RUNTIME_TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			AGENT_RUNTIME_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			RETRIEVAL_BASE_URL: `http://127.0.0.1:${runtimePorts.campusSearch}`,
-			RETRIEVAL_INTERNAL_TOKEN: executionSharedSecret,
+			RETRIEVAL_INTERNAL_TOKEN: internalSharedSecret,
 
 			MEMORY_SERVICE_BASE_URL: `http://127.0.0.1:${runtimePorts.memoryApi}`,
 			MEMORY_INTERNAL_SHARED_SECRET: localSecrets?.memoryInternalSecret ?? "",
 			AGENT_WORKER_PORT: String(runtimePorts.agentWorker),
 			DEPLOYMENT_ENVIRONMENT: "development",
-			DEPLOYMENT_RELEASE: `execution-runtime@${profile.instanceId}`,
-			AGENT_CONTROL_RUNTIME_SHARED_SECRET: executionSharedSecret,
+			DEPLOYMENT_RELEASE: `agent-runtime@${profile.instanceId}`,
+			AGENT_CONTROL_RUNTIME_SHARED_SECRET: internalSharedSecret,
 			HOST: "127.0.0.1",
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 		});
@@ -581,7 +579,7 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("campusDocsIndexPublisher")) {
 		writeManagedEnv(paths.campusDocsIndexPublisher, {
-			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			AGENT_CONTROL_DATABASE_URL: database.owner,
 			...objectStore,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 		});
@@ -591,7 +589,7 @@ export function renderLocalEnvironmentFiles(input: {
 			DEPLOYMENT_ENVIRONMENT: "local",
 			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.owner,
-			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			AGENT_CONTROL_DATABASE_URL: database.owner,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
@@ -608,7 +606,7 @@ export function renderLocalEnvironmentFiles(input: {
 			DEPLOYMENT_ENVIRONMENT: "local",
 			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.owner,
-			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			AGENT_CONTROL_DATABASE_URL: database.owner,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
 			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
@@ -624,7 +622,7 @@ export function renderLocalEnvironmentFiles(input: {
 			throw new Error("Campus RAG publisher requires a resolved local Qdrant connection.");
 		}
 		writeManagedEnv(paths.campusRagIndexPublisher, {
-			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			AGENT_CONTROL_DATABASE_URL: database.owner,
 			...objectStore,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			QDRANT_API_KEY: input.qdrant.apiKey,

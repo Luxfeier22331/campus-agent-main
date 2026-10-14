@@ -1,0 +1,16 @@
+[project]
+name = "campus-inspect-eval"
+version = "0.1.0"
+description = "Offline Campus Agent evaluation with Inspect AI."
+requires-python = ">=3.12"
+dependencies = ["inspect-ai"]
+
+[project.scripts]
+campus-eval = "campus_inspect_eval.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/campus_inspect_eval"]

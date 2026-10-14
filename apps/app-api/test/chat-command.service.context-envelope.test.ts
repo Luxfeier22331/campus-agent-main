@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChatConversation } from "../src/modules/chat";
-import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
+import type { AgentControlRuntimeClient } from "../src/modules/integration/agent-control";
 import {
 	answerResponsePayload,
 	durableEvent,
@@ -83,7 +83,7 @@ describe("chat command context envelope assembly", () => {
 		};
 		const { acceptedWrites, store } = createCommandStore({ conversation });
 		const { store: conversationStore } = createConversationStore({ conversation });
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
@@ -220,7 +220,7 @@ describe("chat command context envelope assembly", () => {
 		};
 		const { acceptedWrites, store } = createCommandStore({ conversation });
 		const { store: conversationStore } = createConversationStore({ conversation });
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({

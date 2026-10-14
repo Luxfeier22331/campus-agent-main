@@ -10,7 +10,7 @@
 	"result": null,
 	"error": {
 		"code": "execution_timeout",
-		"message": "Execution control timed out.",
+		"message": "Agent Control timed out.",
 		"retryable": true
 	}
 }

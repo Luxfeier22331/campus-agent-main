@@ -154,7 +154,7 @@ func (s *Server) handleExecutionRunCancel(
 }
 
 func executionRequestIDFromPath(path string, suffix string) (string, bool) {
-	const prefix = "/internal/execution/requests/"
+	const prefix = "/internal/agent/runs/"
 	if !strings.HasPrefix(path, prefix) {
 		return "", false
 	}

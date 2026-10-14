@@ -1,10 +1,6 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
 
-import { runAgentToolEval } from "./agent-tool-runner";
-import { scoreAgentProductResult } from "./eval-scores";
 import type { JsonObject } from "./json";
-import { publishLangfuseScores } from "./score-publisher";
 import { settingsFromEnv } from "./settings";
 import { verifyLangfuseOnlineTraceEvidence } from "./trace-evidence";
 
@@ -28,44 +24,6 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObject> {
-	if (command === "agent-eval") {
-		const limit = numberArg(args, "limit");
-		return runAgentToolEval({
-			appApiBaseUrl: stringArg(args, "app-api-base-url"),
-			casesPath: stringArg(args, "cases"),
-			cookieHeader: stringArg(args, "cookie-header"),
-			executionControlAuthSecret: stringArg(args, "execution-control-auth-secret"),
-			executionControlBaseUrl: stringArg(args, "execution-control-base-url"),
-			...(limit === null ? {} : { limit }),
-			outputPath: stringArg(args, "output"),
-		});
-	}
-	if (command === "score-ragas") {
-		return scoreAgentProductResult({
-			inputPath: stringArg(args, "input"),
-			outputPath: stringArg(args, "output"),
-			runPythonAgent: (input) =>
-				runPythonRagas({
-					...input,
-					kind: "agent",
-					providerConfigPath: stringArg(args, "provider-config"),
-				}),
-			runPythonRag: (input) =>
-				runPythonRagas({
-					...input,
-					kind: "rag",
-					providerConfigPath: stringArg(args, "provider-config"),
-				}),
-		});
-	}
-	if (command === "publish-scores") {
-		return publishLangfuseScores({
-			productResultPath: stringArg(args, "product-result"),
-			scorePath: stringArg(args, "scores"),
-			settings: settingsFromArgs(args),
-			traceMapPath: stringArg(args, "trace-map"),
-		});
-	}
 	if (command === "verify-trace") {
 		return verifyLangfuseOnlineTraceEvidence({
 			expectedRequestId: stringArg(args, "request-id"),
@@ -74,38 +32,6 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 		});
 	}
 	throw new Error(`Unknown command: ${command}`);
-}
-
-function runPythonRagas(input: {
-	inputPath: string;
-	outputPath: string;
-	kind: "agent" | "rag";
-	providerConfigPath: string;
-}): void {
-	const result = spawnSync(
-		"uv",
-		[
-			"run",
-			"--package",
-			"campus-ragas-runner",
-			"python",
-			"-m",
-			"campus_ragas_runner",
-			input.kind,
-			"--input",
-			input.inputPath,
-			"--output",
-			input.outputPath,
-			"--provider-config",
-			input.providerConfigPath,
-		],
-		{ encoding: "utf-8", stdio: "pipe" },
-	);
-	if (result.status !== 0) {
-		throw new Error(
-			`${input.kind} Ragas scoring failed: ${(result.stderr || result.stdout || "").trim()}`,
-		);
-	}
 }
 
 function parseArgs(argv: string[]): ParsedArgs {

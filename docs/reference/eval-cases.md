@@ -1,84 +1,58 @@
 ---
 doc_type: reference
-owner_boundary: packages/eval-langfuse
+owner_boundary: packages/inspect-eval
 status: active
 ---
 
 # 评测用例
 
-## 边界
+用例由调用方提供，现有集合位于 `packages/inspect-eval/assets/cases.v1.json`。稳定 `case_id` 不静默改义。
+历史集合名称 routing 保留原 case 身份，不代表生产存在独立路由 Agent。
 
-需要长期复用的用例可以由仓库文件或私有对象存储维护。当前仓库公开用例位于
-`packages/eval-langfuse/assets/agent/routing/cases.v1.json`。runtime 本地合同仍由所属测试维护；
-Langfuse trace、annotation、score 和其他平台状态不能自动改写来源。
+## 会话输入
 
-`agent-eval` 读取调用方显式提供的 cases 文件，并通过真实 App API 产生一次产品执行。Ragas 输入必须由
-适配器或调用方显式写成 `ragas_sample_batch.v3`，不能从普通 trace 或 Langfuse 反查 answer、retrieved
-contexts 或其他正文。一次性执行也可以直接提供其他输入文件。
+新会话用例使用 `agent_eval_cases.v1`，每个 case 有 `case_id`、有序 `turns` 和可选的 `reference`、
+`case_family`、`split`。每轮有 `turn_id`、原始 `prompt` 和可选 `expectations`。case 的 expectations
+作用于最后实际目标轮，轮次的 expectations 可覆盖它；前置轮失败时不会把目标轮预期套给前置轮。
 
-## Agent 用例
+```json
+{
+  "schema_version": "agent_eval_cases.v1",
+  "cases": [{
+    "case_id": "follow-up",
+    "reference": "依据同一专业的材料承接第二轮问题。",
+    "turns": [
+      {"turn_id": "turn-01", "prompt": "请介绍这个专业的毕业要求。"},
+      {"turn_id": "turn-02", "prompt": "其中实践学分是多少？"}
+    ]
+  }]
+}
+```
 
-每个仓库用例必须包含：
+`agent_routing_eval_cases.v1` 的 `setup_turns + query` 转换为有序 turns；全部 setup 回答保留，
+原有 `reference`、参考证据和禁止项保留为评测预期。历史 `reference_tool_calls` 只用于其明确的目标轮，
+不由缺省空数组推断所有会话都禁止工具。
 
-- `case_id`、`query`，以及评测需要的 `reference`；
-- `reference_tool_calls[]`，表示当前真实工具 exposure 下的预期调用。
+可选确定性预期包含 `tool_sequence`、按工具名的 `max_tool_calls`、`tool_arguments` 和 `max_total_ms`。
+`tool_arguments` 的元素为 `{tool_name, arguments}`；缺少实际参数时未评分。没有显式次数或时间上限
+时，不创建全局最优路径或性能阈值。机构事实、来源引用与推理质量由语义 rubric 单独判断。
 
-可选字段：
+## 保存结果
 
-- `case_family` 和 `split`：用于筛选和版本比较；
-- `setup_turns[]`：在评分 turn 前建立同一会话上下文；
-- `forbidden_context_ids[]`：不得支持答案的上下文；
-- `reference_context_ids[]`、`reference_contexts[]`：标记该用例需要检查本轮检索依据，并保存该输入
-  选择的依据预期；当前适配器用它们是否非空决定 Ragas 是否适用，但不把这些字段送入 Ragas native
-  sample，也不替代产品实际检索结果。
+`agent_eval_sessions.v1` 的 `items` 包含 `{case, session}`；session 保存 `turns`、`expected_turns`
+和 `complete`。turn 保留 `turn_id`、执行 request 身份及受控执行投影。
+旧 `agent_product_eval_result.v3` 只导入原始答案、上下文和工具轨迹，不导入旧分数，也不补造前置回答。
 
-需要机构事实的文档问题可以把 `campus_search` 写入 `reference_tool_calls[]`；Ragas 样本仍只有在调用方
-显式提供 `reference_context_ids[]` 或 `reference_contexts[]` 时生成。实际上下文为空时仍生成失败样本，
-不通过跳过样本掩盖空召回。
+Inspect 日志是新执行的结果。离线重新评分使用日志中的 sample store；导入文件只是调用方输入，
+不再维护另一份结果数据库或 Langfuse dataset。
 
-## Agent 工具用例
+## 状态与时间
 
-工具用例使用 `query` 和 `reference_tool_calls[]`，只评测 direct/function 选择（按工具名比对）。
+未发生的阶段不适用；发生但缺少正文的阶段语义未评分；工具失败和恢复尝试保留实际身份。
+用户 prompt 不改写；离线结果中的请求时间只使用保存的执行事实，不向生产发送模拟时钟。历史相对年份回归可使用
+显式保存的 prompt、请求时间和对应答案进行离线评分。
 
-当前在线 Agent 用例只标注已经开放的真实工具；不为文档问题伪造工具或固定证据上下文。只有 RAG
-用例提供 `reference_context_ids[]` 或 `reference_contexts[]` 时，runner 才把离线
-样本送入 Ragas；普通改写、翻译或问候不因主题相似而进入 RAG 评测。
-`campus_search`、`personal_memory_recall` 或其他当前实际开放的注册工具可以进入工具预期。不得从答案
-正文反推工具选择。托管 Web Search 不是本地 function tool，不写入 `reference_tool_calls[]`；其执行和
-引用由产品 execution projection 单独验证。
+## 相关文档
 
-路由用例必须与 checked-in 工具注册表的当前 exposure 一致。知识回答不得恢复已退役的课程、文档召回或
-章节读取工具名称。
-
-当前路由集还必须覆盖事实范围边界：未指定机构的校内问题按产品身份理解；问题所需事实完全不在
-`campus_search` 声明范围内时应简洁说明“暂未找到相关资料”或“目前无法确认”且不调用该工具；混合范围问题只回答成功 evidence 支持
-的部分；实体名称出现在普通改写或翻译中仍是直接回答。不能用机构名称关键词替代语义路由。
-
-## 编写规则
-
-- reference 必须说明可支持的答案，不能只有文档标题；
-- 含糊问题应在 reference 中说明追问正文，或补足能形成唯一合理预期的上下文；
-- 跟进问题通过 `setup_turns` 明确被指代对象；
-- 缺失数据应在正文简洁说明“暂未找到相关资料”或“目前无法确认”，不能奖励模型记忆补全；
-- 禁止上下文必须来自实际会竞争的 hard negative，不能填充无关标识。
-
-## Ragas 样本边界
-
-Ragas native sample 只允许以下字段：`case_id`、`user_input`、`response`、`retrieved_contexts`、
-`cited_contexts`、可选 `reference` 和标量 `metadata`。`retrieved_contexts` 是全部实际检索候选，
-`cited_contexts` 是答案实际采用的候选；`faithfulness` 使用后者，context precision/recall 使用前者。
-`trace_id`、`observation_id`、平台运行标识、context ID、
-本地路径和凭据只在 TypeScript 适配层保留，用于把 score 关联回 Langfuse；它们不能进入 Python
-runner 的 RAG 样本。
-
-`retrieved_contexts: []` 与 `cited_contexts: []` 都是有效输入。空召回应由确定性检索 score 和
-Ragas 结果共同反映，不能通过跳过样本来提高批次成功率。
-
-## 数据边界
-
-生产失败样例不会自动进入评测输入；是否使用、如何处理以及放在公开还是私有边界，由具体任务决定。
-仓库不再保存独立 synthetic RAG dataset，也不从生产 trace 自动生成用例。
-
-Context ID 用于精确来源预期和检索审计，不表示 Ragas 提供 ID-based metric。文本型 context 指标
-消费调用方显式生成且满足该指标输入要求的 native sample；Langfuse 只在需要时保存 score 和运行
-关联。
+- [评测](./eval.md)
+- [Inspect 操作手册](../runbooks/inspect.md)

@@ -1,12 +1,12 @@
 import { vi } from "vitest";
 
 import type {
-	ExecutionControlRun,
-	ExecutionControlRunEvent,
-} from "../src/modules/integration/execution-control";
+	AgentControlRun,
+	AgentControlRunEvent,
+} from "../src/modules/integration/agent-control";
 import type { RuntimeRunOwnershipRecord, RuntimeRunStore } from "../src/modules/runtime-run";
 
-export function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
+export function durableRun(overrides: Partial<AgentControlRun> = {}): AgentControlRun {
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -29,11 +29,11 @@ export function durableRun(overrides: Partial<ExecutionControlRun> = {}): Execut
 }
 
 export function durableEvent(
-	overrides: Partial<ExecutionControlRunEvent> & {
+	overrides: Partial<AgentControlRunEvent> & {
 		eventType: string;
 		sequence: number;
 	},
-): ExecutionControlRunEvent {
+): AgentControlRunEvent {
 	const { eventType, sequence, ...rest } = overrides;
 	return {
 		conversationId: "conv_01HQ",
@@ -69,7 +69,7 @@ export function runtimeStore(overrides: Partial<RuntimeRunStore> = {}): RuntimeR
 	};
 }
 
-export function eventPage(events: ExecutionControlRunEvent[], nextSequence?: number) {
+export function eventPage(events: AgentControlRunEvent[], nextSequence?: number) {
 	return {
 		events,
 		nextSequence: nextSequence ?? events.at(-1)?.sequence ?? 0,

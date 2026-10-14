@@ -202,10 +202,10 @@ func TestDecodeExecutionPayloadWireJSONRejectsInvalidFixtures(t *testing.T) {
 
 func TestDecodeToolExecutionResponseWireJSONAcceptsTerminalFixtures(t *testing.T) {
 	expectedStatusByFixture := map[string]ExecutionStatus{
-		"response_cancelled_null_target.valid.json":               ExecutionStatusCancelled,
-		"response_completed_delegate.valid.json":                  ExecutionStatusCompleted,
-		"response_error_execution_control_unavailable.valid.json": ExecutionStatusError,
-		"response_timeout.valid.json":                             ExecutionStatusError,
+		"response_cancelled_null_target.valid.json":           ExecutionStatusCancelled,
+		"response_completed_delegate.valid.json":              ExecutionStatusCompleted,
+		"response_error_agent_control_unavailable.valid.json": ExecutionStatusError,
+		"response_timeout.valid.json":                         ExecutionStatusError,
 	}
 
 	for fixtureName, expectedStatus := range expectedStatusByFixture {

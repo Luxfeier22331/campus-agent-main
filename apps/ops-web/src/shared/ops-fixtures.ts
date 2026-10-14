@@ -34,7 +34,7 @@ function execution(
 		},
 		releases: {
 			agentRuntime: "agent-runtime@899f251",
-			executionControl: "execution-control@a77a046",
+			agentControl: "agent-control@a77a046",
 		},
 		stages: [
 			{

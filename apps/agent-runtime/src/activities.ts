@@ -186,6 +186,7 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 			provider,
 			signal,
 		);
+		input.requestTime = record.createdAt;
 		const executor = createDomainToolExecutor(
 			options.domains,
 			record.toolContext,

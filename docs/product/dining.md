@@ -554,7 +554,7 @@ App API 已通过 `modules/dining/lifecycle.ts` 复用 `scheduled()` 和既有�
 - 账号任务在删除认证用户及调用 `completeDeletion` 前，确认 Dining 正文清理、身份处理和实际
   对象字节清除均已完成。未完成保持现有 pending，通过 defer 或 failure 续接；不新增“已移交即完成”
   状态，也不让账号完成后丢失清理依据。
-- Dining scheduled 入口独立于 execution-control 配置；沿用所属数据库和对象依赖。为现有各 sweep
+- Dining scheduled 入口独立于 agent-control 配置；沿用所属数据库和对象依赖。为现有各 sweep
   的初始化及调用分别设错误边界，前项失败仍运行 Dining，Dining 失败仍运行后项，其他模块原有配置
   条件保持有效。账号任务和定时入口调用同一 Dining 清理 owner。
 

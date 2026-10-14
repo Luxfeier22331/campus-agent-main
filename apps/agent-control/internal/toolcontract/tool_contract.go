@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	defaultToolRegistryRelativePath       = "configs/runtime/tools.v7.json"
+	defaultToolRegistryRelativePath       = "configs/runtime/tools.v8.json"
 	defaultToolFunctionSchemaRelativePath = "configs/runtime/tool-function-schemas.v4.json"
-	packagedToolRegistryPath              = "/etc/campus-agent/tools.v7.json"
+	packagedToolRegistryPath              = "/etc/campus-agent/tools.v8.json"
 	packagedToolFunctionSchemaPath        = "/etc/campus-agent/tool-function-schemas.v4.json"
 	toolFunctionSchemaVersion             = "tool-function-schemas-v4"
 )

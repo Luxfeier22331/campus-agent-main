@@ -1,7 +1,7 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: DatabaseRole
 metadata:
-  name: campus-agent-postgres-execution-control
+  name: campus-agent-postgres-agent-control
   labels:
     app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
@@ -10,7 +10,7 @@ metadata:
 spec:
   cluster:
     name: campus-agent-postgres
-  name: execution_control
+  name: agent_control
   login: true
   passwordSecret:
-    name: execution-tool-read-model-secrets
+    name: agent-control-read-model-secrets

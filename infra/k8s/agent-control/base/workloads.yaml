@@ -53,11 +53,11 @@ spec:
             - name: http
               containerPort: 8000
           env:
-            - name: EXECUTION_CONTROL_INGRESS_SHARED_SECRET
+            - name: AGENT_CONTROL_INGRESS_SHARED_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: execution-control-ingress-secrets
-                  key: EXECUTION_CONTROL_INGRESS_SHARED_SECRET
+                  name: agent-control-ingress-secrets
+                  key: AGENT_CONTROL_INGRESS_SHARED_SECRET
             - name: MEMORY_SERVICE_BASE_URL
               value: http://memory-service:8000
             - name: MEMORY_INTERNAL_SHARED_SECRET
@@ -75,22 +75,22 @@ spec:
                 configMapKeyRef:
                   name: agent-control-config
                   key: DEPLOYMENT_RELEASE
-            - name: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+            - name: AGENT_CONTROL_TEMPORAL_ADDRESS
               valueFrom:
                 configMapKeyRef:
                   name: agent-control-config
-                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
-            - name: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+                  key: AGENT_CONTROL_TEMPORAL_ADDRESS
+            - name: AGENT_CONTROL_TEMPORAL_NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   name: agent-control-config
-                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
-            - name: EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL
+                  key: AGENT_CONTROL_TEMPORAL_NAMESPACE
+            - name: AGENT_CONTROL_PRODUCT_CALLBACK_BASE_URL
               valueFrom:
                 configMapKeyRef:
                   name: agent-control-config
-                  key: EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL
-            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+                  key: AGENT_CONTROL_PRODUCT_CALLBACK_BASE_URL
+            - name: AGENT_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
@@ -101,21 +101,21 @@ spec:
                   key: OPS_WEB_INTERNAL_TOKEN
             - name: MODEL_CONFIG_URL
               value: http://model-config:8000
-            - name: EXECUTION_CONTROL_DATABASE_URL
+            - name: AGENT_CONTROL_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: execution-tool-read-model-secrets
-                  key: EXECUTION_CONTROL_DATABASE_URL
+                  name: agent-control-read-model-secrets
+                  key: AGENT_CONTROL_DATABASE_URL
             - name: AGENT_CONTROL_RUNTIME_SHARED_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: execution-agent-runtime-secrets
-                  key: EXECUTION_AGENT_RUNTIME_SHARED_SECRET
-            - name: APP_API_EXECUTION_SHARED_SECRET
+                  name: agent-control-runtime-secrets
+                  key: AGENT_CONTROL_RUNTIME_SHARED_SECRET
+            - name: APP_API_INTERNAL_SHARED_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: execution-app-api-internal-secrets
-                  key: APP_API_EXECUTION_SHARED_SECRET
+                  name: app-api-internal-secrets
+                  key: APP_API_INTERNAL_SHARED_SECRET
           volumeMounts:
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
@@ -127,7 +127,7 @@ spec:
                 - -ec
                 - "curl -fsS \\
 
-                  \  -H \"x-worker-origin-auth: ${EXECUTION_CONTROL_INGRESS_SHARED_SECRET}\" \\
+                  \  -H \"x-worker-origin-auth: ${AGENT_CONTROL_INGRESS_SHARED_SECRET}\" \\
 
                   \  http://127.0.0.1:8000/readyz/process >/dev/null\n"
             initialDelaySeconds: 20

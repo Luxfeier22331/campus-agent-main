@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-owner_boundary: execution-control
+owner_boundary: apps/memory-service
 status: active
 ---
 
@@ -16,10 +16,10 @@ status: active
 
 1. 从当前镜像和 Go client pin 确认预期版本，再访问 Hindsight `/version`；不要在 runbook 中
    维护第二份固定版本。
-2. 确认 execution-control 获得 Hindsight base URL、tenant API secret 和稳定用户派生 salt；变量
+2. 确认 Memory API 与 Worker 获得 Hindsight base URL、tenant API secret 和稳定用户派生 salt；变量
    所有权见 [Provider 与模型配置](../../environment/providers.md)。
 3. 确认 Hindsight 自身的 PostgreSQL、LLM、embedding 和 reranker 配置由环境仓 Helm values
-   提供，未从 app-api、Ops Web 或 execution-control 在线模型配置派生。
+   提供，未从 app-api、Ops Web 或 agent-control 在线模型配置派生。
 4. `/readyz` 不调用 Hindsight，也不能替代业务路径验证；需要业务路径证据时，由环境所有者按需
    选择实际入口执行。
 
@@ -49,7 +49,7 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 
 先在目标 worktree 执行 `pnpm dev:init -- --target core`，配置 Hindsight provider 后显式运行
 `pnpm dev:local -- infra --service hindsight`；使用初始化账号登录，不另行注册。
-core 初始化生成并复用 tenant key 和 bank salt，向 Execution Control 写入连接配置；
+core 初始化生成并复用 tenant key 和 bank salt，向 memory-service 写入连接配置；
 显式 `infra --service hindsight` 启动当前 Compose project 的 Hindsight 与独立 PostgreSQL，端口取当前 dev profile。启动前在根 `.env`
 独立配置 `HINDSIGHT_API_LLM_API_KEY`、`HINDSIGHT_API_LLM_BASE_URL`、`HINDSIGHT_API_LLM_MODEL`、
 `HINDSIGHT_API_LLM_PROVIDER` 及 `HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY`、
@@ -67,8 +67,9 @@ Hindsight 0.9.1 的 Gemini provider 不使用此 base URL，不能直接用它�
 5. 确认清除全部记忆，等待 erased，检查 bank 不存在且开关保持关闭；原聊天记录仍在，
    再次启用不会重新导入历史会话。
 
-Ops 请求页观察 memory.append 从 pending/running 到 completed、skipped 或 failed。
-回答完成不等于后台记忆完成；单次失败看 attempt，整体重试终态看 step，不以固定等待秒数判断成功。
+回答完成后先确认 Control 的 Memory 投递已被接收，再检查 Memory 操作的执行状态。
+新路径不创建 Ops 的 `memory.append` 步骤；回答完成或投递成功都不等于记忆处理完成。
+追加故障由 Memory Worker 与自有数据库定位，不以固定等待秒数判断成功。
 
 ## 原生内容适配
 
@@ -76,34 +77,14 @@ Ops 请求页观察 memory.append 从 pending/running 到 completed、skipped �
 Hindsight `user-profile` mental model 原生合成；派生内容由 Hindsight consolidation 更新，不由应用
 手工改写。逐条 item list/get wire 适配已随 staging 清理删除。
 
-## 个人记忆硬切
-
-仅对已经接受硬切的本地/staging 数据执行；正式发布走环境仓流程。旧版本不能直接回滚到已迁移 schema。
-
-1. 核对 namespace、实例数据库、稳定 owner salt 和实际版本。只列出本环境个人记忆 bank、
-   `PersonalMemoryCommandWorkflow` 及尚未完成的 `memory.append`。
-2. 暂停该环境的新聊天/记忆写入与定时派发，等待在途聊天完成。停止旧个人记忆工作流时使用具体 ID；
-   不清空 Temporal namespace。确认没有旧调用继续写入后再清除 bank。
-3. 对列明的产品 bank 调用原生 DeleteBank，确认不存在。包括失败擦除留下的旧代次 bank；
-   不删除 Hindsight 的整个数据库、其他应用 bank 或共享对象存储。
-4. 按现有 schema job 应用 `20260912000000_0015_personal_memory_management/migration.sql`。此迁移移除旧条目镜像、
-   来源删除表、旧命令正文及聊天调用序号，并把已有设置标为 erased；保留账户、聊天、通知及 RAG。
-5. settings 的 generation/command_sequence 不归零。在已清除 bank 且无在途调用后，对对应 owner
-   的 runtime fence 同步为 erased，保持当前 generation 和最后命令序号；移除这些 owner 的旧
-   call leases/command receipts。不能留下 erasing fence，也不能让旧 receipt 阻塞新代次命令。
-6. 同批发布 App API、Campus Web、Execution Control 和 Ops Web，恢复流量，重复上面的业务验证。
-   Hindsight 使用支持 curation 的相同版本；恢复开关只新建后续需要的 bank，不导入历史消息。
-
-会话删除、批量删除和裁剪均不清除记忆，不捕获 message ID，也不投递来源删除命令。
-
 ## 账号全量清除
 
-账号全量清除是账户级删除，不是单次会话回滚：
-
-1. app-api 接受 durable command 并进入 `erasing`；
-2. execution-control 递增 generation，拒绝 retired generation 的新调用并等待旧调用排空；
-3. 删除 retired Hindsight bank，并验证 bank 不存在；
-4. bank 不存在后完成 receipt，app-api 才允许 lifecycle 进入 `erased`。
+App API 协调账户级删除：先由 agent-control 建立 owner deletion fence 并取消、排空活动 run，
+再调用 Memory API 完成 erase 与 tombstone，随后清理 Control 投影和产品数据。
+Memory 拥有 generation fence、调用租约及 retired Hindsight bank 的删除与确认；
+Control 不直接操作 Hindsight。单独清除个人记忆通过产品记忆命令执行，不删除聊天记录。
+具体流程见[个人记忆架构](../../architecture/system/memory-plane.md)与
+[账号合同](../../contracts/app-api/auth.md)。
 
 ## 排障
 

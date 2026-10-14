@@ -70,7 +70,7 @@ COPY --from=production-dependencies --chown=node:node /app /app
 COPY --from=build --chown=node:node /app/apps/agent-runtime/dist ./apps/agent-runtime/dist
 COPY --from=build --chown=node:node /app/packages/contracts/src ./packages/contracts/src
 COPY --from=build --chown=node:node /app/packages/contracts/schemas ./packages/contracts/schemas
-COPY --chown=node:node configs/runtime/tools.v7.json ./configs/runtime/tools.v7.json
+COPY --chown=node:node configs/runtime/tools.v8.json ./configs/runtime/tools.v8.json
 COPY --chown=node:node configs/runtime/tool-function-schemas.v4.json ./configs/runtime/tool-function-schemas.v4.json
 
 USER node

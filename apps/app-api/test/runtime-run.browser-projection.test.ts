@@ -2,14 +2,14 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
+import type { AgentControlRuntimeClient } from "../src/modules/integration/agent-control";
 import { buildRuntimeRunService } from "../src/modules/runtime-run";
 import { createPrincipal } from "./chat-command.service.test-support";
 import { durableEvent, durableRun, eventPage, runtimeStore } from "./runtime-run.test-support";
 
 describe("runtime run browser projection", () => {
 	it("projects the browser-visible run completion as a product completion", async () => {
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun({ status: "completed" })),
@@ -50,7 +50,7 @@ describe("runtime run browser projection", () => {
 	});
 
 	it("filters internal and legacy browser finalization events while advancing the cursor", async () => {
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun({ status: "completed" })),
@@ -134,7 +134,7 @@ describe("runtime run browser projection", () => {
 				sequence: 4,
 			}),
 		];
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun({ status: "completed" })),
@@ -172,7 +172,7 @@ describe("runtime run browser projection", () => {
 	});
 
 	it("derives finalizing duration from the durable progress and completion timestamps", async () => {
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(
@@ -221,7 +221,7 @@ describe("runtime run browser projection", () => {
 	});
 
 	it("does not invent a finalizing phase from answer completion", async () => {
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun({ status: "running" })),

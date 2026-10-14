@@ -593,11 +593,11 @@ describe("app-api shared product DB integration", () => {
 					status: "completed",
 				});
 				const callback = (json = responseJson, at = completedAt) =>
-					app.request(`/api/internal/execution/requests/${requestId}/product-finalization`, {
+					app.request(`/api/internal/agent/runs/${requestId}/product-finalization`, {
 						method: "PUT",
 						headers: {
 							"content-type": "application/json",
-							"x-app-product-callback-auth": env.APP_API_EXECUTION_SHARED_SECRET ?? "",
+							"x-app-product-callback-auth": env.APP_API_INTERNAL_SHARED_SECRET ?? "",
 						},
 						body: JSON.stringify({
 							completed_at: at,
@@ -610,7 +610,7 @@ describe("app-api shared product DB integration", () => {
 				const first = await callback();
 				expect(first.status, await first.clone().text()).toBe(200);
 				expect(await first.json()).toEqual({ outcome: "applied" });
-				// A callback may be repeated after execution-control's event or CAS
+				// A callback may be repeated after agent-control's event or CAS
 				// write fails. PostgreSQL must preserve one product completion.
 				const replays = await Promise.all([callback(), callback()]);
 				for (const replay of replays) {

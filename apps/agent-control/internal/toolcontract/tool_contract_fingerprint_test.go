@@ -30,8 +30,8 @@ func TestToolContractFingerprintUsesRuntimeConfigContent(t *testing.T) {
 
 func TestToolContractFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 	dir := t.TempDir()
-	writeToolContractFingerprintFixture(t, dir, "tools.v7.json", `{
-		"schema_version":"tool-registry-v7",
+	writeToolContractFingerprintFixture(t, dir, "tools.v8.json", `{
+		"schema_version":"tool-registry-v8",
 		"registry_version":"2026-01-01",
 		"tools":[{
 			"name":"personal_memory_recall",
@@ -41,7 +41,7 @@ func TestToolContractFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 			"requires_approval":false,
 			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload",
 			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult",
-			"handler":{"type":"execution_control_internal_query","endpoint":"/internal/memory/personal/recall"},
+			"handler":{"type":"agent_control_internal_query","endpoint":"/internal/memory/personal/recall"},
 			"timeout_ms":1000,
 			"result_projection_policy":"bounded_json"
 		}]
@@ -57,7 +57,7 @@ func TestToolContractFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		}]
 	}`)
 	first, err := buildToolContractFingerprint(
-		filepath.Join(dir, "tools.v7.json"),
+		filepath.Join(dir, "tools.v8.json"),
 		filepath.Join(dir, "tool-function-schemas.v4.json"),
 	)
 	if err != nil {
@@ -74,7 +74,7 @@ func TestToolContractFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		}]
 	}`)
 	second, err := buildToolContractFingerprint(
-		filepath.Join(dir, "tools.v7.json"),
+		filepath.Join(dir, "tools.v8.json"),
 		filepath.Join(dir, "tool-function-schemas.v4.json"),
 	)
 	if err != nil {
@@ -95,8 +95,8 @@ func TestToolContractFingerprintUsesCanonicalJSONContent(t *testing.T) {
 	if err := os.Mkdir(compactDir, 0o700); err != nil {
 		t.Fatalf("mkdir compact: %v", err)
 	}
-	writeToolContractFingerprintFixture(t, prettyDir, "tools.v7.json", `{
-		"schema_version":"tool-registry-v7",
+	writeToolContractFingerprintFixture(t, prettyDir, "tools.v8.json", `{
+		"schema_version":"tool-registry-v8",
 		"registry_version":"2026-01-01",
 		"tools":[{
 			"name":"personal_memory_recall",
@@ -106,12 +106,12 @@ func TestToolContractFingerprintUsesCanonicalJSONContent(t *testing.T) {
 			"requires_approval":false,
 			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload",
 			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult",
-			"handler":{"type":"execution_control_internal_query","endpoint":"/internal/memory/personal/recall"},
+			"handler":{"type":"agent_control_internal_query","endpoint":"/internal/memory/personal/recall"},
 			"timeout_ms":1000,
 			"result_projection_policy":"bounded_json"
 		}]
 	}`)
-	writeToolContractFingerprintFixture(t, compactDir, "tools.v7.json", `{"tools":[{"timeout_ms":1000,"result_projection_policy":"bounded_json","result_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult","requires_approval":false,"read_only":true,"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload","name":"personal_memory_recall","handler":{"type":"execution_control_internal_query","endpoint":"/internal/memory/personal/recall"},"exposure":"model_visible","description":"Transport schedule lookup."}],"schema_version":"tool-registry-v7","registry_version":"2026-01-01"}`)
+	writeToolContractFingerprintFixture(t, compactDir, "tools.v8.json", `{"tools":[{"timeout_ms":1000,"result_projection_policy":"bounded_json","result_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult","requires_approval":false,"read_only":true,"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload","name":"personal_memory_recall","handler":{"type":"agent_control_internal_query","endpoint":"/internal/memory/personal/recall"},"exposure":"model_visible","description":"Transport schedule lookup."}],"schema_version":"tool-registry-v8","registry_version":"2026-01-01"}`)
 	for _, runtimeDir := range []string{prettyDir, compactDir} {
 		writeToolContractFingerprintFixture(t, runtimeDir, "tool-function-schemas.v4.json", `{
 			"schema_version":"tool-function-schemas-v4",
@@ -126,14 +126,14 @@ func TestToolContractFingerprintUsesCanonicalJSONContent(t *testing.T) {
 	}
 
 	pretty, err := buildToolContractFingerprint(
-		filepath.Join(prettyDir, "tools.v7.json"),
+		filepath.Join(prettyDir, "tools.v8.json"),
 		filepath.Join(prettyDir, "tool-function-schemas.v4.json"),
 	)
 	if err != nil {
 		t.Fatalf("build pretty fingerprint: %v", err)
 	}
 	compact, err := buildToolContractFingerprint(
-		filepath.Join(compactDir, "tools.v7.json"),
+		filepath.Join(compactDir, "tools.v8.json"),
 		filepath.Join(compactDir, "tool-function-schemas.v4.json"),
 	)
 	if err != nil {
@@ -160,22 +160,22 @@ func TestCanonicalJSONFileSHA256RefUsesCrossRuntimeJSONStringEscaping(t *testing
 
 func TestToolContractFingerprintRejectsMalformedConfig(t *testing.T) {
 	dir := t.TempDir()
-	writeToolContractFingerprintFixture(t, dir, "tools.v7.json", `{"schema_version":"wrong","registry_version":"2026-01-01","tools":[]}`)
+	writeToolContractFingerprintFixture(t, dir, "tools.v8.json", `{"schema_version":"wrong","registry_version":"2026-01-01","tools":[]}`)
 	writeToolContractFingerprintFixture(t, dir, "tool-function-schemas.v4.json", `{"schema_version":"tool-function-schemas-v4","tools":[]}`)
 	if _, err := buildToolContractFingerprint(
-		filepath.Join(dir, "tools.v7.json"),
+		filepath.Join(dir, "tools.v8.json"),
 		filepath.Join(dir, "tool-function-schemas.v4.json"),
 	); err == nil {
 		t.Fatal("buildToolContractFingerprint accepted malformed tool registry")
 	}
 }
 
-func TestExecutionControlToolContractIgnoresDeploymentRelease(t *testing.T) {
+func TestAgentControlToolContractIgnoresDeploymentRelease(t *testing.T) {
 	admitted, err := buildToolContractFingerprint("", "")
 	if err != nil {
 		t.Fatalf("build admitted tool contract: %v", err)
 	}
-	for _, release := range []string{"execution-control@first", "execution-control@next"} {
+	for _, release := range []string{"agent-control@first", "agent-control@next"} {
 		service := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
 			ToolContract: Files{},
 		})

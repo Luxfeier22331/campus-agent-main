@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { ExecutionControlTransportError } from "../src/modules/integration";
+import { AgentControlTransportError } from "../src/modules/integration";
 import { buildRuntimeRunService } from "../src/modules/runtime-run";
 import { createPrincipal } from "./chat-command.service.test-support";
 import { durableEvent, durableRun, eventPage, runtimeStore } from "./runtime-run.test-support";
@@ -16,7 +16,7 @@ function runtime() {
 }
 
 describe("runtime run service", () => {
-	it("reads status from execution-control for an accepted product run", async () => {
+	it("reads status from agent-control for an accepted product run", async () => {
 		const executionRuntime = runtime();
 		const service = buildRuntimeRunService({ executionRuntime, store: runtimeStore() });
 
@@ -28,7 +28,7 @@ describe("runtime run service", () => {
 		});
 	});
 
-	it("cancels through execution-control without writing local cancellation state", async () => {
+	it("cancels through agent-control without writing local cancellation state", async () => {
 		const executionRuntime = runtime();
 		const service = buildRuntimeRunService({ executionRuntime, store: runtimeStore() });
 
@@ -48,7 +48,7 @@ describe("runtime run service", () => {
 	it("reconstructs a missing accepted run through the shared handoff", async () => {
 		const executionRuntime = runtime();
 		executionRuntime.getRun.mockRejectedValue(
-			new ExecutionControlTransportError({
+			new AgentControlTransportError({
 				code: "durable_run_not_found",
 				message: "Durable run not found.",
 				retryable: false,
@@ -66,9 +66,9 @@ describe("runtime run service", () => {
 
 	it("does not reconstruct an accepted run on an upstream failure", async () => {
 		const executionRuntime = runtime();
-		const error = new ExecutionControlTransportError({
-			code: "execution_control_unavailable",
-			message: "Execution control runtime request failed.",
+		const error = new AgentControlTransportError({
+			code: "agent_control_unavailable",
+			message: "Agent Control runtime request failed.",
 			retryable: true,
 			status: 503,
 		});
@@ -82,7 +82,7 @@ describe("runtime run service", () => {
 		expect(ensureRun).not.toHaveBeenCalled();
 	});
 
-	it("rejects cancellation after execution-control reports a terminal run", async () => {
+	it("rejects cancellation after agent-control reports a terminal run", async () => {
 		const executionRuntime = runtime();
 		executionRuntime.getRun.mockResolvedValue(durableRun({ status: "completed" }));
 		const service = buildRuntimeRunService({ executionRuntime, store: runtimeStore() });

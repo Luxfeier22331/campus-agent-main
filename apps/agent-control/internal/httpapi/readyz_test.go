@@ -13,7 +13,7 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:               "campus-agent",
 		DeploymentEnvironment: "staging",
-		IngressSharedSecret:   "worker-secret", AppAPIExecutionSharedSecret: "worker-secret",
+		IngressSharedSecret:   "worker-secret", AppAPIInternalSharedSecret: "worker-secret",
 	})
 
 	unauthorized := httptest.NewRecorder()
@@ -105,7 +105,7 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 
 func TestReadyzPublishesDeploymentRelease(t *testing.T) {
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.DeploymentRelease = "execution-control@0123456789ab"
+		cfg.DeploymentRelease = "agent-control@0123456789ab"
 	})
 	response := httptest.NewRecorder()
 
@@ -115,7 +115,7 @@ func TestReadyzPublishesDeploymentRelease(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	if body["runtime_release"] != "execution-control@0123456789ab" {
+	if body["runtime_release"] != "agent-control@0123456789ab" {
 		t.Fatalf("runtime_release = %v, want configured release", body["runtime_release"])
 	}
 }
@@ -256,12 +256,12 @@ func TestReadyzOmitsNonCoreRuntimeDiagnostics(t *testing.T) {
 }
 
 func TestIngressSecretDoesNotAcceptProductCallbackIdentity(t *testing.T) {
-	s := NewServer(config.Config{IngressSharedSecret: "ingress-secret", AppAPIExecutionSharedSecret: "callback-secret"})
+	s := NewServer(config.Config{IngressSharedSecret: "ingress-secret", AppAPIInternalSharedSecret: "callback-secret"})
 	for _, tc := range []struct {
 		secret string
 		want   bool
 	}{{"ingress-secret", true}, {"callback-secret", false}, {"", false}} {
-		request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/internal/execution/requests", nil)
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/internal/agent/runs", nil)
 		request.Header.Set("x-worker-origin-auth", tc.secret)
 		if s.internalWorkerAuthorized(request) != tc.want {
 			t.Fatalf("unexpected authorization result")

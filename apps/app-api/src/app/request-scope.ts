@@ -23,8 +23,8 @@ import {
 } from "../modules/dining";
 import { buildEmailAccessService, createPgEmailAccessGrantStore } from "../modules/email-access";
 import {
-	createExecutionControlRuntimeClient,
-	isExecutionControlRuntimeConfigured,
+	createAgentControlRuntimeClient,
+	isAgentControlRuntimeConfigured,
 } from "../modules/integration";
 import { createMemoryServiceClient } from "../modules/integration/memory-service";
 import {
@@ -48,9 +48,9 @@ import { createRequestRuntimeScope } from "../request-runtime-scope";
 import type { AppDependencies, AppRequestScope } from "./types";
 
 export function createRequestScopeFactory(input: { dependencies: AppDependencies; env: Env }) {
-	const executionRuntimeConfigured = isExecutionControlRuntimeConfigured(input.env);
+	const executionRuntimeConfigured = isAgentControlRuntimeConfigured(input.env);
 	const executionRuntime = executionRuntimeConfigured
-		? createExecutionControlRuntimeClient(input.env)
+		? createAgentControlRuntimeClient(input.env)
 		: undefined;
 	return {
 		createRequestScope(): AppRequestScope {
@@ -146,7 +146,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 						executionMaintenance: input.env.EXECUTION_MAINTENANCE === "true",
 						diningLifecycleService: resolveDiningLifecycleService(),
 						memoryController: createMemoryServiceClient(input.env),
-						executionController: executionRuntime ?? createExecutionControlRuntimeClient(input.env),
+						agentController: executionRuntime ?? createAgentControlRuntimeClient(input.env),
 						profileMemoryService: resolveProfileMemoryService(),
 						removeAuthUser: async (userId) => {
 							const auth = await getAppAuth();
@@ -200,8 +200,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				resolveProfileMemoryService,
 				resolveRuntimeRunService: () =>
 					(runtimeRuns ??= (() => {
-						const runtimeClient =
-							executionRuntime ?? createExecutionControlRuntimeClient(input.env);
+						const runtimeClient = executionRuntime ?? createAgentControlRuntimeClient(input.env);
 						return buildRuntimeRunService({
 							executionRuntime: runtimeClient,
 							ensureRun: ({ requestId }) => {

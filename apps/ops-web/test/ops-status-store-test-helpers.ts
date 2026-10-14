@@ -187,7 +187,7 @@ export function runStepRow(overrides: Partial<OpsRequestStageRow> = {}): OpsRequ
 		durationMs: 3_100,
 		sanitizedPayloadJson: {
 			agent_runtime_release: "agent-runtime@899f251",
-			execution_control_release: "execution-control@a77a046",
+			agent_control_release: "agent-control@a77a046",
 		},
 		stepId: "step_001",
 		activityAttempt: 1,
@@ -216,7 +216,7 @@ export function runAttemptRow(
 		outputTokens: 240,
 		sanitizedPayloadJson: {
 			agent_runtime_release: "agent-runtime@899f251",
-			execution_control_release: "execution-control@a77a046",
+			agent_control_release: "agent-control@a77a046",
 		},
 		startedAt: new Date("2026-07-09T07:29:00.700Z"),
 		status: "completed",

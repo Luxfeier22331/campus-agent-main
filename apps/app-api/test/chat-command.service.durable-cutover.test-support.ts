@@ -1,10 +1,10 @@
 import type {
-	ExecutionControlRun,
-	ExecutionControlRunEvent,
-	ExecutionControlRunEventPage,
-} from "../src/modules/integration/execution-control";
+	AgentControlRun,
+	AgentControlRunEvent,
+	AgentControlRunEventPage,
+} from "../src/modules/integration/agent-control";
 
-export function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
+export function durableRun(overrides: Partial<AgentControlRun> = {}): AgentControlRun {
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -61,11 +61,11 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 }
 
 export function durableEvent(
-	overrides: Partial<ExecutionControlRunEvent> & {
+	overrides: Partial<AgentControlRunEvent> & {
 		eventType: string;
 		sequence: number;
 	},
-): ExecutionControlRunEvent {
+): AgentControlRunEvent {
 	const { eventType, sequence, ...rest } = overrides;
 	return {
 		conversationId: "conv_01HQ",
@@ -82,8 +82,8 @@ export function durableEvent(
 }
 
 export function durableEventPage(
-	events: ExecutionControlRunEvent[],
+	events: AgentControlRunEvent[],
 	nextSequence = events.at(-1)?.sequence ?? 0,
-): ExecutionControlRunEventPage {
+): AgentControlRunEventPage {
 	return { events, nextSequence };
 }

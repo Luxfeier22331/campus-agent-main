@@ -22,7 +22,7 @@ schema 定义，连接拓扑见 [采集数据面](../architecture/system/data-pl
 | --- | --- | --- |
 | `campus_agent` | 数据库 schema 与显式 bootstrap Job | schema 安装、授权和一次性业务初始化，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
-| `execution_control` | `apps/agent-control` | 执行投影、Runtime 载荷和 Memory 投递意图读写 |
+| `agent_control` | `apps/agent-control` | 执行投影、Runtime 载荷和 Memory 投递意图读写 |
 | `memory_service` | `apps/memory-service` | 独立 `memory` 数据库中的 schema、命令、追加与生命周期状态 |
 | `campus_search` | `apps/campus-search` | 只读 `campus_docs_serving.current_index` |
 | `model_config` | `apps/model-config` | 当前具名模型配置与加密凭据读写 |
@@ -41,7 +41,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 
 | 退役角色 | 退役原因 |
 | --- | --- |
-| `campus_docs_index_publisher` | 发布任务已复用 `execution_control` 技术身份 |
+| `campus_docs_index_publisher` | 发布任务已复用 `agent_control` 技术身份 |
 | `docs_publish` | 旧发布路径已退役 |
 | `execution_provider_config_admin` | 旧 Provider Config 管理路径已退役 |
 | `execution_provider_config_reader` | 旧 Provider Config 读取路径已退役 |
@@ -50,6 +50,28 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 `campus-agent-schema` 只负责 schema、migration 和授权，不执行 `DROP ROLE`；Argo CD prune 只清理
 Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役声明在所有受管环境确认角色已消失、
 且仓库不存在重新创建来源前保持有效；之后才重新评估是否移除对应的负向声明。
+
+### Agent Control role 切换
+
+`execution_control` 到 `agent_control` 不是同一批资源内的删除与重建。当前版本先声明并创建
+`agent_control`，保留已有 `execution_control`；schema migration 原位把 `execution_control` schema
+重命名为 `agent_control`，并补齐新 role 的授权。两个 role 在迁移和消费者切换期间同时存在，避免
+CNPG 删除旧 role 早于 schema Job 或新 workload 就绪。
+
+切换按以下顺序执行：
+
+1. 预置 `agent_control` DatabaseRole、Secret 和新 ConfigMap，保留旧 `execution_control` role 与资源；
+   确认新 role 已在目标数据库存在并可连接，但不要让使用新 schema 的 workload 在 migration 前接收请求；
+2. 暂停受影响的新请求和定时派发，排空或停止仍使用旧 schema/合同的 Agent Control、Runtime、publisher、
+   App API、Ops Web 及其他消费者。确认旧消费者没有活跃数据库连接后再继续；
+3. 在旧 role 仍存在时运行 `campus-agent-schema` migration，确认 schema 已改名、数据仍在且新 role
+   可用；随后启动或滚动使用新合同的所有消费者；
+4. 验证 readiness、真实会话、取消、`campus_search` 以及 Ops 查询等受影响路径后，确认所有消费者已切换、
+   旧 role 没有活跃连接，再单独发布 `execution_control` 的 CNPG
+   `ensure: absent`，再删除旧 Secret 或旧资源来源。
+
+跨 Argo Application 的 sync wave 不构成上述顺序保证；环境仓需要把预置、迁移切换和旧 role 退役作为
+分开的同步步骤。当前源码仓不在 schema migration 同批声明旧 role 的 `ensure: absent`。
 
 ## Schema 所有权
 
@@ -60,10 +82,10 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 | `profile.*` | App API 账号设置 | App API |
 | `campus_groups.sections`、`campus_groups.groups` | App API 同好群模块 | App API、通过内部接口访问的 Ops Web |
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
-| `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
+| `agent_control.agent_*`、`agent_control.conversation_run_locks`、`agent_control.owner_deletion_fences` | agent-control | agent-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
 | 独立数据库 `memory` 中的 `memory.*` | Memory API / Worker | Memory API / Worker；其他消费者使用 HTTP |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
-| `campus_docs_serving.current_index`、`index_versions` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher；Campus Search service 只读 `current_index` |
+| `campus_docs_serving.current_index`、`index_versions` | Campus RAG serving（统一 publisher 复用 `agent_control` 技术身份写入） | Campus RAG publisher；Campus Search service 只读 `current_index` |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `transport.*` | Ops Web；空库 baseline 由 Ops Web bootstrap 写入 | App API 公开 projection、Ops Web |
@@ -79,18 +101,18 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 个人记忆的调用租约、命令回执和 owner fence 由独立数据库中的
 `memory.personal_memory_call_leases`、`memory.personal_memory_command_receipts` 和
 `memory.personal_memory_owner_fences` 承载；`memory.requests` 保存接收与派发、恢复输入。
-原 `execution_control.personal_memory_*` 三张状态表由新增 retirement migration 删除；
-`execution_control.agent_memory_deliveries` 与 `profile.memory_commands` 仍分别承担投递和产品投影。
+原 `agent_control.personal_memory_*` 三张状态表由新增 retirement migration 删除；
+`agent_control.agent_memory_deliveries` 与 `profile.memory_commands` 仍分别承担投递和产品投影。
 当前服务使用独立数据库，保持原 owner salt、generation 和序号；服务间不跨数据库查询。
 
 Campus Web 静态文档发布只使用对象存储和构建产物。Campus RAG serving 逻辑上拥有
 `campus_docs_serving.current_index` 单行绑定；唯一 current pointer writer 是
-`jobs/campus-rag-index-publisher`，继续复用 `execution_control` 数据库身份读取并写入该绑定。Docs 和
+`jobs/campus-rag-index-publisher`，继续复用 `agent_control` 数据库身份读取并写入该绑定。Docs 和
 Notice Chunk/Embedding builder 不写入该表。独立 Campus Search service 使用 `campus_search` 角色和
 `campus-search-service-database-secrets` 中的 `CAMPUS_SEARCH_DATABASE_URL` 读取当前绑定；该角色仅获得
 数据库 `CONNECT`、`campus_docs_serving` 的 `USAGE` 和 `current_index` 的 `SELECT` 权限。
-在线 execution-control 通过内部 HTTP 调用检索服务，不再直接读取当前绑定；publisher 继续使用
-`execution_control` 身份完成发布写入。
+在线 agent-runtime 工具 Activity 通过内部 HTTP 调用检索服务，不再直接读取当前绑定；publisher 继续使用
+`agent_control` 身份完成发布写入。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 通知 schema 与显式发布 Job 同样复用既有 `campus_agent` owner Secret；部署环境不需要
 `notice_publisher` 登录或密码。班车 baseline 由现有 Ops Web bootstrap Job 使用 `ops_web` 连接写入。
@@ -111,12 +133,14 @@ Notice Chunk/Embedding builder 不写入该表。独立 Campus Search service �
 - 已使用统一 ledger 的 v0 数据库原位升级到 Drizzle ORM `1.0.0-rc.4` 的具名记录，保留原 ID、hash 和
   `created_at`，按缺失名称补跑 SQL，不再以最大时间戳过滤；已有记录与本地 SQL 不符时明确失败；
 - 不接管仍使用领域 runner 的旧数据库。发现 `drizzle.app_api_migrations`、
-  `drizzle.ops_web_dining_migrations`、`public.execution_control_migrations`、
+  `drizzle.ops_web_dining_migrations`、`public.agent_control_migrations`、
   `model_config.schema_migrations`、`notices.schema_migrations` 或 `execution_config` 时明确失败；
 - 应用自有 migration 文件、runner 和 legacy integration profile 已退役，不构成线上 upgrade 合同；线上统一
   使用 schema Job 按环境 revision 应用当前结构；源码仓不直接修改在线数据库；
-- `0002_remove_runtime_personal_memory_compat_views` 只删除无消费者的 `runtime.*` 个人记忆兼容 View，
-  不删除 `execution_control.personal_memory_*` 表或其数据；
+- `20261014090000_rename_execution_control_to_agent_control` 要求新 `agent_control` role 在执行前已由
+  CNPG/环境仓创建；migration 只重命名 schema 和安装当前授权，不创建或删除 PostgreSQL role。旧
+  `execution_control` role 必须保留到所有消费者完成切换，退役由后续独立发布负责；
+- `0002_remove_runtime_personal_memory_compat_views` 只删除无消费者的 `runtime.*` 个人记忆兼容 View；
 - `status` 只读比较具名历史和 SQL hash，返回具体 `pendingMigrations`；旧 ledger 即使数量相等也不能
   报 `current`。`migrate` 在同一 advisory lock 内检查历史、执行原生 migrator，并确认没有遗漏后才成功；
 - `pnpm --dir jobs/campus-agent-schema test:migration-integration` 使用隔离 PostgreSQL 验证空库、旧统一
@@ -129,8 +153,8 @@ Notice Chunk/Embedding builder 不写入该表。独立 Campus Search service �
 | 数据 | 逻辑 owner | 生命周期与清理责任 |
 | --- | --- | --- |
 | 用户、会话、原始执行输入 | App API | 账号生命周期；由 App API 删除任务清理 |
-| execution run/event/step/attempt/result projection | execution-control | 账号删除完成前保留，删除时 cascade 清理 |
-| `owner_deletion_fences(state=deleted)` | execution-control | 保留最小 tombstone，阻止 owner 复活；不含用户内容 |
+| execution run/event/step/attempt/result projection | agent-control | 账号删除完成前保留，删除时 cascade 清理 |
+| `owner_deletion_fences(state=deleted)` | agent-control | 保留最小 tombstone，阻止 owner 复活；不含用户内容 |
 | Temporal history | Temporal/platform | 按平台 retention；不由 PostgreSQL 删除任务即时清理 |
 | Hindsight personal memory | Hindsight；Memory Worker 推进删除命令 | 账号清除合同；Memory 独立管理操作状态 |
 | `transport.routes`、`transport.schedule_periods`、`transport.schedule_items` | Ops Web | 当前线路和完整班次表由 Ops Web 直接维护；没有自动清理或通知回放 |
@@ -152,7 +176,7 @@ embedding 制品的存活判断。未有明确引用或删除清单时，本仓�
 
 | 消费方 | 单实例上限 | 说明 |
 | --- | ---: | --- |
-| execution-control projection | 8 | `pgxpool` runtime pool |
+| agent-control projection | 8 | `pgxpool` runtime pool |
 | Memory state | 4 | 独立 Memory 数据库的 pool |
 | Campus Search service | 2 | 独立 `pgxpool`，使用 `campus_search` 只读当前索引 |
 | Model Config runtime | 4 | 只供在线配置服务 |
@@ -185,31 +209,31 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 
 - 数据库级 `CONNECT` 不依赖 `PUBLIC` 默认授权（[campus_agent 共享库连接授权模型](../../.agents/notes/implemented/architecture/2026-09-16-campus-agent-connect-acl.md)）：
   `campus_agent` 库对 `PUBLIC` 仅保留 `TEMP`；显式 `CONNECT` 授权为 owner `campus_agent`
-  与运行角色 `app_api`、`execution_control`、`campus_search`、`model_config`、`ops_web`。新增连接该库的角色
+  与运行角色 `app_api`、`agent_control`、`campus_search`、`model_config`、`ops_web`。新增连接该库的角色
   必须在环境实施时同步补授权，且库级权限调整前先以 `pg_stat_activity` 和本文角色表核对
   真实消费者。
 - 协作者只读角色（如 `hindsight_ro`）的数据库级授权、凭证与生命周期由
   [协作者只读访问](../runbooks/access/collaborator-access.md) 拥有，不进入本文产品角色清单。
 - 常驻运行时不使用 schema 管理或 migration 凭据；
 - 每个运行时只获得完成其职责所需的表、列和操作权限；
-- `campus-agent-schema` 为 `execution_control` 授予所属 schema `USAGE` 和表的
+- `campus-agent-schema` 为 `agent_control` 授予所属 schema `USAGE` 和表的
   `SELECT`、`INSERT`、`UPDATE`、`DELETE`。该角色不获得 schema `CREATE`、表 `TRUNCATE`、
   `REFERENCES`、`TRIGGER`，也不能访问 App API 所有的 `runtime.request_observability_fact`；
-- execution-control 表所有者向 `ops_web` 授予 `agent_runs` 和 `agent_step_attempts` 当前运维
-  投影使用的精确列读取。Ops Web bootstrap 不创建、扩大或收回 execution-control 表权限；
-- `app_api` 仅可读取 `execution_control.agent_runs` 的 `request_id`、`status` 两列，供 App API 的
+- agent-control 表所有者向 `ops_web` 授予 `agent_runs` 和 `agent_step_attempts` 当前运维
+  投影使用的精确列读取。Ops Web bootstrap 不创建、扩大或收回 agent-control 表权限；
+- `app_api` 仅可读取 `agent_control.agent_runs` 的 `request_id`、`status` 两列，供 App API 的
   Ops 会话摘要查询关联最新 dispatch，在分页前区分和筛选待处理、运行中；执行状态仍由
-  execution-control 写入。chat dispatch 不记录执行阶段，逐请求 HTTP 查询不能承担该列表的 SQL
+  agent-control 写入。chat dispatch 不记录执行阶段，逐请求 HTTP 查询不能承担该列表的 SQL
   筛选。授权由统一 migration 安装，其他执行列、事件及写权限保持关闭；消费者退役时由新 migration
   收回这两列授权。
-- `execution_control.agent_campus_search_diagnostics` 保存 Ops 检查 RAG 所需的有界候选和阶段快照，
-  `execution_control` 读写、`ops_web` 只读列级诊断字段，`app_api` 无权限。它与所属 run 级联删除；
+- `agent_control.agent_campus_search_diagnostics` 保存 Ops 检查 RAG 所需的有界候选和阶段快照，
+  `agent_control` 读写、`ops_web` 只读列级诊断字段，`app_api` 无权限。它与所属 run 级联删除；
   不因此向 Ops Web 开放 `agent_run_events` 或 `agent_step_results`；
 - 在线模型配置只能通过 Model Config 管理接口修改，Ops Web 不直连其 schema；
-- `execution_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
+- `agent_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
   但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；统一 Campus RAG publisher 和在线
   Campus Search 复用该身份，前者负责激活当前绑定，后者只读取当前绑定；Docs/Notice builder 不访问该表；
-- Campus RAG publisher 与离线 worker 复用 `execution_control` 维护 `index_versions`，登记真实制品引用、
+- Campus RAG publisher 与离线 worker 复用 `agent_control` 维护 `index_versions`，登记真实制品引用、
   生产者及校验、激活、退休时间；`current_index.previous_collection` 保护上一版本。Ops 和本地数据导出
   只读版本目录。目录不是调度状态副本，自动清理只有确认独占产物已删除后才移除退休版本；
 - `notices.processing_failures` 由分类和发布 Job 写入，Ops 只读及删除用于人工分类修复，App API 无权限；

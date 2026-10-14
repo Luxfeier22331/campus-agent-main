@@ -8,7 +8,7 @@
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v4.json",
-				"$TURBO_ROOT$/configs/runtime/tools.v7.json"
+				"$TURBO_ROOT$/configs/runtime/tools.v8.json"
 			]
 		}
 	}

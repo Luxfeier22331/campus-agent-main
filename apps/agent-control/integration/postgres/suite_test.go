@@ -26,8 +26,8 @@ const (
 	adminPassword     = "postgres-integration-admin"
 	ownerRole         = "campus_agent"
 	ownerPassword     = "campus-agent-password"
-	executionRole     = "execution_control"
-	executionPassword = "execution-control-password"
+	executionRole     = "agent_control"
+	executionPassword = "agent-control-password"
 	appAPIRole        = "app_api"
 	opsWebRole        = "ops_web"
 	opsWebPassword    = "ops-web-password"
@@ -189,6 +189,6 @@ func requireSchema(t *testing.T, databaseURL string, target ...string) {
 		"PGSSLMODE=disable",
 	)
 	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("migrate execution-control schema with campus-agent-schema: %v\n%s", err, output)
+		t.Fatalf("migrate agent-control schema with campus-agent-schema: %v\n%s", err, output)
 	}
 }

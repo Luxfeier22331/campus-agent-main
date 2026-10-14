@@ -78,7 +78,7 @@ components:
     retrievalInternalBearer:
       type: http
       scheme: bearer
-      description: Internal bearer token shared by execution-control and the retrieval service.
+      description: Internal bearer token shared by agent-runtime and Campus Search.
   schemas:
     SearchRequest:
       type: object

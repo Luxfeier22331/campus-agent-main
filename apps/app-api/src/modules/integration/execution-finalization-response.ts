@@ -1,7 +1,7 @@
 import {
-	EXECUTION_CONTROL_FAILURE_MESSAGE,
-	isSafeExecutionControlErrorCode,
-} from "./execution-control-transport";
+	AGENT_CONTROL_FAILURE_MESSAGE,
+	isSafeAgentControlErrorCode,
+} from "./agent-control-transport";
 import {
 	EXECUTION_FINALIZATION_STATUSES,
 	type ExecutionFinalizationResponseWire,
@@ -135,7 +135,7 @@ function assertExecutionFinalizationResponseWire(
 				error &&
 				typeof error.code === "string" &&
 				error.code.trim() &&
-				isSafeExecutionControlErrorCode(error.code) &&
+				isSafeAgentControlErrorCode(error.code) &&
 				typeof error.message === "string" &&
 				error.message.trim() &&
 				typeof error.retryable === "boolean"
@@ -275,7 +275,7 @@ export function parseExecutionFinalizationResponsePayload(
 			parsed.error && typeof parsed.error === "object"
 				? {
 						code: (parsed.error as { code: string }).code.trim(),
-						message: EXECUTION_CONTROL_FAILURE_MESSAGE,
+						message: AGENT_CONTROL_FAILURE_MESSAGE,
 						retryable: (parsed.error as { retryable: boolean }).retryable,
 					}
 				: null,

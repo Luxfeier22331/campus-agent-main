@@ -9,9 +9,9 @@ const env = {
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	RESEND_API_KEY: "resend_test_key",
-	CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+	CLUSTER_PRIVATE_BASE_URL: "https://agent-control.internal",
 	EDGE_INGRESS_SHARED_SECRET: "shared-secret",
-	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+	APP_API_INTERNAL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},

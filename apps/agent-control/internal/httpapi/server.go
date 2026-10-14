@@ -117,9 +117,9 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleProcessReadyz(response, request)
 	case request.Method == http.MethodGet && path == "/readyz":
 		s.handleReadyz(response, request)
-	case request.Method == http.MethodPost && path == "/internal/execution/requests":
+	case request.Method == http.MethodPost && path == "/internal/agent/runs":
 		s.handleExecutionRunCreate(response, request)
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/execution/requests/") && strings.HasSuffix(path, "/campus-search/observations"):
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/agent/runs/") && strings.HasSuffix(path, "/campus-search/observations"):
 		if requestID, ok := executionRequestIDFromPath(path, "/campus-search/observations"); ok {
 			s.handleCampusSearchObservation(response, request, requestID)
 		} else {
@@ -129,28 +129,28 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleOwnerDeletionBegin(response, request, ownerUserIDFromDeletionPath(path, "/deletion/begin"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/owners/") && strings.HasSuffix(path, "/deletion/finalize"):
 		s.handleOwnerDeletionFinalize(response, request, ownerUserIDFromDeletionPath(path, "/deletion/finalize"))
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/requests/") &&
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/agent/runs/") &&
 		strings.HasSuffix(path, "/steps"):
 		if requestID, ok := executionRequestIDFromPath(path, "/steps"); ok {
 			s.handleExecutionRunSteps(response, request, requestID)
 		} else {
 			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/requests/") &&
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/agent/runs/") &&
 		strings.HasSuffix(path, "/events"):
 		if requestID, ok := executionRequestIDFromPath(path, "/events"); ok {
 			s.handleExecutionRunEvents(response, request, requestID)
 		} else {
 			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/execution/requests/") &&
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/agent/runs/") &&
 		strings.HasSuffix(path, "/cancel"):
 		if requestID, ok := executionRequestIDFromPath(path, "/cancel"); ok {
 			s.handleExecutionRunCancel(response, request, requestID)
 		} else {
 			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/requests/"):
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/agent/runs/"):
 		if requestID, ok := executionRequestIDFromPath(path, ""); ok {
 			s.handleExecutionRunGet(response, request, requestID)
 		} else {

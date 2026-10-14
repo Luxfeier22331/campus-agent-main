@@ -6,6 +6,7 @@ import {
 	durableRun,
 } from "./chat-command.service.durable-cutover.test-support";
 import {
+	AgentControlTransportError,
 	buildChatCommandService,
 	ChatAcceptanceConversationConflict,
 	ChatAcceptanceIdempotencyConflict,
@@ -18,7 +19,6 @@ import {
 	createPrincipal,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
-	ExecutionControlTransportError,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
@@ -147,7 +147,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		const { store: conversationStore } = createConversationStore();
 		const executionRuntime = createExecutionRuntimeFromToolClient({
 			execute: vi.fn().mockRejectedValue(
-				new ExecutionControlTransportError({
+				new AgentControlTransportError({
 					code: "execution_timeout",
 					message: "Execution timed out.",
 					retryable: true,
@@ -190,9 +190,9 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		const createRun = vi
 			.fn()
 			.mockRejectedValueOnce(
-				new ExecutionControlTransportError({
-					code: "execution_control_unavailable",
-					message: "Execution control request timed out.",
+				new AgentControlTransportError({
+					code: "agent_control_unavailable",
+					message: "Agent Control request timed out.",
 					retryable: true,
 					status: 504,
 				}),
@@ -202,7 +202,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			cancelRun: vi.fn(),
 			createRun,
 			getRun: vi.fn().mockRejectedValue(
-				new ExecutionControlTransportError({
+				new AgentControlTransportError({
 					code: "execution_run_not_found",
 					message: "Execution run not found.",
 					retryable: true,
@@ -261,15 +261,15 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		const executionRuntime = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
-				new ExecutionControlTransportError({
-					code: "execution_control_unavailable",
-					message: "Execution control request timed out.",
+				new AgentControlTransportError({
+					code: "agent_control_unavailable",
+					message: "Agent Control request timed out.",
 					retryable: true,
 					status: 504,
 				}),
 			),
 			getRun: vi.fn().mockRejectedValue(
-				new ExecutionControlTransportError({
+				new AgentControlTransportError({
 					code: "execution_run_not_found",
 					message: "Execution run not found.",
 					retryable: true,

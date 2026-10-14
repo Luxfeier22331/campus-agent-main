@@ -10,6 +10,21 @@ Status: implemented
 选择的进程内 Memory 模块边界不能承载此次独立部署和恢复所有权；其领域合同与 generation fence
 继续保留。
 
+## 与既有决策的关系
+
+本篇部分取代以下笔记中的旧 owner 和执行路径，不改变其仍有效的领域边界：
+
+- [Temporal 执行面](./2026-06-06-temporal.md)：取代整段 SDK operation Activity 和 Go 编排所有权，
+  保留 Temporal 持久执行与 PostgreSQL 有界投影的划分。
+- [单一 Agent 与机构知识](./2026-07-29-agent-knowledge-tools.md)：工具调用迁入 Runtime，保留按需检索和来源规则。
+- [Hindsight](./2026-07-16-hindsight.md)、[身份与记忆边界](./2026-07-16-memory-boundaries.md)：
+  Hindsight 调用迁入 Memory，保留个人记忆与机构知识、身份授权分离。
+- [记忆访问边界](./2026-09-24-memory-access-boundary.md)、[记忆协调器](./2026-09-24-agent-memory-coordinator.md)：
+  取代 Control 组合根与旧输入/恢复路径，保留 generation、lease、画像和未知结果的领域语义。
+- [Search 服务](./2026-10-03-campus-search-service.md)、[Search 模块 owner](./2026-10-03-campus-search-module-owner.md)：
+  Agent client 与引用分配迁入 Runtime，保留独立检索服务和公共/内部接口。完整检索诊断到 Ops 的
+  消费链当前有缺口，不把旧 Control 回填路径当作现行能力。
+
 ## 决策
 
 - agent-runtime 拥有 Solve、Execute、Replan、Synthesize 决策，单次模型请求与单次外部工具调用分别是
@@ -73,6 +88,11 @@ Worker 到 Control/Memory 的通信与凭据边界由[集群私有入口](2026-1
 补充；本篇的编排和 Memory 所有权决定保持有效。
 
 ## 后果
+
+当前架构、合同、评测说明和运维手册按 Runtime、Control、Memory、Search 的实际职责描述。
+保留的 `execution_control` schema/role、`EXECUTION_CONTROL_*` 配置、`--execution-control-*`
+CLI 参数和 `/internal/execution/...` 路径是持久或接口身份，不是旧 execution-control 编排仍有效的依据。
+退役的 Go Workflow、HTTP Runtime 与一次性 Memory 切换命令不再作为当前运维入口。
 
 TypeScript Workflow 拥有步骤与模型/工具调用推进；control 仍是产品运行投影唯一写入者。
 模型 receipt 已完成时可恢复保存结果；调用已开始但结果未知时按既有不确定结果合同终止，

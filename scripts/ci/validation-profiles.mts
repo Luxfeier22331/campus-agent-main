@@ -159,13 +159,13 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresDocker: false,
 		requiresUv: false,
 	},
-	ragas: {
+	inspect: {
 		shell: "ci-light",
-		installPackages: ["eval-langfuse...", "ragas-runner"],
+		installPackages: ["eval-langfuse...", "inspect-eval"],
 		executor: {
 			commands: [
 				turboCommand("eval-langfuse", "typecheck", "test"),
-				serializedTurboCommand("ragas-runner", EVAL_TASKS[0]),
+				serializedTurboCommand("inspect-eval", EVAL_TASKS[0]),
 			],
 			kind: "commands",
 		},

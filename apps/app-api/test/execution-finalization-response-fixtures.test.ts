@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
+import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/agent-control";
 import { parseExecutionTerminalResponse } from "../src/modules/runtime-command/service/stream";
 
 const fixtureDir = resolve(
@@ -82,7 +82,7 @@ describe("execution finalization canonical response fixtures", () => {
 		expect(parseExecutionFinalizationResponsePayload(timeout)).toMatchObject({
 			error: {
 				code: "execution_timeout",
-				message: "Execution-control request failed.",
+				message: "Agent-control request failed.",
 				retryable: true,
 			},
 			status: "error",

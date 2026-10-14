@@ -25,7 +25,7 @@ func (s *PostgresRunProjectionStore) ObserveCampusSearch(ctx context.Context, o 
 		}
 	}
 	_, err = s.pool.Exec(ctx, `
-INSERT INTO execution_control.agent_campus_search_diagnostics AS d
+INSERT INTO agent_control.agent_campus_search_diagnostics AS d
  (schema_version, request_id, invocation_id, workflow_step_id, activity_attempt, search_query,
  status, current_phase, phase_rank, phase_times_json, snapshot_json, failure_code, http_status)
 VALUES (2,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,nullif($11,''),$12)
@@ -48,7 +48,7 @@ func (s *PostgresRunProjectionStore) MarkCampusSearchCitations(ctx context.Conte
 	if refs == nil {
 		refs = []string{}
 	}
-	_, err := s.pool.Exec(ctx, `UPDATE execution_control.agent_campus_search_diagnostics
+	_, err := s.pool.Exec(ctx, `UPDATE agent_control.agent_campus_search_diagnostics
  SET cited_result_refs = $2, updated_at = now() WHERE request_id = $1`, requestID, refs)
 	return err
 }

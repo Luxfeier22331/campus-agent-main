@@ -114,7 +114,7 @@ test("Campus Search mounts the existing Qdrant and Postgres trust roots", () => 
 	);
 	assert.deepEqual(
 		search.volumes.find((volume: { name: string }) => volume.name === "qdrant-tls-ca"),
-		{ name: "qdrant-tls-ca", configMap: { name: "execution-runtime-qdrant-tls-ca" } },
+		{ name: "qdrant-tls-ca", configMap: { name: "campus-agent-qdrant-tls-ca" } },
 	);
 	assert.deepEqual(
 		search.containers[0].volumeMounts.find(

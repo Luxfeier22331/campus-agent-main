@@ -303,7 +303,7 @@ notices/assets/sha256/<digest>
   制品并负责混合 collection 与 current pointer；
 - App API 只获得五张通知业务表的读取权限，并读取获准图片对象；不读取 migration ledger 或写入通知；
 - Campus Web 只通过 App API 读取规范化通知；
-- Ops Web 拥有内部门户凭据，并只读取通知安全 metadata、更新 `category`；execution-control、Agent 与
+- Ops Web 拥有内部门户凭据，并只读取通知安全 metadata、更新 `category`；agent-control、Agent 与
   在线检索消费者不连接通知来源或 schema，统一 publisher 也只读取 immutable Notice artifacts，不连接
   live Notices DB。
 

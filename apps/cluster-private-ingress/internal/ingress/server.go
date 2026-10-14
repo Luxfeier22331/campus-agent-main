@@ -49,10 +49,10 @@ func New(cfg Config) (*Server, error) {
 		prefix, method, path string
 		proxy                *httputil.ReverseProxy
 	}{
-		{"/v1/control", "POST", `/internal/execution/requests`, control},
-		{"/v1/control", "GET", `/internal/execution/requests/[^/]+`, control},
-		{"/v1/control", "GET", `/internal/execution/requests/[^/]+/events`, control},
-		{"/v1/control", "POST", `/internal/execution/requests/[^/]+/cancel`, control},
+		{"/v1/control", "POST", `/internal/agent/runs`, control},
+		{"/v1/control", "GET", `/internal/agent/runs/[^/]+`, control},
+		{"/v1/control", "GET", `/internal/agent/runs/[^/]+/events`, control},
+		{"/v1/control", "POST", `/internal/agent/runs/[^/]+/cancel`, control},
 		{"/v1/control", "POST", `/internal/owners/[^/]+/deletion/(begin|finalize)`, control},
 		{"/v1/control", "POST", `/internal/memory/personal/(profile/get|commands|commands/status)`, control},
 		{"/v1/memory", "POST", `/internal/memory/(profile|commands|commands/status|owners/finalize)`, memory},

@@ -18,7 +18,10 @@ Agent 控制面负责请求准入、启动与取消意图、运行投影、载�
 
 入口是 `cmd/agent-control`，镜像与 Kubernetes Deployment/Service 均名为 `agent-control`。
 `pnpm dev` 通过 [开发脚本](./scripts/dev.sh) 启动该入口。配置解析在 `internal/config`；
-PostgreSQL schema/role、既有 Secret 对象及键保持原身份，不随应用改名迁移数据。
+运行身份使用 `agent_control` role 和对应的 `agent-control-read-model-secrets`。该 role、Secret 和
+`agent_control` schema 必须在 workload rollout 前完成预置；旧 `execution_control` role 在所有消费者
+切换完成前保留，随后由独立环境发布退役。schema rename 由 `campus-agent-schema` 负责，应用启动不执行
+数据库迁移。
 
 新运行固定启动 `AgentWorkflow`，不再按比例分桶。readiness 检查投影存储、Temporal 和新队列 poller，
 不探测已退役的 HTTP Runtime。旧 Go Workflow、Worker 入口和 HTTP 工具路由已删除，不提供旧 history 支持。
@@ -52,7 +55,7 @@ Runtime 按至多 512 个 Unicode codepoint 分片；Control 的 buffered 回答
 每个 Control 副本保留每 run 最近 100 段、最多 50 KiB 正文，5 分钟未更新后在下一次访问时清除，
 总量最多 1024 个 run。达到上限淘汰最久未更新的缓冲；持久终态不受影响。
 
-内部 `/internal/execution/requests/:id/events` 带 `after_answer_index` 时，在原事件页中追加
+内部 `/internal/agent/runs/:id/events` 带 `after_answer_index` 时，在原事件页中追加
 `answer_deltas`；`next_sequence` 仍只属于持久事件。状态或正文到达均唤醒等待。
 临时读取失败仍返回成功读取的持久事件；监听故障不会使长轮询空转。
 不带该参数的历史事件读取不包含临时正文。新副本只接收监听建立后的广播，不能恢复已错过的草稿。

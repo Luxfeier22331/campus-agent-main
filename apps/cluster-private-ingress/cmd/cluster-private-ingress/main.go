@@ -15,8 +15,8 @@ import (
 func main() {
 	handler, err := ingress.New(ingress.Config{
 		EdgeSecret:    os.Getenv("EDGE_INGRESS_SHARED_SECRET"),
-		ControlURL:    os.Getenv("EXECUTION_CONTROL_BASE_URL"),
-		ControlSecret: os.Getenv("EXECUTION_CONTROL_INGRESS_SHARED_SECRET"),
+		ControlURL:    os.Getenv("AGENT_CONTROL_BASE_URL"),
+		ControlSecret: os.Getenv("AGENT_CONTROL_INGRESS_SHARED_SECRET"),
 		MemoryURL:     os.Getenv("MEMORY_SERVICE_BASE_URL"),
 		MemorySecret:  os.Getenv("MEMORY_INTERNAL_SHARED_SECRET"),
 	})

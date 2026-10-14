@@ -31,7 +31,7 @@ const VALUE_LABELS: Record<string, string> = {
 	embeddings: "Embeddings API",
 	error: "错误",
 	execution_failed: "执行失败",
-	executionControl: "执行编排",
+	agentControl: "执行编排",
 	failed: "失败",
 	open: "未解决",
 	pending: "待处理",

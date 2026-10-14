@@ -2,6 +2,10 @@
 
 Status: implemented
 
+评测框架、旧分数与 Langfuse score 发布部分已由 [Inspect AI 接入](./2026-10-13-inspect-agent-evaluation.md)取代；
+以下保留原取舍，输入来源、线上 trace 与生产模型配置的独立边界继续有效。当前入口见
+[Inspect 评测](../../../../docs/runbooks/inspect.md)。
+
 ## 背景
 
 仓库曾同时维护 synthetic RAG dataset、Langfuse dataset 反查、trace 选择命令、score registry、
@@ -39,7 +43,7 @@ Status: implemented
 - RAG 输出使用 `ragas_score_batch.v3`，不携带 trace、observation、dataset run、context ID 或本地
   artifact 路径；
 - 空 `retrieved_contexts` 是有效失败样本；缺少 reference 的 context 指标直接跳过；
-- `packages/ragas-runner` 只包装 Ragas 官方能力，不拥有数据集、实验、发布或报告。
+- 原 Ragas runner 只包装 Ragas 官方能力，不拥有数据集、实验、发布或报告。
 
 ### Langfuse 适配
 
@@ -83,14 +87,14 @@ provider、transport 或配置 schema version。该本地文件可以包含独�
   兼容入口；
 - Agent 专属工具轨迹评分继续使用独立合同，不把平台字段重新放入 RAG native sample；
 - 仓库只保留调用方选择的 Agent case；独立 synthetic RAG asset 已退役；
-- `packages/eval-langfuse/assets` 保存当前仓库选择长期复用的公开 Agent case；更换评分器不应
+- `packages/inspect-eval/assets` 保存当前仓库选择长期复用的公开 Agent case；更换评分器不应
   自动改写输入来源。
 
 ## 相关文档
 
 - [评测](../../../../docs/reference/eval.md)
 - [评测用例](../../../../docs/reference/eval-cases.md)
-- [Ragas 评测](../../../../docs/runbooks/ragas.md)
+- [Inspect 评测](../../../../docs/runbooks/inspect.md)
 - [Langfuse 运行合同](../../../../docs/contracts/langfuse-runtime.md)
 - 本篇承接已合并的“评测数据集”（原 ADR-0003）的输入所有权与 case 规则
 - [评测指标](./2026-03-22-evaluation-metrics.md)

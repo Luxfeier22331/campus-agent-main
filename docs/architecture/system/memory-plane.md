@@ -12,7 +12,11 @@ Hindsight 是唯一的个人记忆内容运行时；Qdrant 只负责机构知识
 长期选择见 [Hindsight 自托管个人记忆](../../../.agents/notes/implemented/architecture/2026-07-16-hindsight.md)、
 [用户身份、记忆与个性化边界](../../../.agents/notes/implemented/architecture/2026-07-16-memory-boundaries.md)
 和 [Hindsight 记忆生命周期](../../../.agents/notes/implemented/architecture/2026-07-17-hindsight-lifecycle.md)。
-命令运行时合同见 [个人记忆协调器与生命周期合同](../../../.agents/notes/implemented/architecture/2026-09-24-agent-memory-coordinator.md)。
+当前服务所有权与恢复边界见
+[Agent 编排与 Memory 独立服务](../../../.agents/notes/implemented/architecture/2026-10-10-agent-orchestration-memory-services.md)
+和 [Memory Service](../../../apps/memory-service/README.md)；
+[个人记忆协调器](../../../.agents/notes/implemented/architecture/2026-09-24-agent-memory-coordinator.md)
+保留画像、生命周期屏障和未知结果处理的理由，其旧 Control 执行与恢复路径已被取代。
 
 ## 所有权
 
@@ -52,17 +56,13 @@ cluster-private-ingress 到 Memory API，Agent Runtime 的 recall Activity 直�
 
 ## 命令和生命周期
 
-同一个 `command_id` 在产品投影和运行时分别有状态，不能把一个状态列解释成两种语义：
+同一个 `command_id` 在产品投影和运行时分别有状态，不能把一个状态列解释成两种语义。
+产品接口列出尚未完成或当前失败的命令，其 `status` 为 `pending_admission | admitted | failed`；
+成功命令不再列出，失败通过 `errorCode` 表达，详见[产品合同](../../contracts/app-api/memory.md#查询)。
 
-```text
-产品投递：queued → admitted → projected | failed
-运行时：  accepted → running → succeeded | failed | unknown
-生命周期：active | paused | draining | erased
-```
-
-`admitted` 只表示 memory-service 已接受命令，不表示 Hindsight 已完成。`unknown` 表示
-不能证明远端副作用已结束；它不是可安全删除或释放租约的失败终态。产品投影必须能够显示
-运行时 `unknown`，而不是将其折叠为 `failed` 或 `succeeded`。
+`admitted` 只表示 memory-service 已接受命令，不表示 Hindsight 已完成。运行时 `unknown` 表示
+不能证明远端副作用已结束；它不是可安全删除或释放租约的失败终态，也不是产品 `status` 枚举。
+产品侧不能因暂时无法确认结果就宣称执行成功或数据面已经清除。
 
 pause/resume 是 memory-service 的本地 runtime transition，不依赖 Hindsight。完整清除分成：
 

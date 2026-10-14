@@ -35,7 +35,7 @@ func request(s *Server, method, path, secret string) *httptest.ResponseRecorder 
 func TestProxyContract(t *testing.T) {
 	for _, service := range []string{"control", "memory"} {
 		t.Run(service, func(t *testing.T) {
-			path := "/internal/execution/requests"
+			path := "/internal/agent/runs"
 			credential := "x-worker-origin-auth"
 			if service == "memory" {
 				path = "/internal/memory/commands"
@@ -85,15 +85,16 @@ func TestBoundary(t *testing.T) {
 		status               int
 	}{
 		{"GET", "/healthz", "", 200}, {"GET", "/readyz", "", 200},
-		{"POST", "/v1/control/internal/execution/requests", "", 401},
-		{"POST", "/v1/control/internal/execution/requests", "bad", 401},
-		{"GET", "/v1/control/internal/execution/requests", "edge", 405},
+		{"POST", "/v1/control/internal/agent/runs", "", 401},
+		{"POST", "/v1/control/internal/agent/runs", "bad", 401},
+		{"POST", "/v1/control/internal/execution/requests", "edge", 404},
+		{"GET", "/v1/control/internal/agent/runs", "edge", 405},
 		{"POST", "/v1/memory/internal/memory/recall", "edge", 404},
 		{"POST", "/v1/memory/internal/memory/appends", "edge", 404},
 		{"POST", "/v1/control/internal/execution/projections", "edge", 404},
 		{"GET", "/v1/control/readyz", "edge", 404},
-		{"GET", "/v1/control/internal/execution/requests/..", "edge", 404},
-		{"GET", "/v1/control/internal/execution/requests/a%2fb", "edge", 404},
+		{"GET", "/v1/control/internal/agent/runs/..", "edge", 404},
+		{"GET", "/v1/control/internal/agent/runs/a%2fb", "edge", 404},
 		{"POST", "/v1/memory/internal/memory/commands/../recall", "edge", 404},
 	} {
 		if w := request(s, tc.method, tc.path, tc.secret); w.Code != tc.status {
@@ -104,10 +105,10 @@ func TestBoundary(t *testing.T) {
 		t.Fatalf("blocked calls reached backend: %d", calls)
 	}
 	for _, tc := range []struct{ method, path string }{
-		{"POST", "/v1/control/internal/execution/requests"},
-		{"GET", "/v1/control/internal/execution/requests/run-1"},
-		{"GET", "/v1/control/internal/execution/requests/run-1/events"},
-		{"POST", "/v1/control/internal/execution/requests/run-1/cancel"},
+		{"POST", "/v1/control/internal/agent/runs"},
+		{"GET", "/v1/control/internal/agent/runs/run-1"},
+		{"GET", "/v1/control/internal/agent/runs/run-1/events"},
+		{"POST", "/v1/control/internal/agent/runs/run-1/cancel"},
 		{"POST", "/v1/control/internal/owners/user-1/deletion/begin"},
 		{"POST", "/v1/control/internal/owners/user-1/deletion/finalize"},
 		{"POST", "/v1/memory/internal/memory/profile"},
@@ -133,7 +134,7 @@ func TestStreamingAndCancellation(t *testing.T) {
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	r, _ := http.NewRequestWithContext(ctx, "GET", server.URL+"/v1/control/internal/execution/requests/run/events", nil)
+	r, _ := http.NewRequestWithContext(ctx, "GET", server.URL+"/v1/control/internal/agent/runs/run/events", nil)
 	r.Header.Set("x-edge-ingress-auth", "edge")
 	response, err := http.DefaultClient.Do(r)
 	if err != nil {

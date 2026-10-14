@@ -8,17 +8,17 @@ status: active
 
 ## 边界
 
-Langfuse 消费 Agent Runtime trace 和评测 score，不拥有产品 HTTP、Temporal 生命周期、PostgreSQL
+Langfuse 消费 Agent Runtime trace，不拥有产品 HTTP、Temporal 生命周期、PostgreSQL
 run projection、Hindsight bank 或评测输入来源。Langfuse 的区域、project、environment 和凭据由实际
 部署环境配置决定，不在源码合同中固定。
 
 运行 trace 是可选观测能力。环境可以因配额或成本策略停止 ingestion；这不表示产品请求失败，也
-不能阻断在线执行、readiness、promotion 或 PostgreSQL 终态。只有显式评测命令使用 Langfuse
+不能阻断在线执行、readiness、promotion 或 PostgreSQL 终态。只有显式 trace 校验命令使用 Langfuse
 Public API。
 
 ## Runtime 集成
 
-`apps/agent-runtime` 是当前唯一的运行 trace producer。它使用：
+`apps/agent-runtime` 拥有运行 trace 的导出基础设施，包含：
 
 - OpenAI Agents SDK 与 OpenInference instrumentation；
 - 官方 `@langfuse/otel` span processor；
@@ -30,10 +30,15 @@ Agent Runtime 只在进程启动时存在 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` �
 选择；产品请求不能选择采样率、project、endpoint 或观测模式。进程关闭时 flush，不在每个请求或
 span 后强制 flush。
 
+当前 Activity 路径直接发起单次模型请求；OpenAI 调用使用 `NoopTrace` 和 `tracing: false`，
+不再由旧 Runner 自动生成完整 Agent/tool trace。配置 exporter 不能证明当前模型与工具已形成
+完整 Langfuse 调用链，逐阶段定位以持久投影为准。实现见
+[SDK 单次调用](../../apps/agent-runtime/src/sdk-runner.ts)与[Worker](../../apps/agent-runtime/src/worker.ts)。
+
 入站请求的追踪上下文只服务 App API 的可选运行关联，到 durable execution 边界即终止。
-execution-control 只提取和转发入站请求已有的可选 W3C `traceparent`，不从产品标识派生 trace，
+agent-control 只提取和转发入站请求已有的可选 W3C `traceparent`，不从产品标识派生 trace，
 也不传播 `baggage`。
-execution-control 不创建 OTel exporter、编排 span 或 runtime metric；Temporal history、PostgreSQL
+agent-control 不创建 OTel exporter、编排 span 或 runtime metric；Temporal history、PostgreSQL
 投影和 Hindsight 业务调用不依赖 trace export。Hindsight 不产生新的 Langfuse trace。
 
 `traceparent` 只证明跨服务调用的可选因果关联，不承载产品或工作流状态。step `failure.code`、run
@@ -42,12 +47,12 @@ span、Langfuse 可见性或未传播的 `baggage` 推断。
 
 Agent Runtime 直接把 Agent trace 发送到 Langfuse 云服务，不经过 Collector 中间层。Collector
 已从环境仓退役；源码仓不再维护 Collector 配置。trace 发送只覆盖 Agent/OpenInference span，不接收
-execution-control、Hindsight、日志或指标。环境是否启用 trace 导出由环境仓的
+agent-control、Hindsight、日志或指标。环境是否启用 trace 导出由环境仓的
 `OTEL_EXPORTER_OTLP_*` endpoint 决定，源码不证明某个环境已启用。
 
 ## Trace 数据
 
-模型格式失败的可见输出诊断属于 Execution Control 的内部 Ops 投影，不属于本 trace 合同；其
+模型格式失败的可见输出诊断属于 agent-control 的内部 Ops 投影，不属于本 trace 合同；其
 有界正文通过 Runtime 内部响应保存到独立诊断列，不进入 span、普通日志或外部 exporter。
 该例外见 [Langfuse 调用链数据](../../.agents/notes/implemented/architecture/2026-07-15-langfuse-trace-data.md)
 与[持久执行数据文档](../data/durable-runtime.md)，不启用 SDK sensitive data 导出。
@@ -78,29 +83,13 @@ transform 恢复 producer 已删除的内容。
 
 ## 评测与评分
 
-调用方提供的 Agent case 可以按评测合同包含必要输入和 reference。评测输入由调用方、仓库文件或
-本地文件拥有；不得从生产 trace 正文隐式生成输入，也不通过 Langfuse 平台状态反查 Ragas 正文。
-仓库不维护 Langfuse dataset manifest、镜像同步或 reconciliation 控制面。
+调用方提供的 Agent case 可以按评测合同包含必要输入和 reference。评测输入由调用方、仓库文件或本地文件拥有；不得从生产 trace 正文隐式生成输入，也不通过 Langfuse 平台状态反查评测正文。
 
-产品路径评测分为三个显式阶段：
+`packages/inspect-eval` 负责离线保存结果评分和通过未来的 Control/Runtime eval ingress 执行真实多轮样本。Inspect `.eval` 日志是评测结果，包含逐轮、阶段、尝试和工具评分；`score` 只重新评分保存日志，不触发产品，`eval-retry` 只由 Inspect 管理发生执行错误的样本。产品执行失败也保留为可评分样本。
 
-1. `agent-eval` 读取调用方提供的 cases 文件，可选执行 setup turn，通过真实 App API 执行目标 turn，
-   按 `requestId` 读取 `agent_runtime_eval_projection.v5`，写出 `agent_product_eval_result.v3`；
-2. `score-ragas` 读取该产品结果，在本地临时构造 Agent sample 和 `ragas_sample_batch.v3`，调用
-   Ragas runner，写出最终 score 文件；
-3. `publish-scores` 按 `case_id` 使用调用方显式提供的原生 Langfuse trace ID 映射，并通过官方 SDK
-   的 `score.create` 和一次 `score.flush` 发布可选 Langfuse score。
+Inspect 的未来 live 执行使用 agent-control 所属的专用 eval ingress，直接进入执行层，不复用 App API 的 Cookie、用户会话、用户归属或产品受理生命周期。Inspect 不代理生产模型、不安装到生产 Agent、不读取原始 Temporal history；Control/Runtime 只暴露受控步骤、尝试、工具参数和归一化结果。
 
-第一阶段不访问 Langfuse；第二阶段不访问 Langfuse；第三阶段只发布 score，不创建第二条产品 trace，
-也不创建或维护 Dataset Run。`packages/eval-langfuse` 验证在线 trace 时只要求 metadata 中唯一的
-产品 `request_id`，不要求 execution-control workflow metadata。
-
-Ragas runner 不连接 Langfuse、不选择平台数据、不从 trace 读取正文，也不携带 trace、observation 或
-平台运行字段。未知 score 名称、缺失 case 关联、非有限数值或 Langfuse 写入失败必须使发布命令失败；
-score 名称由代码级 allowlist 校验，不再同步独立 score registry。
-
-独立离线 Ragas 可以完全不连接 Langfuse；其结果默认留在 stdout 或调用方指定的本地文件。普通 trace
-不能被命令反查成 Ragas 正文输入。
+Langfuse 只保留独立在线 trace 校验，不接收或发布 Inspect score。旧 Ragas 分数不迁移。
 
 ## 可用性
 

@@ -20,7 +20,7 @@ Responses 的模型传输选择由[JSON 输出与流式接收](./2026-10-10-json
 
 让 solve/execute_step 的模型消费协议同时支持流式与非流式、可切换，当前默认非流式，供应商修复后评估切回。
 
-- 新增进程级开关 `EXECUTION_CONTROL_ANSWER_TRANSPORT`（取值 `stream`/`buffered`，默认 `buffered`），由 `execution-control` config 读取。任何非 `stream` 值（含缺省、非法值）一律归一为 `buffered`，避免误开流式复现缺陷。
+- 新增进程级开关 `AGENT_CONTROL_ANSWER_TRANSPORT`（取值 `stream`/`buffered`，默认 `buffered`），由 `agent-control` config 读取。任何非 `stream` 值（含缺省、非法值）一律归一为 `buffered`，避免误开流式复现缺陷。
 - `streamModelAnswers()` 统一判定模型正文模式，通过 operation 请求的 `model_answer_transport` 明确传给 Runtime。Solve/Execute Step 的内部 HTTP 始终使用 SSE，独立于模型 buffered/stream；synthesize 的 `Stream: !BufferAnswer`（recovery 既有逻辑）不动。
 - buffered Runtime 将非流式 runner 接入既有检索回调队列，在模型返回全文前实时发送 `retrieval_status`。Solve 校验结果后发送 decision 和终态，不发正文 delta；全文仍由 Execution Control 的既有单 chunk 分支投影，避免双重输出。
 - 非流式 solve 返回完整 `FinalOutput` 后，在 activity 内复用 `ProjectWorkflowAnswerDelta`（单 chunk）+ `ProjectWorkflowAnswerCompleted` 投影全文并置 `AnswerStarted=true`，使浏览器可见事件序列与流式同构（answer-started → 单个 answer.delta(全文) → answer-completed → request.completed）。

@@ -10,7 +10,7 @@ x-campus-contract:
     execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
     response_contract: ExecutionFinalizationResponse wire contract changes must bump response_contract
 paths:
-  /internal/execution/requests:
+  /internal/agent/runs:
     post:
       summary: Start a Temporal-backed execution run.
       requestBody:
@@ -26,7 +26,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunResponse"
-  /internal/execution/requests/{requestId}:
+  /internal/agent/runs/{requestId}:
     get:
       summary: Read sanitized execution run projection.
       parameters:
@@ -38,7 +38,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunResponse"
-  /internal/execution/requests/{requestId}/events:
+  /internal/agent/runs/{requestId}/events:
     get:
       summary: Read sanitized execution run events after an optional sequence.
       parameters:
@@ -74,7 +74,7 @@ paths:
                   next_sequence:
                     type: integer
                     minimum: 0
-  /internal/execution/requests/{requestId}/steps:
+  /internal/agent/runs/{requestId}/steps:
     get:
       summary: Read sanitized execution run step trajectory projection.
       parameters:
@@ -86,7 +86,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunStepTrajectory"
-  /internal/execution/requests/{requestId}/cancel:
+  /internal/agent/runs/{requestId}/cancel:
     post:
       summary: Cancel a Temporal-backed execution run.
       parameters:
@@ -108,7 +108,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunResponse"
-  /api/internal/execution/requests/{requestId}/input:
+  /api/internal/agent/runs/{requestId}/input:
     get:
       summary: Read the immutable execution input owned by app-api.
       parameters:
@@ -225,7 +225,7 @@ components:
           type: string
         personal_memory_recall_allowed:
           type: boolean
-          description: Frozen personal memory availability derived from lifecycle and readiness; execution-control owns whether and how recall is exposed.
+          description: Frozen personal memory availability derived from lifecycle and readiness; agent-control freezes admission, agent-runtime exposes recall by stage, and Memory enforces access.
         surface:
           type: string
         runtime_versions:

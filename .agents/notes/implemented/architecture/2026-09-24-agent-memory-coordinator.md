@@ -13,13 +13,24 @@ provider 状态未知时，这些状态不能由一个 owner 重建，命令可�
 [异步记忆追加](../../implemented/bug-fix/2026-09-19-async-memory-append.md) 关于稳定
 provider operation ID 和未知状态不得重提的规则继续有效。
 
+## 当前适用范围
+
+[Agent 编排与 Memory 独立服务](./2026-10-10-agent-orchestration-memory-services.md)部分取代本文的执行 owner、输入保存、恢复和部署决定：
+Memory API 在独立数据库中原子保存完整命令/追加输入与派发意图，Memory Worker 负责启动与恢复
+`MemoryOperationWorkflow`；Control 只持久投递回答后的追加。已接收操作的恢复不再依赖
+“EC 不保存输入，所以必须由 App API 重新准入”的旧前提，也不复活旧 `memory.append` Workflow。
+
+画像产品模型、即时清除与真实删除的区别、generation/lease 屏障和未知结果不得重提的原则仍有效。
+下方 2026-09-26 收敛过程保留当时的问题与取舍，不作为当前 Worker 命令或恢复操作手册；
+现行路径以[个人记忆架构](../../../../docs/architecture/system/memory-plane.md)为准。
+
 ## 决策
 
 ### 产品侧即时清除（2026-09-26 更新）
 
 普通用户清除改为即时语义：app-api 接受 erase 命令的同一事务里把 `memory_settings` 置为
 `erased`（写 `erasedAt`）并推进 generation，画像读取立即返回本地空画像；数据面删除
-（fence `erasing`、drain、bank 删除、24h bound）全部保留在 execution-control 后台完成。
+（fence `erasing`、drain、bank 删除、24h bound）全部保留在 memory-service 后台完成。
 产品合同移除 `erasing` 枚举与 409 `memory_lifecycle_blocked` 读分支。失败的生命周期命令
 （owner_erase / owner_transition 失败头）由 memory 定时任务经
 `listFailedLifecycleCommands` + `retryCommand` 自动重试。账号注销不采用即时语义：
@@ -27,7 +38,7 @@ provider operation ID 和未知状态不得重提的规则继续有效。
 即真实删除收敛后才放行注销。数据库 `lifecycle_state` 无 check 约束、
 `accepted_lifecycle_state` CHECK 已含 `erased`，无需迁移；遗留 `erasing` 行靠重试逻辑自愈。
 
-### 阻塞 receipt 的收敛（2026-09-26 更新；erase 陈旧 receipt 决定已被取代）
+### 旧实现的阻塞 receipt 收敛（2026-09-26 历史；恢复路径已被取代）
 
 命令链此前存在三条无界路径：后继命令在 owner gate 上无限等待前置 receipt；finalizer 里
 `BeginCommand` 遇 `ErrMemoryReceiptBlocked` 以无限重试死循环；erase 排空被 workflow 已死的
@@ -51,8 +62,7 @@ provider operation ID 和未知状态不得重提的规则继续有效。
 - **erase 排空保留未决 receipt**：旧决定曾把超过 10 分钟未触碰的 receipt 终态化；这把本地
   触碰间隔误当成 provider operation 已停止的证据。现由[命令结果不确定性修复](./2026-10-10-memory-command-uncertainty.md)
   取代：stale 只触发同一 command 的重新准入和恢复，不能释放旧 generation 的排空屏障。
-  其他收敛决定（有界 owner gate 等待、receipt stale 判定、app-api 同命令重新准入、finalizer
-  不创建 receipt）仍有效。
+  其余旧收敛实现的适用范围以本篇开头的取代说明为准，不再据此要求 App API 恢复已被 Memory 接收的操作。
 
 取舍：崩溃或恢复重放后 provider 可能 at-least-once 执行，与既有 SDK activity 重试语义一致；
 双重追加受 supersession/fence 约束且终结。`(owner_scope_hash, generation)` 索引仍为规模
@@ -61,30 +71,24 @@ gated，不在此修复。
 ### 所有权
 
 - app-api 拥有用户意图、outbox 和产品读取投影，不拥有已准入命令的执行状态。
-- execution-control 是已准入命令的唯一运行时 owner，负责 command receipt、workflow/provider
+- memory-service 是已准入命令的唯一运行时 owner，负责 command receipt、workflow/provider
   identity、generation、profile 合成、call lease、恢复和终态化。
 - Temporal 是持久执行载体和历史保存者，不建立另一套产品状态。
 - Hindsight 是记忆内容和 provider operation 的唯一 owner。
 
-回调只用于尽快更新 app-api 投影。app-api 能按 `command_id` 从 execution-control 重建
+回调只用于尽快更新 app-api 投影。app-api 能按 `command_id` 从 memory-service 查询
 运行时状态，回调失败不使命令永久停在 `admitted`。
 
 ### 状态
 
-产品投影和运行时状态分开表达：
-
-```text
-产品 delivery: queued | admitted | projected | failed
-运行时:        accepted | running | succeeded | failed | unknown
-生命周期:      active | paused | draining | erased
-```
-
-`admitted` 只表示 execution-control 接受命令；不表示 provider 已完成。`unknown` 表示
-不能证明远端副作用已结束，不释放相关 lease，也不完成旧 bank 的物理删除。
+产品投影和运行时状态分开表达。产品命令 `status` 使用 `pending_admission | admitted | failed`，
+公开命令字段见[接口合同](../../../../docs/contracts/app-api/memory.md)。`admitted` 只表示 Memory
+接受命令，不表示 provider 已完成。运行时 `unknown` 不是产品状态枚举，表示不能证明远端副作用
+已结束，不释放相关 lease，也不完成旧 bank 的物理删除。
 
 ### 产品模型
 
-产品合同从逐条 CRUD 收敛为整篇画像：execution-control 通过 Hindsight `user-profile`
+产品合同从逐条 CRUD 收敛为整篇画像：memory-service 通过 Hindsight `user-profile`
 mental model（中文 source query，`refresh_after_consolidation`）把全部已准入记忆合成一份
 自然语言 profile；用户提交自然语言纠正（`POST /corrections`），纠正作为普通记忆写入并随
 下次合成进入画像。逐条 list/get/create/update 路由从 app-api 与 campus-web 合同中移除；
@@ -94,11 +98,11 @@ mental model（中文 source query，`refresh_after_consolidation`）把全部�
 
 ### 生命周期屏障
 
-pause/resume 是 execution-control 的本地 runtime transition，不经过 Hindsight provider。
+pause/resume 是 memory-service 的本地 runtime transition，不经过 Hindsight provider。
 清除分成两个动作：`BeginErase` 立即推进 generation、进入 `draining` 并拒绝新的访问；
 `DrainAndDelete` 等待旧代次调用及 provider operation 达到安全终态后删除 bank 并进入
-`erased`。排空上界 24 小时，超时以失败暴露而不是无限等待；等待期间复活丢失的 append
-workflow（确定性 operation ID，`Submitted=false`）。
+`erased`。排空上界 24 小时，超时以失败暴露而不是无限等待；当前由 Memory 恢复已持久接收的
+操作，沿用稳定 provider operation ID，不再依赖旧 append Workflow 的复活路径。
 
 recall、append、profile 读取和 erase 都经过同一个 memory access boundary，统一执行 owner
 scope、generation、lifecycle、call lease 和总 deadline。`paused` 允许 profile 读取和纠正
@@ -124,7 +128,7 @@ Campus Web 在 generating 时刷新画像，完成或读取失败后停止；生
 - **继续让 app-api 通过 callback 推断执行终态**：实现简单，但 callback 不是可靠恢复机制，无法
   处理 workflow 已结束、callback 丢失和 provider 状态未知。
 - **为每个状态表增加独立 reconciler 或 cron**：可以缓解单个卡住状态，却会继续扩大状态 owner，
-  让多个 reconciler 竞争同一命令；恢复集中在 execution-control 的排空与复活路径。
+  让多个 reconciler 竞争同一命令；最初集中到 execution-control，现由独立 Memory owner 的派发、恢复与排空路径承担。
 - **让 Temporal 成为产品状态 owner**：workflow history 适合持久执行，不适合直接承担产品投影，
   也会把 app-api 与 Temporal schema 绑定。
 - **把 provider `unknown` 当作失败并释放清除**：可能在远端仍写入时删除 bank，破坏用户数据和
@@ -132,7 +136,7 @@ Campus Web 在 generating 时刷新画像，完成或读取失败后停止；生
 - **逐条 CRUD 管理界面（方案 A）**：可复用现有 items 基础设施，但把 Hindsight 抽取、consolidation
   的派生结构暴露给用户，纠正粒度与合成机制冲突；整篇画像 + 自然语言纠正与产品心智一致。
 - **quarantine、运维处置端点、常驻 sweep、Postgres 迁移**：均为协调器提案评审中裁剪的范围；
-  恢复由排空等待、workflow 复活和按 command ID 的 receipt 查询覆盖，不再引入独立机制。
+  这是当时协调器评审的范围取舍；后续独立数据库与恢复机制由服务拆分决策明确取代。
 
 ## 后果
 
@@ -143,12 +147,12 @@ Campus Web 在 generating 时刷新画像，完成或读取失败后停止；生
 提交、不释放 lease、不删除 bank。
 
 旧 Temporal history 不能由新 workflow 直接解释时，需在发布前停止并收口明确属于个人记忆的
-旧执行；新旧 execution-control worker 不能混跑。现有 Hindsight bank 内容不因代码切换迁移或
-重导入。Hindsight 无法确认 operation 已停止时，用户清除在数据面保持 `draining` 并以失败暴露，
+旧执行；不能混用不兼容的 Memory Worker。原 execution-control 的 Go Worker 已退役，
+当前发布由独立服务合同维护。现有 Hindsight bank 内容不因代码切换迁移或重导入。Hindsight 无法确认 operation 已停止时，用户清除在数据面保持 `draining` 并以失败暴露，
 不静默宣称 `erased`；产品投影在 erase 入队时即置为 `erased`（即时清除，见上方 2026-09-26
 更新），数据面收敛由 `syncStatus` 表达。旧客户端（逐条 items 路由）在硬切期间收到 404，不保留兼容层。
 
-已落实的验证：`go test ./apps/agent-control/...`（合同、fence、profile handler、排空与
+历史实现的验证记录（对应当时模块，不能作为当前执行命令）：`go test ./apps/agent-control/...`（合同、fence、profile handler、排空与
 复活）、execution-control `test:database-integration`（含多实例并发：同一 erase 命令并发准入
 仅执行一次、并发 owner 删除幂等、新调用不得穿越已提交的删除）、app-api `test:node:fast` /
 `test:node:isolated` / `test:shared-db-integration`、campus-web `test:node:*` / `test:dom:*` /
@@ -156,7 +160,7 @@ Campus Web 在 generating 时刷新画像，完成或读取失败后停止；生
 再普通 `insert` 后触发 duplicate key；现与 `BeginCommand` 一致，改为
 `insert on conflict do nothing` 后加锁读取。阻塞 receipt 收敛（2026-09-26 更新）新增验证：
 workflow 有界等待超时（Temporal test suite 模拟时间）、finalizer 缺失 receipt 放行、
-erase 排空放弃陈旧 receipt（adaptertest + in-memory 状态存储）、status `stale` 标志、
+erase 排空放弃陈旧 receipt（当时的 adaptertest + in-memory 测试；该行为已被未知结果修复取代）、status `stale` 标志、
 app-api 对 stale/404 重新准入（vitest）。覆盖缺口：真实 Hindsight 供应商的 profile 合成
 延迟未在 CI 覆盖。
 

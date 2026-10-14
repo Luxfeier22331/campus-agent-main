@@ -21,6 +21,19 @@ test("the baseline is a schema-only unified migration", async () => {
 	assert.match(baseline, /CREATE TABLE notices\.categories/u);
 });
 
+test("the agent-control migration renames the live schema without rewriting history", async () => {
+	const migration = await readFile(
+		resolve(
+			jobRoot,
+			"migrations/20261014090000_rename_execution_control_to_agent_control/migration.sql",
+		),
+		"utf8",
+	);
+	assert.match(migration, /ALTER SCHEMA execution_control RENAME TO agent_control;/u);
+	assert.match(migration, /GRANT USAGE ON SCHEMA agent_control TO agent_control;/u);
+	assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM|CREATE TABLE/u);
+});
+
 test("the personal-memory cleanup migration only drops the compatibility views", async () => {
 	const migration = await readFile(
 		resolve(

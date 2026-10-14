@@ -188,7 +188,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 					}
 				}
 				if state == execution.LifecycleIntentStatePermanentFailed {
-					if _, err := conn.Exec(t.Context(), `update execution_control.agent_run_cancellations
+					if _, err := conn.Exec(t.Context(), `update agent_control.agent_run_cancellations
 						set state = 'permanent_failed', lease_token = 'stale-lease',
 							lease_until = $2, last_error_code = 'dispatch_exhausted', updated_at = $2
 						where request_id = $1`, run.RequestID, run.StartedAt.Add(3*time.Second)); err != nil {
@@ -216,7 +216,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 				var updatedAt time.Time
 				if err := conn.QueryRow(t.Context(), `select state, next_attempt_at, lease_token,
 					lease_until, last_error_code, updated_at
-					from execution_control.agent_run_cancellations where request_id = $1`, run.RequestID).Scan(
+					from agent_control.agent_run_cancellations where request_id = $1`, run.RequestID).Scan(
 					&storedState,
 					&nextAttemptAt,
 					&storedLeaseToken,
@@ -255,7 +255,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 		}); err != nil {
 			t.Fatalf("request cancellation: %v", err)
 		}
-		if _, err := conn.Exec(t.Context(), `update execution_control.agent_run_cancellations
+		if _, err := conn.Exec(t.Context(), `update agent_control.agent_run_cancellations
 			set state = 'superseded', updated_at = $2 where request_id = $1`, run.RequestID, now.Add(2*time.Second)); err != nil {
 			t.Fatalf("set incompatible cancellation state: %v", err)
 		}
@@ -273,7 +273,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 		assertPostgresFinalizationRollback(t, store, run.RequestID)
 		var cancellationState string
 		if err := conn.QueryRow(t.Context(),
-			`select state from execution_control.agent_run_cancellations where request_id = $1`,
+			`select state from agent_control.agent_run_cancellations where request_id = $1`,
 			run.RequestID,
 		).Scan(&cancellationState); err != nil {
 			t.Fatalf("read rolled back cancellation: %v", err)

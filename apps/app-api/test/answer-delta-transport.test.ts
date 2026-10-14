@@ -3,7 +3,7 @@ import { parseExecutionFinalizationResponsePayload } from "../src/modules/integr
 import {
 	durableRunEventsPath,
 	parseDurableRunEvents,
-} from "../src/modules/integration/execution-control-runtime-codec";
+} from "../src/modules/integration/agent-control-runtime-codec";
 import { liveRunEvents } from "../src/modules/integration/live-run-events";
 import { answerDeltaEventFromDurableRunEvent } from "../src/modules/runtime-command/service/durable";
 import { startDurableFinalizationCloseout } from "../src/modules/runtime-command/service/durable-polling";

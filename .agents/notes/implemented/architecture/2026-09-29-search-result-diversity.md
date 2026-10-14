@@ -47,6 +47,9 @@ Status: implemented
 
 ### 合成输入去重（agent-runtime）
 
+本节的章节级去重已由[回答证据与时间上下文](../bug-fix/2026-10-13-answer-evidence-and-time-context.md)
+取代：同一章节的不同片段可能承载互补事实，合成输入改为仅按证据 ID 去重。检索选段多样性与工具描述决策继续有效。
+
 `synthesisPayload` 在 `normalizeEvidence` 之后增加 `deduplicateSynthesisMaterials`：
 按 `来源 ID（noticeId 或 documentId）+ title + sectionTitle` 去重，同一来源同一章节只保留
 第一条（最高排名的）。来源 ID 参与 key 是因为 staging 语料验证确认同一单位逐年重发的
@@ -90,6 +93,6 @@ execution-control、agent-runtime 和 contracts 的单元、类型及合同检�
   对于确实需要同一通知多个章节的查询（如"某个通知的全部内容"），cap 可能限制
   信息完整性，但回补机制确保 resultLimit 仍被填满。
 - P2/P5 的 prompt 和工具描述需要按发布流程在真实流量中继续观察，单次受控样本不代表普遍流量。
-- P3 的去重按来源 ID + title + sectionTitle 精确匹配，不处理相似但不完全相同的标题。
+- 原 P3 按来源 ID + title + sectionTitle 去重会误删同章节互补片段，已由上述修复取代。
 - 独立部署的 Qdrant 冷启动性能未纳入本决策的行为合同。
 - 工具描述变更需要协调发布以避免 `tool_contract_mismatch`。

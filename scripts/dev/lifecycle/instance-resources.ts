@@ -185,7 +185,7 @@ export function formatProfileSummary(profile: LocalDevProfile): string {
 		`Campus Web: http://127.0.0.1:${profile.ports.campusWeb}`,
 		`app-api: http://127.0.0.1:${profile.ports.appApi}`,
 		`Ops Web: http://127.0.0.1:${profile.ports.opsWeb}/dining`,
-		`Execution API: http://127.0.0.1:${runtimePorts.executionControl}`,
+		`Execution API: http://127.0.0.1:${runtimePorts.agentControl}`,
 		`Model Config: http://127.0.0.1:${runtimePorts.modelConfig}`,
 		`Agent Runtime: http://127.0.0.1:${runtimePorts.agentRuntime}`,
 		`Agent Worker: http://127.0.0.1:${runtimePorts.agentWorker}`,

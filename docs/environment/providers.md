@@ -19,12 +19,12 @@ status: active
 
 | 能力 | 配置所有者 | 消费方 | 合同 |
 | --- | --- | --- | --- |
-| Primary Agent | Model Config 的 `primary_agent` config | execution-control、agent-runtime | 准入冻结 target hash；Agent Runtime 按该 hash 读取完整配置 |
+| Primary Agent | Model Config 的 `primary_agent` config | agent-control、agent-runtime | 准入冻结 target hash；Agent Runtime 按该 hash 读取完整配置 |
 | Embedding 连接 | Model Config 的 `campus_docs_embedding` config | Campus Docs 与 Notice Embedding Job | Job 一次读取完整配置；Ops Web 只替换 Base URL 和 API key，provider、model 和 protocol 由共享 canonical embedding 合同拥有 |
 | Reranker 连接 | Model Config 的 `campus_docs_reranker` config | Campus Search service 的 `campus_search` | Cohere Rerank provider/protocol 由该具名配置约束；离线实验继续使用独立本地 profile |
 | 通知分类连接 | Model Config 的 `notice_classification` config | notice-classifier 在线 Job | Job 启动阶段一次读取完整配置；API key 不返回浏览器 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
-| 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
+| 评测模型 | 评测命令运行环境 | Inspect 评测命令 | 不复用在线配置数据库或浏览器凭据 |
 
 Embedding Job 在启动后从 Model Config 一次读取完整配置并直接调用 provider。系统不为索引构建维护
 第二份 provider 配置。Embedding provider 固定为 `openai-compatible`，model 固定为
@@ -32,7 +32,7 @@ Embedding Job 在启动后从 Model Config 一次读取完整配置并直接调�
 固定为 `embeddings`；设置验证观测到的向量长度不是可编辑索引配置。实际 dimensions、
 `embedding_space_id`、查询指令和向量名来自显式 embedding/index 制品及发布器代码。Primary Agent 与
 agent-runtime 不直接读取 Embedding 连接、Qdrant 或 `campus_docs_serving.current_index`；Campus Search service
-读取这些运行时依赖，execution-control 只通过内部 HTTP 合同消费结果。
+读取这些运行时依赖；agent-runtime 工具 Activity 通过内部 HTTP 消费检索结果，agent-control 仅保存投影。
 
 具体模型、transport 和 endpoint 由当前模型设置、索引制品与可执行注册表维护，不在本文复制。
 
@@ -52,7 +52,7 @@ PostgreSQL 角色按数据所有权、授权范围和迁移边界决定，不按
 ### Qdrant
 
 统一 Campus RAG Publisher 使用维护凭据创建、校验和发布包含 Docs/Notice point 的 collection；
-Campus Search service 在线查询使用只读 Qdrant 凭据；execution-control 不再持有 Qdrant 凭据。Docs/Notice builder
+Campus Search service 在线查询使用只读 Qdrant 凭据；agent-control 不再持有 Qdrant 凭据。Docs/Notice builder
 不需要 Qdrant 凭据。
 
 ### 对象存储

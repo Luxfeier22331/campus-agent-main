@@ -127,4 +127,4 @@ spec:
                 path: ca.crt
         - name: qdrant-tls-ca
           configMap:
-            name: execution-runtime-qdrant-tls-ca
+            name: campus-agent-qdrant-tls-ca

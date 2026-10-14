@@ -66,7 +66,7 @@ export function buildAccountLifecycleService(
 					);
 				};
 				try {
-					const executionDeletion = await dependencies.executionController.beginOwnerDeletion({
+					const executionDeletion = await dependencies.agentController.beginOwnerDeletion({
 						ownerUserId: request.ownerUserId,
 					});
 					if (executionDeletion.state === "draining" && executionDeletion.activeRunCount > 0) {
@@ -90,11 +90,9 @@ export function buildAccountLifecycleService(
 						await dependencies.memoryController.finalizeOwnerDeletion({
 							ownerUserId: request.ownerUserId,
 						});
-						const finalizedExecution = await dependencies.executionController.finalizeOwnerDeletion(
-							{
-								ownerUserId: request.ownerUserId,
-							},
-						);
+						const finalizedExecution = await dependencies.agentController.finalizeOwnerDeletion({
+							ownerUserId: request.ownerUserId,
+						});
 						if (finalizedExecution.state !== "deleted" || finalizedExecution.activeRunCount > 0) {
 							const deferredAt = new Date();
 							await dependencies.store.defer(

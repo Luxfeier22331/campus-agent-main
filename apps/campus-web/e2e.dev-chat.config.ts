@@ -9,10 +9,10 @@ const repoRoot = resolve(appRoot, "../..");
 const profile = loadLocalDevProfile(repoRoot);
 const appApiPort = profile.ports.appApi;
 const campusWebPort = profile.ports.campusWeb;
-const executionControlFixturePort = 27_051 + profile.slot * 100;
+const agentControlFixturePort = 27_051 + profile.slot * 100;
 const appApiOrigin = `http://127.0.0.1:${appApiPort}`;
 const campusWebOrigin = `http://127.0.0.1:${campusWebPort}`;
-const executionControlFixtureOrigin = `http://127.0.0.1:${executionControlFixturePort}`;
+const agentControlFixtureOrigin = `http://127.0.0.1:${agentControlFixturePort}`;
 const appApiDevVarsPath = resolve(appRoot, "../app-api/.dev.vars.local");
 const appApiEnvironment = parseEnv(readFileSync(resolve(appRoot, "../app-api/.env.local"), "utf8"));
 const campusWebDevVarsPath = resolve(appRoot, ".dev.vars.local");
@@ -60,14 +60,14 @@ export default defineConfig({
 	webServer: [
 		{
 			command:
-				"node --env-file-if-exists=apps/app-api/.dev.vars.local --experimental-strip-types apps/app-api/e2e/local-execution-control-fixture.ts",
+				"node --env-file-if-exists=apps/app-api/.dev.vars.local --experimental-strip-types apps/app-api/e2e/local-agent-control-fixture.ts",
 			env: processEnvironment({
 				APP_API_BASE_URL: appApiOrigin,
-				PORT: String(executionControlFixturePort),
+				PORT: String(agentControlFixturePort),
 			}),
 			reuseExistingServer: false,
 			timeout: 30_000,
-			url: `${executionControlFixtureOrigin}/healthz`,
+			url: `${agentControlFixtureOrigin}/healthz`,
 			cwd: repoRoot,
 		},
 		{
@@ -75,7 +75,7 @@ export default defineConfig({
 				"pnpm --dir apps/app-api exec wrangler dev -e local",
 				"--name app-api-local --ip 127.0.0.1",
 				`--port ${appApiPort} --env-file ${appApiDevVarsPath}`,
-				`--var EXECUTION_CONTROL_BASE_URL:${executionControlFixtureOrigin}`,
+				`--var AGENT_CONTROL_BASE_URL:${agentControlFixtureOrigin}`,
 			].join(" "),
 			env: processEnvironment({
 				...appApiEnvironment,

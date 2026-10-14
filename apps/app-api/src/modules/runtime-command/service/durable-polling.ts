@@ -1,7 +1,7 @@
 import {
-	type ExecutionControlRunEvent,
-	type ExecutionControlRunEventPage,
-	ExecutionControlTransportError,
+	type AgentControlRunEvent,
+	type AgentControlRunEventPage,
+	AgentControlTransportError,
 	type ToolExecutionResponse,
 } from "../../integration";
 import { liveRunEvents } from "../../integration/live-run-events";
@@ -30,7 +30,7 @@ function validatePollingPolicy(
 ): Required<DurableEventPollingPolicy> {
 	const maxAttempts = policy?.maxAttempts ?? DEFAULT_DURABLE_EVENT_POLLING_POLICY.maxAttempts;
 	if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
-		throw new ExecutionControlTransportError({
+		throw new AgentControlTransportError({
 			code: "runtime_invariant_failed",
 			message: "Durable event polling maxAttempts must be a positive integer.",
 			retryable: false,
@@ -39,7 +39,7 @@ function validatePollingPolicy(
 	}
 	const waitMs = policy?.waitMs ?? DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs;
 	if (!Number.isInteger(waitMs) || waitMs < 0) {
-		throw new ExecutionControlTransportError({
+		throw new AgentControlTransportError({
 			code: "runtime_invariant_failed",
 			message: "Durable event polling waitMs must be a non-negative integer.",
 			retryable: false,
@@ -55,19 +55,19 @@ function validatePollingPolicy(
 function updateLastSequence(
 	context: DurableRunEventContext,
 	lastSequence: number,
-	runEvent: ExecutionControlRunEvent,
+	runEvent: AgentControlRunEvent,
 ): number {
 	if (runEvent.requestId !== context.requestId) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message: "Durable request event request_id does not match the accepted request.",
 			retryable: true,
 			status: 502,
 		});
 	}
 	if (!Number.isInteger(runEvent.sequence) || runEvent.sequence <= lastSequence) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message: "Durable run event sequence must be strictly increasing.",
 			retryable: true,
 			status: 502,
@@ -76,10 +76,10 @@ function updateLastSequence(
 	return runEvent.sequence;
 }
 
-function nextSequenceFromPage(lastSequence: number, page: ExecutionControlRunEventPage): number {
+function nextSequenceFromPage(lastSequence: number, page: AgentControlRunEventPage): number {
 	if (!Number.isInteger(page.nextSequence) || page.nextSequence < lastSequence) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message: "Durable run event page returned a stale next_sequence.",
 			retryable: true,
 			status: 502,
@@ -109,7 +109,7 @@ export async function waitForDurableFinalizationResponse<
 	Context extends DurableRunEventContext,
 >(input: {
 	context: Context;
-	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEventPage>;
+	listRunEvents(afterSequence: number, waitMs?: number): Promise<AgentControlRunEventPage>;
 	polling?: DurableEventPollingPolicy;
 }): Promise<{
 	response: ToolExecutionResponse;
@@ -157,7 +157,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		afterSequence: number,
 		waitMs?: number,
 		afterAnswerIndex?: number,
-	): Promise<ExecutionControlRunEventPage>;
+	): Promise<AgentControlRunEventPage>;
 	now: () => Date;
 	polling?: DurableEventPollingPolicy;
 	recordStreamAppApiTtft(input: { durationMs: number; observedAt: string }): Promise<unknown>;
@@ -245,7 +245,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 			lastSequence = nextSequenceFromPage(lastSequence, page);
 		}
 
-		throw new ExecutionControlTransportError({
+		throw new AgentControlTransportError({
 			code: "execution_status_pending",
 			message: "Durable run event polling ended before a product terminal event was available.",
 			retryable: true,

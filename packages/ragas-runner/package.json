@@ -1,7 +1,0 @@
-{
-	"name": "ragas-runner",
-	"private": true,
-	"scripts": {
-		"test:eval": "uv run --package campus-ragas-runner python -m unittest discover -s tests -t . -q"
-	}
-}

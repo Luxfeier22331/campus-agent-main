@@ -12,7 +12,7 @@ func (s *PostgresRunProjectionStore) RecordModelOutputDiagnostic(ctx context.Con
 	if err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx, `update execution_control.agent_step_results
+	_, err = s.pool.Exec(ctx, `update agent_control.agent_step_results
 		set model_output_diagnostic_json = $3::jsonb
 		where request_id = $1 and result_id = $2 and model_output_diagnostic_json is null`, requestID, resultID, encoded)
 	return err

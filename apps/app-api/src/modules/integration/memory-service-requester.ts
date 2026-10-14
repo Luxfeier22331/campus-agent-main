@@ -3,12 +3,12 @@ import {
 	PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
 	resolveEnvironment,
 } from "../../config";
+import type { JsonRecord } from "./agent-control-runtime-types";
 import {
 	type ClusterPrivateEnv,
 	createClusterPrivateHeaders,
 	resolveClusterPrivateUpstream,
 } from "./cluster-private-transport";
-import type { JsonRecord } from "./execution-control-runtime-types";
 
 export type MemoryServiceEnv = ClusterPrivateEnv;
 export class MemoryServiceTransportError extends Error {

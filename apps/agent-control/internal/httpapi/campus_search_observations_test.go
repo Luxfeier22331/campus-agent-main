@@ -22,7 +22,7 @@ func TestCampusSearchObservationRoute(t *testing.T) {
 		{"reject trailing json", valid + ` {}`, "query-secret", 400},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			request := newTestRequest(http.MethodPost, "/internal/execution/requests/request-one/campus-search/observations", strings.NewReader(test.body))
+			request := newTestRequest(http.MethodPost, "/internal/agent/runs/request-one/campus-search/observations", strings.NewReader(test.body))
 			request.Header.Set("x-execution-query-auth", test.auth)
 			response := httptest.NewRecorder()
 			server.ServeHTTP(response, request)

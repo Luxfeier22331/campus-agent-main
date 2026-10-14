@@ -113,13 +113,13 @@ for (const scenario of ["normal", "disconnect", "restart-reader", "unavailable"]
 					?.slice(5) ?? "{}",
 			) as { requestId: string };
 			const env = parseEnv(readFileSync(resolve(root, "apps/agent-control/.env.local"), "utf8"));
-			const client = new Client({ connectionString: env.EXECUTION_CONTROL_DATABASE_URL ?? "" });
+			const client = new Client({ connectionString: env.AGENT_CONTROL_DATABASE_URL ?? "" });
 			await client.connect();
 			try {
 				const readEvents = async () =>
 					(
 						await client.query(
-							"select event_type from execution_control.agent_run_events where request_id=$1",
+							"select event_type from agent_control.agent_run_events where request_id=$1",
 							[data.requestId],
 						)
 					).rows;

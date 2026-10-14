@@ -21,7 +21,7 @@ Status: implemented
 
 main checkout 与 linked worktree 使用相同规则。此次 main 硬切销毁旧共享容器、网络和卷，清理旧 profile 及其托管连接后，从 seed 重建独立 V3 实例；不复制旧共享数据，集群真实数据同步留作后续显式操作。已有 V3 worktree 不受影响。
 
-应用统一使用当前 profile 的 `OBJECT_STORE_*`、`EXECUTION_CONTROL_DATABASE_URL`、当前 profile Qdrant 和 Temporal 配置。`CAMPUS_DOCS_OBJECT_STORE_*`、`CAMPUS_DOCS_SERVING_DATABASE_URL`、`dev:sync-retrieval` 和 `dev:shared-reconcile` 不再属于本地运行合同。
+应用统一使用当前 profile 的 `OBJECT_STORE_*`、`AGENT_CONTROL_DATABASE_URL`、当前 profile Qdrant 和 Temporal 配置。`CAMPUS_DOCS_OBJECT_STORE_*`、`CAMPUS_DOCS_SERVING_DATABASE_URL`、`dev:sync-retrieval` 和 `dev:shared-reconcile` 不再属于本地运行合同。
 
 通知采集和状态版本维护由采集模块统一解析 source 对象存储连接，bucket、endpoint 和凭据均由环境
 显式提供；本地通知分类同样要求 `OBJECT_STORE_BUCKET_SOURCE`，不限制固定桶名。维护命令的查询、

@@ -36,11 +36,11 @@ spec:
           args:
             - dist/worker.js
           env:
-            - name: EXECUTION_CONTROL_DATABASE_URL
+            - name: AGENT_CONTROL_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: execution-tool-read-model-secrets
-                  key: EXECUTION_CONTROL_DATABASE_URL
+                  name: agent-control-read-model-secrets
+                  key: AGENT_CONTROL_DATABASE_URL
             - name: QDRANT_URL
               valueFrom:
                 configMapKeyRef:
@@ -64,12 +64,12 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: notice-pipeline-config
-                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+                  key: AGENT_CONTROL_TEMPORAL_ADDRESS
             - name: TEMPORAL_NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   name: notice-pipeline-config
-                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+                  key: AGENT_CONTROL_TEMPORAL_NAMESPACE
             - name: MODEL_CONFIG_URL
               value: http://model-config:8000
             - name: DEPLOYMENT_ENVIRONMENT
@@ -132,7 +132,7 @@ spec:
                 path: ca.crt
         - name: qdrant-tls-ca
           configMap:
-            name: execution-runtime-qdrant-tls-ca
+            name: campus-agent-qdrant-tls-ca
         - name: tmp
           emptyDir:
             sizeLimit: 1Gi

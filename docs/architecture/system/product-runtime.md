@@ -22,7 +22,7 @@ status: active
 | `agent-control` | 持久运行准入、启动取消、内部查询、receipt 和执行投影 | 浏览器认证、页面合同和模型凭据所有权 |
 | `campus-search-service` | 共享 Campus Docs/Notice 检索、当前索引读取和 MCP 客户端 HTTP 合同 | Agent run 生命周期、个人记忆、通知采集和 Bot 写操作 |
 | `model-config` | 具名在线模型配置、Provider 凭据、验证和内部读取合同 | 模型流量代理、执行编排和产品页面 |
-| `agent-runtime` | 当前模型 operation 及其内部模型与获准工具循环 | 持久编排和产品数据持久化 |
+| `agent-runtime` | TypeScript Temporal AgentWorkflow、模型与工具 Activity、阶段决策和预算 | 产品认证、运行投影数据库写入、个人记忆内容存储 |
 
 ## 浏览器路径
 
@@ -44,7 +44,9 @@ flowchart LR
   Control[agent-control]
   Temporal[Temporal]
   Agent[agent-runtime]
-  RunDB[(runtime.agent projections)]
+  RunDB[(agent_control projections)]
+  Memory[memory-service]
+  Search[campus-search-service]
 
   Browser --> AppAPI
   AppAPI --> ProductDB
@@ -53,24 +55,28 @@ flowchart LR
   PrivateIngress --> Control
   PrivateIngress --> Memory
   Control --> Temporal
-  Temporal --> Control
-  Control --> Agent
+  Agent --> Temporal
+  Agent --> Control
+  Agent --> Search
+  Agent --> Memory
+  Control --> Memory
   Control --> RunDB
 ```
 
 app-api 保存用户轮次并创建持久 request；agent-runtime 的 Temporal Workflow 推进执行，经 agent-control 写入
-`execution_control.agent_*`；app-api 消费有界事件并保存产品终态。事务与幂等规则只在
+`agent_control.agent_*`；app-api 消费有界事件并保存产品终态。事务与幂等规则只在
 [聊天请求生命周期](../../contracts/app-api/request-lifecycle.md) 维护。
 
 ## 数据边界
 
 - 会话、消息和轮次派发：`apps/app-api`；
-- 工作流 run、event、step、tool 和 memory 投影：`apps/agent-control`；
+- 回答 run、event、step、tool 投影及 Memory 投递意图：`apps/agent-control`；
+- 记忆命令、追加进度、generation 与租约：`apps/memory-service`；
 - 完整 Temporal history：Temporal；
-- Agent 模型和工具调用 trace：Langfuse；
+- 可选 Agent trace：Langfuse；当前 Activity 路径的覆盖限制见[Langfuse 合同](../../contracts/langfuse-runtime.md)；
 - 离线评测输入与结果：调用方和所属评分器；需要关联运行时再把 score 发布到 Langfuse；
 - Worker release 和 source map：Worker 发布流程与 Cloudflare 平台；
-- 个人记忆内容：Hindsight，由独立 memory-service 拥有；Agent Runtime 通过 Memory API 召回，Control/Memory Workflows 负责命令和追加；
+- 个人记忆内容：Hindsight，由独立 memory-service 拥有；Agent Runtime 通过 Memory API 召回，Control 投递追加输入，Memory Workflow 负责命令和追加；
 - 产品可用性快照和有限时间线：`status-web` 所属的 Cloudflare KV namespace；不写入原始探测
   响应、Langfuse trace 或数据库记录。
 

@@ -2,6 +2,10 @@
 
 Status: implemented
 
+评测框架、旧分数与 Langfuse score 发布部分已由 [Inspect AI 接入](../testing/2026-10-13-inspect-agent-evaluation.md)取代；
+以下保留原取舍，输入来源、线上 trace 与生产模型配置的独立边界继续有效。当前入口见
+[Inspect 评测](../../../../docs/runbooks/inspect.md)。
+
 ## 背景
 
 为支持对真实问题做端到端 Agent 评估，需要确认每次 `campus_search` 检索的意图。但

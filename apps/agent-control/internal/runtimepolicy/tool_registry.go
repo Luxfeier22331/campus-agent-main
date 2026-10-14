@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	ToolRegistrySchemaVersion = "tool-registry-v7"
-	defaultToolRegistryPath   = "configs/runtime/tools.v7.json"
-	packagedToolRegistryPath  = "/etc/campus-agent/tools.v7.json"
+	ToolRegistrySchemaVersion = "tool-registry-v8"
+	defaultToolRegistryPath   = "configs/runtime/tools.v8.json"
+	packagedToolRegistryPath  = "/etc/campus-agent/tools.v8.json"
 )
 
 var toolSchemaRefPattern = regexp.MustCompile(
@@ -25,7 +25,7 @@ var supportedToolExposures = map[string]struct{}{
 }
 
 var supportedToolHandlerTypes = map[string]struct{}{
-	"execution_control_internal_query": {},
+	"agent_control_internal_query": {},
 }
 
 type ToolSpec struct {
@@ -115,12 +115,12 @@ func (t ToolSpec) Validate() error {
 		return fmt.Errorf("%s handler.type is unsupported: %s", t.Name, t.Handler.Type)
 	}
 	switch t.Handler.Type {
-	case "execution_control_internal_query":
+	case "agent_control_internal_query":
 		if !strings.HasPrefix(strings.TrimSpace(t.Handler.Endpoint), "/internal/") {
 			return fmt.Errorf("%s handler.endpoint must be an /internal/ path", t.Name)
 		}
 		if strings.TrimSpace(t.Handler.Target) != "" {
-			return fmt.Errorf("%s handler.target must be empty for execution_control_internal_query", t.Name)
+			return fmt.Errorf("%s handler.target must be empty for agent_control_internal_query", t.Name)
 		}
 	}
 	if t.Exposure == "model_visible" && !t.ReadOnly {
@@ -155,7 +155,7 @@ func (r ToolSpecRegistry) ToolNamesByHandlerEndpoint(endpoint string) []string {
 	}
 	names := make([]string, 0)
 	for _, tool := range r.Tools {
-		if tool.Handler.Type == "execution_control_internal_query" &&
+		if tool.Handler.Type == "agent_control_internal_query" &&
 			strings.TrimSpace(tool.Handler.Endpoint) == normalized {
 			names = append(names, tool.Name)
 		}

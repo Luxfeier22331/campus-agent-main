@@ -8,9 +8,9 @@ describe("agent runtime worker env contract", () => {
 
 		expect(source).toContain("AGENT_CONTROL_BASE_URL");
 		expect(source.match(/required\("AGENT_CONTROL_RUNTIME_SHARED_SECRET"\)/gu)).toHaveLength(1);
-		expect(source).not.toContain("process.env.EXECUTION_CONTROL_BASE_URL");
+		expect(source).not.toContain("process.env.AGENT_CONTROL_BASE_URL");
 		expect(source).not.toContain("process.env.AGENT_RUNTIME_SHARED_SECRET");
-		expect(source).not.toContain("process.env.AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET");
+		expect(source).not.toContain("process.env.AGENT_RUNTIME_AGENT_CONTROL_SHARED_SECRET");
 	});
 
 	it("does not project root provider env into the OpenAI Agents SDK provider", () => {

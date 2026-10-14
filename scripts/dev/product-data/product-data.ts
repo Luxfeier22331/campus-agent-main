@@ -42,7 +42,7 @@ export async function assertProductAppsOffline(profile: LocalDevProfile) {
 		profile.ports.appApi,
 		profile.ports.campusWeb,
 		profile.ports.opsWebApi,
-		calculateLocalDevRuntimePorts(profile.slot).executionControl,
+		calculateLocalDevRuntimePorts(profile.slot).agentControl,
 	];
 	const result = await probeLocalPorts(ports);
 	if (result.occupied.length > 0 || result.unknown.length > 0) {
@@ -113,7 +113,7 @@ export async function initializeRetrievalData(
 						"product-data-index",
 						async () => {
 							const catalog = createPostgresIndexCatalog({
-								EXECUTION_CONTROL_DATABASE_URL: localDatabaseUrls(profile).owner,
+								AGENT_CONTROL_DATABASE_URL: localDatabaseUrls(profile).owner,
 							});
 							try {
 								await catalog.acquirePublisherLock();

@@ -12,7 +12,7 @@ status: active
 OTLP exporter，也不维护 application-log destination。
 
 Cloudflare invocation logs 与 native traces 必须关闭，不能作为产品状态证据。入站请求的追踪上下文
-只服务可选运行关联，到 durable execution 边界即终止。execution-control 只转发已有的可选
+只服务可选运行关联，到 durable execution 边界即终止。agent-control 只转发已有的可选
 W3C `traceparent`，不从 `requestId` 派生 trace；若环境启用 Agent trace，Langfuse metadata 使用
 `request_id` 关联。环境 destination、Worker version/traffic 和 source map 上传由环境仓与 Worker
 发布链路共同拥有；Source map 不属于应用错误事件或产品状态合同。
@@ -58,7 +58,7 @@ sampling、`persist=false`、`invocation_logs=false` 和
 
 - Worker stack 未映射：检查发布版本、release 一致性和 source map 上传结果。
 - correlation 断裂：检查 PostgreSQL 产品投影和 Langfuse metadata 的 `requestId`；若本次调用本来携带
-  W3C `traceparent`，再检查 execution-control 是否原样传播。`baggage` 不得跨 durable execution 边界。
+  W3C `traceparent`，再检查 agent-control 是否原样传播。`baggage` 不得跨 durable execution 边界。
 - 任一禁止字段出现：立即关闭对应 trace producer；出现 invocation log/native trace 或新的 log
   destination 时先修复配置漂移，再执行完整哨兵检查。
 

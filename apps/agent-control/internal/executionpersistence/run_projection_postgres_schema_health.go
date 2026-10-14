@@ -22,7 +22,7 @@ actual_tables as (
 	select relation.relname::text as table_name
 	from pg_class as relation
 	join pg_namespace as namespace on namespace.oid = relation.relnamespace
-	where namespace.nspname = 'execution_control'
+	where namespace.nspname = 'agent_control'
 		and relation.relkind in ('r', 'p')
 ),
 expected_columns(table_name, column_name, data_type, not_null, default_expression) as (
@@ -97,7 +97,7 @@ actual_columns as (
 	left join pg_attrdef as attribute_default
 		on attribute_default.adrelid = relation.oid
 		and attribute_default.adnum = attribute.attnum
-	where namespace.nspname = 'execution_control'
+	where namespace.nspname = 'agent_control'
 		and relation.relkind in ('r', 'p')
 		and attribute.attnum > 0
 		and not attribute.attisdropped
@@ -129,22 +129,22 @@ expected_constraints(
 			('owner_deletion_fences', 'p', array['owner_user_id']::text[], '', '', array[]::text[], ''),
 			('agent_runs', 'p', array['request_id']::text[], '', '', array[]::text[], ''),
 			('agent_runs', 'u', array['request_id']::text[], '', '', array[]::text[], ''),
-			('agent_run_events', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+			('agent_run_events', 'f', array['request_id']::text[], 'agent_control', 'agent_runs', array['request_id']::text[], 'c'),
 			('agent_run_steps', 'p', array['request_id', 'step_id']::text[], '', '', array[]::text[], ''),
-			('agent_run_steps', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+			('agent_run_steps', 'f', array['request_id']::text[], 'agent_control', 'agent_runs', array['request_id']::text[], 'c'),
 			('agent_step_attempts', 'p', array['attempt_id']::text[], '', '', array[]::text[], ''),
 			('agent_step_attempts', 'u', array['request_id', 'step_id', 'attempt']::text[], '', '', array[]::text[], ''),
-			('agent_step_attempts', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+			('agent_step_attempts', 'f', array['request_id']::text[], 'agent_control', 'agent_runs', array['request_id']::text[], 'c'),
 			('agent_step_results', 'p', array['result_id']::text[], '', '', array[]::text[], ''),
-			('agent_step_results', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
-			('conversation_run_locks', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+			('agent_step_results', 'f', array['request_id']::text[], 'agent_control', 'agent_runs', array['request_id']::text[], 'c'),
+			('conversation_run_locks', 'f', array['request_id']::text[], 'agent_control', 'agent_runs', array['request_id']::text[], 'c'),
 		('agent_workflow_starts', 'p', array['request_id']::text[], '', '', array[]::text[], ''),
 		('agent_workflow_starts', 'u', array['workflow_id']::text[], '', '', array[]::text[], ''),
-		('agent_workflow_starts', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+		('agent_workflow_starts', 'f', array['request_id']::text[], 'agent_control', 'agent_runs', array['request_id']::text[], 'c'),
 		('agent_run_cancellations', 'p', array['request_id']::text[], '', '', array[]::text[], ''),
-		('agent_run_cancellations', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+		('agent_run_cancellations', 'f', array['request_id']::text[], 'agent_control', 'agent_runs', array['request_id']::text[], 'c'),
 		('agent_invocation_receipts', 'p', array['invocation_id']::text[], '', '', array[]::text[], ''),
-		('agent_invocation_receipts', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c')
+		('agent_invocation_receipts', 'f', array['request_id']::text[], 'agent_control', 'agent_runs', array['request_id']::text[], 'c')
 ),
 actual_constraints as (
 	select
@@ -177,7 +177,7 @@ actual_constraints as (
 	join pg_namespace as namespace on namespace.oid = relation.relnamespace
 	left join pg_class as referenced_relation on referenced_relation.oid = constraint_metadata.confrelid
 	left join pg_namespace as referenced_namespace on referenced_namespace.oid = referenced_relation.relnamespace
-	where namespace.nspname = 'execution_control'
+	where namespace.nspname = 'agent_control'
 		and constraint_metadata.convalidated
 ),
 expected_check_constraints(table_name, constraint_name, expression) as (
@@ -197,7 +197,7 @@ actual_check_constraints as (
 	from pg_constraint as constraint_metadata
 	join pg_class as relation on relation.oid = constraint_metadata.conrelid
 	join pg_namespace as namespace on namespace.oid = relation.relnamespace
-	where namespace.nspname = 'execution_control'
+	where namespace.nspname = 'agent_control'
 		and constraint_metadata.contype = 'c'
 		and constraint_metadata.convalidated
 ),
@@ -254,14 +254,14 @@ actual_indexes as (
 	join pg_class as index_relation on index_relation.oid = index_metadata.indexrelid
 	join pg_namespace as index_namespace on index_namespace.oid = index_relation.relnamespace
 	join pg_am as access_method on access_method.oid = index_relation.relam
-	where namespace.nspname = 'execution_control'
-		and index_namespace.nspname = 'execution_control'
+	where namespace.nspname = 'agent_control'
+		and index_namespace.nspname = 'agent_control'
 		and index_metadata.indisvalid
 		and index_metadata.indisready
 		and index_metadata.indnatts = index_metadata.indnkeyatts
 ),
 schema_issues(issue) as (
-	select format('table execution_control.%I is missing', expected.table_name)
+	select format('table agent_control.%I is missing', expected.table_name)
 	from expected_tables as expected
 	where not exists (
 		select 1 from actual_tables as actual where actual.table_name = expected.table_name
@@ -270,7 +270,7 @@ schema_issues(issue) as (
 	union all
 
 	select format(
-		'column execution_control.%I.%I does not match required type, nullability, or default',
+		'column agent_control.%I.%I does not match required type, nullability, or default',
 		expected.table_name,
 		expected.column_name
 	)
@@ -291,7 +291,7 @@ schema_issues(issue) as (
 	union all
 
 	select format(
-		'column execution_control.%I.%I must not exist',
+		'column agent_control.%I.%I must not exist',
 		forbidden.table_name,
 		forbidden.column_name
 	)
@@ -306,7 +306,7 @@ schema_issues(issue) as (
 	union all
 
 	select format(
-		'constraint execution_control.%I (%s %s) is missing or invalid',
+		'constraint agent_control.%I (%s %s) is missing or invalid',
 		expected.table_name,
 		expected.constraint_type,
 		array_to_string(expected.columns, ',')
@@ -330,7 +330,7 @@ schema_issues(issue) as (
 	union all
 
 	select format(
-		'check constraint execution_control.%I.%I does not match required definition',
+		'check constraint agent_control.%I.%I does not match required definition',
 		expected.table_name,
 		expected.constraint_name
 	)
@@ -348,7 +348,7 @@ schema_issues(issue) as (
 
 	union all
 
-	select format('index execution_control.%I is missing or has the wrong definition', expected.index_name)
+	select format('index agent_control.%I is missing or has the wrong definition', expected.index_name)
 	from expected_indexes as expected
 	where exists (
 		select 1 from actual_tables as actual where actual.table_name = expected.table_name

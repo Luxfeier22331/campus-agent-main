@@ -165,7 +165,7 @@ describe("Responses JSON mode over streaming transport", () => {
 			mockProvider([[message(text)]]);
 			const runtime = createWorkflowOperationRuntime({
 				catalog: loadToolCatalog(
-					new URL("../../../configs/runtime/tools.v7.json", import.meta.url).pathname,
+					new URL("../../../configs/runtime/tools.v8.json", import.meta.url).pathname,
 				),
 				runner: createConfiguredRunner(),
 			});

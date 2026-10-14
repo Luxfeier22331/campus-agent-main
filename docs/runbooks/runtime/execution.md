@@ -19,19 +19,67 @@ staging execution runtime 由 Kubernetes/GitOps 管理，Docker Compose 只用�
 3. 合并环境 PR 选择 deployment revision；
 4. Argo CD 按该 revision 对账。
 
-同一交付顺序必须先运行 `data-postgres` Application 中的 `campus-agent-schema` Job，再启动依赖数据库
-的 workload。该 Job 使用 `campus_agent` owner 和统一 migration ledger；长期进程不执行 schema 迁移。
+同一交付顺序必须先完成数据库 role 预置，再运行 `data-postgres` Application 中的
+`campus-agent-schema` Job，最后启动或滚动依赖数据库的 workload。该 Job 使用 `campus_agent` owner
+和统一 migration ledger；长期进程不执行 schema 迁移。
+
+Agent Control 的 PostgreSQL role 切换必须拆成四个同步步骤：
+
+1. 预置 `agent_control` DatabaseRole、Secret 和新配置，保留旧 `execution_control` role 与旧资源；确认
+   新 role 存在并可连接，但不要让新合同 workload 在 schema rename 前接收请求；
+2. 暂停受影响的新请求和定时派发，排空或停止仍使用旧 schema/合同的消费者，确认旧进程没有活跃数据库连接；
+3. 运行 `campus-agent-schema` Job，完成 schema rename，随后启动或滚动所有使用新合同的 Agent Control、
+   Runtime、publisher、App API、Ops Web 及其他消费者；
+4. 完成 readiness、真实会话、取消、`campus_search` 和 Ops 查询验证后，确认旧 role 没有活跃连接，单独发布
+   旧 role 的 `ensure: absent`，再清理旧 Secret/资源来源。
+
+不要把旧 role 删除声明与 schema migration 放在同一次跨 Application 同步中；sync wave 只在单个
+Application 内排序，不能替代环境仓的阶段切换。
 `ops-web-bootstrap` 只在自己的 wave 中执行 Dining 与班车 baseline bootstrap，不负责建表、迁移或授权。
 独立 Memory 数据库由同一 schema 制品的 `--target memory` 入口安装，`memory-schema` Job 使用
 `memory_service` role；个人记忆状态经 Memory API 消费，部署不再从旧 execution 表复制状态。
 
+### GitOps 配置交接检查
+
+源码 promotion 只会更新 Source revision、镜像 digest、发布标识和应用 source SHA，不会自动重命名
+SealedSecret、ConfigMap 或其中的 key。环境仓在选择包含本次合同切换的 Source SHA 前，必须完成以下期望状态：
+
+- `agent-control-read-model-secrets` 提供 `AGENT_CONTROL_DATABASE_URL`；
+- `agent-control-ingress-secrets` 提供 `AGENT_CONTROL_INGRESS_SHARED_SECRET`；
+- Agent Control 和 Memory 的 ConfigMap 使用
+  `AGENT_CONTROL_PRODUCT_CALLBACK_BASE_URL`、`AGENT_CONTROL_TEMPORAL_ADDRESS` 和
+  `AGENT_CONTROL_TEMPORAL_NAMESPACE`；Agent Runtime 与相关 publisher 按各自 workload 实际消费提供
+  `AGENT_CONTROL_TEMPORAL_ADDRESS` 和 `AGENT_CONTROL_TEMPORAL_NAMESPACE`；
+- 配置/Secret 与 schema Job、workload rollout 位于环境仓定义的同一切换流程中，并在 schema Job 前完成旧
+  消费者排空。跨 child Application 的 sync wave 不能替代这一顺序。
+
+其余内部配置按实际 owner 同步切换：
+
+| 消费方 | 当前 Secret / key |
+| --- | --- |
+| Control 与 Runtime | `agent-control-runtime-secrets/AGENT_CONTROL_RUNTIME_SHARED_SECRET` |
+| App API、Control 与 Memory 回调 | `app-api-internal-secrets/APP_API_INTERNAL_SHARED_SECRET` |
+| Memory API/Worker | `memory-service-secrets/HINDSIGHT_OWNER_SALT` |
+| Campus Search 与 Notice Artifacts | ConfigMap `campus-agent-qdrant-tls-ca` |
+
+App API 执行输入读取与产品回调继续共享同一个原值，HTTP 认证 header 不变。Memory owner salt 必须原值
+迁移，不重新生成。Secret 名称变更必须使用 strict scope 重新封装，不能直接改密文对象的 metadata。
+发布窗口内由 GitOps 暂时保留旧 Secret/CA；新消费者全部切换、旧连接清零后在环境仓删除。
+GitOps 的凭据投递镜像与 Worker 配置生成器也必须支持新 key，再由投递 Job 更新 GitOps Environment。
+
+当前 Runtime Worker 只声明 HTTP 健康端口，没有原 execution-worker/HTTP Runtime 的 metrics 合同。
+GitOps 移除无人消费的 scrape、recording rules、runtime-metrics 与 KEDA；当前 workload 保持固定副本。
+
 发布检查：
 
 - 环境仓 commit；
+- GitOps Secret/ConfigMap 名称和 key 已符合上面的新合同，promotion 未被误认为会自动完成重命名；
 - root/child Application sync 与 health；
+- `agent_control` role 已预置，旧 `execution_control` role 仍保留在迁移前和消费者切换期间；
+- 受影响的新请求已暂停，旧消费者已排空或停止，且旧数据库连接已清零；
 - `campus-agent-schema` Job 成功，并确认统一 ledger 已安装到目标数据库；
 - 涉及旧对象清理的 migration 完成后，确认退役 View 不存在，底层表和既有运行角色 ACL 仍然存在；
-- schema Job 已确认 `execution_control` 对所属 `execution_control` 表具有精确读写权限，且不具有 schema
+- schema Job 已确认 `agent_control` 对所属 `agent_control` 表具有精确读写权限，且不具有 schema
   创建、表维护或 App API 产品终态表访问权限；
 - Model Config、通知和 Dining 的运行角色只使用各自运行权限；Ops Web bootstrap 没有 DDL 或授权职责；
 - first-party Deployment rollout 和不可变 image digest；
@@ -60,8 +108,8 @@ Agent 编排固定进入 agent-runtime 的 TypeScript `AgentWorkflow`；agent-co
 
 ## 破坏性 Schema 变更
 
-主库本次新增迁移只删除已无运行消费者的三张 `execution_control.personal_memory_*` 状态表，
-不删除 `profile.memory_commands` 或 `execution_control.agent_memory_deliveries`，不连接独立 Memory
+主库本次新增迁移只删除已无运行消费者的三张 `agent_control.personal_memory_*` 状态表，
+不删除 `profile.memory_commands` 或 `agent_control.agent_memory_deliveries`，不连接独立 Memory
 数据库。Schema Job 仍是唯一的 DDL 入口；不修改历史迁移，不重跑旧状态复制。
 已退役表的删除无需引入产品维护模式；仍被当前进程使用的表列变更另按实际消费者安排交付。
 
@@ -84,8 +132,8 @@ Ops Web 的 Temporal 地址与 namespace 由自己的 ConfigMap 提供。
 
 ## 数据库迁移边界
 
-当前数据库拓扑由 `campus-agent-schema` 一次安装 execution-control、Model Config 和其他产品 schema
-的最终结构。execution-control、Model Config、Ops Web 和 notice-publisher 自有 schema runner、
+当前数据库拓扑由 `campus-agent-schema` 一次安装 agent-control、Model Config 和其他产品 schema
+的最终结构。agent-control、Model Config、Ops Web 和 notice-publisher 自有 schema runner、
 旧 migration 目录及 legacy integration profile 已退役，不是标准本地 bootstrap 或 GitOps 的可执行入口。
 
 统一 Job 不接管包含旧领域 ledger 或 `execution_config` 的数据库。已有 `drizzle.campus_agent_migrations`
@@ -108,7 +156,7 @@ registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount�
 Campus Docs 与 Notices 的 Chunk/Embedding Job 由人工分别触发。两个 Embedding Job 从 Model Config 一次
 读取 `campus_docs_embedding` 完整配置；各自 Embedding Set 记录响应中的 target hash。统一 Publisher 只
 消费显式 Docs/Notice chunk/embedding 制品，在完整校验混合 Qdrant collection 后替换
-`campus_docs_serving.current_index`。Publisher 复用 `EXECUTION_CONTROL_DATABASE_URL`，不创建第二个
+`campus_docs_serving.current_index`。Publisher 复用 `AGENT_CONTROL_DATABASE_URL`，不创建第二个
 数据库身份或连接。在线运行只从该绑定取得 collection；dimensions、查询指令和向量名由当前代码
 提供，模型设置不重复保存这些索引属性。具体操作与清理条件见 [Campus Docs 与 Notices 维护及统一 RAG 发布](../ingestion/campus-docs.md)。
 

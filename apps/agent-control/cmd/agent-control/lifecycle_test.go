@@ -71,7 +71,7 @@ func TestRequestTrackerDrainingPreservesInFlightDeadline(t *testing.T) {
 	}))
 	t.Cleanup(tracker.Cancel)
 	t.Cleanup(func() { close(finish) })
-	go tracker.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodGet, "/internal/execution/requests", nil))
+	go tracker.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodGet, "/internal/agent/runs", nil))
 	select {
 	case <-entered:
 	case <-ctx.Done():
@@ -172,7 +172,7 @@ func TestShutdownExecutionRuntimeForcesHTTPCloseBeforeStoppingRuntime(t *testing
 	}))
 	go tracker.ServeHTTP(
 		http.ResponseWriter(httptest.NewRecorder()),
-		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/internal/execution/requests", nil),
+		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/internal/agent/runs", nil),
 	)
 	select {
 	case <-entered:
@@ -216,7 +216,7 @@ func TestShutdownExecutionRuntimeDoesNotCloseStoresBehindStuckRequest(t *testing
 	}))
 	go tracker.ServeHTTP(
 		http.ResponseWriter(httptest.NewRecorder()),
-		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/internal/execution/requests", nil),
+		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/internal/agent/runs", nil),
 	)
 	select {
 	case <-entered:

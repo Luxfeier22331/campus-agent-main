@@ -2,16 +2,6 @@
 # ignoreUntil date. Add entries only after a concrete exception is reviewed.
 
 [[IgnoredVulns]]
-id = "GHSA-95ww-475f-pr4f"
-ignoreUntil = 2026-10-01
-reason = "packages/ragas-runner keeps Ragas as the official text-only RAG eval engine; runner input validation rejects multimodal resource fields and URL/file references, and upstream has no fixed release yet."
-
-[[IgnoredVulns]]
-id = "GHSA-w8v5-vhqr-4h9v"
-ignoreUntil = 2026-10-01
-reason = "diskcache is a transitive dependency of the retained Ragas eval island; no fixed release is available, and the runner does not expose untrusted cache or pickle payload ingestion as a product/runtime path."
-
-[[IgnoredVulns]]
 id = "RUSTSEC-2024-0436"
 ignoreUntil = 2026-10-01
 reason = "paste is an unmaintained compile-time proc-macro dependency of the latest tokenizers release; no fixed tokenizers release or maintained drop-in replacement is currently available, so revisit the upstream dependency before this exception expires."

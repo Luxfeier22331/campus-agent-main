@@ -49,7 +49,7 @@ status: active
 ## 数据边界
 
 - App API 负责用户、会话、账号关联数据和原始执行输入；
-- execution-control 负责 execution projection，账号删除时清理，但 `owner_deletion_fences` 的 deleted
+- agent-control 负责 execution projection，账号删除时清理，但 `owner_deletion_fences` 的 deleted
   tombstone 只保留防复活所需的最小状态；
 - Temporal/platform 负责 workflow history retention，不由账号删除任务即时清除；
 - Hindsight 负责 personal memory bank 和内容；

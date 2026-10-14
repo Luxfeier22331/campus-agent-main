@@ -48,7 +48,7 @@ func testRuntimeActivityProjection(t *testing.T, h *postgresHarness) {
 	defer closeConn(t, conn)
 	for _, name := range []string{"direct", "plan", "execute", "synthesize", "recovery", "deadline", "replan-invalid", "replan-valid"} {
 		run := createPostgresFinalizationRun(t, store, "runtime-"+name, time.Now().UTC().Add(-time.Second))
-		_, err := conn.Exec(t.Context(), `insert into execution_control.agent_workflow_starts(request_id,workflow_id,payload_sha256,task_queue,workflow_input_json,state,temporal_run_id,next_attempt_at,created_at,updated_at) values($1,$2,$3,'test','{}','confirmed',$4,now(),now(),now())`, run.RequestID, "workflow-"+run.RequestID, strings.Repeat("a", 64), "temporal-"+run.RequestID)
+		_, err := conn.Exec(t.Context(), `insert into agent_control.agent_workflow_starts(request_id,workflow_id,payload_sha256,task_queue,workflow_input_json,state,temporal_run_id,next_attempt_at,created_at,updated_at) values($1,$2,$3,'test','{}','confirmed',$4,now(),now(),now())`, run.RequestID, "workflow-"+run.RequestID, strings.Repeat("a", 64), "temporal-"+run.RequestID)
 		require.NoError(t, err)
 	}
 	command := exec.CommandContext(t.Context(), "pnpm", "--dir", "apps/agent-runtime", "exec", "tsx", "test/helpers/control-projection.ts", server.URL)
@@ -57,7 +57,7 @@ func testRuntimeActivityProjection(t *testing.T, h *postgresHarness) {
 	require.NoError(t, err, string(out))
 	require.True(t, interrupted.interrupted)
 	var receipts int
-	require.NoError(t, conn.QueryRow(t.Context(), `select count(*) from execution_control.agent_invocation_receipts where invocation_id not like '%:model:%'`).Scan(&receipts))
+	require.NoError(t, conn.QueryRow(t.Context(), `select count(*) from agent_control.agent_invocation_receipts where invocation_id not like '%:model:%'`).Scan(&receipts))
 	require.Zero(t, receipts, "projection must not claim model invocations")
 	for _, name := range []string{"direct", "plan", "execute", "synthesize", "recovery", "deadline", "replan-invalid", "replan-valid"} {
 		steps, err := store.ListRunSteps(t.Context(), "runtime-"+name)
@@ -118,7 +118,7 @@ func testRuntimePayloadLifecycle(t *testing.T, h *postgresHarness) {
 	_, err := store.GetRuntimePayload(t.Context(), run.RequestID, "input")
 	require.NoError(t, err, "active run must retain its input")
 	// Product terminal state alone is insufficient while finalization projection repair remains.
-	_, err = conn.Exec(t.Context(), `update execution_control.agent_runs set status='completed',terminal_reason='answer_completed',completed_at=now() where request_id=$1`, run.RequestID)
+	_, err = conn.Exec(t.Context(), `update agent_control.agent_runs set status='completed',terminal_reason='answer_completed',completed_at=now() where request_id=$1`, run.RequestID)
 	require.NoError(t, err)
 	candidates, err := store.ListTerminalRuntimePayloads(t.Context(), "", 32)
 	require.NoError(t, err)

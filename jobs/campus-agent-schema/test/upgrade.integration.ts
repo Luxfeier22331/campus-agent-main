@@ -16,6 +16,8 @@ import {
 const image =
 	"postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15";
 const authMigrationName = "20260914073252_better_auth_provider_account_key";
+const memoryRetirementMigrationName = "20261012090000_retire_legacy_memory_state";
+const agentControlRenameMigrationName = "20261014090000_rename_execution_control_to_agent_control";
 
 test("unified schema: real PostgreSQL installation and failure recovery", {
 	timeout: 240_000,
@@ -42,6 +44,9 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 	await admin.query(`create role campus_agent login password '${password}'`);
 	for (const role of [
 		"app_api",
+		"agent_control",
+		// The old role remains during the migration and is retired only after
+		// every consumer has switched to agent_control.
 		"execution_control",
 		"campus_search",
 		"ops_web",
@@ -76,11 +81,15 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		return { config, client };
 	}
 	async function ready(client: Client) {
+		const roles = await client.query(
+			"select rolname from pg_roles where rolname in ('agent_control', 'execution_control') order by rolname",
+		);
+		assert.deepEqual(roles.rows, [{ rolname: "agent_control" }, { rolname: "execution_control" }]);
 		const search = await client.query(`select
 		  has_schema_privilege('campus_search', 'campus_docs_serving', 'USAGE') as usage,
 		  has_table_privilege('campus_search', 'campus_docs_serving.current_index', 'SELECT') as read,
 		  has_table_privilege('campus_search', 'campus_docs_serving.current_index', 'INSERT,UPDATE,DELETE') as write,
-		  has_schema_privilege('campus_search', 'execution_control', 'USAGE') as execution`);
+		  has_schema_privilege('campus_search', 'agent_control', 'USAGE') as execution`);
 		assert.deepEqual(search.rows[0], { usage: true, read: true, write: false, execution: false });
 		await assertAuthShape(client, true);
 		await client.query(
@@ -101,25 +110,25 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			"personal_memory_owner_fences",
 		]) {
 			assert.equal(
-				(await client.query("select to_regclass($1) as relation", [`execution_control.${name}`]))
+				(await client.query("select to_regclass($1) as relation", [`agent_control.${name}`]))
 					.rows[0].relation,
 				null,
 			);
 		}
 		await client.query("select payload from profile.memory_commands limit 1");
-		await client.query("select 1 from execution_control.agent_memory_deliveries limit 1");
+		await client.query("select 1 from agent_control.agent_memory_deliveries limit 1");
 		const grants = await client.query(
-			"select has_table_privilege('app_api','chat.messages','SELECT,INSERT,UPDATE,DELETE') as chat, has_table_privilege('ops_web','transport.schedule_period_notices','SELECT') as transport, has_schema_privilege('execution_control','execution_control','CREATE') as ddl",
+			"select has_table_privilege('app_api','chat.messages','SELECT,INSERT,UPDATE,DELETE') as chat, has_table_privilege('ops_web','transport.schedule_period_notices','SELECT') as transport, has_schema_privilege('agent_control','agent_control','CREATE') as ddl, has_table_privilege('agent_control','agent_control.agent_runs','SELECT,INSERT,UPDATE,DELETE') as agent_runs",
 		);
-		assert.deepEqual(grants.rows[0], { chat: true, transport: true, ddl: false });
+		assert.deepEqual(grants.rows[0], { chat: true, transport: true, ddl: false, agent_runs: true });
 		const runGrants = await client.query(`select
-			has_schema_privilege('app_api', 'execution_control', 'USAGE') as usage,
-			has_column_privilege('app_api', 'execution_control.agent_runs', 'request_id', 'SELECT') as request,
-			has_column_privilege('app_api', 'execution_control.agent_runs', 'status', 'SELECT') as status,
-			has_table_privilege('app_api', 'execution_control.agent_runs', 'SELECT') as full_table,
-			has_column_privilege('app_api', 'execution_control.agent_runs', 'metadata_json', 'SELECT') as metadata,
-			has_table_privilege('app_api', 'execution_control.agent_runs', 'INSERT,UPDATE,DELETE') as write,
-			has_any_column_privilege('app_api', 'execution_control.agent_run_events', 'SELECT') as events`);
+			has_schema_privilege('app_api', 'agent_control', 'USAGE') as usage,
+			has_column_privilege('app_api', 'agent_control.agent_runs', 'request_id', 'SELECT') as request,
+			has_column_privilege('app_api', 'agent_control.agent_runs', 'status', 'SELECT') as status,
+			has_table_privilege('app_api', 'agent_control.agent_runs', 'SELECT') as full_table,
+			has_column_privilege('app_api', 'agent_control.agent_runs', 'metadata_json', 'SELECT') as metadata,
+			has_table_privilege('app_api', 'agent_control.agent_runs', 'INSERT,UPDATE,DELETE') as write,
+			has_any_column_privilege('app_api', 'agent_control.agent_run_events', 'SELECT') as events`);
 		assert.deepEqual(runGrants.rows[0], {
 			usage: true,
 			request: true,
@@ -203,11 +212,13 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		"retire populated legacy Memory state without changing current product or delivery data",
 		async () => {
 			const { config, client } = await database();
-			const name = "20261012090000_retire_legacy_memory_state";
 			const folder = await mkdtemp(join(tmpdir(), "campus-schema-before-memory-retirement-"));
 			t.after(() => rm(folder, { recursive: true, force: true }));
 			await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
-			await rm(join(folder, name), { recursive: true });
+			// Build the legacy state before both the retirement and schema rename
+			// migrations. The default folder then applies them in order.
+			await rm(join(folder, memoryRetirementMigrationName), { recursive: true });
+			await rm(join(folder, agentControlRenameMigrationName), { recursive: true });
 			await migrateCampusAgentSchema(config, folder);
 			await client.query(`
 			insert into execution_control.personal_memory_owner_fences values ('legacy-owner',1,'active',1,now());
@@ -224,20 +235,28 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			(command_id,owner_user_id,owner_generation,owner_sequence,command_kind,supersession_scope,accepted_lifecycle_state,source_updated_at,idempotency_key_hash,request_fingerprint,created_at,updated_at,payload)
 			values ('retained-command','retained-owner',1,1,'add','owner','active',now(),'key','fingerprint',now(),now(),'{"text":"retain this"}');
 		`);
-			const tables = [
+			const legacyTables = [
 				"execution_control.agent_runs",
 				"execution_control.agent_memory_deliveries",
 				"profile.memory_commands",
 			];
 			const before: unknown[][] = [];
-			for (const table of tables) {
+			for (const table of legacyTables) {
 				before.push((await client.query(`select * from ${table}`)).rows);
 			}
-			assert.deepEqual((await inspectCampusAgentSchema(config)).pendingMigrations, [name]);
+			assert.deepEqual((await inspectCampusAgentSchema(config)).pendingMigrations, [
+				memoryRetirementMigrationName,
+				agentControlRenameMigrationName,
+			]);
 			await migrateCampusAgentSchema(config);
 			await ready(client);
+			const currentTables = [
+				"agent_control.agent_runs",
+				"agent_control.agent_memory_deliveries",
+				"profile.memory_commands",
+			];
 			const after: unknown[][] = [];
-			for (const table of tables) {
+			for (const table of currentTables) {
 				after.push((await client.query(`select * from ${table}`)).rows);
 			}
 			assert.deepEqual(after, before);

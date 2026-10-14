@@ -1,7 +1,4 @@
-import type {
-	ExecutionControlRunEvent,
-	ExecutionControlRunEventPage,
-} from "./execution-control-runtime-types";
+import type { AgentControlRunEvent, AgentControlRunEventPage } from "./agent-control-runtime-types";
 
 export interface AnswerDeltaEvent {
 	eventType: "answer.delta";
@@ -12,12 +9,12 @@ export interface AnswerDeltaEvent {
 	sequence?: never;
 	visibility: "browser";
 }
-export type LiveRunEvent = ExecutionControlRunEvent | AnswerDeltaEvent;
+export type LiveRunEvent = AgentControlRunEvent | AnswerDeltaEvent;
 
 // Lifecycle and answer cursors belong to different streams. Temporary deltas are
 // delivered after phase events and before terminal events from the same page.
-export function liveRunEvents(page: ExecutionControlRunEventPage): LiveRunEvent[] {
-	const terminal = (event: ExecutionControlRunEvent) =>
+export function liveRunEvents(page: AgentControlRunEventPage): LiveRunEvent[] {
+	const terminal = (event: AgentControlRunEvent) =>
 		[
 			"finalization.completed",
 			"run.completed",

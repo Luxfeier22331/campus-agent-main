@@ -42,7 +42,7 @@ describe("contract schema registry", () => {
 				.map((path) => readJson(path).$id)
 				.filter((id): id is string => typeof id === "string"),
 		);
-		const tools = readJson("configs/runtime/tools.v7.json").tools as Record<string, unknown>[];
+		const tools = readJson("configs/runtime/tools.v8.json").tools as Record<string, unknown>[];
 
 		for (const tool of tools) {
 			for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
@@ -60,7 +60,7 @@ describe("contract schema registry", () => {
 	});
 
 	it("keeps registered tool artifacts aligned with current exposure", () => {
-		const tools = readJson("configs/runtime/tools.v7.json").tools as Record<string, unknown>[];
+		const tools = readJson("configs/runtime/tools.v8.json").tools as Record<string, unknown>[];
 		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v4.json")
 			.tools as Record<string, unknown>[];
 		const toolIds = readToolContractEnum("ToolID");

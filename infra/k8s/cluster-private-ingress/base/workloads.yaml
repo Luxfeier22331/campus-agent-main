@@ -47,7 +47,7 @@ spec:
             - name: http
               containerPort: 8000
           env:
-            - name: EXECUTION_CONTROL_BASE_URL
+            - name: AGENT_CONTROL_BASE_URL
               value: http://agent-control:8000
             - name: MEMORY_SERVICE_BASE_URL
               value: http://memory-service:8000
@@ -56,11 +56,11 @@ spec:
                 secretKeyRef:
                   name: cluster-private-ingress-secrets
                   key: EDGE_INGRESS_SHARED_SECRET
-            - name: EXECUTION_CONTROL_INGRESS_SHARED_SECRET
+            - name: AGENT_CONTROL_INGRESS_SHARED_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: execution-control-ingress-secrets
-                  key: EXECUTION_CONTROL_INGRESS_SHARED_SECRET
+                  name: agent-control-ingress-secrets
+                  key: AGENT_CONTROL_INGRESS_SHARED_SECRET
             - name: MEMORY_INTERNAL_SHARED_SECRET
               valueFrom:
                 secretKeyRef:

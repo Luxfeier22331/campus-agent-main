@@ -13,8 +13,8 @@ status: active
 ## 信号
 
 - `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
-- `execution_control.agent_run_steps`：producer 写入的结构化 `failure` 事实；
-- `execution_control.agent_runs`：运行终态、`terminal_reason` 和 `fail_close_reason`，只用于状态判断；
+- `agent_control.agent_run_steps`：producer 写入的结构化 `failure` 事实；
+- `agent_control.agent_runs`：运行终态、`terminal_reason` 和 `fail_close_reason`，只用于状态判断；
 
 `runtime.request_observability_fact` 是 App API 内部投影，Ops Web 当前没有列读取权限，不能作为本
 runbook 的排查入口。

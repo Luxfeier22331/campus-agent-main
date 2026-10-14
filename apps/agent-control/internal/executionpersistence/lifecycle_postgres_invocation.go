@@ -18,7 +18,7 @@ func (s *PostgresReceiptStore) BeginAgentInvocation(
 	if err := execution.ValidateAgentInvocationReceipt(receipt, false); err != nil {
 		return execution.AgentInvocationReceipt{}, "", err
 	}
-	tag, err := s.pool.Exec(ctx, `insert into execution_control.agent_invocation_receipts (
+	tag, err := s.pool.Exec(ctx, `insert into agent_control.agent_invocation_receipts (
 		invocation_id, request_id, input_sha256, state, created_at, updated_at
 	) values ($1,$2,$3,$4,$5,$6) on conflict (invocation_id) do nothing`,
 		receipt.InvocationID, receipt.RequestID, receipt.InputSHA256,
@@ -78,7 +78,7 @@ func (s *PostgresReceiptStore) CompleteAgentInvocation(
 	defer func() { _ = tx.Rollback(ctx) }()
 	stored, err := scanAgentInvocationReceipt(tx.QueryRow(ctx, `select invocation_id, request_id,
 		input_sha256, state, output_json, output_sha256, created_at, completed_at, updated_at
-		from execution_control.agent_invocation_receipts where invocation_id = $1 for update`, receipt.InvocationID))
+		from agent_control.agent_invocation_receipts where invocation_id = $1 for update`, receipt.InvocationID))
 	if err != nil {
 		return execution.AgentInvocationReceipt{}, err
 	}
@@ -91,7 +91,7 @@ func (s *PostgresReceiptStore) CompleteAgentInvocation(
 		}
 		return stored, nil
 	}
-	_, err = tx.Exec(ctx, `update execution_control.agent_invocation_receipts
+	_, err = tx.Exec(ctx, `update agent_control.agent_invocation_receipts
 	set state = $2, output_json = $3::jsonb, output_sha256 = $4,
 		completed_at = $5, updated_at = $6 where invocation_id = $1`,
 		receipt.InvocationID, string(receipt.State), receipt.OutputJSON,
@@ -116,7 +116,7 @@ func (s *PostgresReceiptStore) getAgentInvocationReceipt(
 ) (execution.AgentInvocationReceipt, error) {
 	return scanAgentInvocationReceipt(s.pool.QueryRow(ctx, `select invocation_id, request_id,
 		input_sha256, state, output_json, output_sha256, created_at, completed_at, updated_at
-		from execution_control.agent_invocation_receipts where invocation_id = $1`, invocationID))
+		from agent_control.agent_invocation_receipts where invocation_id = $1`, invocationID))
 }
 
 func scanAgentInvocationReceipt(row pgx.Row) (execution.AgentInvocationReceipt, error) {

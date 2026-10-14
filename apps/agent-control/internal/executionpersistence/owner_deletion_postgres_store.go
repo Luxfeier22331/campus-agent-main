@@ -35,7 +35,7 @@ func (s *PostgresRunProjectionStore) BeginOwnerDeletion(
 		return execution.OwnerDeletionStatus{}, err
 	}
 	if _, err := tx.Exec(ctx, `
-		insert into execution_control.owner_deletion_fences(owner_user_id, state, started_at)
+		insert into agent_control.owner_deletion_fences(owner_user_id, state, started_at)
 		values ($1, 'draining', $2)
 		on conflict (owner_user_id) do nothing`, ownerUserID, now); err != nil {
 		return execution.OwnerDeletionStatus{}, err
@@ -110,11 +110,11 @@ func (s *PostgresRunProjectionStore) FinalizeOwnerDeletion(
 	if status.ActiveRuns > 0 {
 		return status, execution.ErrOwnerDeletionNotDrained
 	}
-	if _, err := tx.Exec(ctx, `delete from execution_control.agent_runs where owner_user_id = $1`, ownerUserID); err != nil {
+	if _, err := tx.Exec(ctx, `delete from agent_control.agent_runs where owner_user_id = $1`, ownerUserID); err != nil {
 		return execution.OwnerDeletionStatus{}, err
 	}
 	if _, err := tx.Exec(ctx, `
-		update execution_control.owner_deletion_fences
+		update agent_control.owner_deletion_fences
 		set state = 'deleted', deleted_at = $2
 		where owner_user_id = $1`, ownerUserID, request.Now); err != nil {
 		return execution.OwnerDeletionStatus{}, err
@@ -129,13 +129,13 @@ func (s *PostgresRunProjectionStore) FinalizeOwnerDeletion(
 func ownerDeletionStateInTx(ctx context.Context, tx pgx.Tx, ownerUserID string) (execution.OwnerDeletionState, error) {
 	var state string
 	err := tx.QueryRow(ctx, `
-		select state from execution_control.owner_deletion_fences where owner_user_id = $1 for update`, ownerUserID).Scan(&state)
+		select state from agent_control.owner_deletion_fences where owner_user_id = $1 for update`, ownerUserID).Scan(&state)
 	return execution.OwnerDeletionState(state), err
 }
 
 func ownerActiveRunIDsInTx(ctx context.Context, tx pgx.Tx, ownerUserID string) ([]string, error) {
 	rows, err := tx.Query(ctx, `
-		select request_id from execution_control.agent_runs
+		select request_id from agent_control.agent_runs
 		where owner_user_id = $1 and status in `+ownerDeletionActiveRunStatuses+
 		` order by created_at, request_id for update`, ownerUserID)
 	if err != nil {
@@ -160,12 +160,12 @@ func ownerDeletionStatusInTx(ctx context.Context, tx pgx.Tx, ownerUserID string)
 	}
 	var activeRuns int
 	if err := tx.QueryRow(ctx, `
-		select count(*) from execution_control.agent_runs
+		select count(*) from agent_control.agent_runs
 		where owner_user_id = $1 and status in `+ownerDeletionActiveRunStatuses, ownerUserID).Scan(&activeRuns); err != nil {
 		return execution.OwnerDeletionStatus{}, err
 	}
 	var pendingDeliveries int
-	if err := tx.QueryRow(ctx, `select count(*) from execution_control.agent_memory_deliveries where owner_user_id=$1 and status='ready'`, ownerUserID).Scan(&pendingDeliveries); err != nil {
+	if err := tx.QueryRow(ctx, `select count(*) from agent_control.agent_memory_deliveries where owner_user_id=$1 and status='ready'`, ownerUserID).Scan(&pendingDeliveries); err != nil {
 		return execution.OwnerDeletionStatus{}, err
 	}
 	activeRuns += pendingDeliveries
@@ -175,7 +175,7 @@ func ownerDeletionStatusInTx(ctx context.Context, tx pgx.Tx, ownerUserID string)
 func requestOwnerRunCancellationInTx(ctx context.Context, tx pgx.Tx, run execution.DurableRun, now time.Time) error {
 	var ignoredReason string
 	err := tx.QueryRow(ctx, `
-		select reason from execution_control.agent_run_cancellations where request_id = $1 for update`, run.RequestID).Scan(&ignoredReason)
+		select reason from agent_control.agent_run_cancellations where request_id = $1 for update`, run.RequestID).Scan(&ignoredReason)
 	if err == nil {
 		return supersedeWorkflowStartIntentInTx(ctx, tx, run.RequestID, now)
 	}
@@ -195,7 +195,7 @@ func requestOwnerRunCancellationInTx(ctx context.Context, tx pgx.Tx, run executi
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
-		insert into execution_control.agent_run_cancellations (
+		insert into agent_control.agent_run_cancellations (
 			request_id, workflow_id, reason, state, next_attempt_at, created_at, updated_at
 		) values ($1, $2, $3, 'pending', $4, $4, $4)`,
 		run.RequestID, "campus-agent.chat."+run.RequestID, "account_deletion", now); err != nil {

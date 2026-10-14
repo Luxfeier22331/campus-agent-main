@@ -83,13 +83,13 @@ const EXTRA_INPUTS: Partial<Record<ImageTarget, string[]>> = {
 	"memory-service": ["packages/memory-api-go/"],
 	"campus-search-service": ["packages/search-api-go/"],
 	"agent-runtime": [
-		"configs/runtime/tools.v7.json",
+		"configs/runtime/tools.v8.json",
 		"configs/runtime/tool-function-schemas.v4.json",
 	],
 	"agent-control": [
 		"packages/memory-api-go/",
 		"packages/search-api-go/",
-		"configs/runtime/tools.v7.json",
+		"configs/runtime/tools.v8.json",
 		"configs/runtime/tool-function-schemas.v4.json",
 		"packages/contracts/fixtures/tool_execution_contract/",
 	],

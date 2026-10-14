@@ -53,7 +53,7 @@ test("ingress and control share the backend identity separately from product cal
 	);
 	const control = load("agent-control/base/workloads.yaml").find((d) => d.kind === "Deployment");
 	const env = deployment.spec.template.spec.containers[0].env;
-	const upstream = env.find((e: any) => e.name === "EXECUTION_CONTROL_INGRESS_SHARED_SECRET");
+	const upstream = env.find((e: any) => e.name === "AGENT_CONTROL_INGRESS_SHARED_SECRET");
 	const controlEnv = control.spec.template.spec.containers[0].env;
 	assert.deepEqual(
 		upstream.valueFrom,
@@ -61,7 +61,7 @@ test("ingress and control share the backend identity separately from product cal
 	);
 	assert.notDeepEqual(
 		upstream.valueFrom,
-		controlEnv.find((e: any) => e.name === "APP_API_EXECUTION_SHARED_SECRET").valueFrom,
+		controlEnv.find((e: any) => e.name === "APP_API_INTERNAL_SHARED_SECRET").valueFrom,
 	);
 	assert.equal(
 		env.some((e: any) => e.name.includes("DATABASE") || e.name.includes("HINDSIGHT")),

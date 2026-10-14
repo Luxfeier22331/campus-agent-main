@@ -68,6 +68,9 @@ describe("app-api route exposure inventory", () => {
 		expect(inventoryKeys.has("GET /api/dining/menu-items/:menuItemId/reviews")).toBe(true);
 		expect(inventoryKeys.has("GET /api/campus-groups/catalog")).toBe(true);
 		expect(inventoryKeys.has("PUT /api/internal/ops/campus-groups/catalog")).toBe(true);
+		expect([...inventoryKeys].some((key) => key.includes("/api/internal/execution/requests"))).toBe(
+			false,
+		);
 	});
 
 	it("keeps internal and collector routes out of browser-facing caller classes", () => {

@@ -255,7 +255,7 @@ describe("campus search diagnostics", () => {
 				}
 				if (
 					sql.includes("agent_step_attempts") ||
-					sql.includes("from execution_control.agent_run_steps")
+					sql.includes("from agent_control.agent_run_steps")
 				) {
 					return { rows: [] };
 				}

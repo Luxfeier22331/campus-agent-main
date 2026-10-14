@@ -5,7 +5,7 @@ export const LOCAL_DATABASE_ROLES = [
 	["memory_service", "campus-agent-local-memory"],
 	["app_api", "campus-agent-local-app-api"],
 	["campus_search", "campus-agent-local-campus-search"],
-	["execution_control", "campus-agent-local-execution-control"],
+	["agent_control", "campus-agent-local-agent-control"],
 	["model_config", "campus-agent-local-model-config"],
 	["ops_web", "campus-agent-local-ops-web"],
 	["notice_publisher", "campus-agent-local-notice-publisher"],

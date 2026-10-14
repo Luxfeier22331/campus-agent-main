@@ -21,9 +21,9 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/internal/execution/requests/:requestId/input",
+		path: "/api/internal/agent/runs/:requestId/input",
 		callerClass: "machine-internal",
-		admission: "x-app-execution-auth from execution-control",
+		admission: "x-app-execution-auth from agent-control",
 	},
 	{
 		method: "PUT",
@@ -33,14 +33,14 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "PUT",
-		path: "/api/internal/execution/requests/:requestId/product-finalization",
+		path: "/api/internal/agent/runs/:requestId/product-finalization",
 		callerClass: "machine-internal",
-		admission: "x-app-product-callback-auth from execution-control",
+		admission: "x-app-product-callback-auth from agent-control",
 	},
 	{
 		method: "PUT",
 		path: "/api/internal/profile-memory/commands/:commandId/result",
 		callerClass: "machine-internal",
-		admission: "x-app-product-callback-auth from execution-control",
+		admission: "x-app-product-callback-auth from agent-control",
 	},
 ] as const satisfies readonly AppApiRouteExposure[];

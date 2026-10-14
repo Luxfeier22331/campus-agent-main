@@ -35,7 +35,7 @@ const DOCS_TEXT = "文档正文";
 const NOTICE_TEXT = "通知正文";
 
 describe("unified Campus RAG publisher", () => {
-	it("matches the notice payload consumed by Execution Control", () => {
+	it("matches the notice payload consumed by Agent Control", () => {
 		const fixture = JSON.parse(
 			readFileSync(
 				new URL("../../../packages/contracts/fixtures/campus_rag/notice-point.v3.json", import.meta.url),

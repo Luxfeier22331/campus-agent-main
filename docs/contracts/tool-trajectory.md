@@ -65,10 +65,10 @@ trajectory 必须在写入前拒绝：
 
 ## 评测消费
 
-`packages/eval-langfuse` 只解析 v4。工具评测只覆盖真实 SDK 工具；离线知识评测不改变在线工具
+`packages/inspect-eval` 消费 v4 和未来 Control/Runtime eval ingress 的逐工具投影。工具评测只覆盖真实 SDK 工具；离线知识评测不改变在线工具
 轨迹合同。
 
 ## 可执行来源
 
 - `apps/agent-control/internal/httpapi/tool_trajectory_projection_test.go`
-- `packages/eval-langfuse/src/tool-trajectory.ts`
+- `packages/inspect-eval/src/campus_inspect_eval/scorers.py`

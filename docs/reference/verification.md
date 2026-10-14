@@ -22,7 +22,7 @@ runner、工具版本、缓存和发布实现由可执行配置维护；本文�
 | 检查 | 回答的问题 | 不能证明 |
 | --- | --- | --- |
 | 配置检查 | 命令需要的输入是否存在且可解析 | 远端服务健康或环境已部署 |
-| 单元、合同、依赖集成、Ragas 与本地浏览器 E2E | 所属实现和边界是否符合合同，受控本地路径是否可完成 | 制品已经发布或外部环境当前可用 |
+| 单元、合同、依赖集成、Inspect 与本地浏览器 E2E | 所属实现和边界是否符合合同，受控本地路径是否可完成 | 制品已经发布或外部环境当前可用 |
 | `/healthz` | 当前进程或 Worker 是否能响应 | 核心依赖或产品路径完整 |
 | `/readyz` | 服务是否具备接受其职责范围请求的核心依赖 | 新版本已部署或完整用户旅途可用 |
 | 制品检查 | 构建结果是否完整、可识别且满足发布合同 | 环境已经选择或运行该制品 |
@@ -43,7 +43,7 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 消费者、并发或环境验证。生产命中率、日志截图和重复的多层证明不能替代直接行为测试。
 
 实现和 PR 准备根据尚未被等价既有检查覆盖、且可能破坏当前完成条件的边界选择检查。本地源码、合同、
-依赖集成、Ragas、本地浏览器 E2E 和制品检查可以支持完成判断；它们不是每个任务都必须新增的交付物。
+依赖集成、Inspect、本地浏览器 E2E 和制品检查可以支持完成判断；它们不是每个任务都必须新增的交付物。
 相关 integration 或本地 E2E 不因任务尚未进入发布流程而自动省略，也不因流程名称出现而自动追加。
 
 环境交接和运行结果由环境仓及其所有者判断，不是源码任务的完成条件。
@@ -54,16 +54,16 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 | --- | --- | --- |
 | `pre-commit` | 暂存文件的静态检查与 Secret 扫描、根脚本测试，以及受影响 Node/Go 源码检查 | build、integration、浏览器 E2E 或 runtime |
 | `pre-push` | 不再安装仓库重验证 hook | 源码或运行时验证 |
-| `pnpm verify` | 全量源码检查、Ragas 单测、数据库集成、Infra 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
-| `pnpm check` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Ragas 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
+| `pnpm verify` | 全量源码检查、Inspect 单测、数据库集成、Infra 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
+| `pnpm check` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Inspect 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
 | `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描与 validation group | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、笔记树与格式、归档、入口预算、链接和语言合同 | 代码或部署状态 |
 | `pnpm typecheck` | 全仓声明的 TypeScript 检查，包括 tooling notices | Go vet、测试或构建 |
-| `pnpm test` | tooling、Node/DOM、本地 Worker、Go 和 Ragas 单测 | 数据库集成、浏览器 E2E 或外部服务 |
+| `pnpm test` | tooling、Node/DOM、本地 Worker、Go 和 Inspect 单测 | 数据库集成、浏览器 E2E 或外部服务 |
 | `pnpm test:tooling` | 七组仓库开发、验证和发布脚本测试 | package 行为或构建 |
 | `pnpm build` | 选中包的生产构建，保留所需环境输入 | 部署状态 |
 | `pnpm build:check` | 验证构建；Campus 使用本地合成内容 fixture | 生产文档内容或部署状态 |
-| `pnpm verify --profile=go --profile=ragas` | 仅运行指定的现有 validation profiles，可重复指定 | 未选中的检查 |
+| `pnpm verify --profile=go --profile=inspect` | 仅运行指定的现有 validation profiles，可重复指定 | 未选中的检查 |
 | `pnpm --dir packages/contracts contracts:check` | JSON Schema/OpenAPI 同步和合同不变量 | consumer runtime 行为 |
 | `scripts/dependencies/scan.sh` | 已锁定依赖的漏洞扫描 | 应用行为或镜像漏洞 |
 | `scripts/infra/validate.sh` | Kustomize render 与基础设施 policy | 集群已应用或 workload 健康 |
@@ -156,9 +156,9 @@ package 的具体 `test:unit`、分组测试、`typecheck` 和 `build` 由所属
 | 一般 TypeScript app/package/job | 所属 package 的 typecheck 与 test；跨 package 时使用明确 filter |
 | Worker route、binding 或 Wrangler 配置 | 所属 Worker 的 worker test、build 和模块测试 |
 | Campus Web 用户可见运行时 | 模块检查和制品完整性；按风险运行本地浏览器路径 |
-| execution-control / model-config Go | 所属 native format、lint、vet 和 test |
+| agent-control / model-config Go | 所属 native format、lint、vet 和 test |
 | migration 或数据库权限 | `pnpm --dir jobs/campus-agent-schema test:migration-integration`，以及受影响所有者的数据库集成测试 |
-| eval package、Ragas adapter 或评测合同 | 所属 package test；跨语言时运行对应 adapter |
+| eval package、Inspect adapter 或评测合同 | 所属 package test；跨语言时运行对应 adapter |
 | GitHub Actions | `pnpm check`、Actionlint 与 Zizmor |
 | dependency manifest 或 lockfile | frozen install、受影响模块检查，必要时运行漏洞扫描 |
 | Dockerfile、Bake 或发布适配器 | 仓库脚本测试、Bake 解析；受影响镜像执行 build-only 构建 |

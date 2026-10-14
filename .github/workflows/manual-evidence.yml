@@ -9,7 +9,7 @@ on:
         type: choice
         options:
           - go
-          - ragas
+          - inspect
           - app-api-product-db
           - agent-control-postgres
           - agent-runtime-temporal
@@ -78,7 +78,7 @@ jobs:
       - name: Install evaluation dependencies
         if: steps.profile.outputs.requires_uv == 'true'
         shell: nix develop .#ci-light --command bash -e {0}
-        run: uv sync --locked --package campus-ragas-runner
+        run: uv sync --locked --package campus-inspect-eval
 
       - name: Verify Docker evidence dependency
         if: steps.profile.outputs.requires_docker == 'true'

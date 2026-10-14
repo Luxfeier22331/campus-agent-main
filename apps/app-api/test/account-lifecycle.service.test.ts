@@ -23,7 +23,7 @@ function principal(): ResolvedAppPrincipal {
 	};
 }
 
-function executionController() {
+function agentController() {
 	return {
 		beginOwnerDeletion: vi.fn(async () => ({ activeRunCount: 0, state: "draining" as const })),
 		finalizeOwnerDeletion: vi.fn(async () => ({ activeRunCount: 0, state: "deleted" as const })),
@@ -52,7 +52,7 @@ function diningDeletionFixture(executionMaintenance = false) {
 		memoryController: { finalizeOwnerDeletion: async () => undefined },
 		executionMaintenance,
 		diningLifecycleService: { eraseForAccountDeletion },
-		executionController: executionController(),
+		agentController: agentController(),
 		profileMemoryService: {
 			dispatchPending: vi.fn(),
 			eraseForAccountDeletion: vi.fn(),
@@ -149,7 +149,7 @@ describe("account lifecycle service", () => {
 		const service = buildAccountLifecycleService({
 			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
-			executionController: executionController(),
+			agentController: agentController(),
 			profileMemoryService: {} as never,
 			removeAuthUser: vi.fn(),
 			safetyIdentifierForUser: () => null,
@@ -189,7 +189,7 @@ describe("account lifecycle service", () => {
 		const service = buildAccountLifecycleService({
 			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
-			executionController: executionController(),
+			agentController: agentController(),
 			profileMemoryService: { dispatchPending, eraseForAccountDeletion },
 			removeAuthUser,
 			safetyIdentifierForUser: () => "safety-user-1",
@@ -233,7 +233,7 @@ describe("account lifecycle service", () => {
 		const service = buildAccountLifecycleService({
 			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
-			executionController: executionController(),
+			agentController: agentController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
 				eraseForAccountDeletion: vi.fn().mockRejectedValue(new Error("downstream unavailable")),
@@ -274,7 +274,7 @@ describe("account lifecycle service", () => {
 		const service = buildAccountLifecycleService({
 			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
-			executionController: executionController(),
+			agentController: agentController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
 				eraseForAccountDeletion: vi.fn(),
@@ -326,7 +326,7 @@ describe("account lifecycle service", () => {
 		const service = buildAccountLifecycleService({
 			memoryController: { finalizeOwnerDeletion: async () => undefined },
 			diningLifecycleService: { eraseForAccountDeletion: vi.fn().mockResolvedValue(true) },
-			executionController: executionController(),
+			agentController: agentController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
 				eraseForAccountDeletion: vi.fn(),

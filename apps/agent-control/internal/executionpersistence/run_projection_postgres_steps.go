@@ -63,7 +63,7 @@ func (s *PostgresRunProjectionStore) UpsertRunStep(
 	return step, nil
 }
 
-const runProjectionPostgresRunStepUpsertSQL = `insert into execution_control.agent_run_steps (
+const runProjectionPostgresRunStepUpsertSQL = `insert into agent_control.agent_run_steps (
 	step_id, request_id, conversation_id, step_kind, tool, parent_step_id,
 	status, activity_attempt, task_queue, worker_id, started_at, completed_at, updated_at,
 	payload_schema_version, sanitized_payload_json
@@ -77,16 +77,16 @@ on conflict (request_id, step_id) do update set
 	activity_attempt = excluded.activity_attempt,
 	task_queue = excluded.task_queue,
 	worker_id = excluded.worker_id,
-	started_at = coalesce(excluded.started_at, execution_control.agent_run_steps.started_at),
+	started_at = coalesce(excluded.started_at, agent_control.agent_run_steps.started_at),
 	completed_at = excluded.completed_at,
 	updated_at = excluded.updated_at,
 	payload_schema_version = excluded.payload_schema_version,
 	sanitized_payload_json = excluded.sanitized_payload_json
-where (execution_control.agent_run_steps.activity_attempt = 0
-		or execution_control.agent_run_steps.activity_attempt <= excluded.activity_attempt)
+where (agent_control.agent_run_steps.activity_attempt = 0
+		or agent_control.agent_run_steps.activity_attempt <= excluded.activity_attempt)
 	and not (
-		execution_control.agent_run_steps.activity_attempt = excluded.activity_attempt
-		and lower(btrim(execution_control.agent_run_steps.status)) in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')
+		agent_control.agent_run_steps.activity_attempt = excluded.activity_attempt
+		and lower(btrim(agent_control.agent_run_steps.status)) in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')
 	)`
 
 func (s *PostgresRunProjectionStore) UpsertStepAttempt(
@@ -163,7 +163,7 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 	return attempt, nil
 }
 
-const runProjectionPostgresStepAttemptUpsertSQL = `insert into execution_control.agent_step_attempts (
+const runProjectionPostgresStepAttemptUpsertSQL = `insert into agent_control.agent_step_attempts (
 	attempt_id, step_id, request_id, attempt, status, task_queue, worker_id,
 	workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
 	scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
@@ -193,8 +193,8 @@ on conflict (attempt_id) do update set
 	activity_id = excluded.activity_id,
 	activity_type = excluded.activity_type,
 	activity_attempt = excluded.activity_attempt,
-	scheduled_at = coalesce(excluded.scheduled_at, execution_control.agent_step_attempts.scheduled_at),
-	started_at = coalesce(excluded.started_at, execution_control.agent_step_attempts.started_at),
+	scheduled_at = coalesce(excluded.scheduled_at, agent_control.agent_step_attempts.scheduled_at),
+	started_at = coalesce(excluded.started_at, agent_control.agent_step_attempts.started_at),
 	completed_at = excluded.completed_at,
 	schedule_to_start_ms = excluded.schedule_to_start_ms,
 	duration_ms = excluded.duration_ms,
@@ -204,21 +204,21 @@ on conflict (attempt_id) do update set
 	model_name = excluded.model_name,
 	model_request_count = case
 		when excluded.usage_observed then excluded.model_request_count
-		else execution_control.agent_step_attempts.model_request_count
+		else agent_control.agent_step_attempts.model_request_count
 	end,
 	input_tokens = case
 		when excluded.usage_observed then excluded.input_tokens
-		else execution_control.agent_step_attempts.input_tokens
+		else agent_control.agent_step_attempts.input_tokens
 	end,
 	output_tokens = case
 		when excluded.usage_observed then excluded.output_tokens
-		else execution_control.agent_step_attempts.output_tokens
+		else agent_control.agent_step_attempts.output_tokens
 	end,
 	cached_input_tokens = case
 		when excluded.usage_observed then excluded.cached_input_tokens
-		else execution_control.agent_step_attempts.cached_input_tokens
+		else agent_control.agent_step_attempts.cached_input_tokens
 	end,
-	usage_observed = execution_control.agent_step_attempts.usage_observed or excluded.usage_observed,
+	usage_observed = agent_control.agent_step_attempts.usage_observed or excluded.usage_observed,
 	cancel_outcome = excluded.cancel_outcome,
 	timeout_outcome = excluded.timeout_outcome,
 	late_completion_outcome = excluded.late_completion_outcome,
@@ -227,12 +227,12 @@ on conflict (attempt_id) do update set
 	updated_at = excluded.updated_at,
 	payload_schema_version = excluded.payload_schema_version,
 	sanitized_payload_json = excluded.sanitized_payload_json
-where execution_control.agent_step_attempts.request_id = excluded.request_id
-	and execution_control.agent_step_attempts.step_id = excluded.step_id
-	and execution_control.agent_step_attempts.attempt = excluded.attempt
-	and (execution_control.agent_step_attempts.activity_attempt = 0
-		or execution_control.agent_step_attempts.activity_attempt <= excluded.activity_attempt)
-	and lower(btrim(execution_control.agent_step_attempts.status)) not in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')`
+where agent_control.agent_step_attempts.request_id = excluded.request_id
+	and agent_control.agent_step_attempts.step_id = excluded.step_id
+	and agent_control.agent_step_attempts.attempt = excluded.attempt
+	and (agent_control.agent_step_attempts.activity_attempt = 0
+		or agent_control.agent_step_attempts.activity_attempt <= excluded.activity_attempt)
+	and lower(btrim(agent_control.agent_step_attempts.status)) not in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')`
 
 func (s *PostgresRunProjectionStore) UpsertStepResult(
 	ctx context.Context,
@@ -258,7 +258,7 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 	var runStatus string
 	if err := tx.QueryRow(
 		ctx,
-		`select status from execution_control.agent_runs where request_id = $1 for update`,
+		`select status from agent_control.agent_runs where request_id = $1 for update`,
 		result.RequestID,
 	).Scan(&runStatus); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -276,7 +276,7 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 	}
 	commandTag, err := tx.Exec(
 		ctx,
-		`insert into execution_control.agent_step_results (
+		`insert into agent_control.agent_step_results (
 			result_id, step_id, request_id, attempt_id, status, result_kind, projection_ref,
 			created_at, payload_schema_version, sanitized_payload_json
 		) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -305,7 +305,7 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 		ctx,
 		`select result_id, step_id, request_id, attempt_id, status, result_kind, projection_ref,
 			created_at, payload_schema_version, sanitized_payload_json
-		from execution_control.agent_step_results
+		from agent_control.agent_step_results
 		where result_id = $1
 		for update`,
 		result.ResultID,
@@ -324,7 +324,7 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 	if err := tx.QueryRow(
 		ctx,
 		`select sanitized_payload_json = $2::jsonb
-		from execution_control.agent_step_results
+		from agent_control.agent_step_results
 		where result_id = $1`,
 		result.ResultID,
 		string(payload),
@@ -354,7 +354,7 @@ func (s *PostgresRunProjectionStore) ListRunSteps(
 		`select step_id, request_id, conversation_id, step_kind, tool, parent_step_id,
 			status, activity_attempt, task_queue, worker_id, started_at, completed_at, updated_at,
 			payload_schema_version, sanitized_payload_json
-		from execution_control.agent_run_steps
+		from agent_control.agent_run_steps
 		where request_id = $1
 		order by started_at nulls last, step_id`,
 		requestID,
@@ -396,7 +396,7 @@ func (s *PostgresRunProjectionStore) ListStepAttempts(
 			cancel_outcome, timeout_outcome, late_completion_outcome,
 			fail_close_reason, terminal_reason, updated_at,
 			payload_schema_version, sanitized_payload_json
-		from execution_control.agent_step_attempts
+		from agent_control.agent_step_attempts
 		where request_id = $1
 		order by started_at nulls last, attempt_id`,
 		requestID,
@@ -432,7 +432,7 @@ func (s *PostgresRunProjectionStore) ListStepResults(
 		ctx,
 		`select result_id, step_id, request_id, attempt_id, status, result_kind, projection_ref,
 			created_at, payload_schema_version, sanitized_payload_json
-		from execution_control.agent_step_results
+		from agent_control.agent_step_results
 		where request_id = $1
 		order by created_at, result_id`,
 		requestID,

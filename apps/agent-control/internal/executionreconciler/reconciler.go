@@ -238,7 +238,7 @@ func (r *Reconciler) logWarn(_ string, args ...any) {
 		return
 	}
 	attributes := []any{
-		"event_type", "execution_control.reconciliation_warning",
+		"event_type", "agent_control.reconciliation_warning",
 		"status", "failed",
 		"failure_kind", "temporal_reconciliation_failed",
 		"source", "temporal_reconciler",
@@ -248,5 +248,5 @@ func (r *Reconciler) logWarn(_ string, args ...any) {
 			attributes = append(attributes, key, args[index+1])
 		}
 	}
-	r.logger.Warn("execution_control.reconciliation_warning", attributes...)
+	r.logger.Warn("agent_control.reconciliation_warning", attributes...)
 }

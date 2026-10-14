@@ -10,9 +10,9 @@ status: active
 通过只读 `campus_search` function tool 按需查询，不使用 Knowledge Agent、handoff 或强制预检索。
 直接回答与计划合成的分支由[Agent 框架](./agent-framework.md#运行形态)维护，Finalization 不额外调用模型改写答案。
 
-`campus_search` 的工具说明声明它提供中央民族大学当前 Campus Web 文档和已发布校园通知。Primary Agent 根据问题
+`campus_search` 的工具说明声明它提供中央民族大学当前 Campus Web 文档和已发布校园通知。Solve/Executor 根据问题
 所需事实与该声明范围是否相交决定是否调用；问候、改写、个人事实以及所需事实完全不在该范围内的
-请求，不因词面相似而自动查询 Campus RAG。工具调用时读取 PostgreSQL
+请求，不因词面相似而自动查询 Campus RAG。Runtime 工具 Activity 调用 Campus Search，由后者读取 PostgreSQL
 `campus_docs_serving.current_index` 的当前 collection，并从 Model Config 读取当前
 `campus_docs_embedding` 与 `campus_docs_reranker` 连接；collection、provider 和检索参数不进入准入快照
 或 Temporal workflow input。agent-control 在首次合法响应后绑定 run 的 collection，后续响应须匹配；
@@ -26,15 +26,16 @@ collection 或 rerank query。每次调用先解析当前 Model Config，换模�
 同键并发共享一次上游请求，每个等待者可独立取消；所有等待者退出或 20 秒上游期限到达后停止请求。
 缓存关闭时直接调用 provider。每次检索仍读取当前索引、执行 Qdrant 和 rerank，不缓存召回结果或答案。
 
-缓存由 `internal/embedding` 拥有，不引入 Execution Control/Temporal 持久状态或 Redis。
+缓存由 `apps/campus-search/internal/embedding` 拥有，不引入 agent-control/Temporal 持久状态或 Redis。
 现有 JSON 日志通过 `campus_docs.embedding.cache.hit/miss/wait/eviction` 的 `event_type` 计数，
 hit 的 `saved_ms` 以首次加载耗时估算避免的上游延迟；不记录原始 query、缓存键、向量或凭据。
 当前进程没有 metric exporter，因此直接复用日志出口，不注册无消费者的 OTel counter。
-Ops 现有 `embedding/retrieval/rerank/selection` 阶段语义不变，Embedding 耗时包括配置读取和缓存等待。
+Search 诊断中的 Embedding 耗时包括配置读取和缓存等待；当前完整阶段快照尚未透传至 Control/Ops，
+具体缺口见[Campus Search 合同](../../contracts/campus-search.md#agent-内部接口)。
 该缓存只缓解重复查询的上游延迟；若未来检索服务已有等价共享缓存，在迁移时重新评估或移除这一层。
 
-召回使用工具提供的搜索表达，rerank 使用本次检索要补足的 `search_goal`，旧调用未提供时使用用户目标。Ops 的现有
-诊断分别记录实际召回查询和排序目标；历史记录未保存排序目标时显示未记录，不回填推断值。
+召回使用工具提供的搜索表达，rerank 使用本次检索要补足的 `search_goal`，未提供时 Runtime 使用用户目标。Search 侧
+诊断分别记录实际召回查询和排序目标；缺少观测时不回填推断值。
 
 检索只保留 rerank `relevance_score >= 0.5` 的候选，每次返回最多 5 条；
 没有候选时返回 `no_match`。该分数只表示查询与候选文本的相关性，不判断机构、人群或规则适用主体。

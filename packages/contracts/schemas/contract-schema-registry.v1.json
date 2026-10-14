@@ -17,7 +17,7 @@
 			"path": "docs/contracts/schemas/tool-execution.openapi.yaml",
 			"owner": "docs/contracts",
 			"status": "active",
-			"notes": "Private app-api -> execution-control wire contract; generated TS/Go artifacts remain checked by pnpm --dir packages/contracts contracts:check."
+			"notes": "Private app-api -> agent-control wire contract; generated TS/Go artifacts remain checked by pnpm --dir packages/contracts contracts:check."
 		},
 		{
 			"id": "email-access.v1",
@@ -93,13 +93,13 @@
 			"notes": "Retired tool registry before search results and answer citations were separated."
 		},
 		{
-			"id": "runtime-tools.v7",
+			"id": "runtime-tools.v8",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-tools.v7.schema.json",
+			"path": "packages/contracts/schemas/runtime-tools.v8.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/tools.v7.json"],
-			"notes": "Tool-native runtime registry consumed by agent-runtime and execution-control."
+			"validates": ["configs/runtime/tools.v8.json"],
+			"notes": "Tool-native runtime registry consumed by agent-runtime and agent-control."
 		},
 		{
 			"id": "personal-memory-tool-contracts.v1",

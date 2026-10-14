@@ -575,7 +575,7 @@ describe("OpsWebApp", () => {
 		expect(execution.getByText("320")).toBeInTheDocument();
 		expect(execution.getByText("400")).toBeInTheDocument();
 		expect(execution.getByText("agent-runtime@899f251")).toBeInTheDocument();
-		expect(execution.getByText("execution-control@a77a046")).toBeInTheDocument();
+		expect(execution.getByText("agent-control@a77a046")).toBeInTheDocument();
 		fireEvent.click(context.getByText("关联标识"));
 		fireEvent.click(context.getByRole("button", { name: "复制 请求 ID" }));
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("req_ops_001");

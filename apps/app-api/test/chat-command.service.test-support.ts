@@ -8,14 +8,14 @@ import type {
 } from "../src/modules/auth";
 import type { ChatConversation, ChatMessage } from "../src/modules/chat";
 import type {
-	ExecutionControlRun,
-	ExecutionControlRunCreateInput,
-	ExecutionControlRunEvent,
-	ExecutionControlRuntimeClient,
+	AgentControlRun,
+	AgentControlRunCreateInput,
+	AgentControlRunEvent,
+	AgentControlRuntimeClient,
 	ToolExecutionInput,
 	ToolExecutionResponse,
-} from "../src/modules/integration/execution-control";
-import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
+} from "../src/modules/integration/agent-control";
+import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/agent-control";
 import type {
 	AcceptedChatCommandStore,
 	AcceptRequestWrite,
@@ -42,11 +42,11 @@ export type {
 	FinalizeRequestWrite,
 } from "../src/modules/runtime-command";
 export {
+	AgentControlTransportError,
 	ChatAcceptanceConversationConflict,
 	ChatAcceptanceIdempotencyConflict,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
-	ExecutionControlTransportError,
 } from "../src/modules/runtime-command";
 
 export const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
@@ -117,7 +117,7 @@ export function buildChatCommandService(
 	}
 	testServicesByStore.set(store, service);
 	const runtime = dependencies.executionRuntime as
-		| (ExecutionControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean })
+		| (AgentControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean })
 		| undefined;
 	if (runtime && !runtime[runtimeHandlesProductCallback]) {
 		const listRunEvents = runtime.listRunEvents.bind(runtime);
@@ -483,11 +483,11 @@ export function createExecutionRuntimeFromToolClient(
 		}) => Promise<void>;
 		skipProductCallback?: boolean;
 	} = {},
-): ExecutionControlRuntimeClient {
-	const eventsByRequest = new Map<string, ExecutionControlRunEvent[]>();
-	const requestsById = new Map<string, ExecutionControlRun>();
+): AgentControlRuntimeClient {
+	const eventsByRequest = new Map<string, AgentControlRunEvent[]>();
+	const requestsById = new Map<string, AgentControlRun>();
 
-	async function createRun(input: ExecutionControlRunCreateInput): Promise<ExecutionControlRun> {
+	async function createRun(input: AgentControlRunCreateInput): Promise<AgentControlRun> {
 		if (!frozenExecutionInputsByRequest.has(input.requestId) && options.loadExecutionInput) {
 			const frozenExecutionInput = await options.loadExecutionInput(input.requestId);
 			if (frozenExecutionInput) {
@@ -515,7 +515,7 @@ export function createExecutionRuntimeFromToolClient(
 		return run;
 	}
 
-	const runtime: ExecutionControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean } = {
+	const runtime: AgentControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean } = {
 		cancelRun: vi.fn(async (input) => {
 			const existing = requestsById.get(input.requestId);
 			if (!existing) {
@@ -554,7 +554,7 @@ export function createExecutionRuntimeFromToolClient(
 
 async function applyTestProductCallback(
 	requestId: string,
-	events: ExecutionControlRunEvent[],
+	events: AgentControlRunEvent[],
 	directCallback?: (input: {
 		completedAt: string;
 		response: ToolExecutionResponse;
@@ -612,9 +612,7 @@ async function applyTestProductCallback(
 	await callback?.(response, terminal.occurredAt);
 }
 
-function toolExecutionInputFromRunCreate(
-	input: ExecutionControlRunCreateInput,
-): ToolExecutionInput {
+function toolExecutionInputFromRunCreate(input: AgentControlRunCreateInput): ToolExecutionInput {
 	const frozenJson = frozenExecutionInputsByRequest.get(input.requestId);
 	if (!frozenJson) {
 		throw new Error(`Missing frozen execution input for ${input.requestId}.`);
@@ -691,7 +689,7 @@ function internalActorFromWire(
 	};
 }
 
-function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): ExecutionControlRun {
+function durableRunFromCreateInput(input: AgentControlRunCreateInput): AgentControlRun {
 	const now = "2026-06-04T01:02:03.000Z";
 	const frozenJson = frozenExecutionInputsByRequest.get(input.requestId);
 	if (!frozenJson) {
@@ -719,15 +717,15 @@ function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): Execu
 }
 
 async function durableEventsFromExecutionSse(
-	input: ExecutionControlRunCreateInput,
+	input: AgentControlRunCreateInput,
 	response: Response,
-): Promise<ExecutionControlRunEvent[]> {
+): Promise<AgentControlRunEvent[]> {
 	const text = await response.text();
 	const blocks = text
 		.split(/\r?\n\r?\n/)
 		.map((block) => block.trim())
 		.filter(Boolean);
-	const events: ExecutionControlRunEvent[] = [];
+	const events: AgentControlRunEvent[] = [];
 	for (const block of blocks) {
 		const parsed = parseSseBlock(block);
 		if (!parsed) {
@@ -764,10 +762,10 @@ function parseSseBlock(block: string): { data: Record<string, unknown>; event: s
 }
 
 function durableEventFromExecutionLifecycle(
-	input: ExecutionControlRunCreateInput,
+	input: AgentControlRunCreateInput,
 	parsed: { data: Record<string, unknown>; event: string },
 	sequence: number,
-): ExecutionControlRunEvent | null {
+): AgentControlRunEvent | null {
 	if (parsed.event === "execution.queued") {
 		return baseRunEvent(input, {
 			eventType: "run.queued",
@@ -794,7 +792,7 @@ function durableEventFromExecutionLifecycle(
 					request_id: getString(parsed.data.request_id) ?? input.requestId,
 					response: responseWireFromToolResponse(
 						executionErrorResponse({
-							code: "execution_control_invalid_response",
+							code: "agent_control_invalid_response",
 							message: "Execution stream completed without a response payload.",
 							retryable: true,
 						}),
@@ -818,7 +816,7 @@ function durableEventFromExecutionLifecycle(
 	}
 	if (parsed.event === "execution.failed" || parsed.event === "execution.cancelled") {
 		const error = getRecord(parsed.data.error);
-		const code = getString(error?.code) ?? "execution_control_invalid_response";
+		const code = getString(error?.code) ?? "agent_control_invalid_response";
 		const message = getString(error?.message) ?? "Execution terminal error payload is invalid.";
 		const retryable = typeof error?.retryable === "boolean" ? error.retryable : true;
 		if (parsed.event === "execution.failed") {
@@ -852,10 +850,10 @@ function durableEventFromExecutionLifecycle(
 }
 
 function finalizationEventFromResponse(
-	input: ExecutionControlRunCreateInput,
+	input: AgentControlRunCreateInput,
 	response: ToolExecutionResponse,
 	sequence: number,
-): ExecutionControlRunEvent {
+): AgentControlRunEvent {
 	return baseRunEvent(input, {
 		eventType: "finalization.completed",
 		payload: {
@@ -868,10 +866,10 @@ function finalizationEventFromResponse(
 }
 
 function baseRunEvent(
-	input: ExecutionControlRunCreateInput,
-	overrides: Pick<ExecutionControlRunEvent, "eventType" | "payload" | "sequence"> &
-		Partial<Pick<ExecutionControlRunEvent, "occurredAt" | "visibility">>,
-): ExecutionControlRunEvent {
+	input: AgentControlRunCreateInput,
+	overrides: Pick<AgentControlRunEvent, "eventType" | "payload" | "sequence"> &
+		Partial<Pick<AgentControlRunEvent, "occurredAt" | "visibility">>,
+): AgentControlRunEvent {
 	return {
 		conversationId: input.conversationId,
 		eventId: `${input.requestId}:event:${overrides.sequence}`,

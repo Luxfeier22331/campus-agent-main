@@ -39,8 +39,8 @@ spec:
             - name: AGENT_CONTROL_RUNTIME_SHARED_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: execution-agent-runtime-secrets
-                  key: EXECUTION_AGENT_RUNTIME_SHARED_SECRET
+                  name: agent-control-runtime-secrets
+                  key: AGENT_CONTROL_RUNTIME_SHARED_SECRET
             - name: MODEL_CONFIG_URL
               value: http://model-config:8000
             - name: MEMORY_SERVICE_BASE_URL
@@ -56,12 +56,12 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: agent-runtime-config
-                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+                  key: AGENT_CONTROL_TEMPORAL_ADDRESS
             - name: AGENT_RUNTIME_TEMPORAL_NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   name: agent-runtime-config
-                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+                  key: AGENT_CONTROL_TEMPORAL_NAMESPACE
             - name: RETRIEVAL_BASE_URL
               value: http://campus-search-service:8000
             - name: RETRIEVAL_INTERNAL_TOKEN

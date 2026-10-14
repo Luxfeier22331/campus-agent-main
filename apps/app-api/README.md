@@ -6,7 +6,7 @@
 
 - 提供产品 HTTP、认证、会话和账号生命周期；
 - 接收聊天请求并保存产品输入、事件和终态；
-- 管理个人记忆产品状态与 execution-control 回调；
+- 管理个人记忆产品状态与 Memory 服务回调；
 - 提供通知、食堂和其他已开放产品读取接口；
 - 提供 Status Web 使用的匿名问答可用性信号。
 
@@ -61,7 +61,7 @@ Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET
 
 Control 与 Memory 产品接口统一通过 `CLUSTER_PRIVATE_API` VPC binding 和 `CLUSTER_PRIVATE_ORIGIN`
 调用 `cluster-private-ingress`，使用 `EDGE_INGRESS_SHARED_SECRET`；本地改用 `CLUSTER_PRIVATE_BASE_URL`。
-Worker 不持有 Memory 内部 secret 或 Control 入站 secret。`APP_API_EXECUTION_SHARED_SECRET`
+Worker 不持有 Memory 内部 secret 或 Control 入站 secret。`APP_API_INTERNAL_SHARED_SECRET`
 只保留产品回调认证用途，Object Store 仍使用独立 binding。
 路由与部署边界见 [cluster-private-ingress](../cluster-private-ingress/README.md)。
 

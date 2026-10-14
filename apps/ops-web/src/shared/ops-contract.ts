@@ -501,7 +501,7 @@ export const OpsRequestDetailResponseSchema = z.object({
 		}),
 		releases: z.object({
 			agentRuntime: z.string().min(1).nullable(),
-			executionControl: z.string().min(1).nullable(),
+			agentControl: z.string().min(1).nullable(),
 		}),
 		stages: z.array(OpsExecutionStageSchema),
 		terminalReason: z.string().min(1).nullable(),

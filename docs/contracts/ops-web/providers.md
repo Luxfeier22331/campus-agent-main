@@ -11,7 +11,7 @@ status: active
 Ops Web 只管理 Model Config 的 `primary_agent`、`campus_docs_embedding`、`campus_docs_reranker` 和
 `notice_classification` 当前配置。页面 API 继续使用 UI kind `llm`、`embedding`、`reranker` 和
 `notice_classifier`，并由 Ops Web 服务端映射到稳定 name。这些 kind 只组织表单和页面合同，不进入
-Model Config wire 合同，也不表示模型类型或 execution-control ownership。
+Model Config wire 合同，也不表示模型类型或 agent-control ownership。
 Hindsight 的模型和存储配置由环境仓 Helm values/Secret 管理，不进入本接口。
 
 接口不提供 connection、profile、role、revision、bundle、发布记录或回滚。浏览器不能指定数据库、

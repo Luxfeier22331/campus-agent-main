@@ -1,5 +1,5 @@
 import { AppApiRouteError } from "../../http";
-import { ExecutionControlTransportError } from "../../modules/integration";
+import { AgentControlTransportError } from "../../modules/integration";
 import { publicExecutionFailure } from "../../modules/runtime-command";
 import { routeErrorResponseWithRouteErrorCorrelation } from "../responses";
 
@@ -115,7 +115,7 @@ export function routeChatErrorResponse(
 	if (error instanceof AppApiRouteError) {
 		return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 	}
-	if (error instanceof ExecutionControlTransportError) {
+	if (error instanceof AgentControlTransportError) {
 		const failure = publicExecutionFailure({ errorCode: error.code, status: "error" });
 		return routeErrorResponseWithRouteErrorCorrelation(
 			new AppApiRouteError({

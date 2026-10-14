@@ -1,4 +1,4 @@
-import { ExecutionControlTransportError, type ToolExecutionResponse } from "../integration";
+import { AgentControlTransportError, type ToolExecutionResponse } from "../integration";
 import { runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 import { acceptChatCommand } from "./service/acceptance";
 import { createChatCommandServiceContext } from "./service/context";
@@ -116,7 +116,7 @@ export function buildChatCommandService(
 	}): Promise<AcceptedChatCommandContext> {
 		const candidate = await dependencies.commandStore.getDurableRequestForCloseout(input.requestId);
 		if (!candidate) {
-			throw new ExecutionControlTransportError({
+			throw new AgentControlTransportError({
 				code: "runtime_invariant_failed",
 				message: "Accepted chat request could not be reconstructed for retry.",
 				retryable: false,
@@ -249,7 +249,7 @@ export function buildChatCommandService(
 					durableRunCreate = await ensureDurableRun(context);
 				} catch (error) {
 					if (
-						error instanceof ExecutionControlTransportError &&
+						error instanceof AgentControlTransportError &&
 						error.code === "execution_status_pending"
 					) {
 						return;

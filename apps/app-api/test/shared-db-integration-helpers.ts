@@ -17,10 +17,10 @@ export function buildSharedDbIntegrationEnv(input: {
 		AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 		AUTH_TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET_KEY,
 		EDGE_INGRESS_SHARED_SECRET: "shared-db-integration-secret",
-		APP_API_EXECUTION_SHARED_SECRET: "shared-db-integration-secret",
+		APP_API_INTERNAL_SHARED_SECRET: "shared-db-integration-secret",
 		BETTER_AUTH_SECRET: "testcontainers-app-api-product-database-secret",
 		RESEND_API_KEY: "shared-db-integration-resend-key",
-		CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+		CLUSTER_PRIVATE_BASE_URL: "https://agent-control.internal",
 	};
 
 	return {

@@ -86,7 +86,7 @@ export function parseExecutionTerminalResponse(input: {
 				occurredAt,
 				requestId,
 				response: executionFinalizationErrorResponse({
-					code: "execution_control_invalid_response",
+					code: "agent_control_invalid_response",
 					message: "Execution stream completed without a response payload.",
 					retryable: true,
 					status: "error",

@@ -43,7 +43,7 @@ const campusParameterSchema = {
 };
 
 const catalog: ToolCatalog = {
-	schemaVersion: "tool-registry-v7",
+	schemaVersion: "tool-registry-v8",
 	registryVersion: "test",
 	contractFingerprint: {
 		functionSchemaSha256: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -59,7 +59,7 @@ const catalog: ToolCatalog = {
 			requiresApproval: false,
 			payloadSchemaRef: schemaRef("campus-search.v1", "CampusSearchPayload"),
 			resultSchemaRef: schemaRef("campus-search.v1", "CampusSearchResult"),
-			handler: { type: "execution_control_internal_query", endpoint: "/internal/query/campus" },
+			handler: { type: "agent_control_internal_query", endpoint: "/internal/query/campus" },
 			timeoutMs: 1_000,
 			resultProjectionPolicy: "bounded_json",
 			parameterSchema: campusParameterSchema,
@@ -711,7 +711,7 @@ describe("workflow operation runtime", () => {
 			remainingSteps: [taskStep("step.next", "继续检索", ["step.missing"])],
 		},
 	])(
-		"passes semantic replan decisions through to execution-control",
+		"passes semantic replan decisions through to agent-control",
 		async ({ decision, remainingSteps }) => {
 			const plan = taskPlan("校园任务", [taskStep("step.first", "第一步")]);
 			const replan = {
@@ -1110,6 +1110,67 @@ describe("workflow operation runtime", () => {
 		expect(content).toContain("通知 2026 的招聘要求。");
 	});
 
+	it("keeps complementary chunks from the same section during recovery synthesis", async () => {
+		let observed: AgentRunnerInput | undefined;
+		const first: WorkflowEvidence = {
+			schemaVersion: "workflow_evidence.v1",
+			id: "result://contact",
+			source: "campus_search",
+			noticeId: "notice-2025",
+			title: "2025 年项目申报通知",
+			sectionTitle: "五、其他",
+			excerpt: "项目主管部门联系人。",
+			citationIndex: 1,
+		};
+		const second: WorkflowEvidence = {
+			...first,
+			id: "result://mentors",
+			excerpt: "附件：2025 年立项名单及指导教师。",
+			citationIndex: 2,
+		};
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async (input) => {
+				observed = input;
+				return runnerResult({ finalOutput: "联系人 [1]，指导教师名单见附件 [2]。" });
+			},
+		});
+		const request = synthesizeInput(taskPlan("去年的指导教师", []), [], [first, second, first]);
+		request.operationInput.mode = "recovery";
+		await runtime.run(request);
+		const content = JSON.stringify(observed?.input);
+		expect(content.split(first.excerpt)).toHaveLength(2);
+		expect(content.split(second.excerpt)).toHaveLength(2);
+	});
+
+	it.each(["solve", "synthesize"] as const)(
+		"gives %s the frozen request time without rewriting the user goal",
+		async (operation) => {
+			let observed: AgentRunnerInput | undefined;
+			const goal = "去年有哪些项目，今年如何申报？";
+			const runtime = createWorkflowOperationRuntime({
+				catalog,
+				runner: async (input) => {
+					observed = input;
+					return runnerResult({
+						finalOutput:
+							operation === "solve"
+								? JSON.stringify({ outcome: "answer", answer: "项目说明" })
+								: "项目说明",
+					});
+				},
+			});
+			const request =
+				operation === "solve" ? solveInput(goal, 2) : synthesizeInput(taskPlan(goal, []), [], []);
+			request.requestTime = "2026-10-13T09:23:00Z";
+			await runtime.run(request);
+			const content = JSON.stringify(observed?.input);
+			expect(content).toContain(request.requestTime);
+			expect(content).toContain(goal);
+			expect(observed?.instructions).toContain("requestTime");
+		},
+	);
+
 	it("rejects an invalid JSON plan instead of silently executing it", async () => {
 		const runtime = createWorkflowOperationRuntime({
 			catalog,
@@ -1176,7 +1237,7 @@ describe("workflow operation runtime", () => {
 		},
 	);
 
-	it("passes structurally valid solve plans to execution-control for semantic admission", async () => {
+	it("passes structurally valid solve plans to agent-control for semantic admission", async () => {
 		const unavailableStep: TaskPlanStep = {
 			...taskStep("step.memory", "读取个人记忆"),
 			candidateSources: ["personal_memory_recall"],

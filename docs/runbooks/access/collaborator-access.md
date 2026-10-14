@@ -119,7 +119,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO hindsight_ro
    同样可能是消费者（PostgreSQL 默认给 `PUBLIC` 授 `CONNECT`）。
 2. 若按 [campus_agent 共享库连接授权模型](../../../.agents/notes/implemented/architecture/2026-09-16-campus-agent-connect-acl.md) 收紧 `PUBLIC`，必须在
    同一变更中为全部真实消费者逐一显式 `GRANT CONNECT`（当前：`campus_agent`、`app_api`、
-   `execution_control`、`model_config`、`ops_web`）。
+   `agent_control`、`model_config`、`ops_web`）。
 3. 验证以每个消费者**新建连接**成功为准：存量连接池不受 `CONNECT` 收回影响，故障会随池
    回收延迟暴露，pod `Running` 不构成权限变更安全的证据。
 

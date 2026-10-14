@@ -1,9 +1,9 @@
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
-	type ExecutionControlRun,
-	type ExecutionControlRuntimeClient,
-	ExecutionControlTransportError,
+	type AgentControlRun,
+	type AgentControlRuntimeClient,
+	AgentControlTransportError,
 } from "../integration";
 import { liveRunEvents } from "../integration/live-run-events";
 import { toBrowserRunEvent } from "./browser-projection";
@@ -30,14 +30,14 @@ const DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY = {
 } as const;
 
 export function buildRuntimeRunService(input: {
-	executionRuntime: ExecutionControlRuntimeClient;
-	ensureRun?: (input: { requestId: string }) => Promise<ExecutionControlRun>;
+	executionRuntime: AgentControlRuntimeClient;
+	ensureRun?: (input: { requestId: string }) => Promise<AgentControlRun>;
 	store: RuntimeRunStore;
 }): RuntimeRunService {
 	function ensureMissingRun(error: unknown, owned: RuntimeRunOwnershipRecord) {
 		if (
 			owned.status === "accepted" &&
-			error instanceof ExecutionControlTransportError &&
+			error instanceof AgentControlTransportError &&
 			error.status === 404 &&
 			(error.code === "durable_run_not_found" || error.code === "execution_run_not_found")
 		) {
@@ -113,13 +113,10 @@ export function buildRuntimeRunService(input: {
 		return owned;
 	}
 
-	function assertRunMatchesOwnership(
-		owned: RuntimeRunOwnershipRecord,
-		run: ExecutionControlRun,
-	): void {
+	function assertRunMatchesOwnership(owned: RuntimeRunOwnershipRecord, run: AgentControlRun): void {
 		if (run.requestId !== owned.requestId || run.conversationId !== owned.conversationId) {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Execution durable run identity does not match app-api request ownership.",
 				retryable: true,
 				status: 502,
@@ -127,7 +124,7 @@ export function buildRuntimeRunService(input: {
 		}
 	}
 
-	function toRunSummary(run: ExecutionControlRun): RuntimeRunSummary {
+	function toRunSummary(run: AgentControlRun): RuntimeRunSummary {
 		const acceptedAt = normalizeRunTimestamp(run.createdAt) ?? run.createdAt;
 		const startedAt = normalizeRunTimestamp(run.startedAt);
 		const completedAt = isTerminalExecutionStatus(run.status)
@@ -169,8 +166,8 @@ export function buildRuntimeRunService(input: {
 			!Number.isInteger(event.sequence) ||
 			event.sequence <= lastSequence
 		) {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Execution durable run events must advance the requested cursor.",
 				retryable: true,
 				status: 502,
@@ -183,7 +180,7 @@ export function buildRuntimeRunService(input: {
 		afterSequence?: number;
 		afterAnswerIndex?: number;
 		owned: RuntimeRunOwnershipRecord;
-		run: ExecutionControlRun;
+		run: AgentControlRun;
 		signal?: AbortSignal;
 		waitMs?: number;
 	}): Promise<{
@@ -206,8 +203,8 @@ export function buildRuntimeRunService(input: {
 		const browserEvents: RuntimeRunEventProjection[] = [];
 		for (const event of liveRunEvents(page)) {
 			if (event.requestId !== eventsInput.owned.requestId) {
-				throw new ExecutionControlTransportError({
-					code: "execution_control_invalid_response",
+				throw new AgentControlTransportError({
+					code: "agent_control_invalid_response",
 					message: "Execution durable request event identity does not match requested request.",
 					retryable: true,
 					status: 502,
@@ -222,8 +219,8 @@ export function buildRuntimeRunService(input: {
 			}
 		}
 		if (!Number.isInteger(page.nextSequence) || page.nextSequence < lastSequence) {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Execution durable run event page returned a stale next_sequence.",
 				retryable: true,
 				status: 502,
@@ -249,7 +246,7 @@ export function buildRuntimeRunService(input: {
 		run: RuntimeRunSummary;
 	}> {
 		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.requestId);
-		let run: ExecutionControlRun;
+		let run: AgentControlRun;
 		try {
 			run = await input.executionRuntime.getRun({
 				requestId: owned.requestId,
@@ -281,7 +278,7 @@ export function buildRuntimeRunService(input: {
 	return {
 		async cancel(cancelInput) {
 			const owned = await requireOwnedRun(cancelInput.principal, cancelInput.requestId);
-			let current: ExecutionControlRun;
+			let current: AgentControlRun;
 			try {
 				current = await input.executionRuntime.getRun({
 					requestId: owned.requestId,
@@ -312,7 +309,7 @@ export function buildRuntimeRunService(input: {
 		},
 		async getStatus(statusInput) {
 			const owned = await requireOwnedRun(statusInput.principal, statusInput.requestId);
-			let run: ExecutionControlRun;
+			let run: AgentControlRun;
 			try {
 				run = await input.executionRuntime.getRun({
 					requestId: owned.requestId,
@@ -331,7 +328,7 @@ export function buildRuntimeRunService(input: {
 		listEvents,
 		async listSteps(stepsInput) {
 			const owned = await requireOwnedRun(stepsInput.principal, stepsInput.requestId);
-			let run: ExecutionControlRun;
+			let run: AgentControlRun;
 			try {
 				run = await input.executionRuntime.getRun({
 					requestId: owned.requestId,

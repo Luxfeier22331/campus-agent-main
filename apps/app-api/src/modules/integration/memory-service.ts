@@ -1,8 +1,8 @@
 import { PROFILE_MEMORY_COMMAND_TIMEOUT_MS } from "../../config";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
-import type { ExecutionControlPersonalMemoryClient } from "./execution-control-runtime-types";
+import type { AgentControlPersonalMemoryClient } from "./agent-control-runtime-types";
 import { createMemoryRequester, type MemoryServiceEnv } from "./memory-service-requester";
-export type MemoryServiceClient = ExecutionControlPersonalMemoryClient & {
+export type MemoryServiceClient = AgentControlPersonalMemoryClient & {
 	finalizeOwnerDeletion(input: { ownerUserId: string }): Promise<void>;
 };
 export function createMemoryServiceClient(

@@ -22,7 +22,7 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 		"PORT",
 	],
 	"apps/app-api/.dev.vars.local": [
-		"APP_API_EXECUTION_SHARED_SECRET",
+		"APP_API_INTERNAL_SHARED_SECRET",
 		"EDGE_INGRESS_SHARED_SECRET",
 		"CLUSTER_PRIVATE_BASE_URL",
 		"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
@@ -35,8 +35,8 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 		"OBJECT_STORE_BUCKET_DERIVED",
 	],
 	"apps/agent-control/.env.local": [
-		"EXECUTION_CONTROL_DATABASE_URL",
-		"EXECUTION_CONTROL_TEMPORAL_ADDRESS",
+		"AGENT_CONTROL_DATABASE_URL",
+		"AGENT_CONTROL_TEMPORAL_ADDRESS",
 		"PORT",
 	],
 	"apps/model-config/.env.local": [
@@ -47,7 +47,7 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 	"apps/cluster-private-ingress/.env.local": [
 		"LISTEN_ADDR",
 		"EDGE_INGRESS_SHARED_SECRET",
-		"EXECUTION_CONTROL_INGRESS_SHARED_SECRET",
+		"AGENT_CONTROL_INGRESS_SHARED_SECRET",
 		"MEMORY_SERVICE_BASE_URL",
 		"MEMORY_INTERNAL_SHARED_SECRET",
 	],
@@ -71,7 +71,7 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 		"OPS_WEB_INTERNAL_TOKEN",
 	],
 	"jobs/campus-docs-index-publisher/.env.local": [
-		"EXECUTION_CONTROL_DATABASE_URL",
+		"AGENT_CONTROL_DATABASE_URL",
 		"OBJECT_STORE_BUCKET_DERIVED",
 	],
 	"apps/notice-pipeline-worker/.env.local": [
@@ -80,7 +80,7 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 		"OBJECT_STORE_BUCKET_SOURCE",
 	],
 	"apps/notice-artifacts-worker/.env.local": ["MODEL_CONFIG_URL", "TEMPORAL_ADDRESS", "QDRANT_URL"],
-	"jobs/campus-rag-index-publisher/.env.local": ["EXECUTION_CONTROL_DATABASE_URL", "QDRANT_URL"],
+	"jobs/campus-rag-index-publisher/.env.local": ["AGENT_CONTROL_DATABASE_URL", "QDRANT_URL"],
 	"jobs/notice-index-publisher/.env.local": ["NOTICES_DATABASE_URL"],
 };
 export async function diagnoseLocalDevelopment(
@@ -146,9 +146,9 @@ export async function diagnoseLocalDevelopment(
 						OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 						OBJECT_STORE_ENDPOINT: `http://127.0.0.1:${profile.infraPorts.objectStore}`,
 						TEMPORAL_ADDRESS: `127.0.0.1:${profile.infraPorts.temporal}`,
-						EXECUTION_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${profile.infraPorts.temporal}`,
+						AGENT_CONTROL_TEMPORAL_ADDRESS: `127.0.0.1:${profile.infraPorts.temporal}`,
 						TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
-						EXECUTION_CONTROL_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
+						AGENT_CONTROL_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 						QDRANT_URL: `http://127.0.0.1:${profile.infraPorts.qdrantHttp}`,
 					};
 					return key in identities && value !== identities[key];
@@ -220,7 +220,7 @@ export async function diagnoseLocalDevelopment(
 				for (const [name, port] of Object.entries({
 					"app-api": profile.ports.appApi,
 					"campus-web": profile.ports.campusWeb,
-					"agent-control": rp.executionControl,
+					"agent-control": rp.agentControl,
 					"model-config": rp.modelConfig,
 					"agent-runtime-worker": rp.agentWorker,
 					"cluster-private-ingress": rp.clusterPrivateIngress,

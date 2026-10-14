@@ -82,8 +82,16 @@ function checkOpenApiMetadata(): void {
 		"AppApiErrorResponse schema ref",
 	);
 	const paths = asRecord(openapi.paths, "paths");
+	expect(
+		paths["/internal/execution/requests"] === undefined,
+		"historical execution path must be removed",
+	);
+	expect(
+		paths["/api/internal/execution/requests/{requestId}/input"] === undefined,
+		"historical app-api input path must be removed",
+	);
 	const inputPath = asRecord(
-		paths["/api/internal/execution/requests/{requestId}/input"],
+		paths["/api/internal/agent/runs/{requestId}/input"],
 		"execution input path",
 	);
 	expect(inputPath.delete === undefined, "execution input must not expose a DELETE operation");
@@ -218,7 +226,7 @@ function checkRuntimeBoundaries(): void {
 		asRecord(
 			asRecord(
 				asRecord(
-					asRecord(loadOpenApi().paths, "paths")["/internal/execution/requests/{requestId}/events"],
+					asRecord(loadOpenApi().paths, "paths")["/internal/agent/runs/{requestId}/events"],
 					"events path",
 				).get,
 				"events get",
@@ -356,7 +364,7 @@ function checkFixtureMatrix(): void {
 	for (const fixtureName of [
 		"response_cancelled_null_target.valid.json",
 		"response_completed_delegate.valid.json",
-		"response_error_execution_control_unavailable.valid.json",
+		"response_error_agent_control_unavailable.valid.json",
 		"response_temporal_finalization.valid.json",
 		"response_timeout.valid.json",
 		"response_web_sources.valid.json",
@@ -401,7 +409,7 @@ function checkFixtureMatrix(): void {
 	for (const [fixtureName, expectedStatus] of Object.entries({
 		"response_cancelled_null_target.valid.json": "cancelled",
 		"response_completed_delegate.valid.json": "completed",
-		"response_error_execution_control_unavailable.valid.json": "error",
+		"response_error_agent_control_unavailable.valid.json": "error",
 		"response_timeout.valid.json": "error",
 	})) {
 		const response = loadFixture(fixtureName);

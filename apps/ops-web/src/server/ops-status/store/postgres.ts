@@ -144,7 +144,7 @@ export function createPgOpsStatusStoreDatabase(
 					pool.query(requestCampusSearchSql(), [requestId]).catch(() => null),
 					pool.query(
 						`select code, operation, detail, invocation_id, http_status, reason, citation, source_code
-						from execution_control.ops_terminal_failures where request_id = $1
+						from agent_control.ops_terminal_failures where request_id = $1
 						order by occurred_at desc, event_id desc limit 1`,
 						[requestId],
 					),
@@ -239,7 +239,7 @@ export function createPgOpsStatusStoreDatabase(
 					pool.query(requestModelAttemptsSql(), ["__schema_check__"]),
 					pool.query(requestCampusSearchSql(), ["__schema_check__"]),
 					pool.query(
-						"select code, operation, detail, invocation_id, http_status, reason, citation, source_code from execution_control.ops_terminal_failures limit 0",
+						"select code, operation, detail, invocation_id, http_status, reason, citation, source_code from agent_control.ops_terminal_failures limit 0",
 					),
 				]);
 			});

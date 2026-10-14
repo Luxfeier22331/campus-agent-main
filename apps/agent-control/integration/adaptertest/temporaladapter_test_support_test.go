@@ -41,7 +41,7 @@ func newAdapterForTest(cfg config.Config) *Adapter {
 }
 
 func newWorkerAuthAdapterForTest() *Adapter {
-	return newAdapterForTest(config.Config{AppAPIExecutionSharedSecret: "secret"})
+	return newAdapterForTest(config.Config{AppAPIInternalSharedSecret: "secret"})
 }
 
 type staticModelTargetResolver struct {

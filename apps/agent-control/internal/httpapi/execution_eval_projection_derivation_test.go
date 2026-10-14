@@ -109,7 +109,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/requests/run-temporal-derived-eval/steps",
+		"/internal/agent/runs/run-temporal-derived-eval/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -203,7 +203,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsDirectAnswer(t *test
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/requests/run-temporal-derived-history-eval/steps",
+		"/internal/agent/runs/run-temporal-derived-history-eval/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -295,7 +295,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsPersonalMemoryToolCa
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/requests/run-temporal-memory-derived-eval/steps",
+		"/internal/agent/runs/run-temporal-memory-derived-eval/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")

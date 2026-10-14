@@ -62,9 +62,9 @@ describe("PostgreSQL ops status store", () => {
 	it("reads execution projections from the owning schema", () => {
 		const sql = `${requestRowsCte()}\n${requestStagesSql()}\n${requestModelAttemptsSql()}`;
 
-		expect(sql).toContain('"execution_control"."agent_runs"');
-		expect(sql).toContain('"execution_control"."agent_run_steps"');
-		expect(sql).toContain('"execution_control"."agent_step_attempts"');
+		expect(sql).toContain('"agent_control"."agent_runs"');
+		expect(sql).toContain('"agent_control"."agent_run_steps"');
+		expect(sql).toContain('"agent_control"."agent_step_attempts"');
 		expect(sql).toContain('candidate."activity_attempt" = step."activity_attempt"');
 		expect(sql).toContain('attempt."duration_ms" as "durationMs"');
 		expect(sql).not.toContain('"runtime"."agent_runs"');
@@ -303,7 +303,7 @@ describe("PostgreSQL ops status store", () => {
 			},
 			releases: {
 				agentRuntime: "agent-runtime@899f251",
-				executionControl: "execution-control@a77a046",
+				agentControl: "agent-control@a77a046",
 			},
 		});
 		expect(detail.execution.stages).toHaveLength(1);
@@ -630,7 +630,7 @@ describe("PostgreSQL ops status store", () => {
 						modelRequestCount: 0,
 						sanitizedPayloadJson: {
 							agent_runtime_release: "agent-runtime@new",
-							execution_control_release: "execution-control@old",
+							agent_control_release: "agent-control@old",
 							failure: {
 								code: "runtime_invariant_failed",
 								http_status: 409,
@@ -679,7 +679,7 @@ describe("PostgreSQL ops status store", () => {
 		});
 		expect(detail?.execution.releases).toEqual({
 			agentRuntime: "agent-runtime@new",
-			executionControl: "execution-control@old",
+			agentControl: "agent-control@old",
 		});
 		expect(detail?.execution.model).toEqual({
 			name: null,

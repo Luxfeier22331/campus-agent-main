@@ -9,8 +9,7 @@ status: active
 ## 边界
 
 `apps/agent-runtime` 拥有 TypeScript Temporal AgentWorkflow 和模型、工具 Activity，包括 instruction、模型输入装配、
-模型调用、本地函数调用、模型托管的 Web Search、结构化计划/重规划输出、最终自然语言输出和 SDK
-trace。它不负责产品认证、检索索引、函数工具准入、个人记忆存储或最终投影持久化。
+模型调用、本地函数调用、模型托管的 Web Search、结构化计划/重规划输出、最终自然语言输出和可选 trace 基础设施。它不负责产品认证、检索索引、函数工具准入、个人记忆存储或最终投影持久化。
 
 ## 运行形态
 
@@ -23,7 +22,7 @@ trace。它不负责产品认证、检索索引、函数工具准入、个人记
 3. `replan` 根据已完成步骤、成功证据、`no_match` 和工具失败选择 `continue`（可保留或替换剩余步骤）或进入 `synthesize`。
 4. `synthesize` 只使用聚合后的证据生成用户答案，不再调用检索工具。
 
-TypeScript AgentWorkflow 负责持久顺序、依赖检查、重规划预算和最终收口；Control 保留结果归一化与投影校验。单一模型角色不表示整轮只有一次模型调用或一次 SDK run。系统不使用 Knowledge Agent 或 handoff。历史配置槽位仍称为 `primary_agent`，
+TypeScript AgentWorkflow 负责持久顺序、依赖检查、重规划预算和最终收口；Runtime 归一化阶段结果，Control 保留结果边界与投影校验。单一模型角色不表示整轮只有一次模型调用或一次 SDK run。系统不使用 Knowledge Agent 或 handoff。历史配置槽位仍称为 `primary_agent`，
 但它不是用户可见的 Agent 层级，也不是编排策略名。
 
 这里的 Agent 能力来自模型对直接回答、任务计划、工具参数、候选来源选择和剩余路径的决策；这些
@@ -33,7 +32,7 @@ TypeScript AgentWorkflow 负责持久顺序、依赖检查、重规划预算和�
 [operation 装配](../../../apps/agent-runtime/src/workflow-runtime.ts)。
 
 Agent Runtime 按模型配置选择 runner：OpenAI 路径使用 Agents SDK，Gemini 路径使用原生 GenerateContent
-与函数循环；二者消费同一 operation 合同，不决定外层持久步骤顺序。选择入口见
+发起单次模型请求；二者消费同一 operation 合同，模型—工具循环由 TypeScript Workflow 持久推进。选择入口见
 [provider-config.ts](../../../apps/agent-runtime/src/provider-config.ts)。
 
 所有 operation 的固定角色指令使用简体中文，并明确产品服务中央民族大学。未明确指定机构时，学校、
@@ -44,8 +43,8 @@ Agent Runtime 按模型配置选择 runner：OpenAI 路径使用 Agents SDK，Ge
 `candidateSources` 可以包含 `campus_search`、`web_search` 或 `personal_memory_recall`，但实际来源选择
 由 Executor 在该步骤内完成，Replanner 可以为后续步骤调整来源。系统没有名为 `direct` 的策略分支。
 
-重复 operation 投递受 agent-control 的 invocation receipt 约束。供应商调用已经开始但完整结果
-尚未落盘时必须返回 `agent_attempt_uncertain`，不得再次调用供应商。Temporal Activity 可重试投影修复，已开始但结果未知的模型调用不能重新发送。
+单次模型调用受 agent-control 的 invocation receipt 约束。供应商调用已经开始但完整结果
+尚未落盘时必须返回 `workflow_attempt_uncertain`，不得再次调用供应商。Temporal Activity 可重试投影修复，已开始但结果未知的模型调用不能重新发送。
 
 ## 准入身份
 

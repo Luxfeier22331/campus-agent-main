@@ -46,12 +46,12 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: notice-pipeline-config
-                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+                  key: AGENT_CONTROL_TEMPORAL_ADDRESS
             - name: TEMPORAL_NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   name: notice-pipeline-config
-                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+                  key: AGENT_CONTROL_TEMPORAL_NAMESPACE
             - name: MODEL_CONFIG_URL
               value: http://model-config:8000
             - name: OPS_WEB_INTERNAL_URL
@@ -140,12 +140,12 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: notice-pipeline-config
-                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+                  key: AGENT_CONTROL_TEMPORAL_ADDRESS
             - name: TEMPORAL_NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   name: notice-pipeline-config
-                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+                  key: AGENT_CONTROL_TEMPORAL_NAMESPACE
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

@@ -18,8 +18,8 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(logger); err != nil {
 		logger.Error(
-			"execution_control.runtime_stopped",
-			"event_type", "execution_control.runtime_stopped",
+			"agent_control.runtime_stopped",
+			"event_type", "agent_control.runtime_stopped",
 			"status", "failed",
 			"error_code", "runtime_stopped",
 			"source", "process",
@@ -45,7 +45,7 @@ func run(logger *slog.Logger) error {
 
 	owner, err := runtimeassembly.NewAPI(cfg, logger)
 	if err != nil {
-		return fmt.Errorf("build execution-control runtime: %w", err)
+		return fmt.Errorf("build agent-control runtime: %w", err)
 	}
 	runtime := owner.Start(runtimeContext)
 	requestTracker := newRequestTracker(owner.Handler())
@@ -61,8 +61,8 @@ func run(logger *slog.Logger) error {
 	select {
 	case <-signalContext.Done():
 		logger.Info(
-			"execution_control.runtime_draining",
-			"event_type", "execution_control.runtime_draining",
+			"agent_control.runtime_draining",
+			"event_type", "agent_control.runtime_draining",
 			"status", "draining",
 			"source", "process",
 		)
@@ -109,8 +109,8 @@ func startHTTPServer(
 	logger *slog.Logger,
 ) {
 	logger.Info(
-		"execution_control.server_listening",
-		"event_type", "execution_control.server_listening",
+		"agent_control.server_listening",
+		"event_type", "agent_control.server_listening",
 		"status", "ready",
 		"source", name,
 	)

@@ -33,7 +33,7 @@ func (s *PostgresRunProjectionStore) RequestRunCancellation(
 	var existingReason string
 	existingCommandErr := tx.QueryRow(
 		ctx,
-		`select reason from execution_control.agent_run_cancellations where request_id = $1 for update`,
+		`select reason from agent_control.agent_run_cancellations where request_id = $1 for update`,
 		run.RequestID,
 	).Scan(&existingReason)
 	if run.Status == execution.DurableRunStatusCanceled {
@@ -85,7 +85,7 @@ func (s *PostgresRunProjectionStore) RequestRunCancellation(
 	}); err != nil {
 		return execution.DurableRun{}, err
 	}
-	_, err = tx.Exec(ctx, `insert into execution_control.agent_run_cancellations (
+	_, err = tx.Exec(ctx, `insert into agent_control.agent_run_cancellations (
 		request_id, workflow_id, reason, state, next_attempt_at, created_at, updated_at
 	) values ($1,$2,$3,$4,$5,$5,$5)`, run.RequestID, "campus-agent.chat."+run.RequestID,
 		request.Reason, string(execution.LifecycleIntentStatePending), request.Now)
@@ -102,7 +102,7 @@ func (s *PostgresRunProjectionStore) RequestRunCancellation(
 }
 
 func requeueConfirmedCancellationInTx(ctx context.Context, tx pgx.Tx, requestID string, now time.Time) error {
-	_, err := tx.Exec(ctx, `update execution_control.agent_run_cancellations
+	_, err := tx.Exec(ctx, `update agent_control.agent_run_cancellations
 	set state = 'pending', next_attempt_at = $2, lease_token = '', lease_until = null,
 		last_error_code = 'late_workflow_start', updated_at = $2
 	where request_id = $1 and state = 'confirmed'`, requestID, now)
@@ -115,7 +115,7 @@ func supersedeWorkflowStartIntentInTx(
 	requestID string,
 	now time.Time,
 ) error {
-	_, err := tx.Exec(ctx, `update execution_control.agent_workflow_starts
+	_, err := tx.Exec(ctx, `update agent_control.agent_workflow_starts
 	set state = $2, lease_token = '', lease_until = null, updated_at = $3
 	where request_id = $1 and state in ('pending', 'leased')`, requestID, string(execution.LifecycleIntentStateSuperseded), now)
 	return err
@@ -129,14 +129,14 @@ func (s *PostgresRunProjectionStore) LeaseRunCancellationCommands(
 		return nil, err
 	}
 	rows, err := s.pool.Query(ctx, `with candidates as (
-		select request_id from execution_control.agent_run_cancellations
+		select request_id from agent_control.agent_run_cancellations
 		where next_attempt_at <= $1
 		  and (state = 'pending' or (state = 'leased' and lease_until <= $1))
 		order by next_attempt_at, created_at
 		for update skip locked
 		limit $2
 	)
-	update execution_control.agent_run_cancellations as commands
+	update agent_control.agent_run_cancellations as commands
 	set state = 'leased', lease_token = $3, lease_until = $4,
 		attempt_count = commands.attempt_count + 1, updated_at = $1
 	from candidates where commands.request_id = candidates.request_id
@@ -193,7 +193,7 @@ func (s *PostgresRunProjectionStore) updateRunCancellationCommand(
 	if nextAttemptAt.IsZero() {
 		nextAttemptAt = result.Now
 	}
-	tag, err := s.pool.Exec(ctx, `update execution_control.agent_run_cancellations
+	tag, err := s.pool.Exec(ctx, `update agent_control.agent_run_cancellations
 	set state = $3, next_attempt_at = $4, lease_token = '', lease_until = null,
 		last_error_code = $5, updated_at = $6
 	where request_id = $1 and state = 'leased' and lease_token = $2`,

@@ -2,6 +2,10 @@
 
 Status: implemented
 
+评测框架、旧分数与 Langfuse score 发布部分已由 [Inspect AI 接入](../testing/2026-10-13-inspect-agent-evaluation.md)取代；
+以下保留原取舍，输入来源、线上 trace 与生产模型配置的独立边界继续有效。当前入口见
+[Inspect 评测](../../../../docs/runbooks/inspect.md)。
+
 ## 背景
 
 官方 Agent instrumentation 可以把模型输入输出、对话、工具载荷和上下文序列化进 span。此类
@@ -42,17 +46,23 @@ Langfuse 提供调用链和评分能力；运行 trace 与调用方显式提供�
 ### 内部模型格式失败诊断的例外
 
 Executor 检索成功后发生输出格式错误的实际请求证明，仅保留错误码不能定位坏文本。
-允许 Agent Runtime 为 `model_output_invalid` 向 Execution Control 返回有界可见失败文本，保存到
+允许 Agent Runtime 为 `model_output_invalid` 向 Agent Control 返回有界可见失败文本，保存到
 步骤结果的独立诊断列供现有 Ops 读取。该例外不属于运行 trace，也不建立全量采集或回放系统。
-不保存 thinking、prompt、原始 SDK 响应或认证材料；正文不进入 receipt、Temporal、聊天事件或
-后续模型上下文。按用户数据使用现有 Ops 访问边界和请求删除生命周期。普通日志和外部 trace 的
-正文禁令不变。诊断缺失不阻塞业务，不自动重试或重新执行历史请求补录。
+该诊断列不保存 thinking、prompt、原始 SDK 响应或认证材料，也不把诊断正文注入 Temporal、
+聊天事件或后续模型上下文。它与 Control 用于恢复的私有单模型 `TurnRecord` receipt 不同：后者
+可以保存模型输出和 provider continuation，不能据此声称运行时丢弃了全部正文。私有载荷边界见
+[持久运行数据](../../../../docs/data/durable-runtime.md)和
+[编排拆分决策](./2026-10-10-agent-orchestration-memory-services.md)。
+两类数据都不导出到外部 trace、普通日志或公共运行事件。诊断列沿用 Ops 访问边界和请求删除生命周期；
+诊断缺失不阻塞业务，不自动重试或重新执行历史请求补录。
 
 - 在线排查可以使用关联、模型、用量、阶段和低基数失败信息，但不能依赖生产 prompt 或回答
   回放；
 - 评分元数据保持标量和白名单字段；评测输入正文不属于运行 trace，也不是普通离线 Ragas 的隐式
   事实来源；
 - Langfuse 不可用不阻塞在线执行；Temporal 和 PostgreSQL 仍维护执行生命周期状态。
+- 当前 OpenAI 单模型调用使用 `NoopTrace` 与 `tracing: false`；配置了 exporter 不代表在线模型调用链
+  已完整导出，覆盖范围以[遥测说明](../../../../docs/reference/telemetry.md)为准。
 
 ## 与既有决策的关系
 
@@ -64,5 +74,5 @@ Ragas 和 Langfuse 之间的数据流。
 - [Langfuse 运行合同](../../../../docs/contracts/langfuse-runtime.md)
 - [运行时遥测](../../../../docs/reference/telemetry.md)
 - [评测](../../../../docs/reference/eval.md)
-- [Ragas 评测](../../../../docs/runbooks/ragas.md)
+- [Inspect 评测](../../../../docs/runbooks/inspect.md)
 - [评测数据与平台边界](../testing/2026-08-21-eval-boundaries.md)

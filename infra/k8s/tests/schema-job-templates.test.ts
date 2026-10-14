@@ -80,7 +80,9 @@ test("declares retired PostgreSQL roles as absent and nowhere as active resource
 				retiredDatabaseRoles.includes(name as (typeof retiredDatabaseRoles)[number]),
 			)
 			.sort((left, right) => String(left.name).localeCompare(String(right.name))),
-		retiredDatabaseRoles.map((name) => ({ ensure: "absent", name })),
+		[...retiredDatabaseRoles]
+			.sort((left, right) => left.localeCompare(right))
+			.map((name) => ({ ensure: "absent", name })),
 	);
 
 	const declaredDatabaseRoles = databaseRoleNames(kubernetesRoot);
@@ -90,6 +92,18 @@ test("declares retired PostgreSQL roles as absent and nowhere as active resource
 		),
 		[],
 	);
+});
+
+test("keeps Agent Control role cutover staged", () => {
+	const manifest = singleManifest(resolve(base, "cluster.yaml"));
+	const managed = record(record(manifest.spec, "Cluster spec").managed, "managed roles");
+	const roles = managed.roles;
+	assert.ok(Array.isArray(roles));
+	assert.equal(
+		roles.some((role: unknown) => record(role, "managed role").name === "execution_control"),
+		false,
+	);
+	assert.ok(databaseRoleNames(kubernetesRoot).includes("agent_control"));
 });
 
 function singleManifest(path: string): JsonObject {

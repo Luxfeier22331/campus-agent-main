@@ -33,7 +33,7 @@ status: active
 ## `chat.turn_dispatches`
 
 保存一次用户轮次的接收、幂等、请求与运行关联以及最终状态。它是 app-api 请求生命周期的
-产品记录，不是 Temporal 工作流历史或 execution-control 运行投影。
+产品记录，不是 Temporal 工作流历史或 agent-control 运行投影。
 
 - 同一用户和幂等键只能对应同一轮请求；
 - 接收事务必须同时建立用户消息、轮次记录和请求观测记录；
@@ -78,7 +78,7 @@ status: active
 
 - `chat.*` 拥有会话、消息、轮次接收和产品反馈；
 - `runtime.request_observability_fact` 拥有 app-api 产品运行摘要；
-- `execution_control.agent_*` 由 execution-control 拥有；
+- `agent_control.agent_*` 由 agent-control 拥有；
 - Langfuse 拥有受信任的模型调用轨迹；
 - Hindsight 拥有在线个人记忆提取和召回。
 

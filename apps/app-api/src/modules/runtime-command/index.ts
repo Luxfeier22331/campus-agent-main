@@ -3,7 +3,7 @@ export {
 	type ChatConversationStore,
 	DRAFT_CONVERSATION_TITLE,
 } from "../chat";
-export { ExecutionControlTransportError } from "../integration";
+export { AgentControlTransportError } from "../integration";
 export {
 	buildChatCommandService,
 	type ChatCommandPayload,

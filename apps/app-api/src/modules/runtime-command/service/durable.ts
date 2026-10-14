@@ -1,7 +1,7 @@
 import {
-	EXECUTION_CONTROL_FAILURE_MESSAGE,
-	ExecutionControlTransportError,
-	isSafeExecutionControlErrorCode,
+	AGENT_CONTROL_FAILURE_MESSAGE,
+	AgentControlTransportError,
+	isSafeAgentControlErrorCode,
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
 } from "../../integration";
@@ -63,8 +63,8 @@ export function answerDeltaEventFromDurableRunEvent(
 			? event.payload.request_id.trim()
 			: context.requestId;
 	if (requestId !== context.requestId) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message: "Durable answer delta event request_id does not match the accepted request.",
 			retryable: true,
 			status: 502,
@@ -77,8 +77,8 @@ export function answerDeltaEventFromDurableRunEvent(
 	);
 	const delta = event.payload.delta;
 	if (typeof delta !== "string" || delta.length === 0) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message: "Durable answer delta event delta is required.",
 			retryable: true,
 			status: 502,
@@ -102,8 +102,8 @@ export function answerDeltaEventFromDurableRunEvent(
 function getRequiredString(record: Record<string, unknown>, key: string, message: string): string {
 	const value = record[key];
 	if (typeof value !== "string" || value.trim() === "") {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message,
 			retryable: true,
 			status: 502,
@@ -119,8 +119,8 @@ function getRequiredBoolean(
 ): boolean {
 	const value = record[key];
 	if (typeof value !== "boolean") {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message,
 			retryable: true,
 			status: 502,
@@ -135,8 +135,8 @@ export function assertDurableEventRunMatches(
 	message: string,
 ) {
 	if (event.requestId !== context.requestId) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message,
 			retryable: true,
 			status: 502,
@@ -168,8 +168,8 @@ export function lifecycleEventFromDurableRunEvent(
 			typeof status !== "string" ||
 			!["started", "completed", "no_match", "failed", "canceled"].includes(status)
 		) {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Invalid retrieval status",
 				retryable: false,
 				status: 502,
@@ -198,8 +198,8 @@ export function lifecycleEventFromDurableRunEvent(
 	if (event.eventType === "run.progress") {
 		const phase = event.payload.phase;
 		if (phase !== "generating" && phase !== "finalizing") {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Durable run progress event phase is invalid.",
 				retryable: true,
 				status: 502,
@@ -262,8 +262,8 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 			"Durable request failed event request_id does not match the accepted request.",
 		);
 		if (event.payload.request_id !== context.requestId) {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Durable run failed event request_id does not match the accepted request.",
 				retryable: true,
 				status: 502,
@@ -271,8 +271,8 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 		}
 		const error = asJsonRecord(event.payload.error);
 		if (!error) {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Durable run failed event error must be an object.",
 				retryable: true,
 				status: 502,
@@ -283,9 +283,9 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 			"code",
 			"Durable run failed event error.code is required.",
 		).trim();
-		if (!isSafeExecutionControlErrorCode(code)) {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
+		if (!isSafeAgentControlErrorCode(code)) {
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
 				message: "Durable run failed event error.code is invalid.",
 				retryable: true,
 				status: 502,
@@ -300,7 +300,7 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 		return {
 			response: executionFinalizationErrorResponse({
 				code,
-				message: EXECUTION_CONTROL_FAILURE_MESSAGE,
+				message: AGENT_CONTROL_FAILURE_MESSAGE,
 				retryable,
 			}),
 			sourceEvent: "execution.failed",
@@ -318,8 +318,8 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 		return null;
 	}
 	if (event.payload.request_id !== context.requestId) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message: "Durable finalization event request_id does not match the accepted request.",
 			retryable: true,
 			status: 502,
@@ -327,8 +327,8 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 	}
 	const response = asJsonRecord(event.payload.response);
 	if (!response) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message: "Durable finalization event response must be an object.",
 			retryable: true,
 			status: 502,

@@ -40,8 +40,8 @@ status: active
 ## `POST /api/account/delete`
 
 已登录用户提交当前密码申请注销。App API 验证密码后创建异步注销任务并撤销当前账号的
-会话。任务先要求 execution-control 建立 owner deletion fence、取消并排空活动 run，再清理
-Hindsight 个人记忆；确认记忆已清除后删除 execution-control projection、App API 账号关联数据，
+会话。任务先要求 agent-control 建立 owner deletion fence、取消并排空活动 run，再通过
+Memory API 完成个人记忆 erase 与 tombstone；确认记忆已清除后删除 agent-control projection、App API 账号关联数据，
 最后删除 Better Auth 用户。Temporal history 由其平台 retention 负责，不在该任务中同步删除。
 接口不接受用户 ID、立即删除选项或恢复参数。
 
@@ -67,8 +67,8 @@ Hindsight 个人记忆；确认记忆已清除后删除 execution-control projec
 completed 前确认 Dining 内容、身份及实际字节处理完成；未完成沿用 pending 和现有失败续接。
 账号任务在处理 Dining 后续租；失败保留重试，尚未完成则 defer，过期 lease 不得删除认证用户或完成任务。
 数据清理和最终完成的数据库入口再次复核 Dining 是否完成。独立 Dining sweep 也处理已受理注销，
-不依赖 execution-control 配置。具体清理记录和完成条件见 Dining PRD，覆盖评价、举报及历史身份。
-不得将 30 天清理上限变成所有注销任务必须空等 30 天；现有 execution-control 和 Hindsight
+不依赖 agent-control 配置。具体清理记录和完成条件见 Dining PRD，覆盖评价、举报及历史身份。
+不得将 30 天清理上限变成所有注销任务必须空等 30 天；现有 agent-control 和 Hindsight
 清理顺序不得因 Dining 扩展被绕过。
 
 ## `GET /api/me`

@@ -124,13 +124,13 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('from "dining"."reviews"');
 		expect(allQueries).toContain('from "internal_portal"."automation_tokens"');
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
-		expect(allQueries).toContain('from "execution_control"."agent_run_steps"');
-		expect(allQueries).toContain('from "execution_control"."agent_step_attempts"');
+		expect(allQueries).toContain('from "agent_control"."agent_run_steps"');
+		expect(allQueries).toContain('from "agent_control"."agent_step_attempts"');
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain('"owner_user_id"');
 	});
 
-	it("applies owned grants without managing execution-control grants", async () => {
+	it("applies owned grants without managing agent-control grants", async () => {
 		const { applyOpsWebDatabaseGrants } = await import("../ops/db/ops-web-database.ts");
 		await expect(applyOpsWebDatabaseGrants(validEnv())).resolves.toEqual({
 			diningMap: "ready",
@@ -145,7 +145,7 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('"dining"."review_reports"');
 		expect(allQueries).toContain('TO "app_api"');
 		expect(allQueries).not.toContain("ops_web_provider_config");
-		expect(allQueries).not.toContain('ON TABLE "execution_control"."agent_runs" TO "ops_web"');
+		expect(allQueries).not.toContain('ON TABLE "agent_control"."agent_runs" TO "ops_web"');
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain("ops_audit_maintenance");
 		expect(query).toHaveBeenCalledWith("commit");

@@ -126,7 +126,7 @@ collection，重跑同一组 Embedding Set 即可完成 pointer 激活；若 poi
 
 `campus_docs_serving.current_index` 的逻辑 owner 是统一 Campus RAG serving；本包是唯一 current pointer
 writer。Docs/Notice builder 和在线 Campus Search 不写该表。Publisher 使用现有
-`EXECUTION_CONTROL_DATABASE_URL` 技术身份，不新增数据库 role 或独立 serving schema。
+`AGENT_CONTROL_DATABASE_URL` 技术身份，不新增数据库 role 或独立 serving schema。
 
 ## 本地环境与集群模板
 

@@ -68,7 +68,7 @@ configs/runtime/**
 !configs/runtime/latency-budgets.v1.json
 !configs/runtime/campus-docs-indexing-profile.v1.json
 !configs/runtime/tool-function-schemas.v4.json
-!configs/runtime/tools.v7.json
+!configs/runtime/tools.v8.json
 !configs/sources/
 configs/sources/**
 !configs/sources/internal-portal.json
@@ -96,8 +96,6 @@ configs/sources/**
 !packages/langfuse-identity/**
 !packages/ui/
 !packages/ui/**
-!packages/ragas-runner/
-!packages/ragas-runner/**
 !scripts/
 !scripts/**
 **/node_modules

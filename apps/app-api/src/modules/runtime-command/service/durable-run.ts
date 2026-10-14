@@ -1,7 +1,7 @@
 import {
-	type ExecutionControlRun,
-	type ExecutionControlRunCreateInput,
-	ExecutionControlTransportError,
+	type AgentControlRun,
+	type AgentControlRunCreateInput,
+	AgentControlTransportError,
 } from "../../integration";
 import { TOOL_EXECUTION_CONTRACT } from "../../integration/generated/tool-execution-contract";
 import type { AcceptedChatCommandStore } from "../store-types";
@@ -18,17 +18,17 @@ const MAX_DURABLE_RUN_RECOVERY_ATTEMPTS = 3;
 
 export interface DurableRunEnsureResult {
 	response: ReturnType<typeof toHandledErrorTransportOutcome> | null;
-	run: ExecutionControlRun | null;
+	run: AgentControlRun | null;
 }
 
 export async function ensureDurableRunForStoredInput(input: {
 	commandStore: AcceptedChatCommandStore;
 	executionRuntime: NonNullable<ChatCommandServiceContext["dependencies"]["executionRuntime"]>;
 	requestId: string;
-}): Promise<ExecutionControlRun> {
+}): Promise<AgentControlRun> {
 	const stored = await input.commandStore.readDurableRunInput(input.requestId);
 	if (stored?.status !== "accepted") {
-		throw new ExecutionControlTransportError({
+		throw new AgentControlTransportError({
 			code: "runtime_invariant_failed",
 			message: "Accepted chat request does not have a durable execution record.",
 			retryable: false,
@@ -68,12 +68,12 @@ function createInputFromStoredRun(input: {
 	ownerUserId: string;
 	requestId: string;
 	surface: string;
-}): ExecutionControlRunCreateInput {
+}): AgentControlRunCreateInput {
 	if (
 		!(input.executionInputJson && input.executionInputSha256) ||
 		sha256Text(input.executionInputJson) !== input.executionInputSha256
 	) {
-		throw new ExecutionControlTransportError({
+		throw new AgentControlTransportError({
 			code: "runtime_invariant_failed",
 			message: "Durable execution input is missing or failed hash validation.",
 			retryable: false,
@@ -97,8 +97,8 @@ function createInputFromStoredRun(input: {
 }
 
 function assertRunMatchesStoredInput(
-	input: ExecutionControlRunCreateInput,
-	run: ExecutionControlRun,
+	input: AgentControlRunCreateInput,
+	run: AgentControlRun,
 ): void {
 	if (
 		run.requestId !== input.requestId ||
@@ -106,8 +106,8 @@ function assertRunMatchesStoredInput(
 		run.ownerUserId !== input.ownerUserId ||
 		run.surface !== input.surface
 	) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
 			message: "Execution identity does not match the product request.",
 			retryable: true,
 			status: 502,
@@ -116,19 +116,19 @@ function assertRunMatchesStoredInput(
 }
 
 function isAmbiguousCreateFailure(error: unknown): boolean {
-	return error instanceof ExecutionControlTransportError && error.retryable && error.status >= 500;
+	return error instanceof AgentControlTransportError && error.retryable && error.status >= 500;
 }
 
 function isMissingRun(error: unknown): boolean {
 	return (
-		error instanceof ExecutionControlTransportError &&
+		error instanceof AgentControlTransportError &&
 		error.status === 404 &&
 		(error.code === "durable_run_not_found" || error.code === "execution_run_not_found")
 	);
 }
 
-function durableRunRecoveryPending(): ExecutionControlTransportError {
-	return new ExecutionControlTransportError({
+function durableRunRecoveryPending(): AgentControlTransportError {
+	return new AgentControlTransportError({
 		code: "execution_status_pending",
 		message: "Durable run creation is still pending and can be resumed.",
 		retryable: true,
@@ -142,7 +142,7 @@ export async function ensureDurableRunForAcceptedCommand(
 ): Promise<DurableRunEnsureResult> {
 	const executionRuntime = service.dependencies.executionRuntime;
 	if (!executionRuntime) {
-		throw new ExecutionControlTransportError({
+		throw new AgentControlTransportError({
 			code: "execution_runtime_required",
 			message: "Execution runtime is required for durable chat execution.",
 			retryable: true,
@@ -168,8 +168,6 @@ export async function ensureDurableRunForAcceptedCommand(
 	}
 }
 
-function isRecoveryPending(error: unknown): error is ExecutionControlTransportError {
-	return (
-		error instanceof ExecutionControlTransportError && error.code === "execution_status_pending"
-	);
+function isRecoveryPending(error: unknown): error is AgentControlTransportError {
+	return error instanceof AgentControlTransportError && error.code === "execution_status_pending";
 }

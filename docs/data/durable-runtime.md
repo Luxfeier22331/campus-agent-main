@@ -15,21 +15,19 @@ app-api 产品读模型、Ops Web 运行记录、诊断和评测消费，并保�
 
 ### Campus Search 诊断投影
 
-`execution_control.agent_campus_search_diagnostics` 是 execution-control 所有、Ops Web 只读的专用投影，
+`agent_control.agent_campus_search_diagnostics` 是 agent-control 所有、Ops Web 只读的专用投影，
 以 `(request_id, invocation_id)` 标识一次工具调用，schema version 为 2。它不属于产品事件、工作流
 状态或最终答案；不写入 `agent_run_events`、`agent_step_results` 或 App API 的 request observability fact。
 请求删除时通过外键级联删除，不单独增加 TTL 或历史回填机制。
 
-v2 硬切由统一 schema migration 0009 删除旧诊断行并替换版本约束；不删除请求、消息、通知或索引。
-生产者与 Ops 消费者一起升级，不保留 v1 读取或双写。升级时先停止旧生产者，迁移后启动新版；
-历史请求没有诊断时展示无数据，不从日志重建。
+当前只读取 schema v2；历史请求没有诊断时展示无数据，不从日志重建。
 
-Agent Runtime 经现有内部 query auth 上报 queued、dispatching、failed、canceled；成功终态由 execution-control
-根据真实 Campus Search 结果写入，服务端记录
-received、index_loaded、embedded、retrieved、reranked、selected。固定接口为
-`POST /internal/execution/requests/:requestId/campus-search/observations`，仅接收固定生命周期字段，不能
-注入候选正文。阶段时间首次观察后保留，后到的早期阶段不会覆盖终态；服务端累积快照和客户端生命周期
-合并到同一行，不建立事件日志。写入是旁路操作，有界失败不改变工具结果；工具执行路径不等待诊断数据库写入。
+Agent Runtime 经 Control 内部接口上报工具生命周期：
+`POST /internal/agent/runs/:requestId/campus-search/observations`。
+当前 HTTP 合同只接收固定生命周期字段，不接受 snapshot/phaseTimes；Search 返回的完整内部诊断
+尚未贯通到该投影。表中存在阶段与候选字段不证明 Runtime 已填充它们，缺失表示无观测数据。
+实际 Search 响应与接入缺口见[Campus Search 服务合同](../contracts/campus-search.md#agent-内部接口)。
+旁路写入失败不改变工具结果；不从日志或最终答案重建缺失阶段。
 
 `snapshot_json` 保存当前阶段的有界累计快照，`phase_times_json` 保存固定阶段时间；查询最多 400 字符，
 实际检索表达最多 1024 字符，候选最多 24 个。返回正文共最多 4000 字符，排除项预览每项最多 160 字符。
@@ -46,7 +44,7 @@ run 以 `request_id` 为主键，并关联 conversation、`owner_user_id`、`sur
 
 内部状态依次使用 `created`、`queued`、`admitted`、`running` 和可选的 `streaming`；持久取消
 意图使用 `cancel_requested`，终态为 `completed`、`failed`、`canceled` 或 `expired`。可重试阶段
-可以回到等待状态，但已经由 invocation receipt 标记开始的模型 operation 不重试；任何终态都不可再次
+可以回到等待状态，但已开始且结果未知的单次模型调用不得重新发送；任何终态都不可再次
 迁移。浏览器连接状态不能用于推断运行状态。
 
 ### 运行事件
@@ -68,8 +66,8 @@ reconciler 在外部 RPC 前用 lease token 原子置位 dispatch fence，由该
 意图，不另做租约预读；重复执行不能创建第二个 workflow。
 升级前已有命令迁移为 `dispatch_attempted=true`，不能从租约次数反推从未投递。
 
-execution-control 的取消命令与 `cancel_requested` 一起持久化，再由 reconciler 幂等投递。app-api
-只负责归属校验并调用 execution-control，不维护自己的取消发件箱，也不以一次 HTTP 成功假装跨库事务。
+agent-control 的取消命令与 `cancel_requested` 一起持久化，再由 reconciler 幂等投递。app-api
+只负责归属校验并调用 agent-control，不维护自己的取消发件箱，也不以一次 HTTP 成功假装跨库事务。
 只要启动命令
 已经置位 `dispatch_attempted`，Describe 的 `NotFound` 就不能作为未投递证明；取消命令以
 `temporal_start_identity_unresolved` 保持 pending，直到绑定并校验精确 Temporal Run ID，或确认存在
@@ -86,13 +84,13 @@ recovery 失败或首次绑定身份未知时仍保持 pending，
 
 ### 账号删除
 
-`execution_control.agent_*` 是按 `owner_user_id` 维护的账号可删除 projection。App API 接受账号删除后，
-先调用 execution-control 建立 owner deletion fence；fence 使新 run 失败关闭，并让活动 run 进入取消排空。
-活动 run 全部进入终态、且 Hindsight 已确认个人记忆清除后，execution-control 在一个事务中删除该 owner
+`agent_control.agent_*` 是按 `owner_user_id` 维护的账号可删除 projection。App API 接受账号删除后，
+先调用 agent-control 建立 owner deletion fence；fence 使新 run 失败关闭，并让活动 run 进入取消排空。
+活动 run 全部进入终态、且 Hindsight 已确认个人记忆清除后，agent-control 在一个事务中删除该 owner
 的 run 及其 event、step、attempt、result、workflow-start、cancellation 和 invocation receipt projection，
 依赖外键 cascade 完成关联清理。
 
-删除完成后保留 `execution_control.owner_deletion_fences` 中的 `state=deleted` tombstone。它只用于拒绝
+删除完成后保留 `agent_control.owner_deletion_fences` 中的 `state=deleted` tombstone。它只用于拒绝
 旧 workflow、重放请求和同 owner 的新 run，不保存用户输入或执行正文。Temporal history 不属于这次投影
 删除事务，按 Temporal/platform retention 合同独立保留或过期；App API 仍负责删除自己的完整执行输入和
 账号产品数据。
@@ -100,8 +98,8 @@ recovery 失败或首次绑定身份未知时仍保持 pending，
 ### Step、Attempt 与 Result
 
 `agent_step_results.model_output_diagnostic_json` 是可空的 Ops 专用失败输出诊断列，schema version
-为 1。它与不可变的业务 payload 分开，不参与结果重放比较，也不进入 invocation receipt 或 Temporal
-Activity 结果。Execution Control 在业务结果持久化后以一秒超时单独写入一次；失败不改变业务结果，
+为 1。它与不可变的业务 payload 分开，不参与步骤结果重放比较，也不进入 Temporal Activity 的有界决定。模型 receipt 的内部恢复载荷
+另由 Runtime 保存，不能与 Ops 专用诊断列混为同一数据合同。agent-control 在业务结果持久化后以一秒超时单独写入一次；失败不改变业务结果，
 不重试、不在重放时重新调用模型补录。首次写入后不覆盖；缺失行不被诊断写入重建。
 
 诊断只记录 `model_output_invalid` 的可见模型输出前缀（最多 64 KiB UTF-8）、原字节数、截断标记、
@@ -125,28 +123,25 @@ workflow graph；Agent Workflow 的计划和步骤只由执行合同及其持久
 StepResult 以 `result_id` 首次写入为准；全部字段与规范 JSON payload 相同的重放返回原记录，
 任一字段或 payload 不同都冲突且不能覆盖。内存与 PostgreSQL 存储在写入前都先锁定所属 run，
 与 run 终态投影保持相同锁顺序。活动 run 可以写入；run 进入终态后默认连相同重放也拒绝。
-唯一例外是产品 Finalization 已将 run 置为 `completed` 后的非关键记忆追加：只有
+存储仍保留 `completed` 后对旧记忆追加结果的窄例外：只有
 `(memory.append, memory_conversation_append_result)` 这组 `step_id`、`result_kind` 可以首次写入或
 相同重放，仍不得覆盖已有结果。`failed`、`canceled`、`expired` 不适用该例外，Agent、知识查询和
-Finalization result 也不得在终态后补写。该例外不放宽其他 Activity 的终态写入限制。
+Finalization result 也不得在终态后补写。该例外不放宽其他 Activity 的终态写入限制。当前 Control 投递器不再创建 `memory.append`
+步骤；新的追加进度由独立 Memory 数据库拥有。
 
 ### Activity Result 与 Receipt
 
-每个 Agent Workflow operation 的有界结果经由 Temporal Activity result 传给下一阶段；普通 run、event、
-step、result 投影只保存 ref、hash、用量和公开终态，不保存模型正文或工具原始载荷。当前在线 workflow
-不产生独立的强制预检索阶段或第二套 query result；`campus_search` 的有界返回值属于对应 Execute Step
-result。Campus Docs
-的离线制品发布由独立 Job 负责，不进入本数据合同。
+agent-runtime 的 TypeScript Workflow 调度单次模型请求与单次工具调用。Activity input/result
+只携带载荷引用、调用索引及有界阶段决定；阶段输入、完整 continuation 与工具结果通过 Control
+内部载荷 API 保存和读取，不把正文放入 Temporal history。
 
-个人记忆召回不单独建立外部调用 receipt。模型 operation invocation receipt 绑定该 operation 的精确
-请求摘要，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通 SDK tool 投影只保存
-工具身份、参数摘要、`outcome`、结果 hash、产品投影 ref 和真实工具耗时；如果 Runtime 提供 RFC3339
-UTC 边界，也保存实际工具调用的起止时间，不保存 `memory_text`。同一工具的重复调用按实际调用顺序分别投影。
+`personal_memory_recall` 是独立工具 Activity，Memory API 负责访问边界。模型 receipt 只约束
+单次模型请求，不覆盖整个 operation 或后续工具调用。工具投影记录实际调用身份、状态、结果和
+时间，工具 Activity 的重试与预算由 Runtime 的 Workflow 定义。
 
-Temporal Activity result/input 不是个人记忆数据库。跨 Activity 传递的 memory/tool 结果必须经过
-Temporal-facing allowlist 和既有 evidence 字符上限；不得把 provider 原始响应、未裁剪查询、凭据或
-调试载荷写入 history。PostgreSQL run/event 删除不代表平台 history 立即消失，账号删除合同必须同时遵守
-Temporal retention、访问控制和 replay 可见性边界。
+Control 临时载荷在产品终态、完成事件和 Workflow 关闭均确认后由 reconciler 清理；
+app-api 的冻结原始输入仍按会话和账号生命周期保留。临时载荷、模型 receipt、步骤投影与
+产品输入不是同一存储边界，评测接口不能据此承诺长期可读取完整模型上下文。
 
 Agent Runtime 通过 Control typed API 发布临时回答增量，Control 不再将正文片段写入
 `agent_run_events`。独立 `answer/started` API 将 `answer_started` 与 streaming 状态幂等、原子提交，`answer_completed` 和产品终态继续持久化。
@@ -160,52 +155,39 @@ Finalization 使用的权威正文；最终校验失败时消费者不得将临�
 
 ## Agent Workflow operation 投影
 
-每个 Agent Workflow operation 代表一次 OpenAI Agents SDK run。其有界 metadata 可以包含：
+每个 operation 可以包含多个模型轮次与工具 Activity。阶段投影保存 operation、步骤身份、
+状态、工具摘要、模型标识和用量；不是一整个 OpenAI SDK run 的别名，Gemini 也使用相同阶段合同。
+原始模型 continuation 属于内部恢复载荷，不是 Ops 的步骤 metadata。
 
-- operation 类型和当前 workflow step 标识；
-- 可用的模型可见工具；
-- SDK function-tool 调用摘要；
-- provider response id 与 model/provider 标识；
-- input、output 与 cached token 数量、模型请求数与 usage 是否已观测；
-- `final_output` 摘要和运行终态原因。
-
-正式投影不存储 SDK state、raw message 或 raw function payload。
-
-每个 operation 在供应商调用前构造 canonical provider invocation envelope。envelope 的规范 JSON
-SHA-256 是 invocation receipt 的 `InputSHA256`，绑定 request、step、operation、invocation、
-execution input SHA、admission snapshot SHA 和逻辑请求 SHA。逻辑请求包含实际发送的用户与会话标识、
-operation 输入、可见工具、预算、预期模型及工具合同和会话上下文，但排除投递元数据
-`activity_attempt`；HTTP 请求仍携带该字段。不能将逻辑摘要解释为精确 HTTP bytes 或最终模型输入的
-摘要。envelope 只在本次 Activity 内存中用于生成 receipt fingerprint，不持久化为单独载荷。
+单次模型调用的 invocation ID 包含 request、stage key 和模型 turn 序号；Runtime 以 stage ref 与
+当前状态的摘要绑定该调用。该摘要不是最终 Provider HTTP 请求字节的 hash。
+实现由 [modelTurn Activity](../../apps/agent-runtime/src/activities.ts)和 Control receipt API 维护。
 
 运行级 Agent 模型用量按各 operation step 的去重 attempt 聚合。每个已观测 attempt
 计算一次，重试已产生的用量不丢弃。`total_tokens` 按 input 与 output 相加，cached input 是 input
 子集，不重复计入总数。失败但已取得 SDK 结果的 attempt 仍保存 usage；调用前失败、网络中断或 SDK
 抛错且无法取得 usage 时保存 `usage_observed = false`，不用零伪装成真实用量。
 
-invocation receipt 在供应商调用前持久化调用身份、上述 envelope fingerprint 和开始状态。完成时
-`OutputJSON` 保存有界的完整类型化 operation output，最大为 1 MiB；`OutputSHA256` 保存其摘要，同时记录完成时间。
-该恢复载荷可能包含回答正文、证据和 allowlist 工具结果，不包含原始工具参数、debug 或 failure detail；
-memory 正文仅出现在 evidence 中。它不是仅含 ref/hash/schema 的摘要，也不是供应商
-原始响应。receipt 先于诊断投影提交；completed receipt 在 Activity 重投递时用于恢复原结果并修复投影。
-started receipt 或无法解码的 completed 结果以 `workflow_attempt_uncertain` 阻断；恢复结果仍需通过身份
-和来源校验，且首次输出与 replay 共享字段和完整 UTF-8 JSON 大小校验。输出 hash 以恢复后的类型化
-序列化校验，不以 JSONB 文本表示计算。修复失败沿用既有错误路径，不重新调用供应商。产品答案由 app-api 拥有。
+invocation receipt 在供应商调用前保存调用身份、输入摘要和开始状态，完成后保存类型化的
+单次模型轮次结果 `TurnRecord` 及输出摘要。恢复载荷可包含 provider continuation 和模型输出，
+只用于内部恢复，不是普通 trace 或 Ops 查询输入。已经完成的 receipt 可恢复结果并修复投影；
+已开始且结果未知时以 `workflow_attempt_uncertain` 阻断，不再次调用供应商。
+阶段结果提交和单次模型 receipt 分开；Control 不创建旧 operation 级模型调用 receipt。
 
 ## Finalization 投影
 
-Finalization 保存 SDK 终态答案和确定性校验结果。机构知识 source 只能来自同一次运行中成功工具的
+Finalization 保存 Runtime 终态答案和确定性校验结果。机构知识 source 只能来自同一次运行中成功工具的
 真实 cited result，并通过该工具对应 adapter 校验；当前只有 `campus_search` 注册 Campus Docs 来源 adapter。
 其他来源能力接入时必须由对应合同定义来源校验和公开字段。
 
 Finalization 可以拒绝空正文、无效工具结果或不满足执行合同的 output，但不会创建或改写答案。app-api 可以在
 保留答案原文的前提下，把已验证 source 转换为产品 source-item 结构。相同 fingerprint 的完成
-可以幂等重放；不同 fingerprint 与已提交的产品终态冲突，execution-control 不得用较晚结果覆盖。
+可以幂等重放；不同 fingerprint 与已提交的产品终态冲突，agent-control 不得用较晚结果覆盖。
 
 Finalization 读取 workflow 传入的 Agent result，验证身份、执行输入摘要和终态 schema。
 `finalization.write` 的 completed StepResult 只保存 agent result ref、request、
 `finalization_fingerprint_sha256` 和有界 `finalization_summary`。该 summary 包含答案正文及其 hash、
-响应 hash、状态和 Campus/Web 来源计数，不保存完整来源对象、模型用量或完整最终响应。内部
+响应 hash、状态和 Campus/Web 来源计数，不保存完整来源对象、模型用量或完整最终响应。
 内部 `finalization.completed` event 保留完整 `ExecutionFinalizationResponse`（最多 1 MiB），用于产品回调后的修复和
 完成重放校验。新路径不再写同名 browser-visible event；历史版本留下的同名浏览器事件只作为兼容数据，
 由 app-api 过滤，不得作为产品成功终态。浏览器成功终态统一使用 `run.completed`，且只能在
@@ -240,19 +222,14 @@ run 或阶段结果。
 
 ## 数据安全
 
-正式投影不得包含：
+运行摘要、公开事件和 Ops 常规字段不复制原始 prompt、完整对话、Provider request/response、SDK state、
+记忆正文或认证材料。内部阶段结果、模型 receipt 和临时载荷分别遵守前述恢复与保留合同，不能把
+它们与公开摘要混为一类。最终答案、Ops 有界模型输出诊断与 Campus Search 候选快照按各自明确合同读取。
 
-- 原始 prompt、transcript 或 model output payload；
-- 原始 provider request/response 或 SDK state；
-- 原始 memory payload 或 vendor id；
-- auth token、cookie 或 credential；
-- 原始 source body、Qdrant point 或 object-store bytes；
-- 本地文件路径。
-
-完整 `tool_execution_v7` 输入由 app-api 以精确 UTF-8 文本拥有，execution-control 只持久化
-`execution_input_ref` 和 `execution_input_sha256`；ref 指向的数据也不得
-复制到上述投影。已经分配 request 的输入在产品终态后仍由 app-api 保留，随 app-api 的会话和用户数据
-生命周期删除；execution-control 不维护对应清理记录。
+完整 `tool_execution_v7` 原始输入由 app-api 以精确 UTF-8 文本拥有，Control 的 run 保存
+`execution_input_ref` 和 `execution_input_sha256`；Runtime 准备的阶段输入另存 Control 临时载荷，
+不放入 run metadata 或 Temporal history。原始输入随 App API 会话和账号数据删除，Control 不维护
+这份产品输入的清理记录；Control 临时载荷由自己的 reconciler 清理。
 
 ## 消费
 
@@ -261,7 +238,7 @@ app-api 从这些投影生成学生产品 read model。学生浏览器响应只�
 模型用量，不经 app-api 复制到 `runtime.request_observability_fact`。Ops Web 与评测均不读取原始执行
 payload。
 
-Ops 的回答终态失败读取 `execution_control.ops_terminal_failures`：只投影 `run.failed` 的失败码和
+Ops 的回答终态失败读取 `agent_control.ops_terminal_failures`：只投影 `run.failed` 的失败码和
 同代码 activity failure 的有界操作、详情、HTTP 状态、invocation ID。视图不复制事件、不保存额外
 状态；原始事件仍不可读，保留与删除跟随原 run。旧事件只有 failure kind 时，其他字段允许为空。
 联网搜索诊断存于既有 step/attempt 的 `sanitized_payload_json.web_search_diagnostic`，只含状态、

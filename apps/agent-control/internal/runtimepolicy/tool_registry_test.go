@@ -48,7 +48,7 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 		if tool.Exposure != expected.exposure {
 			t.Fatalf("registered tool %s exposure = %q, want %q", name, tool.Exposure, expected.exposure)
 		}
-		if tool.Handler.Type != "execution_control_internal_query" ||
+		if tool.Handler.Type != "agent_control_internal_query" ||
 			tool.Handler.Target != "" || tool.Handler.Endpoint != expected.endpoint {
 			t.Fatalf("registered tool %s handler = %#v", name, tool.Handler)
 		}
@@ -69,10 +69,10 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 	path := writeToolRegistryFixture(
 		t,
 		`{
-		  "schema_version": "tool-registry-v7",
+		  "schema_version": "tool-registry-v8",
 		  "registry_version": "test",
-		  "tools": [`+validToolJSON("test_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/fixture/test")+`,
-		            `+validToolJSON("test_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/fixture/test")+`]
+		  "tools": [`+validToolJSON("test_lookup", "model_visible", true, false, "agent_control_internal_query", "/internal/query/fixture/test")+`,
+		            `+validToolJSON("test_lookup", "model_visible", true, false, "agent_control_internal_query", "/internal/query/fixture/test")+`]
 		}`,
 	)
 
@@ -89,13 +89,13 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 	}{
 		{
 			name: "mutable model-visible tool",
-			body: registryJSON(validToolJSON("bad_tool", "model_visible", false, false, "execution_control_internal_query", "/internal/query/test")),
+			body: registryJSON(validToolJSON("bad_tool", "model_visible", false, false, "agent_control_internal_query", "/internal/query/test")),
 			want: "model-visible tools must be read_only",
 		},
 		{
 			name: "unregistered schema ref",
 			body: `{
-			  "schema_version": "tool-registry-v7",
+			  "schema_version": "tool-registry-v8",
 			  "registry_version": "test",
 			  "tools": [{
 			    "name": "bad_tool",
@@ -105,7 +105,7 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 			    "requires_approval": false,
 			    "payload_schema_ref": "https://campus-agent.local/schemas/unregistered.v1.schema.json#/$defs/BadPayload",
 			    "result_schema_ref": "` + testResultSchemaRef + `",
-			    "handler": {"type": "execution_control_internal_query", "endpoint": "/internal/query/test"},
+			    "handler": {"type": "agent_control_internal_query", "endpoint": "/internal/query/test"},
 			    "timeout_ms": 1000,
 			    "result_projection_policy": "bounded_json"
 			  }]
@@ -114,18 +114,18 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 		},
 		{
 			name: "missing internal endpoint prefix",
-			body: registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "execution_control_internal_query", "/query/test")),
+			body: registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "agent_control_internal_query", "/query/test")),
 			want: "handler.endpoint must be an /internal/ path",
 		},
 		{
 			name: "internal query target present",
 			body: strings.Replace(
-				registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "execution_control_internal_query", "/internal/query/test")),
+				registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "agent_control_internal_query", "/internal/query/test")),
 				`"endpoint":"/internal/query/test"`,
 				`"endpoint":"/internal/query/test","target":"retired_agent"`,
 				1,
 			),
-			want: "handler.target must be empty for execution_control_internal_query",
+			want: "handler.target must be empty for agent_control_internal_query",
 		},
 		{
 			name: "unsupported retired internal route handler",
@@ -134,13 +134,13 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 		},
 		{
 			name: "closed requires approval",
-			body: registryJSON(validToolJSON("bad_tool", "closed", true, true, "execution_control_internal_query", "/internal/query/test")),
+			body: registryJSON(validToolJSON("bad_tool", "closed", true, true, "agent_control_internal_query", "/internal/query/test")),
 			want: "closed tools must not require approval",
 		},
 		{
 			name: "unsupported projection policy",
 			body: strings.Replace(
-				registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "execution_control_internal_query", "/internal/query/test")),
+				registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "agent_control_internal_query", "/internal/query/test")),
 				`"result_projection_policy": "bounded_json"`,
 				`"result_projection_policy": "raw"`,
 				1,
@@ -163,7 +163,7 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 }
 
 func registryJSON(toolJSON string) string {
-	return `{"schema_version":"tool-registry-v7","registry_version":"test","tools":[` + toolJSON + `]}`
+	return `{"schema_version":"tool-registry-v8","registry_version":"test","tools":[` + toolJSON + `]}`
 }
 
 func validToolJSON(
@@ -201,7 +201,7 @@ func boolJSON(value bool) string {
 
 func writeToolRegistryFixture(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "tools.v7.json")
+	path := filepath.Join(t.TempDir(), "tools.v8.json")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}

@@ -64,6 +64,9 @@ Google 搜索建议 HTML 不进入产品消息，hosted search 不产生本地�
 Solve 直接返回合法答案即可最终化；返回计划时保留已获得材料供后续步骤使用。
 失败且已有 evidence 时允许 recovery synthesis，不创建新计划、不重新检索、不重置 deadline。
 流式草稿由最终恢复答案替换；取消、截止时间和引用校验仍优先。
+合成输入只按证据 ID 去重，同一通知同一章节的不同片段全部保留。各模型阶段使用冻结的 run 创建时间
+解释相对年份，与工具查询使用同一时间基准。理由见
+[回答证据与时间上下文](../../.agents/notes/implemented/bug-fix/2026-10-13-answer-evidence-and-time-context.md)。
 
 ## 输出与诊断
 

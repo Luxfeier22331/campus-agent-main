@@ -29,9 +29,9 @@ const env = {
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+	CLUSTER_PRIVATE_BASE_URL: "https://agent-control.internal",
 	EDGE_INGRESS_SHARED_SECRET: "shared-secret",
-	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+	APP_API_INTERNAL_SHARED_SECRET: "shared-secret",
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET: "safety-identifier-secret",
 	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	APP_API_DB: {
@@ -94,7 +94,7 @@ describe("app-api worker foundation", () => {
 		}
 	});
 
-	it("runs Dining without execution-control configuration", async () => {
+	it("runs Dining without agent-control configuration", async () => {
 		const sweep = vi.fn(async () => undefined);
 		await createWorkerRuntime(
 			{ DEPLOYMENT_ENVIRONMENT: "test" },
@@ -226,7 +226,7 @@ describe("app-api worker foundation", () => {
 			"AUTH_TURNSTILE_SECRET_KEY",
 			"RESEND_API_KEY",
 			"OPS_WEB_INTERNAL_TOKEN",
-			"APP_API_EXECUTION_SHARED_SECRET",
+			"APP_API_INTERNAL_SHARED_SECRET",
 			"EDGE_INGRESS_SHARED_SECRET",
 			"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
 			"OBJECT_STORE_DERIVED_ACCESS_KEY",

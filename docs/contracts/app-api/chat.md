@@ -91,7 +91,7 @@ assistant message 的 `source_items` structured part 只包含当前产品来源
 整数。来源为 `campus_document`、`campus_notice` 或 `web_page`：文档来源提供固定版本的 Campus Web 阅读目标及
 `versionSlug`，展示文本由消费界面生成；后者提供 hostname 和经过校验的 HTTP/HTTPS 外链。同一
 Campus Docs 阅读目标、同一 Notice 或同一完整 Web URL 的多个引用会合并到同一卡片；query 或 fragment 不同的
-Web URL 不合并。App API 只消费 execution-control 已校验并公开投影的来源，不从正文或全部检索候选
+Web URL 不合并。App API 只消费 agent-control 已校验并公开投影的来源，不从正文或全部检索候选
 推导编号。历史 structured part 缺少当前必需字段时不生成来源卡片，正文仍保留；Campus Web 默认显示
 前五项。
 
@@ -152,14 +152,14 @@ type ChatRequest = {
 - 缺少 `conversationId` 时 app-api 可以在同一路径创建 canonical conversation；
 - `prompt` trim 后必须非空；
 - public chat 不接受 routing 字段；
-- execution-control 提供已准入 tool catalog，Primary Agent 决定是否调用；
+- agent-control 提供已准入 tool catalog，Primary Agent 决定是否调用；
 - 当前评测运行器使用同一公开产品路径，不强制指定工具；
 - accept 后的执行失败保留 request 关联并返回 chat-visible error；accept 前拒绝使用共享错误
   envelope。
 
 ### `POST /api/chat/requests/stream`
 
-请求体与同步入口相同。该接口流式发送 app-api 产品事件，不发送 provider 或 execution-control
+请求体与同步入口相同。该接口流式发送 app-api 产品事件，不发送 provider 或 agent-control
 原始事件。
 
 固定 browser-visible event：
@@ -176,7 +176,7 @@ type ChatRequest = {
 
 规则：
 
-- `request.completed` 只由 execution-control 在 `FinalizeRunProjection` 成功后写入的
+- `request.completed` 只由 agent-control 在 `FinalizeRunProjection` 成功后写入的
   browser-visible `run.completed` 事件产生；历史版本的 `finalization.completed` 浏览器事件仍可被读取，
   但 app-api 不再把它映射为产品终态；
 - 产品 accept transaction 提交并取得可管理的稳定 `requestId` 后发送 `request.accepted`；该事件不
@@ -194,13 +194,13 @@ type ChatRequest = {
   grounding 不能倒推出开始事件。同类并行调用在 Runtime 内归并，所有调用结束后才结束该类检索；
   新一轮实际调用可以重新进入 started。模型内部网页搜索不进入此产品事件流；没有 grounding supports 不等于 no_match。终态结束所有活动检索，断线按原 sequence 续传；
   不传 query、provider 名称、内部调用 ID 或调用次数；
-- 每个产品事件只在事件数据顶层携带一次 `requestId`；不返回 execution-control `eventId`、
+- 每个产品事件只在事件数据顶层携带一次 `requestId`；不返回 agent-control `eventId`、
   `visibility`，也不在 payload 中重复 `request_id`；
 - 产品 callback 成功后先保存内部 `finalization.completed` 证据，再由 `FinalizeRunProjection` 原子提交
   completed 投影并释放 conversation lock；只有该提交成功后才能发送 browser-visible terminal event；
 - `request.failed.error` 必须包含 `code`、`message` 和产品语义的布尔 `retryable`；客户端不得在字段
   缺失时默认可重试；
-- execution-control 的浏览器 `run.canceled` 只有在产品取消终态提交后才转换为
+- agent-control 的浏览器 `run.canceled` 只有在产品取消终态提交后才转换为
   `request.cancelled`；
 - 浏览器断开只停止消费，不取消 finalization；
 - 已发送 delta 后，终态不得再次把完整答案伪造成 delta。
@@ -217,7 +217,7 @@ type ChatRequest = {
 
 ### 摘要
 
-`GET /api/chat/requests/:requestId` 返回当前用户可见的产品执行摘要，不暴露 execution-control 原始
+`GET /api/chat/requests/:requestId` 返回当前用户可见的产品执行摘要，不暴露 agent-control 原始
 存储。
 
 ```ts
@@ -285,7 +285,7 @@ type RunStep = {
 该接口只用浏览器可见持久产品事件派生步骤，不用 run 摘要补阶段或时间。终态只结束已经观察到的
 当前阶段；如果运行已经失败但没有任何阶段事件，四个步骤都保持 `pending`，时间字段为 `null`。
 接口不返回 `attempts`、`results`、工具名、worker、task queue、原始步骤载荷或 memory/runtime ref，
-也不是 execution-control 原始轨迹透传。
+也不是 agent-control 原始轨迹透传。
 
 ## 可执行来源
 

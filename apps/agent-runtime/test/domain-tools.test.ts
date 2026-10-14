@@ -19,7 +19,7 @@ describe("Runtime domain tool Activities", () => {
 		argumentsJson: { search_query: "去年通知", search_goal: "日期" },
 		userGoal: "通知",
 		tool: loadToolCatalog(
-			fileURLToPath(new URL("../../../configs/runtime/tools.v7.json", import.meta.url)),
+			fileURLToPath(new URL("../../../configs/runtime/tools.v8.json", import.meta.url)),
 		).tools.find((tool) => tool.name === "campus_search")!,
 		citationStart: 3,
 	};

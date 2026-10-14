@@ -65,7 +65,7 @@ func TestOwnerDeletionPreservesOrderingAndHTTPResults(t *testing.T) {
 			}
 			store := deletionStoreStub{calls: &calls, status: execution.OwnerDeletionStatus{OwnerUserID: owner, State: state, ActiveRuns: tc.active}, beginErr: tc.beginErr, finalizeErr: tc.finalizeErr}
 			service := executionapplication.NewOwnerDeletionService(executionapplication.OwnerDeletionOptions{Store: store})
-			server := NewServerWithOptions(config.Config{IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret"}, ServerOptions{OwnerDeletion: service})
+			server := NewServerWithOptions(config.Config{IngressSharedSecret: "secret", AppAPIInternalSharedSecret: "secret"}, ServerOptions{OwnerDeletion: service})
 			request := newTestRequest(http.MethodPost, "/internal/owners/"+owner+"/deletion/finalize", strings.NewReader(`{"memory_erased":true}`))
 			request.Header.Set("x-worker-origin-auth", "secret")
 			response := httptest.NewRecorder()
@@ -111,7 +111,7 @@ func TestOwnerDeletionHTTPValidationPrecedesSideEffects(t *testing.T) {
 			if tc.unavailable {
 				opts.StoreError = errors.New("unavailable")
 			}
-			server := NewServerWithOptions(config.Config{IngressSharedSecret: "secret", AppAPIExecutionSharedSecret: "secret"}, ServerOptions{OwnerDeletion: executionapplication.NewOwnerDeletionService(opts)})
+			server := NewServerWithOptions(config.Config{IngressSharedSecret: "secret", AppAPIInternalSharedSecret: "secret"}, ServerOptions{OwnerDeletion: executionapplication.NewOwnerDeletionService(opts)})
 			request := newTestRequest(http.MethodPost, "/internal/owners/user/deletion/"+tc.action, strings.NewReader(tc.body))
 			request.Header.Set("x-worker-origin-auth", tc.auth)
 			response := httptest.NewRecorder()

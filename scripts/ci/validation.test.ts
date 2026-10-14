@@ -98,7 +98,7 @@ test("tooling groups follow the changed repository surface", () => {
 test("validation profiles have one fail-closed registry", () => {
 	assert.deepEqual(MANUAL_VALIDATION_PROFILES, [
 		"go",
-		"ragas",
+		"inspect",
 		"app-api-product-db",
 		"agent-control-postgres",
 		"agent-runtime-temporal",
@@ -107,11 +107,11 @@ test("validation profiles have one fail-closed registry", () => {
 		"ops-web-postgres",
 		"infra",
 	]);
-	assert.deepEqual(validationProfileMetadata("ragas"), {
+	assert.deepEqual(validationProfileMetadata("inspect"), {
 		lane: "manual",
-		name: "ragas",
+		name: "inspect",
 		shell: "ci-light",
-		installPackages: ["eval-langfuse...", "ragas-runner"],
+		installPackages: ["eval-langfuse...", "inspect-eval"],
 		requiresDocker: false,
 		requiresUv: true,
 	});
@@ -227,7 +227,7 @@ test("does not schedule PR Node validation or installs for typecheck-only change
 
 test("keeps unrelated service, infrastructure and browser checks manual", () => {
 	for (const file of [
-		"packages/ragas-runner/tests/test_runner.py",
+		"packages/inspect-eval/tests/test_runner.py",
 		"infra/k8s/data-postgres/base/service.yaml",
 		"infra/k8s/ops-web/base/workload.yaml",
 		"apps/campus-web/src/routes/index.tsx",

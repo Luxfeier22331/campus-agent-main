@@ -63,11 +63,11 @@ describe("ops-web PostgreSQL grants", () => {
 		const client = await connect(postgres.opsWebConnectionString);
 		try {
 			await client.query(
-				"select code, operation, detail, invocation_id, http_status from execution_control.ops_terminal_failures limit 0",
+				"select code, operation, detail, invocation_id, http_status from agent_control.ops_terminal_failures limit 0",
 			);
 			expect(
 				await postgresErrorCode(
-					client.query("select payload_json from execution_control.agent_run_events limit 0"),
+					client.query("select payload_json from agent_control.agent_run_events limit 0"),
 				),
 			).toBe("42501");
 		} finally {
@@ -572,7 +572,7 @@ describe("ops-web PostgreSQL grants", () => {
 			for (const [index, requestId] of requestIds.slice(0, 2).entries()) {
 				const startedAt = index === 0 ? answerStartedAt : toolStartedAt;
 				await management.query(
-					`insert into execution_control.agent_runs
+					`insert into agent_control.agent_runs
 						(request_id, conversation_id, owner_user_id, surface, task_queue, status, created_at, completed_at, updated_at)
 					 values ($1, $2, 'ops-status-test', 'campus_web', 'ops-status-test', 'completed', $3, $4, $5)`,
 					[
@@ -631,7 +631,7 @@ describe("ops-web PostgreSQL grants", () => {
 			];
 			for (const step of steps) {
 				await management.query(
-					`insert into execution_control.agent_run_steps
+					`insert into agent_control.agent_run_steps
 						(step_id, request_id, conversation_id, step_kind, status, started_at, completed_at,
 						 updated_at, payload_schema_version, sanitized_payload_json)
 					 values ($1, $2, $3, $4, $5, $6, $7, $8, 'ops-status-test.v1', $9::jsonb)`,
@@ -705,7 +705,7 @@ describe("ops-web PostgreSQL grants", () => {
 
 			// Retrying updates the current stage; the failed attempt remains for diagnosis.
 			await management.query(
-				`insert into execution_control.agent_step_attempts
+				`insert into agent_control.agent_step_attempts
 				 (attempt_id, request_id, step_id, attempt, activity_attempt, status, updated_at,
 				 payload_schema_version, sanitized_payload_json)
 				 values ($1,$2,'memory.append',1,1,'failed','2026-08-30T00:59:10Z','ops-status-test.v1',$3::jsonb)`,
@@ -723,7 +723,7 @@ describe("ops-web PostgreSQL grants", () => {
 				],
 			);
 			await management.query(
-				"update execution_control.agent_run_steps set activity_attempt=1 where request_id=$1 and step_id='memory.append'",
+				"update agent_control.agent_run_steps set activity_attempt=1 where request_id=$1 and step_id='memory.append'",
 				[answerRequestId],
 			);
 			expect((await store.getRequestDetail(answerRequestId))?.execution.failure).toMatchObject({
@@ -732,7 +732,7 @@ describe("ops-web PostgreSQL grants", () => {
 				httpStatus: 503,
 			});
 			await management.query(
-				`update execution_control.agent_run_steps set activity_attempt=2, status='completed',
+				`update agent_control.agent_run_steps set activity_attempt=2, status='completed',
 				 sanitized_payload_json='{}', completed_at='2026-08-30T00:59:20Z', updated_at='2026-08-30T00:59:20Z'
 				 where request_id=$1 and step_id='memory.append'`,
 				[answerRequestId],
@@ -770,14 +770,14 @@ describe("ops-web PostgreSQL grants", () => {
 			expect(
 				(
 					await management.query(
-						"select status from execution_control.agent_step_attempts where attempt_id=$1",
+						"select status from agent_control.agent_step_attempts where attempt_id=$1",
 						[`${answerRequestId}:memory:1`],
 					)
 				).rows,
 			).toEqual([{ status: "failed" }]);
 			// Restore the current failure for the independent filtering scenarios below.
 			await management.query(
-				`update execution_control.agent_run_steps set activity_attempt=0, status='failed',
+				`update agent_control.agent_run_steps set activity_attempt=0, status='failed',
 				 sanitized_payload_json=$2::jsonb, completed_at='2026-08-30T00:59:10Z', updated_at='2026-08-30T00:59:10Z'
 				 where request_id=$1 and step_id='memory.append'`,
 				[
@@ -825,7 +825,7 @@ describe("ops-web PostgreSQL grants", () => {
 				["answer.synthesize", "missing_evidence", "finalization"],
 			]) {
 				await management.query(
-					`insert into execution_control.agent_run_steps (request_id,step_id,conversation_id,step_kind,status,updated_at,payload_schema_version,sanitized_payload_json) values ($1,$2,$3,'solver','failed','2026-08-30T00:59:02Z','run-step-projection-v1',$4::jsonb)`,
+					`insert into agent_control.agent_run_steps (request_id,step_id,conversation_id,step_kind,status,updated_at,payload_schema_version,sanitized_payload_json) values ($1,$2,$3,'solver','failed','2026-08-30T00:59:02Z','run-step-projection-v1',$4::jsonb)`,
 					[
 						answerRequestId,
 						stepId,
@@ -862,7 +862,7 @@ describe("ops-web PostgreSQL grants", () => {
 				enriched?.execution.stages.find((stage) => stage.stepId === "solve.initial")?.failure,
 			).toMatchObject({ reason: "span_out_of_bounds", citation, citationState: "recorded" });
 			await management.query(
-				`insert into execution_control.agent_runs
+				`insert into agent_control.agent_runs
  (request_id, conversation_id, owner_user_id, surface, task_queue, status, created_at, completed_at, updated_at)
  values ($1,$2,'ops-status-test','campus_web','ops-status-test','failed',$3,$4,$4)`,
 				[requestIds[3], conversationId, failedStartedAt, new Date("2026-08-30T00:56:05Z")],
@@ -872,7 +872,7 @@ describe("ops-web PostgreSQL grants", () => {
 				[2, "run.failed", { failure_kind: "citation_validation_failed" }],
 			] as const) {
 				await management.query(
-					`insert into execution_control.agent_run_events (event_id,request_id,conversation_id,sequence,event_type,visibility,payload_schema_version,payload_json,occurred_at) values ($1,$2,$3,$4,$5,'internal','run-event-v1',$6::jsonb,'2026-08-30T00:56:05Z')`,
+					`insert into agent_control.agent_run_events (event_id,request_id,conversation_id,sequence,event_type,visibility,payload_schema_version,payload_json,occurred_at) values ($1,$2,$3,$4,$5,'internal','run-event-v1',$6::jsonb,'2026-08-30T00:56:05Z')`,
 					[
 						`${answerRequestId}:diagnostic:${sequence}`,
 						requestIds[3],
@@ -895,7 +895,7 @@ describe("ops-web PostgreSQL grants", () => {
 				citation,
 			});
 			await management.query(
-				`insert into execution_control.agent_run_steps
+				`insert into agent_control.agent_run_steps
  (request_id,step_id,conversation_id,step_kind,status,updated_at,payload_schema_version,sanitized_payload_json)
  values ($1,'solve.initial',$2,'solver','failed','2026-08-30T00:56:04Z','run-step-projection-v1',$3::jsonb)`,
 				[requestIds[3], conversationId, JSON.stringify({ failure })],
@@ -927,7 +927,7 @@ describe("ops-web PostgreSQL grants", () => {
 
 			// Recovery preserves the terminal category and the original citation cause.
 			await management.query(
-				`update execution_control.agent_run_events set payload_json=$2::jsonb
+				`update agent_control.agent_run_events set payload_json=$2::jsonb
 				 where request_id=$1 and event_type='activity.failed'`,
 				[
 					requestIds[3],
@@ -938,7 +938,7 @@ describe("ops-web PostgreSQL grants", () => {
 				],
 			);
 			await management.query(
-				`update execution_control.agent_run_events set payload_json=$2::jsonb
+				`update agent_control.agent_run_events set payload_json=$2::jsonb
 				 where request_id=$1 and event_type='run.failed'`,
 				[requestIds[3], JSON.stringify({ failure_kind: "answer_synthesis_failed" })],
 			);
@@ -968,7 +968,7 @@ describe("ops-web PostgreSQL grants", () => {
 			// Malformed optional metadata cannot erase a valid match or alter paging/counts.
 			for (const requestId of [answerRequestId, requestIds[3]]) {
 				await management.query(
-					`update execution_control.agent_run_steps set sanitized_payload_json=$2::jsonb
+					`update agent_control.agent_run_steps set sanitized_payload_json=$2::jsonb
 					 where request_id=$1 and step_id='solve.initial'`,
 					[
 						requestId,
@@ -1011,7 +1011,7 @@ describe("ops-web PostgreSQL grants", () => {
 				[requestIds],
 			);
 			await management.query(
-				"delete from execution_control.agent_runs where request_id = any($1::text[])",
+				"delete from agent_control.agent_runs where request_id = any($1::text[])",
 				[requestIds],
 			);
 			await management.query("delete from chat.messages where id = any($1::text[])", [
@@ -1036,14 +1036,14 @@ describe("ops-web PostgreSQL grants", () => {
 		await expect(
 			runtime.query(
 				`select completed_at, fail_close_reason, request_id, status, terminal_reason, updated_at
-				 from execution_control.agent_runs limit 0`,
+				 from agent_control.agent_runs limit 0`,
 			),
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
 				`select step_id, request_id, step_kind, status, started_at, completed_at,
 					activity_attempt, updated_at, sanitized_payload_json
-				 from execution_control.agent_run_steps limit 0`,
+				 from agent_control.agent_run_steps limit 0`,
 			),
 		).resolves.toBeDefined();
 		await expect(
@@ -1054,7 +1054,7 @@ describe("ops-web PostgreSQL grants", () => {
 					model_provider, model_name, model_request_count, input_tokens, output_tokens,
 					cached_input_tokens, usage_observed, fail_close_reason, terminal_reason,
 					sanitized_payload_json
-				 from execution_control.agent_step_attempts limit 0`,
+				 from agent_control.agent_step_attempts limit 0`,
 			),
 		).resolves.toBeDefined();
 
@@ -1062,12 +1062,12 @@ describe("ops-web PostgreSQL grants", () => {
 			"select * from chat.turn_dispatches limit 0",
 			"select owner_user_id from chat.turn_dispatches limit 0",
 			"select * from chat.messages limit 0",
-			"select * from execution_control.agent_runs limit 0",
-			"select runtime_versions_json from execution_control.agent_runs limit 0",
-			"select workflow_id from execution_control.agent_step_attempts limit 0",
-			"select provider_response_id from execution_control.agent_step_attempts limit 0",
-			"select event_id from execution_control.agent_run_events limit 0",
-			"select result_id from execution_control.agent_step_results limit 0",
+			"select * from agent_control.agent_runs limit 0",
+			"select runtime_versions_json from agent_control.agent_runs limit 0",
+			"select workflow_id from agent_control.agent_step_attempts limit 0",
+			"select provider_response_id from agent_control.agent_step_attempts limit 0",
+			"select event_id from agent_control.agent_run_events limit 0",
+			"select result_id from agent_control.agent_step_results limit 0",
 		]) {
 			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");
 		}
@@ -1078,9 +1078,9 @@ describe("ops-web PostgreSQL grants", () => {
 		for (const query of [
 			"update chat.turn_dispatches set status = status where false",
 			"delete from chat.messages where false",
-			"update execution_control.agent_runs set status = status where false",
-			"update execution_control.agent_run_steps set status = status where false",
-			"delete from execution_control.agent_step_attempts where false",
+			"update agent_control.agent_runs set status = status where false",
+			"update agent_control.agent_run_steps set status = status where false",
+			"delete from agent_control.agent_step_attempts where false",
 		]) {
 			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");
 		}

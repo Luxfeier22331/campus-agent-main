@@ -71,9 +71,9 @@ export const APP_API_TEST_ENV = {
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+	CLUSTER_PRIVATE_BASE_URL: "https://agent-control.internal",
 	EDGE_INGRESS_SHARED_SECRET: "shared-secret",
-	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+	APP_API_INTERNAL_SHARED_SECRET: "shared-secret",
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET: "safety-identifier-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",

@@ -23,8 +23,8 @@ pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
 `OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_READ_SECRET_KEY`，不读取其他应用的
 环境文件；Embedding 命令通过当前 worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 和
 `EMBEDDING_API_KEY`，正式构建固定使用 `Qwen3-Embedding-4B`；纯离线 embedding CLI 不访问 Model
-Config、execution-control、Ops Web 或 PostgreSQL，并根据规范化 endpoint 和固定模型合同计算 Model
-Target hash。本地 Publish 使用现有 `EXECUTION_CONTROL_DATABASE_URL`、
+Config、agent-control、Ops Web 或 PostgreSQL，并根据规范化 endpoint 和固定模型合同计算 Model
+Target hash。本地 Publish 使用现有 `AGENT_CONTROL_DATABASE_URL`、
 `QDRANT_URL` 和 `QDRANT_API_KEY` 连接合同。
 
 linked worktree 首次使用本包前执行一次：
@@ -59,7 +59,7 @@ pnpm --dir jobs/campus-docs-index-publisher build
 `source.json` 摘要只作为命令诊断输出，不参与 Chunk Set 身份。成功 JSON 同时输出 `source_digest` 和
 `source_projection_sha256`。写入前会校验 Chunk identity、可索引 reader 元素覆盖、section 边界、root unit
 顺序、`retrievalText` 来源、字符上限和表格单元格覆盖；任一不变量失败时不产出 Chunk Set。该阶段不
-访问 execution-control、PostgreSQL、Qdrant 或 embedding provider。
+访问 agent-control、PostgreSQL、Qdrant 或 embedding provider。
 
 v5 继续使用 800 Unicode 字符软目标、1600 字符硬上限和零重叠，并增加以下边界治理：同一 section
 相邻 Chunk 任一侧短于 200 字且合并后不超上限时回并，不跨 heading、表格或“专业毕业要求：”硬边界；

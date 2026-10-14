@@ -333,7 +333,7 @@ describe("profile memory service", () => {
 		});
 	});
 
-	it("reconciles admitted commands from the execution-control receipt", async () => {
+	it("reconciles admitted commands from the agent-control receipt", async () => {
 		const store = createStore();
 		vi.mocked(store.listAdmittedCommands).mockResolvedValueOnce([
 			{

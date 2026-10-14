@@ -3,16 +3,16 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
-import { ExecutionControlTransportError } from "../src/modules/integration";
+import { AgentControlTransportError } from "../src/modules/integration";
 import { AppApiRouteError } from "../src/modules/runtime-command";
 
 const env = {
 	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
-	CLUSTER_PRIVATE_BASE_URL: "https://execution-control.internal",
+	CLUSTER_PRIVATE_BASE_URL: "https://agent-control.internal",
 	EDGE_INGRESS_SHARED_SECRET: "shared-secret",
-	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+	APP_API_INTERNAL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -443,8 +443,8 @@ describe("chat durable run routes", () => {
 		const runtimeRunService = {
 			cancel: vi.fn(),
 			getStatus: vi.fn().mockRejectedValue(
-				new ExecutionControlTransportError({
-					code: "execution_control_invalid_response",
+				new AgentControlTransportError({
+					code: "agent_control_invalid_response",
 					message:
 						"Execution durable runtime response violates the contract: status must be a string.",
 					retryable: true,
@@ -472,7 +472,7 @@ describe("chat durable run routes", () => {
 		expect(response.status).toBe(502);
 		await expect(response.json()).resolves.toMatchObject({
 			error: {
-				code: "execution_control_invalid_response",
+				code: "agent_control_invalid_response",
 				message: "The request could not be completed.",
 				retryable: true,
 			},

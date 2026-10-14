@@ -2,8 +2,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
-import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
+import type { AgentControlRuntimeClient } from "../src/modules/integration/agent-control";
+import { AgentControlTransportError } from "../src/modules/integration/agent-control";
 import { lifecycleEventFromDurableRunEvent } from "../src/modules/runtime-command/service/durable";
 import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable-polling";
 import {
@@ -130,10 +130,10 @@ describe("chat command durable runtime cutover", () => {
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockRejectedValue(
-				new ExecutionControlTransportError({
+				new AgentControlTransportError({
 					code: "dependency_not_ready",
 					message: "Execution durable runtime is not configured.",
 					retryable: true,
@@ -180,7 +180,7 @@ describe("chat command durable runtime cutover", () => {
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue({
 				admittedAt: "",
@@ -295,7 +295,7 @@ describe("chat command durable runtime cutover", () => {
 	it("finalizes blocking accepted chat requests from durable run failed events", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),
@@ -348,7 +348,7 @@ describe("chat command durable runtime cutover", () => {
 	it("rejects retired client routing hints on public chat", async () => {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn(),
@@ -385,7 +385,7 @@ describe("chat command durable runtime cutover", () => {
 	it("keeps durable input free of client routing hints", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
@@ -470,7 +470,7 @@ describe("chat command durable runtime cutover", () => {
 					}),
 				]),
 			);
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),
@@ -526,7 +526,7 @@ describe("chat command durable runtime cutover", () => {
 				}),
 			]),
 		);
-		const executionRuntime: ExecutionControlRuntimeClient = {
+		const executionRuntime: AgentControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),

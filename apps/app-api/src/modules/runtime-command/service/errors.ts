@@ -1,5 +1,5 @@
 import { AppApiRouteError } from "../../../http";
-import { ExecutionControlTransportError, type ToolExecutionResponse } from "../../integration";
+import { AgentControlTransportError, type ToolExecutionResponse } from "../../integration";
 
 const BOUNDED_EXECUTION_ERROR_CODE = /^[a-z0-9_-]{1,64}$/u;
 const PROVIDER_EXECUTION_ERROR_CODES = new Set([
@@ -52,9 +52,9 @@ const PUBLIC_EXECUTION_ERROR_CODES = new Set([
 	"context_budget_exceeded",
 	"dependency_not_ready",
 	"execution_cancelled",
-	"execution_control_invalid_error_envelope",
-	"execution_control_invalid_response",
-	"execution_control_unavailable",
+	"agent_control_invalid_error_envelope",
+	"agent_control_invalid_response",
+	"agent_control_unavailable",
 	"execution_invalid_public_response",
 	"execution_runtime_required",
 	"execution_status_pending",
@@ -162,7 +162,7 @@ export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionRes
 	error: NonNullable<ToolExecutionResponse["error"]>;
 	status: "error";
 } {
-	if (error instanceof ExecutionControlTransportError) {
+	if (error instanceof AgentControlTransportError) {
 		const failure = publicExecutionFailure({ errorCode: error.code, status: "error" });
 		return {
 			answerText: "",

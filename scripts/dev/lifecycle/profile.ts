@@ -29,7 +29,7 @@ export interface LocalDevRuntimePorts {
 	memoryApi: number;
 	memoryWorker: number;
 	campusSearch: number;
-	executionControl: number;
+	agentControl: number;
 	modelConfig: number;
 }
 
@@ -98,7 +98,7 @@ export function calculateLocalDevRuntimePorts(slot: number): LocalDevRuntimePort
 		clusterPrivateIngress: 27_057 + slot * 100,
 		memoryApi: 27_055 + slot * 100,
 		memoryWorker: 27_056 + slot * 100,
-		executionControl: 27_051 + slot * 100,
+		agentControl: 27_051 + slot * 100,
 		modelConfig: 27_053 + slot * 100,
 		campusSearch: 27_054 + slot * 100,
 	};

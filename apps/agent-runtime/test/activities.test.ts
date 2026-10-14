@@ -95,7 +95,7 @@ function fixture() {
 			tools: [],
 			contractFingerprint: fingerprint,
 			registryVersion: "test",
-			schemaVersion: "tool-registry-v7",
+			schemaVersion: "tool-registry-v8",
 		},
 		domains: { searchUrl: "", searchToken: "", memoryUrl: "", memorySecret: "" },
 		modelConfigUrl: "http://model-config",
@@ -105,6 +105,82 @@ function fixture() {
 }
 afterEach(() => vi.restoreAllMocks());
 describe("real Agent activity completion", () => {
+	it("projects malformed Gemini stream diagnostics and uses the frozen run time", async () => {
+		const f = fixture();
+		const deadline = new Date(Date.now() + 60_000).toISOString();
+		f.stage.input.workflow.deadline_at = deadline;
+		f.stage.wire.deadline_at = deadline;
+		f.stage.createdAt = "2026-10-13T09:23:00Z";
+		f.stage.model = { provider: "google", model: "test", transport: "generate_content" };
+		f.call.mockImplementation(async (action, input) => {
+			if (action === "project") {
+				f.rows.set("output", structuredClone(input.payload));
+			}
+			return { disposition: "new", ref: "output" } as never;
+		});
+		const chunks = ['{"result":{"outcome":"answer","answer":"项目说明"}', "无关的异常尾部"];
+		const bodies: unknown[] = [];
+		vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+			const request = new Request(url, init);
+			if (request.url.startsWith("http://model-config/")) {
+				return Response.json({
+					schema_version: "model_runtime_config.v1",
+					name: "primary_agent",
+					provider: "google",
+					api_protocol: "google.generate_content",
+					api_key: "test",
+					base_url: "https://provider.test",
+					model: "test",
+					target_sha256: "a".repeat(64),
+				});
+			}
+			bodies.push(await request.json());
+			return new Response(
+				chunks
+					.map(
+						(text, index) =>
+							`data: ${JSON.stringify({
+								responseId: "response-invalid",
+								candidates: [
+									{
+										content: { role: "model", parts: [{ text }] },
+										...(index === chunks.length - 1 ? { finishReason: "STOP" } : {}),
+									},
+								],
+							})}\n\n`,
+					)
+					.join(""),
+				{ headers: { "content-type": "text/event-stream" } },
+			);
+		});
+		const env = new MockActivityEnvironment();
+		const turn = (await env.run(() =>
+			f.activities.modelTurn({
+				requestId: "run",
+				stageRef: "stage",
+				turn: 0,
+			}),
+		)) as TurnDecision;
+		const stage = await env.run(() =>
+			f.activities.completeStage({
+				requestId: "run",
+				stageRef: "stage",
+				turnRef: turn.ref,
+			}),
+		);
+		expect(stage).toMatchObject({ status: "failed", failureCode: "model_output_invalid" });
+		expect(f.rows.get("output")).toMatchObject({
+			model_output_diagnostic: {
+				text: chunks.join(""),
+				validation_stage: "json_parse",
+				finish_reason: "STOP",
+			},
+		});
+		expect(bodies).toHaveLength(1);
+		expect(JSON.stringify(bodies)).toContain(f.stage.createdAt);
+		expect(f.call.mock.calls.some(([action]) => action === "answer/delta")).toBe(false);
+	});
+
 	it.each([0, 1, 2, "answer/started", "answer/delta"] as const)(
 		"preserves the full result when delta attempt %s fails (0 means healthy)",
 		async (failAt) => {

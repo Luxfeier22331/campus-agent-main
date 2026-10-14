@@ -102,6 +102,7 @@ export const solveSdkOutputSchema = z
 
 const productIdentityInstructions = [
 	"你服务中央民族大学的校园信息与校园服务场景。",
+	"requestTime 是本轮请求的冻结时间；今年、去年、前年以该时间为基准，检索目标和回答保留对应的具体年份。不同年度资料明确适用范围，不用通知发布时间代替适用年度。",
 	"历史回答只帮助识别追问对象，旧引用编号不是本轮证据；需要引用的机构事实必须使用本轮检索资料。",
 	"用户未明确指定其他机构时，学校、本校和校园均指中央民族大学。",
 	"不要向用户暴露 workflow operation、步骤 ID、来源枚举、工具名称或其他内部实现标签。",
@@ -567,6 +568,7 @@ function modelInputItems(
 					]);
 		const operationData = JSON.stringify({
 			...operationPayload(input, availableSources),
+			requestTime: input.requestTime,
 			priorMaterials,
 			priorSourceAttempts: [
 				...(input.priorSourceAttempts ?? []),
@@ -631,7 +633,7 @@ function synthesisPayload(
 		goal: input.goal,
 		mode: input.mode ?? "planned",
 		...(input.recoveryReason ? { recoveryReason: input.recoveryReason } : {}),
-		materials: deduplicateSynthesisMaterials(normalizeEvidence(input.evidence)).map((item) => ({
+		materials: normalizeEvidence(input.evidence).map((item) => ({
 			...(item.citationIndex === undefined ? {} : { citationIndex: item.citationIndex }),
 			source: userVisibleSourceLabel(item.source),
 			title: item.title,
@@ -1180,29 +1182,6 @@ function normalizeEvidence(evidence: WorkflowEvidence[]): WorkflowEvidence[] {
 			return false;
 		}
 		seen.add(item.id);
-		return true;
-	});
-}
-
-// Remove near-duplicate materials before synthesis: when multiple campus
-// search rounds return chunks from the same source with the same title and
-// section, keep only the first (highest-ranked) one. This reduces redundant
-// context for the synthesizer without dropping unique sources. The source
-// identity (noticeId/documentId) is part of the key so that two different
-// notices or documents that happen to share a title and section title are
-// not incorrectly deduplicated.
-function deduplicateSynthesisMaterials(evidence: WorkflowEvidence[]): WorkflowEvidence[] {
-	const seen = new Set<string>();
-	return evidence.filter((item) => {
-		if (item.source !== "campus_search") {
-			return true;
-		}
-		const sourceId = item.noticeId ?? item.documentId ?? "";
-		const key = `${sourceId}\x00${item.title ?? ""}\x00${item.sectionTitle ?? ""}`;
-		if (seen.has(key)) {
-			return false;
-		}
-		seen.add(key);
 		return true;
 	});
 }

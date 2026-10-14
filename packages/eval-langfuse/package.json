@@ -2,7 +2,7 @@
 	"name": "eval-langfuse",
 	"version": "0.1.0",
 	"private": true,
-	"description": "TypeScript Langfuse eval platform integration for campus-agent.",
+	"description": "Online Langfuse trace verification for campus-agent.",
 	"type": "module",
 	"bin": {
 		"campus-langfuse": "./src/cli.ts"

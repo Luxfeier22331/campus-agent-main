@@ -107,7 +107,7 @@ export function toExecutionDiagnostics(
 		},
 		releases: {
 			agentRuntime: diagnosticPayloadString(diagnostics, "agent_runtime_release"),
-			executionControl: diagnosticPayloadString(diagnostics, "execution_control_release"),
+			agentControl: diagnosticPayloadString(diagnostics, "agent_control_release"),
 		},
 		stages,
 		terminalReason: normalizeNullableString(row.terminalReason),
@@ -176,7 +176,7 @@ function mergeExecutionFailures(
 
 function diagnosticPayloadString(
 	diagnostics: OpsRequestDiagnosticsRows,
-	field: "agent_runtime_release" | "execution_control_release",
+	field: "agent_runtime_release" | "agent_control_release",
 ): string | null {
 	for (const record of [...diagnostics.modelAttempts, ...diagnostics.stages].reverse()) {
 		if (!isRecord(record.sanitizedPayloadJson)) {

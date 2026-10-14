@@ -128,7 +128,7 @@ test("maps non-Turbo notice and execution inputs to their consumers", () => {
 		"document-ocr",
 		"notice-artifacts-worker",
 	]);
-	assert.deepEqual(targets(["configs/runtime/tools.v7.json"]), ["agent-runtime", "agent-control"]);
+	assert.deepEqual(targets(["configs/runtime/tools.v8.json"]), ["agent-runtime", "agent-control"]);
 });
 
 test("maps notice index and embedding runtime changes to their artifact images", () => {

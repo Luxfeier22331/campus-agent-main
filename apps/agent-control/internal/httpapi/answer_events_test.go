@@ -63,7 +63,7 @@ func TestLiveEventsWireKeepsHistoricalReadsSeparate(t *testing.T) {
 	}
 	server := NewServerWithOptions(config.Config{IngressSharedSecret: "test"}, ServerOptions{RunProjectionStore: store})
 	for _, live := range []bool{false, true} {
-		path := "/internal/execution/requests/r/events?after_sequence=0"
+		path := "/internal/agent/runs/r/events?after_sequence=0"
 		if live {
 			path += "&after_answer_index=0"
 		}

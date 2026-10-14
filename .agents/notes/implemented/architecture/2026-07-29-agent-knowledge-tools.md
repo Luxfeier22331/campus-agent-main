@@ -18,6 +18,12 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
 不能只依赖 dense 相似度；使用 Qdrant 原生 dense/sparse prefetch 与 RRF，避免维护第二套稀疏评分
 引擎。该理由仍适用于当前 `campus_search`，与是否在每次请求前强制检索是两个独立决定。
 
+## 当前适用范围
+
+[Agent 编排与 Memory 独立服务](./2026-10-10-agent-orchestration-memory-services.md)取代本文早期由 execution-control 调用工具和推进 operation
+的所有权；当前模型与工具 Activity 均由 Runtime Workflow 编排。按需检索、来源校验和不强制预检索
+的决定继续有效。
+
 ## 决策
 
 - 在线回答由同一模型角色执行当前所需的 operation；Solve 可以按需检索并直接回答，或返回计划。
@@ -30,9 +36,9 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
 - 模型配置启用托管搜索时，Solve 可以使用 `web_search`，Executor 还要求当前步骤的候选来源显式允许。
   它只用于校园问题的公开网页证据，不进入本地函数工具预算、结果或轨迹，也不是
   `campus_search` 失败后的代码级 fallback；
-- `campus_search` 由 execution-control 通过 HTTP 调用 Campus Search service，后者读取当前 collection
+- `campus_search` 由 agent-runtime 通过 HTTP 调用 Campus Search service，后者读取当前 collection
   及 embedding/reranker 连接；这些读取目标不放入 admission snapshot 或 Temporal workflow input。
-  execution-control 在首次合法搜索响应后绑定 collection，并拒绝后续不同 collection 的结果，
+  agent-control 在首次合法搜索响应后绑定 collection，并拒绝后续不同 collection 的结果，
   不通过该绑定让搜索服务改查旧索引；
 - Campus Docs/Notice 的来源、Chunk、Embedding、统一 Qdrant collection 和发布器继续作为独立离线数据面维护；
   离线索引或当前绑定存在不表示在线 Agent 已经消费它；
@@ -58,7 +64,7 @@ vector name 或结果预算交给模型输入。执行侧只返回经过校验�
 
 ## 后果
 
-- execution-control 不在准入阶段冻结 Qdrant、Embedding 设置或当前索引绑定；Campus Search service
+- agent-control 不在准入阶段冻结 Qdrant、Embedding 设置或当前索引绑定；Campus Search service
   在工具调用时读取当前配置。索引发布切换可能使同一 run 的后续检索因 collection 不一致而被拒绝；
 - Agent Runtime 输入和 Temporal workflow 只保留当前实际开放的能力；
 - 在线 Agent 评测不再把机构文档证据当作固定输入，离线 RAG 评测继续验证索引制品；
@@ -86,4 +92,4 @@ vector name 或结果预算交给模型输入。执行侧只返回经过校验�
 
 后续 Agent Workflow 将 [早期 Temporal 单次 SDK run 范围](./2026-06-06-temporal.md)与
 [仅原生文本的输入输出范围](./2026-07-16-agent-io.md)扩展为多 operation；
-持久执行、operation 内工具循环和最终来源校验的所有权继续由各自合同维护。
+当前持久执行、模型/工具 Activity 和最终来源校验的所有权由编排拆分决策及各自合同维护。

@@ -35,7 +35,7 @@ status: active
 
 - `auth` 和 `database` 为 `ready|not_ready`；
 - Better Auth、数据库 binding 和其他必需配置缺失时，在依赖探测前失败；
-- execution-control 的运行投影、Temporal 和工具状态由 execution-control 自己的 `/readyz` 拥有，
+- agent-control 的运行投影、Temporal 和工具状态由 agent-control 自己的 `/readyz` 拥有，
   App API 不把这些内部状态重新包装为产品 readiness；
 
 必需配置缺失时返回 `503 dependency_not_ready`，`details.missing` 列出缺失配置。依赖检查失败

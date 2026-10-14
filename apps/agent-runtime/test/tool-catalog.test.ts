@@ -13,7 +13,7 @@ describe("tool catalog", () => {
 	it("exposes only model-visible read-only tools to the SDK surface", () => {
 		const catalog = loadToolCatalogFromObject(
 			{
-				schema_version: "tool-registry-v7",
+				schema_version: "tool-registry-v8",
 				registry_version: "test",
 				tools: [
 					{
@@ -31,7 +31,7 @@ describe("tool catalog", () => {
 							"PersonalMemoryRecallResult",
 						),
 						handler: {
-							type: "execution_control_internal_query",
+							type: "agent_control_internal_query",
 							endpoint: "/internal/query/fixture/test",
 						},
 						timeout_ms: 1000,
@@ -52,7 +52,7 @@ describe("tool catalog", () => {
 							"PersonalMemoryRecallResult",
 						),
 						handler: {
-							type: "execution_control_internal_query",
+							type: "agent_control_internal_query",
 							endpoint: "/internal/query/fixture/internal",
 						},
 						timeout_ms: 1000,
@@ -72,7 +72,7 @@ describe("tool catalog", () => {
 	it("rejects model-visible tools that are not read-only", () => {
 		expect(() =>
 			loadToolCatalogFromObject({
-				schema_version: "tool-registry-v7",
+				schema_version: "tool-registry-v8",
 				registry_version: "test",
 				tools: [
 					{
@@ -90,7 +90,7 @@ describe("tool catalog", () => {
 							"PersonalMemoryRecallResult",
 						),
 						handler: {
-							type: "execution_control_internal_query",
+							type: "agent_control_internal_query",
 							endpoint: "/internal/query/tickets/submit",
 						},
 						timeout_ms: 1000,
@@ -104,7 +104,7 @@ describe("tool catalog", () => {
 	it("requires a tool function schema config", () => {
 		expect(() =>
 			loadToolCatalogFromObject({
-				schema_version: "tool-registry-v7",
+				schema_version: "tool-registry-v8",
 				registry_version: "test",
 				tools: [rawTestLookupTool()],
 			}),
@@ -115,7 +115,7 @@ describe("tool catalog", () => {
 		expect(() =>
 			loadToolCatalogFromObject(
 				{
-					schema_version: "tool-registry-v7",
+					schema_version: "tool-registry-v8",
 					registry_version: "test",
 					tools: [rawTestLookupTool()],
 				},
@@ -128,7 +128,7 @@ describe("tool catalog", () => {
 		expect(() =>
 			loadToolCatalogFromObject(
 				{
-					schema_version: "tool-registry-v7",
+					schema_version: "tool-registry-v8",
 					registry_version: "test",
 					tools: [rawUnsupportedWorkflowSignalTool()],
 				},
@@ -137,7 +137,7 @@ describe("tool catalog", () => {
 		).toThrow();
 	});
 
-	it("rejects non-canonical execution-control query endpoints", () => {
+	it("rejects non-canonical agent-control query endpoints", () => {
 		for (const endpoint of [
 			"https://evil.example/internal/query",
 			"//evil.example/internal/query",
@@ -152,7 +152,7 @@ describe("tool catalog", () => {
 			expect(() =>
 				loadToolCatalogFromObject(
 					{
-						schema_version: "tool-registry-v7",
+						schema_version: "tool-registry-v8",
 						registry_version: "test",
 						tools: [tool],
 					},
@@ -169,7 +169,7 @@ describe("tool catalog", () => {
 		expect(() =>
 			loadToolCatalogFromObject(
 				{
-					schema_version: "tool-registry-v7",
+					schema_version: "tool-registry-v8",
 					registry_version: "test",
 					tools: [rawTestLookupTool()],
 				},
@@ -179,7 +179,7 @@ describe("tool catalog", () => {
 	});
 
 	it("exposes the registered model-visible tools", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v7.json");
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v8.json");
 
 		expect(catalog.tools.map((tool) => tool.name)).toEqual([
 			"campus_search",
@@ -212,15 +212,15 @@ describe("tool catalog", () => {
 		});
 	});
 
-	it("keeps every registered tool on a canonical execution-control endpoint", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v7.json");
+	it("keeps every registered tool on a canonical agent-control endpoint", () => {
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v8.json");
 
 		for (const tool of catalog.tools) {
 			expect(tool).toMatchObject({
 				readOnly: true,
 				requiresApproval: false,
 				handler: {
-					type: "execution_control_internal_query",
+					type: "agent_control_internal_query",
 					endpoint: expect.stringMatching(/^\/internal\//),
 				},
 			});
@@ -228,7 +228,7 @@ describe("tool catalog", () => {
 	});
 
 	it("retains strict parameter schemas for registered tools", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v7.json");
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v8.json");
 
 		for (const tool of catalog.tools) {
 			expect(tool.parameterSchema).toMatchObject({
@@ -240,7 +240,7 @@ describe("tool catalog", () => {
 	});
 
 	it("uses the canonical tool function schema config for registered tools", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v7.json");
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v8.json");
 		const tools = catalog.tools;
 
 		const personalMemory = tools.find((tool) => tool.name === "personal_memory_recall");
@@ -251,10 +251,10 @@ describe("tool catalog", () => {
 
 	it("attests the actual registry and function schema files loaded at runtime", () => {
 		const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-attestation-"));
-		const toolRegistryPath = join(dir, "tools.v7.json");
+		const toolRegistryPath = join(dir, "tools.v8.json");
 		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v4.json");
 		const toolRegistry = {
-			schema_version: "tool-registry-v7",
+			schema_version: "tool-registry-v8",
 			registry_version: "attestation-test",
 			tools: [rawTestLookupTool()],
 		};
@@ -277,7 +277,7 @@ describe("tool catalog", () => {
 		const compactToolRegistryPath = join(dir, "tools.compact.json");
 		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v4.json");
 		const toolRegistry = {
-			schema_version: "tool-registry-v7",
+			schema_version: "tool-registry-v8",
 			registry_version: "attestation-test",
 			tools: [rawTestLookupTool()],
 		};
@@ -298,11 +298,11 @@ describe("tool catalog", () => {
 
 	it("uses the cross-runtime JSON string escaping contract", () => {
 		const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-cross-runtime-"));
-		const toolRegistryPath = join(dir, "tools.v7.json");
+		const toolRegistryPath = join(dir, "tools.v8.json");
 		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v4.json");
 		const tool = { ...rawTestLookupTool(), description: "<>&\u2028\u2029" };
 		const toolRegistry = {
-			schema_version: "tool-registry-v7",
+			schema_version: "tool-registry-v8",
 			registry_version: "cross-runtime-test",
 			tools: [tool],
 		};
@@ -316,7 +316,7 @@ describe("tool catalog", () => {
 			functionSchemaSha256:
 				"sha256:7c97c07675d1a7eee74421eaf5d2e6a471c6e28ec15c5be8c49fa4a2eed6f91b",
 			schemaVersion: "tool_contract_fingerprint.v1",
-			toolsSha256: "sha256:984b61c418d6895ea6b14fde9eff67ef9ee00d21057bfe5eaa7a59e2c8a6fddc",
+			toolsSha256: "sha256:d123b8fb642159378f0978edab89437da068c34e09a196406e6b64c1700fbda9",
 		});
 	});
 });
@@ -334,7 +334,7 @@ function rawTestLookupTool() {
 		),
 		result_schema_ref: schemaRef("personal-memory-tool-contracts.v1", "PersonalMemoryRecallResult"),
 		handler: {
-			type: "execution_control_internal_query",
+			type: "agent_control_internal_query",
 			endpoint: "/internal/query/fixture/test",
 		},
 		timeout_ms: 1000,

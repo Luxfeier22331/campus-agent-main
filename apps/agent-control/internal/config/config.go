@@ -35,7 +35,7 @@ type Config struct {
 	DeploymentRelease                       string
 	Host                                    string
 	Port                                    int
-	AppAPIExecutionSharedSecret             string
+	AppAPIInternalSharedSecret              string
 	IngressSharedSecret                     string
 	RequestTimeoutMS                        int
 	RequestBodyLimitBytes                   int64
@@ -64,23 +64,23 @@ type Config struct {
 }
 
 type envValues struct {
-	DeploymentEnvironment       string `env:"DEPLOYMENT_ENVIRONMENT" envDefault:"local"`
-	DeploymentRelease           string `env:"DEPLOYMENT_RELEASE"`
-	Host                        string `env:"HOST"`
-	Port                        int    `env:"PORT"`
-	IngressSharedSecret         string `env:"EXECUTION_CONTROL_INGRESS_SHARED_SECRET"`
-	AppAPIExecutionSharedSecret string `env:"APP_API_EXECUTION_SHARED_SECRET"`
-	OpsWebInternalToken         string `env:"OPS_WEB_INTERNAL_TOKEN"`
-	DatabaseURL                 string `env:"EXECUTION_CONTROL_DATABASE_URL"`
-	TemporalAddress             string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
-	TemporalNamespace           string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
-	TemporalWorkerIdentity      string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
-	AgentRuntimeSharedSecret    string `env:"AGENT_CONTROL_RUNTIME_SHARED_SECRET"`
-	ModelConfigBaseURL          string `env:"MODEL_CONFIG_URL"`
-	AnswerTransport             string `env:"EXECUTION_CONTROL_ANSWER_TRANSPORT"`
-	ProductCallbackBaseURL      string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
-	MemoryServiceBaseURL        string `env:"MEMORY_SERVICE_BASE_URL"`
-	MemoryServiceSecret         string `env:"MEMORY_INTERNAL_SHARED_SECRET"`
+	DeploymentEnvironment      string `env:"DEPLOYMENT_ENVIRONMENT" envDefault:"local"`
+	DeploymentRelease          string `env:"DEPLOYMENT_RELEASE"`
+	Host                       string `env:"HOST"`
+	Port                       int    `env:"PORT"`
+	IngressSharedSecret        string `env:"AGENT_CONTROL_INGRESS_SHARED_SECRET"`
+	AppAPIInternalSharedSecret string `env:"APP_API_INTERNAL_SHARED_SECRET"`
+	OpsWebInternalToken        string `env:"OPS_WEB_INTERNAL_TOKEN"`
+	DatabaseURL                string `env:"AGENT_CONTROL_DATABASE_URL"`
+	TemporalAddress            string `env:"AGENT_CONTROL_TEMPORAL_ADDRESS"`
+	TemporalNamespace          string `env:"AGENT_CONTROL_TEMPORAL_NAMESPACE"`
+	TemporalWorkerIdentity     string `env:"AGENT_CONTROL_TEMPORAL_WORKER_IDENTITY"`
+	AgentRuntimeSharedSecret   string `env:"AGENT_CONTROL_RUNTIME_SHARED_SECRET"`
+	ModelConfigBaseURL         string `env:"MODEL_CONFIG_URL"`
+	AnswerTransport            string `env:"AGENT_CONTROL_ANSWER_TRANSPORT"`
+	ProductCallbackBaseURL     string `env:"AGENT_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
+	MemoryServiceBaseURL       string `env:"MEMORY_SERVICE_BASE_URL"`
+	MemoryServiceSecret        string `env:"MEMORY_INTERNAL_SHARED_SECRET"`
 }
 
 func LoadAPIFromEnv() (Config, error) { return loadFromEnv() }
@@ -116,7 +116,7 @@ func loadFromEnv() (Config, error) {
 		DeploymentRelease:                       strings.TrimSpace(values.DeploymentRelease),
 		Host:                                    host,
 		Port:                                    port,
-		AppAPIExecutionSharedSecret:             strings.TrimSpace(values.AppAPIExecutionSharedSecret),
+		AppAPIInternalSharedSecret:              strings.TrimSpace(values.AppAPIInternalSharedSecret),
 		IngressSharedSecret:                     strings.TrimSpace(values.IngressSharedSecret),
 		RequestTimeoutMS:                        defaultRequestTimeoutMS,
 		RequestBodyLimitBytes:                   defaultRequestBodyLimitBytes,
@@ -155,12 +155,12 @@ func validateDeployedRuntime(values envValues) error {
 			"DEPLOYMENT_RELEASE",
 			values.DeploymentRelease,
 		},
-		{"EXECUTION_CONTROL_TEMPORAL_ADDRESS", values.TemporalAddress},
-		{"EXECUTION_CONTROL_TEMPORAL_NAMESPACE", values.TemporalNamespace},
-		{"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", values.TemporalWorkerIdentity},
-		{"EXECUTION_CONTROL_DATABASE_URL", values.DatabaseURL},
-		{"APP_API_EXECUTION_SHARED_SECRET", values.AppAPIExecutionSharedSecret},
-		{"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", values.ProductCallbackBaseURL},
+		{"AGENT_CONTROL_TEMPORAL_ADDRESS", values.TemporalAddress},
+		{"AGENT_CONTROL_TEMPORAL_NAMESPACE", values.TemporalNamespace},
+		{"AGENT_CONTROL_TEMPORAL_WORKER_IDENTITY", values.TemporalWorkerIdentity},
+		{"AGENT_CONTROL_DATABASE_URL", values.DatabaseURL},
+		{"APP_API_INTERNAL_SHARED_SECRET", values.AppAPIInternalSharedSecret},
+		{"AGENT_CONTROL_PRODUCT_CALLBACK_BASE_URL", values.ProductCallbackBaseURL},
 		{"AGENT_CONTROL_RUNTIME_SHARED_SECRET", values.AgentRuntimeSharedSecret},
 	}
 	{
@@ -168,7 +168,7 @@ func validateDeployedRuntime(values envValues) error {
 			name  string
 			value string
 		}{
-			{"EXECUTION_CONTROL_INGRESS_SHARED_SECRET", values.IngressSharedSecret},
+			{"AGENT_CONTROL_INGRESS_SHARED_SECRET", values.IngressSharedSecret},
 			{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
 			{"MODEL_CONFIG_URL", values.ModelConfigBaseURL},
 		}...)

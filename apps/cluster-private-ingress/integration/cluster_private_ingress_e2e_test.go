@@ -102,7 +102,7 @@ func TestHTTPBoundaryRoutesAndCredentialIsolation(t *testing.T) {
 	edge := httptest.NewServer(handler)
 	defer edge.Close()
 
-	unauthorized := doJSON(t, edge.Client(), http.MethodPost, edge.URL+"/v1/control/internal/execution/requests", "", `{"value":"blocked"}`)
+	unauthorized := doJSON(t, edge.Client(), http.MethodPost, edge.URL+"/v1/control/internal/agent/runs", "", `{"value":"blocked"}`)
 	if unauthorized.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("unauthorized status = %d, want %d", unauthorized.StatusCode, http.StatusUnauthorized)
 	}
@@ -110,7 +110,7 @@ func TestHTTPBoundaryRoutesAndCredentialIsolation(t *testing.T) {
 	assertNoRequest(t, controlRequests)
 
 	controlResponse := doJSON(t, edge.Client(), http.MethodPost,
-		edge.URL+"/v1/control/internal/execution/requests?after=2&wait_ms=20000",
+		edge.URL+"/v1/control/internal/agent/runs?after=2&wait_ms=20000",
 		"edge-secret", `{"value":"中文"}`)
 	controlBody, _ := io.ReadAll(controlResponse.Body)
 	_ = controlResponse.Body.Close()
@@ -118,7 +118,7 @@ func TestHTTPBoundaryRoutesAndCredentialIsolation(t *testing.T) {
 		t.Fatalf("control response = %d %s", controlResponse.StatusCode, controlBody)
 	}
 	controlRequest := receiveRequest(t, controlRequests)
-	if controlRequest.method != http.MethodPost || controlRequest.path != "/internal/execution/requests" ||
+	if controlRequest.method != http.MethodPost || controlRequest.path != "/internal/agent/runs" ||
 		controlRequest.rawQuery != "after=2&wait_ms=20000" || controlRequest.body != `{"value":"中文"}` {
 		t.Fatalf("control request = %+v", controlRequest)
 	}
@@ -191,7 +191,7 @@ func TestHTTPBoundaryStreamingCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		edge.URL+"/v1/control/internal/execution/requests/run-1/events", nil)
+		edge.URL+"/v1/control/internal/agent/runs/run-1/events", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestHTTPBoundaryUnavailableBackend(t *testing.T) {
 	edge := httptest.NewServer(handler)
 	defer edge.Close()
 
-	response := doJSON(t, edge.Client(), http.MethodPost, edge.URL+"/v1/control/internal/execution/requests", "edge-secret", `{}`)
+	response := doJSON(t, edge.Client(), http.MethodPost, edge.URL+"/v1/control/internal/agent/runs", "edge-secret", `{}`)
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusBadGateway {
 		t.Fatalf("unavailable backend status = %d, want %d", response.StatusCode, http.StatusBadGateway)

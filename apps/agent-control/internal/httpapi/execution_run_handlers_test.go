@@ -22,6 +22,19 @@ func TestDurableRunResponseIncludesFinalResponseRef(t *testing.T) {
 	}
 }
 
+func TestHistoricalExecutionRequestPathsAreNotExposed(t *testing.T) {
+	server := newWorkerAuthServerForTest()
+	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(`{}`))
+	request.Header.Set("x-worker-origin-auth", "secret")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("historical execution path status = %d, want 404", response.Code)
+	}
+}
+
 func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *testing.T) {
 	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
@@ -34,7 +47,7 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/requests",
+		"/internal/agent/runs",
 		strings.NewReader(durableRunCreateBodyForTest("run-temporal-001", "conv-temporal-001")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -103,7 +116,7 @@ func TestExecutionRunCreateHidesPersonalMemoryToolWhenRuntimeIsUnavailable(t *te
 		1,
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/agent/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
@@ -165,7 +178,7 @@ func TestExecutionRunCreateClassifiesExecutionInputErrors(t *testing.T) {
 			response := httptest.NewRecorder()
 			request := newTestRequest(
 				http.MethodPost,
-				"/internal/execution/requests",
+				"/internal/agent/runs",
 				strings.NewReader(durableRunCreateBodyForTest(test.runID, "conv-"+test.runID)),
 			)
 			request.Header.Set("x-worker-origin-auth", "secret")
@@ -221,7 +234,7 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 			response := httptest.NewRecorder()
 			request := newTestRequest(
 				http.MethodPost,
-				"/internal/execution/requests",
+				"/internal/agent/runs",
 				strings.NewReader(durableRunCreateBodyForTest(test.runID, "conv-"+test.runID)),
 			)
 			request.Header.Set("x-worker-origin-auth", "secret")
@@ -265,7 +278,7 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionSnapshotBuilder(
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/requests",
+		"/internal/agent/runs",
 		strings.NewReader(durableRunCreateBodyForTest(runID, "conv-"+runID)),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -297,7 +310,7 @@ func TestExecutionRunCreateRejectsUnknownMetadataField(t *testing.T) {
 		1,
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/agent/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
@@ -320,7 +333,7 @@ func TestExecutionRunCreateRejectsUnknownExecutionPayloadField(t *testing.T) {
 		1,
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/agent/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
@@ -344,7 +357,7 @@ func TestExecutionRunCreateRejectsCallerToolHint(t *testing.T) {
 		"unpublished_tool",
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/agent/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
@@ -372,7 +385,7 @@ func TestExecutionRunCreateRejectsKnownCallerToolHint(t *testing.T) {
 		"personal_memory_recall",
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/agent/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
@@ -394,7 +407,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/requests",
+		"/internal/agent/runs",
 		strings.NewReader(durableRunCreateBodyForTest("run-traceparent-001", "conv-traceparent-001")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -423,7 +436,7 @@ func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/requests",
+		"/internal/agent/runs",
 		strings.NewReader(durableRunCreateBodyForTest(
 			"run-temporal-neutral",
 			"conv-temporal-neutral",
@@ -452,7 +465,7 @@ func TestExecutionRunCreateAcceptsWhenTemporalStarterMissing(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/requests",
+		"/internal/agent/runs",
 		strings.NewReader(durableRunCreateBodyForTest("run-temporal-missing", "conv-temporal-missing")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -488,7 +501,7 @@ func TestExecutionRunCreateRetriesWhenTemporalStartFails(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/requests",
+		"/internal/agent/runs",
 		strings.NewReader(durableRunCreateBodyForTest("run-temporal-fail", "conv-temporal-fail")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -526,7 +539,7 @@ func TestExecutionRunEventsWaitsForNewEventsWithinBoundedBudget(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/requests/run-events-wait/events?after_sequence=0&wait_ms=100",
+		"/internal/agent/runs/run-events-wait/events?after_sequence=0&wait_ms=100",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -573,7 +586,7 @@ func TestExecutionRunEventsRejectsInvalidWaitBudget(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/requests/run-events-invalid-wait/events?wait_ms=60000",
+		"/internal/agent/runs/run-events-invalid-wait/events?wait_ms=60000",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -685,7 +698,7 @@ func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T)
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/requests/"+runID+"/cancel",
+		"/internal/agent/runs/"+runID+"/cancel",
 		strings.NewReader(`{"reason":"user_requested"}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -838,7 +851,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/requests/run-temporal-trajectory/steps",
+		"/internal/agent/runs/run-temporal-trajectory/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")

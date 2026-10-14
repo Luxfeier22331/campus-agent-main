@@ -74,6 +74,8 @@ export interface SourceAttempt {
 }
 
 interface WorkflowOperationInputBase {
+	/** Frozen run creation time, shared with relative-year resolution in domain tools. */
+	requestTime?: string;
 	modelAnswerTransport?: "stream" | "buffered";
 	deadlineAt?: string;
 	priorEvidence?: WorkflowEvidence[];

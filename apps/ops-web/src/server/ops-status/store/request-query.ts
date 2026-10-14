@@ -137,18 +137,18 @@ export function requestRowsCte(failureMatch?: string): string {
  ${failureMatch ? `left join lateral (${failureMatch}) as matched on true` : ""}
 			join "chat"."messages" as user_message
 				on user_message.id = dispatch.user_message_id
-				left join "execution_control"."agent_runs" as agent_run
+				left join "agent_control"."agent_runs" as agent_run
 					on agent_run.request_id = dispatch.request_id
 				left join lateral (
 					select step.step_id, step.step_kind, step.status, step.sanitized_payload_json, step.updated_at
-					from "execution_control"."agent_run_steps" as step
+					from "agent_control"."agent_run_steps" as step
 					where step.request_id = dispatch.request_id
 					order by coalesce(step.started_at, step.updated_at) desc, step.step_id desc
 					limit 1
 				) as latest_step on true
 				left join lateral (
 					select step.step_id, step.sanitized_payload_json, step.updated_at
-					from "execution_control"."agent_run_steps" as step
+					from "agent_control"."agent_run_steps" as step
 					where step.request_id = dispatch.request_id
 						and (
 							step.status = 'failed'
@@ -217,17 +217,17 @@ export function requestStagesSql(): string {
 			step."status",
 			step."step_kind" as "stepKind",
 			step."updated_at" as "updatedAt"
-		from "execution_control"."agent_run_steps" as step
+		from "agent_control"."agent_run_steps" as step
 		left join lateral (
 			select candidate."duration_ms", candidate."attempt_id"
-			from "execution_control"."agent_step_attempts" as candidate
+			from "agent_control"."agent_step_attempts" as candidate
 			where candidate."request_id" = step."request_id"
 				and candidate."step_id" = step."step_id"
 				and candidate."activity_attempt" = step."activity_attempt"
 			order by candidate."attempt" desc, candidate."updated_at" desc
 			limit 1
 		) as attempt on true
-		left join "execution_control"."agent_step_results" as result
+		left join "agent_control"."agent_step_results" as result
 			on result."request_id" = step."request_id" and result."step_id" = step."step_id"
 			and result."attempt_id" = attempt."attempt_id"
 		where step."request_id" = $1
@@ -254,7 +254,7 @@ export function requestModelAttemptsSql(): string {
 			"status",
 			"terminal_reason" as "terminalReason",
 			"usage_observed" as "usageObserved"
-		from "execution_control"."agent_step_attempts"
+		from "agent_control"."agent_step_attempts"
 		where "request_id" = $1
 		order by "step_id" asc, "attempt" asc
 	`;
@@ -318,7 +318,7 @@ export function requestCampusSearchSql(): string {
 		status, current_phase as "currentPhase", phase_times_json as "phaseTimes", snapshot_json as "snapshot",
 		failure_code as "failureCode", http_status as "httpStatus", cited_result_refs as "citedResultRefs",
 		updated_at as "updatedAt"
-		from execution_control.agent_campus_search_diagnostics where request_id = $1
+		from agent_control.agent_campus_search_diagnostics where request_id = $1
 		order by coalesce(phase_times_json->>'queued', phase_times_json->>'received'), invocation_id`;
 }
 
@@ -346,13 +346,13 @@ function requestFailureMatchSql(query: OpsRequestListQuery, values: unknown[]): 
  nullif(step.sanitized_payload_json -> 'failure' ->> 'reason','') as reason,
  step.sanitized_payload_json -> 'failure' -> 'citation' ->> 'validation_stage' as citation_stage,
  null::text as source_code
- from execution_control.agent_run_steps step where step.request_id = dispatch.request_id`);
+ from agent_control.agent_run_steps step where step.request_id = dispatch.request_id`);
 	}
 	if (query.failureScope !== "stage") {
 		sources.push(`
  select 'terminal' as scope, terminal.step_id, terminal.event_id as record_id, terminal.occurred_at,
  terminal.code, terminal.reason, terminal.citation ->> 'validation_stage' as citation_stage, terminal.source_code
- from execution_control.ops_terminal_failures terminal where terminal.request_id = dispatch.request_id`);
+ from agent_control.ops_terminal_failures terminal where terminal.request_id = dispatch.request_id`);
 	}
 	return `select jsonb_build_object('code',code,'sourceCode',source_code,'reason',reason,'citationStage',citation_stage,
  'scope',scope,'stepId',step_id,'occurredAt',to_char(occurred_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) as failure

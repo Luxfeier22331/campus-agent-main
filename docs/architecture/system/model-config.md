@@ -23,7 +23,7 @@ Model Config 是具名在线模型配置与 Provider API Key 的唯一所有者�
 Model Config 与调用方位于共同受信任的内部服务边界，不再建立 consumer token、注册表或按配置名的
 权限矩阵。能够访问 listener 的内部服务可以读取任意具名配置；新增 consumer 不需要修改 Model Config
 授权。Ops Web 自身的人员认证与 CSRF 校验保留，`X-Model-Config-Actor` 只作为审计来源。所有 consumer
-读取后直接调用 Provider，Model Config 不成为模型流量代理。当前仓库提供上述具名在线配置；离线 Ragas
+读取后直接调用 Provider，Model Config 不成为模型流量代理。当前仓库提供上述具名在线配置；离线 Inspect
 profile 保持独立。
 
 各配置名的当前消费者：

@@ -52,7 +52,7 @@ function appWithCallbacks(input: {
 	return createApp(
 		{
 			DEPLOYMENT_ENVIRONMENT: "test",
-			APP_API_EXECUTION_SHARED_SECRET: callbackSecret,
+			APP_API_INTERNAL_SHARED_SECRET: callbackSecret,
 		},
 		{
 			chatCommandService: {
@@ -78,21 +78,18 @@ describe("product callback routes", () => {
 		expect(responseJson).toContain("\\u003c\\u003e\\u0026\\u2028\\u2029");
 		const fingerprint = sha256(`${requestId}\0${responseJson}`);
 
-		const result = await app.request(
-			`/api/internal/execution/requests/${requestId}/product-finalization`,
-			{
-				body: JSON.stringify({
-					completed_at: "2026-07-15T08:00:00.000Z",
-					finalization_fingerprint: fingerprint,
-					response_json: responseJson,
-				}),
-				headers: {
-					"content-type": "application/json",
-					"x-app-product-callback-auth": callbackSecret,
-				},
-				method: "PUT",
+		const result = await app.request(`/api/internal/agent/runs/${requestId}/product-finalization`, {
+			body: JSON.stringify({
+				completed_at: "2026-07-15T08:00:00.000Z",
+				finalization_fingerprint: fingerprint,
+				response_json: responseJson,
+			}),
+			headers: {
+				"content-type": "application/json",
+				"x-app-product-callback-auth": callbackSecret,
 			},
-		);
+			method: "PUT",
+		});
 
 		expect(result.status).toBe(200);
 		expect(await result.json()).toEqual({ outcome: "applied" });
@@ -116,21 +113,18 @@ describe("product callback routes", () => {
 		const reserialized = JSON.stringify(JSON.parse(responseJson));
 		expect(reserialized).not.toBe(responseJson);
 
-		const result = await app.request(
-			`/api/internal/execution/requests/${requestId}/product-finalization`,
-			{
-				body: JSON.stringify({
-					completed_at: "2026-07-15T08:00:00.000Z",
-					finalization_fingerprint: sha256(`${requestId}\0${reserialized}`),
-					response_json: responseJson,
-				}),
-				headers: {
-					"content-type": "application/json",
-					"x-app-product-callback-auth": callbackSecret,
-				},
-				method: "PUT",
+		const result = await app.request(`/api/internal/agent/runs/${requestId}/product-finalization`, {
+			body: JSON.stringify({
+				completed_at: "2026-07-15T08:00:00.000Z",
+				finalization_fingerprint: sha256(`${requestId}\0${reserialized}`),
+				response_json: responseJson,
+			}),
+			headers: {
+				"content-type": "application/json",
+				"x-app-product-callback-auth": callbackSecret,
 			},
-		);
+			method: "PUT",
+		});
 
 		expect(result.status).toBe(400);
 		expect(applyProductFinalization).not.toHaveBeenCalled();
@@ -159,7 +153,7 @@ describe("product callback routes", () => {
 			},
 		]) {
 			const result = await app.request(
-				`/api/internal/execution/requests/${requestId}/product-finalization`,
+				`/api/internal/agent/runs/${requestId}/product-finalization`,
 				{
 					body: JSON.stringify(body),
 					headers: {
@@ -181,41 +175,35 @@ describe("product callback routes", () => {
 		});
 		const app = appWithCallbacks({ applyProductFinalization });
 		const response = finalizationResponse();
-		const invalid = await app.request(
-			"/api/internal/execution/requests/req_1/product-finalization",
-			{
-				body: JSON.stringify({
-					completed_at: "2026-07-15T08:00:00.000Z",
-					finalization_fingerprint: "changed",
-					response_json: JSON.stringify(response),
-				}),
-				headers: {
-					"content-type": "application/json",
-					"x-app-product-callback-auth": callbackSecret,
-				},
-				method: "PUT",
+		const invalid = await app.request("/api/internal/agent/runs/req_1/product-finalization", {
+			body: JSON.stringify({
+				completed_at: "2026-07-15T08:00:00.000Z",
+				finalization_fingerprint: "changed",
+				response_json: JSON.stringify(response),
+			}),
+			headers: {
+				"content-type": "application/json",
+				"x-app-product-callback-auth": callbackSecret,
 			},
-		);
+			method: "PUT",
+		});
 		expect(invalid.status).toBe(400);
 		expect(applyProductFinalization).not.toHaveBeenCalled();
 
 		const responseJson = JSON.stringify(response);
 		const fingerprint = sha256(`req_1\0${responseJson}`);
-		const conflict = await app.request(
-			"/api/internal/execution/requests/req_1/product-finalization",
-			{
-				body: JSON.stringify({
-					completed_at: "2026-07-15T08:00:00.000Z",
-					finalization_fingerprint: fingerprint,
-					response_json: responseJson,
-				}),
-				headers: {
-					"content-type": "application/json",
-					"x-app-product-callback-auth": callbackSecret,
-				},
-				method: "PUT",
+		const conflict = await app.request("/api/internal/agent/runs/req_1/product-finalization", {
+			body: JSON.stringify({
+				completed_at: "2026-07-15T08:00:00.000Z",
+				finalization_fingerprint: fingerprint,
+				response_json: responseJson,
+			}),
+			headers: {
+				"content-type": "application/json",
+				"x-app-product-callback-auth": callbackSecret,
 			},
-		);
+			method: "PUT",
+		});
 		expect(conflict.status).toBe(409);
 	});
 

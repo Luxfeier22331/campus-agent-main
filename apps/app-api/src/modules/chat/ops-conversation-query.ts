@@ -44,7 +44,7 @@ export function createOpsConversationQueryService({
 					else 'COMPLETED'
 				end
 				from chat.turn_dispatches d
-				left join execution_control.agent_runs r on r.request_id = d.request_id
+				left join agent_control.agent_runs r on r.request_id = d.request_id
 				where d.conversation_id = ${conversations.id}
 				order by d.created_at desc, d.request_id desc limit 1
 			), 'COMPLETED')`;

@@ -2,7 +2,7 @@ import { type AppDependencies, createApp } from "./app";
 import { createRequestScopeFactory } from "./app/request-scope";
 import { type Env, isDeployedEnvironment, resolveEnvironment } from "./config";
 import { createPgAccountAdminStore } from "./modules/account-admin";
-import { isExecutionControlRuntimeConfigured } from "./modules/integration";
+import { isAgentControlRuntimeConfigured } from "./modules/integration";
 import { runWithAppApiExecutionContext } from "./request-execution-context";
 import {
 	reportRuntimeFailure,
@@ -59,7 +59,7 @@ export function createWorkerRuntime(
 				jobs.push({ name: "email-access", run: () => scope.resolveEmailAccessService().expire() });
 			}
 			jobs.push({ name: "dining", run: () => scope.resolveDiningLifecycleService().sweep() });
-			if (isExecutionControlRuntimeConfigured(env)) {
+			if (isAgentControlRuntimeConfigured(env)) {
 				jobs.push({
 					name: "memory",
 					run: async () => {

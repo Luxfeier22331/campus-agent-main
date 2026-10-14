@@ -33,7 +33,7 @@ pnpm --filter ops-web dev:api
 数据库 TLS 与运行变量见 Ops Web 的环境合同。当前本地与 Kubernetes 拓扑使用
 `drizzle.campus_agent_migrations`。通知相关 target 声明所需 schema、分类目录与环境投影，
 `dev:init` 通过 readiness 复用已完成的 bootstrap，不重复执行 DDL，也不导入通知业务数据。
-通知分类由当前 Model Config 配置和分类器 Job 负责，不由 execution-control 持有。
+通知分类由当前 Model Config 配置和分类器 Job 负责，不由 agent-control 持有。
 
 ## 文件发布
 
@@ -121,7 +121,7 @@ pnpm --dir scripts notice:classify --concurrency 2 --notice-id "$NOTICE_ID"
 ```
 
 该命令是 JSONL stdout 交接和离线模型比较入口，由调用进程显式提供模型连接，生成一次性的
-`notice_id/category` JSONL；它不读取或修改 execution-control 的在线模型设置。整批成功后把结果保存到
+`notice_id/category` JSONL；它不读取或修改 agent-control 的在线模型设置。整批成功后把结果保存到
 未跟踪路径，并设置：
 
 ```bash

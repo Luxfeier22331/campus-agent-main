@@ -94,23 +94,30 @@ Kargo 从 candidate 与当前 main 计算版本变化，并拒绝基于过期游
 合并后等待环境仓定义的 reconcile、migration、rollout 和 readiness。不得绕过环境仓直接修改集群、
 流量或线上 Secret。
 
+涉及 Agent Control schema/role 或配置合同切换时，环境仓必须先完成新 Secret/ConfigMap 合同和旧消费者
+排空，再执行 schema migration 与新消费者 rollout。源码 promotion 不会自动重命名 SealedSecret、ConfigMap
+或 key；具体的暂停、排空、迁移、验证和旧 role 退役顺序以[执行服务运维](../runtime/execution.md)为准。
+
 ## 个人记忆召回合同切换
 
 将记忆上下文格式化移入 Runtime 后，内部 recall 从 `{outcome, memory_text}` 改为
-`{facts, context_char_budget}`，工具注册表 fingerprint 随之改变。模型工具结果和产品接口维持原合同；
-不提供新旧传输的双解析。按现有维护窗口协同切换 execution API、execution Worker 和 agent-runtime：
+`{facts, context_char_budget}`，工具注册表 fingerprint 随之改变。Runtime 消费 Memory 返回的 facts 和预算，
+再生成模型上下文；Control 负责终态后的追加投递，Memory API/Worker 负责独立命令和 Hindsight 操作。
+模型工具结果和产品接口维持原合同；不提供新旧传输的双解析。只协调受影响合同的 agent-control、agent-runtime
+和 Memory API/Worker：
 
-1. 由环境仓暂停新聊天、记忆命令准入与定时派发，保留现有依赖供在途执行收敛。
-2. 等待回答 workflow、独立 `memory.append/<request_id>`、个人记忆命令 workflow 和对应 Hindsight
-   operation 收敛。回答完成或 HTTP active requests 为零都不代表追加已结束；未知 operation 或未释放
+1. 不兼容切换时，由环境仓暂停受影响的新聊天、记忆命令准入与定时派发，保留现有服务及恢复路径供在途执行收敛。
+2. 等待 AgentWorkflow、Control 待投递的终态追加、Memory 命令/Workflow、Hindsight operation 和
+   对应 lease 收敛。回答完成或 HTTP active requests 为零都不代表 Memory 已排空；未知 operation 或未释放
    lease 按既有恢复流程处理，不能通过删除 lease、清空 namespace 或 bank 宣告排空。
-3. 停止旧版本消费者，将 API、Worker、Runtime 切到同一工具合同的候选组合；确认旧进程退出后再恢复
+3. 停止旧版本消费者，通过环境仓将受影响服务切到兼容合同的候选组合；确认旧进程退出后再恢复
    准入。各服务 release 值仍用于诊断，不代替 fingerprint 检查。
 4. 用已准入的 recall 验证空结果与命中、模型工具输出和回答后追加，再恢复定时派发。
-5. 需要回退时重新暂停准入并排空，三个组件作为兼容组合回退；不能只回退一端。
+5. 需要回退时重新暂停相关准入并排空，按受影响合同部署兼容的 Control、Runtime、Memory 组合；不能只回退一端。
 
-本次不迁移数据库 schema、Hindsight bank、generation 或异步追加身份；旧同步追加与 replay
-分支已在没有旧 workflow 的前提下删除。这里定义环境切换步骤；源码检查通过不表示实际环境已经切换。
+召回格式切换不要求复制或清空 Memory 数据、Hindsight bank、owner salt、generation 或追加身份；
+如候选物包含 schema 变更，由对应数据库 owner 的发布迁移处理。当前不再使用原 agent-control Go Worker 或
+`memory.append/<request_id>` Workflow。这里定义环境切换步骤；源码检查通过不表示实际环境已经切换。
 
 ## 失败处理
 

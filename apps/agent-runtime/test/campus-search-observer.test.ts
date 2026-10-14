@@ -14,7 +14,7 @@ const request = (): ToolExecutionRequest => ({
 	tool: {
 		name: "campus_search",
 		timeoutMs: 10,
-		handler: { type: "execution_control_internal_query", endpoint: "/internal/campus/search" },
+		handler: { type: "agent_control_internal_query", endpoint: "/internal/campus/search" },
 	} as ToolExecutionRequest["tool"],
 });
 

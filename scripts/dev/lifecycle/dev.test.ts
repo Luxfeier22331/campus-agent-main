@@ -120,7 +120,7 @@ describe("local development profiles", () => {
 			memoryApi: 27255,
 			memoryWorker: 27256,
 			campusSearch: 27254,
-			executionControl: 27251,
+			agentControl: 27251,
 			modelConfig: 27253,
 		});
 	});
@@ -671,7 +671,7 @@ describe("managed worktree environment", () => {
 		render();
 		const paths = managedLocalEnvironmentPaths(repoRoot);
 		const expected = "127.0.0.1,localhost,10.0.0.0/8,ai.gitee.com,internal.example";
-		for (const path of [paths.executionControl, paths.modelConfig]) {
+		for (const path of [paths.agentControl, paths.modelConfig]) {
 			const before = readFileSync(path, "utf8");
 			const values = parseEnv(before);
 			assert.equal(values.NO_PROXY, expected);
@@ -688,7 +688,7 @@ describe("managed worktree environment", () => {
 		assert.deepEqual(environment, beforeEnvironment);
 		writeFileSync(resolve(repoRoot, ".env"), "");
 		render();
-		for (const path of [paths.executionControl, paths.modelConfig]) {
+		for (const path of [paths.agentControl, paths.modelConfig]) {
 			const values = parseEnv(readFileSync(path, "utf8"));
 			assert.equal(values.NO_PROXY, undefined);
 			assert.equal(values.no_proxy, undefined);
@@ -762,7 +762,7 @@ describe("managed worktree environment", () => {
 		const agentRuntimeEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/agent-runtime/.env.local"), "utf8"),
 		);
-		const executionControlEnvironment = parseEnv(
+		const agentControlEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/agent-control/.env.local"), "utf8"),
 		);
 		const modelConfigEnvironment = parseEnv(
@@ -808,7 +808,7 @@ describe("managed worktree environment", () => {
 			campusWebEnvironment.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
 		);
 		assert.equal(campusWebEnvironment.OBJECT_STORE_BUCKET_DERIVED, profile.bucketName);
-		assert.equal(executionControlEnvironment.CAMPUS_DOCS_SERVING_DATABASE_URL, undefined);
+		assert.equal(agentControlEnvironment.CAMPUS_DOCS_SERVING_DATABASE_URL, undefined);
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");
 		assert.equal(modelConfigEnvironment.MODEL_CONFIG_HOST, "127.0.0.1");
 		assert.equal(
@@ -845,7 +845,7 @@ describe("managed worktree environment", () => {
 		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_ENDPOINT, undefined);
 		assert.equal(noticeClassifierEnvironment.INTERNAL_NOTICE_CLASSIFIER_OPENAI_API_KEY, undefined);
 		const modelConfigUrl = `http://127.0.0.1:${calculateLocalDevRuntimePorts(profile.slot).modelConfig}`;
-		assert.equal(executionControlEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
+		assert.equal(agentControlEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
 		assert.equal(agentRuntimeEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
 		assert.equal(noticeClassifierEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
 		assert.equal(
@@ -1073,7 +1073,7 @@ describe("managed worktree environment", () => {
 			resolve(repoRoot, "jobs/campus-docs-index-publisher/.env.local"),
 		]);
 		assert.deepEqual(Object.keys(parseEnv(readFileSync(campusPaths[0] ?? "", "utf8"))).sort(), [
-			"EXECUTION_CONTROL_DATABASE_URL",
+			"AGENT_CONTROL_DATABASE_URL",
 			"OBJECT_STORE_BUCKET_DERIVED",
 			"OBJECT_STORE_DERIVED_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
@@ -1112,7 +1112,7 @@ describe("managed worktree environment", () => {
 		});
 		assert.deepEqual(ragPaths, [resolve(repoRoot, "jobs/campus-rag-index-publisher/.env.local")]);
 		assert.deepEqual(Object.keys(parseEnv(readFileSync(ragPaths[0] ?? "", "utf8"))).sort(), [
-			"EXECUTION_CONTROL_DATABASE_URL",
+			"AGENT_CONTROL_DATABASE_URL",
 			"OBJECT_STORE_BUCKET_DERIVED",
 			"OBJECT_STORE_DERIVED_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",

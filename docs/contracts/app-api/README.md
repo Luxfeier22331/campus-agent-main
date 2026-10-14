@@ -25,4 +25,4 @@ status: active
 `apps/app-api/src/app/route-exposure-inventory.ts` 及其合同测试为准。
 
 在线模型配置、内部门户凭据与采集解析、运维诊断不属于 app-api HTTP 合同，分别由
-`execution-control` 和 `ops-web` 拥有。
+`agent-control` 和 `ops-web` 拥有。

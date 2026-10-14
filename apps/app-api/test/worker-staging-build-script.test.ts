@@ -46,7 +46,7 @@ describe("worker staging build wrapper", { timeout: 30000 }, () => {
 				const { join } = require("node:path");
 				const workerDist = join(process.cwd(), "dist", "campus_web");
 				mkdirSync(workerDist, { recursive: true });
-				writeFileSync(join(workerDist, ".dev.vars"), 'APP_API_EXECUTION_SHARED_SECRET = "__campus_agent_runtime_secret_placeholder__APP_API_EXECUTION_SHARED_SECRET"\\n');
+				writeFileSync(join(workerDist, ".dev.vars"), 'APP_API_INTERNAL_SHARED_SECRET = "__campus_agent_runtime_secret_placeholder__APP_API_INTERNAL_SHARED_SECRET"\\n');
 				writeFileSync(join(workerDist, "index.js"), 'export default {};\\n');
 			`;
 
@@ -54,7 +54,7 @@ describe("worker staging build wrapper", { timeout: 30000 }, () => {
 			tsxBin,
 			[
 				stagingBuildScript,
-				"APP_API_EXECUTION_SHARED_SECRET",
+				"APP_API_INTERNAL_SHARED_SECRET",
 				"--",
 				process.execPath,
 				"-e",
@@ -65,7 +65,7 @@ describe("worker staging build wrapper", { timeout: 30000 }, () => {
 				encoding: "utf8",
 				env: {
 					...process.env,
-					APP_API_EXECUTION_SHARED_SECRET: "",
+					APP_API_INTERNAL_SHARED_SECRET: "",
 				},
 			},
 		);
@@ -83,14 +83,14 @@ describe("worker staging build wrapper", { timeout: 30000 }, () => {
 		const childSource = `
 				const { writeFileSync } = require("node:fs");
 				const { join } = require("node:path");
-				writeFileSync(join(process.cwd(), "dist", "campus_web", "index.js"), 'const secret = "__campus_agent_runtime_secret_placeholder__APP_API_EXECUTION_SHARED_SECRET";\\n');
+				writeFileSync(join(process.cwd(), "dist", "campus_web", "index.js"), 'const secret = "__campus_agent_runtime_secret_placeholder__APP_API_INTERNAL_SHARED_SECRET";\\n');
 			`;
 
 		const result = spawnSync(
 			tsxBin,
 			[
 				stagingBuildScript,
-				"APP_API_EXECUTION_SHARED_SECRET",
+				"APP_API_INTERNAL_SHARED_SECRET",
 				"--",
 				process.execPath,
 				"-e",
@@ -101,7 +101,7 @@ describe("worker staging build wrapper", { timeout: 30000 }, () => {
 				encoding: "utf8",
 				env: {
 					...process.env,
-					APP_API_EXECUTION_SHARED_SECRET: "",
+					APP_API_INTERNAL_SHARED_SECRET: "",
 				},
 			},
 		);
@@ -109,7 +109,7 @@ describe("worker staging build wrapper", { timeout: 30000 }, () => {
 		expect(result.status).toBe(1);
 		expect(result.stderr).toContain("runtime secret placeholder leaked into build artifact");
 		expect(readFileSync(join(workerDist, "index.js"), "utf8")).toContain(
-			"__campus_agent_runtime_secret_placeholder__APP_API_EXECUTION_SHARED_SECRET",
+			"__campus_agent_runtime_secret_placeholder__APP_API_INTERNAL_SHARED_SECRET",
 		);
 	}, 30_000);
 });

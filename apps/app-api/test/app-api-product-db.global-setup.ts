@@ -15,7 +15,7 @@ const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "campus_agent";
 const RUNTIME_ROLE = "app_api";
 const SUPPORTING_ROLES = [
-	"execution_control",
+	"agent_control",
 	"campus_search",
 	"ops_web",
 	"model_config",

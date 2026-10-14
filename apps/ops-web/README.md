@@ -5,7 +5,7 @@
 ## 职责
 
 - 关联 PostgreSQL 有界投影、Temporal 和 Langfuse 跳转信息；
-- 读取固定范围的运行概况、运行诊断，以及 execution-control 持久化的净化步骤和尝试；
+- 读取固定范围的运行概况、运行诊断，以及 agent-control 持久化的净化步骤和尝试；
 - 在运行详情读取步骤结果的独立失败输出诊断列，纯文本展示模型 JSON/结构校验失败时的可见输出；
   不读取完整业务 result payload，也不从 trace 或 receipt 补录正文；
 - 在运行详情展示 Campus Search 调用进度、RAG 候选、分数、排除原因与最终引用；使用专用的有界诊断
@@ -13,7 +13,7 @@
 - 执行明确准入的在线模型配置、食堂和同好群内容运营操作；
 - 直接拥有内部门户凭据池，负责真实验证、定时检查、按需显示和采集解析；
 - 通过 Model Config 管理和验证在线模型当前设置；页面保留的 `execution` 路由名只是历史 URL，
-  不表示 execution-control 拥有模型配置；
+  不表示 agent-control 拥有模型配置；
 - 通过 App API 管理邮箱准入、用户状态和会话，并在用户详情只读显示注销状态。
 
 浏览器只调用同源 `/api/ops/*`。本应用不是产品 API、数据库浏览器、通用观测查询或 Kubernetes
@@ -73,7 +73,7 @@ Ops Web 的内部解析接口。
   反向拥有数据库或外部平台配置；
 - 运行列表只读取产品摘要和最新执行阶段，详情才读取完整净化步骤与尝试；Ops Web 不能读取
   `agent_run_events`、`agent_step_results` 或旧 `runtime.*` 视图；
-- 详情通过 `execution_control.ops_terminal_failures` 受限视图区分回答终态失败与阶段失败，不授予
+- 详情通过 `agent_control.ops_terminal_failures` 受限视图区分回答终态失败与阶段失败，不授予
   原始事件读取权限；联网搜索诊断复用阶段净化 payload，仅展示 adapter 计数和固定原因；
 - Node 服务内的 Ops Status、Dining、内部门户凭据和自动化 token adapter 共享一个应用级 PostgreSQL
   Pool；Dining 地图、菜单、评价和投稿分别拥有具体 store，举报复用投稿的受限读取投影；

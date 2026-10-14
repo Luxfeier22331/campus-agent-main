@@ -148,12 +148,12 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 
 		expect(events.map((event) => event.event)).toEqual(["request.accepted", "request.failed"]);
 		expect(events.at(-1)?.data.error).toMatchObject({
-			code: "execution_control_invalid_response",
+			code: "agent_control_invalid_response",
 			retryable: true,
 		});
 		expect(finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				errorCode: "execution_control_invalid_response",
+				errorCode: "agent_control_invalid_response",
 				status: "error",
 			},
 		});

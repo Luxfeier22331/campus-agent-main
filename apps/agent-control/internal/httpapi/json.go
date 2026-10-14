@@ -20,7 +20,7 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 				response,
 				http.StatusRequestEntityTooLarge,
 				"request_body_too_large",
-				"Request body exceeds execution-control request limit.",
+				"Request body exceeds agent-control request limit.",
 				false,
 			)
 		} else {
@@ -104,7 +104,7 @@ func publicErrorMessage(code string, _ string) string {
 	case "unsupported_media_type":
 		return "Request content type is not supported."
 	case "request_body_too_large":
-		return "Request body exceeds the execution-control request limit."
+		return "Request body exceeds the agent-control request limit."
 	case "request_body_unreadable":
 		return "Request body could not be read."
 	case "execution_workflow_input_invalid":
@@ -158,7 +158,7 @@ func publicErrorMessage(code string, _ string) string {
 	case "not_found":
 		return "Route was not found."
 	default:
-		return "Execution-control request could not be completed."
+		return "Agent-control request could not be completed."
 	}
 }
 

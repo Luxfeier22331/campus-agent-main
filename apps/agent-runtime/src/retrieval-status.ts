@@ -18,7 +18,7 @@ type RunnerEvent = StreamingAgentRunner extends (input: AgentRunnerInput) => Asy
 type Event = RunnerEvent | { retrieval: RetrievalObservation };
 
 // Multiplex real tool callbacks with the existing answer stream. This queue is
-// scoped to one operation; persistence and reconnect belong to execution-control.
+// scoped to one operation; persistence and reconnect belong to agent-control.
 export async function* streamWithRetrieval(
 	input: AgentRunnerInput,
 	runner: StreamingAgentRunner,

@@ -323,37 +323,37 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}{
 			{
 				name:          "missing added column",
-				mutationSQL:   "alter table execution_control.agent_runs drop column request_fingerprint_sha256 cascade",
-				wantErrorPart: "column execution_control.agent_runs.request_fingerprint_sha256",
+				mutationSQL:   "alter table agent_control.agent_runs drop column request_fingerprint_sha256 cascade",
+				wantErrorPart: "column agent_control.agent_runs.request_fingerprint_sha256",
 			},
 			{
 				name:          "wrong dispatch fence default",
-				mutationSQL:   "alter table execution_control.agent_workflow_starts alter column dispatch_attempted set default true",
-				wantErrorPart: "column execution_control.agent_workflow_starts.dispatch_attempted",
+				mutationSQL:   "alter table agent_control.agent_workflow_starts alter column dispatch_attempted set default true",
+				wantErrorPart: "column agent_control.agent_workflow_starts.dispatch_attempted",
 			},
 			{
 				name:          "missing step attempt uniqueness fence",
-				mutationSQL:   "alter table execution_control.agent_step_attempts drop constraint agent_step_attempts_request_id_step_id_attempt_key",
-				wantErrorPart: "constraint execution_control.agent_step_attempts (u request_id,step_id,attempt)",
+				mutationSQL:   "alter table agent_control.agent_step_attempts drop constraint agent_step_attempts_request_id_step_id_attempt_key",
+				wantErrorPart: "constraint agent_control.agent_step_attempts (u request_id,step_id,attempt)",
 			},
 			{
 				name:          "missing owner deletion state check",
-				mutationSQL:   "alter table execution_control.owner_deletion_fences drop constraint owner_deletion_fences_state_check",
-				wantErrorPart: "check constraint execution_control.owner_deletion_fences.owner_deletion_fences_state_check",
+				mutationSQL:   "alter table agent_control.owner_deletion_fences drop constraint owner_deletion_fences_state_check",
+				wantErrorPart: "check constraint agent_control.owner_deletion_fences.owner_deletion_fences_state_check",
 			},
 			{
 				name:          "missing lifecycle lease index",
-				mutationSQL:   "drop index execution_control.agent_workflow_starts_lease_idx",
-				wantErrorPart: "index execution_control.agent_workflow_starts_lease_idx",
+				mutationSQL:   "drop index agent_control.agent_workflow_starts_lease_idx",
+				wantErrorPart: "index agent_control.agent_workflow_starts_lease_idx",
 			},
 			{
 				name: "wrong active run predicate",
 				mutationSQL: `
-					drop index execution_control.agent_runs_active_conversation_idx;
+					drop index agent_control.agent_runs_active_conversation_idx;
 					create unique index agent_runs_active_conversation_idx
-						on execution_control.agent_runs (conversation_id)
+						on agent_control.agent_runs (conversation_id)
 						where status in ('created', 'queued')`,
-				wantErrorPart: "index execution_control.agent_runs_active_conversation_idx",
+				wantErrorPart: "index agent_control.agent_runs_active_conversation_idx",
 			},
 		}
 		for _, testCase := range testCases {
@@ -460,7 +460,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			"agent_step_results", "agent_workflow_starts", "agent_run_cancellations",
 		} {
 			var count int
-			if err := conn.QueryRow(t.Context(), "select count(*)::int from execution_control."+table+" where request_id = $1", created.RequestID).Scan(&count); err != nil {
+			if err := conn.QueryRow(t.Context(), "select count(*)::int from agent_control."+table+" where request_id = $1", created.RequestID).Scan(&count); err != nil {
 				t.Fatalf("count deleted %s rows: %v", table, err)
 			}
 			if count != 0 {
@@ -469,7 +469,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 		var fenceState string
 		if err := conn.QueryRow(t.Context(), `
-			select state from execution_control.owner_deletion_fences where owner_user_id = $1
+			select state from agent_control.owner_deletion_fences where owner_user_id = $1
 		`, ownerUserID).Scan(&fenceState); err != nil {
 			t.Fatalf("read owner deletion tombstone: %v", err)
 		}
@@ -735,7 +735,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 		if _, err := conn.Exec(
 			t.Context(),
-			`insert into execution_control.conversation_run_locks (conversation_id, request_id) values ($1, $2)`,
+			`insert into agent_control.conversation_run_locks (conversation_id, request_id) values ($1, $2)`,
 			run.ConversationID,
 			run.RequestID,
 		); err != nil {
@@ -762,7 +762,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		var lockCount int
 		if err := conn.QueryRow(
 			t.Context(),
-			`select count(*) from execution_control.conversation_run_locks where conversation_id = $1`,
+			`select count(*) from agent_control.conversation_run_locks where conversation_id = $1`,
 			run.ConversationID,
 		).Scan(&lockCount); err != nil {
 			t.Fatalf("count released conversation lock: %v", err)
@@ -802,7 +802,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 		if _, err := conn.Exec(
 			t.Context(),
-			`insert into execution_control.conversation_run_locks (conversation_id, request_id) values ($1, $2)`,
+			`insert into agent_control.conversation_run_locks (conversation_id, request_id) values ($1, $2)`,
 			collisionRun.ConversationID,
 			collisionRun.RequestID,
 		); err != nil {
@@ -840,7 +840,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 		if err := conn.QueryRow(
 			t.Context(),
-			`select count(*) from execution_control.conversation_run_locks where conversation_id = $1`,
+			`select count(*) from agent_control.conversation_run_locks where conversation_id = $1`,
 			collisionRun.ConversationID,
 		).Scan(&lockCount); err != nil {
 			t.Fatalf("count preserved conversation lock: %v", err)
@@ -1103,11 +1103,11 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		conn := connect(t, ownerURL)
 		defer closeConn(t, conn)
 		for _, table := range []string{
-			"execution_control.agent_run_events",
-			"execution_control.agent_run_steps",
-			"execution_control.agent_step_attempts",
-			"execution_control.agent_step_results",
-			"execution_control.conversation_run_locks",
+			"agent_control.agent_run_events",
+			"agent_control.agent_run_steps",
+			"agent_control.agent_step_attempts",
+			"agent_control.agent_step_results",
+			"agent_control.conversation_run_locks",
 		} {
 			var count int
 			if err := conn.QueryRow(t.Context(), "select count(*) from "+table).Scan(&count); err != nil {
@@ -1339,7 +1339,7 @@ func durableRun(runID, conversationID string, now time.Time) execution.DurableRu
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		RuntimeVersions: map[string]any{
-			"execution_control": "integration",
+			"agent_control": "integration",
 		},
 		Metadata: map[string]any{
 			"execution_contract_version": "tool_execution_v7",

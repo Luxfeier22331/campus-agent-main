@@ -63,7 +63,7 @@ func TestAnswerTransportDefaultsToBufferedUnlessStream(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
-			t.Setenv("EXECUTION_CONTROL_ANSWER_TRANSPORT", tc.value)
+			t.Setenv("AGENT_CONTROL_ANSWER_TRANSPORT", tc.value)
 			cfg, err := loadRuntimeFromTestEnv(t)
 			if err != nil {
 				t.Fatalf("load runtime: %v", err)
@@ -91,10 +91,10 @@ func TestRuntimeLoaderUsesOnlyOwnedInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load runtime: %v", err)
 	}
-	if cfg.DatabaseURL != "postgresql://execution-control/campus" {
+	if cfg.DatabaseURL != "postgresql://agent-control/campus" {
 		t.Fatalf("database URL = %q", cfg.DatabaseURL)
 	}
-	if cfg.AppAPIExecutionSharedSecret != "app-api-secret" {
+	if cfg.AppAPIInternalSharedSecret != "app-api-secret" {
 		t.Fatal("execution shared secret was not loaded")
 	}
 }
@@ -104,9 +104,9 @@ func TestDeployedRuntimeReportsOwnedMissingInputs(t *testing.T) {
 		name string
 		key  string
 	}{
-		{name: "database", key: "EXECUTION_CONTROL_DATABASE_URL"},
+		{name: "database", key: "AGENT_CONTROL_DATABASE_URL"},
 		{name: "release", key: "DEPLOYMENT_RELEASE"},
-		{name: "execution secret", key: "APP_API_EXECUTION_SHARED_SECRET"},
+		{name: "app API internal secret", key: "APP_API_INTERNAL_SHARED_SECRET"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			setRuntimeEnv(t)
@@ -136,14 +136,14 @@ func TestRuntimeRejectsAgentRuntimeSecretSurroundingWhitespace(t *testing.T) {
 func setRuntimeEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
-	t.Setenv("DEPLOYMENT_RELEASE", "execution-runtime@0123456789ab")
-	t.Setenv("EXECUTION_CONTROL_DATABASE_URL", "postgres://execution-control/campus")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "execution-control-abcde")
-	t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", "https://app-api.internal")
-	t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "app-api-secret")
-	t.Setenv("EXECUTION_CONTROL_INGRESS_SHARED_SECRET", "ingress-secret")
+	t.Setenv("DEPLOYMENT_RELEASE", "agent-control@0123456789ab")
+	t.Setenv("AGENT_CONTROL_DATABASE_URL", "postgres://agent-control/campus")
+	t.Setenv("AGENT_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("AGENT_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
+	t.Setenv("AGENT_CONTROL_TEMPORAL_WORKER_IDENTITY", "agent-control-abcde")
+	t.Setenv("AGENT_CONTROL_PRODUCT_CALLBACK_BASE_URL", "https://app-api.internal")
+	t.Setenv("APP_API_INTERNAL_SHARED_SECRET", "app-api-secret")
+	t.Setenv("AGENT_CONTROL_INGRESS_SHARED_SECRET", "ingress-secret")
 	t.Setenv("AGENT_CONTROL_RUNTIME_SHARED_SECRET", "agent-secret")
 	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-token")
 	t.Setenv("MODEL_CONFIG_URL", "http://model-config:8000")

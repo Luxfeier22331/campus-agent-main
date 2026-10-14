@@ -378,7 +378,7 @@ const REQUIRED_SELECTS = [
 		`,
 	},
 	{
-		label: "execution_control.agent_runs",
+		label: "agent_control.agent_runs",
 		sql: `
 			select
 				"completed_at",
@@ -387,35 +387,35 @@ const REQUIRED_SELECTS = [
 				"status",
 				"terminal_reason",
 				"updated_at"
-			from "execution_control"."agent_runs"
+			from "agent_control"."agent_runs"
 			limit 0
 		`,
 	},
 	{
-		label: "execution_control.agent_campus_search_diagnostics",
+		label: "agent_control.agent_campus_search_diagnostics",
 		sql: `select request_id, invocation_id, workflow_step_id, activity_attempt, schema_version,
 			search_query, status, current_phase, phase_times_json, snapshot_json, failure_code,
-			http_status, cited_result_refs, updated_at from execution_control.agent_campus_search_diagnostics limit 0`,
+			http_status, cited_result_refs, updated_at from agent_control.agent_campus_search_diagnostics limit 0`,
 	},
 	{
-		label: "execution_control.agent_run_steps",
+		label: "agent_control.agent_run_steps",
 		sql: `
 			select
 				"step_id", "request_id", "step_kind", "status", "activity_attempt", "started_at",
 				"completed_at", "updated_at", "sanitized_payload_json"
-			from "execution_control"."agent_run_steps"
+			from "agent_control"."agent_run_steps"
 			limit 0
 		`,
 	},
 	{
-		label: "execution_control.agent_step_attempts",
+		label: "agent_control.agent_step_attempts",
 		sql: `
 			select
 				"step_id", "request_id", "attempt", "status", "activity_attempt", "started_at", "completed_at",
 				"duration_ms", "updated_at", "model_provider", "model_name", "model_request_count",
 				"input_tokens", "output_tokens", "cached_input_tokens", "usage_observed",
 				"fail_close_reason", "terminal_reason", "sanitized_payload_json"
-			from "execution_control"."agent_step_attempts"
+			from "agent_control"."agent_step_attempts"
 			limit 0
 		`,
 	},
@@ -612,7 +612,7 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 				select 1
 				from pg_catalog.pg_class class
 				join pg_catalog.pg_namespace namespace on namespace.oid = class.relnamespace
-				where namespace.nspname = 'execution_control' and class.relname = 'model_settings'
+				where namespace.nspname = 'agent_control' and class.relname = 'model_settings'
 					and (
 						has_table_privilege(
 							current_user, class.oid,

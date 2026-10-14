@@ -22,7 +22,7 @@ func ExecutionCreateRequest(ctx context.Context, runID, conversationID, secret s
 			"execution_input_sha256":     strings.Repeat("a", 64),
 		},
 	})
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/internal/execution/requests", strings.NewReader(string(body)))
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/internal/agent/runs", strings.NewReader(string(body)))
 	req.Header.Set("x-worker-origin-auth", secret)
 	return req
 }

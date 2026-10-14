@@ -9,9 +9,9 @@ Status: implemented
 ## 决策
 
 - 根入口负责编排和缓存，子包脚本只执行具体任务；根 `check`、`test`、`typecheck` 默认覆盖全仓库，使用 Turbo 原生 `--filter` 或 `--affected` 选择范围。
-- `pnpm test` 覆盖 tooling、Node/DOM、local Worker、Go 和 Ragas unit tests；`pnpm test:tooling` 保留现有七组 tooling 测试；新增 `pnpm check` 与现有 `verify --source` 覆盖一致，`verify --source` 删除。
+- `pnpm test` 覆盖 tooling、Node/DOM、local Worker、Go 和 Inspect unit tests；`pnpm test:tooling` 保留现有七组 tooling 测试；新增 `pnpm check` 与现有 `verify --source` 覆盖一致，`verify --source` 删除。
 - 通过现有 `scripts/ci/evidence.mts`、Turbo 图和资源限制实现聚合，不新增第二套 task registry；commandless aggregate 保留在图中，叶任务每次只执行一次。
-- 将简单子包 `test` 改为 `test:unit`，Go 使用 `native:vet`，contracts 使用 `contracts:check`，Ragas 使用 `test:eval`，worker/fixture build 使用明确的 `build` 或 `build:fixture` 名称，并原子迁移 CI、hook、发布、Dockerfile、CLI 帮助和文档。
+- 将简单子包 `test` 改为 `test:unit`，Go 使用 `native:vet`，contracts 使用 `contracts:check`，Inspect 使用 `test:eval`，worker/fixture build 使用明确的 `build` 或 `build:fixture` 名称，并原子迁移 CI、hook、发布、Dockerfile、CLI 帮助和文档。
 - tooling、notice classifier、internal portal collection 使用各自 owner 的脚本；只抽取真正复杂的多阶段 cleanup/environment 命令，保持 cwd、环境文件、参数和退出码。
 - 保留现有 `^source` 传播、运行时 cache key、Go/tooling 串行和内存限制。Campus typecheck 使用 `tsc --noEmit --checkers 1`，收窄到实际导入的 TypeScript、测试、配置、JSON、fixture 和跨包依赖输入，不降低检查覆盖；不启用 TS incremental。
 
@@ -75,7 +75,7 @@ Campus fixture、App API、Status、Ops 和三个索引 Job 的七个构建均�
 环境，生产 Campus build 保持 `cache:false` 并透传原有对象存储配置。Dockerfile 的原有 build
 调用名称不变，抽出的 package 所属脚本在既有镜像源码范围内，不引入仓外运行依赖。
 
-根检查覆盖 tooling、Node/TypeScript、Go、Ragas、构建、文档、链接和决策笔记；抽出的开发命令
+根检查覆盖 tooling、Node/TypeScript、Go、Inspect、构建、文档、链接和决策笔记；抽出的开发命令
 另由行为测试检查 cwd、环境加载、参数传递和非零退出状态。浏览器套件继续按既定手动入口验证，
 不把一次运行结果写成长期通过状态。
 

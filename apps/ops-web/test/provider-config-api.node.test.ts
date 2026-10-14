@@ -347,7 +347,7 @@ describe("ops model settings BFF", () => {
 		});
 	});
 
-	it("maps execution-control failures without exposing its message", async () => {
+	it("maps agent-control failures without exposing its message", async () => {
 		const upstream = new Response(
 			JSON.stringify({ error: { code: "model_settings_error", message: "internal detail" } }),
 			{ headers: { "content-type": "application/json" }, status: 503 },

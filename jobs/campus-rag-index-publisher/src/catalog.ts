@@ -3,7 +3,7 @@ import { Client, type ClientConfig } from "pg";
 import type { IndexCatalog, IndexVersion, IndexVersionInput } from "./types.ts";
 
 export interface PostgresCatalogEnv {
-	EXECUTION_CONTROL_DATABASE_URL?: string;
+	AGENT_CONTROL_DATABASE_URL?: string;
 }
 
 export function createPostgresIndexCatalog(env: PostgresCatalogEnv = process.env) {
@@ -145,7 +145,7 @@ function validateBinding(collection: string) {
 	if (!/^campus_docs_[a-f0-9]{64}$/u.test(collection)) throw new ArtifactValidationError("Campus RAG current collection identity is invalid");
 }
 function postgresClientConfig(env: PostgresCatalogEnv): ClientConfig {
-	const connectionString = env.EXECUTION_CONTROL_DATABASE_URL?.trim();
-	if (!connectionString) throw new Error("EXECUTION_CONTROL_DATABASE_URL is required for Campus RAG publisher");
+	const connectionString = env.AGENT_CONTROL_DATABASE_URL?.trim();
+	if (!connectionString) throw new Error("AGENT_CONTROL_DATABASE_URL is required for Campus RAG publisher");
 	return { connectionString };
 }

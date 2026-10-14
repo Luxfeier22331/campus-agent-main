@@ -120,7 +120,7 @@ describe("campus account pages", () => {
 			"href",
 			"/feedback?source=legal",
 		);
-		expect(screen.queryByText(/app-api|execution-control|provider-config/)).toBeNull();
+		expect(screen.queryByText(/app-api|agent-control|provider-config/)).toBeNull();
 
 		unmount();
 		render(<LegalPrivacyPage />);
@@ -134,7 +134,7 @@ describe("campus account pages", () => {
 			"href",
 			"/legal/terms",
 		);
-		expect(screen.queryByText(/app-api|execution-control|provider-config/)).toBeNull();
+		expect(screen.queryByText(/app-api|agent-control|provider-config/)).toBeNull();
 	});
 
 	it("renders federation consent and error pages with neutral campus account copy", async () => {

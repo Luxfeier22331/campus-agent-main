@@ -10,6 +10,12 @@ Status: implemented
 
 个人记忆的具体运行时所有权和在线召回方式由 [Hindsight 自托管个人记忆](./2026-07-16-hindsight.md) 规定；本文只保留跨层边界。
 
+## 当前适用范围
+
+本文原先由 execution-control 承担的 Memory 所有权已被[Agent 编排与 Memory 独立服务](./2026-10-10-agent-orchestration-memory-services.md)
+取代。当前 memory-service 独立拥有 Hindsight 适配、命令执行和恢复；本文的内容边界与生命周期理由
+继续有效，现行接口以个人记忆架构和合同为准。
+
 ## 决策
 
 ### 四类事实分开维护
@@ -24,11 +30,10 @@ Status: implemented
 
 ### 跨边界只传最小结构化上下文
 
-`app-api -> execution-control -> agent` 可以传递：
-
-- 用户标识的稳定投影、会话有效性和调用方类别；
-- 有界记忆召回结果、来源类型、分数和时效摘要；
-- 会话摘要、已确认槽位及工具开放状态。
+`app-api -> agent-control -> agent-runtime` 传递已冻结的执行输入，包括用户标识的稳定投影、
+允许的会话上下文及工具开放状态。个人记忆在执行中由 `agent-runtime -> Memory API` 按需召回，
+返回有界事实和字符预算；完成轮次的最小追加输入由 `agent-control -> Memory API` 持久投递。
+召回和追加不经过旧 Control 内部 Hindsight handler。
 
 不得跨边界传递原始 JWT、Cookie、认证标头、完整会话记录、供应商身份载荷或未经裁剪的
 长期记忆文本。
@@ -56,7 +61,7 @@ Status: implemented
 ## 后果
 
 - `apps/app-api` 不把认证与会话存储下放给执行或模型运行时；
-- Hindsight 通过 execution-control 和 Temporal 参与召回与写入，不直接暴露给模型或浏览器；
+- Hindsight 通过 memory-service 参与召回与写入，持久操作由 Memory Workflow 推进，不直接暴露给模型或浏览器；
 - 工具和知识目标的开放依据来自运行时注册表与产品合同，不来自个人记忆；
 - 用户关闭记忆后，在线执行不得继续召回或追加个人记忆。
 

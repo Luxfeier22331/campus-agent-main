@@ -54,7 +54,7 @@ func (s *PostgresRunProjectionStore) CreateRunWithStartIntent(
 	}
 	var ownerDeletionState string
 	ownerDeletionErr := tx.QueryRow(ctx, `
-		select state from execution_control.owner_deletion_fences where owner_user_id = $1`, run.OwnerUserID).Scan(&ownerDeletionState)
+		select state from agent_control.owner_deletion_fences where owner_user_id = $1`, run.OwnerUserID).Scan(&ownerDeletionState)
 	if ownerDeletionErr == nil {
 		if execution.OwnerDeletionState(ownerDeletionState) == execution.OwnerDeletionStateDeleted {
 			return execution.DurableRunCreateResult{}, execution.ErrOwnerDeleted
@@ -65,7 +65,7 @@ func (s *PostgresRunProjectionStore) CreateRunWithStartIntent(
 		return execution.DurableRunCreateResult{}, ownerDeletionErr
 	}
 
-	_, err = tx.Exec(ctx, `insert into execution_control.agent_runs (
+	_, err = tx.Exec(ctx, `insert into agent_control.agent_runs (
 		request_id, conversation_id, owner_user_id, surface,
 		task_queue, status, terminal_reason,
 		fail_close_reason, retryable, created_at, queued_at, admitted_at, started_at,
@@ -91,7 +91,7 @@ func (s *PostgresRunProjectionStore) CreateRunWithStartIntent(
 	if err := insertDurableRunEventInTx(ctx, tx, run, request.CreatedEvent); err != nil {
 		return execution.DurableRunCreateResult{}, err
 	}
-	_, err = tx.Exec(ctx, `insert into execution_control.agent_workflow_starts (
+	_, err = tx.Exec(ctx, `insert into agent_control.agent_workflow_starts (
 		request_id, workflow_id, payload_sha256, task_queue, workflow_input_json, state,
 		dispatch_attempted, next_attempt_at, created_at, updated_at
 	) values ($1,$2,$3,$4,$5::jsonb,$6,false,$7,$7,$7)`,

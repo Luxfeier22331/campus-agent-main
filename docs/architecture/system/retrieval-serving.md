@@ -14,8 +14,8 @@ status: active
 
 发布链把纳入范围的文档和已发布通知写入同一个不可变 Qdrant collection，不按来源类型拆分物理
 collection。在线 Agent 不直接选择 collection、索引版本或查询配置；Campus Search service 在请求时读取当前
-绑定并执行固定查询。`agent-runtime` 的工具 Activity 通过内部 HTTP 调用该服务，Agent 的 run 绑定和 citation 仍由
-agent-control 持有。
+绑定并执行固定查询。`agent-runtime` 的工具 Activity 通过内部 HTTP 调用该服务，Runtime 按工具执行顺序分配 citation，
+agent-control 保存并校验 run 的 collection 绑定。
 
 ## 输入与索引身份
 
@@ -125,7 +125,7 @@ PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或
 
 `current_index` 的逻辑 owner 是统一 Campus RAG serving；唯一的 current pointer writer 是
 `jobs/campus-rag-index-publisher`。`campus_docs_serving` 是沿用的 schema/table 名，不表示 Docs builder
-仍拥有发布职责。Publisher 当前复用 `execution_control` 数据库身份完成读取和激活；该身份是部署层共享
+仍拥有发布职责。Publisher 当前复用 `agent_control` 数据库身份完成读取和激活；该身份是部署层共享
 的技术 writer，不是 agent-control 在线服务的逻辑写入职责。数据库 ACL 因此授予该身份
 `SELECT`、`INSERT`、`UPDATE`，并拒绝 `DELETE`、`TRUNCATE`、`REFERENCES` 和 `TRIGGER`。
 
@@ -143,8 +143,8 @@ collection、provider、vector name、top-k 或版本字段。
 在线 Campus Search service 只读取 `current_index`；它不执行 publisher 的激活流程。Publisher 的写权限与
 Campus Search 的只读权限通过独立数据库 role 和 Secret 分离。
 
-索引绑定发生在 agent-control 首次收到合法搜索响应后，包括 `no_match` 响应：handler 将返回的
-collection 保存到 run metadata，后续响应必须匹配该绑定，否则拒绝本次工具结果。搜索服务仍在每次调用时
+Runtime 收到合法搜索响应后，包括 `no_match` 响应，通过 `collection/bind` 将返回的
+collection 交给 agent-control 保存到 run metadata，后续响应必须匹配该绑定，否则拒绝本次工具结果。搜索服务仍在每次调用时
 读取当前索引；内部请求不携带已绑定 collection，也不会在发布切换后自动改查旧索引。因此运行中切换索引
 可能导致后续检索被拒绝，而不是让同一回答混用两个 collection。该绑定不冻结 embedding 或 reranker 配置。
 读取入口见[Search service](../../../apps/campus-search/internal/service/service.go)，绑定与拒绝逻辑见
@@ -154,12 +154,12 @@ collection 保存到 run metadata，后续响应必须匹配该绑定，否则�
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。数量和字符预算前
 排除本轮已返回的 `result_ref`；同一通知的不同片段仍可返回，不按通知来源折叠互补章节，
 也不按通知发布时间自动排除旧通知。结果中的 `released_at` 只能证明通知发布时间，不能证明截止日期、适用年度、学期、申请窗口或当前有效性；正文没有适用信息时，答案必须说明无法确认。版本过滤不改变 Notices 的已发布通知范围。最终返回
-每次最多 5 条候选结果，正文总字符预算为 4000。agent-control 校验 point schema、文本 hash、section
-URL、版本字段和 `root_unit_ids` 后才把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
+每次最多 5 条候选结果，正文总字符预算为 4000。Campus Search 校验 point schema、文本 hash、section
+URL、版本字段和 `root_unit_ids`，Runtime 校验响应结构并完成 collection 绑定后把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
 score 必须是有限数值；调用或校验失败直接使检索失败，不回退到未重排候选。过滤后无结果返回成功的
 `no_match`。该阈值只判断查询与候选文本的相关性，不判断学校、人群或规则适用主体。
 当前 collection 包含纳入候选的中央民族大学 Campus Web 文档和已发布 Notices；point 的 `source_kind`
-和 citation 由统一 publisher 固定，UI 将 Notice 结果映射为 `campus_notice`。Primary Agent 根据问题
+和 citation 由统一 publisher 固定，UI 将 Notice 结果映射为 `campus_notice`。Solve/Executor 根据问题
 所需事实与工具声明范围决定是否检索，不通过实体名称特判、Qdrant filter、rerank 阈值或 collection 字段
 实现路由。
 

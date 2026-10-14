@@ -91,9 +91,9 @@ func TestProductCallbackRejectionDoesNotPersistResponseBody(t *testing.T) {
 	}))
 	defer callback.Close()
 	server := newAdapterForTest(config.Config{
-		ProductCallbackBaseURL:      callback.URL,
-		AppAPIExecutionSharedSecret: "callback-secret",
-		ProductCallbackTimeoutMS:    1_000,
+		ProductCallbackBaseURL:     callback.URL,
+		AppAPIInternalSharedSecret: "callback-secret",
+		ProductCallbackTimeoutMS:   1_000,
 	})
 
 	chatErr := server.WriteChatProductFinalization(

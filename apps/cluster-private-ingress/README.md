@@ -5,11 +5,11 @@ Cloudflare App API 到集群产品接口的私有 HTTP 入口。它负责入口�
 
 ## 通信合同
 
-`app-api → CLUSTER_PRIVATE_API → cluster-private-ingress → execution-control / memory-service`。
+`app-api → CLUSTER_PRIVATE_API → cluster-private-ingress → agent-control / memory-service`。
 
 - Worker 使用 `x-edge-ingress-auth`；入口验证 `EDGE_INGRESS_SHARED_SECRET`。
-- `/v1/control` 前缀被移除后，转发到 `EXECUTION_CONTROL_BASE_URL`，注入
-  `EXECUTION_CONTROL_INGRESS_SHARED_SECRET` 对应的 `x-worker-origin-auth`。
+- `/v1/control` 前缀被移除后，转发到 `AGENT_CONTROL_BASE_URL`，注入
+  `AGENT_CONTROL_INGRESS_SHARED_SECRET` 对应的 `x-worker-origin-auth`。
 - `/v1/memory` 前缀被移除后，转发到 `MEMORY_SERVICE_BASE_URL`，注入
   `MEMORY_INTERNAL_SHARED_SECRET` 对应的 `x-memory-origin-auth`。
 - 仅开放运行创建、查询、事件、取消、账户删除，以及 Memory 产品管理接口；实际路由表在
@@ -21,7 +21,7 @@ Cloudflare App API 到集群产品接口的私有 HTTP 入口。它负责入口�
 - `LISTEN_ADDR` 默认 `:8000`；后端只接受 HTTP(S) origin，不能配置路径、用户信息或 query。
 
 Object Store 继续使用独立 `OBJECT_STORE_PRIVATE` binding，保留 S3 签名与流式协议。
-`APP_API_EXECUTION_SHARED_SECRET` 仍用于集群到 App API 的产品回调，不授予 Control 入站权限。
+`APP_API_INTERNAL_SHARED_SECRET` 仍用于集群到 App API 的产品回调，不授予 Control 入站权限。
 
 ## 开发与发布
 

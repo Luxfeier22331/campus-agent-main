@@ -43,9 +43,9 @@ func TestWriteChatProductFinalizationBindsFingerprintToExactResponseJSON(t *test
 	defer callback.Close()
 
 	server := newAdapterForTest(config.Config{
-		ProductCallbackBaseURL:      callback.URL,
-		AppAPIExecutionSharedSecret: "callback-secret",
-		ProductCallbackTimeoutMS:    1_000,
+		ProductCallbackBaseURL:     callback.URL,
+		AppAPIInternalSharedSecret: "callback-secret",
+		ProductCallbackTimeoutMS:   1_000,
 	})
 	runID := "run-exact-response-json"
 	completedAt := time.Date(2026, 7, 24, 8, 9, 10, 123_000_000, time.UTC)
@@ -75,7 +75,7 @@ func TestWriteChatProductFinalizationBindsFingerprintToExactResponseJSON(t *test
 		t.Fatalf("write chat product finalization: %v", err)
 	}
 	request := <-captured
-	if request.method != http.MethodPut || request.path != "/api/internal/execution/requests/"+runID+"/product-finalization" {
+	if request.method != http.MethodPut || request.path != "/api/internal/agent/runs/"+runID+"/product-finalization" {
 		t.Fatalf("callback request = %s %s", request.method, request.path)
 	}
 	if request.contentType != "application/json" || request.secret != "callback-secret" {

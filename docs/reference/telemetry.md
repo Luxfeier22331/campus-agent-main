@@ -17,7 +17,10 @@ status: active
 | --- | --- | --- | --- | --- |
 | 受控 Agent trace | agent-runtime | Langfuse | 模型/工具调用关联、用量和评测 | Agent sanitizer、Langfuse 运行合同 |
 
-execution-control、ops-web、internal-portal-collection 和 Hindsight 不维护仓库自有 OTel exporter。
+当前 Activity 路径不保证完整模型/工具 trace；启用 exporter 与实际生成 span 是两个条件，
+具体限制见[Langfuse 运行合同](../contracts/langfuse-runtime.md#runtime-集成)。
+
+agent-control、ops-web、internal-portal-collection 和 Hindsight 不维护仓库自有 OTel exporter。
 它们的数据库投影、Temporal 状态、业务调用和普通进程日志不能改写成外部遥测合同。
 App API 的请求状态、阶段耗时和错误码属于 PostgreSQL 产品投影；浏览器、Worker 和 App API 不向
 外部错误平台发送专用事件。Worker source map 是 Cloudflare 发布链路的调试输入，不是应用错误事件信号。

@@ -24,7 +24,7 @@ func TestExecutionInputLoaderLoadsAndValidatesFrozenBytes(t *testing.T) {
 		if request.Method != http.MethodGet {
 			t.Fatalf("method = %s, want GET", request.Method)
 		}
-		if request.URL.Path != "/api/internal/execution/requests/request-input-001/input" {
+		if request.URL.Path != "/api/internal/agent/runs/request-input-001/input" {
 			t.Fatalf("path = %q", request.URL.Path)
 		}
 		if request.Header.Get("x-app-execution-auth") != "input-secret" {
@@ -230,7 +230,7 @@ func TestExecutionInputLoaderRejectsAmbiguousBaseURLSuffixes(t *testing.T) {
 	for _, suffix := range []string{"?", "#"} {
 		t.Run(suffix, func(t *testing.T) {
 			_, err := executioninput.NewInputLoader(config.Config{
-				IngressSharedSecret: "input-secret", AppAPIExecutionSharedSecret: "input-secret",
+				IngressSharedSecret: "input-secret", AppAPIInternalSharedSecret: "input-secret",
 				ProductCallbackBaseURL: "https://app-api.internal" + suffix,
 			})
 			if err == nil {
@@ -243,7 +243,7 @@ func TestExecutionInputLoaderRejectsAmbiguousBaseURLSuffixes(t *testing.T) {
 func TestReadyzDoesNotExposeExecutionInputCredential(t *testing.T) {
 	const secret = "execution-input-secret-must-not-appear"
 	server := NewServer(config.Config{
-		IngressSharedSecret: secret, AppAPIExecutionSharedSecret: secret,
+		IngressSharedSecret: secret, AppAPIInternalSharedSecret: secret,
 		DeploymentEnvironment: "local",
 	})
 	response := httptest.NewRecorder()
@@ -258,7 +258,7 @@ func TestReadyzDoesNotExposeExecutionInputCredential(t *testing.T) {
 func executionInputTestLoader(t *testing.T, baseURL string) execution.InputLoader {
 	t.Helper()
 	loader, err := executioninput.NewInputLoader(config.Config{
-		IngressSharedSecret: "input-secret", AppAPIExecutionSharedSecret: "input-secret",
+		IngressSharedSecret: "input-secret", AppAPIInternalSharedSecret: "input-secret",
 		ProductCallbackBaseURL:   baseURL,
 		ProductCallbackTimeoutMS: 2_000,
 	})

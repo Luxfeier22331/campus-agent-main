@@ -14,7 +14,7 @@ func TestReadyzReportsTemporalWorkerNotStarted(t *testing.T) {
 		cfg.TemporalAddress = "127.0.0.1:7233"
 		cfg.TemporalNamespace = "campus-agent-test"
 		cfg.TemporalTaskQueue = "campus-agent.workflow"
-		cfg.TemporalWorkerIdentity = "test:execution-control:readyz"
+		cfg.TemporalWorkerIdentity = "test:agent-control:readyz"
 	})
 	server := NewServerWithOptions(cfg, ServerOptions{
 		TemporalStarter: readyTemporalStarter{readiness: executionapplication.RuntimeReadiness{

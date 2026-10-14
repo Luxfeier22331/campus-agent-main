@@ -47,13 +47,13 @@ Notices DB。`review-samples.ndjson` 和 `validation.json` 是离线诊断产物
 
 ### 模型可见工具
 
-当前运行中通过 `tools.v7.json` 和冻结准入策略向 Primary Agent 暴露的函数工具。当前机构知识通过只读
+当前运行中通过 `tools.v8.json` 和冻结准入策略向 Solve/Executor 暴露的函数工具。当前机构知识通过只读
 `campus_search` 按需检索；离线索引存在不表示模型已经获得知识上下文。
 
 ### 工具调用上限
 
-一次 SDK run 允许的最大真实函数工具调用次数。它与检索候选数量、Temporal retry 和 SDK
-`maxTurns` 分开计算。
+一次 operation 允许的最大真实函数工具调用次数，由 Runtime 在跨模型/工具 Activity 的状态中维护。
+它与检索候选数量、Temporal retry 和模型轮次预算分开计算。
 
 ## 索引与检索制品
 
@@ -105,7 +105,7 @@ Docs section 由 reader heading 路径或标题前正文形成，并绑定文档
 ### 当前索引绑定
 
 PostgreSQL `campus_docs_serving.current_index` 的单行记录，只保存当前 collection 名；该表名沿用历史
-schema 命名。唯一写入者是 `jobs/campus-rag-index-publisher`，而不是 Docs 或 Notice builder。execution-control
+schema 命名。唯一写入者是 `jobs/campus-rag-index-publisher`，而不是 Docs 或 Notice builder。agent-control
 不在在线 run 准入时读取它；一次在线 run 的首次 `campus_search` 读取并记录 immutable collection binding，
 同一 run 后续检索必须复用该 binding。数据库不保存索引历史、查询定义或
 重复的不可变索引记录。
