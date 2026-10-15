@@ -43,3 +43,26 @@ test("first publication requires every active image", () => {
 		/Missing complete candidate image/,
 	);
 });
+
+test("candidate includes declared maintenance requirements and accepts legacy candidate snapshots", () => {
+	const candidate = completeCandidate(
+		initial,
+		undefined,
+		Object.fromEntries(ACTIVE_IMAGE_TARGETS.map((name) => [name, digest])),
+		[],
+	);
+	assert.deepEqual(candidate.maintenanceRequirements, []);
+	const withRequirement = completeCandidate(
+		{ ...initial, maintenanceRequirements: ["agent-control-schema-rename"] },
+		undefined,
+		Object.fromEntries(ACTIVE_IMAGE_TARGETS.map((name) => [name, digest])),
+		[],
+	);
+	assert.deepEqual(withRequirement.maintenanceRequirements, ["agent-control-schema-rename"]);
+	const { maintenanceRequirements: _ignored, ...legacy } = withRequirement;
+	assert.deepEqual(parseSourceCandidate(legacy).maintenanceRequirements, []);
+	assert.throws(
+		() => parseSourceCandidate({ ...withRequirement, maintenanceRequirements: ["../invalid"] }),
+		/maintenance requirements/,
+	);
+});

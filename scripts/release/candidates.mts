@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { imageScopeBetween } from "../ci/image-scope.mts";
 import type { CommandRunner } from "../ci/scope.mts";
+import { readMaintenanceRequirements } from "./maintenance-requirements.mts";
 import { resolveReleaseScope } from "./source-scope.mts";
 import { readTopologyRetirements, type TopologyMigrationPlan } from "./topology-retirements.mts";
 import { type WorkerCandidate, workerCandidatesForPackage } from "./workers.mts";
@@ -36,6 +37,7 @@ export interface CandidatePlan {
 	sourceBases: string[];
 	workers: WorkerCandidate[];
 	topologyMigrations: TopologyMigrationPlan[];
+	maintenanceRequirements?: string[];
 }
 
 export interface CandidatePlanOptions {
@@ -140,6 +142,7 @@ export async function planCandidates(
 	const images = imageScopeBetween(base, options.head, options.repositoryRoot, runner).images;
 	const sourceBases = affectedSourceBases(files);
 	const topologyMigrations = await readTopologyRetirements(options.repositoryRoot, base, runner);
+	const maintenanceRequirements = await readMaintenanceRequirements(options.repositoryRoot);
 	if (options.refreshAppApi) {
 		workers.add("app-api-staging");
 	}
@@ -153,6 +156,7 @@ export async function planCandidates(
 		sourceBases,
 		workers: [...workers].sort(),
 		topologyMigrations,
+		...(maintenanceRequirements.length > 0 ? { maintenanceRequirements } : {}),
 	};
 }
 

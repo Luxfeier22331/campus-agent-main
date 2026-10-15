@@ -186,6 +186,20 @@ test("selects newly declared topology retirements without replaying old entries"
 	]);
 });
 
+test("publishes declared active maintenance requirements in the Source candidate plan", async (t) => {
+	const root = await fixture(t);
+	await mkdir(path.join(root, "infra/k8s/topology"), { recursive: true });
+	await writeFile(
+		path.join(root, "infra/k8s/topology/maintenance-requirements.json"),
+		JSON.stringify({
+			schemaVersion: 1,
+			requiredMigrations: ["agent-control-schema-rename"],
+		}),
+	);
+	const plan = await planCandidates(options(root), syntheticScopeRunner("", []));
+	assert.deepEqual(plan.maintenanceRequirements, ["agent-control-schema-rename"]);
+});
+
 test("publishes the first product availability candidate before GitOps selects it", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {

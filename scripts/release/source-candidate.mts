@@ -19,6 +19,7 @@ export interface SourceCandidate {
 	baseRevisions: Record<string, string>;
 	workers: Record<WorkerCandidate, { sourceSha: string }>;
 	topologyMigrations: TopologyMigrationPlan[];
+	maintenanceRequirements: string[];
 }
 const SHA = /^[a-f0-9]{40}$/;
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
@@ -60,7 +61,17 @@ export function parseSourceCandidate(value: unknown): SourceCandidate {
 	if (failures.length > 0) {
 		throw new Error(failures.join("\n"));
 	}
-	return candidate;
+	const requirements = candidate.maintenanceRequirements ?? [];
+	if (
+		!(
+			Array.isArray(requirements) &&
+			requirements.every((id) => typeof id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id))
+		) ||
+		new Set(requirements).size !== requirements.length
+	) {
+		throw new Error("Invalid candidate maintenance requirements");
+	}
+	return { ...candidate, maintenanceRequirements: [...requirements].sort() };
 }
 
 export function completeCandidate(
@@ -105,6 +116,7 @@ export function completeCandidate(
 			]),
 		),
 		topologyMigrations: migrations,
+		maintenanceRequirements: [...(plan.maintenanceRequirements ?? [])].sort(),
 	});
 }
 

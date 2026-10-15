@@ -16,6 +16,10 @@ Source 发布不可变 OCI candidate；GitOps 将 candidate 组装到 `candidate
 单一 action，等待 Argo CD Application 健康，再调用 Worker traffic Terraform，最后写 GitHub Deployment
 和 Source status。
 
+Source candidate 持续声明未完成的环境维护迁移；GitOps 只在对应迁移成功完成后记录完成状态。Kargo 根据
+候选声明和 GitOps 未完成计划选择普通发布或维护阶段，不通过 Promotion 请求变量选择维护模式。后续自动
+Promotion 先恢复同一迁移及其固定候选，再处理当前 Freight。staging 自动晋级不因迁移而暂停。
+
 GitHub Actions 只执行被 Kargo 指定的 action：它不选择 Freight、不决定发布范围、不轮询 Argo，也不创建第二个
 发布状态机。Argo CD 继续拥有 Kubernetes 期望状态，Terraform 继续拥有 Cloudflare 资源与 traffic，Kargo
 只协调它们的顺序和结果。Kargo controller 通过 GitHub repository credential 访问 GitHub API；凭据使用严格
@@ -26,8 +30,8 @@ API/UI、Dex 和 external webhook server 关闭。动态 schema 生成器从实�
 校验使用另一份固定 CRD。
 
 正式版本选择写入完整 `formalRelease` candidate，不借用最新 Source 快照；manual Warehouse 只负责把该
-完整版本交给关闭自动晋级的 manual Stage。staging Stage 只订阅常规候选；正式选择前通过
-ProjectConfig PR 暂停 staging，等待在途发布完成，手动发布成功后再恢复。
+完整版本交给关闭自动晋级的 manual Stage。staging Stage 只订阅常规候选。正式选择仍通过 ProjectConfig PR
+暂停 staging，等待在途发布完成，手动发布成功后再恢复；该正式发布协调流程不适用于自动执行的维护迁移。
 
 发布范围从最后成功 Deployment 到选版后的树累计计算；没有成功记录时选择全部发布目标，空差异
 复用成功版本。Source 自动和手动发布都只接受 main，避免功能分支改变共享的发布基线。
