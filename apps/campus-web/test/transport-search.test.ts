@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { assert, expect, it } from "vitest";
 import {
 	parseTransportSearch,
 	transportReturnTarget,
@@ -12,7 +12,8 @@ it("restores only local transport selections, not arbitrary redirect targets", (
 		rider: "student",
 	};
 	expect(parseTransportSearch(search)).toEqual(search);
-	const target = transportReturnTarget(`/transport?${new URLSearchParams(search)}`)!;
+	const target = transportReturnTarget(`/transport?${new URLSearchParams(search)}`);
+	assert(target);
 	expect(Object.fromEntries(new URL(target, "https://campus.test").searchParams)).toEqual(search);
 	for (const target of [
 		"https://evil.test/transport",

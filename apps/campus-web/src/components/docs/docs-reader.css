@@ -205,10 +205,6 @@
 	transition: transform 150ms ease;
 }
 
-.docs-tree-collection[aria-expanded="false"] svg {
-	transform: rotate(-90deg);
-}
-
 .docs-tree-collection[data-active="true"] {
 	font-weight: 600;
 	color: var(--docs-accent);
@@ -222,23 +218,9 @@
 	list-style: none;
 }
 
-.docs-tree-group li a {
-	margin-left: -1px;
-	padding-left: 0.875rem;
-	border-left: 2px solid transparent;
-	border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
 .docs-tree-group ul {
 	margin-left: 0.625rem;
 	border-left: 1px solid var(--docs-border);
-}
-
-.docs-tree-group li a[aria-current="page"] {
-	border-left-color: var(--docs-accent);
-	background: var(--docs-accent-soft);
-	color: var(--docs-accent);
-	font-weight: 600;
 }
 
 .docs-outline > p {
@@ -323,12 +305,12 @@
 	margin: 0 auto;
 }
 
-.docs-document-view .docs-native-article {
-	width: 100%;
-}
-
 .docs-native-article {
 	color: var(--sys-text-strong);
+}
+
+.docs-document-view .docs-native-article {
+	width: 100%;
 }
 
 .docs-document-header > h1,
@@ -609,7 +591,6 @@
 	font-weight: 600;
 }
 
-.docs-course-map-figure figcaption svg,
 .docs-course-map-open svg {
 	width: 0.9rem;
 	height: 0.9rem;
@@ -924,10 +905,6 @@
 	transition: transform 150ms ease;
 }
 
-.docs-search-expand[aria-expanded="true"] svg {
-	transform: rotate(180deg);
-}
-
 .docs-search-more {
 	width: calc(100% - 1rem);
 	margin: 0.85rem 0.5rem 0.25rem;
@@ -1043,6 +1020,33 @@
 	color: var(--sys-text-muted);
 	font-size: 0.875rem;
 	line-height: 1.5;
+}
+
+.docs-course-map-figure figcaption svg {
+	width: 0.9rem;
+	height: 0.9rem;
+}
+
+.docs-tree-collection[aria-expanded="false"] svg {
+	transform: rotate(-90deg);
+}
+
+.docs-tree-group li a {
+	margin-left: -1px;
+	padding-left: 0.875rem;
+	border-left: 2px solid transparent;
+	border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.docs-tree-group li a[aria-current="page"] {
+	border-left-color: var(--docs-accent);
+	background: var(--docs-accent-soft);
+	color: var(--docs-accent);
+	font-weight: 600;
+}
+
+.docs-search-expand[aria-expanded="true"] svg {
+	transform: rotate(180deg);
 }
 
 @media (max-width: 1279px) {

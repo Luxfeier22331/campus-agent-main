@@ -4,7 +4,7 @@ import { Context } from "@temporalio/activity";
 import { ApplicationFailure } from "@temporalio/common";
 import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { bundleWorkflowCode, NativeConnection, Worker } from "@temporalio/worker";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, expect, it } from "vitest";
 import type {
 	AgentActivities,
 	AgentWorkflowInput,
@@ -91,7 +91,11 @@ describe("Agent Temporal orchestration", () => {
 				throw ApplicationFailure.nonRetryable("budget exhausted", "tool_call_budget_exhausted");
 			},
 			completeTurn: async (i) => ({ ref: i.turnRef }),
-			completeStage: async (i) => scenario(stages.find((s) => s.key === i.stageRef)!),
+			completeStage: async (i) => {
+				const stage = stages.find((s) => s.key === i.stageRef);
+				assert(stage);
+				return scenario(stage);
+			},
 			finalizeAnswer: async (i) => {
 				finalized.push(i.ref);
 				if (mode === "permanent-finalization") {
@@ -104,7 +108,7 @@ describe("Agent Temporal orchestration", () => {
 				cancellations.push(i.canceled);
 			},
 		};
-		const workers = await Promise.all([
+		const [workflowWorker, modelWorker, toolWorker] = await Promise.all([
 			Worker.create({ connection, taskQueue: AGENT_WORKFLOW_QUEUE, workflowBundle: bundle }),
 			Worker.create({ connection, taskQueue: AGENT_MODEL_QUEUE, activities }),
 			Worker.create({ connection, taskQueue: AGENT_TOOL_QUEUE, activities }),
@@ -139,9 +143,9 @@ describe("Agent Temporal orchestration", () => {
 				},
 			},
 		};
-		await workers[0]!.runUntil(() =>
-			workers[1]!.runUntil(() =>
-				workers[2]!.runUntil(async () => {
+		await workflowWorker.runUntil(() =>
+			modelWorker.runUntil(() =>
+				toolWorker.runUntil(async () => {
 					const result = env.client.workflow.execute("AgentWorkflow", {
 						taskQueue: AGENT_WORKFLOW_QUEUE,
 						workflowId: input.workflow_id,

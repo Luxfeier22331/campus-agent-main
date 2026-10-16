@@ -1,7 +1,7 @@
 import type { TransportPublicScheduleResponse } from "@campus-agent/transport/domain";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 
 import {
 	filterDepartures,
@@ -83,7 +83,8 @@ const props = {
 describe("transport page", () => {
 	it("shows one route-level passenger note and a published notice link with selection return target", () => {
 		const schedule = structuredClone(data);
-		const route = schedule.routes[0]!;
+		const route = schedule.routes[0];
+		assert(route);
 		route.note = "五一期间按本表运行";
 		route.noticeContext = {
 			validFrom: "2026-04-28",
@@ -103,18 +104,18 @@ describe("transport page", () => {
 		expect(screen.getAllByText("五一期间按本表运行")).toHaveLength(1);
 		expect(screen.getByRole("link", { name: /五一班车安排/ })).toHaveTextContent("2026-04-25");
 		expect(screen.getByLabelText("班次安排")).toHaveTextContent("2026-04-28 — 2026-05-05");
-		const url = new URL(
-			screen.getByRole("link", { name: /五一班车安排/ }).getAttribute("href")!,
-			"https://campus.test",
-		);
+		const href = screen.getByRole("link", { name: /五一班车安排/ }).getAttribute("href");
+		assert(href);
+		const url = new URL(href, "https://campus.test");
 		expect(url.pathname).toBe("/notices/355867");
-		expect(new URL(url.searchParams.get("returnTo")!, url.origin).searchParams.get("rider")).toBe(
-			"student",
-		);
+		const returnTo = url.searchParams.get("returnTo");
+		assert(returnTo);
+		expect(new URL(returnTo, url.origin).searchParams.get("rider")).toBe("student");
 	});
 	it("keeps notices for suspended or filtered-empty routes; multiple links are collapsed", () => {
 		const schedule = structuredClone(data);
-		const route = schedule.routes[0]!;
+		const route = schedule.routes[0];
+		assert(route);
 		route.noticeContext = {
 			validFrom: "2026-07-13",
 			validTo: "2026-09-04",

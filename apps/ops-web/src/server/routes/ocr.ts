@@ -50,12 +50,13 @@ export function registerOcrRoutes(input: {
 			return;
 		});
 	}
-	const store = () => {
+	const database = () => {
 		if (!pool) {
 			throw new Error("OCR database unavailable");
 		}
-		return createOcrTaskStore(pool);
+		return pool;
 	};
+	const store = () => createOcrTaskStore(database());
 	const config = () => resolveOcrConfig(env.MODEL_CONFIG_URL || "http://model-config:8000");
 	async function launch() {
 		try {
@@ -115,7 +116,7 @@ export function registerOcrRoutes(input: {
 					if (!source) {
 						const raw = JSON.parse(
 							new TextDecoder().decode(
-								await objects.getSource(await resolveNoticeSourceKey(pool!, input.noticeId)),
+								await objects.getSource(await resolveNoticeSourceKey(database(), input.noticeId)),
 							),
 						);
 						source = listNoticeSourceResources(
@@ -221,7 +222,7 @@ export function registerOcrRoutes(input: {
 		try {
 			const source = JSON.parse(
 				new TextDecoder().decode(
-					await objects.getSource(await resolveNoticeSourceKey(pool!, body.data.noticeId)),
+					await objects.getSource(await resolveNoticeSourceKey(database(), body.data.noticeId)),
 				),
 			);
 			const inputs = listNoticeSourceResources(

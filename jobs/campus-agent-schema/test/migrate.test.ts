@@ -34,6 +34,14 @@ test("the agent-control migration renames the live schema without rewriting hist
 	assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM|CREATE TABLE/u);
 });
 
+test("the agent-control connection migration grants database CONNECT explicitly", async () => {
+	const migration = await readFile(
+		resolve(jobRoot, "migrations/20261016110000_agent_control_connect/migration.sql"),
+		"utf8",
+	);
+	assert.match(migration, /GRANT CONNECT ON DATABASE %I TO agent_control/u);
+});
+
 test("the personal-memory cleanup migration only drops the compatibility views", async () => {
 	const migration = await readFile(
 		resolve(

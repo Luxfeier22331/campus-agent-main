@@ -13,14 +13,18 @@ describe("Runtime domain tool Activities", () => {
 		memoryUrl: "http://memory",
 		memorySecret: "memory-token",
 	};
+	const tool = loadToolCatalog(
+		fileURLToPath(new URL("../../../configs/runtime/tools.v8.json", import.meta.url)),
+	).tools.find((tool) => tool.name === "campus_search");
+	if (!tool) {
+		throw new Error("Test catalog must contain campus_search");
+	}
 	const request: ToolExecutionRequest = {
 		requestId: "run",
 		invocationId: "solve:tool:0",
 		argumentsJson: { search_query: "去年通知", search_goal: "日期" },
 		userGoal: "通知",
-		tool: loadToolCatalog(
-			fileURLToPath(new URL("../../../configs/runtime/tools.v8.json", import.meta.url)),
-		).tools.find((tool) => tool.name === "campus_search")!,
+		tool,
 		citationStart: 3,
 	};
 	it("searches directly and projects live retrieval status through control", async () => {

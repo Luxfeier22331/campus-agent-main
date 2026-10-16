@@ -154,10 +154,13 @@ async function stage(input: StageInput): Promise<StageDecision> {
 			})
 		).ref;
 	}
+	if (stateRef === undefined) {
+		throw ApplicationFailure.nonRetryable("No model turn was admitted", "max_turns_exceeded");
+	}
 	return control.completeStage({
 		requestId: input.workflow.request_id,
 		stageRef,
-		turnRef: stateRef!,
+		turnRef: stateRef,
 		failureCode: "max_turns_exceeded",
 	});
 }
@@ -223,10 +226,10 @@ export async function AgentWorkflow(workflow: AgentWorkflowInput): Promise<void>
 			deadline(workflow);
 			const done = new Set(completed.map((s) => s.step.id));
 			const index = remaining.findIndex((s) => s.dependsOn.every((id) => done.has(id)));
-			if (index < 0) {
+			const step = remaining[index];
+			if (!step) {
 				throw ApplicationFailure.nonRetryable("No ready plan step", "workflow_dependency_cycle");
 			}
-			const step = remaining[index]!;
 			const result = await runStage({
 				workflow,
 				key: `task.step.${step.id}`,

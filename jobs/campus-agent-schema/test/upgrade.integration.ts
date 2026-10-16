@@ -7,12 +7,13 @@ import test from "node:test";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import { readHistory } from "../src/history.ts";
-import { databaseDrainCounts } from "../src/maintenance.ts";
+import { databaseDrainCounts, verifyAgentControlRuntime } from "../src/maintenance.ts";
 import {
 	inspectCampusAgentSchema,
 	MEMORY_MIGRATIONS_FOLDER,
 	MIGRATIONS_FOLDER,
 	migrateCampusAgentSchema,
+	readDatabaseConfig,
 } from "../src/migrate.ts";
 
 const image =
@@ -20,6 +21,7 @@ const image =
 const authMigrationName = "20260914073252_better_auth_provider_account_key";
 const memoryRetirementMigrationName = "20261012090000_retire_legacy_memory_state";
 const agentControlRenameMigrationName = "20261014090000_rename_execution_control_to_agent_control";
+const agentControlConnectMigrationName = "20261016110000_agent_control_connect";
 
 test("unified schema: real PostgreSQL installation and failure recovery", {
 	timeout: 240_000,
@@ -44,9 +46,10 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 	clients.push(admin);
 	const password = randomUUID();
 	await admin.query(`create role campus_agent login password '${password}'`);
+	const agentControlPassword = randomUUID();
+	await admin.query(`create role agent_control login password '${agentControlPassword}'`);
 	for (const role of [
 		"app_api",
-		"agent_control",
 		// The old role remains during the migration and is retired only after
 		// every consumer has switched to agent_control.
 		"execution_control",
@@ -182,6 +185,21 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		assert.equal((await inspectCampusAgentSchema(config)).status, "current");
 		assert.equal((await migrateCampusAgentSchema(config)).result, "current");
 	});
+	await t.test("agent-control runtime access survives a restricted database ACL", async () => {
+		const { config, client } = await database();
+		await admin.query(`revoke connect on database ${config.PGDATABASE} from public`);
+		await migrateCampusAgentSchema(config);
+		const runtime = new Client({
+			...readDatabaseConfig({
+				...config,
+				PGUSER: "agent_control",
+				PGPASSWORD: agentControlPassword,
+			}),
+		});
+		await runtime.connect();
+		clients.push(runtime);
+		await verifyAgentControlRuntime(client, runtime);
+	});
 	await t.test(
 		"named ledger applies only the auth migration and retains credentials and sessions",
 		async () => {
@@ -221,6 +239,7 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			// migrations. The default folder then applies them in order.
 			await rm(join(folder, memoryRetirementMigrationName), { recursive: true });
 			await rm(join(folder, agentControlRenameMigrationName), { recursive: true });
+			await rm(join(folder, agentControlConnectMigrationName), { recursive: true });
 			await migrateCampusAgentSchema(config, folder);
 			// Both real schemas are present so drain queries cannot silently drift from DDL.
 			for (const migration of readHistory(MEMORY_MIGRATIONS_FOLDER)) {
@@ -262,6 +281,7 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			assert.deepEqual((await inspectCampusAgentSchema(config)).pendingMigrations, [
 				memoryRetirementMigrationName,
 				agentControlRenameMigrationName,
+				agentControlConnectMigrationName,
 			]);
 			await migrateCampusAgentSchema(config);
 			await ready(client);

@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { Context } from "@temporalio/activity";
 import { ApplicationFailure } from "@temporalio/common";
@@ -217,17 +218,20 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 				const completed = await Promise.all(
 					input.completedRefs.map((r) => control.load<SavedStage>(requestId, r)),
 				);
-				const completedSteps: CompletedTaskStep[] = completed.map((s, index) => ({
-					step: s.input.step!,
-					executionIndex: index + 1,
-					summary: s.result.finalOutput || s.result.failure?.code || "Step failed",
-					remainingFacts:
-						s.result.remainingFacts ??
-						(s.result.status === "failed" ? [s.input.step!.objective] : []),
-					evidence: s.result.evidence,
-					sourceAttempts: s.result.sourceAttempts,
-					...(s.result.failure ? { failure: s.result.failure } : {}),
-				}));
+				const completedSteps: CompletedTaskStep[] = completed.map((s, index) => {
+					const step = s.input.step;
+					assert(step, "Completed task stage must contain its step");
+					return {
+						step,
+						executionIndex: index + 1,
+						summary: s.result.finalOutput || s.result.failure?.code || "Step failed",
+						remainingFacts:
+							s.result.remainingFacts ?? (s.result.status === "failed" ? [step.objective] : []),
+						evidence: s.result.evidence,
+						sourceAttempts: s.result.sourceAttempts,
+						...(s.result.failure ? { failure: s.result.failure } : {}),
+					};
+				});
 				const priorEvidence = [...(solved?.result.evidence ?? [])];
 				const priorAttempts = [...(solved?.result.sourceAttempts ?? [])];
 				const allEvidence = [...priorEvidence, ...completedSteps.flatMap((s) => s.evidence)].filter(
@@ -250,16 +254,18 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 					payload = { max_steps: input.workflow.admission_snapshot.agent_budget.max_plan_steps };
 				}
 				if (input.operation === "execute_step") {
+					assert(input.plan && input.step, "Task execution requires a plan and step");
 					payload = {
-						plan: structuredOutputWire(input.plan!),
-						step: taskPlanStepWire(input.step!),
+						plan: structuredOutputWire(input.plan),
+						step: taskPlanStepWire(input.step),
 						completed_steps: completedWire,
 						citation_start: input.citationStart,
 					};
 				}
 				if (input.operation === "replan") {
+					assert(input.plan, "Replanning requires a plan");
 					payload = {
-						plan: structuredOutputWire(input.plan!),
+						plan: structuredOutputWire(input.plan),
 						completed_steps: completedWire,
 						remaining_steps: (input.remaining ?? []).map(taskPlanStepWire),
 						max_remaining_steps: Math.max(
@@ -398,9 +404,11 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 					);
 				}
 				if (claim.disposition === "replay") {
-					record = claim.output!;
+					assert(claim.output, "Replay requires a saved turn");
+					record = claim.output;
 				} else {
-					const { prepared } = executionPrepared!;
+					assert(executionPrepared, "New invocation requires prepared execution");
+					const { prepared } = executionPrepared;
 					let raw = "";
 					let emitted = "";
 					let answerIndex = state.answerIndex;
@@ -580,7 +588,9 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 					}
 					throw error;
 				}
-				const result = { ...ctx.functionToolResults.get(id)!, activity: currentActivityMetadata() };
+				const toolResult = ctx.functionToolResults.get(id);
+				assert(toolResult, "Invoked function must record its result");
+				const result = { ...toolResult, activity: currentActivityMetadata() };
 				await control.save(input.requestId, ref, {
 					result,
 					context: {
@@ -630,11 +640,14 @@ export function createAgentActivities(options: ActivityOptions): AgentActivities
 				if (saved) {
 					return saved.decision;
 				}
-				const loaded = await control.load<TurnRecord | TurnState>(input.requestId, input.turnRef);
+				const loaded = await control.load<TurnRecord | (TurnState & { completedAt: string })>(
+					input.requestId,
+					input.turnRef,
+				);
 				const record =
 					"turn" in loaded
 						? loaded
-						: { state: loaded, completedAt: loaded.completedAt!, turnIndex: 0 };
+						: { state: loaded, completedAt: loaded.completedAt, turnIndex: 0 };
 				if (input.failureCode) {
 					record.state.result = {
 						...record.state.result,

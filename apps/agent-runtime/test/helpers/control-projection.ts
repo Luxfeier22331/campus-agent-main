@@ -16,7 +16,9 @@ import type {
 import { loadToolCatalog } from "../../src/tool-catalog.ts";
 
 disableOpenAITracing();
-const control = new AgentControlClient(process.argv[2]!, "test");
+const controlUrl = process.argv[2];
+assert(controlUrl, "Control URL is required");
+const control = new AgentControlClient(controlUrl, "test");
 const catalog = loadToolCatalog("../../configs/runtime/tools.v8.json");
 const fp = catalog.contractFingerprint;
 let text = "";

@@ -564,7 +564,7 @@ async function requestOpenAIModelTurn(
 ): Promise<import("./model-turn.ts").ModelTurn> {
 	const { openAIAgentsRunnerOptionsFromProviderConfig } = await import("./openai-provider.ts");
 	const options = openAIAgentsRunnerOptionsFromProviderConfig(input.providerConfig);
-	const model = await options.modelProvider!.getModel(options.model!);
+	const model = await options.modelProvider.getModel(options.model);
 	const items: import("@openai/agents").AgentInputItem[] =
 		continuation?.provider === "openai"
 			? continuation.items

@@ -1,8 +1,16 @@
+import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+
+interface WorkerConfig {
+	[key: string]: unknown;
+	main: string;
+	assets?: { directory: string; [key: string]: unknown };
+	env?: { staging?: Partial<WorkerConfig> };
+}
 
 export function buildWorkerArtifact(app: string, destination: string, sourceSha: string): void {
 	if (!["app-api", "campus-web", "status-web"].includes(app)) {
@@ -20,7 +28,7 @@ export function buildWorkerArtifact(app: string, destination: string, sourceSha:
 	}
 	mkdirSync(destination, { recursive: true });
 	cpSync(resolve(appRoot, "dist"), resolve(destination, "dist"), { recursive: true });
-	let config: Record<string, any>;
+	let config: WorkerConfig;
 	if (app === "campus-web") {
 		config = JSON.parse(readFileSync(resolve(appRoot, "dist/campus_web/wrangler.json"), "utf8"));
 		const configRoot = resolve(appRoot, "dist/campus_web");
@@ -32,12 +40,14 @@ export function buildWorkerArtifact(app: string, destination: string, sourceSha:
 			return path.slice(appRoot.length + 1);
 		};
 		config.main = relocate(config.main);
+		assert(config.assets, "Campus Web build requires assets");
 		config.assets.directory = relocate(config.assets.directory);
 	} else {
 		const require = createRequire(resolve(appRoot, "package.json"));
-		const original = require("smol-toml").parse(
+		const original: WorkerConfig = require("smol-toml").parse(
 			readFileSync(resolve(appRoot, "wrangler.toml"), "utf8"),
 		);
+		assert(original.env, "Worker configuration requires environments");
 		config = { ...original, ...original.env.staging, main: "dist/worker/index.js" };
 		delete config.env;
 		if (original.assets) {
@@ -63,8 +73,8 @@ export function buildWorkerArtifact(app: string, destination: string, sourceSha:
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
 	const [app, destination, sourceSha] = process.argv.slice(2);
-	if (!(app && destination && /^[a-f0-9]{40}$/.test(sourceSha ?? ""))) {
+	if (!(app && destination && sourceSha && /^[a-f0-9]{40}$/.test(sourceSha))) {
 		throw new Error("Usage: build-worker-artifact <app> <directory> <Source SHA>");
 	}
-	buildWorkerArtifact(app, resolve(destination), sourceSha!);
+	buildWorkerArtifact(app, resolve(destination), sourceSha);
 }

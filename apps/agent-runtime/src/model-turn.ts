@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import type { Content } from "@google/genai";
 import type { AgentInputItem } from "@openai/agents";
 import type {
@@ -23,15 +24,20 @@ export function continueWithTools(
 	turn: ModelTurn,
 	results: ToolExecutionResult[],
 ): ProviderContinuation {
+	const pairedResults = results.map((result, index) => {
+		const call = turn.calls[index];
+		assert(call, "Tool result requires a corresponding model call");
+		return { result, call };
+	});
 	if (turn.continuation.provider === "openai") {
 		return {
 			provider: "openai",
 			items: [
 				...turn.continuation.items,
-				...results.map((r, index) => ({
+				...pairedResults.map(({ result: r, call }) => ({
 					type: "function_call_result" as const,
 					name: r.toolName,
-					callId: turn.calls[index]!.id,
+					callId: call.id,
 					status: "completed" as const,
 					output: JSON.stringify({
 						status: r.status,
@@ -48,9 +54,9 @@ export function continueWithTools(
 			...turn.continuation.contents,
 			{
 				role: "user",
-				parts: results.map((r, index) => ({
+				parts: pairedResults.map(({ result: r, call }) => ({
 					functionResponse: {
-						id: turn.calls[index]!.id,
+						id: call.id,
 						name: r.toolName,
 						response: {
 							status: r.status,

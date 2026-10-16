@@ -113,14 +113,38 @@ export async function waitUntilEmpty(
 		await delay(pollMs);
 	}
 }
-interface Query {
+export interface Query {
 	query(sql: string): Promise<{ rows: Record<string, unknown>[] }>;
+}
+export async function verifyAgentControlSchema(product: Query): Promise<void> {
+	const result =
+		await product.query(`SELECT to_regnamespace('execution_control') IS NULL AS old_absent,
+        to_regnamespace('agent_control') IS NOT NULL AS new_present,
+        (SELECT bool_and(has_table_privilege('agent_control','agent_control.agent_runs',privilege)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) AS privilege) AS runs,
+        (SELECT bool_and(has_table_privilege('agent_control','campus_docs_serving.index_versions',privilege)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) AS privilege) AS publisher`);
+	if (
+		!(
+			Object.values(result.rows[0] ?? {}).every((value) => value === true) && result.rows.length > 0
+		)
+	) {
+		throw new Error("Migration verification failed");
+	}
+}
+export async function verifyAgentControlRuntime(product: Query, runtime: Query): Promise<void> {
+	const runtimeConnect = await product.query(
+		"SELECT has_database_privilege('agent_control', current_database(), 'CONNECT') AS allowed",
+	);
+	if (runtimeConnect.rows[0]?.allowed !== true) {
+		throw new Error("Migration verification failed: agent_control lacks database CONNECT");
+	}
+	await runtime.query("SELECT request_id FROM agent_control.agent_runs LIMIT 0");
+	await runtime.query("SELECT * FROM campus_docs_serving.index_versions LIMIT 0");
 }
 export async function databaseDrainCounts(
 	product: Query,
 	memory: Query,
 ): Promise<Record<string, number>> {
-	const tables = [
+	const tables: [name: string, table: string, predicate: string][] = [
 		[
 			"runs",
 			"execution_control.agent_runs",
@@ -135,7 +159,7 @@ export async function databaseDrainCounts(
 	];
 	const counts: Record<string, number> = {};
 	for (const [name, table, predicate] of tables) {
-		counts[name!] = Number(
+		counts[name] = Number(
 			(await product.query(`SELECT count(*)::int AS count FROM ${table} WHERE ${predicate}`))
 				.rows[0]?.count,
 		);
@@ -173,7 +197,11 @@ export function activeJobs(items: Resource[]): Resource[] {
 			),
 	);
 }
-export async function temporalWorkflowCount(temporal: TemporalClient): Promise<number> {
+export async function temporalWorkflowCount(temporal: {
+	workflow: {
+		list(options: { query: string }): AsyncIterable<{ workflowId: string }>;
+	};
+}): Promise<number> {
 	const ids = new Set<string>();
 	for (const queue of TEMPORAL_QUEUES) {
 		for await (const run of temporal.workflow.list({
@@ -277,27 +305,14 @@ export async function maintenance(command: string): Promise<void> {
 			if (status.status !== "current") {
 				throw new Error("Schema migration is not current");
 			}
-			const result =
-				await product.query(`SELECT to_regnamespace('execution_control') IS NULL AS old_absent,
-        to_regnamespace('agent_control') IS NOT NULL AS new_present,
-        (SELECT bool_and(has_table_privilege('agent_control','agent_control.agent_runs',privilege)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) AS privilege) AS runs,
-        (SELECT bool_and(has_table_privilege('agent_control','campus_docs_serving.index_versions',privilege)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) AS privilege) AS publisher`);
-			if (
-				!(
-					Object.values(result.rows[0] ?? {}).every((value) => value === true) &&
-					result.rows.length > 0
-				)
-			) {
-				throw new Error("Migration verification failed");
-			}
+			await verifyAgentControlSchema(product);
 			const runtime = new Client({
 				connectionString: required("AGENT_CONTROL_DATABASE_URL"),
 				ssl: readDatabaseConfig().ssl,
 			});
 			await runtime.connect();
 			try {
-				await runtime.query("SELECT request_id FROM agent_control.agent_runs LIMIT 0");
-				await runtime.query("SELECT * FROM campus_docs_serving.index_versions LIMIT 0");
+				await verifyAgentControlRuntime(product, runtime);
 			} finally {
 				await runtime.end();
 			}

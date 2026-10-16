@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "campus-contracts/campus-docs/node";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, assert, expect, it } from "vitest";
 import { prepareDocsContent } from "../scripts/prepare-docs-content.ts";
 import { canonicalJsonBytes } from "../src/docs-reader-build/artifact-digest.ts";
 import { recordingSnapshotReader, snapshotReader } from "../src/docs-reader-build/docs-snapshot.ts";
@@ -58,10 +58,11 @@ it("fixes each object read while recording mutable upstream objects", async () =
 			reader.readOptionalBytesObject({ key: "catalog" }),
 			reader.readOptionalBytesObject({ key: "catalog" }),
 		]);
+		assert(first);
 		expect(first).toEqual(second);
 		expect(calls).toBe(1);
 		expect(await snapshotReader(root).readOptionalBytesObject({ key: "catalog" })).toEqual(
-			Buffer.from(first!),
+			Buffer.from(first),
 		);
 	} finally {
 		await rm(root, { recursive: true, force: true });

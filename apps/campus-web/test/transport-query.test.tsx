@@ -1,7 +1,7 @@
 import type { TransportPublicScheduleResponse } from "@campus-agent/transport/domain";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 import { TransportPageContent } from "../src/app/routes/transport-page";
 import { transportQueryKeys } from "../src/features/transport/queries";
 import { createCampusQueryClient } from "../src/platform/query/client";
@@ -93,7 +93,9 @@ describe("transport query transitions", () => {
 	it("loads notice metadata, persists resolved selections, and hides old notices while switching date", async () => {
 		const pending = deferred();
 		const first = schedule("2026-09-07");
-		first.routes[0]!.noticeContext = {
+		const route = first.routes[0];
+		assert(route);
+		route.noticeContext = {
 			validFrom: "2026-09-07",
 			validTo: null,
 			weekdays: [1, 2, 3, 4, 5],

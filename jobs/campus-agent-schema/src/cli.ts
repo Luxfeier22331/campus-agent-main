@@ -15,8 +15,8 @@ if (target !== "campus-agent" && target !== "memory") {
 }
 const folder = target === "memory" ? MEMORY_MIGRATIONS_FOLDER : MIGRATIONS_FOLDER;
 const [command, ...args] = raw;
-if (command === "maintenance" && args.length === 1) {
-	await maintenance(args[0]!);
+if (command === "maintenance" && args.length === 1 && args[0] !== undefined) {
+	await maintenance(args[0]);
 } else if (command === "new" && args.length === 1 && args[0] !== undefined) {
 	try {
 		console.log(createMigration(folder, args[0]));

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { createRef, type Ref, useImperativeHandle } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { assert, beforeEach, describe, expect, it, vi } from "vitest";
 
 const turnstile = vi.hoisted(() => ({
 	execute: vi.fn(),
@@ -81,9 +81,9 @@ describe("campus captcha", () => {
 			expect(turnstile.getResponsePromise).toHaveBeenCalledWith(30_000);
 			if (execution === "execute") {
 				expect(turnstile.execute).toHaveBeenCalledOnce();
-				expect(turnstile.execute.mock.invocationCallOrder[0]).toBeLessThan(
-					turnstile.getResponsePromise.mock.invocationCallOrder[0]!,
-				);
+				const responseOrder = turnstile.getResponsePromise.mock.invocationCallOrder[0];
+				assert(responseOrder !== undefined);
+				expect(turnstile.execute.mock.invocationCallOrder[0]).toBeLessThan(responseOrder);
 			} else {
 				expect(turnstile.execute).not.toHaveBeenCalled();
 			}

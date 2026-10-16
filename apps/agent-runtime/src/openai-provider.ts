@@ -48,7 +48,7 @@ export function createRequestScopedStreamingOpenAIAgentsRunner(
 export function openAIAgentsRunnerOptionsFromProviderConfig(
 	config: PromptProviderRuntimeConfig,
 	dependencies: Pick<ProviderConfigDependencies, "createProvider"> = {},
-): OpenAIAgentsRunnerOptions {
+): { model: string; modelProvider: ModelProvider } {
 	const createProvider =
 		dependencies.createProvider ??
 		((providerConfig: OpenAIProviderConfig): ModelProvider =>

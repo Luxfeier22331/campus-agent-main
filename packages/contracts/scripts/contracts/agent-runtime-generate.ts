@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -20,7 +21,7 @@ interface Schema {
 }
 function tsType(s: Schema): string {
 	if (s.$ref) {
-		return s.$ref.split("/").at(-1)!;
+		return s.$ref.slice(s.$ref.lastIndexOf("/") + 1);
 	}
 	if (s.const !== undefined) {
 		return JSON.stringify(s.const);
@@ -28,11 +29,13 @@ function tsType(s: Schema): string {
 	if (s.enum) {
 		return s.enum.map((v) => JSON.stringify(v)).join(" | ");
 	}
-	if (s.oneOf || s.anyOf) {
-		return (s.oneOf ?? s.anyOf)!.map(tsType).join(" | ");
+	const variants = s.oneOf ?? s.anyOf;
+	if (variants) {
+		return variants.map(tsType).join(" | ");
 	}
 	if (s.type === "array") {
-		const item = tsType(s.items!);
+		assert(s.items, "Array schema requires items");
+		const item = tsType(s.items);
 		return `${item.includes(" | ") ? `(${item})` : item}[]`;
 	}
 	if (s.type === "object") {
@@ -81,7 +84,8 @@ export function generateAgentRuntimeContract({ check = false }: { check?: boolea
 		if (!pkg) {
 			continue;
 		}
-		const fields = Object.entries(s.properties!).map(([key, f]) => {
+		assert(s.properties, "Go struct schema requires properties");
+		const fields = Object.entries(s.properties).map(([key, f]) => {
 			// omitempty reflects wire optionality. Required nullable values retain their Go pointer.
 			const optional = !s.required?.includes(key);
 			return `${f["x-go-name"]} ${f["x-go-type"]} \`json:"${key}${optional ? ",omitempty" : ""}"\``;
