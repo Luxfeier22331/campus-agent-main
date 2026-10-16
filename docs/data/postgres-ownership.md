@@ -35,6 +35,12 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 表中角色是权限主体，不等于都已具备环境登录凭据。`ops_web` 是 Ops Web 的唯一运行角色，Dining
 不创建第二个角色或连接。
 
+`campus_agent` 的数据库级 `CONNECT` 由 schema migration 统一拥有：`campus-agent-schema` 在
+统一迁移里为消费者角色显式 `GRANT CONNECT`，不依赖 `PUBLIC` 默认授权。角色身份与 `CONNECT`
+授权是两个来源——前者由 CNPG `DatabaseRole` 声明，后者由迁移声明。新增或调整连接
+`campus_agent` 的运行角色时，必须在同一迁移批次补齐显式授权；`campus-agent-schema` 的静态
+一致性测试比对这些来源，缺一即失败。
+
 数据库角色生命周期由 CNPG 声明负责：当前角色由 `DatabaseRole` 资源声明，退役角色由
 `infra/k8s/data-postgres/base/cluster.yaml` 中的 `spec.managed.roles` 以 `ensure: absent` 声明。
 以下角色不是当前权限主体，只保留为退役清单，防止历史资源或人工操作重新创建它们：

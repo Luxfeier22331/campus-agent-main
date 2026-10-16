@@ -20,8 +20,10 @@ Status: implemented
   `TEMP`，连接能力只来自对真实消费者的显式 `GRANT CONNECT`。
 - 消费者清单的当前事实由 [PostgreSQL 所有权](../../../../docs/data/postgres-ownership.md)拥有；本笔记
   只持有理由和约束，不复制清单。
-- 新增连接 `campus_agent` 的运行角色时，环境实施必须同步补 `CONNECT` 授权，否则该角色
-  无法建立任何连接。
+- 显式 `CONNECT` 由 `campus-agent-schema` 迁移统一声明，不再作为环境实施的手工步骤。角色身份
+  由 CNPG `DatabaseRole` 声明，`CONNECT` 由迁移声明，两者在同一批次进入版本控制。
+- 新增连接 `campus_agent` 的运行角色时，必须在提交该角色的同一批迁移里补 `CONNECT`，否则
+  该角色无法建立任何连接；静态一致性测试比对 `DatabaseRole` 与迁移授权集合，缺一即失败。
 - 协作者只读角色（如 `hindsight_ro`）不通过收紧 `PUBLIC` 实现跨库隔离；跨库边界由
   schema 与表级不授权承载，`CONNECT` 本身不授予任何读能力。
 - 修改任何库级权限前必须先核对真实消费者：`pg_stat_activity` 的现存连接加所有权文档
@@ -44,16 +46,19 @@ Status: implemented
 
 ## 后果
 
-连接能力改为显式 `GRANT CONNECT` 后，新增运行角色若未同步授权将无法建立任何连接，环境实施
-需要把授权纳入变更清单。修改库级权限前的消费者核对成为强制步骤，验收标准从配置推断改为真实
-连接验证。具体操作见[协作者只读访问 runbook](../../../../docs/runbooks/access/collaborator-access.md)，
+连接能力改为显式 `GRANT CONNECT` 后，新增运行角色若未同步授权将无法建立任何连接，因此授权
+随迁移进版本控制，本地开发和部署从零安装走同一来源。修改库级权限前的消费者核对仍是强制步骤，
+验收标准从配置推断改为真实连接验证：集成测试在撤销 `PUBLIC` 的库上，用每个消费者的真实身份
+新建连接。具体操作见[协作者只读访问 runbook](../../../../docs/runbooks/access/collaborator-access.md)，
 本笔记保留授权模型与变更约束。
 
 ## 重新评估与删除条件
 
 出现以下情况时重新评估本模型：`campus_agent` 按角色拆分为独立数据库，PostgreSQL 提供
-可用的 per-role 数据库级 DENY，或所有权文档将数据库级授权并入统一 schema 安装 Job 声明。
-届时显式 `CONNECT` 清单可随迁移脚本收敛，`PUBLIC` 收紧本身不需回退。
+可用的 per-role 数据库级 DENY，或消费者清单不再由所有权文档单独拥有。
+
+原重新评估条件中的"所有权文档将数据库级授权并入统一 schema 安装 Job 声明"已实现：显式
+`CONNECT` 现由 `campus-agent-schema` 统一迁移维护，`PUBLIC` 收紧本身不需回退。
 
 ## 相关文档
 

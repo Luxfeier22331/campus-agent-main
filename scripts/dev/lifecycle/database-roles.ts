@@ -83,12 +83,9 @@ export function ensureLocalDatabase(profile: LocalDevProfile, postgresPassword: 
 		postgresPassword,
 		[
 			`REVOKE ALL ON DATABASE ${quoteIdentifier(profile.databaseName)} FROM PUBLIC`,
-			...LOCAL_DATABASE_ROLES.filter(
-				([name]) => name !== "campus_agent" && name !== "memory_service",
-			).map(
-				([name]) =>
-					`GRANT CONNECT ON DATABASE ${quoteIdentifier(profile.databaseName)} TO ${quoteIdentifier(name)}`,
-			),
+			// Product consumers get CONNECT from the schema migrations; only the
+			// local-only notice_publisher role has no deployment counterpart.
+			`GRANT CONNECT ON DATABASE ${quoteIdentifier(profile.databaseName)} TO notice_publisher`,
 		].join(";\n"),
 	);
 }

@@ -388,6 +388,21 @@
 			"outputLogs": "new-only",
 			"env": ["CAMPUS_NODE_RUNTIME"]
 		},
+		"campus-agent-schema#test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"$TURBO_ROOT$/infra/k8s/**",
+				"$TURBO_ROOT$/docs/data/postgres-ownership.md",
+				"$TURBO_ROOT$/scripts/dev/lifecycle/database-roles.ts",
+				"migrations/**",
+				"package.json",
+				"src/**/*.ts",
+				"test/**/*.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
 		"test": {
 			"dependsOn": [
 				"test:unit",

@@ -22,6 +22,16 @@ const authMigrationName = "20260914073252_better_auth_provider_account_key";
 const memoryRetirementMigrationName = "20261012090000_retire_legacy_memory_state";
 const agentControlRenameMigrationName = "20261014090000_rename_execution_control_to_agent_control";
 const agentControlConnectMigrationName = "20261016110000_agent_control_connect";
+const consumerConnectMigrationName = "20261017090000_campus_agent_consumer_connect";
+// Login roles that consume the shared campus_agent database. product_data_ro is
+// provisioned NOLOGIN here because its own migration owns that grant.
+const consumerRoles = [
+	"app_api",
+	"agent_control",
+	"campus_search",
+	"model_config",
+	"ops_web",
+] as const;
 
 test("unified schema: real PostgreSQL installation and failure recovery", {
 	timeout: 240_000,
@@ -46,16 +56,16 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 	clients.push(admin);
 	const password = randomUUID();
 	await admin.query(`create role campus_agent login password '${password}'`);
-	const agentControlPassword = randomUUID();
-	await admin.query(`create role agent_control login password '${agentControlPassword}'`);
+	const consumerPasswords = Object.fromEntries(
+		consumerRoles.map((role) => [role, randomUUID()]),
+	) as Record<(typeof consumerRoles)[number], string>;
+	for (const role of consumerRoles) {
+		await admin.query(`create role ${role} login password '${consumerPasswords[role]}'`);
+	}
 	for (const role of [
-		"app_api",
 		// The old role remains during the migration and is retired only after
 		// every consumer has switched to agent_control.
 		"execution_control",
-		"campus_search",
-		"ops_web",
-		"model_config",
 		"product_data_ro",
 	]) {
 		await admin.query(`create role ${role}`);
@@ -73,6 +83,9 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 	async function database() {
 		const name = `migration_${randomUUID().replaceAll("-", "")}`;
 		await admin.query(`create database ${name} owner campus_agent`);
+		// Production revokes the PUBLIC default; migrations must be the only
+		// source of CONNECT for every consumer login role.
+		await admin.query(`revoke connect on database ${name} from public`);
 		const config = { ...env, PGDATABASE: name };
 		const client = new Client({
 			host: env.PGHOST,
@@ -85,7 +98,24 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		clients.push(client);
 		return { config, client };
 	}
+	async function assertConsumerConnections(databaseName: string) {
+		for (const role of consumerRoles) {
+			const consumer = new Client({
+				host: env.PGHOST,
+				port: Number(env.PGPORT),
+				user: role,
+				password: consumerPasswords[role],
+				database: databaseName,
+			});
+			await consumer.connect();
+			clients.push(consumer);
+			assert.equal((await consumer.query("select current_user as role")).rows[0]?.role, role);
+		}
+	}
 	async function ready(client: Client) {
+		await assertConsumerConnections(
+			(await client.query("select current_database() as name")).rows[0]?.name as string,
+		);
 		const roles = await client.query(
 			"select rolname from pg_roles where rolname in ('agent_control', 'execution_control') order by rolname",
 		);
@@ -187,18 +217,50 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 	});
 	await t.test("agent-control runtime access survives a restricted database ACL", async () => {
 		const { config, client } = await database();
-		await admin.query(`revoke connect on database ${config.PGDATABASE} from public`);
 		await migrateCampusAgentSchema(config);
 		const runtime = new Client({
 			...readDatabaseConfig({
 				...config,
 				PGUSER: "agent_control",
-				PGPASSWORD: agentControlPassword,
+				PGPASSWORD: consumerPasswords.agent_control,
 			}),
 		});
 		await runtime.connect();
 		clients.push(runtime);
 		await verifyAgentControlRuntime(client, runtime);
+	});
+	await t.test("database CONNECT comes from the migrations, not the PUBLIC default", async () => {
+		const { config } = await database();
+		const folder = await mkdtemp(join(tmpdir(), "campus-schema-before-connect-"));
+		t.after(() => rm(folder, { recursive: true, force: true }));
+		await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+		await rm(join(folder, agentControlConnectMigrationName), { recursive: true });
+		await rm(join(folder, consumerConnectMigrationName), { recursive: true });
+		await migrateCampusAgentSchema(config, folder);
+		// campus_search has its own earlier migration, which stays in the folder;
+		// the owner keeps implicit CONNECT.
+		const withoutExplicitGrant: readonly (typeof consumerRoles)[number][] = consumerRoles.filter(
+			(name) => name !== "campus_search",
+		);
+		for (const role of withoutExplicitGrant) {
+			const consumer = new Client({
+				host: env.PGHOST,
+				port: Number(env.PGPORT),
+				user: role,
+				password: consumerPasswords[role],
+				database: config.PGDATABASE,
+			});
+			await assert.rejects(
+				consumer.connect(),
+				(error: Error & { code?: string }) =>
+					// PostgreSQL reports CONNECT denial as 42501 "permission denied
+					// for database" with the privilege named in the detail field.
+					error.code === "42501" && /permission denied for database/u.test(error.message),
+			);
+			await consumer.end();
+		}
+		await migrateCampusAgentSchema(config);
+		await assertConsumerConnections(config.PGDATABASE);
 	});
 	await t.test(
 		"named ledger applies only the auth migration and retains credentials and sessions",
