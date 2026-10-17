@@ -12,13 +12,20 @@ Source candidate、GitOps 期望状态、Argo CD、Cloudflare Terraform 与 Work
 
 Kargo 作为 staging 发布编排 owner，使用无 UI 的 Project、Warehouse、Stage、PromotionTask 和项目凭据。
 Source 发布不可变 OCI candidate；GitOps 将 candidate 组装到 `candidates/staging` 或 `candidates/manual`，
-并保留环境期望状态 owner。Kargo 读取 candidate，生成并合并选版 PR，按发布计划调用 `kargo-execute.yml` 的
-单一 action，等待 Argo CD Application 健康，再调用 Worker traffic Terraform，最后写 GitHub Deployment
+并保留环境期望状态 owner。Kargo 读取 candidate，生成选版 PR，等待该 PR head 上的 `validate` 检查成功后
+合并，按发布计划调用 `kargo-execute.yml` 的单一 action，等待 Argo CD Application 健康，再调用 Worker traffic Terraform，最后写 GitHub Deployment
 和 Source status。
 
-Source candidate 持续声明未完成的环境维护迁移；GitOps 只在对应迁移成功完成后记录完成状态。Kargo 根据
-候选声明和 GitOps 未完成计划选择普通发布或维护阶段，不通过 Promotion 请求变量选择维护模式。后续自动
-Promotion 先恢复同一迁移及其固定候选，再处理当前 Freight。staging 自动晋级不因迁移而暂停。
+Source candidate 持续声明未完成的环境维护迁移；GitOps 只在对应迁移成功完成后记录完成状态。原先由 Kargo
+在同一 Stage 内选择普通发布或维护阶段；该选择已随唯一 profile 完成而移除，见
+[移除 Kargo Stage 维护编排](../simplification/2026-10-17-retire-kargo-maintenance-orchestration.md)。
+候选仍声明未完成迁移时，普通发布在 prepare 失败。不通过 Promotion 请求变量选择维护模式，staging 自动
+晋级不因迁移而暂停。
+
+选版 PR 的合并不能依赖 `git-merge-pr` 的 `wait`：它只等待 PR 可合并，不检查 CI，而两个仓库没有分支
+保护，选版 PR 曾在 `validate` 完成前被合并。Stage 在合并前用 HTTP 步骤读取 PR head SHA 上最新的
+`validate` check run，成功才合并，非 success 结论使 Promotion 失败；render contract 要求每个合并步骤
+之前都有这一检查。promoter App 因此需要 GitOps Checks read。
 
 GitHub Actions 只执行被 Kargo 指定的 action：它不选择 Freight、不决定发布范围、不轮询 Argo，也不创建第二个
 发布状态机。Argo CD 继续拥有 Kubernetes 期望状态，Terraform 继续拥有 Cloudflare 资源与 traffic，Kargo
@@ -56,6 +63,11 @@ Argo 的 GitOps source 不再用 merge SHA 判断同步完成；文档提交也�
 拒绝。当前操作通过 Git、Kubernetes API 和现有 GitHub workflow 已足够，UI 与外部 webhook 会增加控制面
 资源和公开入口，但不增加当前完成条件所需能力。
 
+### 用分支保护的 required checks 约束合并
+
+由 GitHub 在合并时强制检查最直接，也不需要 Kargo 读取 check run。当前套餐不提供该能力，所以检查
+放在 Kargo 合并步骤之前；以后启用分支保护时，Stage 检查可以保留为重复但无害的前置等待。
+
 ### 让 Kargo 修改长期 Application source
 
 拒绝。Kargo 的 `argocd-update` 同步 Application 跟踪的 main，GitOps main 仍是 Application source 和环境
@@ -65,6 +77,8 @@ Argo 的 GitOps source 不再用 merge SHA 判断同步完成；文档提交也�
 
 - 候选选择、选版 PR、Argo 等待、Worker 流量切换和发布状态具有一个编排 owner。
 - Kargo controller 与 webhook 增加约 300m CPU、512Mi 内存的请求配置；这是调度请求，不代表实际使用量。
-- 旧 workflow 和状态实现退役；重试通过 Kargo Promotion 的 step retry/reconcile 语义完成。
-- GitHub action 失败后先重跑该 run，再重试原 Promotion；成功 action 可复用。
+- 旧 workflow 和状态实现退役；步骤内的等待和重试通过 Kargo step retry/reconcile 语义完成。
+- Failed/Errored Promotion 是终态，refresh 不会重跑；PromotionTask 步骤在创建时展开，修正 Stage 后也
+  不会进入已有 Promotion。修复后为同一 Freight 新建 Promotion，成功 action 可复用。
+- 选版 PR 等待 `validate` 最长 60 分钟；检查失败时修复并重跑 `validate` 后新建 Promotion。
 - Kargo 版本约束跨稳定 1.x 的次版本，升级时继续由实际 chart 生成 schema；跨主版本需要重新评估合同。
