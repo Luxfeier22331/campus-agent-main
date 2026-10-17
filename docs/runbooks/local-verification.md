@@ -98,7 +98,9 @@ pnpm dev:doctor -- --target core --scope startup
 
 `data seed` 支持 `notices`、`groups`、`dining`、`transport`、`docs`、`retrieval`，可重复传入 `--domain`；`all` 仅用于 seed。每个已有数据域默认保留并跳过，空域独立初始化。替换必须指明域并传 `--replace`，例如 `pnpm dev:local -- data seed --domain dining --replace`。食堂评价随食堂替换清理；通知有班车引用时，替换必须同时选择 `notices` 和 `transport`。
 
-集群同步使用 `data sync --domain <domain>`，namespace 默认 `campus-agent-staging`，可用 `--namespace` 覆盖；`--context` 省略时使用 kubectl 当前 context。检索同步把 Docs、通知源和当前索引作为一个 owner 闭包，其他业务域分别从既有只读导出 owner 同步。示例：
+集群同步使用 `data sync --domain <domain>`，namespace 默认 `campus-agent-staging`，可用 `--namespace` 覆盖；`--context` 省略时使用 kubectl 当前 context。检索同步把 Docs、通知源和当前索引作为一个 owner 闭包，其他业务域分别从既有只读导出 owner 同步。
+检索同步在远端读取期间持有 publisher 共享锁，Apply/Cleanup 此时会拒绝执行；远端读取结束即释放，
+随后进行本地索引构建和激活。示例：
 
 ```bash
 pnpm dev:local -- data sync --domain notices --context <context>
@@ -237,7 +239,7 @@ pnpm dev:init -- --target notice-publisher
 pnpm dev:init -- --target internal-portal-collection
 pnpm dev:init -- --target notice-classifier
 pnpm dev:init -- --target campus-docs-index-publisher
-pnpm dev:init -- --target campus-rag-index-publisher
+pnpm dev:init -- --target retrieval-index
 ```
 
 `notice-publisher` target 是通知 schema/category seed 的 owner；`internal-portal-collection` 只生成
@@ -245,19 +247,19 @@ Ops Web 和采集器实际读取的环境投影，`notice-classifier` 只生成 
 两者都通过 readiness 检查复用统一 schema 和通知分类 seed，但不重复执行 DDL。
 `ops-web` target 只组合 app-api、Model Config 服务和 Ops 自身环境，不准备通知任务、分类模型或 Dining 数据。
 `notice-index-publisher` 复用 schema owner 安装数据库 baseline；`campus-docs-index-publisher` 只生成其 Docs
-builder 环境；`campus-rag-index-publisher` 独立准备统一 publisher 读取 derived bucket、Qdrant 和当前索引
+builder 环境；`retrieval-index` 独立准备统一 publisher 读取 derived bucket、Qdrant 和当前索引
 数据库所需的环境及统一 schema，不上传本地 `var/` 制品。
 
 验证统一 Campus RAG 发布时，独立初始化 publisher 即可：
 
 ```bash
-pnpm dev:init -- --target campus-rag-index-publisher
+pnpm dev:init -- --target retrieval-index
 ```
 
 统一 publisher 的本地入口是：
 
 ```bash
-pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
+pnpm --dir jobs/retrieval-index publish-index-local -- \
   --docs-embedding-set sha256:<docs-embedding-set-id> \
   --notice-embedding-set sha256:<notice-embedding-set-id>
 ```
@@ -265,7 +267,7 @@ pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
 运行上述命令前，先用 `import-artifacts-local` 从集群 derived object store 导入两个 Embedding Set 的 serving
 引用闭包。导入使用临时 object-store port-forward，并写入当前 worktree 的隔离本地 bucket；不会复制整个
 bucket，也不会写入集群 bucket。发布验证使用本地 PostgreSQL/Qdrant 和本地 S3，不调用 embedding provider，
-也不形成线上前置状态。`dev:init -- --target campus-rag-index-publisher` 独立准备所需 PostgreSQL、统一 schema、derived bucket 与 Qdrant。
+也不形成线上前置状态。`dev:init -- --target retrieval-index` 独立准备所需 PostgreSQL、统一 schema、derived bucket 与 Qdrant。
 环境渲染使用当前 profile 的端口和私有 key，不依赖先启动其他 target；基础设施检查再验证连接。
 
 ## Ops Web API

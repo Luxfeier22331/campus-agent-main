@@ -41,6 +41,14 @@ async function fixture(t: TestContext) {
 	t.mock.method(Client.prototype, "end", async () => undefined);
 	t.mock.method(Client.prototype, "query", async (sql: string) => {
 		queries.push(sql);
+		if (
+			[
+				"SELECT pg_advisory_lock_shared(hashtext('campus_rag_index_publish'))",
+				"SELECT pg_advisory_unlock_shared(hashtext('campus_rag_index_publish'))",
+			].includes(sql)
+		) {
+			return { rows: [] };
+		}
 		if (sql.includes("from campus_docs_serving.current_index")) {
 			return {
 				rows: state.collection

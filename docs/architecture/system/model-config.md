@@ -31,7 +31,7 @@ profile 保持独立。
 | name | 消费者 |
 | --- | --- |
 | `primary_agent` | agent-control（执行准入读取 target）、agent-runtime（携带预期 hash 读取完整配置） |
-| `campus_docs_embedding` | Campus Search service、campus-docs-index-publisher、notice-index-publisher、notice-artifacts-worker（目标一致性检查） |
+| `campus_docs_embedding` | Campus Search service、campus-docs-index-publisher、notice-index-publisher、retrieval-index（目标一致性检查） |
 | `campus_docs_reranker` | Campus Search service |
 | `notice_classification` | notice-pipeline-worker（分类 activity，复用 notice-classifier 运行时） |
 | `document_ocr` | document-ocr job（读取配置并回写异步验证结果） |

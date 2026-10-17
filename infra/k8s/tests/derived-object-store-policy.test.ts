@@ -26,7 +26,7 @@ interface Statement {
 	Effect: "Allow" | "Deny";
 	Action: string[];
 	Resource: string[];
-	Condition?: { StringLike: Record<string, string> };
+	Condition?: { StringLike: Record<string, string | string[]> };
 }
 
 // Evaluate the IAM subset used by these policies, including explicit deny and prefix conditions.
@@ -48,7 +48,11 @@ function allows(filename: string, action: string, resource: string, prefix?: str
 			) {
 				throw new Error("Extend the evaluator before testing different IAM conditions");
 			}
-			if (prefix === undefined || !match(statement.Condition.StringLike["s3:prefix"], prefix)) {
+			const patterns = statement.Condition.StringLike["s3:prefix"];
+			if (
+				prefix === undefined ||
+				!(Array.isArray(patterns) ? patterns : [patterns]).some((pattern) => match(pattern, prefix))
+			) {
 				return false;
 			}
 		}
@@ -213,18 +217,26 @@ test("bootstrap provisions source, derived and backup identities without dining-
 	}
 });
 
-test("automatic Notice RAG cleanup can remove versioned artifacts while caches and sources stay protected", () => {
-	for (const prefix of ["chunk-runs", "chunk-data", "embedding-data", "embedding-sets"]) {
-		const key = `notices/rag/${prefix}/sha256/id/manifest.json`;
-		assert(allows("derived-policy.json", "s3:ListBucketVersions", bucket, key));
-		for (const action of ["DeleteObject", "DeleteObjectVersion"]) {
-			assert(allows("derived-policy.json", `s3:${action}`, `${bucket}/${key}`));
+test("retrieval cleanup can remove versioned artifacts while caches and sources stay protected", () => {
+	for (const [kind, prefixes] of [
+		["notices", ["chunk-runs", "chunk-data", "embedding-data", "embedding-sets"]],
+		["campus-docs", ["chunk-sets", "chunk-data", "embedding-data", "embedding-sets"]],
+	] as const) {
+		for (const prefix of prefixes) {
+			const key = `${kind}/rag/${prefix}/sha256/id/manifest.json`;
+			assert(allows("derived-policy.json", "s3:ListBucketVersions", bucket, key));
+			for (const action of ["DeleteObject", "DeleteObjectVersion"]) {
+				assert(allows("derived-policy.json", `s3:${action}`, `${bucket}/${key}`));
+			}
 		}
 	}
 	for (const key of [
 		"notices/rag/embedding-cache/cache.json",
 		"notices/assets/sha256/file",
 		"docs/rag/manifest.json",
+		"campus-docs/source.json",
+		"campus-docs/readers/reader.json",
+		"campus-docs/rag/embedding-cache/cache.json",
 	]) {
 		assert.equal(allows("derived-policy.json", "s3:ListBucketVersions", bucket, key), false);
 		assert.equal(

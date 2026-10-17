@@ -1,0 +1,314 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: retrieval-build
+spec:
+  schedule: 0 0 1 1 *
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: retrieval-build
+            app.kubernetes.io/component: retrieval-index
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: campus-search
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          enableServiceLinks: false
+          securityContext:
+            fsGroup: 1000
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: job
+              image: ghcr.io/muc-wiki/campus-agent/retrieval-index:replace-me
+              args:
+                - build
+              env:
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_BUCKET_DERIVED
+                  value: campus-agent-derived
+                - name: RETRIEVAL_WORK_DIR
+                  value: /work
+                - name: NODE_EXTRA_CA_CERTS
+                  value: /etc/campus-agent/qdrant/tls/ca.crt
+                - name: OBJECT_STORE_DERIVED_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_ACCESS_KEY
+                - name: OBJECT_STORE_DERIVED_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_SECRET_KEY
+                - name: MODEL_CONFIG_URL
+                  value: http://model-config:8000
+                - name: RETRIEVAL_BUILD_SOURCE
+                  value: notices
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: password
+                - name: SQLITE_TMPDIR
+                  value: /work
+              envFrom:
+                - configMapRef:
+                    name: campus-agent-database-config
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: postgres-ca
+                  mountPath: /etc/campus-agent/postgres
+                  readOnly: true
+                - name: qdrant-ca
+                  mountPath: /etc/campus-agent/qdrant/tls
+                  readOnly: true
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 20Gi
+            - name: postgres-ca
+              secret:
+                secretName: campus-agent-postgres-origin-server
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+            - name: qdrant-ca
+              configMap:
+                name: campus-agent-qdrant-tls-ca
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: retrieval-apply
+spec:
+  schedule: 0 0 1 1 *
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: retrieval-apply
+            app.kubernetes.io/component: retrieval-index
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: campus-search
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          enableServiceLinks: false
+          securityContext:
+            fsGroup: 1000
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: job
+              image: ghcr.io/muc-wiki/campus-agent/retrieval-index:replace-me
+              args:
+                - apply
+              env:
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_BUCKET_DERIVED
+                  value: campus-agent-derived
+                - name: RETRIEVAL_WORK_DIR
+                  value: /work
+                - name: NODE_EXTRA_CA_CERTS
+                  value: /etc/campus-agent/qdrant/tls/ca.crt
+                - name: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+                - name: OBJECT_STORE_DERIVED_READ_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_READ_SECRET_KEY
+                - name: AGENT_CONTROL_DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: agent-control-read-model-secrets
+                      key: AGENT_CONTROL_DATABASE_URL
+                - name: QDRANT_URL
+                  value: https://qdrant:6333
+                - name: QDRANT_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: qdrant-server-secrets
+                      key: QDRANT_API_KEY
+                - name: SQLITE_TMPDIR
+                  value: /work
+              envFrom: []
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: postgres-ca
+                  mountPath: /etc/campus-agent/postgres
+                  readOnly: true
+                - name: qdrant-ca
+                  mountPath: /etc/campus-agent/qdrant/tls
+                  readOnly: true
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 20Gi
+            - name: postgres-ca
+              secret:
+                secretName: campus-agent-postgres-origin-server
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+            - name: qdrant-ca
+              configMap:
+                name: campus-agent-qdrant-tls-ca
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: retrieval-cleanup
+spec:
+  schedule: 0 0 1 1 *
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: retrieval-cleanup
+            app.kubernetes.io/component: retrieval-index
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: campus-search
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          enableServiceLinks: false
+          securityContext:
+            fsGroup: 1000
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: job
+              image: ghcr.io/muc-wiki/campus-agent/retrieval-index:replace-me
+              args:
+                - cleanup
+              env:
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_BUCKET_DERIVED
+                  value: campus-agent-derived
+                - name: RETRIEVAL_WORK_DIR
+                  value: /work
+                - name: NODE_EXTRA_CA_CERTS
+                  value: /etc/campus-agent/qdrant/tls/ca.crt
+                - name: OBJECT_STORE_DERIVED_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_ACCESS_KEY
+                - name: OBJECT_STORE_DERIVED_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_SECRET_KEY
+                - name: AGENT_CONTROL_DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: agent-control-read-model-secrets
+                      key: AGENT_CONTROL_DATABASE_URL
+                - name: SQLITE_TMPDIR
+                  value: /work
+              envFrom: []
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: postgres-ca
+                  mountPath: /etc/campus-agent/postgres
+                  readOnly: true
+                - name: qdrant-ca
+                  mountPath: /etc/campus-agent/qdrant/tls
+                  readOnly: true
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 20Gi
+            - name: postgres-ca
+              secret:
+                secretName: campus-agent-postgres-origin-server
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+            - name: qdrant-ca
+              configMap:
+                name: campus-agent-qdrant-tls-ca

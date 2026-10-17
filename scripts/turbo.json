@@ -74,7 +74,7 @@
 				"@campus-agent/embedding-runtime#source",
 				"@campus-agent/notices#source",
 				"campus-docs-index-publisher#source",
-				"campus-rag-index-publisher#source",
+				"retrieval-index#source",
 				"notice-index-publisher#source"
 			],
 			"inputs": [

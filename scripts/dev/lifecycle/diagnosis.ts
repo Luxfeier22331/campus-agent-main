@@ -79,8 +79,12 @@ const REQUIRED_ENV_KEYS: Record<string, string[]> = {
 		"TEMPORAL_ADDRESS",
 		"OBJECT_STORE_BUCKET_SOURCE",
 	],
-	"apps/notice-artifacts-worker/.env.local": ["MODEL_CONFIG_URL", "TEMPORAL_ADDRESS", "QDRANT_URL"],
-	"jobs/campus-rag-index-publisher/.env.local": ["AGENT_CONTROL_DATABASE_URL", "QDRANT_URL"],
+	"jobs/retrieval-index/.env.local": [
+		"AGENT_CONTROL_DATABASE_URL",
+		"NOTICES_DATABASE_URL",
+		"MODEL_CONFIG_URL",
+		"QDRANT_URL",
+	],
 	"jobs/notice-index-publisher/.env.local": ["NOTICES_DATABASE_URL"],
 };
 export async function diagnoseLocalDevelopment(

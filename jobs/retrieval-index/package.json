@@ -1,0 +1,44 @@
+{
+	"name": "retrieval-index",
+	"version": "0.1.0",
+	"private": true,
+	"description": "One-shot retrieval artifact build, versioned collection apply and cleanup",
+	"license": "Apache-2.0",
+	"type": "module",
+	"scripts": {
+		"build": "bash scripts/build.sh",
+		"publish-index-local": "node --env-file=.env.local --import=tsx src/local-cli.ts",
+		"import-artifacts-local": "node --env-file=.env.local --import=tsx src/import-local-cli.ts",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run",
+		"job": "tsx src/cli.ts",
+		"test:integration": "vitest run test/apply.integration.test.ts"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1145.0",
+		"@campus-agent/embedding-runtime": "workspace:*",
+		"campus-contracts": "workspace:*",
+		"pg": "^8.23.1",
+		"campus-docs-index-publisher": "workspace:*",
+		"notice-index-publisher": "workspace:*",
+		"@campus-agent/notice-database": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.19.1",
+		"@types/pg": "^8.23.1",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.3"
+	},
+	"exports": {
+		"./catalog": "./src/catalog.ts",
+		"./publisher": "./src/publisher.ts",
+		"./run": "./src/run.ts",
+		"./types": "./src/types.ts",
+		"./artifacts": "./src/artifacts.ts",
+		"./artifact-import": "./src/artifact-import.ts",
+		"./object-store": "./src/object-store.ts",
+		"./qdrant": "./src/qdrant.ts"
+	}
+}

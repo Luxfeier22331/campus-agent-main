@@ -1,6 +1,6 @@
 import { request as httpsRequest } from "node:https";
-import { startKubectlPortForward } from "../../../jobs/campus-rag-index-publisher/src/kubectl.ts";
-import { createS3ReaderStoreFromConfig } from "../../../jobs/campus-rag-index-publisher/src/object-store.ts";
+import { startKubectlPortForward } from "../../../jobs/retrieval-index/src/kubectl.ts";
+import { createS3ReaderStoreFromConfig } from "../../../jobs/retrieval-index/src/object-store.ts";
 import {
 	connectProductDatabase,
 	readProductClusterSecret,

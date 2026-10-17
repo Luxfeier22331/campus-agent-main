@@ -91,7 +91,7 @@ CNPG 删除旧 role 早于 schema Job 或新 workload 就绪。
 | `agent_control.agent_*`、`agent_control.conversation_run_locks`、`agent_control.owner_deletion_fences` | agent-control | agent-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
 | 独立数据库 `memory` 中的 `memory.*` | Memory API / Worker | Memory API / Worker；其他消费者使用 HTTP |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
-| `campus_docs_serving.current_index`、`index_versions` | Campus RAG serving（统一 publisher 复用 `agent_control` 技术身份写入） | Campus RAG publisher；Campus Search service 只读 `current_index` |
+| `campus_docs_serving.current_index` | Campus RAG serving（retrieval-index 复用 `agent_control` 技术身份写入） | retrieval-index；Campus Search service 以独立只读角色读取 |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `transport.*` | Ops Web；空库 baseline 由 Ops Web bootstrap 写入 | App API 公开 projection、Ops Web |
@@ -113,7 +113,7 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 
 Campus Web 静态文档发布只使用对象存储和构建产物。Campus RAG serving 逻辑上拥有
 `campus_docs_serving.current_index` 单行绑定；唯一 current pointer writer 是
-`jobs/campus-rag-index-publisher`，继续复用 `agent_control` 数据库身份读取并写入该绑定。Docs 和
+`jobs/retrieval-index`，继续复用 `agent_control` 数据库身份读取并写入该绑定。Docs 和
 Notice Chunk/Embedding builder 不写入该表。独立 Campus Search service 使用 `campus_search` 角色和
 `campus-search-service-database-secrets` 中的 `CAMPUS_SEARCH_DATABASE_URL` 读取当前绑定；该角色仅获得
 数据库 `CONNECT`、`campus_docs_serving` 的 `USAGE` 和 `current_index` 的 `SELECT` 权限。
@@ -237,11 +237,11 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
   不因此向 Ops Web 开放 `agent_run_events` 或 `agent_step_results`；
 - 在线模型配置只能通过 Model Config 管理接口修改，Ops Web 不直连其 schema；
 - `agent_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
-  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；统一 Campus RAG publisher 和在线
-  Campus Search 复用该身份，前者负责激活当前绑定，后者只读取当前绑定；Docs/Notice builder 不访问该表；
-- Campus RAG publisher 与离线 worker 复用 `agent_control` 维护 `index_versions`，登记真实制品引用、
-  生产者及校验、激活、退休时间；`current_index.previous_collection` 保护上一版本。Ops 和本地数据导出
-  只读版本目录。目录不是调度状态副本，自动清理只有确认独占产物已删除后才移除退休版本；
+  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；retrieval-index 负责维护当前绑定，
+  Campus Search 使用独立 `campus_search` 角色只读；Docs/Notice builder 不访问该表；
+- `current_index` 保存当前版本化 collection 与 Docs/Notice 制品引用，不保存回滚目标。`index_versions`
+  与 `previous_collection` 只为旧 publisher 和旧 Ops Web 在本次滚动发布期间保留，新代码不读写；
+  发布完成后的收缩迁移删除它们。
 - `notices.processing_failures` 由分类和发布 Job 写入，Ops 只读及删除用于人工分类修复，App API 无权限；
 - `model_config.model_configs` 可以为空或只配置一个 name；schema 安装不把业务配置完整性
   变成部署门禁。缺失 name 由其消费路径失败关闭。

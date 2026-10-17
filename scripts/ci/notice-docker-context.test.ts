@@ -23,7 +23,7 @@ const indexPublisherDockerfile = readFileSync(
 	"utf8",
 );
 const ragPublisherDockerfile = readFileSync(
-	resolve(repositoryRoot, "jobs/campus-rag-index-publisher/Dockerfile"),
+	resolve(repositoryRoot, "jobs/retrieval-index/Dockerfile"),
 	"utf8",
 );
 
@@ -59,9 +59,9 @@ test("Notice index publisher includes the shared embedding runtime source", () =
 });
 
 test("Campus RAG publisher includes its workspace and shared embedding runtime source", () => {
-	assert.ok(dockerignore.includes("!jobs/campus-rag-index-publisher/"));
-	assert.ok(dockerignore.includes("!jobs/campus-rag-index-publisher/**"));
-	assert.match(ragPublisherDockerfile, /turbo prune campus-rag-index-publisher --docker/u);
+	assert.ok(dockerignore.includes("!jobs/retrieval-index/"));
+	assert.ok(dockerignore.includes("!jobs/retrieval-index/**"));
+	assert.match(ragPublisherDockerfile, /turbo prune retrieval-index --docker/u);
 	assert.match(ragPublisherDockerfile, /COPY --from=pruner \/repo\/out\/full\/ \.\//u);
 });
 

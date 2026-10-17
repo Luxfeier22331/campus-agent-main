@@ -440,55 +440,6 @@ importers:
 
   apps/model-config: {}
 
-  apps/notice-artifacts-worker:
-    dependencies:
-      '@aws-sdk/client-s3':
-        specifier: ^3.1145.0
-        version: 3.1145.0
-      '@campus-agent/embedding-runtime':
-        specifier: workspace:*
-        version: link:../../packages/embedding-runtime
-      '@campus-agent/notice-database':
-        specifier: workspace:*
-        version: link:../../packages/notice-database
-      '@temporalio/activity':
-        specifier: 1.24.0
-        version: 1.24.0
-      '@temporalio/client':
-        specifier: 1.24.0
-        version: 1.24.0
-      '@temporalio/common':
-        specifier: 1.24.0
-        version: 1.24.0
-      '@temporalio/worker':
-        specifier: 1.24.0
-        version: 1.24.0(@swc/helpers@0.5.23)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(sharp@0.35.4(@types/node@24.19.1))
-      campus-rag-index-publisher:
-        specifier: workspace:*
-        version: link:../../jobs/campus-rag-index-publisher
-      notice-index-publisher:
-        specifier: workspace:*
-        version: link:../../jobs/notice-index-publisher
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.1
-        version: 24.19.1
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
   apps/notice-pipeline-worker:
     dependencies:
       '@aws-sdk/client-s3':
@@ -833,40 +784,6 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  jobs/campus-rag-index-publisher:
-    dependencies:
-      '@aws-sdk/client-s3':
-        specifier: ^3.1145.0
-        version: 3.1145.0
-      '@campus-agent/embedding-runtime':
-        specifier: workspace:*
-        version: link:../../packages/embedding-runtime
-      campus-contracts:
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.1
-        version: 24.19.1
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
   jobs/document-ocr:
     dependencies:
       '@aws-sdk/client-s3':
@@ -1077,6 +994,49 @@ importers:
       jsdom:
         specifier: ^30.1.1
         version: 30.1.1(@noble/hashes@2.4.0)
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.1
+        version: 24.19.1
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  jobs/retrieval-index:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1145.0
+        version: 3.1145.0
+      '@campus-agent/embedding-runtime':
+        specifier: workspace:*
+        version: link:../../packages/embedding-runtime
+      '@campus-agent/notice-database':
+        specifier: workspace:*
+        version: link:../../packages/notice-database
+      campus-contracts:
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      campus-docs-index-publisher:
+        specifier: workspace:*
+        version: link:../campus-docs-index-publisher
+      notice-index-publisher:
+        specifier: workspace:*
+        version: link:../notice-index-publisher
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -1460,9 +1420,6 @@ importers:
       campus-docs-index-publisher:
         specifier: workspace:*
         version: link:../jobs/campus-docs-index-publisher
-      campus-rag-index-publisher:
-        specifier: workspace:*
-        version: link:../jobs/campus-rag-index-publisher
       campus-web:
         specifier: workspace:*
         version: link:../apps/campus-web
@@ -1481,6 +1438,9 @@ importers:
       pg:
         specifier: ^8.23.1
         version: 8.23.1
+      retrieval-index:
+        specifier: workspace:*
+        version: link:../jobs/retrieval-index
       zod:
         specifier: ^4.6.5
         version: 4.6.5

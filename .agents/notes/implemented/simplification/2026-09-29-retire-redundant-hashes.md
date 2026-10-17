@@ -62,7 +62,7 @@ primary_agent 冻结链路）因仍有真实读者与合同依据而全部保留
 
 ## 后续追加（同批收口）
 
-- prepareRefresh manifest-only：`campus-rag-index-publisher` 新增 `readDocsEmbeddingSetManifest`/
+- prepareRefresh manifest-only：`retrieval-index` 新增 `readDocsEmbeddingSetManifest`/
   `readNoticeEmbeddingSetManifest`，复用 `readManifest` 只校验 digest+canonical+schema、不读数据体；
   `notice-artifacts-worker` prepareRefresh 换用（embedNotices 保持全量），消除最高频"无变化跳过"
   路径对两份 embeddings.ndjson 的全量读+逐字节 hash；

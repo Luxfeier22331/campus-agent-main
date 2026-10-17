@@ -1033,31 +1033,25 @@ describe("managed worktree environment", () => {
 		assert.equal(existsSync(resolve(repoRoot, "apps/app-api/.env.local")), false);
 	});
 
-	it("renders new notice workers against the current worktree infrastructure", () => {
+	it("renders the notice workflow against the current worktree infrastructure", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
-		for (const target of ["notice-pipeline-worker", "notice-artifacts-worker"] as const) {
-			renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target });
-			const values = parseEnv(
-				readFileSync(resolve(repoRoot, "apps", target, ".env.local"), "utf8"),
-			);
-			assert.equal(
-				values.OBJECT_STORE_ENDPOINT,
-				`http://127.0.0.1:${profile.infraPorts.objectStore}`,
-			);
-			assert.equal(values.OBJECT_STORE_BUCKET_DERIVED, profile.bucketName);
-			assert.equal(
-				new URL(values.NOTICES_DATABASE_URL ?? "").port,
-				String(profile.infraPorts.postgres),
-			);
-			assert.equal(values.TEMPORAL_ADDRESS, `127.0.0.1:${profile.infraPorts.temporal}`);
-			assert.equal(values.TEMPORAL_NAMESPACE, `campus-agent-local-${profile.instanceId}`);
-			assert.ok(values.OBJECT_STORE_DERIVED_ACCESS_KEY);
-			if (target === "notice-artifacts-worker") {
-				assert.equal(values.QDRANT_URL, qdrant.url);
-				assert.equal(values.QDRANT_API_KEY, qdrant.apiKey);
-			}
-		}
+		renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target: "notice-pipeline-worker" });
+		const values = parseEnv(
+			readFileSync(resolve(repoRoot, "apps/notice-pipeline-worker/.env.local"), "utf8"),
+		);
+		assert.equal(
+			values.OBJECT_STORE_ENDPOINT,
+			`http://127.0.0.1:${profile.infraPorts.objectStore}`,
+		);
+		assert.equal(values.OBJECT_STORE_BUCKET_DERIVED, profile.bucketName);
+		assert.equal(
+			new URL(values.NOTICES_DATABASE_URL ?? "").port,
+			String(profile.infraPorts.postgres),
+		);
+		assert.equal(values.TEMPORAL_ADDRESS, `127.0.0.1:${profile.infraPorts.temporal}`);
+		assert.equal(values.TEMPORAL_NAMESPACE, `campus-agent-local-${profile.instanceId}`);
+		assert.ok(values.OBJECT_STORE_DERIVED_ACCESS_KEY);
 	});
 
 	it("renders index publisher environments with only their owned fields", () => {
@@ -1108,11 +1102,18 @@ describe("managed worktree environment", () => {
 			profile,
 			qdrant,
 			repoRoot,
-			target: "campus-rag-index-publisher",
+			target: "retrieval-index",
 		});
-		assert.deepEqual(ragPaths, [resolve(repoRoot, "jobs/campus-rag-index-publisher/.env.local")]);
-		assert.deepEqual(Object.keys(parseEnv(readFileSync(ragPaths[0] ?? "", "utf8"))).sort(), [
+		assert.deepEqual(ragPaths, [
+			resolve(repoRoot, "apps/model-config/.env.local"),
+			resolve(repoRoot, "jobs/retrieval-index/.env.local"),
+		]);
+		assert.deepEqual(Object.keys(parseEnv(readFileSync(ragPaths[1] ?? "", "utf8"))).sort(), [
 			"AGENT_CONTROL_DATABASE_URL",
+			"DEPLOYMENT_ENVIRONMENT",
+			"MODEL_CONFIG_URL",
+			"NOTICES_DATABASE_SSLMODE",
+			"NOTICES_DATABASE_URL",
 			"OBJECT_STORE_BUCKET_DERIVED",
 			"OBJECT_STORE_DERIVED_ACCESS_KEY",
 			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
@@ -1124,7 +1125,7 @@ describe("managed worktree environment", () => {
 			"QDRANT_API_KEY",
 			"QDRANT_URL",
 		]);
-		const ragPath = ragPaths[0] ?? "";
+		const ragPath = ragPaths[1] ?? "";
 		let ragEnvironment = parseEnv(readFileSync(ragPath, "utf8"));
 		assert.equal(ragEnvironment.QDRANT_API_KEY, qdrant.apiKey);
 		assert.equal(ragEnvironment.QDRANT_URL, qdrant.url);
@@ -1133,7 +1134,7 @@ describe("managed worktree environment", () => {
 			profile,
 			qdrant: { apiKey: "rotated-fixture-writer", url: "http://127.0.0.1:26333" },
 			repoRoot,
-			target: "campus-rag-index-publisher",
+			target: "retrieval-index",
 		});
 		ragEnvironment = parseEnv(readFileSync(ragPath, "utf8"));
 		assert.equal(ragEnvironment.QDRANT_API_KEY, "rotated-fixture-writer");
@@ -1147,7 +1148,7 @@ describe("managed worktree environment", () => {
 				renderLocalEnvironmentFiles({
 					profile: createProfile(repoRoot),
 					repoRoot,
-					target: "campus-rag-index-publisher",
+					target: "retrieval-index",
 				}),
 			/requires a resolved local Qdrant connection/u,
 		);
@@ -1186,12 +1187,13 @@ describe("local development lifecycle guards", () => {
 		assert.deepEqual(ops.modelConfigNames, []);
 		assert.deepEqual(resolveLocalDevTargetPlan("document-ocr").modelConfigNames, ["document_ocr"]);
 		assert(
-			resolveLocalDevTargetPlan("campus-rag-index-publisher").bootstrapSteps.includes(
-				"campus-agent-schema",
-			),
+			resolveLocalDevTargetPlan("retrieval-index").bootstrapSteps.includes("campus-agent-schema"),
 		);
+		assert.deepEqual(resolveLocalDevTargetPlan("retrieval-index").modelConfigNames, [
+			"campus_docs_embedding",
+		]);
 		assert(
-			!resolveLocalDevTargetPlan("notice-artifacts-worker").environmentProjections.includes(
+			!resolveLocalDevTargetPlan("retrieval-index").environmentProjections.includes(
 				"notice-pipeline-worker",
 			),
 		);
@@ -1368,11 +1370,7 @@ function createRepositoryShape(): string {
 	for (const job of ["notice-classifier", "notice-publisher", "document-ocr"]) {
 		mkdirSync(resolve(repoRoot, "jobs", job), { recursive: true });
 	}
-	for (const job of [
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
-		"notice-index-publisher",
-	]) {
+	for (const job of ["campus-docs-index-publisher", "retrieval-index", "notice-index-publisher"]) {
 		mkdirSync(resolve(repoRoot, "jobs", job), { recursive: true });
 	}
 	return repoRoot;

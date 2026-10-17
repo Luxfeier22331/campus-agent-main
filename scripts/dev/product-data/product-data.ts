@@ -4,11 +4,11 @@ import { dirname, join, resolve } from "node:path";
 import { Client } from "pg";
 import { createS3ObjectStore } from "../../../apps/campus-web/src/docs-reader-build/published-reader-object-store.ts";
 import { createFilesystemArtifactStore } from "../../../jobs/campus-docs-index-publisher/src/filesystem-artifact-store.ts";
-import { importCampusRagArtifacts } from "../../../jobs/campus-rag-index-publisher/src/artifact-import.ts";
-import { createPostgresIndexCatalog } from "../../../jobs/campus-rag-index-publisher/src/catalog.ts";
-import { createS3WriterStore } from "../../../jobs/campus-rag-index-publisher/src/object-store.ts";
-import { materializeCollection } from "../../../jobs/campus-rag-index-publisher/src/publisher.ts";
-import { createQdrantClient } from "../../../jobs/campus-rag-index-publisher/src/qdrant.ts";
+import { importCampusRagArtifacts } from "../../../jobs/retrieval-index/src/artifact-import.ts";
+import { createPostgresIndexCatalog } from "../../../jobs/retrieval-index/src/catalog.ts";
+import { createS3WriterStore } from "../../../jobs/retrieval-index/src/object-store.ts";
+import { materializeCollection } from "../../../jobs/retrieval-index/src/publisher.ts";
+import { createQdrantClient } from "../../../jobs/retrieval-index/src/qdrant.ts";
 import { localDatabaseUrls } from "../lifecycle/environment.ts";
 import { resolveLocalQdrantConnection } from "../lifecycle/local-qdrant.ts";
 import { withLifecycleLock } from "../lifecycle/locks.ts";
@@ -26,6 +26,7 @@ import {
 	exportRetrievalData,
 	importRetrievalData,
 	readRetrievalRows,
+	withRetrievalExportLock,
 } from "./product-data-database.ts";
 import { downloadProductIndex } from "./product-data-index.ts";
 import {
@@ -90,7 +91,7 @@ export async function initializeRetrievalData(
 					await assertProductAppsOffline(profile);
 				}
 				const qdrant = await resolveLocalQdrantConnection(repoRoot, profile);
-				const prepareAndApplyRetrieval = async (
+				const prepareRetrieval = async (
 					dataset: Awaited<ReturnType<typeof exportRetrievalData>>,
 					source: Parameters<typeof copyDocsClosure>[0],
 					candidate: Parameters<typeof materializeCollection>[1],
@@ -108,6 +109,13 @@ export async function initializeRetrievalData(
 					for await (const point of points) {
 						validateProductPoint(point, dataset.rows, docs.references);
 					}
+					return docs;
+				};
+				const applyPreparedRetrieval = async (
+					dataset: Awaited<ReturnType<typeof exportRetrievalData>>,
+					docs: Awaited<ReturnType<typeof copyDocsClosure>>,
+					candidate: Parameters<typeof materializeCollection>[1],
+				) => {
 					await withLifecycleLock(
 						resolve(registry, "qdrant-materialize.lock"),
 						"product-data-index",
@@ -118,22 +126,11 @@ export async function initializeRetrievalData(
 							try {
 								await catalog.acquirePublisherLock();
 								const publishSignal = AbortSignal.any([signal, catalog.signal]);
-								const registration = await catalog.register({
-									collection: dataset.collection,
-									docsEmbeddingSet: dataset.docsEmbeddingSet,
-									noticeEmbeddingSet: dataset.noticeEmbeddingSet,
-									producer: "manual",
-								});
 								const qdrantClient = createQdrantClient({
 									QDRANT_URL: qdrant.url,
 									QDRANT_API_KEY: qdrant.apiKey,
 								});
-								if (
-									registration.rebuildIncomplete &&
-									(await qdrantClient.collectionExists(dataset.collection))
-								) {
-									await qdrantClient.deleteCollection(dataset.collection);
-								}
+								await qdrantClient.deleteCollection(dataset.collection);
 								await materializeCollection(
 									createQdrantClient(
 										{ QDRANT_URL: qdrant.url, QDRANT_API_KEY: qdrant.apiKey },
@@ -196,9 +193,9 @@ export async function initializeRetrievalData(
 							);
 						}
 					}
-					const docs = await target.read(PRODUCT_DOCS_SOURCE_KEY);
+					const docsBytes = await target.read(PRODUCT_DOCS_SOURCE_KEY);
 					const expectedDocs = seed.objects.get(PRODUCT_DOCS_SOURCE_KEY);
-					if (!(expectedDocs && Buffer.from(docs).equals(Buffer.from(expectedDocs.body)))) {
+					if (!(expectedDocs && Buffer.from(docsBytes).equals(Buffer.from(expectedDocs.body)))) {
 						throw new Error(
 							"Retrieval seed requires matching Docs samples; it does not replace Docs content.",
 						);
@@ -215,31 +212,33 @@ export async function initializeRetrievalData(
 						},
 					};
 					const candidate = await readProductSeedIndex(repoRoot);
-					await prepareAndApplyRetrieval(
-						{
-							rows,
-							collection: candidate.collection,
-							docsEmbeddingSet: candidate.docsEmbeddingSet,
-							noticeEmbeddingSet: candidate.noticeEmbeddingSet,
-						},
-						source,
-						candidate,
-					);
+					const dataset = {
+						rows,
+						collection: candidate.collection,
+						docsEmbeddingSet: candidate.docsEmbeddingSet,
+						noticeEmbeddingSet: candidate.noticeEmbeddingSet,
+					};
+					const docs = await prepareRetrieval(dataset, source, candidate);
+					await applyPreparedRetrieval(dataset, docs, candidate);
 				} else {
 					if (!options.namespace) {
 						throw new Error("Cluster initialization requires a namespace");
 					}
 					const remote = await connectProductCluster(options.context, options.namespace, signal);
 					try {
-						const dataset = await exportRetrievalData(remote.database);
-						temp = await mkdtemp(join(tmpdir(), "campus-product-data-"));
-						const candidate = await downloadProductIndex({
-							collection: dataset.collection,
-							path: join(temp, "points.ndjson"),
-							request: remote.qdrantRequest,
-							signal,
+						const prepared = await withRetrievalExportLock(remote.database, async () => {
+							const dataset = await exportRetrievalData(remote.database);
+							temp = await mkdtemp(join(tmpdir(), "campus-product-data-"));
+							const candidate = await downloadProductIndex({
+								collection: dataset.collection,
+								path: join(temp, "points.ndjson"),
+								request: remote.qdrantRequest,
+								signal,
+							});
+							const docs = await prepareRetrieval(dataset, remote.objectStore, candidate);
+							return { dataset, candidate, docs };
 						});
-						await prepareAndApplyRetrieval(dataset, remote.objectStore, candidate);
+						await applyPreparedRetrieval(prepared.dataset, prepared.docs, prepared.candidate);
 					} finally {
 						await remote.close();
 					}
@@ -268,51 +267,57 @@ export async function diagnoseProductData(
 	let temp: string | undefined;
 	try {
 		await client.connect();
-		const data = full
-			? await exportRetrievalData(client)
-			: {
-					collection: (
-						await client.query<{ collection: string }>(
-							"select collection from campus_docs_serving.current_index where singleton = true",
-						)
-					).rows[0]?.collection,
-					rows: undefined,
-				};
-		if (!data.collection) {
-			return { state: "missing", reason: "Product data has no current index" };
-		}
-		const store = createS3WriterStore(localProductStoreEnv(_repoRoot, profile));
-		if (!(full || (await store.readIfExists(PRODUCT_DOCS_SOURCE_KEY)))) {
-			return { state: "missing", reason: "Local Docs source is missing" };
-		}
-		const qdrant = await resolveLocalQdrantConnection(_repoRoot, profile);
-		const request = async (path: string, body?: unknown) => {
-			const response = await fetch(`${qdrant.url}${path}`, {
-				method: body === undefined ? "GET" : "POST",
-				headers: { "api-key": qdrant.readOnlyApiKey, "content-type": "application/json" },
-				body: body === undefined ? undefined : JSON.stringify(body),
-				signal: AbortSignal.timeout(30_000),
-			});
-			if (!response.ok) {
-				throw new Error(`Local index returned HTTP ${response.status}`);
+		const diagnose = async (): Promise<{
+			state: "ready" | "missing" | "invalid";
+			reason?: string;
+		}> => {
+			const data = full
+				? await exportRetrievalData(client)
+				: {
+						collection: (
+							await client.query<{ collection: string }>(
+								"select collection from campus_docs_serving.current_index where singleton = true",
+							)
+						).rows[0]?.collection,
+						rows: undefined,
+					};
+			if (!data.collection) {
+				return { state: "missing", reason: "Product data has no current index" };
 			}
-			return response.json();
+			const store = createS3WriterStore(localProductStoreEnv(_repoRoot, profile));
+			if (!(full || (await store.readIfExists(PRODUCT_DOCS_SOURCE_KEY)))) {
+				return { state: "missing", reason: "Local Docs source is missing" };
+			}
+			const qdrant = await resolveLocalQdrantConnection(_repoRoot, profile);
+			const request = async (path: string, body?: unknown) => {
+				const response = await fetch(`${qdrant.url}${path}`, {
+					method: body === undefined ? "GET" : "POST",
+					headers: { "api-key": qdrant.readOnlyApiKey, "content-type": "application/json" },
+					body: body === undefined ? undefined : JSON.stringify(body),
+					signal: AbortSignal.timeout(30_000),
+				});
+				if (!response.ok) {
+					throw new Error(`Local index returned HTTP ${response.status}`);
+				}
+				return response.json();
+			};
+			if (full && data.rows) {
+				const rows = data.rows;
+				const docs = await copyDocsClosure(store);
+				await copyNoticeAssets(rows, store);
+				temp = await mkdtemp(join(tmpdir(), "campus-product-doctor-"));
+				await downloadProductIndex({
+					collection: data.collection,
+					path: join(temp, "points.ndjson"),
+					request,
+					validatePoint: (point) => validateProductPoint(point, rows, docs.references),
+				});
+			} else {
+				await request(`/collections/${data.collection}`);
+			}
+			return { state: "ready" };
 		};
-		if (full && data.rows) {
-			const rows = data.rows;
-			const docs = await copyDocsClosure(store);
-			await copyNoticeAssets(rows, store);
-			temp = await mkdtemp(join(tmpdir(), "campus-product-doctor-"));
-			await downloadProductIndex({
-				collection: data.collection,
-				path: join(temp, "points.ndjson"),
-				request,
-				validatePoint: (point) => validateProductPoint(point, rows, docs.references),
-			});
-		} else {
-			await request(`/collections/${data.collection}`);
-		}
-		return { state: "ready" };
+		return full ? await withRetrievalExportLock(client, diagnose) : await diagnose();
 	} catch (error) {
 		return { state: "invalid", reason: error instanceof Error ? error.message : String(error) };
 	} finally {

@@ -14,7 +14,7 @@ import { projectTaskStages } from "./task-stages.ts";
 import { projectTemporalStages, taskFailureMessage } from "./temporal-task-stages.ts";
 
 const maintenanceWorkflowId = "notice-pipeline-workflow";
-const ragTypes = ["noticePipelineRun", "noticePipelineRollback", "noticePipelineScheduled"];
+const pipelineTypes = ["noticePipelineRun", "noticePipelineScheduled"];
 const directory: {
 	id: TaskId;
 	label: string;
@@ -71,8 +71,7 @@ export function createTaskService(input: {
 			return temporal(async (client) => {
 				const result: TaskRun[] = [];
 				for await (const execution of client.workflow.list({
-					query:
-						'WorkflowType IN ("noticePipelineRun", "noticePipelineRollback", "noticePipelineScheduled")',
+					query: 'WorkflowType IN ("noticePipelineRun", "noticePipelineScheduled")',
 					pageSize: 20,
 				})) {
 					// Scheduled wrappers with a started child are represented by that child.
@@ -175,7 +174,7 @@ export function createTaskService(input: {
 						query: `RunId="${runId}"`,
 						pageSize: 1,
 					})) {
-						if (!ragTypes.includes(execution.type)) {
+						if (!pipelineTypes.includes(execution.type)) {
 							return null;
 						}
 						try {
@@ -209,30 +208,6 @@ export function createTaskService(input: {
 				}
 				throw error;
 			}
-		},
-		async rollback() {
-			if (!input.pool) {
-				throw new TaskError("索引目录数据库暂不可用");
-			}
-			const target = await input.pool.query(`SELECT c.collection AS expected_current,
-				c.previous_collection AS collection
-				FROM campus_docs_serving.current_index c
-				JOIN campus_docs_serving.index_versions current_version ON current_version.collection=c.collection
-				JOIN campus_docs_serving.index_versions v ON v.collection=c.previous_collection
-				WHERE c.singleton AND current_version.validated AND v.validated`);
-			const row = target.rows[0];
-			if (!row) {
-				throw new TaskError("没有可回滚的已验证上一版本", 409);
-			}
-			const args = {
-				expectedCurrent: row.expected_current,
-				collection: row.collection,
-			};
-			return temporal(async (client) => {
-				const schedule = client.schedule.getHandle("notice-pipeline");
-				await schedule.pause("Paused for index rollback");
-				return startMaintenance(client, "noticePipelineRollback", [args]);
-			});
 		},
 		async update(id: TaskId, value: TaskScheduleInput) {
 			const task = definition(id);
@@ -272,7 +247,7 @@ async function startMaintenance(client: Client, type: string, args: unknown[]) {
 		return { workflowId: handle.workflowId, runId: handle.firstExecutionRunId };
 	} catch (error) {
 		if (error instanceof WorkflowExecutionAlreadyStartedError) {
-			throw new TaskError("索引刷新或回滚正在运行，请等待本轮结束", 409);
+			throw new TaskError("通知流水线正在运行，请等待本轮结束", 409);
 		}
 		throw error;
 	}
@@ -326,15 +301,11 @@ async function temporalRun(client: Client, execution: WorkflowExecutionInfo): Pr
 		status: execution.status.name.toLowerCase(),
 		outcome:
 			details?.outcome ??
-			(execution.status.name === "COMPLETED" && execution.type === "noticePipelineRollback"
-				? details?.noOp || details?.obsolete
-					? "skipped"
-					: "success"
-				: ["FAILED", "CANCELLED", "CANCELED", "TERMINATED", "TIMED_OUT"].includes(
-							execution.status.name,
-						)
-					? "failed"
-					: "unknown"),
+			(["FAILED", "CANCELLED", "CANCELED", "TERMINATED", "TIMED_OUT"].includes(
+				execution.status.name,
+			)
+				? "failed"
+				: "unknown"),
 		startedAt: execution.startTime.toISOString(),
 		completedAt: execution.closeTime?.toISOString() ?? null,
 		error,

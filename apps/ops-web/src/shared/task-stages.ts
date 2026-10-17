@@ -53,11 +53,6 @@ export const taskStageLabels: Record<string, string> = {
 	syncFiles: "文件同步",
 	classifyNotices: "分类",
 	publishNoticesStage: "发布",
-	prepareRefresh: "准备索引",
-	embedNotices: "Embedding",
-	publishRefresh: "发布索引",
-	cleanupVersions: "清理",
-	rollbackIndex: "回滚索引",
 };
 export const taskOutcomeLabels = {
 	completed: "已完成",

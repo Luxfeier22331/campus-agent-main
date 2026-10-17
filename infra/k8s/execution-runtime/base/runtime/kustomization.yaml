@@ -4,7 +4,5 @@ resources:
   - service-account.yaml
   - database-roles.yaml
   - network-policy.yaml
-  - campus-docs-index-publisher.yaml
   - notice-pipeline-worker.yaml
-  - notice-artifacts-worker.yaml
   - campus-search-service.yaml

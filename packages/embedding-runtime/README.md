@@ -11,7 +11,7 @@
   顺序完整性校验。
 
 不负责 provider 部署与运维、索引写入、API key 存储和检索后端细节。消费者为
-`jobs/campus-docs-index-publisher`、`jobs/campus-rag-index-publisher` 和
+`jobs/campus-docs-index-publisher`、`jobs/retrieval-index` 和
 `jobs/notice-index-publisher`。
 
 ```bash

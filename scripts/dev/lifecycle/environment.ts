@@ -91,8 +91,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	internalPortalCollection: "jobs/internal-portal-collection/adapters/internal-portal/.env.local",
 	campusDocsIndexPublisher: "jobs/campus-docs-index-publisher/.env.local",
 	noticePipelineWorker: "apps/notice-pipeline-worker/.env.local",
-	noticeArtifactsWorker: "apps/notice-artifacts-worker/.env.local",
-	campusRagIndexPublisher: "jobs/campus-rag-index-publisher/.env.local",
+	campusRagIndexPublisher: "jobs/retrieval-index/.env.local",
 	noticeIndexPublisher: "jobs/notice-index-publisher/.env.local",
 } as const;
 
@@ -128,9 +127,8 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	"internal-portal-collection": ["internalPortalCollection"],
 	"notice-classifier": ["noticeClassifier"],
 	"campus-docs-index-publisher": ["campusDocsIndexPublisher"],
-	"campus-rag-index-publisher": ["campusRagIndexPublisher"],
+	"retrieval-index": ["campusRagIndexPublisher"],
 	"notice-pipeline-worker": ["noticePipelineWorker"],
-	"notice-artifacts-worker": ["noticeArtifactsWorker"],
 	"notice-index-publisher": ["noticeIndexPublisher"],
 };
 
@@ -598,31 +596,16 @@ export function renderLocalEnvironmentFiles(input: {
 			...objectStore,
 		});
 	}
-	if (shouldRender("noticeArtifactsWorker")) {
-		if (!input.qdrant) {
-			throw new Error("Local Qdrant connection is required for notice-artifacts-worker");
-		}
-		writeManagedEnv(paths.noticeArtifactsWorker, {
-			DEPLOYMENT_ENVIRONMENT: "local",
-			NOTICES_DATABASE_SSLMODE: "disable",
-			NOTICES_DATABASE_URL: database.owner,
-			AGENT_CONTROL_DATABASE_URL: database.owner,
-			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
-			TEMPORAL_ADDRESS: `127.0.0.1:${infraPorts.temporal}`,
-			TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
-			OBJECT_STORE_BUCKET_SOURCE: profile.sourceBucketName,
-			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			...objectStore,
-			QDRANT_URL: input.qdrant.url,
-			QDRANT_API_KEY: input.qdrant.apiKey,
-		});
-	}
 	if (shouldRender("campusRagIndexPublisher")) {
 		if (!input.qdrant) {
-			throw new Error("Campus RAG publisher requires a resolved local Qdrant connection.");
+			throw new Error("Retrieval index requires a resolved local Qdrant connection.");
 		}
 		writeManagedEnv(paths.campusRagIndexPublisher, {
-			AGENT_CONTROL_DATABASE_URL: database.owner,
+			DEPLOYMENT_ENVIRONMENT: "local",
+			NOTICES_DATABASE_URL: database.owner,
+			NOTICES_DATABASE_SSLMODE: "disable",
+			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
+			AGENT_CONTROL_DATABASE_URL: database.agentControl,
 			...objectStore,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			QDRANT_API_KEY: input.qdrant.apiKey,

@@ -4,13 +4,13 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { createFilesystemArtifactStore } from "../../../jobs/campus-docs-index-publisher/src/filesystem-artifact-store.ts";
 import { buildCampusDocsChunkSet } from "../../../jobs/campus-docs-index-publisher/src/publisher.ts";
+import { writeStoredNoticeChunks } from "../../../jobs/notice-index-publisher/src/artifacts.ts";
+import { buildNoticeChunkRun } from "../../../jobs/notice-index-publisher/src/command.ts";
 import {
 	readDocsEmbeddingSet,
 	readNoticeEmbeddingSet,
-} from "../../../jobs/campus-rag-index-publisher/src/artifacts.ts";
-import { createTransactionalIndexCatalog } from "../../../jobs/campus-rag-index-publisher/src/catalog.ts";
-import { writeStoredNoticeChunks } from "../../../jobs/notice-index-publisher/src/artifacts.ts";
-import { buildNoticeChunkRun } from "../../../jobs/notice-index-publisher/src/command.ts";
+} from "../../../jobs/retrieval-index/src/artifacts.ts";
+import { bindingCollection, writeCurrentIndex } from "../../../jobs/retrieval-index/src/catalog.ts";
 import { applyDomainRows } from "./domain-database.ts";
 import { importRetrievalData } from "./product-data-database.ts";
 import {
@@ -143,10 +143,15 @@ test("transactional catalog never commits the caller's foundation import", async
 		statements.push(sql);
 		return { rows: sql.includes("SELECT validated") ? [{ validated: true }] : [], rowCount: 0 };
 	};
-	await createTransactionalIndexCatalog({ query } as never).activate({
-		collection: `campus_docs_${"a".repeat(64)}`,
+	const binding = {
+		docsEmbeddingSet: `sha256:${"a".repeat(64)}`,
+		noticeEmbeddingSet: `sha256:${"b".repeat(64)}`,
+	} as const;
+	await writeCurrentIndex({ query } as never, {
+		collection: bindingCollection(binding),
+		...binding,
 	});
-	assert(statements.some((sql) => sql.startsWith("insert")));
+	assert(statements.some((sql) => sql.toLowerCase().startsWith("insert")));
 	assert(!statements.some((sql) => /BEGIN|COMMIT/u.test(sql)));
 });
 
@@ -167,11 +172,11 @@ test("failed foundation import rolls back and never activates the index", async 
 	assert(!statements.some((sql) => sql.includes("insert into campus_docs_serving")));
 });
 
-test("retrieval import registers and validates the candidate before activation", async () => {
+test("retrieval import writes the current revision in the same transaction", async () => {
 	const statements: string[] = [];
 	const docsEmbeddingSet = `sha256:${"a".repeat(64)}` as const;
 	const noticeEmbeddingSet = `sha256:${"b".repeat(64)}` as const;
-	const collection = `campus_docs_${"c".repeat(64)}`;
+	const collection = bindingCollection({ docsEmbeddingSet, noticeEmbeddingSet });
 	const seed = createProductSeed(new Date());
 	const query = async (sql: string) => {
 		statements.push(sql);
@@ -211,8 +216,11 @@ test("retrieval import registers and validates the candidate before activation",
 		docsEmbeddingSet,
 		noticeEmbeddingSet,
 	});
-	assert(statements.some((sql) => sql.includes("SET validated=true")));
-	assert(statements.some((sql) => sql.includes("insert into campus_docs_serving.current_index")));
+	assert(
+		statements.some((sql) =>
+			sql.toLowerCase().includes("insert into campus_docs_serving.current_index"),
+		),
+	);
 	assert(
 		statements.some(
 			(sql) =>

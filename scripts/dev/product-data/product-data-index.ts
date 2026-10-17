@@ -1,10 +1,11 @@
 import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
-import { COLLECTION_DEFINITION } from "../../../jobs/campus-rag-index-publisher/src/definitions.ts";
-import type { StreamingIndexCandidate } from "../../../jobs/campus-rag-index-publisher/src/publisher.ts";
-import { assertCollectionConfiguration } from "../../../jobs/campus-rag-index-publisher/src/qdrant.ts";
-import type { UnifiedPoint } from "../../../jobs/campus-rag-index-publisher/src/types.ts";
+import { COLLECTION_PATTERN } from "../../../jobs/retrieval-index/src/catalog.ts";
+import { COLLECTION_DEFINITION } from "../../../jobs/retrieval-index/src/definitions.ts";
+import type { StreamingIndexCandidate } from "../../../jobs/retrieval-index/src/publisher.ts";
+import { assertCollectionConfiguration } from "../../../jobs/retrieval-index/src/qdrant.ts";
+import type { UnifiedPoint } from "../../../jobs/retrieval-index/src/types.ts";
 import { RetryableProductTransferError } from "./product-data-errors.ts";
 
 const QDRANT_PAGE_SIZE = 64;
@@ -17,7 +18,7 @@ export async function downloadProductIndex(input: {
 	validatePoint?(point: UnifiedPoint): void;
 	signal?: AbortSignal;
 }): Promise<StreamingIndexCandidate> {
-	if (!/^campus_docs_[a-f0-9]{64}$/u.test(input.collection)) {
+	if (!COLLECTION_PATTERN.test(input.collection)) {
 		throw new Error("Invalid source collection identity");
 	}
 	const base = `/collections/${input.collection}`;

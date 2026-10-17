@@ -32,7 +32,7 @@ internal-portal-collection 在通知模式中写入来源对象和原始资源�
 
 采集同时提供本地 CLI 和复用同一实现的一次性 Job 入口。通知维护状态使用
 `[covered_from, covered_until)` 半开区间：notice-sync 只推进排他上界，notice-backfill 只扩展包含下界。
-集群中的采集、分类、发布和 RAG 刷新由 `notice-pipeline-worker` 串联，Temporal Schedule 默认暂停；
+集群中的采集、分类、正文发布由 `notice-pipeline-worker` 串联，Temporal Schedule 默认暂停；
 手动维护复用同一工作流，单阶段 CLI 仍可独立运行。分类只消费标题并写回数据库。
 凭据由 Ops Web 候选池解析，本地写入当前 worktree 的受管理环境文件，集群 Worker 只在当前进程内
 使用，不形成 TGC Secret。调度和操作入口见[采集运行](../../runbooks/ingestion/ingestion.md)。

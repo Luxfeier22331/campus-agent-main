@@ -55,7 +55,7 @@ status: active
 - Hindsight 负责 personal memory bank 和内容；
 - 来源 owner 负责门户原始 source/file/source.json；
 - Campus RAG serving 负责 Docs/Notice chunk/embedding 制品、统一当前索引和旧 collection 的人工清理；
-  `jobs/campus-rag-index-publisher` 是 `campus_docs_serving.current_index` 的唯一写入者。
+  `jobs/retrieval-index` 是 `campus_docs_serving.current_index` 的唯一写入者。
 
 恢复演练不得把这些不同 owner 的事实合并成一个 PostgreSQL 表，也不得复制 Hindsight、Temporal 或 Qdrant
 的内部历史来“补齐”恢复证据。

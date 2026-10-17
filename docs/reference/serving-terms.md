@@ -52,8 +52,8 @@ Notices DB。`review-samples.ndjson` 和 `validation.json` 是离线诊断产物
 
 ### 工具调用上限
 
-一次 operation 允许的最大真实函数工具调用次数，由 Runtime 在跨模型/工具 Activity 的状态中维护。
-它与检索候选数量、Temporal retry 和模型轮次预算分开计算。
+一次 SDK run 允许的最大真实函数工具调用次数。它与检索候选数量、Temporal retry 和 SDK
+`maxTurns` 分开计算。
 
 ## 索引与检索制品
 
@@ -104,18 +104,15 @@ Docs section 由 reader heading 路径或标题前正文形成，并绑定文档
 
 ### 当前索引绑定
 
-PostgreSQL `campus_docs_serving.current_index` 的单行记录，只保存当前 collection 名；该表名沿用历史
-schema 命名。唯一写入者是 `jobs/campus-rag-index-publisher`，而不是 Docs 或 Notice builder。agent-control
-不在在线 run 准入时读取它；一次在线 run 的首次 `campus_search` 读取并记录 immutable collection binding，
-同一 run 后续检索必须复用该 binding。数据库不保存索引历史、查询定义或
-重复的不可变索引记录。
+PostgreSQL `campus_docs_serving.current_index` 的单行记录保存当前 collection 与 Docs/Notice 制品引用；
+collection 名 `campus_docs_<revision>` 由两份制品和 collection definition 推导。唯一写入者是
+`jobs/retrieval-index`，而不是 Docs 或 Notice builder。agent-control 不在在线 run 准入时读取它；一次在线
+run 首次 `campus_search` 后记录返回的 collection，同一 run 后续检索必须复用该 collection。不保存回滚目标。
 
 ### 索引发布
 
-统一 Publisher 读取显式 Docs/Notice Embedding Set，从各自 manifest 解析 Chunk Set/Chunk Run，构建包含
-两类 point 的完整新 Qdrant collection，验证后原子替换当前 collection 指针。它不读取 reader、不连接
-Notices DB、不调用 embedding provider，也不写入额外的索引制品。Docs 或 Notice 更新不会原地改写旧
-collection；旧 collection 也不会在切换后立即删除。
+`retrieval-index build` 读取 Docs/Notice 来源并生成内容寻址制品；`apply` 写入该 revision 的新 collection，
+校验后切换 current_index，宽限期后删除上一个 collection。检索不中断；不保留版本目录或回滚目标。
 
 Embedding Job 在新旧制品的 `spaceId`、dimensions 和 `retrievalTextSha256` 一致时，按显式旧 Embedding
 Set 复用 dense vector，只为新检索文本调用 provider。统一 Publisher 不重新 embedding：始终从两个 Chunk

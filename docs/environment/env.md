@@ -18,7 +18,7 @@ status: active
 ### 仓库根环境
 
 根 `.env` 只保存维护者共享的外部开发连接，不是应用运行时配置。linked worktree 的 target 包含 `core`、
-`model-config`、`campus-docs-index-publisher`、`campus-rag-index-publisher` 或 `notice-index-publisher` 投影时，`dev:local credentials import` 才从 main
+`model-config`、`campus-docs-index-publisher`、`retrieval-index` 或 `notice-index-publisher` 投影时，`dev:local credentials import` 才从 main
 checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离线通知分类 provider 连接；包含
 `internal-portal-collection` 投影时，才首次导入已有门户 TGC。它只补充
 当前 worktree 尚不存在的字段，不覆盖已有值，也不复制数据库 DSN、对象存储身份、观测配置或整份环境文件。
@@ -32,7 +32,7 @@ checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离�
 - Campus Web：`.dev.vars.local`；
 - Model Config：`.env.local`；
 - agent-control：`.env.local`；
-- agent-runtime、memory-service、campus-search、cluster-private-ingress：各自的 `.env.local`。
+- agent-runtime：`.env.local`。
 
 需要其他边界时显式选择 target：
 
@@ -42,8 +42,7 @@ checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离�
 - `pnpm dev:init -- --target notice-classifier`：notice-classifier；
 - `pnpm dev:init -- --target campus-docs-index-publisher`：Campus Docs Chunk/Embedding 与 Docs-only local 验证任务；
 - `pnpm dev:init -- --target notice-pipeline-worker`：notice-pipeline-worker；
-- `pnpm dev:init -- --target notice-artifacts-worker`：notice-artifacts-worker；
-- `pnpm dev:init -- --target campus-rag-index-publisher`：统一 Campus RAG publisher 本地连接环境；
+- `pnpm dev:init -- --target retrieval-index`：统一 Campus RAG publisher 本地连接环境；
 - `pnpm dev:init -- --target notice-index-publisher`：已发布通知 Chunk 本地任务。
 
 target 按实际消费边界生成环境投影；例如 `internal-portal-collection` 组合 Ops Web 与采集器所需的
@@ -53,10 +52,9 @@ target 按实际消费边界生成环境投影；例如 `internal-portal-collect
 只安装 schema 和 Ops 所需的必要账号，不启动通知任务、不 seed 模型配置，也不初始化 Dining 或通知业务数据。
 `internal-portal-collection` 和 `notice-classifier` 不重复执行 DDL。`notice-index-publisher` target 通过
 同一 schema owner 补齐数据库 baseline；`campus-docs-index-publisher` 只生成任务环境，不执行应用 bootstrap。
-两个 notice Worker target 同样通过 `campus-agent-schema` 补齐数据库 baseline，seed 并校验各自所需的
-Model Config（notice-pipeline-worker 只需 `notice_classification`，notice-artifacts-worker 只需
-`campus_docs_embedding`），并创建 Temporal namespace；`notice-artifacts-worker`
-初始化时要求本地 Qdrant 连接已就绪，缺失即失败。
+`notice-pipeline-worker` target 通过 `campus-agent-schema` 补齐数据库 baseline，seed 所需的
+`notice_classification` Model Config 并创建 Temporal namespace。`retrieval-index` target 准备数据库 schema、
+`campus_docs_embedding` Model Config 与本地 Qdrant 连接；它不创建 Temporal namespace。
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
@@ -91,24 +89,26 @@ notice-classifier 的托管 `.env.local` 保存本 worktree 的通知数据库�
 Model Config 一次读取当前完整配置。
 
 Campus Docs builder 的托管 `.env.local` 保存对象存储 endpoint 和 derived bucket 写入凭据；derived bucket
-使用当前 profile 的 `OBJECT_STORE_BUCKET_DERIVED`。Campus Web 与其他应用共用当前 profile 的 `OBJECT_STORE_*` 配置。统一 Campus RAG publisher 的托管 `.env.local` 保存
-`AGENT_CONTROL_DATABASE_URL`、Qdrant endpoint/API key、对象存储 endpoint、当前 worktree 的
-`OBJECT_STORE_BUCKET_DERIVED` 和该 bucket 的读写凭据；写入凭据用于本地制品导入。Qdrant 连接由
+使用当前 profile 的 `OBJECT_STORE_BUCKET_DERIVED`。Campus Web 与其他应用共用当前 profile 的 `OBJECT_STORE_*` 配置。
+`retrieval-index` 的托管 `.env.local` 保存 Notices 与 Model Config 地址、`AGENT_CONTROL_DATABASE_URL`、
+Qdrant endpoint/API key、对象存储 endpoint、当前 worktree 的 `OBJECT_STORE_BUCKET_DERIVED` 和该 bucket 的读写凭据；
+写入凭据用于本地制品导入。Qdrant 连接由
 `scripts/dev` 从当前 v3 profile 读取 HTTP 端口，从当前 profile 专属 infrastructure secret 文件读取凭据，
 经认证检查后写入托管文件。Qdrant 服务与其他数据依赖统一由
 `infra/local/docker-compose.dev.yml` 拥有，不再提供共享 standalone Qdrant 入口。
-publisher 不读取 Model Config、Notices 数据库或 embedding provider。Notice index publisher 的托管 `.env.local` 保存
+`retrieval-index build` 读取 Model Config 与 Notices 数据库；Apply/Cleanup 使用 Agent Control 数据库更新或读取当前索引状态。
+Notice index publisher 的托管 `.env.local` 保存
 `DEPLOYMENT_ENVIRONMENT`、`NOTICES_DATABASE_SSLMODE`、
 `NOTICES_DATABASE_URL`。Notice 问题生成只从当前 worktree 根 `.env` 显式读取 LLM 配置；两个任务的本地
 embedding evaluation 和 Notice embedding 抽样验证都从当前 worktree 根 `.env` 显式读取 `EMBEDDING_BASE_URL` 与
 `EMBEDDING_API_KEY`，不读取其他 job 的环境文件；Campus Docs 的本地 embedding
 构建也使用同一根 `.env`，线上 Campus Docs Embedding Job 仍从 Model Config 获取完整 runtime config。
 
-notice-pipeline-worker 与 notice-artifacts-worker 的托管 `.env.local` 保存本地部署标记、禁用 TLS 的
-本地标记、本 worktree 的 Notices 与 agent-control 数据库连接、本地 Model Config 地址、当前
+notice-pipeline-worker 的托管 `.env.local` 保存本地部署标记、禁用 TLS 的
+本地标记、本 worktree 的 Notices 数据库与 Model Config 地址、当前
 profile 的 Temporal 地址与专属 `campus-agent-local-<instance-id>` namespace，以及 derived bucket 和
-对象存储读写凭据。两个 Worker 运行时通过 `MODEL_CONFIG_URL` 读取完整模型配置，托管文件不保存
-模型 provider 连接；notice-artifacts-worker 额外保存当前 worktree 的 Qdrant endpoint 与凭据。
+对象存储读写凭据。Worker 通过 `MODEL_CONFIG_URL` 读取完整模型配置，托管文件不保存
+模型 provider 连接。
 `notice-pipeline-worker` target 还生成 Model Config 与 internal-portal-collection 的托管文件。
 
 Ops Web 的托管 `.env.local` 保存本 worktree 的数据库连接和本地 derived bucket 连接；本地 Job 继续读取
@@ -199,9 +199,9 @@ main checkout 补充维护者共享的 provider 连接和已有门户 TGC。Post
 应用环境合同。Campus Web 文档使用当前 profile 的 derived bucket；缺少
 `campus-docs/source.json` 时由 Campus Web docs owner 写入确定性样例，不覆盖已有来源。
 
-campus-search 通过 `CAMPUS_SEARCH_DATABASE_URL` 读取当前 profile 的
-`campus_docs_serving.current_index`，使用独立的检索只读角色。agent-control 通过
-`AGENT_CONTROL_DATABASE_URL` 保存运行投影，不直接查询索引绑定表。
+Campus Search 通过 `CAMPUS_SEARCH_DATABASE_URL` 以独立只读角色读取当前 profile 的
+`campus_docs_serving.current_index`；Agent Control 的运行记录使用当前 worktree 的
+`AGENT_CONTROL_DATABASE_URL`。
 
 profile 位于当前 worktree 的 `var/dev/profile.json`，机器级实例注册表位于
 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.json`。只支持 schema v3；旧的 v1/v2 profile 或 registry 会 fail-closed，必须人工删除旧文件和旧资源后重新初始化，不会自动转换、迁移或写回；profile 只保存资源身份，

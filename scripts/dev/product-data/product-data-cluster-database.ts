@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Client } from "pg";
-import { startKubectlPortForward } from "../../../jobs/campus-rag-index-publisher/src/kubectl.ts";
+import { startKubectlPortForward } from "../../../jobs/retrieval-index/src/kubectl.ts";
 
 const exec = promisify(execFile);
 

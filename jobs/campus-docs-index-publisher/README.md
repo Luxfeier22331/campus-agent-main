@@ -1,6 +1,6 @@
 # Campus Docs Chunk 与 Embedding 任务
 
-该包实现 Campus Docs 的 Chunk Set、Embedding Set 构建和离线评测。serving 发布由 `jobs/campus-rag-index-publisher` 的统一 publisher 负责；
+该包实现 Campus Docs 的 Chunk Set、Embedding Set 构建和离线评测。serving 发布由 `jobs/retrieval-index` 的统一 publisher 负责；
 该包不采集或清洗来源文档，也不负责环境选择。
 
 ## 入口
@@ -104,7 +104,7 @@ worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 与 `EMBEDDING_API_KEY`，直接
 
 本包没有生产 `publish-index` CLI，也没有生产 Docs-only publisher CronJob。Docs Embedding Set 由本包
 输出后，必须与 Notice Embedding Set 一起交给
-`jobs/campus-rag-index-publisher`。统一 publisher 从两个 manifest 解析各自的 Chunk Set/Chunk Run，
+`jobs/retrieval-index`。统一 publisher 从两个 manifest 解析各自的 Chunk Set/Chunk Run，
 不读取 reader、不调用 embedding provider，并将 Docs (`source_kind=document`) 与 Notice
 (`source_kind=notice`) points 组装到同一个 `campus_docs_<sha256>` collection。
 

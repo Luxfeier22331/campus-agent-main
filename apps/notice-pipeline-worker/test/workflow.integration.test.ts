@@ -1,190 +1,54 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { Context, heartbeat } from "@temporalio/activity";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
-const enabled = Boolean(process.env.TEMPORAL_NAMESPACE);
-function requiredEnv(name: string): string {
-	const value = process.env[name];
-	if (!value) {
-		throw new Error(`${name} is required`);
-	}
-	return value;
-}
-describe.skipIf(!enabled)("durable refresh workflow", () => {
-	it("skips unchanged embedding, cleans up, and replays completed history", async () => {
-		const connection = await Connection.connect({
-			address: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",
-		});
-		const native = await NativeConnection.connect({
-			address: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",
-		});
-		const queue = `rag-test-${randomUUID()}`;
-		const namespace = requiredEnv("TEMPORAL_NAMESPACE");
+describe.skipIf(!process.env.TEMPORAL_NAMESPACE)("notice ingestion integration", () => {
+	it("runs ingestion without a retrieval activity worker", async () => {
+		const connection = await Connection.connect({ address: process.env.TEMPORAL_ADDRESS });
+		const native = await NativeConnection.connect({ address: process.env.TEMPORAL_ADDRESS });
+		const namespace = process.env.TEMPORAL_NAMESPACE;
+		if (!namespace) {
+			throw new Error("TEMPORAL_NAMESPACE is required when this test is enabled");
+		}
 		const client = new Client({ connection, namespace });
-		const workflowsPath = fileURLToPath(new URL("../src/workflows.ts", import.meta.url));
-		let embeds = 0;
-		let cleanups = 0;
+		const calls: string[] = [];
 		const worker = await Worker.create({
 			connection: native,
 			namespace,
-			taskQueue: "notice-artifacts",
-			workflowsPath,
+			taskQueue: "notice-pipeline",
+			workflowsPath: fileURLToPath(new URL("../src/workflows.ts", import.meta.url)),
 			activities: {
-				prepareRefresh: async () => ({ unchanged: true, expectedCurrent: "existing" }),
-				embedNotices: async () => {
-					embeds += 1;
+				collectNotices: async () => {
+					calls.push("collect");
+					return { summary: { outcome: "success" } };
 				},
-				cleanupVersions: async () => {
-					cleanups += 1;
+				classifyNotices: async () => {
+					calls.push("classify");
+					return { outcome: "success" };
+				},
+				publishNoticesStage: async () => {
+					calls.push("publish");
 					return { outcome: "success" };
 				},
 			},
 		});
 		try {
-			await worker.runUntil(async () => {
-				const handle = await client.workflow.start("noticePipelineRun", {
-					workflowId: queue,
-					taskQueue: "notice-artifacts",
-					args: [{ mode: "refresh" }],
+			const observed = await worker.runUntil(async () => {
+				const result = await client.workflow.execute("noticePipelineRun", {
+					workflowId: `ingestion-test-${randomUUID()}`,
+					taskQueue: "notice-pipeline",
+					args: [{ mode: "scheduled" }],
 				});
-				expect(await handle.result()).toMatchObject({
-					outcome: "success",
-					rag: { outcome: "skipped", collection: "existing" },
-				});
-				await Worker.runReplayHistory({ workflowsPath }, await handle.fetchHistory());
+				return { result, calls: [...calls] };
 			});
-			expect(embeds).toBe(0);
-			expect(cleanups).toBe(1);
+			assert.equal(observed.result.outcome, "success");
+			assert.deepEqual(observed.calls, ["collect", "classify", "publish"]);
 		} finally {
 			await native.close();
 			await connection.close();
 		}
-	}, 30000);
-	it("cancels embedding without publishing", async () => {
-		const connection = await Connection.connect({ address: process.env.TEMPORAL_ADDRESS });
-		const native = await NativeConnection.connect({ address: process.env.TEMPORAL_ADDRESS });
-		const namespace = requiredEnv("TEMPORAL_NAMESPACE");
-		const client = new Client({ connection, namespace });
-		const queue = `rag-cancel-${randomUUID()}`;
-		let started!: () => void;
-		const embeddingStarted = new Promise<void>((resolve) => {
-			started = resolve;
-		});
-		let publishes = 0;
-		const worker = await Worker.create({
-			connection: native,
-			namespace,
-			taskQueue: "notice-artifacts",
-			maxHeartbeatThrottleInterval: "1 second",
-			workflowsPath: fileURLToPath(new URL("../src/workflows.ts", import.meta.url)),
-			activities: {
-				prepareRefresh: async () => ({ unchanged: false, expectedCurrent: "old" }),
-				embedNotices: async () => {
-					started();
-					const timer = setInterval(() => heartbeat(), 50);
-					try {
-						await Context.current().cancelled;
-					} finally {
-						clearInterval(timer);
-					}
-				},
-				publishRefresh: async () => {
-					publishes += 1;
-				},
-			},
-		});
-		try {
-			await worker.runUntil(async () => {
-				const handle = await client.workflow.start("noticePipelineRun", {
-					workflowId: queue,
-					taskQueue: "notice-artifacts",
-					args: [{ mode: "refresh" }],
-				});
-				await embeddingStarted;
-				await handle.cancel();
-				await expect(handle.result()).rejects.toThrow();
-				expect((await handle.describe()).status.name).toBe("CANCELLED");
-			});
-			expect(publishes).toBe(0);
-		} finally {
-			await native.close();
-			await connection.close();
-		}
-	}, 30000);
-
-	it("resumes on a replacement worker and replays changed publication", async () => {
-		const connection = await Connection.connect({ address: process.env.TEMPORAL_ADDRESS });
-		const native = await NativeConnection.connect({ address: process.env.TEMPORAL_ADDRESS });
-		const namespace = requiredEnv("TEMPORAL_NAMESPACE");
-		const client = new Client({ connection, namespace });
-		const queue = `rag-restart-${randomUUID()}`;
-		const workflowsPath = fileURLToPath(new URL("../src/workflows.ts", import.meta.url));
-		const calls: string[] = [];
-		let prepareStarted!: () => void;
-		const prepared = new Promise<void>((resolve) => {
-			prepareStarted = resolve;
-		});
-		const first = await Worker.create({
-			connection: native,
-			namespace,
-			taskQueue: "notice-artifacts",
-			workflowsPath,
-			activities: {
-				prepareRefresh: async () => {
-					prepareStarted();
-					await Context.current().cancelled;
-				},
-			},
-			shutdownGraceTime: "0 seconds",
-		});
-		try {
-			const running = first.run();
-			const handle = await client.workflow.start("noticePipelineRun", {
-				workflowId: queue,
-				taskQueue: "notice-artifacts",
-				args: [{ mode: "refresh" }],
-			});
-			await prepared;
-			first.shutdown();
-			await running;
-			const second = await Worker.create({
-				connection: native,
-				namespace,
-				taskQueue: "notice-artifacts",
-				workflowsPath,
-				activities: {
-					prepareRefresh: async () => {
-						calls.push("prepare");
-						return { unchanged: false, expectedCurrent: "old" };
-					},
-					embedNotices: async () => {
-						calls.push("embed");
-						return { embeddingSet: "set" };
-					},
-					publishRefresh: async () => {
-						calls.push("publish");
-						return { outcome: "success", collection: "new" };
-					},
-					cleanupVersions: async () => {
-						calls.push("cleanup");
-						return { outcome: "success" };
-					},
-				},
-			});
-			await second.runUntil(async () => {
-				expect(await handle.result()).toMatchObject({
-					outcome: "success",
-					rag: { collection: "new" },
-				});
-				await Worker.runReplayHistory({ workflowsPath }, await handle.fetchHistory());
-			});
-			expect(calls).toEqual(["prepare", "embed", "publish", "cleanup"]);
-		} finally {
-			await native.close();
-			await connection.close();
-		}
-	}, 60000);
+	});
 });

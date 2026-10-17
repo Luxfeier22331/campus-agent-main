@@ -283,8 +283,7 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 	assert.deepEqual(plan.images, [
 		"agent-runtime",
 		"campus-agent-schema",
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
+		"retrieval-index",
 		"notice-pipeline-worker",
 		"document-ocr",
 		"agent-control",
@@ -292,7 +291,6 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 		"cluster-private-ingress",
 		"campus-search-service",
 		"model-config",
-		"notice-artifacts-worker",
 		"ops-web",
 	]);
 	assert.deepEqual(plan.workers, []);
@@ -340,11 +338,7 @@ test("publishes all notice and transport consumers when the shared notice databa
 	const root = await fixture(t);
 	const runner = syntheticScopeRunner(changed("packages/notice-database/src/index.ts"), []);
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, [
-		"notice-pipeline-worker",
-		"document-ocr",
-		"notice-artifacts-worker",
-	]);
+	assert.deepEqual(plan.images, ["retrieval-index", "notice-pipeline-worker", "document-ocr"]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -424,7 +418,7 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 	const runner = syntheticScopeRunner(
 		changed(
 			"jobs/campus-docs-index-publisher/src/cli.ts",
-			"jobs/campus-rag-index-publisher/src/cli.ts",
+			"jobs/retrieval-index/src/cli.ts",
 			"apps/agent-control/internal/executionpersistence/run_projection_postgres_store.go",
 		),
 		[],
@@ -432,12 +426,7 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,
-		images: [
-			"campus-docs-index-publisher",
-			"campus-rag-index-publisher",
-			"agent-control",
-			"notice-artifacts-worker",
-		],
+		images: ["retrieval-index", "agent-control"],
 		sourceBases: [],
 		topologyMigrations: [],
 		workers: [],
@@ -478,11 +467,9 @@ test("a Node lockfile change selects all active Node images but not the independ
 	assert.deepEqual(plan.images, [
 		"agent-runtime",
 		"campus-agent-schema",
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
+		"retrieval-index",
 		"notice-pipeline-worker",
 		"document-ocr",
-		"notice-artifacts-worker",
 		"ops-web",
 	]);
 });

@@ -7,8 +7,7 @@ export type LocalDevTarget =
 	| "notice-classifier"
 	| "campus-docs-index-publisher"
 	| "notice-pipeline-worker"
-	| "notice-artifacts-worker"
-	| "campus-rag-index-publisher"
+	| "retrieval-index"
 	| "notice-index-publisher";
 
 export type LocalDevCapability =
@@ -32,8 +31,7 @@ export type LocalDevEnvironmentProjection =
 	| "notice-classifier"
 	| "campus-docs-index-publisher"
 	| "notice-pipeline-worker"
-	| "notice-artifacts-worker"
-	| "campus-rag-index-publisher"
+	| "retrieval-index"
 	| "notice-index-publisher";
 
 export type LocalDevRuntimeDependency = "core" | "model-config" | "ops-web" | "app-api";
@@ -137,16 +135,11 @@ const consumers = {
 		bootstrap: ["campus-agent-schema", "notice-publisher-seed-local", "temporal-namespace"],
 		models: ["notice_classification"],
 	},
-	artifacts: {
-		projections: ["notice-artifacts-worker"],
-		capabilities: ["postgres", "derived-bucket", "qdrant", "temporal"],
-		bootstrap: ["campus-agent-schema", "temporal-namespace"],
-		models: ["campus_docs_embedding"],
-	},
 	rag: {
-		projections: ["campus-rag-index-publisher"],
+		projections: ["retrieval-index"],
 		capabilities: ["postgres", "derived-bucket", "qdrant"],
 		bootstrap: ["campus-agent-schema"],
+		models: ["campus_docs_embedding"],
 	},
 	noticeIndex: {
 		projections: ["notice-index-publisher"],
@@ -168,8 +161,7 @@ const TARGET_CONSUMERS: Record<LocalDevTarget, readonly Consumer[]> = {
 		consumers.collection,
 		consumers.pipeline,
 	],
-	"notice-artifacts-worker": [consumers.modelConfig, consumers.artifacts],
-	"campus-rag-index-publisher": [consumers.rag],
+	"retrieval-index": [consumers.modelConfig, consumers.rag],
 	"notice-index-publisher": [consumers.noticeIndex],
 };
 export const LOCAL_DEV_TARGETS = Object.keys(TARGET_CONSUMERS) as LocalDevTarget[];

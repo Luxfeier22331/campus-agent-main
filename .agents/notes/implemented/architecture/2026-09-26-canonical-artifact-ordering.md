@@ -27,7 +27,7 @@ UTF-16 码元序下不同，导致 `scripts/dev/fixtures/product-data` 的已提
   注释、字符串字面量与非源码文件不检查，模板插值体内的真实调用会检查。门禁经
   `REPOSITORY_CHECK_REGISTRY` 的 `canonical-order` 条目接入 evidence.mts 与 pr.yml，
   触发路径与 `CANONICAL_ORDER_PATHS` 保持同一列表。
-- 因依赖闭包扩大（campus-rag-index-publisher、notice-index-publisher、dining 新增
+- 因依赖闭包扩大（retrieval-index、notice-index-publisher、dining 新增
   `campus-contracts` 生产依赖），contracts 源变更现在也会选择这两个 publisher 镜像与
   notice-artifacts-worker；`scripts/release/image-targets.test.ts` 已按新闭包钉住。
 - 已提交的 dev fixture manifest 按码元序重排并换新身份；chunk-run 与其 ndjson

@@ -5,8 +5,7 @@ import { type CommandRunner, requireSuccess, run } from "../ci/scope.mts";
 export const ACTIVE_IMAGE_TARGETS = [
 	"agent-runtime",
 	"campus-agent-schema",
-	"campus-docs-index-publisher",
-	"campus-rag-index-publisher",
+	"retrieval-index",
 	"notice-pipeline-worker",
 	"document-ocr",
 	"agent-control",
@@ -14,7 +13,6 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"cluster-private-ingress",
 	"campus-search-service",
 	"model-config",
-	"notice-artifacts-worker",
 	"ops-web",
 ] as const;
 export type ImageTarget = (typeof ACTIVE_IMAGE_TARGETS)[number];
@@ -43,10 +41,8 @@ export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[
 		["apps/model-config/Dockerfile", ["model-config"]],
 		["apps/ops-web/Dockerfile", ["ops-web"]],
 		["apps/notice-pipeline-worker/Dockerfile", ["notice-pipeline-worker"]],
-		["apps/notice-artifacts-worker/Dockerfile", ["notice-artifacts-worker"]],
 		["jobs/campus-agent-schema/Dockerfile", ["campus-agent-schema"]],
-		["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
-		["jobs/campus-rag-index-publisher/Dockerfile", ["campus-rag-index-publisher"]],
+		["jobs/retrieval-index/Dockerfile", ["retrieval-index"]],
 		["jobs/document-ocr/Dockerfile", ["document-ocr"]],
 	].map(([file, images]) => [file, images as ImageTarget[]]),
 );
@@ -100,9 +96,7 @@ const EXTRA_INPUTS: Partial<Record<ImageTarget, string[]>> = {
 	],
 	"document-ocr": ["configs/sources/internal-portal.json"],
 	"notice-pipeline-worker": ["configs/sources/internal-portal.json"],
-	"notice-artifacts-worker": ["packages/contracts/schemas/"],
-	"campus-docs-index-publisher": ["packages/contracts/schemas/"],
-	"campus-rag-index-publisher": ["packages/contracts/schemas/"],
+	"retrieval-index": ["packages/contracts/schemas/"],
 };
 
 export function isImageSource(file: string): boolean {

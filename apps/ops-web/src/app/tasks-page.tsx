@@ -3,7 +3,6 @@ import {
 	Badge,
 	Button,
 	Checkbox,
-	ConfirmDialog,
 	Disclosure,
 	DisclosureSummary,
 	Field,
@@ -18,7 +17,6 @@ import { formatHumanDuration, formatTimestamp } from "./format";
 import { PageHeader } from "./ops-display";
 import { TaskStageSummary } from "./task-stage-summary";
 import { FilterSelect } from "./ui/filter-select";
-import { useConfirmCommand } from "./use-confirm-command";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	const response = await fetch(`/api/ops/tasks${path}`, init);
@@ -78,7 +76,6 @@ export function TasksPage() {
 }
 function TaskCard({ task, observedAt }: { task: OpsTask; observedAt: number }) {
 	const client = useQueryClient();
-	const confirmCommand = useConfirmCommand();
 	const [notice, setNotice] = useState("");
 	const [draft, setDraft] = useState<TaskScheduleInput | null>(null);
 	const value = draft ?? {
@@ -97,13 +94,6 @@ function TaskCard({ task, observedAt }: { task: OpsTask; observedAt: number }) {
 		onSuccess: async () => {
 			setDraft(null);
 			setNotice("调度设置已保存。");
-			await client.invalidateQueries({ queryKey: ["ops-tasks"] });
-		},
-	});
-	const rollback = useMutation({
-		mutationFn: () => request("/notice-pipeline/rollback", { method: "POST" }),
-		onSuccess: async () => {
-			setNotice("索引回滚任务已提交，执行结果见最近运行。");
 			await client.invalidateQueries({ queryKey: ["ops-tasks"] });
 		},
 	});
@@ -182,20 +172,6 @@ function TaskCard({ task, observedAt }: { task: OpsTask; observedAt: number }) {
 				>
 					立即运行一次
 				</Button>
-			)}
-			{task.id === "notice-pipeline" && (
-				<div className="border-t border-border pt-4">
-					<ConfirmDialog
-						title="暂停调度并回滚索引？"
-						description="暂停通知流水线的后续调度，并提交索引回滚任务，回到已验证的上一版本。正在运行的任务会继续完成。"
-						confirmLabel="提交索引回滚"
-						{...confirmCommand("rollback", () => {
-							setNotice("");
-							return rollback.mutateAsync();
-						})}
-						trigger={<Button variant="destructive">暂停调度并回滚索引</Button>}
-					/>
-				</div>
 			)}
 			{(save.error || run.error) && (
 				<StateMessage

@@ -31,7 +31,7 @@
 		"@campus-agent/document-ocr": "workspace:*",
 		"campus-web": "workspace:*",
 		"campus-docs-index-publisher": "workspace:*",
-		"campus-rag-index-publisher": "workspace:*",
+		"retrieval-index": "workspace:*",
 		"notice-index-publisher": "workspace:*"
 	},
 	"devDependencies": {

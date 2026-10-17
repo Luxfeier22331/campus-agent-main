@@ -48,7 +48,6 @@ vi.mock("@temporalio/client", () => ({
 	},
 }));
 
-import { WorkflowExecutionAlreadyStartedError } from "@temporalio/client";
 import { createTaskService } from "../src/server/tasks.ts";
 
 function service(local = false) {
@@ -143,51 +142,6 @@ describe("native task ownership", () => {
 		await service().update("notice-pipeline", { enabled: true, intervalMinutes: 15 });
 		expect(native.update).toHaveBeenCalledTimes(1);
 	});
-	it("uses atomic start conflict after pausing, without visibility admission", async () => {
-		native.start.mockRejectedValue(new WorkflowExecutionAlreadyStartedError("busy", "id", "type"));
-		await expect(service().rollback()).rejects.toMatchObject({ status: 409 });
-		expect(native.pause).toHaveBeenCalledTimes(1);
-		expect(native.start).toHaveBeenCalledTimes(1);
-		expect(native.list).not.toHaveBeenCalled();
-		expect(native.close).toHaveBeenCalledTimes(1);
-	});
-	it("pins rollback inputs and uses the same atomic ID for manual refresh", async () => {
-		expect(await service().rollback()).toEqual({
-			workflowId: "notice-pipeline-workflow",
-			runId: "run-1",
-		});
-		expect(native.start).toHaveBeenCalledWith(
-			"noticePipelineRollback",
-			expect.objectContaining({
-				taskQueue: "notice-pipeline",
-				workflowId: "notice-pipeline-workflow",
-				workflowIdConflictPolicy: "FAIL",
-				workflowIdReusePolicy: "ALLOW_DUPLICATE",
-				args: [
-					{
-						expectedCurrent: `campus_docs_${"b".repeat(64)}`,
-						collection: `campus_docs_${"a".repeat(64)}`,
-					},
-				],
-			}),
-		);
-		expect(native.update).not.toHaveBeenCalled();
-		await service().run("notice-pipeline");
-		expect(native.start).toHaveBeenLastCalledWith(
-			"noticePipelineRun",
-			expect.objectContaining({
-				workflowId: "notice-pipeline-workflow",
-				workflowIdConflictPolicy: "FAIL",
-				args: [],
-			}),
-		);
-		expect(native.trigger).not.toHaveBeenCalled();
-	});
-	it("does not pause when no validated rollback target exists", async () => {
-		native.query.mockResolvedValue({ rows: [] });
-		await expect(service().rollback()).rejects.toMatchObject({ status: 409 });
-		expect(native.pause).not.toHaveBeenCalled();
-	});
 	it("gives repeated workflow executions distinct identities and exact result handles", async () => {
 		const ids = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"];
 		const firstId = ids[0];
@@ -197,7 +151,7 @@ describe("native task ownership", () => {
 		const execution = (runId: string) => ({
 			workflowId: "notice-pipeline-workflow",
 			runId,
-			type: "noticePipelineRollback",
+			type: "noticePipelineRun",
 			status: { name: "COMPLETED" },
 			startTime: new Date(),
 			closeTime: new Date(),
@@ -212,7 +166,7 @@ describe("native task ownership", () => {
 			}
 		});
 		native.getHandle.mockImplementation((_workflowId, runId) => ({
-			result: async () => ({ collection: runId, noOp: false }),
+			result: async () => ({ outcome: "success", collection: runId }),
 		}));
 		expect((await service().runs("notice-pipeline")).map((run) => run.id)).toEqual(ids);
 		expect(await service().getRun("notice-pipeline", firstId)).toMatchObject({

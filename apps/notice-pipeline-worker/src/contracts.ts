@@ -6,8 +6,7 @@ export type NoticePipelineMode =
 	| "rescan"
 	| "classify-one"
 	| "publish-one"
-	| "republish-one"
-	| "refresh";
+	| "republish-one";
 
 export interface NoticePipelineInput {
 	mode: NoticePipelineMode;
@@ -15,9 +14,4 @@ export interface NoticePipelineInput {
 	startDate?: string;
 	from?: string;
 	to?: string;
-}
-
-export interface RollbackInput {
-	expectedCurrent: string;
-	collection: string;
 }

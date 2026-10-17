@@ -270,7 +270,7 @@ Chunk，同一 `headingPath` 下组成关系不同的短语义单元也可以保
 
 本地分块与评测命令只生成本地 Chunk、问题集和评测制品，不写 PostgreSQL 或回写 source bucket。Notice Chunk/Embedding
 builder 不直接发布 Qdrant collection 或在线绑定；完成的 Notice Embedding Set 可由统一
-`campus-rag-index-publisher` 与 Docs Embedding Set 组装为当前 Campus RAG collection。问题生成和
+`retrieval-index` 与 Docs Embedding Set 组装为当前 Campus RAG collection。问题生成和
 Embedding 评测都以 Chunk Run 为唯一正文输入。
 
 ### Derived 资源
@@ -299,7 +299,7 @@ notices/assets/sha256/<digest>
   的 source，更新 `content_html` 和 `content_text` 而保持已发布状态；
 - `notice-index-publisher` 在显式本地或默认暂停的集群任务中以只读快照读取已发布正文；集群任务生成
   derived bucket 中内容寻址的 Chunk Run 与 Embedding Set，本地任务继续生成问题集与评测制品；它不更新
-  通知数据库、source bucket、Qdrant 或在线索引绑定。统一 `campus-rag-index-publisher` 读取这些显式
+  通知数据库、source bucket、Qdrant 或在线索引绑定。统一 `retrieval-index` 读取这些显式
   制品并负责混合 collection 与 current pointer；
 - App API 只获得五张通知业务表的读取权限，并读取获准图片对象；不读取 migration ledger 或写入通知；
 - Campus Web 只通过 App API 读取规范化通知；
@@ -308,7 +308,7 @@ notices/assets/sha256/<digest>
   live Notices DB。
 
 通知 publisher 提供独立 CLI，并由 `notice-pipeline-worker` 调用同一实现完成自动或手动发布；
-制品构建由 `notice-artifacts-worker` 执行，单阶段 Job 仍按显式输入运行。schema 由统一迁移 Job 安装，
+制品构建由 `retrieval-index build` 执行，索引应用由独立 Apply Job 按显式输入运行。schema 由统一迁移 Job 安装，
 发布流程不执行 DDL。调度和运行凭据见[采集运行](../runbooks/ingestion/ingestion.md)。阶段间只交接显式制品 ID；只有统一
 Publisher 成功验证并激活 `campus_docs_serving.current_index` 后，Notice 才通过 `campus_search` 进入
 在线检索。本地模型比较结果和对象存储中存在制品都不表示已经完成该发布。

@@ -44,6 +44,10 @@
 		"./embedding-set": "./src/embedding-set.ts",
 		"./object-store": "./src/object-store.ts",
 		"./run-reader": "./src/run-reader.ts",
-		"./types": "./src/types.ts"
+		"./types": "./src/types.ts",
+		"./source": "./src/source.ts",
+		"./chunking/index": "./src/chunking/index.ts",
+		"./validation": "./src/validation.ts",
+		"./definitions": "./src/definitions.ts"
 	}
 }

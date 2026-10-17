@@ -4,7 +4,7 @@ import type {
 	ReaderObjectStore,
 	UnifiedPoint,
 	WritableObjectStore,
-} from "../../../jobs/campus-rag-index-publisher/src/types.ts";
+} from "../../../jobs/retrieval-index/src/types.ts";
 import {
 	buildReaderRouteSlug,
 	normalizeSourceManifest,

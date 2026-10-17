@@ -74,15 +74,11 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: campus-docs-artifact-jobs-dns-egress
+  name: retrieval-build-egress
 spec:
   podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values:
-          - campus-docs-chunk-builder
-          - campus-docs-embedding-builder
+    matchLabels:
+      app.kubernetes.io/name: retrieval-build
   policyTypes:
     - Egress
   egress:
@@ -95,22 +91,6 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: campus-docs-artifact-jobs-object-store-egress
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values:
-          - campus-docs-chunk-builder
-          - campus-docs-embedding-builder
-  policyTypes:
-    - Egress
-  egress:
     - to:
         - podSelector:
             matchLabels:
@@ -118,21 +98,13 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: campus-docs-embedding-builder-egress
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values:
-          - campus-docs-embedding-builder
-  policyTypes:
-    - Egress
-  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
     - to:
         - podSelector:
             matchLabels:
@@ -146,3 +118,80 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: retrieval-apply-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: retrieval-apply
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: retrieval-cleanup-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: retrieval-cleanup
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432

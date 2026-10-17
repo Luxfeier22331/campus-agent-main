@@ -8,14 +8,14 @@ status: active
 
 ## 边界
 
-本文定义 Campus Web 当前文档和已发布 Notices 如何形成统一的不可变 Campus RAG serving index，
+本文定义 Campus Web 当前文档和已发布 Notices 如何形成统一的 Campus RAG serving index，
 以及发布器如何验证和激活索引。它不负责来源采集、文档清洗、Campus Web 页面构建、在线答案生成或
 个人记忆。
 
-发布链把纳入范围的文档和已发布通知写入同一个不可变 Qdrant collection，不按来源类型拆分物理
+发布链把纳入范围的文档和已发布通知写入固定 Qdrant collection `campus_rag`，不按来源类型拆分物理
 collection。在线 Agent 不直接选择 collection、索引版本或查询配置；Campus Search service 在请求时读取当前
 绑定并执行固定查询。`agent-runtime` 的工具 Activity 通过内部 HTTP 调用该服务，Runtime 按工具执行顺序分配 citation，
-agent-control 保存并校验 run 的 collection 绑定。
+agent-control 保存并校验 run 的索引修订绑定。
 
 ## 输入与索引身份
 
@@ -32,12 +32,8 @@ Embedding 数据，不自动发现 bucket 中的对象；title 从 `retrievalTex
 `noticeId` 固定为 `/notices/<noticeId>`。
 
 Docs 和 Notice 的 Chunk/Embedding 制品都使用内容寻址身份。`campus_docs_chunk_set.v2` 只把当前文档
-投影摘要、分块定义和实际 Chunk 数据纳入身份，完整 `source.json` 摘要只作为诊断输出。物理 collection
-名由两个显式 Embedding Set ID 与当前 Collection Definition 的规范 JSON 摘要形成：
-
-```text
-campus_docs_<sha256>
-```
+投影摘要、分块定义和实际 Chunk 数据纳入身份，完整 `source.json` 摘要只作为诊断输出。物理 collection 固定为 `campus_rag`；两份 Embedding Set 与 Collection Definition 的规范 JSON 摘要
+形成独立 revision，保留 Agent run 的索引一致性判断。revision 不进入 point，不建立多版本存储。
 
 代码分别以各 builder 的 Chunk Definition、共享 `EMBEDDING_SPACE` 和 `COLLECTION_DEFINITION` 固定
 reader/分块、space/dimensions，以及 Qdrant point、dense/sparse 向量和查询定义。provider、Base URL、
@@ -85,57 +81,35 @@ Chunk 策略治理与生产分块实现同属 `campus-docs-index-publisher`。�
 
 ## 构建与发布
 
-索引流程由 Docs、Notice 各自的 Chunk/Embedding builder 和一个统一 Publisher 承载；所有 Kubernetes
-Job 模板保持暂停，并由操作者分别触发：
+`jobs/retrieval-index` 的同一镜像提供 build、apply、cleanup 三个一次性命令，由运维显式触发。
+通知 Temporal Worker 只负责采集、分类、正文发布，不再自动构建制品或刷新索引。
 
-```text
-Docs Chunk Job: source.json + 当前 reader
-  -> Docs Chunk Set
-Docs Embedding Job: Docs Chunk Set + Model Config 完整配置
-  -> Docs Embedding Set
-Notice Chunk Job: 已发布 Notice 快照
-  -> 内容寻址的 Notice Chunk 数据
-Notice Embedding Job: Notice Chunk 数据 + Model Config 完整配置
-  -> Notice Embedding Set
-Unified Publisher Job: Docs Embedding Set + Notice Embedding Set
-  -> 不可变 Qdrant collection
-  -> 原子替换 campus_docs_serving.current_index
-```
+Build 读取 Docs 来源清单与逐篇 reader、Notice 已发布正文快照，复用各自分块算法并批量生成向量。
+已有 Chunk/Embedding 制品格式及内容寻址规则保留；旧向量仅从显式指定的同模型 Embedding Set 复用。
+NDJSON 流式读写，SQLite 工作区承载去重、关联、规范排序和 point 差异比较；生产流程不构造完整向量 Map
+或完整 points 数组。工作区属于 Job，可删除，不是另一份持久化业务状态。
 
-本地分块和评测与正式 Job 复用领域实现，使用各自的 Store 与连接组装。
-本地 Docs Chunk/Embedding 与 Notice Chunk/评测写入 worktree `var/`；正式 builder 写入 derived bucket。
-Notice Embedding Set 从对象存储中的 Chunk Run 构建，不直接消费本地评测目录。Chunk 构建在写入前校验
-来源覆盖、section、root unit、`retrievalText`、字符上限和表格单元格覆盖。所有阶段输出都按实际内容
-寻址，本地制品不自动晋升；Notice Embedding cache 的显式校验导入见
-[通知制品手册](../../runbooks/ingestion/notice-indexing.md#导入本地-embedding-cache)。
+Apply 不读来源数据库、不调用 Embedding provider，只读取显式的 Docs 与 Notice Embedding Set。
+每个 revision 对应一个不可变 collection `campus_docs_<revision>`。Apply 写入新 collection 并校验 point 数、
+payload 与双向量，然后在一个事务中更新 `current_index`，再等待宽限期后删除上一个 collection。
+Search 每个请求读取一次指针，不持锁；切换前后的请求分别读取完整的旧、新 collection，检索不中断。
+失败发生在切换前时，旧 collection 继续服务，重跑同一组制品即可；相同输入不做写入。
+Qdrant dense、sparse、HNSW 和 payload 使用磁盘配置，写入按数量和字节大小分批；切换期间短暂存在两份
+collection。
 
-阶段之间只传递显式 `sha256:<id>`。`notice-pipeline-worker` 在独立 Temporal 队列串联 Notice 构建和统一发布，
-沿用当前 Docs Embedding Set；手动维护仍可显式执行各阶段，不维护 `latest` 制品指针。manifest 和
-NDJSON 使用规范序列化、最终换行和内容寻址对象键，不可变写入采用 create-or-verify。两个 Embedding
-Job 都从 Model Config 读取一次当前 Embedding 连接；在同空间、同 dimensions 且 retrieval text 未变时，
-可从操作者显式指定的旧 Embedding Set 复用向量，但不扫描 bucket，也不把 Qdrant 当作复用缓存。统一
-Publisher 不重新 embedding：只读取两个 Embedding Set，从 manifest 解析各自 Chunk 制品，组装 Docs/Notice
-points 和 sparse vectors。
+`campus_docs_serving.current_index` 是唯一发布状态，保存 collection 与 Docs/Notice Embedding Set 引用，
+collection 名由两者和 collection 定义推导。没有回滚入口；需要旧内容时用旧 Embedding Set 再次 Apply。
 
-Publisher 在激活前完整核对 collection 配置、point 数、point 身份、payload 和向量。只有验证成功才替换
-PostgreSQL `campus_docs_serving.current_index` 的单一当前绑定；组装或 Qdrant 校验失败不改变现有绑定。
+Cleanup 只删除显式指定的退休制品，并保护当前及其他保留 manifest 引用的对象；不重组 point、不清理共享
+缓存或自动删除未完成构建。三个 Job 由 publisher advisory lock 互斥，由运维按需触发。
 
-目标 collection 已存在时只做完整校验，内容不匹配不会删除；本次新建 collection 在写入或校验失败时
-删除。数据库激活失败时保留已验证 collection，以便使用相同制品重跑。
-
-`current_index` 的逻辑 owner 是统一 Campus RAG serving；唯一的 current pointer writer 是
-`jobs/campus-rag-index-publisher`。`campus_docs_serving` 是沿用的 schema/table 名，不表示 Docs builder
-仍拥有发布职责。Publisher 当前复用 `agent_control` 数据库身份完成读取和激活；该身份是部署层共享
-的技术 writer，不是 agent-control 在线服务的逻辑写入职责。数据库 ACL 因此授予该身份
-`SELECT`、`INSERT`、`UPDATE`，并拒绝 `DELETE`、`TRUNCATE`、`REFERENCES` 和 `TRIGGER`。
-
-源码包含 Job、schema、制品或 collection 只能证明发布链可执行，不能证明任一环境已经运行这些 Job
-或激活当前索引。操作步骤和清理条件见 [Campus Docs 与 Notices 维护及统一 RAG 发布](../../runbooks/ingestion/campus-docs.md)。
+唯一发布写 owner 是 `retrieval-index`，复用 `agent_control` 数据库身份；Campus Search 使用独立只读
+`campus_search` role。部署参数、执行顺序与失败处理见[操作手册](../../runbooks/ingestion/campus-docs.md#检索索引-job)。
 
 ## 在线消费边界
 
 `campus_docs_serving.current_index` 是统一 Publisher 维护的单一当前绑定，不是当前在线 Agent 的准入输入。
-`campus_search` 被 Primary Agent 按需调用后，agent-runtime 工具 Activity 通过内部 Campus Search service 请求检索。
+`campus_search` 被 Solve/Executor 按需调用后，agent-runtime 工具 Activity 通过内部 Campus Search service 请求检索。
 该 service 从 Campus Search 专属只读数据库连接读取绑定，从 Model Config 读取 `campus_docs_embedding` 和
 `campus_docs_reranker` 连接，向对应 collection 发起 dense/sparse hybrid 查询。工具不接受客户端或模型传入
 collection、provider、vector name、top-k 或版本字段。
@@ -154,8 +128,8 @@ collection 交给 agent-control 保存到 run metadata，后续响应必须匹�
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选。数量和字符预算前
 排除本轮已返回的 `result_ref`；同一通知的不同片段仍可返回，不按通知来源折叠互补章节，
 也不按通知发布时间自动排除旧通知。结果中的 `released_at` 只能证明通知发布时间，不能证明截止日期、适用年度、学期、申请窗口或当前有效性；正文没有适用信息时，答案必须说明无法确认。版本过滤不改变 Notices 的已发布通知范围。最终返回
-每次最多 5 条候选结果，正文总字符预算为 4000。Campus Search 校验 point schema、文本 hash、section
-URL、版本字段和 `root_unit_ids`，Runtime 校验响应结构并完成 collection 绑定后把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
+每次最多 5 条候选结果，正文总字符预算为 4000。agent-control 校验 point schema、文本 hash、section
+URL、版本字段和 `root_unit_ids` 后才把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
 score 必须是有限数值；调用或校验失败直接使检索失败，不回退到未重排候选。过滤后无结果返回成功的
 `no_match`。该阈值只判断查询与候选文本的相关性，不判断学校、人群或规则适用主体。
 当前 collection 包含纳入候选的中央民族大学 Campus Web 文档和已发布 Notices；point 的 `source_kind`
@@ -179,20 +153,7 @@ Agent 正文只引用实际采用的候选；当前 Campus Docs 来源由 `campu
 - [Qdrant 托管方式](../../../.agents/notes/implemented/architecture/2026-07-16-qdrant-hosting.md)
 - [Artifact 身份的规范排序](../../../.agents/notes/implemented/architecture/2026-09-26-canonical-artifact-ordering.md)
 
-## 自动通知索引生命周期
+## 索引生命周期
 
-Ops `/tasks` 直接管理 `notice-pipeline` Schedule，默认暂停、周期 15 分钟、可调整为 30 或 60 分钟，重叠 SKIP。
-Schedule 入口启动固定 ID `notice-pipeline-workflow` 的刷新子工作流；手动刷新与回滚使用同一
-执行 ID，运行中冲突由 Temporal 原子拒绝。Schedule action 自身的时间戳 ID 不承担互斥。
-工作流保持制品引用和计数，活动复用 builder 与唯一 publisher；每次读取已发布通知快照。
-Chunk Run 未变化时跳过 embedding 和激活，仍执行清理。
-
-`campus_docs_serving.index_versions` 登记真实制品引用、生产者、验证与激活/退休时间。
-候选先登记再创建 collection；未验证且从未激活的中断候选可在 publisher 锁下重建。
-激活检查预期当前值，重复确认已激活版本不移动 previous。保留当前与上一版本，自动版本退休至少
-一小时后清理；无引用自动产物与未完成产物按所有权和活动工作流保护，后者额外保留 24 小时。
-共享缓存、来源和未认领手动制品不自动删除。清理错误不撤销索引切换。
-
-回滚先读取已验证的上一版本，无目标时返回 409；有目标时暂停调度，将制品引用与预期当前值固定为
-Workflow 输入，再以同一 publisher 激活。活动刷新冲突返回 409 并保持暂停，结束后可重新请求；
-回滚重试不会重新选择上一版本。Ops 运行记录按 Run ID 区分，详情不受最近运行列表条数限制。
+通知正文发布和索引应用独立。通知发布/重新发布后，检索在下次成功 Apply 才反映变化。
+职责取舍见[检索 Job 决策](../../../.agents/notes/implemented/architecture/2026-10-14-retrieval-index-jobs.md)。

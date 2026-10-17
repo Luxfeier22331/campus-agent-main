@@ -48,7 +48,7 @@ Primary Agent 在持久执行准入时先读取 target，Agent Runtime 再携带
 [Model Config 架构](../../docs/architecture/system/model-config.md)。
 
 `campus_docs_embedding` 由 Campus Search service、campus-docs-index-publisher、notice-index-publisher 和
-notice-artifacts-worker 的目标一致性检查各自读取一次完整配置。共同信任边界内重复读取是既有设计：API Key 不出边界，
+retrieval-build 的目标一致性检查各自读取一次完整配置。共同信任边界内重复读取是既有设计：API Key 不出边界，
 consumer 各自校验配置并失败
 关闭；Model Config 不聚合为模型代理服务，原因见
 [边界决策](../../.agents/notes/implemented/architecture/2026-08-22-model-config-boundary.md)。

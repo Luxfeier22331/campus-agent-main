@@ -2,7 +2,7 @@
 
 该包负责已发布站内通知的 Chunk Run、Embedding Set，以及本地结构验证、广泛抽样、问题生成和
 Embedding dense-retrieval 评测。集群任务把正式制品写入 derived bucket；本包不直接发布 Qdrant
-collection 或维护在线绑定，生产 serving 由 `jobs/campus-rag-index-publisher` 统一完成。
+collection 或维护在线绑定，生产 serving 由 `jobs/retrieval-index` 统一完成。
 
 ## 主链路
 
@@ -28,7 +28,7 @@ notice-chunk-builder
   -> notices/rag/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
   -> notices/rag/embedding-sets/sha256/<set-id>/manifest.json
   -> CAMPUS_NOTICE_EMBEDDING_SET
-  -> campus-rag-index-publisher
+  -> retrieval-index
 ```
 
 `build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v10 实现并写入 Chunk

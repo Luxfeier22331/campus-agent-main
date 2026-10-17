@@ -7,8 +7,6 @@
 !turbo.json
 !apps/notice-pipeline-worker/
 !apps/notice-pipeline-worker/**
-!apps/notice-artifacts-worker/
-!apps/notice-artifacts-worker/**
 !apps/agent-runtime/
 !apps/agent-runtime/**
 !apps/app-api/
@@ -37,8 +35,8 @@ apps/campus-web/**
 !jobs/campus-agent-schema/**
 !jobs/campus-docs-index-publisher/
 !jobs/campus-docs-index-publisher/**
-!jobs/campus-rag-index-publisher/
-!jobs/campus-rag-index-publisher/**
+!jobs/retrieval-index/
+!jobs/retrieval-index/**
 !jobs/internal-portal-collection/
 !jobs/internal-portal-collection/**
 jobs/internal-portal-collection/**/.env

@@ -19,15 +19,13 @@ group "default" {
     "document-ocr",
     "agent-runtime",
     "campus-agent-schema",
-    "campus-docs-index-publisher",
-	"campus-rag-index-publisher",
+	"retrieval-index",
     "notice-pipeline-worker",
     "agent-control",
     "memory-service",
     "cluster-private-ingress",
     "campus-search-service",
     "model-config",
-    "notice-artifacts-worker",
     "ops-web",
   ]
 }
@@ -48,10 +46,8 @@ group "standard" {
     "document-ocr",
     "agent-runtime",
     "campus-agent-schema",
-    "campus-docs-index-publisher",
-    "campus-rag-index-publisher",
+    "retrieval-index",
     "notice-pipeline-worker",
-    "notice-artifacts-worker",
   ]
 }
 
@@ -78,14 +74,10 @@ target "campus-agent-schema" {
   dockerfile = "jobs/campus-agent-schema/Dockerfile"
 }
 
-target "campus-docs-index-publisher" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/campus-docs-index-publisher/Dockerfile"
-}
 
-target "campus-rag-index-publisher" {
+target "retrieval-index" {
   inherits   = ["_common"]
-  dockerfile = "jobs/campus-rag-index-publisher/Dockerfile"
+  dockerfile = "jobs/retrieval-index/Dockerfile"
 }
 
 target "agent-control" {
@@ -116,10 +108,6 @@ target "notice-pipeline-worker" {
   dockerfile = "apps/notice-pipeline-worker/Dockerfile"
 }
 
-target "notice-artifacts-worker" {
-  inherits = ["_common"]
-  dockerfile = "apps/notice-artifacts-worker/Dockerfile"
-}
 
 target "campus-search-service" {
   inherits = ["_common"]

@@ -4,5 +4,5 @@ resources:
   - service-account.yaml
   - database-roles.yaml
   - network-policy.yaml
-  - campus-docs-index-publisher.yaml
   - campus-search-service.yaml
+  - retrieval-jobs.yaml

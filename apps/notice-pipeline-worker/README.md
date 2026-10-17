@@ -1,36 +1,21 @@
 # 通知流水线 Worker
 
-Temporal 队列 `notice-pipeline` 每 15 分钟运行一次通知采集、分类、发布、制品构建和 RAG 刷新；沿用当前索引中的 Docs Embedding Set。
-工作流只负责阶段编排，实际处理由既有通知采集、分类、发布和 Campus RAG publisher 接口执行。
+Temporal 队列 `notice-pipeline` 负责通知采集、分类、正文发布及现有单项维护操作。
+Schedule 默认周期 15 分钟，首次创建暂停；Ops `/tasks` 支持 15、30、60 分钟、立即运行和暂停。
+定时入口通过固定 ID 子工作流与手动操作互斥。暂停调度不会取消已运行的任务。
 
-首次调度创建暂停。`schedule:init` 更新部署拥有的工作流和重叠策略，保留操作员设置的启停和周期。
-Ops `/tasks` 支持 15、30、60 分钟、立即运行和暂停。暂停不取消运行中的工作流。
-定时运行由 Schedule action 启动带固定 ID 的子工作流；手动运行和回滚直接启动同一固定 ID 的维护工作流，运行中由
-Temporal 原子冲突拒绝。Docs 发布继续使用显式制品输入。
-
-## 本地运行
+本 Worker 不构建 Chunk/Embedding，不修改 Qdrant，也不承担索引清理和回滚。
+通知发布成功与进入检索索引是两个独立结果；运维显式运行
+[retrieval-index Job](../../jobs/retrieval-index/README.md) 后检索内容才更新。
 
 ```bash
-pnpm dev:init -- --target ops-web
 pnpm dev:init -- --target notice-pipeline-worker
-pnpm dev:doctor -- --target notice-pipeline-worker
 pnpm --filter notice-pipeline-worker dev
+pnpm --filter notice-pipeline-worker test:unit
 ```
 
-本地使用 worktree 数据库、derived bucket 和 Temporal namespace，初始化不调用 embedding provider。
-构建出的 `dist/worker.js` 使用预先打包的工作流；镜像入口可用 `dist/schedule-cli.js` 初始化调度。
+镜像中的 `dist/schedule-cli.js` 初始化调度，更新工作流和重叠策略，同时保留操作员设置的周期和启停。
+单条通知失败继续处理并汇总 partial；阶段级失败阻断后续步骤。
 
-## 发布与恢复
-
-当前索引必须登记真实 Docs、Notice Embedding Set，并经过 publisher 校验；没有引用时刷新失败，
-不会自动猜测或写入空引用。所有发布登记候选后才创建 collection，验证后以预期当前值激活。
-未激活且未验证的中断候选可在 publisher 锁下重建，已验证或受保护的 collection 不自动修复。
-
-保留当前与上一版本。其他自动版本退出保护至少一小时后清理 collection；对象仅限自动生产者标记、
-没有保留版本引用且生产工作流已结束的对象；删除全部对象版本并确认清理后才移除版本记录。未完成对象还须超过 24 小时。共享 embedding cache、
-来源资产和手动产物保留。清理失败不撤销已成功的激活，下次刷新继续清理。
-
-回滚先暂停 Schedule，再启动固定 ID 的回滚工作流；如果刷新仍在运行，Temporal 返回冲突且 Schedule 保持暂停，
-不会在服务端等待。回滚成功后 Schedule 继续保持暂停。维护旧制品前也须暂停调度，并在确认没有活动刷新后再操作。
-
-决策与验收范围见 [定时任务治理](../../.agents/notes/implemented/architecture/2026-09-20-scheduled-task-governance.md)。
+边界见[通知领域](../../docs/architecture/domains/notices.md)与
+[检索职责调整](../../.agents/notes/implemented/architecture/2026-10-14-retrieval-index-jobs.md)。

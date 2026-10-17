@@ -33,11 +33,11 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
   Application 中的统一 `campus-agent-schema` Job 安装；
 - `ops-web`：一个运维 API Deployment，管理 `notice-pipeline` Temporal Schedule 启停与周期，并查询通知维护工作流的运行投影；
 - `notice-pipeline-worker`：独立离线流水线 Deployment，在 `notice-pipeline` 队列执行通知采集、分类、发布和 RAG 刷新编排；
-- `notice-artifacts-worker`：独立离线流水线 Deployment，在 `notice-artifacts` 队列执行通知制品、Embedding、Qdrant 发布、清理和 rollback；
+- `retrieval-index`：三个显式一次性 Job，执行 Build、Apply、Cleanup；
 - `ops-web-internal-portal-check`：使用 Ops Web 凭据 store 顺序检查凭据池的 CronJob；
 - `internal-portal-collection` 及通知分类、发布包保留镜像和共用实现，供流水线 Activity 与手动恢复使用；旧通知 CronJob 模板仅作为迁移期手动入口，不再承担自动调度。统一 RAG publisher 保留为共享 package 和手动 CLI，不再部署独立 CronJob。
 
-Temporal Server 是 agent-control、agent-runtime-worker、memory-worker、notice-pipeline-worker 与 notice-artifacts-worker 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
+Temporal Server 是 agent-control、agent-runtime-worker、memory-worker与 notice-pipeline-worker 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
 WorkerDeployment 或 WorkerResourceTemplate；KEDA 控制器与 ScaledObject 由环境仓管理。
 
 Agent Runtime 的可选 OTLP endpoint 由环境仓选择。源码仓不把 OpenTelemetry Agent/Gateway、节点

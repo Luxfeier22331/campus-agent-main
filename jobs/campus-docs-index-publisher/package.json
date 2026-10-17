@@ -27,5 +27,12 @@
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.3"
+	},
+	"exports": {
+		"./indexing/source": "./src/indexing/source.ts",
+		"./indexing/chunks": "./src/indexing/chunks.ts",
+		"./indexing/content-digest": "./src/indexing/content-digest.ts",
+		"./definitions": "./src/definitions.ts",
+		"./chunk-validation": "./src/chunk-validation.ts"
 	}
 }

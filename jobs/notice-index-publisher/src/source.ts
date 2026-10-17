@@ -68,30 +68,7 @@ async function loadInSnapshot(client: PoolClient): Promise<NoticeSource[]> {
 	await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
 	try {
 		const result = await client.query<NoticeSourceRow>(PUBLISHED_NOTICE_SOURCE_QUERY);
-		const sources = result.rows.map((row) => {
-			if (
-				typeof row.notice_id !== "string" ||
-				!row.notice_id ||
-				typeof row.title !== "string" ||
-				!row.title ||
-				(row.content_text !== null && typeof row.content_text !== "string") ||
-				typeof row.image_text !== "string" ||
-				(row.released_at instanceof Date && Number.isNaN(row.released_at.getTime()))
-			) {
-				throw new Error("published notice source row is invalid");
-			}
-			const imageText = row.image_text
-				.replace(/!\[[^\]]*\]\([^)]*\)/gu, "")
-				.replace(/<img\b[^>]*>/giu, "")
-				.trim();
-			return {
-				contentText:
-					[row.content_text, imageText].filter((text) => text?.trim()).join("\n\n") || row.title,
-				noticeId: row.notice_id,
-				releasedAt: new Date(String(row.released_at)).toISOString(),
-				title: row.title,
-			};
-		});
+		const sources = result.rows.map(noticeSourceFromRow);
 		await client.query("COMMIT");
 		return sources;
 	} catch (error) {
@@ -104,4 +81,50 @@ function compareNoticeIds(left: string, right: string): number {
 	const leftNumber = BigInt(left);
 	const rightNumber = BigInt(right);
 	return leftNumber < rightNumber ? -1 : leftNumber > rightNumber ? 1 : 0;
+}
+
+export function noticeSourceFromRow(row: NoticeSourceRow): NoticeSource {
+	if (
+		typeof row.notice_id !== "string" ||
+		!row.notice_id ||
+		typeof row.title !== "string" ||
+		!row.title ||
+		(row.content_text !== null && typeof row.content_text !== "string") ||
+		typeof row.image_text !== "string" ||
+		(row.released_at instanceof Date && Number.isNaN(row.released_at.getTime()))
+	) {
+		throw new Error("published notice source row is invalid");
+	}
+	const imageText = row.image_text
+		.replace(/!\[[^\]]*\]\([^)]*\)/gu, "")
+		.replace(/<img\b[^>]*>/giu, "")
+		.trim();
+	return {
+		contentText:
+			[row.content_text, imageText].filter((text) => text?.trim()).join("\n\n") || row.title,
+		noticeId: row.notice_id,
+		releasedAt: new Date(String(row.released_at)).toISOString(),
+		title: row.title,
+	};
+}
+
+export async function* iteratePublishedNoticeSources(
+	pool: Pick<Pool, "connect">,
+): AsyncGenerator<NoticeSource> {
+	const client = await pool.connect();
+	try {
+		await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
+		await client.query(
+			`DECLARE retrieval_sources NO SCROLL CURSOR FOR ${PUBLISHED_NOTICE_SOURCE_QUERY}`,
+		);
+		for (;;) {
+			const page = await client.query<NoticeSourceRow>("FETCH FORWARD 64 FROM retrieval_sources");
+			if (!page.rows.length) break;
+			for (const row of page.rows) yield noticeSourceFromRow(row);
+		}
+		await client.query("COMMIT");
+	} finally {
+		await client.query("ROLLBACK").catch(() => undefined);
+		client.release();
+	}
 }

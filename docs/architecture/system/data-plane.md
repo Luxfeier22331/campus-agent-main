@@ -22,7 +22,7 @@ status: active
 | `jobs/notice-classifier` | 读取通知数据库中的标题并写回分类 | 正文清洗、门户栏目判断、发布、自动调度 |
 | `jobs/notice-publisher` | 读取已分类库存、校验来源、清洗正文、写入正文与 derived 图片并标记发布 | 定时采集、分类、在线读取 |
 | `apps/notice-pipeline-worker` | 串联采集、分类、发布和制品刷新，提供统一通知工作流 | 在线回答与单阶段领域实现 |
-| `apps/notice-artifacts-worker` | 执行 Chunk、Embedding、索引发布、清理与回滚活动 | 门户采集和通知分类 |
+| `jobs/retrieval-index` | 一次性构建、在线切换版本化索引与显式制品清理 | 门户采集和通知分类 |
 | `apps/ops-web` | 维护 `transport.*` 线路、完整时间段和班次明细 | 通知采集、学生端读取 |
 | `apps/app-api` | 读取 `transport.*` 并按本地日期生成公开班车 projection | 写入班车事实、通知审核 |
 | `apps/campus-web` | 通过 App API 展示 `/transport` 页面和日期班次状态 | 直接读取 PostgreSQL、source bucket 或通知声明 |

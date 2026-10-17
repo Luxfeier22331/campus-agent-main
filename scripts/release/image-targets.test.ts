@@ -36,8 +36,7 @@ test("active image target registry excludes the historical schema image", () => 
 	assert.deepEqual(ACTIVE_IMAGE_TARGETS, [
 		"agent-runtime",
 		"campus-agent-schema",
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
+		"retrieval-index",
 		"notice-pipeline-worker",
 		"document-ocr",
 		"agent-control",
@@ -45,7 +44,6 @@ test("active image target registry excludes the historical schema image", () => 
 		"cluster-private-ingress",
 		"campus-search-service",
 		"model-config",
-		"notice-artifacts-worker",
 		"ops-web",
 	]);
 });
@@ -75,21 +73,17 @@ test("maps shared Node build inputs to all active Node images", () => {
 	assert.deepEqual(targets([".node-version"]), [
 		"agent-runtime",
 		"campus-agent-schema",
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
+		"retrieval-index",
 		"notice-pipeline-worker",
 		"document-ocr",
-		"notice-artifacts-worker",
 		"ops-web",
 	]);
 	assert.deepEqual(targets(["package.json"]), [
 		"agent-runtime",
 		"campus-agent-schema",
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
+		"retrieval-index",
 		"notice-pipeline-worker",
 		"document-ocr",
-		"notice-artifacts-worker",
 		"ops-web",
 	]);
 	assert.deepEqual(targets(["turbo.json"]), []);
@@ -124,22 +118,16 @@ test("test-only source and configuration changes do not select images", () => {
 
 test("maps non-Turbo notice and execution inputs to their consumers", () => {
 	assert.deepEqual(targets(["packages/notice-database/src/index.ts"]), [
+		"retrieval-index",
 		"notice-pipeline-worker",
 		"document-ocr",
-		"notice-artifacts-worker",
 	]);
 	assert.deepEqual(targets(["configs/runtime/tools.v8.json"]), ["agent-runtime", "agent-control"]);
 });
 
 test("maps notice index and embedding runtime changes to their artifact images", () => {
-	assert.deepEqual(targets(["jobs/notice-index-publisher/src/cli.ts"]), [
-		"notice-artifacts-worker",
-	]);
-	assert.deepEqual(targets(["packages/embedding-runtime/src/index.ts"]), [
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
-		"notice-artifacts-worker",
-	]);
+	assert.deepEqual(targets(["jobs/notice-index-publisher/src/cli.ts"]), ["retrieval-index"]);
+	assert.deepEqual(targets(["packages/embedding-runtime/src/index.ts"]), ["retrieval-index"]);
 });
 
 test("transport domain changes do not select a retired publisher image", () => {
@@ -149,20 +137,16 @@ test("transport domain changes do not select a retired publisher image", () => {
 test("maps the docs publisher's shared contract sources to its image", () => {
 	assert.deepEqual(targets(["packages/contracts/src/campus-docs/node/index.ts"]), [
 		"agent-runtime",
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
+		"retrieval-index",
 		"notice-pipeline-worker",
 		"document-ocr",
-		"notice-artifacts-worker",
 		"ops-web",
 	]);
 	assert.deepEqual(targets(["packages/contracts/schemas/campus-docs-course-maps.v1.schema.json"]), [
 		"agent-runtime",
-		"campus-docs-index-publisher",
-		"campus-rag-index-publisher",
+		"retrieval-index",
 		"notice-pipeline-worker",
 		"document-ocr",
-		"notice-artifacts-worker",
 		"ops-web",
 	]);
 });

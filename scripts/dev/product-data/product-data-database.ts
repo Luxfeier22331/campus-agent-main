@@ -1,12 +1,25 @@
 import type { Client } from "pg";
-import { createTransactionalIndexCatalog } from "../../../jobs/campus-rag-index-publisher/src/catalog.ts";
-import type { Sha256Ref } from "../../../jobs/campus-rag-index-publisher/src/types.ts";
+import { bindingCollection, writeCurrentIndex } from "../../../jobs/retrieval-index/src/catalog.ts";
+import type { Sha256Ref } from "../../../jobs/retrieval-index/src/types.ts";
 import {
 	PRODUCT_DATA_TABLES,
 	PRODUCT_RETRIEVAL_TABLES,
 	productDataProjection,
 	type RetrievalProductDataRows,
 } from "./product-data-tables.ts";
+
+/** Keep the source index and its artifact closure stable until remote reads finish. */
+export async function withRetrievalExportLock<T>(
+	client: Client,
+	read: () => Promise<T>,
+): Promise<T> {
+	await client.query("SELECT pg_advisory_lock_shared(hashtext('campus_rag_index_publish'))");
+	try {
+		return await read();
+	} finally {
+		await client.query("SELECT pg_advisory_unlock_shared(hashtext('campus_rag_index_publish'))");
+	}
+}
 
 export async function exportRetrievalData(client: Client): Promise<{
 	rows: RetrievalProductDataRows;
@@ -28,10 +41,20 @@ export async function exportRetrievalData(client: Client): Promise<{
 			docs_embedding_set: Sha256Ref;
 			notice_embedding_set: Sha256Ref;
 		}>(
-			"select c.collection, v.docs_embedding_set, v.notice_embedding_set from campus_docs_serving.current_index c join campus_docs_serving.index_versions v using (collection) where singleton = true",
+			"select collection, docs_embedding_set, notice_embedding_set from campus_docs_serving.current_index where singleton = true",
 		);
 		const current = binding.rows[0];
-		if (!(current?.collection && /^campus_docs_[a-f0-9]{64}$/u.test(current.collection))) {
+		if (
+			!(
+				current?.docs_embedding_set &&
+				current.notice_embedding_set &&
+				current.collection ===
+					bindingCollection({
+						docsEmbeddingSet: current.docs_embedding_set,
+						noticeEmbeddingSet: current.notice_embedding_set,
+					})
+			)
+		) {
 			throw new Error("Product data has no valid current index");
 		}
 		await client.query("COMMIT");
@@ -133,15 +156,7 @@ export async function importRetrievalData(
 			 and not exists (select 1 from notices.notices notice where notice.organization_id = organization.organization_id)`,
 			[rows["notices.organizations"]],
 		);
-		const catalog = createTransactionalIndexCatalog(client);
-		await catalog.register({
-			collection: input.collection,
-			docsEmbeddingSet: input.docsEmbeddingSet,
-			noticeEmbeddingSet: input.noticeEmbeddingSet,
-			producer: "manual",
-		});
-		await catalog.markValidated(input.collection);
-		await catalog.activate({ collection: input.collection });
+		await writeCurrentIndex(client, input);
 		await client.query("COMMIT");
 	} catch (error) {
 		await client.query("ROLLBACK");
@@ -205,10 +220,7 @@ export async function activateRetrievalIndex(
 ) {
 	await client.query("BEGIN");
 	try {
-		const catalog = createTransactionalIndexCatalog(client);
-		await catalog.register({ ...input, producer: "manual" });
-		await catalog.markValidated(input.collection);
-		await catalog.activate({ collection: input.collection });
+		await writeCurrentIndex(client, input);
 		await client.query("COMMIT");
 	} catch (error) {
 		await client.query("ROLLBACK");

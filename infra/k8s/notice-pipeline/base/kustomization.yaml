@@ -4,4 +4,3 @@ resources:
   - service-account.yaml
   - network-policy.yaml
   - notice-pipeline-worker.yaml
-  - notice-artifacts-worker.yaml

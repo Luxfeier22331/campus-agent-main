@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { Client } from "pg";
 import { createS3ObjectStore } from "../../../apps/campus-web/src/docs-reader-build/published-reader-object-store.ts";
-import { createS3WriterStore } from "../../../jobs/campus-rag-index-publisher/src/object-store.ts";
+import { createS3WriterStore } from "../../../jobs/retrieval-index/src/object-store.ts";
 import type { BootstrapProbeResult } from "../lifecycle/application-bootstrap.ts";
 import { localDatabaseUrls } from "../lifecycle/environment.ts";
 import { withLifecycleLock } from "../lifecycle/locks.ts";

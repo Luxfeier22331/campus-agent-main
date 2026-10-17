@@ -197,7 +197,7 @@ pnpm --dir jobs/campus-docs-index-publisher compare-chunks-local -- \
 
 ## 本地统一 RAG 发布验证
 
-统一 Publisher 的本地验证使用与生产相同的组装、Qdrant 校验和 `current_index` 激活逻辑。验证前从集群
+统一 Publisher 的本地命令使用与生产相同的版本化 collection 写入和 `current_index` 切换逻辑。验证前从集群
 derived object store 导入两个 Embedding Set 的 serving 引用闭包到当前 worktree 的隔离本地 bucket。它只验证
 发布阶段，不运行 Chunk、Embedding、provider 或在线查询。
 
@@ -205,13 +205,13 @@ derived object store 导入两个 Embedding Set 的 serving 引用闭包到当�
 publisher 环境从当前 profile 读取私有 writer key 和端口，基础设施操作再验证连接：
 
 ```bash
-pnpm dev:init -- --target campus-rag-index-publisher
+pnpm dev:init -- --target retrieval-index
 ```
 
 从集群导入本次两个 Embedding Set：
 
 ```bash
-pnpm --dir jobs/campus-rag-index-publisher import-artifacts-local -- \
+pnpm --dir jobs/retrieval-index import-artifacts-local -- \
   --namespace campus-agent-staging \
   --context <kubectl-context> \
   --docs-embedding-set sha256:<docs-embedding-set-id> \
@@ -224,15 +224,13 @@ pnpm --dir jobs/campus-rag-index-publisher import-artifacts-local -- \
 运行验证：
 
 ```bash
-pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
+pnpm --dir jobs/retrieval-index publish-index-local -- \
   --docs-embedding-set sha256:<docs-embedding-set-id> \
   --notice-embedding-set sha256:<notice-embedding-set-id>
 ```
 
-命令会读取并校验 serving 所需的两条 artifact chain，创建并校验混合 Docs/Notice collection，然后激活
-`campus_docs_serving.current_index`。成功后检查输出的 `collection`、`point_count` 和 `no_op`，并在本地
-数据库确认 current binding；使用相同两个 ID 重跑应返回 `no_op: true`。缺少或篡改任一引用对象时必须
-失败且不改变 current binding。
+命令检查制品后写入该 revision 的 collection，校验后切换 current_index，并删除本地上一个 collection。
+成功输出 collection 与 point_count；相同输入重跑不写入。失败时 current_index 保持不变，修复后以同一组制品重跑。
 
 本地 publisher 的 `.env.local` 使用当前 worktree 的隔离本地 S3 bucket 和 writer 凭据；`publish-index-local`
 只读取该 bucket，不回退到 filesystem。没有两套已完成且格式符合合同的 Embedding Set 时，停止发布
@@ -249,132 +247,54 @@ NDJSON 和 manifest 都使用规范序列化并以换行结尾。写入使用 `I
 重跑，不同内容是错误。系统不维护 `latest` 制品指针，下一阶段必须显式接收上一阶段输出的
 `sha256:<id>`。
 
-四个 builder Job 使用现有 derived bucket 身份。Docs/Notice Chunk 和 Embedding Job 写入各自的数据与
-manifest；统一 Publisher 只读取显式 Docs/Notice Embedding Set，组装一个同时包含两类 point 的 Qdrant
-collection，并写入当前指针。Publisher 不写入新的对象存储制品，不访问 Notices DB 或 embedding provider，
-也不创建单独的 serving artifact Secret。
+retrieval-index build 与 apply 使用现有 derived bucket 身份；Build 写入 Docs/Notice 制品，Apply 只读取显式 Embedding Set 并写入版本化 collection、切换 current_index，不创建额外 serving artifact Secret。
 
-## 手动执行
+## 检索索引 Job
 
-`CronJob/campus-docs-chunk-builder`、`campus-docs-embedding-builder`、`notice-chunk-builder` 和
-`notice-embedding-builder` 各自保存一个完整阶段的 Pod 模板，必须保持 `suspend: true`，不得通过解除暂停执行。
-维护者只使用 `kubectl` 从模板创建一次性 Job；Embedding 的内容寻址输入只写入本次 Job，不保存到 CronJob、
-ConfigMap 或 Secret。通知索引刷新由 `notice-pipeline` Temporal Schedule 触发，不再通过独立的
-`campus-rag-index-publisher` CronJob 自动或手动启动。
+目标环境部署 `retrieval-build`、`retrieval-apply`、`retrieval-cleanup` 三个暂停的 CronJob 模板。
+这些模板不自动调度；运维按 Build → Apply → 可选 Cleanup 串行创建唯一命名的 Job。
+Build 与 Apply 都在检索开放时执行，不需要维护窗口。Notice 采集/分类/发布不依赖这些 Job。
 
-### 1. 构建 Docs Chunk Set
+先生成 Job 文件并设置输入，再创建；不要先创建一个缺少参数的 Apply Job。
+以下命令在已选择的 Kubernetes context 中运行，替换 namespace、Job 名和制品 ID：
 
 ```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/campus-docs-chunk-builder <job-name>
+kubectl -n <namespace> create job <build-job> --from=cronjob/retrieval-build \
+  --dry-run=client -o yaml > /tmp/retrieval-build.yaml
+kubectl set env --local -f /tmp/retrieval-build.yaml \
+  RETRIEVAL_BUILD_SOURCE=both -o yaml | kubectl -n <namespace> create -f -
+kubectl -n <namespace> logs -f job/<build-job>
 ```
 
-等待并读取该 Job 日志。成功 JSON 包含 `chunk_set`、`chunk_count`、`document_count`、
-`source_digest` 和 `source_projection_sha256`。`source_digest` 只用于诊断，Chunk Set 身份由有效当前
-文档投影、分块定义和实际 Chunk 数据形成。下一阶段显式使用日志返回的 `chunk_set`。
-
-该 Job 只访问来源、reader 和 derived bucket，不访问 agent-control、PostgreSQL、Qdrant 或
-embedding provider。
-
-### 2. 构建 Docs Embedding Set
+只刷新 Notices 时使用 `RETRIEVAL_BUILD_SOURCE=notices`。可通过
+`CAMPUS_DOCS_REUSE_EMBEDDING_SET`、`CAMPUS_NOTICE_REUSE_EMBEDDING_SET` 复用同模型旧向量。
+保留 Build 输出的两个 Embedding Set ID；只构建一个来源时，另一个 ID 显式使用 current_index 中的引用。
 
 ```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/campus-docs-embedding-builder <job-name> \
-  --dry-run=client -o yaml |
-kubectl set env --local -f - \
-  CAMPUS_DOCS_CHUNK_SET=sha256:<chunk-set-id> -o yaml |
-kubectl -n <namespace> create -f -
+kubectl -n <namespace> create job <apply-job> --from=cronjob/retrieval-apply \
+  --dry-run=client -o yaml > /tmp/retrieval-apply.yaml
+kubectl set env --local -f /tmp/retrieval-apply.yaml \
+  CAMPUS_DOCS_EMBEDDING_SET=sha256:<docs-id> \
+  CAMPUS_NOTICE_EMBEDDING_SET=sha256:<notice-id> -o yaml | kubectl -n <namespace> create -f -
+kubectl -n <namespace> logs -f job/<apply-job>
 ```
 
-需要显式复用既有向量时才增加：
+Apply 在制品准备完成后写入 `campus_docs_<revision>` 并校验，再切换 current_index；切换后等待 90 秒，
+让已开始的检索完成，然后删除上一个 collection。成功后 current_index 指向新 collection 并包含两份真实制品引用。
+切换前失败时旧 collection 继续服务，以同一组制品重新创建 Apply Job 即可；相同输入不写入。
 
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/campus-docs-embedding-builder <job-name> \
-  --dry-run=client -o yaml |
-kubectl set env --local -f - \
-  CAMPUS_DOCS_CHUNK_SET=sha256:<chunk-set-id> \
-  CAMPUS_DOCS_REUSE_EMBEDDING_SET=sha256:<embedding-set-id> -o yaml |
-kubectl -n <namespace> create -f -
-```
+清理使用同样的 dry-run/set-env/create 顺序，以 `retrieval-cleanup` 为模板，显式设置
+`RETRIEVAL_CLEANUP_DOCS_SETS` 和/或 `RETRIEVAL_CLEANUP_NOTICE_SETS`，值为逗号分隔的退休 ID。
+清理不接受当前 ID，并保护其他保留 manifest 引用的共享数据。三个 Job 不并发运行。
 
-Embedding Job 启动后从 `model-config:8000` 一次读取 `campus_docs_embedding` 完整配置并直接调用
-provider。该连接由 Ops Web 通过 Model Config 管理；Job 不接收 provider Base URL、model 或 API key
-环境变量，也没有独立 provider Secret。每个请求固定发送 8 条文本，同时最多执行 8 个请求。
+## 首次切换
 
-复用只按 `spaceId + dimensions + retrievalTextSha256` 从显式 embedding set 读取，不扫描 bucket，也
-不从 Qdrant 读取向量。Embedding Set 不保存 provider、endpoint、model alias 或调用参数。成功 JSON
-包含 `embedding_set`、`embedding_count`、
-`reused_embedding_input_count` 和 `generated_embedding_input_count`。Embedding Set v3 同时记录
-Model Target hash；该 hash 直接来自完整配置响应。只有 hash 与检索文本合同都匹配时才能复用。
-Publisher 显式使用日志返回的
-`embedding_set`。`campus_docs_embedding_set.v1` 已退役，不能作为 `--reuse-embedding-set` 输入。
+retrieval-index 镜像和模板随普通 Kargo 发布上线；schema 只新增制品引用列，旧 Worker 在新版本同步前
+仍可正常写入。旧 Worker 由 Source 退休清单在同一次发布中移除。发布成功后执行一次 Build 和 Apply：
+首次 Apply 写入版本化 collection、切换 current_index，并删除旧 Worker 最后指向的 collection。
+在首次 Apply 前，Cleanup 会因 current_index 缺少 retrieval-index 写入的引用而拒绝执行。
 
-### 3. 构建 Notice Chunk 数据
-
-执行[通知 Chunk 数据构建](./notice-indexing.md#构建-chunk-数据)。记录成功结果中的 `chunks`；
-失败时先处理来源或数据库问题，不进入 Embedding 阶段。
-
-### 4. 构建 Notice Embedding Set
-
-把上一步 `chunks` 传给[通知 Embedding 构建](./notice-indexing.md#构建-embedding-set)。
-记录成功结果中的 `embedding_set`，作为统一 Publisher 的 `CAMPUS_NOTICE_EMBEDDING_SET`。
-
-### 5. 发布统一 Campus RAG Index
-
-通知流水线完成 Notice artifact 和 embedding 后，由 `notice-artifacts-worker` 调用统一 Publisher 完成
-Qdrant 发布、current pointer 激活和版本清理。维护者通过 Ops Web 的 `notice-pipeline` 任务入口触发完整
-刷新或 rollback，不再从独立 CronJob 创建 Publisher Job。
-
-统一 Publisher 只读取两个显式 Embedding Set，并从各自 manifest 解析 Docs Chunk Set 和 Notice Chunk
-Run；不读取 reader、不连接 Notices 数据库，也不调用 embedding provider。它把两套已生成向量组装为一个
-混合 Docs/Notice collection，Docs point 使用 `source_kind=document`，Notice point 使用
-`source_kind=notice`，Notice citation 固定为 `/notices/<noticeId>`。Qdrant collection 后缀由两个
-Embedding Set ID 与当前 Collection Definition 的规范 JSON 摘要形成：
-
-```text
-campus_docs_<sha256>
-```
-
-Publisher 写入并完整校验 Qdrant points 后，原子替换 PostgreSQL `campus_docs_serving.current_index`。成功
-JSON 包含 `collection`、`point_count` 和
-`no_op`。Publisher 是该 current pointer 的唯一写入者，复用 `agent_control` 数据库连接，不创建
-独立 role、DSN 或数据库 Secret。
-
-PostgreSQL advisory lock 只保护发布阶段的当前绑定替换。同一时刻已有 Publisher 时，新 Publisher Job
-立即失败；Chunk 和 Embedding 阶段不使用该锁。
-
-查看任一阶段结果时，由操作者对刚创建的 Job 执行：
-
-```bash
-kubectl -n <namespace> wait --for=condition=complete --timeout=65m job/<job-name>
-kubectl -n <namespace> logs job/<job-name> --all-containers=true
-```
-
-日志输出阶段开始、低频进度和最终 JSON，也是取得下一阶段内容寻址 ID 的入口。Job 完成或失败后保留
-24 小时再由 Kubernetes 自动删除；
-CronJob 的任务历史设置不管理由上述命令创建的独立 Job。
-
-## 验证与失败处理
-
-- Docs reader、摘要或清单关系无效：修复来源对象或候选清单，重新运行 Docs Chunk Job；
-- Notice Chunk Run 或其 serving 数据无效：修复已发布 Notice 或 Notice builder 输入，重新运行
-  Notice Chunk Job；
-- provider 快照或 embedding 调用失败：当前索引不变；修复 Model Config 中的连接并重新运行对应
-  Embedding Job；已有合法向量可按显式复用合同复用；
-- 任一 Embedding Set 或其 Chunk 制品引用无效：统一 Publisher 在写 Qdrant 前失败，使用正确的两个
-  Embedding Set ID 重跑；
-- 新 collection 写入或校验失败：统一 Publisher 删除本次新建 collection，
-  当前绑定不变；
-- 目标 collection 已存在但内容不匹配：Publisher 停止且不删除该 collection；
-- 目标 collection 已存在且内容完整：重跑会完成验证并尝试激活；
-- 数据库激活返回错误：保留已验证 collection，直接重跑同一 Docs/Notice Embedding Set ID；若上次提交
-  已成功，激活返回 `no_op: true`，否则完成当前指针替换。
-
-Embedding 设置可以在首次索引发布前保存和验证。配置验证使用固定 Embedding 合同并记录 provider
-返回的观测维度。离线分块、向量和 collection 定义发生变化时，必须用同一版本重新生成并发布
-collection；已发布的当前 collection 由 `campus_search` 按需消费。
+旧 publisher 遗留的其他 `campus_docs_<摘要>` collection 不被 Apply 删除；按下文 Qdrant 清理一次性处理。
 
 ## Reader 清理
 
@@ -392,24 +312,9 @@ collection；已发布的当前 collection 由 `campus_search` 按需消费。
 
 ## Qdrant 清理
 
-旧 collection 不在激活时自动删除，保留它作为回滚候选。在线 agent-runtime 每次调用 `campus_search` 时，由 Campus Search
-读取当前绑定并查询所选 collection；
-运行准入不会冻结它。切换绑定不会迁移已经开始的查询。人工删除前必须：
-
-1. 从 `campus_docs_serving.current_index` 读取当前 collection，永不删除当前值；
-2. 确认没有正在运行的 Campus RAG Publisher Job 或仍在使用旧绑定的在线查询访问待删除 collection；
-3. 使用 Qdrant 管理凭据删除明确列出的非当前 collection，并再次确认当前 collection 可读取。
-
-自动通知刷新由 `notice-pipeline-worker` 管理版本目录，保留 current 与 previous，自动版本退休至少一小时
-后回收 collection 及独占的自动产物。手动产物不自动认领。人工清理前必须在 Ops `/tasks` 暂停
-索引刷新并等待运行结束，同时保护 current 与 previous。回滚使用任务页的“暂停并回滚至上一版本”，
-回滚后调度保持暂停。首次开启前以真实 Docs/Notice Embedding Set 正常发布一次，确认版本目录已登记，
-再运行一次刷新并检查结果；禁止写入空引用跳过登记。
-
-更新本次互斥与回滚合同前，先暂停 Schedule 并停止旧 Ops 接口的新触发，等待旧刷新和回滚全部结束。
-部署 worker 与 Ops 后重新初始化 Schedule action 为 `noticePipelineScheduled`，保留运维设置，
-再执行一次手动刷新与回滚验收。新定时入口、手动刷新和回滚共同使用
-`notice-pipeline-workflow` 执行 ID；旧时间戳执行不在这条互斥边界内，不能省略排空步骤。
+每个 revision 对应一个 `campus_docs_<摘要>` collection。Apply 只删除本数据库 current_index 上一次指向的
+collection，不扫描删除其他 collection；本地开发实例共享 Qdrant，同名前缀的其他 collection 可能属于其他
+worktree。staging 中旧 publisher 遗留的退休 collection 由运维核对 current_index 后显式删除。
 
 ## 相关文档
 

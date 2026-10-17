@@ -86,10 +86,7 @@ test("schedule init passes the selected profile and only accepts the pipeline ow
 	assert.deepEqual(calls[0].args, ["--filter", "notice-pipeline-worker", "schedule:init"]);
 	assert.equal(calls[0].env.TEMPORAL_ADDRESS, `127.0.0.1:${profile.infraPorts.temporal}`);
 	assert.equal(calls[0].env.TEMPORAL_NAMESPACE, `campus-agent-local-${profile.instanceId}`);
-	assert.throws(
-		() => initializeSchedule(root, profile, "notice-artifacts-worker"),
-		/owns a schedule/u,
-	);
+	assert.throws(() => initializeSchedule(root, profile, "retrieval-index"), /owns a schedule/u);
 	assert.equal(calls.length, 1);
 });
 

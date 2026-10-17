@@ -380,6 +380,58 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		);
 		await assertAuthShape(client, false);
 	});
+	await t.test(
+		"retrieval index binding copies artifact references and keeps old readers working",
+		async () => {
+			const { config, client } = await database();
+			const name = "20261017120000_retrieval_index_binding";
+			const folder = await mkdtemp(join(tmpdir(), "campus-schema-before-fixed-retrieval-"));
+			t.after(() => rm(folder, { recursive: true, force: true }));
+			await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+			await rm(join(folder, name), { recursive: true });
+			await migrateCampusAgentSchema(config, folder);
+			const collection = `campus_docs_${"a".repeat(64)}`;
+			const docs = `sha256:${"b".repeat(64)}`;
+			const notices = `sha256:${"c".repeat(64)}`;
+			await client.query(
+				"INSERT INTO campus_docs_serving.index_versions(collection,docs_embedding_set,notice_embedding_set,producer) VALUES($1,$2,$3,'manual')",
+				[collection, docs, notices],
+			);
+			await client.query(
+				"INSERT INTO campus_docs_serving.current_index(singleton,collection,previous_collection) VALUES(true,$1,$1)",
+				[collection],
+			);
+			await migrateCampusAgentSchema(config);
+			assert.deepEqual(
+				(
+					await client.query(
+						"SELECT collection,previous_collection,docs_embedding_set,notice_embedding_set FROM campus_docs_serving.current_index",
+					)
+				).rows,
+				[
+					{
+						collection,
+						previous_collection: collection,
+						docs_embedding_set: docs,
+						notice_embedding_set: notices,
+					},
+				],
+			);
+			assert.equal(
+				(
+					await client.query(
+						"SELECT count(*)::int n FROM campus_docs_serving.index_versions WHERE collection=$1",
+						[collection],
+					)
+				).rows[0].n,
+				1,
+			);
+			await assert.rejects(
+				client.query("UPDATE campus_docs_serving.current_index SET docs_embedding_set='latest'"),
+				/current_index_docs_embedding_set_check/u,
+			);
+		},
+	);
 	await t.test("unknown history and changed SQL fail before applying new DDL", async () => {
 		const { config, client } = await database();
 		await migrateCampusAgentSchema(config);

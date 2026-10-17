@@ -9,11 +9,11 @@ import {
 	buildCampusDocsChunkSet,
 	buildCampusDocsEmbeddingSet,
 } from "../../../jobs/campus-docs-index-publisher/src/publisher.ts";
-import { assembleCandidate } from "../../../jobs/campus-rag-index-publisher/src/publisher.ts";
-import type { Sha256Ref } from "../../../jobs/campus-rag-index-publisher/src/types.ts";
 import { writeStoredNoticeChunks } from "../../../jobs/notice-index-publisher/src/artifacts.ts";
 import { buildNoticeChunkRun } from "../../../jobs/notice-index-publisher/src/command.ts";
 import { buildNoticeEmbeddingSet } from "../../../jobs/notice-index-publisher/src/embedding-set.ts";
+import { assembleCandidate } from "../../../jobs/retrieval-index/src/publisher.ts";
+import type { Sha256Ref } from "../../../jobs/retrieval-index/src/types.ts";
 import { createProductSeed } from "./product-data-seed.ts";
 
 /** Maintainer regeneration only; data seed consumes committed artifacts without provider calls. */
