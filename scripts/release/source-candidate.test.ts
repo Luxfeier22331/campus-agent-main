@@ -36,6 +36,37 @@ test("a complete publication can skip intermediate deployment candidates without
 	assert.deepEqual(after.workers, before.workers);
 	assert.equal(Object.keys(after.images).length, ACTIVE_IMAGE_TARGETS.length);
 });
+test("a baseline published before an image was added or retired still plans the next candidate", () => {
+	const complete = completeCandidate(
+		initial,
+		undefined,
+		Object.fromEntries(ACTIVE_IMAGE_TARGETS.map((name) => [name, digest])),
+		[],
+	);
+	const { "retrieval-index": added, ...older } = complete.images;
+	assert(added);
+	const baseline = parseSourceCandidate(
+		{ ...complete, images: { ...older, "retired-image": older["model-config"] } },
+		{ publishedSnapshot: true },
+	);
+	assert.throws(
+		() => parseSourceCandidate(baseline),
+		/Missing complete candidate image retrieval-index/,
+	);
+	const after = completeCandidate(
+		{ ...initial, head: next, images: ["retrieval-index"], workers: [], sourceBases: [] },
+		baseline,
+		{ "retrieval-index": `sha256:${"2".repeat(64)}` },
+		[],
+	);
+	assert.deepEqual(Object.keys(after.images).sort(), [...ACTIVE_IMAGE_TARGETS].sort());
+	assert.equal(after.images["retrieval-index"]?.sourceSha, next);
+	assert.throws(
+		() => completeCandidate({ ...initial, head: next, images: [] }, baseline, {}, []),
+		/No baseline for retrieval-index/,
+	);
+});
+
 test("first publication requires every active image", () => {
 	assert.throws(() => completeCandidate(initial, undefined, {}, []), /Missing published image/);
 	assert.throws(

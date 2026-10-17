@@ -1172,7 +1172,7 @@ export async function sourceCandidateRoots(
 		if (blob.code !== 0) {
 			throw new Error(`Cannot read Source candidate snapshot: ${blob.stderr}`);
 		}
-		const candidate = parseSourceCandidate(JSON.parse(blob.stdout));
+		const candidate = parseSourceCandidate(JSON.parse(blob.stdout), { publishedSnapshot: true });
 		add("campus-agent/source-candidate", version.name);
 		for (const [name, image] of Object.entries(candidate.images)) {
 			add(`campus-agent/${name}`, image.digest);

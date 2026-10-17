@@ -23,12 +23,26 @@ export interface SourceCandidate {
 }
 const SHA = /^[a-f0-9]{40}$/;
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
-export function parseSourceCandidate(value: unknown): SourceCandidate {
+/**
+ * Published snapshots predate later image additions and retirements, so baselines and
+ * retention reads accept the image set they were published with; only a candidate being
+ * produced must cover every active image.
+ */
+export function parseSourceCandidate(
+	value: unknown,
+	options: { publishedSnapshot?: boolean } = {},
+): SourceCandidate {
 	const candidate = value as SourceCandidate;
 	if (candidate?.schemaVersion !== 2 || !SHA.test(candidate.sourceSha ?? "")) {
 		throw new Error("Invalid Source candidate identity");
 	}
-	for (const name of ACTIVE_IMAGE_TARGETS) {
+	const names = options.publishedSnapshot
+		? Object.keys(candidate.images ?? {})
+		: ACTIVE_IMAGE_TARGETS;
+	if (names.length === 0) {
+		throw new Error("Missing complete candidate image set");
+	}
+	for (const name of names) {
 		const image = candidate.images?.[name];
 		if (!(image && DIGEST.test(image.digest) && SHA.test(image.sourceSha))) {
 			throw new Error(`Missing complete candidate image ${name}`);
@@ -140,6 +154,7 @@ async function main(): Promise<void> {
 			run("oras", ["pull", `${CANDIDATE_REPOSITORY}:latest`, "-o", directory]);
 			previous = parseSourceCandidate(
 				JSON.parse(await readFile(path.join(directory, "source-release.json"), "utf8")),
+				{ publishedSnapshot: true },
 			);
 			// A queued/re-run older commit must never move the publication cursor backwards.
 			run("git", ["merge-base", "--is-ancestor", previous.sourceSha, head]);
