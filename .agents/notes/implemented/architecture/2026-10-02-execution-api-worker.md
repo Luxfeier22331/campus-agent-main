@@ -54,7 +54,8 @@ PostgreSQL 租约、会话互斥与终态 CAS 支持多个 API，不新增 leade
 否则仅靠 accumulated diff 无法退出维护。Worker base 的滚动参数必须成对有效，环境仍拥有资源策略。
 终态 recovery schema 必须覆盖既有 Campus Search 来源合同字段；notice 的 `released_at` 由该 owner 统一保留。
 三类队列及默认 slots 不变；Worker 重新启动依靠已有 Temporal history 和 receipt，不重新调用结果不确定的模型。
-当最后一个维护流程不再消费开关时，连同环境投影一起退役；目前它用于首次切换和同合同回退。
+当最后一个维护流程不再消费开关时，连同环境投影一起退役。2026-10-18 Kargo 维护编排退役后开关已无写入方，
+2026-10-19 删除 App API 的读取、准入检查和维护 wrapper，环境仓随后删除 Terraform 变量与 Worker 投影。
 
 readiness 测试以配置完整的运行投影和应用服务作为就绪基线，覆盖缺失或故障数据库、健康依赖下的
 停机撤销，以及 API 探针与聚合诊断的分离。HTTP 排空测试保留请求 deadline 和资源关闭顺序的合同；

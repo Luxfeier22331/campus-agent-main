@@ -32,7 +32,8 @@ Cloudflare 步骤都按这一次 schema/role 迁移写死，下一次停机迁�
 由 Kargo 调用，随旧 role、旧 Secret 的退役发布一起移除，不在本次单独删除。2026-10-18 的退役发布删除了
 这些执行代码和 schema 镜像的 `maintenance` 子命令；Source migration 回收 `execution_control` 经 rename
 保留的授权后，GitOps 删除该 role，并删除旧 Secret、发布窗口 key 与 `maintenance-staging`。完成记录的
-唯一写入方随执行代码删除，下一次迁移接入时自带写入方。
+唯一写入方随执行代码删除，下一次迁移接入时自带写入方。App API 的 `EXECUTION_MAINTENANCE` 准入开关只由这条维护流程置为
+`true`，随后一并删除；下一次需要暂停准入时，随新迁移的 Kargo 接入重新设计。
 
 删除 role 时首次发布的 `ensure: absent` 被 DatabaseRole CRD 拒绝（只有 Cluster 的 `managed.roles` 支持
 该字段），Promotion 在 agent-control 同步失败，随后改为先发布 `databaseRoleReclaimPolicy: delete`，再在

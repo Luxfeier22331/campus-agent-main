@@ -6,7 +6,7 @@
 	"description": "Shared Worker-native application backend for campus-agent v2.",
 	"scripts": {
 		"dev": "bash scripts/dev.sh",
-		"test:node:fast": "node --test maintenance/wrapper.test.mjs && vitest run -c vitest.node-fast.config.mts",
+		"test:node:fast": "vitest run -c vitest.node-fast.config.mts",
 		"test:node:isolated": "vitest run -c vitest.node-isolated.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
 		"test:shared-db-integration": "vitest run -c vitest.shared-db.config.mts",
