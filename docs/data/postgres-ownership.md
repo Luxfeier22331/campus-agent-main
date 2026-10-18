@@ -62,7 +62,8 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 `execution_control` 到 `agent_control` 分步完成，没有在同一批资源内删除和重建 role：先创建
 `agent_control`，schema migration 原位把 `execution_control` schema 重命名为 `agent_control` 并补齐新
 role 授权；所有消费者切换且旧 role 没有连接后，`20261018120000_revoke_execution_control` 回收旧 role
-经 rename 保留下来的授权，环境仓再以 CNPG `ensure: absent` 删除 role。早期 migration 仍向
+经 rename 保留下来的授权，环境仓先把 `DatabaseRole` 改为 `databaseRoleReclaimPolicy: delete`，再删除该
+CR，由 CNPG 删除 role（DatabaseRole 不接受 `ensure: absent`）。早期 migration 仍向
 `execution_control` 授权，从空库重放时该 role 需要先存在，最后由回收 migration 清除其授权。
 
 ## Schema 所有权
