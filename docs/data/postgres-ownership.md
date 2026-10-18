@@ -41,7 +41,9 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 `campus_agent` 的运行角色时，必须在同一迁移批次补齐显式授权；`campus-agent-schema` 的静态
 一致性测试比对这些来源，缺一即失败。
 
-数据库角色生命周期由 CNPG 声明负责：当前角色由 `DatabaseRole` 资源声明，退役角色由
+数据库角色生命周期由 CNPG 声明负责：当前角色由 `DatabaseRole` 资源声明，且一律使用
+`databaseRoleReclaimPolicy: delete`，删除资源即由 CNPG 删除 role；role 仍持有授权时 `DROP ROLE` 失败，
+所以退役前先由 migration 回收授权。退役角色由
 `infra/k8s/data-postgres/base/cluster.yaml` 中的 `spec.managed.roles` 以 `ensure: absent` 声明。
 以下角色不是当前权限主体，只保留为退役清单，防止历史资源或人工操作重新创建它们：
 
@@ -63,7 +65,8 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 `agent_control`，schema migration 原位把 `execution_control` schema 重命名为 `agent_control` 并补齐新
 role 授权；所有消费者切换且旧 role 没有连接后，`20261018120000_revoke_execution_control` 回收旧 role
 经 rename 保留下来的授权，环境仓先把 `DatabaseRole` 改为 `databaseRoleReclaimPolicy: delete`，再删除该
-CR，由 CNPG 删除 role（DatabaseRole 不接受 `ensure: absent`）。早期 migration 仍向
+CR，由 CNPG 删除 role（DatabaseRole 不接受 `ensure: absent`）。当前角色已默认 `delete`，之后退役只需
+回收授权并删除资源。早期 migration 仍向
 `execution_control` 授权，从空库重放时该 role 需要先存在，最后由回收 migration 清除其授权。
 
 ## Schema 所有权

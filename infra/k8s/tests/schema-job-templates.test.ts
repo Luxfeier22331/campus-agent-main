@@ -94,6 +94,16 @@ test("declares retired PostgreSQL roles as absent and nowhere as active resource
 	);
 });
 
+test("drops the PostgreSQL role when its DatabaseRole is deleted", () => {
+	// Retiring a role is then a single resource deletion; DROP ROLE still fails while grants remain.
+	assert.deepEqual(
+		databaseRoles(kubernetesRoot)
+			.filter((spec) => spec.databaseRoleReclaimPolicy !== "delete")
+			.map((spec) => spec.name),
+		[],
+	);
+});
+
 test("keeps Agent Control role cutover staged", () => {
 	const manifest = singleManifest(resolve(base, "cluster.yaml"));
 	const managed = record(record(manifest.spec, "Cluster spec").managed, "managed roles");
@@ -120,14 +130,17 @@ function singleManifest(path: string): JsonObject {
 }
 
 function databaseRoleNames(root: string): string[] {
+	return databaseRoles(root).flatMap((spec) => (typeof spec.name === "string" ? [spec.name] : []));
+}
+
+function databaseRoles(root: string): JsonObject[] {
 	return yamlFiles(root).flatMap((path) =>
 		parseAllDocuments(readFileSync(path, "utf8")).flatMap((document) => {
 			const manifest = document.toJS();
 			if (!isObject(manifest) || manifest.kind !== "DatabaseRole") {
 				return [];
 			}
-			const roleName = record(manifest.spec, "DatabaseRole spec").name;
-			return typeof roleName === "string" ? [roleName] : [];
+			return [record(manifest.spec, "DatabaseRole spec")];
 		}),
 	);
 }

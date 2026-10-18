@@ -63,8 +63,8 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 - `data-postgres` Application 中的 `campus-agent-schema` 是唯一 schema Job，使用现有
   `campus_agent` owner 和 PostgreSQL CA；`ops-web-bootstrap` 只执行业务 baseline bootstrap，不执行 DDL；
   其他 package 的 migration runner 不得成为独立 workload 或 GitOps schema 入口；
-- PostgreSQL 角色生命周期由 CNPG 声明负责：`DatabaseRole` 声明当前角色，
-  `data-postgres` Cluster 的 `spec.managed.roles` 使用 `ensure: absent` 退役历史角色；schema Job 不执行
+- PostgreSQL 角色生命周期由 CNPG 声明负责：`DatabaseRole` 声明当前角色并使用
+  `databaseRoleReclaimPolicy: delete`，`data-postgres` Cluster 的 `spec.managed.roles` 使用 `ensure: absent` 退役历史角色；schema Job 不执行
   `DROP ROLE`，Argo CD prune 也只处理 Kubernetes 资源；
 - internal-portal collection/check、Docs/Notice builder 和统一 Campus RAG publisher Job 使用 `Forbid`，并有 active
   deadline 与 resources；
