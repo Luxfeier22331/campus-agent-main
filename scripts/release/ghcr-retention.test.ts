@@ -430,10 +430,14 @@ test("retains referenced retired packages and rejects unmanaged references", () 
 	assert(plan.errors.some((error) => error.includes("unmanaged package")));
 });
 
-test("registered retired packages without GitOps roots are whole-package deletion candidates", () => {
+test("registered retired packages without GitOps roots are deleted whole, build cache included", () => {
 	const packages = RETIRED_IMAGE_NAMES.map((image) => ({
 		name: `campus-agent/${image}`,
-		versions: [version(200, "9", [], "2026-01-01T00:00:00.000Z")],
+		versions: [
+			version(200, "9", [], "2026-01-01T00:00:00.000Z"),
+			version(201, "8", ["buildcache-arm64"], "2026-01-02T00:00:00.000Z"),
+			version(202, "7", ["staging"], "2026-01-03T00:00:00.000Z"),
+		],
 	}));
 	const plan = planRetention({ now: NOW, packages: [...inventory(), ...packages] });
 	assert.deepEqual(plan.errors, []);
@@ -441,7 +445,10 @@ test("registered retired packages without GitOps roots are whole-package deletio
 		const retired = plan.packages.find((entry) => entry.name === `campus-agent/${image}`);
 		assert.equal(retired?.classification, "retired", image);
 		assert.equal(retired?.packageAction, "delete", image);
-		assert.equal(retired?.versions[0]?.action, "keep", image);
+		assert(
+			retired?.versions.every((entry) => entry.action === "keep"),
+			image,
+		);
 	}
 	assert.equal(plan.totals.deletePackages, RETIRED_IMAGE_NAMES.length);
 });

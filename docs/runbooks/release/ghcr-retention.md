@@ -39,7 +39,8 @@ Retention 的 active package 注册表独立于 Source 的镜像构建目标：�
 仍选择的 `internal-portal-collection`、`notice-classifier`、`notice-index-publisher` 和
 `notice-publisher`。只要 GitOps 仍引用这些包，它们就属于 active 保留边界；不把构建目标清单当作
 GHCR inventory 的完整事实来源。`campus-agent/source-candidate` 也登记为 active，按候选边界保留
-被引用的快照。已确认为历史镜像的包登记在退役 allowlist，没有 GitOps 根时整包删除候选。
+被引用的快照。已确认为历史镜像的包登记在退役 allowlist，不再构建，`buildcache-arm64` 和遗留 tag
+不算根；没有 GitOps 根时整包删除候选。
 
 候选发布、正式版本创建和 full apply 共用 workflow 级 `campus-agent-ghcr-mutation` 并发组，
 `cancel-in-progress: false`、`queue: max`，按队列执行。full report 使用独立组。不再授予清理 workflow

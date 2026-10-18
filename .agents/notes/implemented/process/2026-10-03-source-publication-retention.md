@@ -37,7 +37,7 @@ Worker 发布与恢复 owner 后续迁入 GitOps，见[Worker 发布闭环迁入
   仍在。无法读取完整保留依据就失败，部分删除失败保留阶段诊断，重跑重新计算范围。
 - GHCR retention 的 active package 注册表独立于 Source 镜像构建目标；GitOps 仍选择的通知采集、分类、
   索引和发布 Job 镜像也必须登记为 active。已确认无 GitOps 消费者的历史镜像登记为 retired，
-  没有根时整包删除候选。`campus-agent/source-candidate` 也登记为 active，按最后成功候选边界保留
+  不再构建，build cache 和遗留 tag 不算根，没有 GitOps 根时整包删除候选。`campus-agent/source-candidate` 也登记为 active，按最后成功候选边界保留
   GitOps 仍可接手的快照，其余按未引用版本清理。full workflow 使用已获得包访问授权、声明
   `packages: write` 的工作流 `GITHUB_TOKEN` 读取和删除包版本；GitOps App token 继续只读环境仓和
   deployments；两个身份不能互换。缺少登记包或 Packages 权限时在 report 阶段停止，不把 404 或空

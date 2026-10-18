@@ -445,13 +445,17 @@ export function protectedRootsForInventory(input: {
 	const errors: string[] = [];
 
 	for (const inventory of input.packages) {
-		if (!["active", "retired"].includes(packageKind(inventory.name))) {
+		const kind = packageKind(inventory.name);
+		if (!["active", "retired"].includes(kind)) {
 			continue;
 		}
+		// Retired images are no longer built; only GitOps references keep them alive.
 		const cache = new Set(
-			inventory.versions
-				.filter((version) => version.tags.includes(CACHE_TAG))
-				.map((version) => version.name),
+			kind === "active"
+				? inventory.versions
+						.filter((version) => version.tags.includes(CACHE_TAG))
+						.map((version) => version.name)
+				: [],
 		);
 		cacheByPackage.set(inventory.name, cache);
 		const selectedGitops = new Set(gitops[inventory.name] ?? []);
