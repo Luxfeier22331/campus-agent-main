@@ -359,7 +359,7 @@ jobs:
         id: container_build
         if: >-
           !cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.has_container_build == 'true' &&
-          steps.repository_test.outcome == 'success' &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
@@ -378,7 +378,7 @@ jobs:
         id: native_evidence
         if: >-
           !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native') &&
-          steps.repository_test.outcome == 'success' &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
@@ -418,7 +418,7 @@ jobs:
         id: schema_migration
         if: >-
           !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'schema-migration') &&
-          steps.repository_test.outcome == 'success' &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&

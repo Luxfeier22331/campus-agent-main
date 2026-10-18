@@ -411,6 +411,17 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 	for (const name of heavy) {
 		assert.equal(condition(namedStep(job, name).if, { steps: lintFailure }), false);
 	}
+	// Changes outside every tooling group skip repository stages without blocking evidence.
+	const noRepositoryGroups = {
+		...successful,
+		plan: { ...plan, outputs: { ...plan.outputs, repository_groups: "[]" } },
+		repository_lint: { outcome: "skipped" },
+		repository_docs: { outcome: "skipped" },
+		repository_test: { outcome: "skipped" },
+	};
+	for (const name of heavy) {
+		assert.equal(condition(namedStep(job, name).if, { steps: noRepositoryGroups }), true, name);
+	}
 	for (const skipped of ["contracts", "canonical_order", "github_actions"]) {
 		const steps = { ...successful, plan, [skipped]: { outcome: "skipped" } };
 		for (const name of heavy) {
