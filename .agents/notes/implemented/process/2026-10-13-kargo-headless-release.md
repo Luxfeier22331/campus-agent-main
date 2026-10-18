@@ -52,6 +52,14 @@ Argo 的 GitOps source 不再用 merge SHA 判断同步完成；文档提交也�
 该快照和之后的全部快照及引用，覆盖尚未进入 GitOps 候选分支的交接；latest、正式版本、当前选择和
 可恢复部署继续保护。首次成功前没有清理边界，保护全部候选。Source 清理无需读取集群状态。
 
+Kargo 接管同步的 Application 关闭 Argo 自动同步，保留的 `automated.prune: true` 随之失效；Kargo 1.12 的
+`argocd-update` 又从不设置 prune，Git 中删除的资源停在 `PruneSkipped`，`argocd-wait` 永远等不到 Synced。
+接管后首次删除资源的发布（检索索引 Job 迁移）因此卡住并人工 prune；渲染与 Expr 测试只覆盖新增和修改，
+没有覆盖删除。GitOps Stage 现在在每个受控应用的 update 与 wait 之间读取该次同步结果，以同一 revision
+只 prune 其中 `PruneSkipped` 的资源。请求使用只对受控应用有 `get`、`sync` 权限的 Argo CD 本地账户
+`kargo-prune`，token 为严格作用域 SealedSecret；conftest 要求授权集合与 `sync-owner: kargo` 一致。
+上游 `argocd-sync` 步骤（akuity/kargo#6028）可用后改用它，并删除账户、token 与这两步。
+
 ## 未采用方案
 
 ### 保留旧 GitHub Actions deployment coordinator
@@ -73,6 +81,13 @@ Argo 的 GitOps source 不再用 merge SHA 判断同步完成；文档提交也�
 拒绝。Kargo 的 `argocd-update` 同步 Application 跟踪的 main，GitOps main 仍是 Application source 和环境
 配置的唯一 owner。
 
+### 删除资源时人工 prune 或恢复 Argo 自动同步
+
+人工 prune 让每次删除都阻塞 Promotion，需要集群权限介入。恢复自动同步会让 Argo 在 Kargo 选择 revision
+前同步 main，破坏发布顺序；按 revision 固定的自动同步需要 Kargo 修改长期 source，与上一条冲突。
+从同步结果取 `PruneSkipped` 而不是全局 `requiresPruning`，避免依赖同步后的刷新时机，也不会删除
+Kargo 这次同步之外的资源。
+
 ## 后果
 
 - 候选选择、选版 PR、Argo 等待、Worker 流量切换和发布状态具有一个编排 owner。
@@ -82,3 +97,5 @@ Argo 的 GitOps source 不再用 merge SHA 判断同步完成；文档提交也�
   不会进入已有 Promotion。修复后为同一 Freight 新建 Promotion，成功 action 可复用。
 - 选版 PR 等待 `validate` 最长 60 分钟；检查失败时修复并重跑 `validate` 后新建 Promotion。
 - Kargo 版本约束跨稳定 1.x 的次版本，升级时继续由实际 chart 生成 schema；跨主版本需要重新评估合同。
+- prune 依赖不受 GitOps 管理的 `argocd-secret` 签名密钥；轮换该密钥或删除 token 后需重新签发并密封，
+  否则受控应用的 prune 检查以 401 失败 Promotion。
