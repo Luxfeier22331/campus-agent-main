@@ -77,7 +77,7 @@ COPY --from=build --chown=node:node /app/jobs/campus-agent-schema/memory-migrati
 
 RUN node --check ./jobs/campus-agent-schema/dist/cli.js \
   && cd ./jobs/campus-agent-schema \
-  && node --input-type=module -e "await Promise.all([import('drizzle-orm'), import('pg'), import('@temporalio/client')])"
+  && node --input-type=module -e "await Promise.all([import('drizzle-orm'), import('pg')])"
 
 USER node
 

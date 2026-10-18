@@ -16,8 +16,7 @@
 	},
 	"dependencies": {
 		"drizzle-orm": "1.0.0-rc.4",
-		"pg": "^8.23.1",
-		"@temporalio/client": "1.24.0"
+		"pg": "^8.23.1"
 	},
 	"devDependencies": {
 		"@testcontainers/postgresql": "12.2.0",

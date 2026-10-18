@@ -8,7 +8,7 @@ import { createSourceObjectStoreConnection } from "../../../jobs/internal-portal
 test("notice pipeline Worker supplies the source object-store configuration required by collection", () => {
 	const manifests = parseAllDocuments(
 		readFileSync(
-			new URL("../execution-runtime/base/runtime/notice-pipeline-worker.yaml", import.meta.url),
+			new URL("../notice-pipeline/base/notice-pipeline-worker.yaml", import.meta.url),
 			"utf8",
 		),
 	).map((document) => document.toJS());

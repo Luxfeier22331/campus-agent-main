@@ -13,22 +13,12 @@ function resources(directory: string) {
 	);
 }
 
-test("Search and Notice split preserves workload identities and network rules", () => {
-	const legacy = resources("execution-runtime/base/runtime");
+test("Search and Notice own distinct workloads, identities and configuration", () => {
 	const domains = ["campus-search", "notice-pipeline"];
 	const split = domains.flatMap((domain) => resources(`${domain}/base`));
 	const identity = (resource: { kind: string; metadata: { name: string } }) =>
 		`${resource.kind}/${resource.metadata.name}`;
 	assert.equal(new Set(split.map(identity)).size, split.length);
-	for (const original of legacy.filter((r) =>
-		["Deployment", "Service", "CronJob", "NetworkPolicy"].includes(r.kind),
-	)) {
-		const moved = split.find((r) => identity(r) === identity(original));
-		assert.ok(moved, `missing ${identity(original)}`);
-		if (original.kind === "NetworkPolicy" || original.kind === "Service") {
-			assert.deepEqual(moved, original);
-		}
-	}
 	for (const domain of domains) {
 		const owned = resources(`${domain}/base`);
 		assert.ok(owned.some((r) => r.kind === "ServiceAccount" && r.metadata.name === domain));

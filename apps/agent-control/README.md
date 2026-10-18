@@ -19,9 +19,8 @@ Agent 控制面负责请求准入、启动与取消意图、运行投影、载�
 入口是 `cmd/agent-control`，镜像与 Kubernetes Deployment/Service 均名为 `agent-control`。
 `pnpm dev` 通过 [开发脚本](./scripts/dev.sh) 启动该入口。配置解析在 `internal/config`；
 运行身份使用 `agent_control` role 和对应的 `agent-control-read-model-secrets`。该 role、Secret 和
-`agent_control` schema 必须在 workload rollout 前完成预置；旧 `execution_control` role 在所有消费者
-切换完成前保留，随后由独立环境发布退役。schema rename 由 `campus-agent-schema` 负责，应用启动不执行
-数据库迁移。
+`agent_control` schema 必须在 workload rollout 前完成预置；旧 `execution_control` role 已退役。schema
+迁移由 `campus-agent-schema` 负责，应用启动不执行数据库迁移。
 
 新运行固定启动 `AgentWorkflow`，不再按比例分桶。readiness 检查投影存储、Temporal 和新队列 poller，
 不探测已退役的 HTTP Runtime。旧 Go Workflow、Worker 入口和 HTTP 工具路由已删除，不提供旧 history 支持。

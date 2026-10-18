@@ -14,6 +14,9 @@ const rolesProvisionedOutsideCampusAgentDatabase = new Set([
 	"hindsight_ro",
 	"memory_service",
 ]);
+// app_api's DatabaseRole and Secret are owned by the GitOps data-postgres overlay, but it still
+// consumes campus_agent and receives CONNECT from a migration.
+const rolesProvisionedByEnvironment = ["app_api"];
 // Documented consumers that reuse another login identity instead of owning one.
 const consumersSharingAnotherIdentity = new Map([["notice_publisher", "campus_agent"]]);
 const nonCampusAgentIdentities = new Set([
@@ -22,7 +25,7 @@ const nonCampusAgentIdentities = new Set([
 ]);
 
 async function loginRoles(): Promise<Set<string>> {
-	const names = new Set<string>();
+	const names = new Set<string>(rolesProvisionedByEnvironment);
 	for (const path of await yamlFiles(resolve(repositoryRoot, "infra/k8s"))) {
 		for (const document of parseAllDocuments(await readFile(path, "utf8"))) {
 			const manifest = document.toJS() as {

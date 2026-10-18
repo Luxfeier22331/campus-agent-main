@@ -48,7 +48,8 @@ const labels = (name: string) => ({ "app.kubernetes.io/name": name });
 
 test("connector reaches ingress but cannot directly reach application backends", () => {
 	const policies = [
-		"execution-runtime/base/runtime",
+		"campus-search/base",
+		"notice-pipeline/base",
 		"agent-control/base",
 		"agent-runtime/base",
 		"memory/base",

@@ -7,10 +7,8 @@ import test from "node:test";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import { readHistory } from "../src/history.ts";
-import { databaseDrainCounts, verifyAgentControlRuntime } from "../src/maintenance.ts";
 import {
 	inspectCampusAgentSchema,
-	MEMORY_MIGRATIONS_FOLDER,
 	MIGRATIONS_FOLDER,
 	migrateCampusAgentSchema,
 	readDatabaseConfig,
@@ -24,6 +22,7 @@ const agentControlRenameMigrationName = "20261014090000_rename_execution_control
 const agentControlConnectMigrationName = "20261016110000_agent_control_connect";
 const consumerConnectMigrationName = "20261017090000_campus_agent_consumer_connect";
 const retrievalContractMigrationName = "20261018090000_retrieval_index_contract";
+const revokeExecutionControlMigrationName = "20261018120000_revoke_execution_control";
 // Login roles that consume the shared campus_agent database. product_data_ro is
 // provisioned NOLOGIN here because its own migration owns that grant.
 const consumerRoles = [
@@ -121,6 +120,12 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			"select rolname from pg_roles where rolname in ('agent_control', 'execution_control') order by rolname",
 		);
 		assert.deepEqual(roles.rows, [{ rolname: "agent_control" }, { rolname: "execution_control" }]);
+		// The old role still exists in this fixture, but no grant may keep CNPG from dropping it.
+		const legacyGrants = await client.query(`select count(*)::int as count from pg_shdepend d
+		  join pg_roles r on r.oid = d.refobjid
+		  where r.rolname = 'execution_control'
+		    and d.dbid in (0, (select oid from pg_database where datname = current_database()))`);
+		assert.equal(legacyGrants.rows[0]?.count, 0);
 		const search = await client.query(`select
 		  has_schema_privilege('campus_search', 'campus_docs_serving', 'USAGE') as usage,
 		  has_table_privilege('campus_search', 'campus_docs_serving.current_index', 'SELECT') as read,
@@ -217,7 +222,7 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		assert.equal((await migrateCampusAgentSchema(config)).result, "current");
 	});
 	await t.test("agent-control runtime access survives a restricted database ACL", async () => {
-		const { config, client } = await database();
+		const { config } = await database();
 		await migrateCampusAgentSchema(config);
 		const runtime = new Client({
 			...readDatabaseConfig({
@@ -228,7 +233,8 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		});
 		await runtime.connect();
 		clients.push(runtime);
-		await verifyAgentControlRuntime(client, runtime);
+		await runtime.query("SELECT request_id FROM agent_control.agent_runs LIMIT 0");
+		await runtime.query("SELECT * FROM campus_docs_serving.current_index LIMIT 0");
 	});
 	await t.test("database CONNECT comes from the migrations, not the PUBLIC default", async () => {
 		const { config } = await database();
@@ -303,19 +309,11 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			await rm(join(folder, memoryRetirementMigrationName), { recursive: true });
 			await rm(join(folder, agentControlRenameMigrationName), { recursive: true });
 			await rm(join(folder, agentControlConnectMigrationName), { recursive: true });
-			// The rename still grants on index_versions, so the later contraction must not run first.
+			// The rename still grants on index_versions, so the later contraction must not run first,
+			// and the old role's grants can only be revoked from the renamed schema.
 			await rm(join(folder, retrievalContractMigrationName), { recursive: true });
+			await rm(join(folder, revokeExecutionControlMigrationName), { recursive: true });
 			await migrateCampusAgentSchema(config, folder);
-			// Both real schemas are present so drain queries cannot silently drift from DDL.
-			for (const migration of readHistory(MEMORY_MIGRATIONS_FOLDER)) {
-				for (const sql of migration.sql) {
-					await client.query(sql);
-				}
-			}
-			assert.equal(
-				Object.values(await databaseDrainCounts(client, client)).every((count) => count === 0),
-				true,
-			);
 			await client.query(`
 			insert into execution_control.personal_memory_owner_fences values ('legacy-owner',1,'active',1,now());
 			insert into execution_control.personal_memory_call_leases (call_id,owner_scope_hash,generation,operation_kind,expires_at)
@@ -331,9 +329,6 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			(command_id,owner_user_id,owner_generation,owner_sequence,command_kind,supersession_scope,accepted_lifecycle_state,source_updated_at,idempotency_key_hash,request_fingerprint,created_at,updated_at,payload)
 			values ('retained-command','retained-owner',1,1,'add','owner','active',now(),'key','fingerprint',now(),now(),'{"text":"retain this"}');
 		`);
-			const pending = await databaseDrainCounts(client, client);
-			assert.equal(pending.deliveries, 1);
-			assert.equal(pending.commands, 1);
 			const legacyTables = [
 				"execution_control.agent_runs",
 				"execution_control.agent_memory_deliveries",
@@ -348,6 +343,7 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 				agentControlRenameMigrationName,
 				agentControlConnectMigrationName,
 				retrievalContractMigrationName,
+				revokeExecutionControlMigrationName,
 			]);
 			await migrateCampusAgentSchema(config);
 			await ready(client);

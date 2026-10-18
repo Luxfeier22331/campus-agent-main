@@ -29,7 +29,10 @@ Cloudflare 步骤都按这一次 schema/role 迁移写死，下一次停机迁�
 计划文件不再保存完成标记。prepare 的拒绝是下一次迁移需要重新接入维护流程的入口信号。
 
 维护执行代码、`kargo-execute.yml` 的 `maintenance-*` action 和 `maintenance-staging` Application 不再
-由 Kargo 调用，随旧 role、旧 Secret 的退役发布一起移除，不在本次单独删除。
+由 Kargo 调用，随旧 role、旧 Secret 的退役发布一起移除，不在本次单独删除。2026-10-18 的退役发布删除了
+这些执行代码和 schema 镜像的 `maintenance` 子命令；Source migration 回收 `execution_control` 经 rename
+保留的授权后，GitOps 以 CNPG `ensure: absent` 删除该 role，并删除旧 Secret、发布窗口 key 与
+`maintenance-staging`。完成记录的唯一写入方随执行代码删除，下一次迁移接入时自带写入方。
 
 下一次需要停机迁移时，按该迁移的实际阶段重新设计 Kargo 接入，并遵守以下原则：
 
@@ -59,4 +62,5 @@ Cloudflare 步骤都按这一次 schema/role 迁移写死，下一次停机迁�
 - main 上已有计划中的 `completedMaintenance` 字段在下一次 prepare 重写计划时消失，读取方不再依赖它。
 - 候选声明新的维护 requirement 时，自动发布在 prepare 失败并停在该 Promotion；这是预期行为，直到
   新迁移的 Kargo 接入完成。
-- 已退役的维护执行代码在退役发布前仍存在于 GitOps 仓库和 workflow 选项中，但不再有 Kargo 调用方。
+- 维护执行代码已删除；`releases/staging-migrations/` 的完成记录与候选过滤保留，prepare 仍对未完成的
+  requirement 失败。

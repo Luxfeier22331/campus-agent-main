@@ -7,7 +7,7 @@ Status: implemented
 `scripts/deploy` 长期混放两类表面：一类是真部署脚本（`worker-version.ts`、
 `run-wrangler-command.ts`、`run-worker-staging-build.ts`、`verify-worker-deploy-config.ts`），
 另一类是 k8s manifest 合同测试（7 个 `*-job-templates` / `*-object-store` 测试，
-分别断言 `infra/k8s/execution-runtime`、`ingestion-runtime`、`data-postgres`、
+分别断言当时的 `execution-runtime`（已删除）、`ingestion-runtime`、`data-postgres`、
 `ops-web`、`data-object-store` 各子域的资源模板）。后者读取的是 `infra/k8s` 的产物，
 却被归到 `deploy` tooling 组，造成 owner 错位：改一份 manifest 触发的是 `deploy` 组测试，
 而部署脚本自身（wrangler staging build / 版本上传）与 manifest 无合同关系。

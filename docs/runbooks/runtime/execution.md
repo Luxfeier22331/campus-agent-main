@@ -23,15 +23,9 @@ staging execution runtime 由 Kubernetes/GitOps 管理，Docker Compose 只用�
 `campus-agent-schema` Job，最后启动或滚动依赖数据库的 workload。该 Job 使用 `campus_agent` owner
 和统一 migration ledger；长期进程不执行 schema 迁移。
 
-Agent Control 的 PostgreSQL role 切换必须拆成四个同步步骤：
-
-1. 预置 `agent_control` DatabaseRole、Secret 和新配置，保留旧 `execution_control` role 与旧资源；确认
-   新 role 存在并可连接，但不要让新合同 workload 在 schema rename 前接收请求；
-2. 暂停受影响的新请求和定时派发，排空或停止仍使用旧 schema/合同的消费者，确认旧进程没有活跃数据库连接；
-3. 运行 `campus-agent-schema` Job，完成 schema rename，随后启动或滚动所有使用新合同的 Agent Control、
-   Runtime、publisher、App API、Ops Web 及其他消费者；
-4. 完成 readiness、真实会话、取消、`campus_search` 和 Ops 查询验证后，确认旧 role 没有活跃连接，单独发布
-   旧 role 的 `ensure: absent`，再清理旧 Secret/资源来源。
+Agent Control 的 PostgreSQL role 已从 `execution_control` 切换到 `agent_control`，旧 role 的授权由
+`20261018120000_revoke_execution_control` 回收，环境仓随后删除该 role 及旧 Secret；切换过程见
+[PostgreSQL 所有权](../../data/postgres-ownership.md#agent-control-role-切换)。
 
 不要把旧 role 删除声明与 schema migration 放在同一次跨 Application 同步中；sync wave 只在单个
 Application 内排序，不能替代环境仓的阶段切换。
@@ -75,7 +69,7 @@ GitOps 移除无人消费的 scrape、recording rules、runtime-metrics 与 KEDA
 - 环境仓 commit；
 - GitOps Secret/ConfigMap 名称和 key 已符合上面的新合同，promotion 未被误认为会自动完成重命名；
 - root/child Application sync 与 health；
-- `agent_control` role 已预置，旧 `execution_control` role 仍保留在迁移前和消费者切换期间；
+- `agent_control` role 已预置；
 - 受影响的新请求已暂停，旧消费者已排空或停止，且旧数据库连接已清零；
 - `campus-agent-schema` Job 成功，并确认统一 ledger 已安装到目标数据库；
 - 涉及旧对象清理的 migration 完成后，确认退役 View 不存在，底层表和既有运行角色 ACL 仍然存在；
@@ -119,12 +113,7 @@ Source 新增 `campus-search/base` 与 `notice-pipeline/base`，Model Config 使
 GitOps 分别创建 Application，保持 Deployment、Service、队列和数据库角色身份不变。
 Ops Web 的 Temporal 地址与 namespace 由自己的 ConfigMap 提供。
 
-1. Source 发布包含新 base 的版本；此时旧 execution-runtime base 和发布登记保持可消费。
-2. GitOps 将新路径固定到该真实 Source SHA，接管 Search、Notice、Model Config 资源；app-api
-   数据库角色及连接 Secret 转入 data-postgres。暂停协调、owner 接管与旧 Application 非级联删除
-   按环境仓 runbook 执行，不中止 workload。
-3. 接管完成后，Source 删除旧聚合 base，将发布登记改为独立 base，Ops Web 原生引用自身配置；
-   GitOps 同批移除 Ops Web 临时配置 patch，恢复自动 promotion。
+GitOps 已将这些资源接管到各自 Application，Source 随后删除了旧 `execution-runtime` 聚合 base。
 
 结果归一化搬迁同时改变合成结果合同：新版 Runtime 提交 evidence/source attempts，Control 只保存。
 旧 Control 拒绝这种提交；旧 Runtime 提交给新 Control 又会缺少合成材料。本轮两者必须配对更新，

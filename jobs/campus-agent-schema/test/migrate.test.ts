@@ -34,6 +34,23 @@ test("the agent-control migration renames the live schema without rewriting hist
 	assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM|CREATE TABLE/u);
 });
 
+test("the old execution_control role loses every grant without touching data", async () => {
+	const migration = await readFile(
+		resolve(jobRoot, "migrations/20261018120000_revoke_execution_control/migration.sql"),
+		"utf8",
+	);
+	for (const target of [
+		/ON ALL TABLES IN SCHEMA agent_control FROM execution_control;/u,
+		/ON ALL SEQUENCES IN SCHEMA agent_control FROM execution_control;/u,
+		/ON TABLE campus_docs_serving\.current_index FROM execution_control;/u,
+		/ON SCHEMA agent_control, campus_docs_serving, runtime FROM execution_control;/u,
+		/REVOKE ALL ON DATABASE %I FROM execution_control/u,
+	]) {
+		assert.match(migration, target);
+	}
+	assert.doesNotMatch(migration, /\bGRANT\b|DROP|TRUNCATE|DELETE FROM/u);
+});
+
 test("the agent-control connection migration grants database CONNECT explicitly", async () => {
 	const migration = await readFile(
 		resolve(jobRoot, "migrations/20261016110000_agent_control_connect/migration.sql"),

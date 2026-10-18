@@ -77,7 +77,7 @@ test("business recovery policies select only their actual caller and destination
 				) && rule.ports?.some((port: { port: number }) => port.port === 7233),
 		),
 	);
-	const runtime = manifests("execution-runtime/base/runtime/network-policy.yaml");
+	const runtime = manifests("campus-search/base/network-policy.yaml");
 	const qdrant = runtime.find((doc) => doc.metadata.name === "campus-search-service-egress");
 	assert.deepEqual(qdrant.spec.podSelector, {
 		matchLabels: { "app.kubernetes.io/name": "campus-search-service" },
@@ -93,7 +93,7 @@ test("business recovery policies select only their actual caller and destination
 });
 
 test("Campus Search mounts the existing Qdrant and Postgres trust roots", () => {
-	const search = manifests("execution-runtime/base/runtime/campus-search-service.yaml").find(
+	const search = manifests("campus-search/base/campus-search-service.yaml").find(
 		(doc) => doc.kind === "Deployment",
 	).spec.template.spec;
 	const execution = manifests("agent-control/base/workloads.yaml").find(
@@ -143,7 +143,7 @@ test("Campus Search mounts the existing Qdrant and Postgres trust roots", () => 
 		).valueFrom,
 		{
 			configMapKeyRef: {
-				name: "execution-runtime-rendered-config",
+				name: "campus-search-config",
 				key: "QDRANT_TLS_CA_CERT_PATH",
 			},
 		},

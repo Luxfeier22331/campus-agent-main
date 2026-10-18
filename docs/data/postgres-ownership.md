@@ -59,25 +59,11 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 
 ### Agent Control role 切换
 
-`execution_control` 到 `agent_control` 不是同一批资源内的删除与重建。当前版本先声明并创建
-`agent_control`，保留已有 `execution_control`；schema migration 原位把 `execution_control` schema
-重命名为 `agent_control`，并补齐新 role 的授权。两个 role 在迁移和消费者切换期间同时存在，避免
-CNPG 删除旧 role 早于 schema Job 或新 workload 就绪。
-
-切换按以下顺序执行：
-
-1. 预置 `agent_control` DatabaseRole、Secret 和新 ConfigMap，保留旧 `execution_control` role 与资源；
-   确认新 role 已在目标数据库存在并可连接，但不要让使用新 schema 的 workload 在 migration 前接收请求；
-2. 暂停受影响的新请求和定时派发，排空或停止仍使用旧 schema/合同的 Agent Control、Runtime、publisher、
-   App API、Ops Web 及其他消费者。确认旧消费者没有活跃数据库连接后再继续；
-3. 在旧 role 仍存在时运行 `campus-agent-schema` migration，确认 schema 已改名、数据仍在且新 role
-   可用；随后启动或滚动使用新合同的所有消费者；
-4. 验证 readiness、真实会话、取消、`campus_search` 以及 Ops 查询等受影响路径后，确认所有消费者已切换、
-   旧 role 没有活跃连接，再单独发布 `execution_control` 的 CNPG
-   `ensure: absent`，再删除旧 Secret 或旧资源来源。
-
-跨 Argo Application 的 sync wave 不构成上述顺序保证；环境仓需要把预置、迁移切换和旧 role 退役作为
-分开的同步步骤。当前源码仓不在 schema migration 同批声明旧 role 的 `ensure: absent`。
+`execution_control` 到 `agent_control` 分步完成，没有在同一批资源内删除和重建 role：先创建
+`agent_control`，schema migration 原位把 `execution_control` schema 重命名为 `agent_control` 并补齐新
+role 授权；所有消费者切换且旧 role 没有连接后，`20261018120000_revoke_execution_control` 回收旧 role
+经 rename 保留下来的授权，环境仓再以 CNPG `ensure: absent` 删除 role。早期 migration 仍向
+`execution_control` 授权，从空库重放时该 role 需要先存在，最后由回收 migration 清除其授权。
 
 ## Schema 所有权
 
@@ -144,8 +130,8 @@ Notice Chunk/Embedding builder 不写入该表。独立 Campus Search service �
 - 应用自有 migration 文件、runner 和 legacy integration profile 已退役，不构成线上 upgrade 合同；线上统一
   使用 schema Job 按环境 revision 应用当前结构；源码仓不直接修改在线数据库；
 - `20261014090000_rename_execution_control_to_agent_control` 要求新 `agent_control` role 在执行前已由
-  CNPG/环境仓创建；migration 只重命名 schema 和安装当前授权，不创建或删除 PostgreSQL role。旧
-  `execution_control` role 必须保留到所有消费者完成切换，退役由后续独立发布负责；
+  CNPG/环境仓创建；migration 只重命名 schema 和安装当前授权，不创建或删除 PostgreSQL role；
+- `20261018120000_revoke_execution_control` 回收旧 role 的全部授权，让环境仓删除该 role；
 - `0002_remove_runtime_personal_memory_compat_views` 只删除无消费者的 `runtime.*` 个人记忆兼容 View；
 - `status` 只读比较具名历史和 SQL hash，返回具体 `pendingMigrations`；旧 ledger 即使数量相等也不能
   报 `current`。`migrate` 在同一 advisory lock 内检查历史、执行原生 migrator，并确认没有遗漏后才成功；
