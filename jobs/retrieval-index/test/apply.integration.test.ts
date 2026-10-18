@@ -57,15 +57,20 @@ it.skipIf(!enabled)(
 			await db.query(`DROP SCHEMA IF EXISTS campus_docs_serving CASCADE;CREATE SCHEMA campus_docs_serving;
   CREATE TABLE campus_docs_serving.current_index(singleton boolean PRIMARY KEY DEFAULT true,collection text NOT NULL,previous_collection text,CONSTRAINT current_index_collection_check CHECK(collection ~ '^campus_docs_[a-f0-9]{64}$'));
   CREATE TABLE campus_docs_serving.index_versions(collection text PRIMARY KEY,docs_embedding_set text,notice_embedding_set text);`);
-			await db.query(
-				await readFile(
-					resolve(
-						import.meta.dirname,
-						"../../campus-agent-schema/migrations/20261017120000_retrieval_index_binding/migration.sql",
+			for (const migration of [
+				"20261017120000_retrieval_index_binding",
+				"20261018090000_retrieval_index_contract",
+			]) {
+				await db.query(
+					await readFile(
+						resolve(
+							import.meta.dirname,
+							`../../campus-agent-schema/migrations/${migration}/migration.sql`,
+						),
+						"utf8",
 					),
-					"utf8",
-				),
-			);
+				);
+			}
 			// A collection left by the previous publisher stays readable until the first switch.
 			const legacy = `campus_docs_${"e".repeat(64)}`;
 			await qdrantClient.deleteCollection(legacy);

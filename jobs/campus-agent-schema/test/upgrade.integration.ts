@@ -23,6 +23,7 @@ const memoryRetirementMigrationName = "20261012090000_retire_legacy_memory_state
 const agentControlRenameMigrationName = "20261014090000_rename_execution_control_to_agent_control";
 const agentControlConnectMigrationName = "20261016110000_agent_control_connect";
 const consumerConnectMigrationName = "20261017090000_campus_agent_consumer_connect";
+const retrievalContractMigrationName = "20261018090000_retrieval_index_contract";
 // Login roles that consume the shared campus_agent database. product_data_ro is
 // provisioned NOLOGIN here because its own migration owns that grant.
 const consumerRoles = [
@@ -302,6 +303,8 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			await rm(join(folder, memoryRetirementMigrationName), { recursive: true });
 			await rm(join(folder, agentControlRenameMigrationName), { recursive: true });
 			await rm(join(folder, agentControlConnectMigrationName), { recursive: true });
+			// The rename still grants on index_versions, so the later contraction must not run first.
+			await rm(join(folder, retrievalContractMigrationName), { recursive: true });
 			await migrateCampusAgentSchema(config, folder);
 			// Both real schemas are present so drain queries cannot silently drift from DDL.
 			for (const migration of readHistory(MEMORY_MIGRATIONS_FOLDER)) {
@@ -344,6 +347,7 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 				memoryRetirementMigrationName,
 				agentControlRenameMigrationName,
 				agentControlConnectMigrationName,
+				retrievalContractMigrationName,
 			]);
 			await migrateCampusAgentSchema(config);
 			await ready(client);
@@ -381,7 +385,7 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 		await assertAuthShape(client, false);
 	});
 	await t.test(
-		"retrieval index binding copies artifact references and keeps old readers working",
+		"retrieval index binding copies artifact references before the old ledger is dropped",
 		async () => {
 			const { config, client } = await database();
 			const name = "20261017120000_retrieval_index_binding";
@@ -389,6 +393,7 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			t.after(() => rm(folder, { recursive: true, force: true }));
 			await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
 			await rm(join(folder, name), { recursive: true });
+			await rm(join(folder, retrievalContractMigrationName), { recursive: true });
 			await migrateCampusAgentSchema(config, folder);
 			const collection = `campus_docs_${"a".repeat(64)}`;
 			const docs = `sha256:${"b".repeat(64)}`;
@@ -403,28 +408,20 @@ test("unified schema: real PostgreSQL installation and failure recovery", {
 			);
 			await migrateCampusAgentSchema(config);
 			assert.deepEqual(
-				(
-					await client.query(
-						"SELECT collection,previous_collection,docs_embedding_set,notice_embedding_set FROM campus_docs_serving.current_index",
-					)
-				).rows,
+				(await client.query("SELECT * FROM campus_docs_serving.current_index")).rows,
 				[
 					{
+						singleton: true,
 						collection,
-						previous_collection: collection,
 						docs_embedding_set: docs,
 						notice_embedding_set: notices,
 					},
 				],
 			);
 			assert.equal(
-				(
-					await client.query(
-						"SELECT count(*)::int n FROM campus_docs_serving.index_versions WHERE collection=$1",
-						[collection],
-					)
-				).rows[0].n,
-				1,
+				(await client.query("SELECT to_regclass('campus_docs_serving.index_versions') AS t"))
+					.rows[0].t,
+				null,
 			);
 			await assert.rejects(
 				client.query("UPDATE campus_docs_serving.current_index SET docs_embedding_set='latest'"),

@@ -121,7 +121,7 @@ export async function verifyAgentControlSchema(product: Query): Promise<void> {
 		await product.query(`SELECT to_regnamespace('execution_control') IS NULL AS old_absent,
         to_regnamespace('agent_control') IS NOT NULL AS new_present,
         (SELECT bool_and(has_table_privilege('agent_control','agent_control.agent_runs',privilege)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) AS privilege) AS runs,
-        (SELECT bool_and(has_table_privilege('agent_control','campus_docs_serving.index_versions',privilege)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) AS privilege) AS publisher`);
+        (SELECT bool_and(has_table_privilege('agent_control','campus_docs_serving.current_index',privilege)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE']) AS privilege) AS publisher`);
 	if (
 		!(
 			Object.values(result.rows[0] ?? {}).every((value) => value === true) && result.rows.length > 0
@@ -138,7 +138,7 @@ export async function verifyAgentControlRuntime(product: Query, runtime: Query):
 		throw new Error("Migration verification failed: agent_control lacks database CONNECT");
 	}
 	await runtime.query("SELECT request_id FROM agent_control.agent_runs LIMIT 0");
-	await runtime.query("SELECT * FROM campus_docs_serving.index_versions LIMIT 0");
+	await runtime.query("SELECT * FROM campus_docs_serving.current_index LIMIT 0");
 }
 export async function databaseDrainCounts(
 	product: Query,

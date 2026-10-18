@@ -239,9 +239,8 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 - `agent_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
   但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；retrieval-index 负责维护当前绑定，
   Campus Search 使用独立 `campus_search` 角色只读；Docs/Notice builder 不访问该表；
-- `current_index` 保存当前版本化 collection 与 Docs/Notice 制品引用，不保存回滚目标。`index_versions`
-  与 `previous_collection` 只为旧 publisher 和旧 Ops Web 在本次滚动发布期间保留，新代码不读写；
-  发布完成后的收缩迁移删除它们。
+- `current_index` 保存当前版本化 collection 与 Docs/Notice 制品引用，不保存回滚目标；旧 publisher 的
+  `index_versions` 与 `previous_collection` 已在首次 Apply 后删除。
 - `notices.processing_failures` 由分类和发布 Job 写入，Ops 只读及删除用于人工分类修复，App API 无权限；
 - `model_config.model_configs` 可以为空或只配置一个 name；schema 安装不把业务配置完整性
   变成部署门禁。缺失 name 由其消费路径失败关闭。

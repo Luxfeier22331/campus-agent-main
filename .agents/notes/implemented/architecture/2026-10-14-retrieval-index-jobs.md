@@ -41,6 +41,10 @@ schema 只做扩展：新增可空引用列并从 `index_versions` 回填，不�
 `infra/k8s/topology/retirements.json` 在同一次选版中从 GitOps overlay 移除。发布成功后运维执行一次
 Build/Apply 完成首次切换；`index_versions` 与 `previous_collection` 在发布完成后由收缩迁移删除。
 
+2026-10-18 staging 首次 Apply 切换到新 collection 后，收缩迁移删除旧表和旧列；schema maintenance
+校验改为检查 `agent_control` 对 `current_index` 的读写权限。旧 publisher 遗留的 37 个 collection
+已由运维一次性删除。
+
 ## 未采用方案
 
 固定 collection 原地更新曾是本分支的初版：Apply 进入 applying 状态，持排他锁阻塞 Search，失败后保持

@@ -71,7 +71,7 @@ test("verify checks the serving table and runtime schema", async () => {
 			};
 		},
 	});
-	assert(queries[0]?.includes("campus_docs_serving.index_versions"));
+	assert(queries[0]?.includes("campus_docs_serving.current_index"));
 	await assert.rejects(
 		verifyAgentControlSchema({
 			query: async () => ({
@@ -102,7 +102,7 @@ test("verify opens the runtime contract only when agent_control can connect", as
 	assert.equal(productQueries.length, 1);
 	assert.deepEqual(runtimeQueries, [
 		"SELECT request_id FROM agent_control.agent_runs LIMIT 0",
-		"SELECT * FROM campus_docs_serving.index_versions LIMIT 0",
+		"SELECT * FROM campus_docs_serving.current_index LIMIT 0",
 	]);
 	await assert.rejects(
 		verifyAgentControlRuntime(
