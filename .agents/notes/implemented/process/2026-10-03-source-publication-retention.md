@@ -28,16 +28,20 @@ Worker 发布与恢复 owner 后续迁入 GitOps，见[Worker 发布闭环迁入
   不能用该 run 更早 attempt 的成功掩盖不完整发布。纯 recovery 重跑则继续查找原发布 attempt。
   artifact 过期时由维护者显式重新发布，不增加持久化去重表或长期候选包。
 - 取消 PR-close 自动清理，移除 reusable workflow 的 PR cache 写入输入及 Actions 取消权限。
-  历史 PR 缓存仍可按编号直查、校验关闭状态并删除，不扫描历史 PR 或恢复组织枚举。
+  PR 构建既不写 cache，PR 清理入口也随之删除：不保留按编号直查、关闭状态校验或手动清理，
+  不扫描历史 PR，也不恢复组织枚举。GHCR 已无 `campus-agent/pr-cache-*` 包可管。
 - 候选发布、正式 Release 创建、full apply 共用 workflow 级 mutation 并发组，允许排队且不取消
   在途运行。去掉嵌套镜像 job 锁，避免持有同一锁的 workflow 等待自身子任务。
 - full apply 复用 GitOps exporter 的正式版本、部署和恢复根，加上 canonical cache 和 OCI 子图。
   删除前刷新 GitOps refs、根和 inventory，只删除两次计划的交集；删除后验证目标消失及保护对象
   仍在。无法读取完整保留依据就失败，部分删除失败保留阶段诊断，重跑重新计算范围。
 - GHCR retention 的 active package 注册表独立于 Source 镜像构建目标；GitOps 仍选择的通知采集、分类、
-  索引和发布 Job 镜像也必须登记为 active。full workflow 使用已获得包访问授权、声明 `packages: write`
-  的工作流 `GITHUB_TOKEN` 读取和删除包版本；GitOps App token 继续只读环境仓和 deployments；两个身份不能
-  互换。缺少登记包或 Packages 权限时在 report 阶段停止，不把 404 或空 inventory 当作可删除事实。
+  索引和发布 Job 镜像也必须登记为 active。已确认无 GitOps 消费者的历史镜像登记为 retired，
+  没有根时整包删除候选。`campus-agent/source-candidate` 也登记为 active，按最后成功候选边界保留
+  GitOps 仍可接手的快照，其余按未引用版本清理。full workflow 使用已获得包访问授权、声明
+  `packages: write` 的工作流 `GITHUB_TOKEN` 读取和删除包版本；GitOps App token 继续只读环境仓和
+  deployments；两个身份不能互换。缺少登记包或 Packages 权限时在 report 阶段停止，不把 404 或空
+  inventory 当作可删除事实。
 - 清理执行 owner 仍是 Source；GitOps 提供选择和保留事实。全量定时执行在真实 workflow token 的
   首次删除与复查通过后启用，每日复用同一 full apply 路径和发布 mutation 锁，手动入口仍默认 report。
   不把报告或 fixture 成功当作删除验收。报告沿用短期 Actions artifact。
@@ -45,9 +49,9 @@ Worker 发布与恢复 owner 后续迁入 GitOps，见[Worker 发布闭环迁入
 本篇部分取代[Source CI 缓存与镜像构建边界](./2026-09-24-source-ci-cache-and-build-boundaries.md)
 中保留 `cache_write` 专用入口的决定；该篇 host build 去重、缓存 warning 与 GitOps 校验所有权仍有效。
 同时取代[PR 缓存直查与暂停全量清理](./2026-09-17-ghcr-pr-cache-direct-cleanup.md)及
-[原镜像保留与退役决策](./2026-09-04-ghcr-retention.md)中的 PR-close 自动协调和禁止 full apply；
-已登记包直查、失败分类、retired allowlist 和 manifest 保护继续有效。正式版本身份与环境选择仍由
-[正式版本与环境选择](./2026-10-02-formal-release-versioning.md)维护。
+[原镜像保留与退役决策](./2026-09-04-ghcr-retention.md)中的 PR-close 自动协调、历史 PR 直查清理
+和禁止 full apply；已登记包直查、失败分类、retired allowlist 和 manifest 保护继续有效。正式版本
+身份与环境选择仍由[正式版本与环境选择](./2026-10-02-formal-release-versioning.md)维护。
 
 ## 未采用方案
 

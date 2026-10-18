@@ -13,16 +13,14 @@ import {
 	type PackageInventory,
 	parseArgs,
 	parseManifestInspection,
-	planPrCacheCleanup,
 	planRetention,
 	protectedRootsForInventory,
 	RETENTION_ACTIVE_PACKAGE_NAMES,
+	RETIRED_IMAGE_NAMES,
 	RETIRED_PACKAGE_NAMES,
-	readCachePullRequests,
-	readPackageInventory,
+	readKnownPackageInventory,
 	refreshedFullPlan,
 	runFullRetention,
-	runPrCacheCleanup,
 	sourceCandidateRoots,
 	verifyRetentionDeletion,
 } from "./ghcr-retention.mts";
@@ -109,8 +107,6 @@ test("full cleanup refreshes before deletion, records failures, and never delete
 		const packages = inventory({ [name]: [version(1, "a", [tag("a")])] });
 		const mode = scenario === "report" ? "report" : "apply";
 		const options = parseArgs([
-			"--scope",
-			"full",
 			"--mode",
 			mode,
 			"--gitops-root",
@@ -155,163 +151,6 @@ test("full cleanup refreshes before deletion, records failures, and never delete
 		assert.equal(reads, scenario === "report" ? 1 : 2);
 		const result = JSON.parse(await readFile(options.output, "utf8"));
 		assert.equal(result.errors.length > 0, scenario.endsWith("-error"));
-	}
-});
-
-test("PR caches protect the current tag, expire history and delete only after closure grace", () => {
-	const name = "campus-agent/pr-cache-442/ops-web";
-	const packages = [
-		...inventory(),
-		{
-			name,
-			versions: [
-				version(100, "a", ["buildcache-arm64"], "2026-08-01T00:00:00Z"),
-				version(101, "b", [], "2026-08-01T00:00:00Z"),
-				version(102, "c", [], "2026-09-03T00:00:00Z"),
-			],
-		},
-	];
-	const planned = (pr?: { state: "open" | "closed"; closedAt: string | null }) =>
-		planRetention({
-			now: NOW,
-			packages,
-			pullRequests: pr ? { "442": pr } : {},
-			untaggedGraceDays: 7,
-		});
-	const open = planned({ state: "open", closedAt: null });
-	assert.deepEqual(open.errors, []);
-	const cache = open.packages.find((pkg) => pkg.name === name);
-	assert.equal(cache?.packageAction, "retain");
-	assert.equal(cache?.versions.find((v) => v.id === 100)?.reason, "current-build-cache");
-	assert.equal(cache?.versions.find((v) => v.id === 101)?.action, "delete");
-	assert.equal(cache?.versions.find((v) => v.id === 102)?.action, "keep");
-	assert.equal(
-		planned({ state: "closed", closedAt: "2026-08-28T00:00:01Z" }).packages.find(
-			(pkg) => pkg.name === name,
-		)?.packageAction,
-		"retain",
-	);
-	assert.equal(
-		planned({ state: "closed", closedAt: "2026-08-28T00:00:00Z" }).packages.find(
-			(pkg) => pkg.name === name,
-		)?.packageAction,
-		"delete",
-	);
-	for (const pr of [undefined, { state: "closed" as const, closedAt: "invalid" }]) {
-		const plan = planned(pr);
-		assert(plan.errors.some((error) => error.includes("Source PR state unavailable")));
-		assert(
-			plan.packages.find((pkg) => pkg.name === name)?.versions.every((v) => v.action === "keep"),
-		);
-		assert.notEqual(plan.packages.find((pkg) => pkg.name === name)?.packageAction, "delete");
-	}
-});
-
-test("scoped PR cache cleanup deletes every cache package of a closed PR without grace", () => {
-	const name = "campus-agent/pr-cache-442/ops-web";
-	const packages = [
-		...inventory(),
-		{
-			name,
-			versions: [version(100, "a", ["buildcache-arm64"], "2026-09-03T00:00:00Z")],
-		},
-		{
-			name: "campus-agent/pr-cache-441/ops-web",
-			versions: [version(101, "b", [], "2026-08-01T00:00:00Z")],
-		},
-	];
-	const closed = planPrCacheCleanup({
-		mode: "apply",
-		now: NOW,
-		packages,
-		prNumber: "442",
-		pullRequests: { "442": { state: "closed", closedAt: "2026-09-04T00:00:00.000Z" } },
-	});
-	assert.deepEqual(closed.errors, []);
-	assert.equal(closed.totals.deletePackages, 1);
-	assert(closed.packages.every((pkg) => pkg.classification === "pr-cache"));
-	const scoped = closed.packages.find((pkg) => pkg.name === name);
-	assert.equal(scoped?.packageAction, "delete");
-	assert.equal(
-		scoped?.versions.every((version) => version.action === "keep"),
-		true,
-	);
-	assert.equal(
-		closed.packages.some((pkg) => pkg.name === "campus-agent/pr-cache-441/ops-web"),
-		false,
-	);
-
-	const open = planPrCacheCleanup({
-		mode: "apply",
-		now: NOW,
-		packages,
-		prNumber: "442",
-		pullRequests: { "442": { state: "open", closedAt: null } },
-	});
-	assert(open.errors.some((error) => error.includes("Source PR is not closed")));
-	assert.equal(open.packages.find((pkg) => pkg.name === name)?.packageAction, "hold");
-
-	for (const pullRequests of [
-		undefined,
-		{ "442": { state: "closed" as const, closedAt: "invalid" } },
-	]) {
-		const unavailable = planPrCacheCleanup({
-			mode: "apply",
-			now: NOW,
-			packages,
-			prNumber: "442",
-			pullRequests,
-		});
-		assert(unavailable.errors.some((error) => error.includes("Source PR state unavailable")));
-		assert.equal(unavailable.packages.find((pkg) => pkg.name === name)?.packageAction, "hold");
-	}
-
-	const empty = planPrCacheCleanup({
-		mode: "apply",
-		now: NOW,
-		packages,
-		prNumber: "999",
-		pullRequests: {},
-	});
-	assert.deepEqual(empty.errors, []);
-	assert.deepEqual(empty.totals, {
-		deletePackages: 0,
-		deleteVersions: 0,
-		keepVersions: 0,
-		packages: 0,
-		versions: 0,
-	});
-});
-
-test("PR state lookup deduplicates image packages and holds unavailable state", async () => {
-	const packages = ["ops-web", "agent-runtime"].map((image) => ({
-		name: `campus-agent/pr-cache-442/${image}`,
-		versions: [],
-	}));
-	const calls: string[][] = [];
-	assert.deepEqual(
-		await readCachePullRequests(packages, "MUC-WIKI/campus-agent", async (_command, args) => {
-			calls.push(args);
-			return { code: 0, stderr: "", stdout: JSON.stringify({ state: "open", closed_at: null }) };
-		}),
-		{ "442": { state: "open", closedAt: null } },
-	);
-	assert.equal(calls.length, 1);
-	assert.deepEqual(
-		await readCachePullRequests(packages, "MUC-WIKI/campus-agent", async () => ({
-			code: 1,
-			stderr: "API unavailable",
-			stdout: "",
-		})),
-		{},
-	);
-	for (const name of [
-		"campus-agent/pr-cache-0/ops-web",
-		"campus-agent/pr-cache-442/unregistered",
-		"campus-agent/pr-cache-442/ops-web/extra",
-	]) {
-		const plan = planRetention({ now: NOW, packages: [...inventory(), { name, versions: [] }] });
-		assert(plan.errors.some((error) => error.includes("not registered")));
 	}
 });
 
@@ -591,6 +430,22 @@ test("retains referenced retired packages and rejects unmanaged references", () 
 	assert(plan.errors.some((error) => error.includes("unmanaged package")));
 });
 
+test("registered retired packages without GitOps roots are whole-package deletion candidates", () => {
+	const packages = RETIRED_IMAGE_NAMES.map((image) => ({
+		name: `campus-agent/${image}`,
+		versions: [version(200, "9", [], "2026-01-01T00:00:00.000Z")],
+	}));
+	const plan = planRetention({ now: NOW, packages: [...inventory(), ...packages] });
+	assert.deepEqual(plan.errors, []);
+	for (const image of RETIRED_IMAGE_NAMES) {
+		const retired = plan.packages.find((entry) => entry.name === `campus-agent/${image}`);
+		assert.equal(retired?.classification, "retired", image);
+		assert.equal(retired?.packageAction, "delete", image);
+		assert.equal(retired?.versions[0]?.action, "keep", image);
+	}
+	assert.equal(plan.totals.deletePackages, RETIRED_IMAGE_NAMES.length);
+});
+
 test("only selects explicit roots and the current cache; a recent SHA is not a release", () => {
 	const packages = inventory({
 		"campus-agent/agent-runtime": [
@@ -609,112 +464,28 @@ test("only selects explicit roots and the current cache; a recent SHA is not a r
 	);
 });
 
-const REPOSITORY = "MUC-WIKI/campus-agent";
-const SOURCE_PR = {
-	state: "closed",
-	closed_at: "2026-09-04T00:00:00Z",
-	head: { ref: "fix/cache", repo: { full_name: REPOSITORY } },
-};
 const jsonResult = (value: unknown) => ({ code: 0, stderr: "", stdout: JSON.stringify(value) });
 const absentResult = { code: 1, stderr: "gh: Not Found (HTTP 404)", stdout: "" };
 const failedResult = { code: 1, stderr: "API unavailable", stdout: "" };
 
-test("scoped inventory directly probes candidates and never reads outside the PR", async () => {
-	const name = "campus-agent/pr-cache-442/ops-web";
-	const calls: string[] = [];
-	const runner: CommandRunner = async (_command, args) => {
-		const endpoint = args.at(-1) ?? "";
-		calls.push(endpoint);
-		assert(endpoint.startsWith("orgs/MUC-WIKI/packages/container/campus-agent%2Fpr-cache-442%2F"));
-		if (endpoint.includes(encodeURIComponent(name))) {
-			return endpoint.includes("/versions?") ? jsonResult([[], []]) : jsonResult([{ name }]);
-		}
-		return absentResult;
-	};
-	assert.deepEqual(await readPackageInventory("MUC-WIKI", runner, "442"), [{ name, versions: [] }]);
-	assert.equal(calls.filter((call) => call.includes("/versions?")).length, 1);
-	assert.equal(calls.length, ACTIVE_IMAGE_TARGETS.length + 1);
-	assert(
-		calls.every((call) => !call.includes("worker-")),
-		"Worker bundles have no BuildKit PR cache",
-	);
-});
-
-test("manual cleanup rechecks PR state and never queries or cancels builds", async (t) => {
-	const directory = await mkdtemp(path.join(os.tmpdir(), "ghcr-cleanup-order-"));
-	t.after(() => rm(directory, { recursive: true, force: true }));
-	for (const scenario of ["apply", "report", "reopened-after-wait"] as const) {
-		const calls: string[] = [];
-		let deleted = false;
-		let inventoried = false;
-		const name = "campus-agent/pr-cache-442/ops-web";
-		const runner: CommandRunner = async (_command, args) => {
-			const endpoint = args.at(-1) ?? "";
-			calls.push(endpoint);
-			if (endpoint.endsWith("/pulls/442")) {
-				return jsonResult({
-					...SOURCE_PR,
-					state: scenario === "reopened-after-wait" && inventoried ? "open" : "closed",
-				});
-			}
-			if (endpoint.includes("/versions?")) {
-				return jsonResult([[]]);
-			}
-			if (args.includes("DELETE")) {
-				deleted = true;
-				return jsonResult({});
-			}
-			if (endpoint.includes("/packages/container/")) {
-				inventoried = true;
-				return !deleted && endpoint.endsWith(encodeURIComponent(name))
-					? jsonResult([{ name }])
-					: absentResult;
-			}
-			throw new Error(`Unexpected API call: ${args.join(" ")}`);
-		};
-		const cleanup = runPrCacheCleanup(
-			{
-				owner: "MUC-WIKI",
-				repository: REPOSITORY,
-				mode: scenario === "report" ? "report" : "apply",
-				output: path.join(directory, `${scenario}.json`),
-			},
-			"442",
-			{ runner },
-		);
-		if (scenario === "reopened-after-wait") {
-			await assert.rejects(cleanup, /Source PR is not closed/);
-		} else {
-			await cleanup;
-		}
-		assert.equal(deleted, scenario === "apply");
-		assert(!calls.some((call) => call.includes("/actions/")));
-	}
-});
-
-test("CLI validates PR and full retention scopes", () => {
+test("CLI requires the full retention roots", () => {
 	for (const args of [
 		[],
 		["--mode", "apply"],
-		["--pr-cache-pr", "0"],
-		["--pr-cache-pr", "-1"],
-		["--scope", "full"],
-		["--scope", "full", "--mode", "apply", "--gitops-root", "."],
-		["--scope", "full", "--pr-cache-pr", "1", "--gitops-root", "."],
-		["--scope", "pr", "--gitops-root", "."],
+		["--gitops-root", "."],
+		["--release-roots", "roots.json"],
+		["--gitops-root", ".", "--release-roots", "roots.json", "--untagged-grace-days", "1"],
+		["--gitops-root", ".", "--release-roots", "roots.json", "--keep-releases", "5"],
+		["--scope", "full", "--gitops-root", ".", "--release-roots", "roots.json"],
 	]) {
 		assert.throws(() => parseArgs(args));
 	}
-	assert.equal(parseArgs(["--scope", "pr", "--pr-cache-pr", "442"]).mode, "report");
-	assert.throws(() => parseArgs(["--scope", "full", "--gitops-root", ".", "--keep-releases", "5"]));
-	assert.equal(
-		parseArgs(["--scope", "full", "--gitops-root", ".", "--release-roots", "roots.json"])
-			.releaseRoots,
-		"roots.json",
-	);
+	const options = parseArgs(["--gitops-root", ".", "--release-roots", "roots.json"]);
+	assert.equal(options.mode, "report");
+	assert.equal(options.releaseRoots, "roots.json");
 });
 
-test("inventory fails closed on API, transport, metadata and versions errors", async () => {
+test("registered inventory fails closed on API, transport, metadata and versions errors", async () => {
 	for (const result of [
 		...[400, 401, 403, 422, 500].map((status) => ({
 			code: 1,
@@ -725,26 +496,23 @@ test("inventory fails closed on API, transport, metadata and versions errors", a
 		{ code: 0, stderr: "", stdout: "not JSON" },
 		jsonResult([{ name: "wrong-package" }]),
 	]) {
-		await assert.rejects(readPackageInventory("MUC-WIKI", async () => result, "442"));
+		await assert.rejects(readKnownPackageInventory("MUC-WIKI", async () => result));
 	}
 	await assert.rejects(
-		readPackageInventory(
-			"MUC-WIKI",
-			async (_cmd, args) => {
-				const endpoint = args.at(-1) ?? "";
-				if (endpoint.includes("/versions?")) {
-					return absentResult;
-				}
-				return jsonResult([{ name: decodeURIComponent(endpoint.split("/container/")[1]) }]);
-			},
-			"442",
-		),
+		readKnownPackageInventory("MUC-WIKI", async (_cmd, args) => {
+			const endpoint = args.at(-1) ?? "";
+			if (endpoint.includes("/versions?")) {
+				return absentResult;
+			}
+			return jsonResult([{ name: decodeURIComponent(endpoint.split("/container/")[1]) }]);
+		}),
 		/HTTP 404/,
 	);
 });
 
-test("versions pagination includes every version", async () => {
-	const name = "campus-agent/pr-cache-442/agent-runtime";
+test("registered inventory reads active, retired and Source candidate packages", async () => {
+	const name = "campus-agent/agent-runtime";
+	const calls: string[] = [];
 	const raw = (id: number) => ({
 		id,
 		name: digest(String(id)),
@@ -752,107 +520,25 @@ test("versions pagination includes every version", async () => {
 		updated_at: NOW.toISOString(),
 		metadata: { container: { tags: [] } },
 	});
-	const result = await readPackageInventory(
-		"MUC-WIKI",
-		async (_cmd, args) => {
-			const endpoint = args.at(-1) ?? "";
-			if (!endpoint.includes(encodeURIComponent(name))) {
-				return absentResult;
-			}
-			if (endpoint.includes("/versions?")) {
-				assert(args.includes("--paginate"));
-				return jsonResult([[raw(1)], [raw(2)]]);
-			}
-			return jsonResult([{ name }]);
-		},
-		"442",
-	);
+	const result = await readKnownPackageInventory("MUC-WIKI", async (_cmd, args) => {
+		const endpoint = args.at(-1) ?? "";
+		calls.push(decodeURIComponent(endpoint.split("/container/")[1]?.split("/versions")[0] ?? ""));
+		if (!endpoint.includes(encodeURIComponent(name))) {
+			return absentResult;
+		}
+		if (endpoint.includes("/versions?")) {
+			assert(args.includes("--paginate"));
+			return jsonResult([[raw(1)], [raw(2)]]);
+		}
+		return jsonResult([{ name }]);
+	});
 	assert.deepEqual(
 		result[0].versions.map((v) => v.id),
 		[1, 2],
 	);
-});
-
-test("cleanup reports failures across inventory, deletion and verification; repeated cleanup succeeds", async (t) => {
-	const directory = await mkdtemp(path.join(os.tmpdir(), "ghcr-errors-"));
-	t.after(() => rm(directory, { recursive: true, force: true }));
-	for (const scenario of [
-		"inventory",
-		"versions",
-		"delete",
-		"verify",
-		"partial",
-		"absent",
-		"success",
-		"open",
-		"dependabot",
-		"fork",
-	]) {
-		const names = ["agent-runtime", "ops-web"].map((image) => `campus-agent/pr-cache-442/${image}`);
-		const deleted = new Set<string>();
-		let writes = 0;
-		const output = path.join(directory, `${scenario}.json`);
-		const summary = path.join(directory, `${scenario}.md`);
-		const runner: CommandRunner = async (_cmd, args) => {
-			const endpoint = args.at(-1) ?? "";
-			if (endpoint.endsWith("/pulls/442")) {
-				return jsonResult({
-					...SOURCE_PR,
-					...(scenario === "open" ? { state: "open" } : {}),
-					...(scenario === "dependabot" ? { user: { login: "dependabot[bot]" } } : {}),
-					...(scenario === "fork" ? { head: { repo: { full_name: "fork/repo" } } } : {}),
-				});
-			}
-			if (endpoint.includes("/workflows/pr.yml/runs?")) {
-				return jsonResult([{ workflow_runs: [] }]);
-			}
-			assert(endpoint.includes("/packages/container/"));
-			const name = decodeURIComponent(endpoint.split("/container/")[1].split("/versions?")[0]);
-			if (args.includes("DELETE")) {
-				writes++;
-				if (scenario === "delete" || (scenario === "partial" && writes === 2)) {
-					return failedResult;
-				}
-				deleted.add(name);
-				return jsonResult({});
-			}
-			if (scenario === "inventory") {
-				return failedResult;
-			}
-			if (endpoint.includes("/versions?")) {
-				return scenario === "versions" ? absentResult : jsonResult([[]]);
-			}
-			if (
-				scenario === "absent" ||
-				!names.includes(name) ||
-				(deleted.has(name) && scenario !== "verify")
-			) {
-				return absentResult;
-			}
-			return jsonResult([{ name }]);
-		};
-		const options = {
-			owner: "MUC-WIKI",
-			repository: REPOSITORY,
-			mode: "apply" as const,
-			output,
-			summary,
-		};
-		if (["absent", "success"].includes(scenario)) {
-			await runPrCacheCleanup(options, "442", { runner });
-			await runPrCacheCleanup(options, "442", { runner });
-		} else {
-			await assert.rejects(runPrCacheCleanup(options, "442", { runner }));
-		}
-		const report = JSON.parse(await readFile(output, "utf8"));
-		assert.equal(report.errors.length > 0, !["absent", "success"].includes(scenario), scenario);
-		if (["inventory", "versions", "open", "dependabot", "fork", "absent"].includes(scenario)) {
-			assert.equal(writes, 0);
-		}
-		if (scenario === "partial") {
-			assert.equal(deleted.size, 1);
-		}
-		assert.match(await readFile(summary, "utf8"), /Result:/);
+	assert(calls.includes("campus-agent/source-candidate"));
+	for (const retired of RETIRED_PACKAGE_NAMES) {
+		assert(calls.includes(retired), `${retired} must be inventoried`);
 	}
 });
 
@@ -885,14 +571,7 @@ test("full plan refreshes GitOps refs and dependencies, exports roots, then insp
 	const root = await mkdtemp(path.join(os.tmpdir(), "retention-roots-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
 	const rootsFile = path.join(root, "roots.json");
-	const options = parseArgs([
-		"--scope",
-		"full",
-		"--gitops-root",
-		root,
-		"--release-roots",
-		rootsFile,
-	]);
+	const options = parseArgs(["--gitops-root", root, "--release-roots", rootsFile]);
 	const calls: string[] = [];
 	const name = "campus-agent/agent-runtime";
 	const plan = await refreshedFullPlan(options, async (command, args) => {
@@ -1017,11 +696,13 @@ test("Source snapshots protect queued handoffs until the successful boundary pas
 		},
 	];
 	const reads: string[] = [];
-	const runner: CommandRunner = async (_command, args) => {
+	const blobFetches: string[][] = [];
+	const runner: CommandRunner = async (command, args) => {
 		const ref = args.at(-1);
 		assert.ok(ref);
 		const char = ref.split("sha256:")[1]?.[0];
 		assert.ok(char);
+		assert.equal(command, "oras");
 		if (args[0] === "manifest") {
 			reads.push(ref);
 			return jsonResult({
@@ -1033,6 +714,7 @@ test("Source snapshots protect queued handoffs until the successful boundary pas
 				],
 			});
 		}
+		blobFetches.push(args);
 		return jsonResult({
 			schemaVersion: 2,
 			sourceSha: tag(char),
@@ -1055,6 +737,11 @@ test("Source snapshots protect queued handoffs until the successful boundary pas
 	};
 	const initial = await sourceCandidateRoots(packages, null, runner);
 	assert.deepEqual(initial[name], [digest("a"), digest("b"), digest("c")]);
+	assert(
+		blobFetches.length > 0 &&
+			blobFetches.every((args) => args.slice(0, 4).join(" ") === "blob fetch --output -"),
+		`oras blob fetch must write the snapshot to stdout: ${JSON.stringify(blobFetches)}`,
+	);
 	reads.length = 0;
 	const roots = await sourceCandidateRoots(packages, reference("b"), runner);
 	assert.deepEqual(reads, [reference("b"), reference("c")]);

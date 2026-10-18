@@ -13,19 +13,6 @@ on:
         options:
           - report
           - apply
-      scope:
-        description: 手动清理历史 PR 缓存或管理正式镜像保留与清理
-        required: true
-        default: full
-        type: choice
-        options:
-          - full
-          - pr
-      pr_number:
-        description: Closed same-repository PR whose cache should be cleaned when scope is pr
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
@@ -37,65 +24,13 @@ env:
     cores = 2
 
 concurrency:
-  group: ${{ inputs.scope == 'pr' && format('campus-agent-ghcr-pr-cache-{0}', inputs.pr_number) || (github.event_name == 'schedule' || inputs.mode == 'apply') && 'campus-agent-ghcr-mutation' || format('campus-agent-ghcr-report-{0}', github.run_id) }}
+  group: ${{ (github.event_name == 'schedule' || inputs.mode == 'apply') && 'campus-agent-ghcr-mutation' || format('campus-agent-ghcr-report-{0}', github.run_id) }}
   cancel-in-progress: false
   queue: max
 
 jobs:
-  pr-cache:
-    if: github.ref == 'refs/heads/main' && inputs.scope == 'pr'
-    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      packages: write
-      pull-requests: read
-    defaults:
-      run:
-        shell: nix develop .#ci-release --command bash -e {0}
-    steps:
-      - name: Checkout Source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: main
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install Nix
-        if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-      - name: Generate and optionally apply GHCR retention plan
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RETENTION_SCOPE: pr
-          RETENTION_MODE: ${{ inputs.mode }}
-          RETENTION_PR_NUMBER: ${{ inputs.pr_number }}
-        run: |
-          set -euo pipefail
-          args=(
-            --scope "$RETENTION_SCOPE"
-            --mode "$RETENTION_MODE"
-            --output ghcr-retention.json
-            --summary "$GITHUB_STEP_SUMMARY"
-          )
-          test -n "$RETENTION_PR_NUMBER"
-          args+=(--pr-cache-pr "$RETENTION_PR_NUMBER")
-          node --experimental-strip-types scripts/release/ghcr-retention.mts "${args[@]}"
-
-      - name: Upload GHCR retention report
-        if: ${{ always() && hashFiles('ghcr-retention.json') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          name: ghcr-retention-report-${{ github.run_id }}
-          path: ghcr-retention.json
-          if-no-files-found: error
-          retention-days: 7
-
   project-retention:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.scope == 'full')
+    if: github.ref == 'refs/heads/main'
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
     timeout-minutes: 60
     permissions:
@@ -158,7 +93,7 @@ jobs:
           RETENTION_MODE: ${{ github.event_name == 'schedule' && 'apply' || inputs.mode }}
         run: |
           node --experimental-strip-types scripts/release/ghcr-retention.mts \
-            --scope full --mode "$RETENTION_MODE" \
+            --mode "$RETENTION_MODE" \
             --gitops-root "$GITHUB_WORKSPACE/gitops-retention" \
             --release-roots "$RUNNER_TEMP/release-roots.json" \
             --output ghcr-retention.json --summary "$GITHUB_STEP_SUMMARY"

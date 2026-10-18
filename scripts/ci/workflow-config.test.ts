@@ -753,32 +753,31 @@ test("retention schedules full apply on trusted main and serializes mutations wi
 	assert.equal(workflow.on.pull_request_target, undefined);
 	assert.equal(workflow.on.pull_request, undefined);
 	assert.deepEqual(workflow.on.schedule, [{ cron: "17 3 * * *" }]);
-	assert.equal(workflow.on.workflow_dispatch.inputs.scope.default, "full");
-	assert.equal(workflow.on.workflow_dispatch.inputs.mode.default, "report");
-	const pr = workflowJob(workflow, "pr-cache");
-	assert.deepEqual(pr.permissions, {
-		contents: "read",
-		packages: "write",
-		"pull-requests": "read",
+	assert.deepEqual(workflow.on.workflow_dispatch.inputs, {
+		mode: {
+			description: "Generate a fresh retention plan and optionally apply it to GHCR",
+			required: true,
+			default: "report",
+			type: "choice",
+			options: ["report", "apply"],
+		},
 	});
-	assert.equal(namedStep(pr, "Checkout Source").with.ref, "main");
+	assert.deepEqual(Object.keys(workflowJobs(workflow)), ["project-retention"]);
 	const full = workflowJob(workflow, "project-retention");
 	assert.equal(full.permissions.packages, "write");
 	assert.equal(full.permissions.actions, "read");
 	const expression = String(workflow.concurrency.group).slice(3, -2);
-	const group = (scope: string, mode: string, event = "workflow_dispatch") =>
+	const group = (mode: string, event = "workflow_dispatch") =>
 		runInNewContext(expression, {
-			inputs: { scope, mode, pr_number: "442" },
+			inputs: { mode },
 			github: { run_id: 10, event_name: event },
 			format: (pattern: string, value: string | number) => pattern.replace("{0}", String(value)),
 		});
-	assert.equal(group("full", "apply"), "campus-agent-ghcr-mutation");
-	assert.equal(group("full", "report"), "campus-agent-ghcr-report-10");
-	assert.equal(group("pr", "apply"), "campus-agent-ghcr-pr-cache-442");
-	assert.equal(group("", "", "schedule"), "campus-agent-ghcr-mutation");
+	assert.equal(group("apply"), "campus-agent-ghcr-mutation");
+	assert.equal(group("report"), "campus-agent-ghcr-report-10");
+	assert.equal(group("", "schedule"), "campus-agent-ghcr-mutation");
 	const scheduled = { github: { ref: "refs/heads/main", event_name: "schedule" }, inputs: {} };
 	assert.equal(runInNewContext(String(full.if), scheduled), true);
-	assert.equal(Boolean(runInNewContext(String(pr.if), scheduled)), false);
 	assert.equal(
 		runInNewContext(String(full.if), {
 			...scheduled,
@@ -800,6 +799,10 @@ test("retention schedules full apply on trusted main and serializes mutations wi
 	assert.match(
 		String(namedStep(full, "Plan and optionally apply project retention").run),
 		/--mode "\$RETENTION_MODE"/u,
+	);
+	assert.doesNotMatch(
+		String(namedStep(full, "Plan and optionally apply project retention").run),
+		/--scope|--pr-cache-pr/u,
 	);
 	assert.match(
 		String(namedStep(full, "Plan and optionally apply project retention").env?.GH_TOKEN),

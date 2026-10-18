@@ -38,7 +38,7 @@ main 中已验证的源码
 普通 PR 不发布最终候选物，也不访问私有环境、供应商状态、集群或真实私有数据。涉及镜像的 PR
 可以执行 `cacheonly` 的 `linux/arm64` build-only 证据，不发布运行镜像或加载本地镜像。同仓 PR 的
 独立镜像 job 只读取主线 canonical 缓存，不提供 PR cache 导出输入；fork 和 Dependabot 不使用
-认证缓存。历史 PR cache 通过[手动清理入口](./ghcr-retention.md)处理。
+认证缓存，因此没有需要清理的 PR 缓存包。
 主线发布仍只读写 canonical 缓存。特殊制品和手动
 验证入口只有在明确选择时运行，不提供隐式全量发布或全量验证开关。
 
