@@ -211,12 +211,12 @@ describe("campus-web published reader sync", () => {
 		expect(publicHtml).toContain("&lt;img src=x onerror=alert(1)&gt;");
 		expect(publicHtml).toContain('name="docs-version"');
 		expect(publicHtml).toContain(
-			'<link rel="canonical" href="https://campus.muc.wiki/docs/regulations/student_rules/student-attendance"',
+			'<link rel="canonical" href="https://chat.muc.wiki/docs/regulations/student_rules/student-attendance"',
 		);
 		expect(publicHtml).toContain('<script type="module" src="/src/docs-main.tsx"></script>');
 		expect(currentVersionHtml).toContain("学生应按时参加教学活动");
 		expect(currentVersionHtml).toContain(
-			'<link rel="canonical" href="https://campus.muc.wiki/docs/regulations/student_rules/student-attendance"',
+			'<link rel="canonical" href="https://chat.muc.wiki/docs/regulations/student_rules/student-attendance"',
 		);
 		expect(historicalHtml).toContain("正在阅读历史版本，请以当前版为准。");
 		expect(secondaryHtml).toContain('content="index,follow"');

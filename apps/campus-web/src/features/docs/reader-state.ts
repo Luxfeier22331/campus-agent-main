@@ -4,7 +4,7 @@ export interface ReaderLocationState {
 }
 
 export function parseReaderLocationState(rawUrl: string): ReaderLocationState {
-	const url = new URL(rawUrl, "https://campus.muc.wiki");
+	const url = new URL(rawUrl, "https://chat.muc.wiki");
 	const rawAnchor = url.hash.slice(1);
 	const highlight = url.searchParams.get("hl") ?? "";
 	return {

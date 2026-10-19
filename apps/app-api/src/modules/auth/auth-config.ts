@@ -2,10 +2,12 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { admin, captcha, jwt } from "better-auth/plugins";
 import { CAMPUS_PASSWORD_MAX_LENGTH, CAMPUS_PASSWORD_MIN_LENGTH } from "campus-contracts/auth";
+import { authCookiePrefix, laneIssuerPath } from "campus-contracts/environment-lanes";
 import {
 	type AppApiEnvironment,
 	type AppAuthEmailConfig,
 	isDeployedEnvironment,
+	resolveDeploymentLane,
 } from "../../config";
 import type { EmailAccessService } from "../email-access";
 import { buildFederationProviderClaimSet } from "../federation-runtime/claims";
@@ -90,6 +92,7 @@ export interface BetterAuthConfigInput {
 
 export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 	const appOrigin = new URL(input.authShellOrigin).origin;
+	const lane = resolveDeploymentLane(input.environment);
 	const captchaEnabled = !(
 		input.environment === "development" &&
 		input.authTurnstileSecretKey === LOCAL_TURNSTILE_DISABLED_SECRET_KEY
@@ -100,6 +103,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 			authShellOrigin: appOrigin,
 			authEmailFrom: emailConfig.authEmailFrom,
 			...(input.emailSender ? { emailSender: input.emailSender } : {}),
+			...(lane ? { lane } : {}),
 			resendApiKey: emailConfig.resendApiKey,
 		};
 	};
@@ -257,6 +261,8 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 			}),
 			jwt({
 				disableSettingJwtHeader: true,
+				// Lanes share one hostname, so each keeps a distinct issuer for id_token `iss` and metadata.
+				...(lane ? { jwt: { issuer: `${appOrigin}${laneIssuerPath(lane)}` } } : {}),
 				jwks: {
 					gracePeriod: FEDERATION_JWKS_GRACE_PERIOD_SECONDS,
 					keyPairConfig: FEDERATION_JWKS_KEY_PAIR_CONFIG,
@@ -318,6 +324,8 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 			...(input.backgroundTaskHandler
 				? { backgroundTasks: { handler: input.backgroundTaskHandler } }
 				: {}),
+			// Lanes share one hostname, so each deployed environment needs its own cookie names.
+			...(lane ? { cookiePrefix: authCookiePrefix(lane) } : {}),
 			disableCSRFCheck: false,
 			disableOriginCheck: false,
 			ipAddress: {

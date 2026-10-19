@@ -15,6 +15,10 @@ export const WORKER_CANDIDATE_REGISTRY = {
 		installFilters: ["campus-contracts...", "campus-web..."],
 		packageName: "campus-web",
 	},
+	"edge-router-staging": {
+		installFilters: ["campus-contracts...", "edge-router..."],
+		packageName: "edge-router",
+	},
 	"status-web-staging": {
 		installFilters: ["campus-contracts...", "status-web..."],
 		packageName: "status-web",

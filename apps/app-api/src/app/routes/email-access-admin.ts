@@ -5,6 +5,7 @@ import {
 	type Env,
 	readAppAuthConfig,
 	readAppAuthEmailConfig,
+	resolveDeploymentLane,
 	resolveEnvironment,
 } from "../../config";
 import { AppApiRouteError, jsonResponse, withNoStore } from "../../http";
@@ -72,11 +73,13 @@ async function sendInvitation(input: {
 	try {
 		const authConfig = readAppAuthConfig(input.env);
 		const emailConfig = readAppAuthEmailConfig(input.env);
+		const lane = resolveDeploymentLane(resolveEnvironment(input.env));
 		await sendAccessInvitationEmail(
 			{
 				authShellOrigin: authConfig.authShellOrigin,
 				authEmailFrom: emailConfig.authEmailFrom,
 				...(input.emailSender ? { emailSender: input.emailSender } : {}),
+				...(lane ? { lane } : {}),
 				resendApiKey: emailConfig.resendApiKey,
 			},
 			{ email: input.grant.email, idempotencyKey: deliveryKey, kind: input.grant.kind },

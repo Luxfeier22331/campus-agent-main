@@ -8,7 +8,7 @@ export interface CampusPageMetadata {
 }
 
 export const CAMPUS_PRODUCT_NAME = "中央民族大学校园问答";
-const CAMPUS_WEB_CANONICAL_ORIGIN = "https://campus.muc.wiki";
+const CAMPUS_WEB_CANONICAL_ORIGIN = "https://chat.muc.wiki";
 
 export function resolveCampusCanonicalUrl(canonicalPath: string | null): string | null {
 	return canonicalPath === null ? null : new URL(canonicalPath, CAMPUS_WEB_CANONICAL_ORIGIN).href;

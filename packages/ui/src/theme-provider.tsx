@@ -48,7 +48,7 @@ function writeThemeCookie(storageKey: string, mode: ThemeMode) {
 	}
 	try {
 		const hostname = window.location.hostname;
-		// Share theme across same-origin subdomains (e.g. campus.muc.wiki & status.muc.wiki).
+		// Share theme across same-origin subdomains (e.g. chat.muc.wiki & status.muc.wiki).
 		const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname === "localhost";
 		const domainAttr = isIp ? "" : `; domain=.${hostname.split(".").slice(-2).join(".")}`;
 		const secure = window.location.protocol === "https:" ? "; secure" : "";

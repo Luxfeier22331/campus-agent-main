@@ -23,8 +23,21 @@ redirect URI、scope 和 claim policy 由 App API 所有。当前仓库不提供
 metadata 至少包含 issuer、authorization/token/userinfo/JWKS/end-session endpoint，以及支持的
 response type、grant type、scope、claim 和 signing algorithm。
 
-production issuer 为 `https://campus.muc.wiki`，staging 使用部署环境 issuer。metadata host
-必须与当前部署 origin 一致，不能把 staging origin 写成 production。
+部署环境共用 `https://chat.muc.wiki`，每个泳道有固定 issuer，不随默认泳道变化：
+
+| 泳道 | issuer | 服务端 endpoint（token / userinfo / JWKS） | 浏览器 endpoint（authorize / end-session） |
+| --- | --- | --- | --- |
+| production | `https://chat.muc.wiki` | `/api/federation/*` | `/api/federation/*?lane=prod` |
+| staging | `https://chat.muc.wiki/lanes/staging` | `/lanes/staging/api/federation/*` | `/api/federation/*?lane=staging` |
+
+- discovery 位于 `<issuer>/.well-known/openid-configuration`；RFC 8414 metadata 同时接受
+  `<issuer>/.well-known/oauth-authorization-server` 与
+  `/.well-known/oauth-authorization-server<issuer path>`。id_token `iss` 等于泳道 issuer。
+- 服务端 endpoint 不依赖 Cookie，由 edge router 按 issuer 路径选择泳道；不带前缀的路径只属于
+  production，production 未部署时返回 `dependency_not_ready`。
+- 浏览器 endpoint 的 `?lane=` 在授权前把用户切到签发泳道，登录与 consent 页面随泳道 Cookie
+  留在同一泳道；因此登录其他泳道的 relying party 会改变用户当前泳道。
+- development 与 test 不设泳道，issuer 为 `AUTH_SHELL_ORIGIN`，endpoint 不带泳道参数。
 
 ## 授权
 
@@ -122,6 +135,8 @@ client 记录由 App API 的 `app_auth.oauthClient` 所有，注册、修改和�
 ## 可执行来源
 
 - `apps/app-api/src/app/routes/federation.ts`
+- `apps/edge-router/src/lane.ts`
+- `packages/contracts/src/environment-lanes.ts`
 - `apps/app-api/src/modules/auth/auth.ts`
 - `apps/campus-web/src/app/routes/federation-pages.tsx`
 - `apps/campus-web/src/platform/auth/oauth-context.ts`

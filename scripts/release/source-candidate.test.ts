@@ -67,6 +67,33 @@ test("a baseline published before an image was added or retired still plans the 
 	);
 });
 
+test("a baseline published before a Worker was registered still plans the next candidate", () => {
+	const complete = completeCandidate(
+		initial,
+		undefined,
+		Object.fromEntries(ACTIVE_IMAGE_TARGETS.map((name) => [name, digest])),
+		[],
+	);
+	const { "edge-router-staging": added, ...older } = complete.workers;
+	assert(added);
+	const baseline = parseSourceCandidate(
+		{ ...complete, workers: older },
+		{ publishedSnapshot: true },
+	);
+	assert.throws(
+		() => parseSourceCandidate(baseline),
+		/Missing candidate Worker edge-router-staging/,
+	);
+	const after = completeCandidate(
+		{ ...initial, head: next, images: [], workers: [], sourceBases: [] },
+		baseline,
+		{},
+		[],
+	);
+	assert.deepEqual(Object.keys(after.workers).sort(), [...WORKER_CANDIDATES].sort());
+	assert.equal(after.workers["edge-router-staging"].sourceSha, next);
+	assert.deepEqual(after.workers["app-api-staging"], baseline.workers["app-api-staging"]);
+});
 test("first publication requires every active image", () => {
 	assert.throws(() => completeCandidate(initial, undefined, {}, []), /Missing published image/);
 	assert.throws(

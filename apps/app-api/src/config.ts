@@ -1,3 +1,5 @@
+import { type EnvironmentLane, isEnvironmentLane } from "campus-contracts/environment-lanes";
+
 export type AppApiEnvironment = "development" | "test" | "staging" | "production";
 export const APP_API_NAME = "campus-agent-app-api";
 export const AGENT_CONTROL_TIMEOUT_MS = 95_000;
@@ -101,6 +103,11 @@ export function resolveEnvironment(env: Env): AppApiEnvironment {
 	throw new Error(
 		`DEPLOYMENT_ENVIRONMENT must be one of development, test, staging, production; received ${JSON.stringify(env.DEPLOYMENT_ENVIRONMENT?.trim() ?? "")}.`,
 	);
+}
+
+// Deployed environments share the public hostname and are selected by lane.
+export function resolveDeploymentLane(environment: AppApiEnvironment): EnvironmentLane | undefined {
+	return isEnvironmentLane(environment) ? environment : undefined;
 }
 
 export function isDeployedEnvironment(environment: AppApiEnvironment | undefined): boolean {

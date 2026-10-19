@@ -8,6 +8,7 @@ import {
 	type ProductNavItem,
 	type ProductNavItemLinkMode,
 } from "@/platform/navigation/product-nav";
+import { readDeploymentLane } from "@/platform/runtime/config";
 export type ProductNavigationLinkMode = ProductNavItemLinkMode;
 
 export function ProductBrandLink({
@@ -25,17 +26,25 @@ export function ProductBrandLink({
 }) {
 	const classNames = cn("campus-product-brand flex min-w-0 items-center gap-3", className);
 	const mobileLabel = compactLabel || subtitle || "校园问答";
+	const preview = readDeploymentLane() === "staging";
 	const children = (
-		<span className="min-w-0">
-			<span className="campus-product-brand-compact block truncate whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:hidden">
-				{mobileLabel}
+		<span className="flex min-w-0 items-center gap-2">
+			<span className="min-w-0">
+				<span className="campus-product-brand-compact block truncate whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:hidden">
+					{mobileLabel}
+				</span>
+				<span className="campus-product-brand-expanded hidden whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:block">
+					{desktopLabel}
+				</span>
+				{subtitle ? (
+					<span className="campus-product-brand-expanded hidden truncate text-xs text-[var(--sys-text-subtle)] lg:block">
+						{subtitle}
+					</span>
+				) : null}
 			</span>
-			<span className="campus-product-brand-expanded hidden whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:block">
-				{desktopLabel}
-			</span>
-			{subtitle ? (
-				<span className="campus-product-brand-expanded hidden truncate text-xs text-[var(--sys-text-subtle)] lg:block">
-					{subtitle}
+			{preview ? (
+				<span className="campus-product-brand-preview shrink-0 rounded-full border border-border px-2 py-0.5 text-xs font-medium text-[var(--sys-text-subtle)]">
+					体验版
 				</span>
 			) : null}
 		</span>

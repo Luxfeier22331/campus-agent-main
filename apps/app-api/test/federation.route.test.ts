@@ -250,4 +250,39 @@ describe("federation provider routes", () => {
 			jwks_uri: "https://campus-staging.mucwiki-edge.link/api/federation/jwks",
 		});
 	});
+
+	it("advertises the staging lane issuer with lane-addressed endpoints", async () => {
+		const stagingEnv = { ...env, DEPLOYMENT_ENVIRONMENT: "staging" as const };
+		const nativeMetadata = {
+			issuer: "https://chat.muc.wiki/lanes/staging",
+			authorization_endpoint: "https://chat.muc.wiki/oauth2/authorize",
+			token_endpoint: "https://chat.muc.wiki/oauth2/token",
+			userinfo_endpoint: "https://chat.muc.wiki/oauth2/userinfo",
+			jwks_uri: "https://chat.muc.wiki/jwks",
+			end_session_endpoint: "https://chat.muc.wiki/oauth2/end-session",
+		};
+		const app = createApp(stagingEnv, {
+			authHandler: vi.fn(() => new Response(null, { status: 404 })),
+			getAppAuth: vi.fn(async () => ({
+				api: {
+					getOAuthServerConfig: vi.fn(async () => nativeMetadata),
+					getOpenIdConfig: vi.fn(async () => nativeMetadata),
+				},
+			})) as never,
+		});
+
+		const response = await app.fetch(
+			new Request("https://chat.muc.wiki/.well-known/openid-configuration"),
+			stagingEnv,
+		);
+
+		await expect(response.json()).resolves.toEqual({
+			issuer: "https://chat.muc.wiki/lanes/staging",
+			authorization_endpoint: "https://chat.muc.wiki/api/federation/authorize?lane=staging",
+			token_endpoint: "https://chat.muc.wiki/lanes/staging/api/federation/token",
+			userinfo_endpoint: "https://chat.muc.wiki/lanes/staging/api/federation/userinfo",
+			jwks_uri: "https://chat.muc.wiki/lanes/staging/api/federation/jwks",
+			end_session_endpoint: "https://chat.muc.wiki/api/federation/logout?lane=staging",
+		});
+	});
 });

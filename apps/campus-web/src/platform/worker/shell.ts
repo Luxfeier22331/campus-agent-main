@@ -4,7 +4,7 @@ import {
 } from "../auth/turnstile-runtime-config";
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "../runtime/config";
 import { fetchStaticAsset, rewriteRequestPathname } from "./assets";
-import type { CampusWorkerEnv } from "./env";
+import { type CampusWorkerEnv, resolveDeploymentLane } from "./env";
 import { responseWithSecurityHeaders, SECURITY_HEADERS } from "./response-policy";
 
 const SHELL_PATH_PREFIXES = ["/c/", "/notices/"] as const;
@@ -73,6 +73,7 @@ function injectCampusRuntimeConfig(html: string, request: Request, env: CampusWo
 	const campusOrigin = new URL(request.url).origin;
 	const serializedConfig = JSON.stringify({
 		accountUrl: new URL("/account", campusOrigin).toString(),
+		deploymentLane: resolveDeploymentLane(env),
 		loginUrl: new URL("/account/login", campusOrigin).toString(),
 	}).replace(/</g, "\\u003c");
 	const authRuntimeConfig = JSON.stringify(

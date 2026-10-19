@@ -24,9 +24,9 @@ export interface SourceCandidate {
 const SHA = /^[a-f0-9]{40}$/;
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
 /**
- * Published snapshots predate later image additions and retirements, so baselines and
- * retention reads accept the image set they were published with; only a candidate being
- * produced must cover every active image.
+ * Published snapshots predate later image and Worker additions and retirements, so baselines
+ * and retention reads accept the sets they were published with; only a candidate being
+ * produced must cover every active image and registered Worker.
  */
 export function parseSourceCandidate(
 	value: unknown,
@@ -48,8 +48,11 @@ export function parseSourceCandidate(
 			throw new Error(`Missing complete candidate image ${name}`);
 		}
 	}
-	for (const name of WORKER_CANDIDATES) {
-		if (!SHA.test(candidate.workers?.[name]?.sourceSha ?? "")) {
+	const workerNames = options.publishedSnapshot
+		? Object.keys(candidate.workers ?? {})
+		: WORKER_CANDIDATES;
+	for (const name of workerNames) {
+		if (!SHA.test(candidate.workers?.[name as WorkerCandidate]?.sourceSha ?? "")) {
 			throw new Error(`Missing candidate Worker ${name}`);
 		}
 	}

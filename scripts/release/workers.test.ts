@@ -12,6 +12,7 @@ test("worker candidates have one package and install-filter registry", () => {
 	assert.deepEqual(WORKER_CANDIDATES, [
 		"app-api-staging",
 		"campus-web-staging",
+		"edge-router-staging",
 		"status-web-staging",
 	]);
 	assert.deepEqual(workerCandidatesForPackage("campus-web"), ["campus-web-staging"]);

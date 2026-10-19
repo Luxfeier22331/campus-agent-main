@@ -2,8 +2,9 @@ import {
 	oauthProviderAuthServerMetadata,
 	oauthProviderOpenIdConfigMetadata,
 } from "@better-auth/oauth-provider";
+import { LANE_QUERY_PARAM, laneQueryValue } from "campus-contracts/environment-lanes";
 import type { Hono } from "hono";
-import type { Env } from "../../config";
+import { type Env, resolveDeploymentLane, resolveEnvironment } from "../../config";
 import type { AppRequestScope } from "../types";
 import { authenticationDependencyFailure, normalizeAuthFailureResponse } from "./auth-failure";
 
@@ -17,11 +18,16 @@ const FEDERATION_ROUTE_REWRITES = new Map<string, string>([
 	["/api/federation/logout", "/oauth2/end-session"],
 ]);
 
-const FEDERATION_METADATA_ENDPOINT_REWRITES = {
-	authorization_endpoint: "/api/federation/authorize",
+// Back-channel endpoints live under the issuer, whose path selects the lane at the edge router.
+const FEDERATION_ISSUER_ENDPOINT_REWRITES = {
 	token_endpoint: "/api/federation/token",
 	userinfo_endpoint: "/api/federation/userinfo",
 	jwks_uri: "/api/federation/jwks",
+} as const;
+
+// Browser endpoints carry `?lane=` so the user is on the issuing lane for login and consent.
+const FEDERATION_BROWSER_ENDPOINT_REWRITES = {
+	authorization_endpoint: "/api/federation/authorize",
 	end_session_endpoint: "/api/federation/logout",
 } as const;
 
@@ -189,6 +195,7 @@ function rewriteFederationRequest(request: Request): Request {
 }
 
 async function rewriteFederationMetadataResponse(input: {
+	env: Env;
 	request: Request;
 	response: Response;
 }): Promise<Response> {
@@ -213,13 +220,25 @@ async function rewriteFederationMetadataResponse(input: {
 	const rewritten: Record<string, unknown> = {
 		...(metadata as Record<string, unknown>),
 	};
-	const issuer =
+	const issuer = new URL(
 		typeof rewritten.issuer === "string" && rewritten.issuer.trim()
-			? new URL(rewritten.issuer).origin
-			: new URL(input.request.url).origin;
-	for (const [field, path] of Object.entries(FEDERATION_METADATA_ENDPOINT_REWRITES)) {
+			? rewritten.issuer
+			: new URL(input.request.url).origin,
+	);
+	const lane = resolveDeploymentLane(resolveEnvironment(input.env));
+	const issuerBase = `${issuer.origin}${issuer.pathname.replace(/\/$/, "")}`;
+	for (const [field, path] of Object.entries(FEDERATION_ISSUER_ENDPOINT_REWRITES)) {
 		if (field in rewritten) {
-			rewritten[field] = `${issuer}${path}`;
+			rewritten[field] = `${issuerBase}${path}`;
+		}
+	}
+	for (const [field, path] of Object.entries(FEDERATION_BROWSER_ENDPOINT_REWRITES)) {
+		if (field in rewritten) {
+			const endpoint = new URL(path, issuer.origin);
+			if (lane) {
+				endpoint.searchParams.set(LANE_QUERY_PARAM, laneQueryValue(lane));
+			}
+			rewritten[field] = endpoint.toString();
 		}
 	}
 
@@ -246,7 +265,7 @@ export function registerFederationRoutes(input: {
 					? oauthProviderAuthServerMetadata(auth)
 					: oauthProviderOpenIdConfigMetadata(auth);
 			const response = await metadataHandler(request);
-			return await rewriteFederationMetadataResponse({ request, response });
+			return await rewriteFederationMetadataResponse({ env: input.env, request, response });
 		} catch (error) {
 			return authenticationDependencyFailure({ error, source: "federation_metadata" });
 		}
@@ -267,7 +286,7 @@ export function registerFederationRoutes(input: {
 				request,
 				response: await normalizeAuthFailureResponse(providerResponse, "federation_handler"),
 			});
-			return await rewriteFederationMetadataResponse({ request, response });
+			return await rewriteFederationMetadataResponse({ env: input.env, request, response });
 		} catch (error) {
 			return authenticationDependencyFailure({ error, source: "federation_handler" });
 		}

@@ -38,6 +38,32 @@ describe("campus worker public app-api cache", () => {
 		vi.unstubAllGlobals();
 	});
 
+	it("keeps lanes on the shared hostname in separate edge cache entries", async () => {
+		installFakeEdgeCache();
+		const responder = (label: string) =>
+			vi.fn(async (_request: Request) =>
+				Response.json({ lane: label }, { headers: { "cache-control": "public, max-age=30" } }),
+			);
+		const stagingFetch = responder("staging");
+		const productionFetch = responder("production");
+		const url = "https://chat.muc.wiki/api/dining";
+
+		const staging = await worker.fetch(new Request(url), {
+			...createEnv({ fetch: stagingFetch }),
+			DEPLOYMENT_ENVIRONMENT: "staging",
+		});
+		const production = await worker.fetch(new Request(url), {
+			...createEnv({ fetch: productionFetch }),
+			DEPLOYMENT_ENVIRONMENT: "production",
+		});
+
+		expect(staging.headers.get("x-campus-edge-cache")).toBe("miss");
+		expect(production.headers.get("x-campus-edge-cache")).toBe("miss");
+		await expect(production.json()).resolves.toEqual({ lane: "production" });
+		expect(stagingFetch).toHaveBeenCalledOnce();
+		expect(productionFetch).toHaveBeenCalledOnce();
+	});
+
 	it.each([
 		transportScheduleUrl("2026-09-19"),
 		transportScheduleRangeUrl("2026-09-01", "2026-09-30"),

@@ -1,4 +1,5 @@
 import { normalizeTransportPublicSearch } from "@campus-agent/transport/public-query";
+import type { EnvironmentLane } from "campus-contracts/environment-lanes";
 
 type AppApiFetch = (request: Request) => Promise<Response> | Response;
 type CacheStatus = "bypass" | "hit" | "miss";
@@ -14,6 +15,7 @@ export interface PublicCacheableAppApiProxyInput {
 	buildDependencyNotReadyResponse: (
 		reason: "transport_failure" | "invalid_upstream_response",
 	) => Response;
+	cacheLane: EnvironmentLane | null;
 	isHtmlServerErrorResponse: (response: Response) => boolean;
 	request: Request;
 	securityHeaders: SecurityHeaders;
@@ -32,7 +34,7 @@ export async function proxyCacheableAppApiRequest(
 	input: PublicCacheableAppApiProxyInput,
 ): Promise<Response> {
 	const isHeadRequest = input.request.method === "HEAD";
-	const cacheKey = buildPublicAppApiCacheKey(input.request);
+	const cacheKey = buildPublicAppApiCacheKey(input.request, input.cacheLane);
 	let edgeCache = getDefaultEdgeCache();
 	if (edgeCache) {
 		try {
@@ -86,9 +88,13 @@ function getDefaultEdgeCache(): Cache | null {
 	return cacheStorage?.default ?? null;
 }
 
-function buildPublicAppApiCacheKey(request: Request): Request {
+// Lanes share one hostname and zone cache, so the key must separate their responses.
+function buildPublicAppApiCacheKey(request: Request, lane: EnvironmentLane | null): Request {
 	const inboundUrl = new URL(request.url);
 	inboundUrl.search = getPublicCacheSearch(inboundUrl) ?? "";
+	if (lane) {
+		inboundUrl.pathname = `/__campus-lane/${lane}${inboundUrl.pathname}`;
+	}
 	return new Request(inboundUrl.toString(), { method: "GET" });
 }
 

@@ -1,0 +1,24 @@
+{
+	"name": "edge-router",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Routes the shared public Campus hostname to the selected environment lane.",
+	"scripts": {
+		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home pnpm exec wrangler deploy --dry-run --outdir dist/worker --env local",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run -c vitest.node.config.mts"
+	},
+	"dependencies": {
+		"campus-contracts": "workspace:*"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "5.20261001.1",
+		"@types/node": "^24.19.1",
+		"smol-toml": "1.9.0",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.11",
+		"wrangler": "4.146.0"
+	},
+	"license": "Apache-2.0"
+}

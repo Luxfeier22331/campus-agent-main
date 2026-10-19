@@ -13,7 +13,7 @@ interface WorkerConfig {
 }
 
 export function buildWorkerArtifact(app: string, destination: string, sourceSha: string): void {
-	if (!["app-api", "campus-web", "status-web"].includes(app)) {
+	if (!["app-api", "campus-web", "edge-router", "status-web"].includes(app)) {
 		throw new Error("Unknown Worker");
 	}
 	const appRoot = resolve("apps", app);

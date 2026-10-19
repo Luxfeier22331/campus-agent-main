@@ -1,3 +1,8 @@
+import {
+	type EnvironmentLane,
+	LANE_QUERY_PARAM,
+	laneQueryValue,
+} from "campus-contracts/environment-lanes";
 import { escape as escapeHtml } from "html-escaper";
 import { Resend } from "resend";
 
@@ -46,6 +51,8 @@ export interface AuthMailConfig {
 	authShellOrigin: string;
 	authEmailFrom: string;
 	emailSender?: AuthEmailSender;
+	// Deployed lanes share one hostname, so links must select the environment that issued them.
+	lane?: EnvironmentLane;
 	resendApiKey: string;
 }
 
@@ -366,7 +373,16 @@ async function tokenIdempotencyKey(purpose: AuthEmailPurpose, token: string): Pr
 }
 
 function authFeedbackUrl(config: AuthMailConfig): string {
-	return new URL(AUTH_FEEDBACK_PATH, config.authShellOrigin).toString();
+	return withMailLane(config, new URL(AUTH_FEEDBACK_PATH, config.authShellOrigin).toString());
+}
+
+export function withMailLane(config: Pick<AuthMailConfig, "lane">, url: string): string {
+	if (!config.lane) {
+		return url;
+	}
+	const laneUrl = new URL(url);
+	laneUrl.searchParams.set(LANE_QUERY_PARAM, laneQueryValue(config.lane));
+	return laneUrl.toString();
 }
 
 export async function sendPasswordResetEmail(
@@ -375,11 +391,14 @@ export async function sendPasswordResetEmail(
 ): Promise<void> {
 	const recipient = normalizeRecipientEmail(input.user);
 	const name = formatRecipientName(input.user);
-	const url = buildCanonicalPasswordResetUrl({
-		authShellOrigin: config.authShellOrigin,
-		token: input.token,
-		url: input.url,
-	});
+	const url = withMailLane(
+		config,
+		buildCanonicalPasswordResetUrl({
+			authShellOrigin: config.authShellOrigin,
+			token: input.token,
+			url: input.url,
+		}),
+	);
 	const feedbackUrl = authFeedbackUrl(config);
 	await sendEmail(
 		config,
@@ -437,12 +456,15 @@ export async function sendVerificationEmail(
 ): Promise<void> {
 	const recipient = normalizeRecipientEmail(input.user);
 	const name = formatRecipientName(input.user);
-	const url = buildCanonicalEmailVerificationUrl({
-		authShellOrigin: config.authShellOrigin,
-		callbackDestination: "verification-result",
-		token: input.token,
-		url: input.url,
-	});
+	const url = withMailLane(
+		config,
+		buildCanonicalEmailVerificationUrl({
+			authShellOrigin: config.authShellOrigin,
+			callbackDestination: "verification-result",
+			token: input.token,
+			url: input.url,
+		}),
+	);
 	const feedbackUrl = authFeedbackUrl(config);
 	await sendEmail(
 		config,
@@ -474,12 +496,15 @@ export async function sendEmailChangeConfirmation(
 ): Promise<void> {
 	const recipient = normalizeRecipientEmail(input.user);
 	const name = formatRecipientName(input.user);
-	const url = buildCanonicalEmailVerificationUrl({
-		authShellOrigin: config.authShellOrigin,
-		callbackDestination: "return-target",
-		token: input.token,
-		url: input.url,
-	});
+	const url = withMailLane(
+		config,
+		buildCanonicalEmailVerificationUrl({
+			authShellOrigin: config.authShellOrigin,
+			callbackDestination: "return-target",
+			token: input.token,
+			url: input.url,
+		}),
+	);
 	const feedbackUrl = authFeedbackUrl(config);
 	await sendEmail(
 		config,
@@ -510,10 +535,13 @@ export async function sendAccessInvitationEmail(
 	input: AccessInvitationEmailInput,
 ): Promise<void> {
 	const recipient = normalizeRecipientEmail({ email: input.email });
-	const url = buildAccessInvitationUrl({
-		authShellOrigin: config.authShellOrigin,
-		email: recipient,
-	});
+	const url = withMailLane(
+		config,
+		buildAccessInvitationUrl({
+			authShellOrigin: config.authShellOrigin,
+			email: recipient,
+		}),
+	);
 	const accessLabel = input.kind === "test" ? "测试资格" : "邀请资格";
 	const feedbackUrl = authFeedbackUrl(config);
 	await sendEmail(

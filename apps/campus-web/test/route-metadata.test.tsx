@@ -55,7 +55,7 @@ describe("campus-web route metadata", () => {
 		);
 		expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			"https://campus.muc.wiki/dining",
+			"https://chat.muc.wiki/dining",
 		);
 	});
 });

@@ -1,7 +1,10 @@
+import { type EnvironmentLane, isEnvironmentLane } from "campus-contracts/environment-lanes";
+
 export const CAMPUS_RUNTIME_CONFIG_SCRIPT_ID = "__CAMPUS_RUNTIME_CONFIG__";
 
 export interface CampusRuntimeConfig {
 	accountUrl: string;
+	deploymentLane: EnvironmentLane | null;
 	loginUrl: string;
 }
 
@@ -15,6 +18,7 @@ export function parseCampusRuntimeConfigSource(
 	try {
 		const parsed = JSON.parse(source) as {
 			accountUrl?: unknown;
+			deploymentLane?: unknown;
 			loginUrl?: unknown;
 		};
 		return normalizeCampusRuntimeConfig(parsed);
@@ -31,6 +35,15 @@ export function getCampusRuntimeConfig(): CampusRuntimeConfig {
 	return parseCampusRuntimeConfigSource(script?.textContent);
 }
 
+// Static pages such as Docs are served without injected config and report no lane.
+export function readDeploymentLane(): EnvironmentLane | null {
+	try {
+		return getCampusRuntimeConfig().deploymentLane;
+	} catch {
+		return null;
+	}
+}
+
 export function buildAccountLoginUrl(config: CampusRuntimeConfig, returnTo: string): string {
 	const url = new URL(config.loginUrl);
 	url.searchParams.set("redirectTo", returnTo);
@@ -39,6 +52,7 @@ export function buildAccountLoginUrl(config: CampusRuntimeConfig, returnTo: stri
 
 function normalizeCampusRuntimeConfig(input: {
 	accountUrl?: unknown;
+	deploymentLane?: unknown;
 	loginUrl?: unknown;
 }): CampusRuntimeConfig {
 	const accountUrl = normalizeUrl(input.accountUrl);
@@ -48,6 +62,7 @@ function normalizeCampusRuntimeConfig(input: {
 	}
 	return {
 		accountUrl,
+		deploymentLane: isEnvironmentLane(input.deploymentLane) ? input.deploymentLane : null,
 		loginUrl,
 	};
 }

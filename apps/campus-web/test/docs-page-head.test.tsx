@@ -47,7 +47,7 @@ describe("campus page metadata head", () => {
 		);
 		expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			"https://campus.muc.wiki/docs",
+			"https://chat.muc.wiki/docs",
 		);
 
 		view.unmount();
@@ -58,7 +58,7 @@ describe("campus page metadata head", () => {
 	});
 
 	it("adopts the static canonical and updates or removes it across route remounts", async () => {
-		document.head.innerHTML = '<link rel="canonical" href="https://campus.muc.wiki/docs">';
+		document.head.innerHTML = '<link rel="canonical" href="https://chat.muc.wiki/docs">';
 		const staticCanonical = document.head.querySelector('link[rel="canonical"]');
 		const container = document.createElement("div");
 		document.body.appendChild(container);
@@ -100,7 +100,7 @@ describe("campus page metadata head", () => {
 					[...document.head.querySelectorAll('link[rel="canonical"]')].map((link) =>
 						link.getAttribute("href"),
 					),
-				).toEqual(path === null ? [] : [`https://campus.muc.wiki${path}`]);
+				).toEqual(path === null ? [] : [`https://chat.muc.wiki${path}`]);
 			}
 			expect(errors).toEqual([]);
 		} finally {

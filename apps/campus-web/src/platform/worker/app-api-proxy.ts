@@ -3,7 +3,7 @@ import {
 	proxyCacheableAppApiRequest,
 	withCampusEdgeCacheBypass,
 } from "../worker-proxy/public-cache";
-import type { CampusWorkerEnv } from "./env";
+import { type CampusWorkerEnv, resolveDeploymentLane } from "./env";
 import { proxyFailureResponse } from "./proxy-failure";
 import {
 	isHtmlServerErrorResponse,
@@ -120,6 +120,7 @@ async function proxyCacheableAppApiRequestWithEnv(
 		appApiBaseUrl,
 		appApiFetch,
 		buildDependencyNotReadyResponse: (reason) => proxyFailureResponse(request, reason),
+		cacheLane: resolveDeploymentLane(env),
 		isHtmlServerErrorResponse,
 		request,
 		securityHeaders: SECURITY_HEADERS,

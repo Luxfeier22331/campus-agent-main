@@ -20,6 +20,10 @@ status: active
 | Argo CD | Kubernetes 资源和镜像摘要 |
 | schema Job | 在依赖新结构的服务接收流量前完成数据库迁移和授权 |
 
+`edge-router` 挂载公共 Campus 主机名，变更同时影响所有泳道。production 建立前它以 `edge-router-staging`
+登记在 Worker 候选中，与其他 Worker 一样发布；读取新增前发布的候选时只要求其发布时的 Worker 集合，见
+[共用域名与泳道分发](../../../.agents/notes/proposed/architecture/2026-10-18-shared-domain-environment-lanes.md)。
+
 源码仓产出镜像和候选计划，GitOps 产出 Worker 候选物；两者都不直接声明某个环境已经上线。环境仓选择并应用候选版本后，环境状态才
 构成部署事实。
 

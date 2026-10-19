@@ -32,7 +32,7 @@ export type CampusAuthViewName = keyof typeof AUTH_VIEW_PATHS;
 
 export function resolveAccountAuthReturnOrigins(_config?: unknown): AccountAuthReturnOrigins {
 	return {
-		campus: ["https://campus.muc.wiki"],
+		campus: ["https://chat.muc.wiki"],
 	};
 }
 
@@ -74,7 +74,7 @@ export function resolveAccountAuthReturnTarget(
 	}
 
 	if (returnTo.startsWith("/") && !returnTo.startsWith("//")) {
-		return isCampusReturnPath(new URL(returnTo, "https://campus.muc.wiki").pathname)
+		return isCampusReturnPath(new URL(returnTo, "https://chat.muc.wiki").pathname)
 			? returnTo
 			: DEFAULT_RETURN_TARGET;
 	}

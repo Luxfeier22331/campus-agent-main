@@ -15,6 +15,7 @@ status: active
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
+| `edge-router` | 公共 Campus 主机名的泳道选择、跨泳道 Cookie 隔离和到各环境 `campus-web` 的转发 | 产品页面、认证、数据读取和响应缓存 |
 | `campus-web` | 学生问答、账号、文档、地图、食堂和校园业务状态页面 | 产品可用性状态页、运维运行记录、数据库或内部运行时访问 |
 | `app-api` | 浏览器认证、聊天接收与终结、公开问答可用性信号和产品 API | 产品可用性状态快照、Temporal worker、内部检索、在线模型配置、通用运维数据 API |
 | `status-web` | 独立的产品可用性状态页、公共状态快照和第一方入口黑盒探测 | 校园业务状态、用户账号、聊天、内部运行时和观测平台原始数据 |
@@ -26,6 +27,9 @@ status: active
 
 ## 浏览器路径
 
+- staging 与 production 共用公共 Campus 主机名。`edge-router` 是该主机名唯一挂载的 Worker，按
+  `__Host-campus_lane` 选择环境并经 Service Binding 转给对应 `campus-web`；无泳道时进入默认环境。
+  OIDC 按泳道各有固定 issuer，服务端调用按 issuer 路径路由（见 [Federation 合同](../../contracts/app-api/federation.md)）。选择理由见[共用域名与泳道分发](../../../.agents/notes/proposed/architecture/2026-10-18-shared-domain-environment-lanes.md)。
 - `campus-web` 通过 Service Binding 或已配置的 app-api origin 调用 `app-api`。
 - `status-web` 通过独立的 `status.*` origin 提供公开页面和只读状态快照；它不经由
   `campus-web` 或 `app-api` 代理状态数据。
