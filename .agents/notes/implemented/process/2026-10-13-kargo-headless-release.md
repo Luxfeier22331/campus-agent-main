@@ -27,14 +27,17 @@ Source candidate 持续声明未完成的环境维护迁移；GitOps 只在对�
 `validate` check run，成功才合并，非 success 结论使 Promotion 失败；render contract 要求每个合并步骤
 之前都有这一检查。promoter App 因此需要 GitOps Checks read。
 
-GitHub Actions 只执行被 Kargo 指定的 action：它不选择 Freight、不决定发布范围、不轮询 Argo，也不创建第二个
+GitHub Actions 只执行被 Kargo 指定的 action，每个 action job 的第一步判断同一 Promotion 的该 action
+是否已成功或未被发布计划选中，是则跳过其余步骤，不另起 job；查询只列出 Promotion 创建之后的
+workflow run，发布记录按页读取并在首个匹配处停止，查询成本不随历史增长：它不选择 Freight、不决定发布范围、不轮询 Argo，也不创建第二个
 发布状态机。Argo CD 继续拥有 Kubernetes 期望状态，Terraform 继续拥有 Cloudflare 资源与 traffic，Kargo
 只协调它们的顺序和结果。Kargo controller 通过 GitHub repository credential 访问 GitHub API；凭据使用严格
 作用域 SealedSecret，不把私钥写入仓库。
 
-Kargo chart 使用稳定 1.x 约束 `>=1.12.4 <2.0.0`，通过 Argo CD OCI Helm source 自动跟随稳定 patch；
-API/UI、Dex 和 external webhook server 关闭。动态 schema 生成器从实际解析的 chart 提取 CRD schema，防止
-校验使用另一份固定 CRD。
+Kargo chart 固定为精确版本，通过 Argo CD OCI Helm source 部署；API/UI、Dex 和 external webhook server
+关闭。Stage 的 Expr 测试复制了 Kargo 的求值器并锁定同版本 Expr 依赖，版本范围会让 controller 在测试
+之外自行升级，因此 chart、求值器副本和 Expr 依赖同批升级。动态 schema 生成器从实际解析的 chart 提取
+CRD schema，防止校验使用另一份固定 CRD。
 
 正式版本选择写入完整 `formalRelease` candidate，不借用最新 Source 快照；manual Warehouse 只负责把该
 完整版本交给关闭自动晋级的 manual Stage。staging Stage 只订阅常规候选。正式选择仍通过 ProjectConfig PR
@@ -52,8 +55,8 @@ Argo 的 GitOps source 不再用 merge SHA 判断同步完成；文档提交也�
 该快照和之后的全部快照及引用，覆盖尚未进入 GitOps 候选分支的交接；latest、正式版本、当前选择和
 可恢复部署继续保护。首次成功前没有清理边界，保护全部候选。Source 清理无需读取集群状态。
 
-Kargo 接管同步的 Application 关闭 Argo 自动同步，保留的 `automated.prune: true` 随之失效；Kargo 1.12 的
-`argocd-update` 又从不设置 prune，Git 中删除的资源停在 `PruneSkipped`，`argocd-wait` 永远等不到 Synced。
+Kargo 接管同步的 Application 在自身文件中只声明 `automated.enabled: false`；`argocd-update` 只把
+Application 的 `retry` 与 `syncOptions` 带入同步操作，不读取 `automated`，也从不设置 prune，Git 中删除的资源停在 `PruneSkipped`，`argocd-wait` 永远等不到 Synced。
 接管后首次删除资源的发布（检索索引 Job 迁移）因此卡住并人工 prune；渲染与 Expr 测试只覆盖新增和修改，
 没有覆盖删除。GitOps Stage 现在在每个受控应用的 update 与 wait 之间读取该次同步结果，以同一 revision
 只 prune 其中 `PruneSkipped` 的资源。请求使用只对受控应用有 `get`、`sync` 权限的 Argo CD 本地账户
@@ -81,6 +84,11 @@ Kargo 接管同步的 Application 关闭 Argo 自动同步，保留的 `automate
 拒绝。Kargo 的 `argocd-update` 同步 Application 跟踪的 main，GitOps main 仍是 Application source 和环境
 配置的唯一 owner。
 
+### 让 Kargo chart 跟随稳定版本范围
+
+拒绝。范围约束省去升级 PR，但 controller 的 Expr 求值器会在 Stage 表达式测试之外变化，测试通过不再
+代表线上求值结果；patch 升级频率低，显式升级的成本小于这一偏差。
+
 ### 删除资源时人工 prune 或恢复 Argo 自动同步
 
 人工 prune 让每次删除都阻塞 Promotion，需要集群权限介入。恢复自动同步会让 Argo 在 Kargo 选择 revision
@@ -96,6 +104,7 @@ Kargo 这次同步之外的资源。
 - Failed/Errored Promotion 是终态，refresh 不会重跑；PromotionTask 步骤在创建时展开，修正 Stage 后也
   不会进入已有 Promotion。修复后为同一 Freight 新建 Promotion，成功 action 可复用。
 - 选版 PR 等待 `validate` 最长 60 分钟；检查失败时修复并重跑 `validate` 后新建 Promotion。
-- Kargo 版本约束跨稳定 1.x 的次版本，升级时继续由实际 chart 生成 schema；跨主版本需要重新评估合同。
+- Kargo 升级是一次显式 GitOps 变更：同批更新 chart、求值器副本与 Expr 依赖，由实际 chart 生成 schema；
+  跨主版本需要重新评估合同。
 - prune 依赖不受 GitOps 管理的 `argocd-secret` 签名密钥；轮换该密钥或删除 token 后需重新签发并密封，
   否则受控应用的 prune 检查以 401 失败 Promotion。
