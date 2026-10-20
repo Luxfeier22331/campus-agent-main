@@ -6,6 +6,7 @@ import {
 	Button,
 	ConfirmDialog,
 	cn,
+	focusRing,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, LoaderCircle } from "lucide-react";
@@ -112,7 +113,7 @@ function MemorySettings({ userId }: { userId: string }) {
 						aria-label="启用个性化记忆"
 						type="button"
 						className={cn(
-							"relative h-7 w-12 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+							`relative h-7 w-12 shrink-0 rounded-full border transition-colors ${focusRing}`,
 							memory.lifecycleState === "active"
 								? "border-primary bg-primary"
 								: "border-border bg-muted",

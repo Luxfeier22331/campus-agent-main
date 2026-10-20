@@ -12,6 +12,23 @@ import type { DiningPageViewProps } from "../src/components/dining/dining-page-v
 import { DINING_FIXTURE_MAP } from "./dining-fixture-test-utils";
 
 const editor = vi.hoisted(() => ({ dirty: false, pending: false }));
+const feedbackApiMock = vi.hoisted(() => ({
+	submitFeedback: vi.fn().mockResolvedValue({
+		feedback: { feedbackId: "feedback_01", receivedAt: "2026-10-19T08:00:00.000Z" },
+	}),
+}));
+
+vi.mock("../src/features/feedback/api", () => feedbackApiMock);
+
+vi.mock("@/platform/auth/session", () => ({
+	useCampusSession: () => ({
+		data: null,
+		error: null,
+		isRefreshing: false,
+		refresh: vi.fn(),
+		status: "anonymous",
+	}),
+}));
 
 vi.mock("../src/components/dining/dining-page-view", () => ({
 	DiningPageView: (props: DiningPageViewProps) => {
@@ -40,10 +57,13 @@ vi.mock("../src/components/dining/dining-page-view", () => ({
 				>
 					移动地图
 				</button>
+				<button type="button" onClick={() => props.onOpenFeedback?.()}>
+					信息有误？反馈
+				</button>
 				<output data-testid="viewport">{props.initialViewport?.scale ?? 1}</output>
-				<div ref={props.detailRef}>
+				<section ref={props.mapRef}>
 					<h2>{props.selectedWindow?.name ?? "未选择"}</h2>
-				</div>
+				</section>
 				{props.windowExtra}
 			</div>
 		);
@@ -93,6 +113,7 @@ import { diningQueryClient } from "../src/features/dining/query-client";
 beforeEach(() => {
 	editor.dirty = false;
 	editor.pending = false;
+	feedbackApiMock.submitFeedback.mockClear();
 	diningQueryClient.setQueryData(diningQueryKeys.map, DINING_FIXTURE_MAP);
 	vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
 });
@@ -166,10 +187,44 @@ describe("Dining route navigation", () => {
 		await waitFor(() => expect(router.state.location.search.submission).toBeUndefined());
 		expect(router.state.location.search.mine).toBe("1");
 	});
+
+	it("opens the feedback panel in place with the current dining location", async () => {
+		// The panel records `window.location`, so point the document at the same
+		// route the memory router serves; the app uses a browser-history router.
+		const entry = "/dining?hall=haidian&floor=haidian-1f&window=haidian%3Ahaidian-1f%3Awindow-1";
+		window.history.replaceState(null, "", entry);
+		const { router } = await mount(entry);
+		const pathname = router.state.location.pathname;
+		const search = router.state.location.searchStr;
+
+		fireEvent.click(await screen.findByText("信息有误？反馈"));
+
+		// In place: the panel opens without navigating away from the dining route.
+		expect(await screen.findByRole("heading", { name: "反馈" })).toBeInTheDocument();
+		expect(router.state.location.pathname).toBe(pathname);
+		expect(router.state.location.searchStr).toBe(search);
+		// The source names the selected hall, floor and window, not the feedback page.
+		expect(screen.getByLabelText("反馈来源")).toHaveValue(
+			"食堂地图 · 海淀一食堂 · 海淀一层 · 兰州拉面",
+		);
+
+		fireEvent.change(screen.getByLabelText("问题描述"), {
+			target: { value: "这个窗口的菜单需要更新。" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "提交反馈" }));
+
+		await waitFor(() => expect(feedbackApiMock.submitFeedback).toHaveBeenCalledOnce());
+		expect(feedbackApiMock.submitFeedback).toHaveBeenCalledWith({
+			body: "这个窗口的菜单需要更新。",
+			category: "dining_issue",
+			contact: null,
+			routeContext: `${pathname}${search}`,
+		});
+	});
 });
 
 describe("Dining detail positioning", () => {
-	it("scrolls an offscreen mobile selection smoothly, including reselecting the same window", async () => {
+	it("scrolls an offscreen map above the mobile detail, including reselecting the same window", async () => {
 		vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
 			matches: query === "(max-width: 1023px)",
 			media: query,
@@ -201,7 +256,7 @@ describe("Dining detail positioning", () => {
 		fireEvent.click(screen.getByText("选择窗口"));
 		await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
 	});
-	it("leaves an already visible detail in place", async () => {
+	it("leaves an already visible map in place", async () => {
 		vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
 			matches: query === "(max-width: 1023px)",
 			media: query,

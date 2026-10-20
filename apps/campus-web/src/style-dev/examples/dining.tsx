@@ -154,7 +154,7 @@ function DiningPageExample({ mode }: { mode: "empty" | "error" | "loading" | "re
 					.map((result) => result.windowId),
 			)
 		: null;
-	const detailRef = useRef<HTMLDivElement>(null);
+	const mapRef = useRef<HTMLElement>(null);
 	const queryClient = useMemo(createDiningQueryClient, []);
 
 	return (
@@ -163,10 +163,11 @@ function DiningPageExample({ mode }: { mode: "empty" | "error" | "loading" | "re
 				<DiningPageView
 					activeFloor={activeFloor}
 					data={mode === "loading" || mode === "error" ? null : DINING_MAP}
-					detailRef={detailRef}
+					mapRef={mapRef}
 					isError={mode === "error"}
 					isPending={mode === "loading"}
 					matchedWindowIds={matchedWindowIds}
+					onClearWindow={() => setSelectedWindowId(null)}
 					onQueryChange={setQuery}
 					onRetry={() => undefined}
 					onSelectFloor={(floorId) => {

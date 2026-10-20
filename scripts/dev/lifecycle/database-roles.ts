@@ -12,7 +12,9 @@ export const LOCAL_DATABASE_ROLES = [
 	["campus_agent", "campus-agent-local-owner"],
 ] as const;
 
-const LOCAL_DATABASE_NOLOGIN_ROLES = ["product_data_ro"] as const;
+// Historical migrations still grant to execution_control before revoking it, so a fresh
+// database needs the retired role to exist as a grant target.
+const LOCAL_DATABASE_NOLOGIN_ROLES = ["execution_control", "product_data_ro"] as const;
 
 export function localAdminDatabaseUrl(
 	profile: LocalDevProfile,

@@ -16,27 +16,28 @@ export function DiningPageSkeleton({
 			role="status"
 		>
 			<span className="sr-only">{label}</span>
-			{includeHallSwitcher ? <Skeleton className="h-11 w-full sm:w-80" /> : null}
-			<div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
-				<Card asChild>
-					<div className="p-3 sm:p-4" data-testid="dining-map-skeleton">
-						<div className="flex items-center gap-3">
-							<Skeleton className="h-10 min-w-0 flex-1" />
-							<Skeleton className="size-10 shrink-0" />
+			<div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6">
+				<div className="min-w-0">
+					{includeHallSwitcher ? (
+						<div className="mb-3 flex flex-col gap-2 sm:flex-row sm:gap-3">
+							<Skeleton className="h-11 w-full sm:w-56" />
+							<Skeleton className="h-11 min-w-0 flex-1" />
 						</div>
-						<Skeleton className="mt-3 aspect-[16/10] w-full" />
+					) : null}
+					<Card asChild>
+						<div className="p-3 sm:p-4" data-testid="dining-map-skeleton">
+							<Skeleton className="h-11 w-48" />
+							<Skeleton className="mt-3 aspect-[16/10] w-full" />
+						</div>
+					</Card>
+				</div>
+				<Card asChild>
+					<div className="hidden space-y-4 p-5 lg:block" data-testid="dining-detail-skeleton">
+						<Skeleton className="h-7 w-32" />
+						<Skeleton className="h-4 w-24" />
+						<Skeleton className="h-24 w-full" />
 					</div>
 				</Card>
-				<div className="space-y-4 py-1" data-testid="dining-detail-skeleton">
-					<Skeleton className="h-7 w-32" />
-					<Skeleton className="h-4 w-full" />
-					<Skeleton className="h-4 w-4/5" />
-					<Skeleton className="h-24 w-full" />
-				</div>
-			</div>
-			<div>
-				<Skeleton className="h-6 w-20" />
-				<Skeleton className="mt-4 h-20 w-full" />
 			</div>
 		</div>
 	);

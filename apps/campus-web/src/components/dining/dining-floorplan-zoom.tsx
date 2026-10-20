@@ -20,7 +20,7 @@ const ZOOM_ANIMATION_MS = 220;
 const RESET_ANIMATION_MS = 280;
 
 export function DiningFloorplanZoom({
-	aspectRatio,
+	stageHeight,
 	canvas,
 	floorId,
 	initialViewport,
@@ -29,7 +29,8 @@ export function DiningFloorplanZoom({
 	children,
 	overlay,
 }: {
-	aspectRatio: string;
+	/** 平面图高度加上下各 4rem 留白，浮动控件只压在画布留白上。 */
+	stageHeight: string;
 	canvas: { width: number; height: number };
 	floorId: string;
 	initialViewport?: DiningMapViewport | undefined;
@@ -160,7 +161,7 @@ export function DiningFloorplanZoom({
 						}}
 						className="relative min-w-0 overflow-hidden bg-[var(--dining-svg-canvas-bg)]"
 						data-testid="dining-inline-floorplan"
-						style={{ aspectRatio, touchAction: scale > 1 ? "none" : "pan-y" }}
+						style={{ height: stageHeight, touchAction: scale > 1 ? "none" : "pan-y" }}
 					>
 						{overlay}
 						<TransformComponent
@@ -178,59 +179,61 @@ export function DiningFloorplanZoom({
 								{children(scale > 1)}
 							</div>
 						</TransformComponent>
-					</div>
-					<div
-						className="flex min-h-14 items-center gap-1 border-border/70 border-t bg-card px-3 py-1.5"
-						data-testid="dining-zoom-controls"
-					>
-						<span className="mr-auto text-[var(--sys-text-muted)] text-xs">
-							<span className="sm:hidden">双指缩放，放大后拖动</span>
-							<span className="hidden sm:inline">Ctrl + 滚轮缩放</span>
-						</span>
-						<Button
-							aria-label="缩小地图"
-							disabled={scale <= 1}
-							onClick={() =>
-								zoomOut(scale * (1 - 1 / (1 + BUTTON_ZOOM_STEP)), zoomAnimationMs, "easeOutCubic")
-							}
-							size="icon-lg"
-							title="缩小"
-							type="button"
-							variant="ghost"
+						<p className="pointer-events-none absolute bottom-4 left-3 z-[1] whitespace-nowrap text-[var(--sys-text-subtle)] text-xs">
+							<span className="sm:hidden">{scale > 1 ? "单指拖动地图" : "双指缩放"}</span>
+							<span className="hidden sm:inline">
+								{scale > 1 ? "拖动查看地图" : "Ctrl + 滚轮缩放"}
+							</span>
+						</p>
+						<div
+							className="absolute right-3 bottom-2 z-[1] flex items-center gap-0.5 rounded-lg border border-border/70 bg-card p-0.5 shadow-[var(--shadow-sm)]"
+							data-testid="dining-zoom-controls"
 						>
-							<Minus aria-hidden="true" />
-						</Button>
-						<output
-							aria-label="地图缩放比例"
-							className={cn(
-								"min-w-12 text-center text-xs tabular-nums transition-colors duration-150 motion-reduce:transition-none",
-								scale > 1 ? "text-selected-foreground" : "text-[var(--sys-text-muted)]",
-							)}
-						>
-							{Math.round(scale * 100)}%
-						</output>
-						<Button
-							aria-label="重置地图缩放"
-							disabled={scale <= 1}
-							onClick={() => resetTransform(resetAnimationMs, "easeInOutCubic")}
-							size="icon-lg"
-							title="重置"
-							type="button"
-							variant="ghost"
-						>
-							<RotateCcw aria-hidden="true" />
-						</Button>
-						<Button
-							aria-label="放大地图"
-							disabled={scale >= maxScale}
-							onClick={() => zoomIn(scale * BUTTON_ZOOM_STEP, zoomAnimationMs, "easeOutCubic")}
-							size="icon-lg"
-							title="放大"
-							type="button"
-							variant="ghost"
-						>
-							<Plus aria-hidden="true" />
-						</Button>
+							<Button
+								aria-label="缩小地图"
+								disabled={scale <= 1}
+								onClick={() =>
+									zoomOut(scale * (1 - 1 / (1 + BUTTON_ZOOM_STEP)), zoomAnimationMs, "easeOutCubic")
+								}
+								size="icon-lg"
+								title="缩小"
+								type="button"
+								variant="ghost"
+							>
+								<Minus aria-hidden="true" />
+							</Button>
+							<output
+								aria-label="地图缩放比例"
+								className={cn(
+									"min-w-12 text-center text-xs tabular-nums transition-colors duration-150 motion-reduce:transition-none",
+									scale > 1 ? "text-selected-foreground" : "text-[var(--sys-text-muted)]",
+								)}
+							>
+								{Math.round(scale * 100)}%
+							</output>
+							<Button
+								aria-label="重置地图缩放"
+								disabled={scale <= 1}
+								onClick={() => resetTransform(resetAnimationMs, "easeInOutCubic")}
+								size="icon-lg"
+								title="重置"
+								type="button"
+								variant="ghost"
+							>
+								<RotateCcw aria-hidden="true" />
+							</Button>
+							<Button
+								aria-label="放大地图"
+								disabled={scale >= maxScale}
+								onClick={() => zoomIn(scale * BUTTON_ZOOM_STEP, zoomAnimationMs, "easeOutCubic")}
+								size="icon-lg"
+								title="放大"
+								type="button"
+								variant="ghost"
+							>
+								<Plus aria-hidden="true" />
+							</Button>
+						</div>
 					</div>
 				</>
 			)}

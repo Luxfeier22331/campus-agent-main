@@ -21,21 +21,21 @@
 		"test:unit": "vitest run --exclude 'test/**/*.database.integration.test.ts'"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.1145.0",
+		"@aws-sdk/client-s3": "^3.1153.0",
 		"@campus-agent/embedding-runtime": "workspace:*",
 		"@campus-agent/notice-database": "workspace:*",
 		"campus-contracts": "workspace:*",
 		"pg": "^8.23.1"
 	},
 	"devDependencies": {
-		"@testcontainers/postgresql": "12.2.0",
-		"@types/node": "^24.19.1",
+		"@testcontainers/postgresql": "12.2.1",
+		"@types/node": "^24.19.2",
 		"@types/pg": "^8.23.1",
 		"esbuild": "^0.28.2",
-		"testcontainers": "12.2.0",
+		"testcontainers": "12.2.1",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.3"
+		"vitest": "^5.0.5"
 	},
 	"exports": {
 		"./cleanup": "./src/cleanup.ts",

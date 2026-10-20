@@ -1,4 +1,4 @@
-import { Alert, AlertDescription, Button, Field, Input } from "@campus-agent/ui";
+import { Alert, AlertDescription, Button, Field, focusRing, Input } from "@campus-agent/ui";
 import { CircleAlert, Eye, EyeOff } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { useForm } from "react-hook-form";
@@ -84,7 +84,7 @@ export function AuthTextAction({
 }) {
 	return (
 		<button
-			className="font-medium text-link underline-offset-4 hover:text-link-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			className={`font-medium text-link underline-offset-4 hover:text-link-hover hover:underline ${focusRing}`}
 			onClick={onClick}
 			type="button"
 		>

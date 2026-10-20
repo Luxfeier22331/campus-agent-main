@@ -1,9 +1,10 @@
 import type { DiningMySubmission } from "@campus-agent/dining/domain";
-import { Button, SheetDescription, SheetHeader, SheetTitle } from "@campus-agent/ui";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { ChevronRight, Plus } from "lucide-react";
+import { Button, focusRing, SheetDescription, SheetHeader, SheetTitle } from "@campus-agent/ui";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { ChevronRight, Plus, Utensils } from "lucide-react";
 import { useRef, useState } from "react";
 import { AuthDialog } from "@/components/auth/auth-dialog";
+import { diningWindowMenuQueryOptions } from "@/features/dining/queries";
 import { diningSubmissionsInfiniteQueryOptions } from "@/features/dining/submission-queries";
 import { useCampusSession } from "@/platform/auth/session";
 import { AdaptiveSheetSurface } from "./dining-overlay-surface";
@@ -28,25 +29,54 @@ export function DiningWindowSubmissions(props: {
 		diningSubmissionsInfiniteQueryOptions(props.windowId, session.data?.user.id ?? null),
 	);
 	const items = submissions.data?.pages.flatMap((page) => page.items) ?? [];
+	// Shares the detail's cached menu query; no extra request.
+	const menu = useQuery(diningWindowMenuQueryOptions(props.windowId));
+	const menuEmpty = menu.isSuccess && menu.data.items.length === 0;
+	const nothingYet = menuEmpty && submissions.isSuccess && items.length === 0;
+	const createButton = (
+		<Button
+			ref={createTrigger}
+			className="min-h-11"
+			size="sm"
+			variant="outline"
+			disabled={session.status === "loading" || session.status === "unavailable"}
+			onClick={() => (session.status === "authenticated" ? setCreateOpen(true) : setAuthOpen(true))}
+		>
+			<Plus />
+			投稿
+		</Button>
+	);
 	return (
-		<section className="mt-5 border-t border-border pt-4" aria-label="用户投稿">
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<h3 className="text-sm font-semibold">用户投稿</h3>
-				<Button
-					ref={createTrigger}
-					className="min-h-11"
-					size="sm"
-					variant="outline"
-					disabled={session.status === "loading" || session.status === "unavailable"}
-					onClick={() =>
-						session.status === "authenticated" ? setCreateOpen(true) : setAuthOpen(true)
-					}
-				>
-					<Plus />
-					投稿
-				</Button>
-			</div>
-			<p className="mt-1 text-xs text-muted-foreground">同学分享的菜品，供你参考。</p>
+		<section className="mt-1 border-border/70 border-t pt-4 lg:mt-0" aria-label="用户投稿">
+			{nothingYet ? (
+				<div className="flex items-start gap-3 py-2">
+					<span
+						aria-hidden="true"
+						className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-muted text-[var(--sys-text-muted)]"
+					>
+						<Utensils className="size-4" />
+					</span>
+					<div className="min-w-0 flex-1">
+						<h3 className="text-sm font-semibold text-[var(--sys-text-strong)]">
+							还没有菜单和用户投稿
+						</h3>
+						<p className="mt-1 text-sm text-[var(--sys-text-muted)]">
+							吃过这个窗口？可以发布第一条用户投稿，供同学参考。
+						</p>
+						<div className="mt-3">{createButton}</div>
+					</div>
+				</div>
+			) : (
+				<>
+					<div className="flex flex-wrap items-center justify-between gap-2">
+						<h3 className="text-sm font-semibold">用户投稿</h3>
+						{createButton}
+					</div>
+					<p className="mt-1 text-xs text-muted-foreground">
+						{menuEmpty ? "暂无正式菜单，以下是同学分享的菜品。" : "同学分享的菜品，供你参考。"}
+					</p>
+				</>
+			)}
 			{session.status === "unavailable" ? (
 				<Button className="mt-2 min-h-11" variant="outline" onClick={() => void session.refresh()}>
 					重试登录状态
@@ -67,7 +97,7 @@ export function DiningWindowSubmissions(props: {
 					</Button>
 				</div>
 			) : null}
-			{submissions.data && items.length === 0 ? (
+			{nothingYet ? null : submissions.data && items.length === 0 ? (
 				<p className="py-6 text-sm text-muted-foreground">暂无用户投稿</p>
 			) : (
 				<ul className="divide-y divide-border">
@@ -143,7 +173,7 @@ function DiningSubmissionPhotoLink({
 }) {
 	const link = (photo: import("react").ReactNode) => (
 		<a
-			className="flex min-h-16 items-center gap-3 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			className={`flex min-h-16 items-center gap-3 py-3 text-sm ${focusRing}`}
 			data-submission-id={item.submissionId}
 			href={`/dining?submission=${encodeURIComponent(item.submissionId)}`}
 			onClick={(event) => {

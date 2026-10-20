@@ -1,4 +1,4 @@
-import { Badge, Button, Dialog, DialogContent, DialogTitle } from "@campus-agent/ui";
+import { Badge, Button, Dialog, DialogContent, DialogTitle, focusRing } from "@campus-agent/ui";
 import { MapPin, X } from "lucide-react";
 import { motion } from "motion/react";
 import { popoverPresence, sheetPresence } from "@/components/ui/motion";
@@ -101,7 +101,7 @@ export function MapPlacePopover({
 				<motion.div key={place.place.id} {...sheetPresence}>
 					<Button
 						aria-label="关闭地点详情"
-						className="mx-auto mt-2 grid min-h-5 w-16 place-items-center rounded-full text-[var(--sys-text-subtle)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--campus-focus-ring)]"
+						className={`mx-auto mt-2 grid min-h-5 w-16 place-items-center rounded-full text-[var(--sys-text-subtle)] outline-none ${focusRing}`}
 						onClick={onClose}
 						variant="ghost"
 					>

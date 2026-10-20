@@ -1,4 +1,4 @@
-import { Button } from "@campus-agent/ui";
+import { Button, focusRing } from "@campus-agent/ui";
 import { LocateFixed } from "lucide-react";
 
 export function MapViewportControls({
@@ -13,7 +13,7 @@ export function MapViewportControls({
 			{showReset ? (
 				<Button
 					aria-label="回到当前校区"
-					className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface)] px-3 text-sm font-medium text-[var(--map-overlay-muted)] shadow-[var(--map-overlay-shadow)] outline-none backdrop-blur-md hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)] focus-visible:ring-2 focus-visible:ring-[var(--campus-focus-ring)]"
+					className={`inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface)] px-3 text-sm font-medium text-[var(--map-overlay-muted)] shadow-[var(--map-overlay-shadow)] outline-none backdrop-blur-md hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)] ${focusRing}`}
 					onClick={onResetViewport}
 					variant="ghost"
 				>

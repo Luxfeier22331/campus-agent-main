@@ -1,4 +1,13 @@
-import { Badge, Button, Card, cn, Input, Skeleton, StateMessage } from "@campus-agent/ui";
+import {
+	Badge,
+	Button,
+	Card,
+	cn,
+	focusRing,
+	Input,
+	Skeleton,
+	StateMessage,
+} from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { ArrowUp, Check, Copy, ExternalLink, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -325,7 +334,7 @@ function CategoryNavigation({
 						<a
 							aria-current={activeSectionId === section.id ? "location" : undefined}
 							className={cn(
-								"group flex min-h-11 shrink-0 items-center justify-between gap-3 rounded-full border px-4 text-sm transition-[color,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-full lg:rounded-md lg:border-0 lg:border-l-2 lg:px-3",
+								`group flex min-h-11 shrink-0 items-center justify-between gap-3 rounded-full border px-4 text-sm transition-[color,background-color,border-color,box-shadow] ${focusRing} lg:w-full lg:rounded-md lg:border-0 lg:border-l-2 lg:px-3`,
 								activeSectionId === section.id
 									? "border-border-selected bg-selected font-medium text-selected-foreground shadow-[var(--shadow-xs)] hover:bg-selected-hover active:bg-selected-pressed lg:border-border-selected lg:shadow-none"
 									: "border-border bg-background text-[var(--sys-text-muted)] hover:bg-surface-hover hover:text-accent-foreground active:bg-surface-pressed lg:border-transparent lg:bg-transparent lg:shadow-none",

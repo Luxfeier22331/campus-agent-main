@@ -68,7 +68,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		}
 	});
 
-	test("Dining 分段筛选在明暗主题和各断点保持选择与键盘操作", { tag: "@layout" }, async ({
+	test("Dining 食堂与楼层筛选在明暗主题和各断点保持选择与键盘操作", { tag: "@layout" }, async ({
 		page,
 	}) => {
 		await page.emulateMedia({ reducedMotion: "reduce" });
@@ -77,20 +77,10 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 			await page.evaluate((value) => {
 				document.documentElement.dataset.theme = value;
 			}, theme);
-			if ((page.viewportSize()?.width ?? 0) >= 1024) {
-				const hall = page.getByRole("radio", { name: "荟贤食堂" });
-				await hall.focus();
-				await page.keyboard.press("Space");
-				await expect(hall).toBeChecked();
-				await hall.click();
-				await expect(hall).toBeChecked();
-				await expect(page.getByRole("radio", { name: "海淀一食堂" })).not.toBeChecked();
-			} else {
-				const hall = page.getByRole("combobox", { name: "选择食堂" });
-				await hall.click();
-				await page.getByRole("option", { name: "荟贤食堂" }).click();
-				await expect(hall).toContainText("荟贤食堂");
-			}
+			const hall = page.getByRole("combobox", { name: "选择食堂" });
+			await hall.click();
+			await page.getByRole("option", { name: "荟贤食堂" }).click();
+			await expect(hall).toContainText("荟贤食堂");
 			const floor = page.getByRole("radio", { name: "荟贤二层" });
 			await floor.click();
 			await floor.click();

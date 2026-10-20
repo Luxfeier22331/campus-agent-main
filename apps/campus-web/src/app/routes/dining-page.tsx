@@ -8,6 +8,7 @@ import { DiningPageView } from "@/components/dining/dining-page-view";
 import { DiningSubmissionExitProvider } from "@/components/dining/dining-submission-exit";
 import { DiningSubmissionSheet } from "@/components/dining/dining-submission-sheet";
 import { DiningWindowSubmissions } from "@/components/dining/dining-window-submissions";
+import { FeedbackSheet } from "@/components/feedback/feedback-sheet";
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
@@ -29,7 +30,7 @@ export function DiningPage() {
 export function DiningPageContent() {
 	const navigate = useNavigate({ from: "/dining" });
 	const routeSearch = useSearch({ from: "/dining" });
-	const detailRef = useRef<HTMLDivElement>(null);
+	const mapRef = useRef<HTMLElement>(null);
 	const router = useRouter();
 	const mapViewport = useRef<DiningMapViewport | undefined>(undefined);
 	const mapScroll = useRef(0);
@@ -85,17 +86,19 @@ export function DiningPageContent() {
 			if (!window.matchMedia("(max-width: 1023px)").matches) {
 				return;
 			}
-			const panel = detailRef.current;
-			const heading = panel?.querySelector("h2");
-			if (!(panel && heading)) {
+			// The detail panel floats over the lower part of the screen; keep the floorplan above it.
+			const map = mapRef.current;
+			const stage =
+				map?.querySelector<HTMLElement>('[data-testid="dining-inline-floorplan"]') ?? map;
+			if (!(map && stage)) {
 				return;
 			}
-			const rect = heading.getBoundingClientRect();
-			const top = Number.parseFloat(getComputedStyle(panel).scrollMarginTop) || 112;
-			if (rect.top >= top && rect.bottom + 40 <= window.innerHeight - 80) {
+			const rect = stage.getBoundingClientRect();
+			const top = Number.parseFloat(getComputedStyle(map).scrollMarginTop) || 80;
+			if (rect.top >= top && rect.bottom <= window.innerHeight * 0.45) {
 				return;
 			}
-			panel.scrollIntoView({
+			map.scrollIntoView({
 				block: "start",
 				behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
 					? "instant"
@@ -105,9 +108,15 @@ export function DiningPageContent() {
 		return () => window.cancelAnimationFrame(frame);
 	}, [routeSearch.window, routeSearch.mine, selectionIntent]);
 	const [query, setQuery] = useState("");
+	const [storedHallId] = useState(readStoredDiningHall);
+	const [feedbackOpen, setFeedbackOpen] = useState(false);
 	const dining = useQuery(diningMapQueryOptions());
 	const halls = dining.data?.halls ?? [];
-	const selectedHall = halls.find((hall) => hall.hallId === routeSearch.hall) ?? halls[0] ?? null;
+	const selectedHall =
+		halls.find((hall) => hall.hallId === routeSearch.hall) ??
+		halls.find((hall) => hall.hallId === storedHallId) ??
+		halls[0] ??
+		null;
 	const selectedFloor =
 		selectedHall?.floors.find((floor) => floor.floorId === routeSearch.floor) ??
 		selectedHall?.floors[0] ??
@@ -122,8 +131,8 @@ export function DiningPageContent() {
 				}
 			: null;
 	const searchResults = useMemo(
-		() => searchDiningWindows(selectedHall, query),
-		[query, selectedHall],
+		() => searchDiningWindows(halls, query, selectedHall?.hallId ?? null),
+		[halls, query, selectedHall?.hallId],
 	);
 	const matchedWindowIds = useMemo(() => {
 		if (!(query.trim() && selectedFloor)) {
@@ -170,6 +179,7 @@ export function DiningPageContent() {
 	]);
 
 	function selectHall(hall: DiningHallSummary): void {
+		writeStoredDiningHall(hall.hallId);
 		const floor = hall.floors[0];
 		void navigate({
 			resetScroll: false,
@@ -202,6 +212,7 @@ export function DiningPageContent() {
 		result: Pick<DiningSearchResult, "hallId" | "floorId" | "windowId">,
 	): void {
 		const sequence = ++selectionSequence.current;
+		writeStoredDiningHall(result.hallId);
 		void navigate({
 			resetScroll: false,
 			search: {
@@ -261,13 +272,26 @@ export function DiningPageContent() {
 		}
 		return "原投稿窗口";
 	}
+	function feedbackLabel() {
+		if (!selectedHall) {
+			return "食堂地图";
+		}
+		const parts = ["食堂地图", selectedHall.name];
+		if (selectedFloor) {
+			parts.push(selectedFloor.label);
+		}
+		if (selectedWindow) {
+			parts.push(selectedWindow.name);
+		}
+		return parts.join(" · ");
+	}
 	return (
 		<>
 			{routeSearch.mine ? (
 				<section className="mx-auto max-w-[var(--layout-page-form-width)] px-4 py-6 pb-28">
 					<div className="mb-5 flex flex-wrap items-center justify-between gap-3">
 						<h1 className="ui-page-title">我的投稿</h1>
-						<Button asChild variant="outline">
+						<Button asChild variant="secondary">
 							<Link
 								data-dining-home
 								to="/dining"
@@ -288,7 +312,7 @@ export function DiningPageContent() {
 					onViewportChange={onViewportChange}
 					onMapReady={onMapReady}
 					headerActions={
-						<Button asChild variant="outline">
+						<Button asChild variant="secondary">
 							<Link
 								data-dining-home
 								to="/dining"
@@ -312,10 +336,22 @@ export function DiningPageContent() {
 					}
 					activeFloor={activeFloor}
 					data={dining.data ?? null}
-					detailRef={detailRef}
+					mapRef={mapRef}
+					onClearWindow={() =>
+						void navigate({
+							resetScroll: false,
+							search: {
+								floor: selectedFloor?.floorId,
+								hall: selectedHall?.hallId,
+								item: undefined,
+								window: undefined,
+							},
+						})
+					}
 					isError={dining.isError}
 					isPending={dining.isPending}
 					matchedWindowIds={matchedWindowIds}
+					onOpenFeedback={() => setFeedbackOpen(true)}
 					onQueryChange={setQuery}
 					onRetry={() => void dining.refetch()}
 					onSelectFloor={selectFloor}
@@ -350,33 +386,68 @@ export function DiningPageContent() {
 					onClose={closeSubmission}
 				/>
 			) : null}
+			{feedbackOpen ? (
+				<FeedbackSheet
+					defaultCategory="dining_issue"
+					onOpenChange={setFeedbackOpen}
+					open={feedbackOpen}
+					sourceLabel={feedbackLabel()}
+				/>
+			) : null}
 		</>
 	);
 }
 
 export function searchDiningWindows(
-	hall: DiningHallSummary | null,
+	halls: readonly DiningHallSummary[],
 	query: string,
+	currentHallId: string | null,
 ): DiningSearchResult[] {
 	const normalized = query.trim().toLocaleLowerCase("zh-CN");
-	if (!(hall && normalized)) {
+	if (!normalized) {
 		return [];
 	}
-	return hall.floors.flatMap((floor) =>
-		floor.windows.flatMap((window) =>
-			window.name.toLocaleLowerCase("zh-CN").includes(normalized)
-				? [
-						{
-							campus: hall.campus,
-							floorId: floor.floorId,
-							floorLabel: floor.label,
-							hallId: hall.hallId,
-							hallName: hall.name,
-							windowId: window.windowId,
-							windowName: window.name,
-						},
-					]
-				: [],
+	// The current hall leads so its matches stay first; other halls keep map order.
+	const ordered = [
+		...halls.filter((hall) => hall.hallId === currentHallId),
+		...halls.filter((hall) => hall.hallId !== currentHallId),
+	];
+	return ordered.flatMap((hall) =>
+		hall.floors.flatMap((floor) =>
+			floor.windows.flatMap((window) =>
+				window.name.toLocaleLowerCase("zh-CN").includes(normalized)
+					? [
+							{
+								campus: hall.campus,
+								floorId: floor.floorId,
+								floorLabel: floor.label,
+								hallId: hall.hallId,
+								hallName: hall.name,
+								windowId: window.windowId,
+								windowName: window.name,
+							},
+						]
+					: [],
+			),
 		),
 	);
+}
+
+const DINING_HALL_STORAGE_KEY = "campus-dining-last-hall";
+
+// Only the hall is remembered: a URL hall always wins, and a stale id falls back to the first hall.
+function readStoredDiningHall(): string | null {
+	try {
+		return window.localStorage.getItem(DINING_HALL_STORAGE_KEY);
+	} catch {
+		return null;
+	}
+}
+
+function writeStoredDiningHall(hallId: string): void {
+	try {
+		window.localStorage.setItem(DINING_HALL_STORAGE_KEY, hallId);
+	} catch {
+		return;
+	}
 }

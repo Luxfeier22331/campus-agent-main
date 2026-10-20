@@ -1,17 +1,30 @@
-import { Button, cn, StateMessage } from "@campus-agent/ui";
+import { Button } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
-import { lazy, memo, Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { motion } from "motion/react";
+import {
+	lazy,
+	memo,
+	type ReactNode,
+	Suspense,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+} from "react";
 import type { DiningFloorResponse, DiningWindowProjection } from "@/features/dining/model";
 import { diningFloorplanAssetQueryOptions } from "@/features/dining/queries";
 
 import type { DiningMapViewport } from "./dining-map-interaction";
+import { DiningWindowList } from "./dining-window-list";
 
 interface InteractiveFloorplanProps {
 	initialViewport?: DiningMapViewport | undefined;
 	onViewportChange?: ((viewport: DiningMapViewport) => void) | undefined;
 	onReady?: (() => void) | undefined;
 	floor: DiningFloorResponse;
+	/** 浮在地图左上角；平面图不可用时放回降级列表顶部。 */
+	floorSwitcher?: ReactNode;
 	matchedWindowIds: ReadonlySet<string> | null;
 	onSelectWindow(windowId: string): void;
 	selectedWindowId: string | null;
@@ -25,19 +38,26 @@ const DiningFloorplanZoom = lazy(() =>
 export function InteractiveFloorplan(props: InteractiveFloorplanProps) {
 	const floorplan = props.floor.floor.floorplan;
 	const aspectRatio = `${floorplan.canvas.width} / ${floorplan.canvas.height}`;
+	const stageHeight = diningMapStageHeight(floorplan.canvas);
 	const query = useQuery(
 		diningFloorplanAssetQueryOptions({
 			svgAssetUrl: floorplan.svgAssetUrl,
 		}),
 	);
 	if (query.isPending) {
-		return <DiningFloorplanLoading aspectRatio={aspectRatio} />;
+		return (
+			<div className="@container relative">
+				<DiningFloorplanLoading stageHeight={stageHeight} />
+				<FloatingFloorSwitcher>{props.floorSwitcher}</FloatingFloorSwitcher>
+			</div>
+		);
 	}
 	if (query.isError) {
 		return (
 			<DiningFloorplanUnavailable
 				onReady={props.onReady}
 				aspectRatio={aspectRatio}
+				floorSwitcher={props.floorSwitcher}
 				matchedWindowIds={props.matchedWindowIds}
 				onRetry={() => void query.refetch()}
 				onSelectWindow={props.onSelectWindow}
@@ -49,14 +69,25 @@ export function InteractiveFloorplan(props: InteractiveFloorplanProps) {
 	return <ResolvedInteractiveFloorplan {...props} rawMarkup={query.data} />;
 }
 
-function DiningFloorplanLoading({ aspectRatio }: { aspectRatio: string }) {
+/** 画布按宽度等比缩放，上下各留 4rem 给浮动的楼层与缩放控件。 */
+function diningMapStageHeight(canvas: { height: number; width: number }): string {
+	return `calc(100cqw * ${canvas.height / canvas.width} + 8rem)`;
+}
+
+function FloatingFloorSwitcher({ children }: { children: ReactNode }) {
+	return children ? (
+		<div className="absolute top-2 left-3 z-[1] max-w-[calc(100%-1.5rem)]">{children}</div>
+	) : null;
+}
+
+function DiningFloorplanLoading({ stageHeight }: { stageHeight: string }) {
 	return (
 		<div
 			aria-busy="true"
 			aria-label="正在读取平面图"
 			className="grid min-h-56 place-content-center gap-2 bg-[var(--dining-svg-canvas-bg)] px-5 text-center text-sm text-[var(--sys-text-muted)]"
 			role="status"
-			style={{ aspectRatio }}
+			style={{ height: stageHeight }}
 		>
 			<LoaderCircle
 				aria-hidden="true"
@@ -70,6 +101,7 @@ function DiningFloorplanLoading({ aspectRatio }: { aspectRatio: string }) {
 function DiningFloorplanUnavailable(props: {
 	onReady?: (() => void) | undefined;
 	aspectRatio: string;
+	floorSwitcher?: ReactNode;
 	matchedWindowIds: ReadonlySet<string> | null;
 	onRetry?: () => void;
 	onSelectWindow(windowId: string): void;
@@ -77,15 +109,12 @@ function DiningFloorplanUnavailable(props: {
 	windows: DiningWindowProjection[];
 }) {
 	useEffect(() => props.onReady?.(), [props.onReady]);
-	const visibleWindows =
-		props.matchedWindowIds === null
-			? props.windows
-			: props.windows.filter((window) => props.matchedWindowIds?.has(window.windowId));
 	return (
 		<section
 			aria-label="平面图降级窗口列表"
 			className="min-h-56 w-full min-w-0 max-w-full bg-destructive/5 px-4 py-5 sm:px-5"
 		>
+			{props.floorSwitcher ? <div className="mb-4">{props.floorSwitcher}</div> : null}
 			<div className="text-center" role="alert">
 				<h3 className="text-sm font-semibold text-[var(--sys-text-strong)]">平面图暂时无法显示</h3>
 				<p className="mt-1 text-sm text-[var(--sys-text-muted)]">仍可从列表选择窗口。</p>
@@ -100,38 +129,14 @@ function DiningFloorplanUnavailable(props: {
 					</Button>
 				) : null}
 			</div>
-			<div className="mx-auto mt-4 w-full max-w-xl border-border/70 border-t pt-3">
-				<p className="text-xs font-medium text-[var(--sys-text-subtle)]">窗口列表</p>
-				{visibleWindows.length > 0 ? (
-					<ul className="mt-2 grid min-w-0 list-none grid-cols-1 gap-1 p-0 sm:grid-cols-2">
-						{visibleWindows.map((window) => {
-							const selected = window.windowId === props.selectedWindowId;
-							return (
-								<li className="min-w-0" key={window.windowId}>
-									<Button
-										aria-pressed={selected}
-										className={cn(
-											"min-h-11 w-full min-w-0 justify-start px-3 text-left",
-											selected && "bg-selected text-selected-foreground hover:bg-selected-hover",
-										)}
-										onClick={() => props.onSelectWindow(window.windowId)}
-										variant="ghost"
-									>
-										<span className="truncate">{window.name}</span>
-									</Button>
-								</li>
-							);
-						})}
-					</ul>
-				) : (
-					<StateMessage
-						layout="inline"
-						role="status"
-						className="py-4"
-						description={props.windows.length > 0 ? "没有匹配的窗口" : "当前楼层暂无窗口"}
-					/>
-				)}
-			</div>
+			<DiningWindowList
+				className="mx-auto mt-4 w-full max-w-xl border-border/70 border-t pt-3"
+				matchedWindowIds={props.matchedWindowIds}
+				onSelectWindow={props.onSelectWindow}
+				selectedWindowId={props.selectedWindowId}
+				title="窗口列表"
+				windows={props.windows}
+			/>
 		</section>
 	);
 }
@@ -141,6 +146,7 @@ function ResolvedInteractiveFloorplan({
 	onViewportChange,
 	onReady,
 	floor,
+	floorSwitcher,
 	matchedWindowIds,
 	onSelectWindow,
 	rawMarkup,
@@ -156,6 +162,7 @@ function ResolvedInteractiveFloorplan({
 			<DiningFloorplanUnavailable
 				onReady={onReady}
 				aspectRatio={`${floor.floor.floorplan.canvas.width} / ${floor.floor.floorplan.canvas.height}`}
+				floorSwitcher={floorSwitcher}
 				matchedWindowIds={matchedWindowIds}
 				onSelectWindow={onSelectWindow}
 				selectedWindowId={selectedWindowId}
@@ -164,6 +171,7 @@ function ResolvedInteractiveFloorplan({
 		);
 	}
 	const selectedWindow = windows.find((window) => window.windowId === selectedWindowId) ?? null;
+	const stageHeight = diningMapStageHeight(floor.floor.floorplan.canvas);
 	const interactionSurface = (isZoomed: boolean) => (
 		<DiningFloorplanInteractionSurface
 			isZoomed={isZoomed}
@@ -175,32 +183,47 @@ function ResolvedInteractiveFloorplan({
 		/>
 	);
 	return (
-		<Suspense
-			fallback={
-				<div
-					className="relative min-w-0 overflow-hidden bg-[var(--dining-svg-canvas-bg)]"
-					style={{ aspectRatio: prepared.aspectRatio }}
-				>
-					<div aria-hidden="true" className="h-full w-full" inert>
-						<DiningFloorplanSvg markup={prepared.markup} />
-					</div>
-				</div>
-			}
-		>
-			<DiningFloorplanZoom
-				key={floor.floor.floorId}
-				aspectRatio={prepared.aspectRatio}
-				canvas={floor.floor.floorplan.canvas}
-				floorId={floor.floor.floorId}
-				initialViewport={
-					initialViewport?.floorId === floor.floor.floorId ? initialViewport : undefined
-				}
-				onViewportChange={onViewportChange}
-				onReady={onReady}
-			>
-				{interactionSurface}
-			</DiningFloorplanZoom>
-		</Suspense>
+		<>
+			<div className="@container relative">
+				<motion.div animate={{ opacity: 1 }} initial={{ opacity: 0 }} key={floor.floor.floorId}>
+					<Suspense
+						fallback={
+							<div
+								className="relative min-w-0 overflow-hidden bg-[var(--dining-svg-canvas-bg)]"
+								style={{ height: stageHeight }}
+							>
+								<div aria-hidden="true" className="h-full w-full" inert>
+									<DiningFloorplanSvg markup={prepared.markup} />
+								</div>
+							</div>
+						}
+					>
+						<DiningFloorplanZoom
+							key={floor.floor.floorId}
+							stageHeight={stageHeight}
+							canvas={floor.floor.floorplan.canvas}
+							floorId={floor.floor.floorId}
+							initialViewport={
+								initialViewport?.floorId === floor.floor.floorId ? initialViewport : undefined
+							}
+							onViewportChange={onViewportChange}
+							onReady={onReady}
+						>
+							{interactionSurface}
+						</DiningFloorplanZoom>
+					</Suspense>
+				</motion.div>
+				<FloatingFloorSwitcher>{floorSwitcher}</FloatingFloorSwitcher>
+			</div>
+			<DiningWindowList
+				className="border-border/70 border-t px-3 py-3 sm:px-4 lg:hidden"
+				matchedWindowIds={matchedWindowIds}
+				onSelectWindow={onSelectWindow}
+				selectedWindowId={selectedWindowId}
+				title="本层窗口"
+				windows={windows}
+			/>
+		</>
 	);
 }
 
@@ -340,7 +363,7 @@ function setDiningWindowLabel(element: Element, label: string): void {
 	if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) {
 		throw new Error("Dining floorplan anchor has invalid geometry.");
 	}
-	const lines = wrapDiningWindowLabel(label, width, height);
+	const { fontSize, lines } = fitDiningWindowLabel(label, width, height);
 	labelElement.removeAttribute("data-dining-anchor-number");
 	labelElement.setAttribute("data-dining-anchor-label", "true");
 	labelElement.classList.add("wayfinding-window-label");
@@ -351,7 +374,13 @@ function setDiningWindowLabel(element: Element, label: string): void {
 	}
 	labelElement.removeAttribute("display");
 	labelElement.setAttribute("x", String(x + width / 2));
-	labelElement.setAttribute("y", String(y + height / 2 - (lines.length - 1) * 8));
+	labelElement.setAttribute("y", String(y + height / 2 - (lines.length - 1) * (fontSize / 2)));
+	if (fontSize === DINING_WINDOW_LABEL_MIN_SIZE) {
+		labelElement.removeAttribute("style");
+	} else {
+		// Inline style beats the shared 16px label rule; boxes too small keep that rule.
+		labelElement.setAttribute("style", `font-size: ${fontSize}px`);
+	}
 	labelElement.setAttribute("text-anchor", "middle");
 	for (const [index, line] of lines.entries()) {
 		const tspan = labelElement.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "tspan");
@@ -364,13 +393,39 @@ function setDiningWindowLabel(element: Element, label: string): void {
 	}
 }
 
-export function wrapDiningWindowLabel(label: string, width: number, height: number): string[] {
+const DINING_WINDOW_LABEL_MIN_SIZE = 16;
+const DINING_WINDOW_LABEL_LARGER_SIZES = [22, 20, 18] as const;
+
+/** 选择能完整放下名称且不增加行数的最大字号；否则沿用 16 单位的换行与截断。 */
+export function fitDiningWindowLabel(
+	label: string,
+	width: number,
+	height: number,
+): { fontSize: number; lines: string[] } {
+	const fullLabel = label.trim() || "窗口";
+	const baseline = wrapDiningWindowLabel(label, width, height);
+	for (const fontSize of DINING_WINDOW_LABEL_LARGER_SIZES) {
+		const lines = wrapDiningWindowLabel(label, width, height, fontSize);
+		// A larger size must show the whole name without adding a line break the 16-unit layout avoided.
+		if (lines.join("") === fullLabel && lines.length <= Math.max(baseline.length, 1)) {
+			return { fontSize, lines };
+		}
+	}
+	return { fontSize: DINING_WINDOW_LABEL_MIN_SIZE, lines: baseline };
+}
+
+export function wrapDiningWindowLabel(
+	label: string,
+	width: number,
+	height: number,
+	fontSize: number = DINING_WINDOW_LABEL_MIN_SIZE,
+): string[] {
 	const characters = Array.from(label.trim() || "窗口");
-	const charsPerLine = Math.floor((width - 16) / 16);
-	if (charsPerLine < 1 || height < 24) {
+	const charsPerLine = Math.floor((width - 16) / fontSize);
+	if (charsPerLine < 1 || height < fontSize + 8) {
 		return [];
 	}
-	const maxLines = height >= 56 ? 2 : 1;
+	const maxLines = height >= fontSize * 3.5 ? 2 : 1;
 	if (characters.length <= charsPerLine) {
 		return [characters.join("")];
 	}
@@ -430,16 +485,26 @@ function assertSafeDiningSvg(document: Document): void {
 
 function appendDiningFloorplanInteractionStyles(document: Document): void {
 	const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+	// Appended after the renderer's own <style>, so these theme tokens win at equal specificity.
 	style.textContent = `
 .wayfinding-canvas { fill: var(--dining-svg-canvas-bg); }
 .wayfinding-surface { fill: var(--dining-svg-surface-bg); }
+.wayfinding-outline { stroke: var(--dining-svg-outline); }
+.wayfinding-structure { fill: var(--dining-svg-structure-bg); stroke: var(--dining-svg-structure-border); stroke-width: 1.5; }
+.wayfinding-partition { stroke: var(--dining-svg-partition); stroke-width: 1.5; }
+.wayfinding-region { fill: var(--dining-svg-region-bg); stroke: var(--dining-svg-region-border); }
+.wayfinding-landmark { fill: var(--dining-svg-landmark-bg); stroke: var(--dining-svg-landmark-border); }
+.wayfinding-region-label, .wayfinding-landmark-label { fill: var(--dining-svg-label); }
+.wayfinding-icon, .wayfinding-entrance-line { stroke: var(--dining-svg-accent); }
+.wayfinding-entrance-label { fill: var(--dining-svg-accent); }
 .wayfinding-window { fill: var(--dining-svg-window-bg); stroke: var(--dining-svg-window-border); }
 .wayfinding-window-number { fill: var(--dining-svg-window-text); }
-.dining-svg-anchor { outline: none; transition: opacity 140ms ease-out; }
-.dining-svg-anchor-hit { transition: fill 140ms ease-out, stroke-width 140ms ease-out; }
+.dining-svg-anchor { outline: none; transition: opacity var(--motion-duration-fast) var(--motion-easing-standard); }
+.dining-svg-anchor-hit { transition: fill var(--motion-duration-fast) var(--motion-easing-standard), stroke var(--motion-duration-fast) var(--motion-easing-standard), stroke-width var(--motion-duration-fast) var(--motion-easing-standard); }
 .wayfinding-window-label { fill: var(--dining-svg-window-text); font-size: 16px; font-weight: 650; }
-.dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--campus-selected-bg); stroke: var(--campus-selected-border); stroke-width: 3px; }
-.dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--campus-selected-border); stroke-width: 3px; }
+.dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--dining-window-selected-fill); stroke: var(--dining-window-selected-stroke); stroke-width: 4px; }
+.dining-svg-anchor.is-selected .wayfinding-window-label { fill: var(--dining-window-selected-text); font-weight: 750; }
+.dining-svg-anchor[role="button"]:not(.is-dimmed, .is-selected):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--dining-window-hover-stroke); stroke-width: 3px; }
 .dining-svg-anchor[role="button"]:not(.is-dimmed):focus-visible .dining-svg-anchor-hit { stroke-width: 5px; }
 
 @media (prefers-reduced-motion: reduce) { .dining-svg-anchor, .dining-svg-anchor-hit { transition: none; } }

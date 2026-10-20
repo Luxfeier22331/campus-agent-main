@@ -15,6 +15,8 @@ const excluded = [
 	...configDefaults.exclude,
 	"test/**/*.worker.test.ts",
 	"test/**/*.integration.test.ts",
+	"test/**/*.browser.test.ts",
+	"test/**/*.browser.test.tsx",
 ];
 
 export default defineConfig({

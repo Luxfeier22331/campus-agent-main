@@ -1,4 +1,4 @@
-import { buttonVariants, cn } from "@campus-agent/ui";
+import { buttonVariants, cn, focusRing } from "@campus-agent/ui";
 import { type CalendarDate, today } from "@internationalized/date";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
@@ -76,7 +76,7 @@ export function CampusCalendar({
 					<CalendarGridBody>
 						{(date) => (
 							<CalendarCell
-								className="m-0.5 grid min-h-11 place-items-center rounded-[var(--radius-lg)] border border-transparent text-sm text-[var(--sys-text-default)] outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-ring data-[disabled]:text-[var(--sys-text-muted)] data-[outside-month]:text-[var(--sys-text-muted)] data-[selected]:border-border-selected data-[selected]:bg-selected data-[selected]:font-semibold data-[selected]:text-selected-foreground data-[today]:font-semibold data-[today]:underline data-[today]:decoration-2 data-[today]:underline-offset-4"
+								className={`m-0.5 grid min-h-11 place-items-center rounded-[var(--radius-lg)] border border-transparent text-sm text-[var(--sys-text-default)] outline-none hover:bg-surface-muted ${focusRing} data-[disabled]:text-[var(--sys-text-muted)] data-[outside-month]:text-[var(--sys-text-muted)] data-[selected]:border-border-selected data-[selected]:bg-selected data-[selected]:font-semibold data-[selected]:text-selected-foreground data-[today]:font-semibold data-[today]:underline data-[today]:decoration-2 data-[today]:underline-offset-4`}
 								date={date}
 							>
 								{renderDay ? () => renderDay(date) : undefined}

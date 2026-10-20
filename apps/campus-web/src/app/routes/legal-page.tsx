@@ -186,13 +186,7 @@ function LegalDocumentShell({
 					{children}
 					<div className="border-t border-border pt-5">
 						<p>
-							如需联系服务维护者，请通过
-							<Button asChild className="mx-1 h-auto min-h-0 px-0" variant="link">
-								<Link search={{ source: "legal" }} to="/feedback">
-									反馈
-								</Link>
-							</Button>
-							提交说明。你也可以查看
+							你也可以查看
 							<Button asChild className="mx-1 h-auto min-h-0 px-0" variant="link">
 								<Link to={peerHref}>{peerLabel}</Link>
 							</Button>

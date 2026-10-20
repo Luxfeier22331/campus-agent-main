@@ -116,10 +116,7 @@ describe("campus account pages", () => {
 			"href",
 			"/legal/privacy",
 		);
-		expect(screen.getByRole("link", { name: "反馈" })).toHaveAttribute(
-			"href",
-			"/feedback?source=legal",
-		);
+		expect(screen.queryByRole("link", { name: "反馈" })).toBeNull();
 		expect(screen.queryByText(/app-api|agent-control|provider-config/)).toBeNull();
 
 		unmount();
@@ -134,6 +131,7 @@ describe("campus account pages", () => {
 			"href",
 			"/legal/terms",
 		);
+		expect(screen.queryByRole("link", { name: "反馈" })).toBeNull();
 		expect(screen.queryByText(/app-api|agent-control|provider-config/)).toBeNull();
 	});
 

@@ -17,16 +17,16 @@
 		"test:unit": "vitest run"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.1145.0",
+		"@aws-sdk/client-s3": "^3.1153.0",
 		"@campus-agent/embedding-runtime": "workspace:*",
 		"campus-contracts": "workspace:*"
 	},
 	"devDependencies": {
-		"@types/node": "^24.19.1",
+		"@types/node": "^24.19.2",
 		"esbuild": "^0.28.2",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.3"
+		"vitest": "^5.0.5"
 	},
 	"exports": {
 		"./indexing/source": "./src/indexing/source.ts",

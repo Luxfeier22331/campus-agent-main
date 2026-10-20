@@ -72,7 +72,8 @@ describe("Dining detail states", () => {
 		await act(async () => {
 			await client.invalidateQueries({ queryKey: diningQueryKeys.menu(window.windowId) });
 		});
-		expect(await screen.findByText("暂无菜单信息")).toBeVisible();
+		// An empty menu leaves its section to the submissions block, which owns the empty state.
+		await waitFor(() => expect(screen.queryByRole("heading", { name: "菜单" })).toBeNull());
 		expect(api.getDiningWindowMenu).toHaveBeenCalledTimes(3);
 	});
 

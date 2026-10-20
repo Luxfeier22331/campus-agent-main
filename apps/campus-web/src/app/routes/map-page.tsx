@@ -1,5 +1,6 @@
 import { Button, StateMessage, useTheme } from "@campus-agent/ui";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { FeedbackSheet } from "@/components/feedback/feedback-sheet";
 import { MapProductExperience } from "@/components/map/map-product-experience";
 import { getCampusMapProfile } from "@/features/map/campus-map-style";
 import {
@@ -32,6 +33,7 @@ export function MapPage() {
 		setSelectedPlaceId,
 	} = useCampusMapPageData();
 	const { resolvedTheme } = useTheme();
+	const [feedbackOpen, setFeedbackOpen] = useState(false);
 
 	const places = useMemo(() => createMapPlaceViews(data?.places ?? []), [data]);
 	const campuses = useMemo(() => getMapCampuses(places), [places]);
@@ -104,8 +106,8 @@ export function MapPage() {
 							</Button>
 						}
 						secondaryAction={
-							<Button asChild variant="outline">
-								<a href="/feedback?source=map">反馈</a>
+							<Button onClick={() => setFeedbackOpen(true)} variant="outline">
+								反馈
 							</Button>
 						}
 						role="alert"
@@ -149,6 +151,14 @@ export function MapPage() {
 					/>
 				</MapStateShell>
 			)}
+			{feedbackOpen ? (
+				<FeedbackSheet
+					defaultCategory="map_issue"
+					onOpenChange={setFeedbackOpen}
+					open={feedbackOpen}
+					sourceLabel="校园地图"
+				/>
+			) : null}
 		</>
 	);
 

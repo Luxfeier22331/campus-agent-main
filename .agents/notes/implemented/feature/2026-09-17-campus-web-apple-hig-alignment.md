@@ -50,3 +50,21 @@ ConfirmDialog 只拥有展示与焦点行为，请求、错误及成功关闭由
 - 共享输入、选择和复合搜索控件只保留一套边框职责；独立控件由自身绘制边框，复合控件由外层容器绘制。
 - 控件焦点保留可见 ring，但不再使用额外 ring offset 形成第二层边线；全局 focus outline 仍作为未覆盖元素的兜底。
 - Button、Disclosure 和账户菜单沿用同一 focus ring 规则；弹层、Field、Alert 和列表原有语义合同保持不变。
+
+### 焦点环常量与使用规则（2026-10-20 收敛）
+
+ring 此前散落在 5 个 UI 原语与 17 处应用层手抄串里，且地图组件用 `ring-[var(--campus-focus-ring)]`
+绕过 token。现收敛为 `packages/ui/src/control-styles.ts` 导出的两个常量（`focusRing` 外环 /
+`focusRingInset` 容器内环），原语与应用层统一引用：
+
+- 独立交互控件（Button、Checkbox、Disclosure、卡片链接、列表行、地图浮层按钮）用 `focusRing`。
+- 容器内条目（Tabs 触发器、菜单项、分段控件、账号菜单项）用 `focusRingInset`。
+- 填充式复合控件（食堂搜索框）用表面变化表达焦点，不加 ring；文本输入自带 caret 可豁免环，
+  其余交互元素必须有环或 ≥3:1 的状态变化（无障碍底线）。
+- 覆盖共享焦点样式时必须对齐伪类特异性：`SelectTrigger` 自带 `enabled:hover:border-ring` 是双伪类，
+  单伪类覆盖会被压制。
+- 保留不动：vendored sidebar（独立 `--sidebar-ring` token）、theme-mode-control 的
+  `peer-focus-visible:`（peer 前缀，常量不适用）、兴趣社群 FAB/头像的 `ring-1` 细环（次要控件的
+  有意变体）、theme.css 的 base `:focus-visible` outline（安全网兜底）。
+- `--color-ring` 被 campus-web 覆盖为 `--campus-focus-ring`（灰）是有意的主题化机制，两个 app
+  可各自定制环色，不是债务。

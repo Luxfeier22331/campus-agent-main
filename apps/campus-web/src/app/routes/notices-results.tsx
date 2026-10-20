@@ -1,4 +1,4 @@
-import { ActionGroup, Button } from "@campus-agent/ui";
+import { ActionGroup, Button, focusRing } from "@campus-agent/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { NoticeListItem, NoticeListResponse } from "campus-contracts/notices";
 import {
@@ -157,8 +157,7 @@ function NoticeRow({ item }: { item: NoticeListItem }) {
 			</div>
 		</div>
 	);
-	const className =
-		"group block rounded-lg transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+	const className = `group block rounded-lg transition-colors hover:bg-surface-hover ${focusRing}`;
 	if (item.isExternal) {
 		return (
 			<a className={className} href={item.externalUrl} rel="noopener noreferrer" target="_blank">

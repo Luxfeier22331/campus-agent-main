@@ -7,6 +7,7 @@ export * from "./checkbox";
 export * from "./cn";
 export * from "./collapsible";
 export * from "./confirm-dialog";
+export { controlClass, focusRing, focusRingInset } from "./control-styles";
 export * from "./dialog";
 export * from "./disclosure";
 export * from "./drawer";

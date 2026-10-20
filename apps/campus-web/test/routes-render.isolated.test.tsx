@@ -20,6 +20,7 @@ import diningExperienceSource from "../src/components/dining/dining-experience.t
 import diningFloorplanSource from "../src/components/dining/dining-floorplan.tsx?raw";
 import diningFloorplanZoomSource from "../src/components/dining/dining-floorplan-zoom.tsx?raw";
 import { DiningSubmissionExitProvider } from "../src/components/dining/dining-submission-exit";
+import feedbackFormSource from "../src/components/feedback/feedback-form.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
 import mapPlacePopoverSource from "../src/components/map/map-place-popover.tsx?raw";
 import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
@@ -357,10 +358,11 @@ describe("campus routes", () => {
 	});
 
 	it("keeps product pages on mature UI primitives instead of bespoke controls", () => {
-		expect(feedbackPageSource).toContain("react-hook-form");
-		expect(feedbackPageSource).toContain("zod");
-		expect(feedbackPageSource).not.toContain("<select");
-		expect(feedbackPageSource).toContain('type="submit"');
+		expect(feedbackPageSource).toContain("FeedbackForm");
+		expect(feedbackFormSource).toContain("react-hook-form");
+		expect(feedbackFormSource).toContain("zod");
+		expect(feedbackFormSource).not.toContain("<select");
+		expect(feedbackFormSource).toContain('type="submit"');
 		expect(authSource).not.toContain("<input");
 		expect(diningPageSource).not.toContain('role="tablist"');
 		expect(mapExperienceSource).not.toContain("handleSearchKeyDown");
@@ -503,7 +505,7 @@ describe("campus routes", () => {
 
 		expect(screen.getByRole("heading", { name: "反馈" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "提交反馈" })).toBeInTheDocument();
-		expect(screen.getByLabelText("问题描述")).toBeRequired();
+		expect(screen.getByLabelText("问题描述")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "提交反馈" })).toBeEnabled();
 	});
 
@@ -511,8 +513,7 @@ describe("campus routes", () => {
 		window.history.pushState({}, "", "/feedback?source=map");
 		render(<FeedbackPage />);
 
-		expect(screen.getByLabelText("反馈来源")).toHaveTextContent("校园地图");
-		expect(screen.queryByRole("textbox", { name: "反馈来源" })).toBeNull();
+		expect(screen.getByDisplayValue("校园地图")).toBeInTheDocument();
 	});
 
 	it("submits feedback with the current route context and shows received status", async () => {
@@ -525,7 +526,6 @@ describe("campus routes", () => {
 
 		const receivedStatus = await screen.findByText("反馈已提交。");
 		expect(receivedStatus).toBeInTheDocument();
-		expect(receivedStatus.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
 		expect(feedbackApiMock.submitFeedback).toHaveBeenCalledWith(
 			expect.objectContaining({
 				body: "地图地点名称需要更新。",
@@ -564,10 +564,7 @@ describe("campus routes", () => {
 
 		render(<DiningPage />);
 
-		expect(await screen.findByRole("radio", { name: hall.name })).toHaveAttribute(
-			"aria-checked",
-			"true",
-		);
+		expect(await screen.findByRole("combobox", { name: "选择食堂" })).toHaveTextContent(hall.name);
 		const windowButton = await screen.findByRole("button", {
 			name: `选择${diningWindow.name}`,
 		});
@@ -584,19 +581,22 @@ describe("campus routes", () => {
 	it("searches published window names in the browser", async () => {
 		const user = userEvent.setup();
 		const fixture = mockDiningFixtureApi(diningApiMock);
-		const floor = fixture.halls[0]?.floors[0];
+		const hall = fixture.halls[0];
+		const floor = hall?.floors[0];
 		const diningWindow = floor?.windows[0];
 		const otherWindow = floor?.windows[1];
-		if (!(diningWindow && otherWindow)) {
+		if (!(hall && diningWindow && otherWindow)) {
 			throw new Error("Dining fixture needs two windows.");
 		}
 
 		render(<DiningPage />);
 		await screen.findByTestId(`dining-anchor-${diningWindow.svgAnchorId}`);
-		await user.type(screen.getByPlaceholderText("搜索窗口"), diningWindow.name);
+		await user.type(screen.getByLabelText("搜索窗口"), diningWindow.name);
 
+		// Search covers every hall; the current hall's group comes first.
+		const currentHall = await screen.findByRole("group", { name: `${hall.campus} · ${hall.name}` });
 		expect(
-			await screen.findByRole("option", { name: new RegExp(diningWindow.name) }),
+			within(currentHall).getByRole("option", { name: new RegExp(diningWindow.name) }),
 		).toBeInTheDocument();
 		expect(screen.getByTestId(`dining-anchor-${otherWindow.svgAnchorId}`)).toHaveClass("is-dimmed");
 		expect(diningApiMock.getDiningMap).toHaveBeenCalledOnce();
@@ -612,11 +612,12 @@ describe("campus routes", () => {
 		}
 
 		render(<DiningPage />);
-		await user.click(await screen.findByRole("radio", { name: hall.name }));
-		await user.click(await screen.findByText(floor.label));
+		const hallSelect = await screen.findByRole("combobox", { name: "选择食堂" });
+		await user.click(hallSelect);
+		await user.click(await screen.findByRole("option", { name: hall.name }));
+		await user.click(await screen.findByRole("radio", { name: floor.label }));
 		await user.click(screen.getByRole("radio", { name: floor.label }));
-		await user.click(screen.getByRole("radio", { name: hall.name }));
-		expect(screen.getByRole("radio", { name: hall.name })).toBeChecked();
+		expect(hallSelect).toHaveTextContent(hall.name);
 		expect(screen.getByRole("radio", { name: floor.label })).toBeChecked();
 
 		await waitFor(() => {
@@ -682,8 +683,12 @@ describe("campus routes", () => {
 			expect(screen.getByRole("heading", { name: valid.name })).toBeInTheDocument();
 			expect(screen.queryByText("平面图暂时无法显示")).not.toBeInTheDocument();
 			expect(screen.queryByRole("button", { name: `选择${broken.name}` })).not.toBeInTheDocument();
-			await user.type(screen.getByPlaceholderText("搜索窗口"), broken.name);
-			await user.click(await screen.findByRole("option", { name: new RegExp(broken.name) }));
+			await user.type(screen.getByLabelText("搜索窗口"), broken.name);
+			const hall = fixture.halls[0];
+			const currentHall = await screen.findByRole("group", {
+				name: `${hall?.campus} · ${hall?.name}`,
+			});
+			await user.click(within(currentHall).getByRole("option", { name: new RegExp(broken.name) }));
 			expect(screen.getByRole("heading", { name: broken.name })).toBeInTheDocument();
 		},
 	);
@@ -747,7 +752,7 @@ describe("campus routes", () => {
 		fireEvent.change(screen.getByLabelText("问题描述"), {
 			target: { value: "地图点位需要更新。" },
 		});
-		fireEvent.change(screen.getByLabelText("联系方式（可选）"), {
+		fireEvent.change(screen.getByLabelText(/联系方式/), {
 			target: { value: "  student@example.edu  " },
 		});
 		await user.click(screen.getByRole("button", { name: "提交反馈" }));

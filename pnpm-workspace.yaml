@@ -25,6 +25,12 @@ overrides:
   "sharp@<0.35.4": "0.35.4"
   # Miniflare 固定 undici 7.29.0；上游更新到安全版本后删除，不影响 undici 8 链路。
   "miniflare>undici@7.29.0": "7.29.1"
+  # markdownlint-cli2 仍固定 smol-toml 1.8.0，落在 parseKey 二次时间拒绝服务范围内；
+  # 上游不再固定受影响版本后删除。
+  "markdownlint-cli2>smol-toml@<1.9.0": "1.9.1"
+  # markdownlint 的 micromark-extension-math 仍固定 katex 0.16，落在既有原型污染
+  # 绕过范围内；上游放宽到 0.18 以上后删除。
+  "micromark-extension-math>katex@<0.18.2": "0.18.11"
 
 minimumReleaseAge: 0
 

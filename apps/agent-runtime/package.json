@@ -14,16 +14,16 @@
 	},
 	"dependencies": {
 		"@arizeai/openinference-instrumentation-openai-agents": "^0.3.2",
-		"@google/genai": "2.26.0",
-		"@langfuse/otel": "^5.11.1",
-		"@langfuse/tracing": "^5.11.1",
-		"@openai/agents": "0.18.0",
+		"@google/genai": "2.30.0",
+		"@langfuse/otel": "^5.14.0",
+		"@langfuse/tracing": "^5.14.0",
+		"@openai/agents": "0.20.0",
 		"@opentelemetry/api": "^1.9.1",
-		"@opentelemetry/core": "^2.11.0",
-		"@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
-		"@opentelemetry/resources": "^2.11.0",
-		"@opentelemetry/sdk-trace-base": "^2.11.0",
-		"@opentelemetry/sdk-trace-node": "^2.11.0",
+		"@opentelemetry/core": "^2.12.0",
+		"@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
+		"@opentelemetry/resources": "^2.12.0",
+		"@opentelemetry/sdk-trace-base": "^2.12.0",
+		"@opentelemetry/sdk-trace-node": "^2.12.0",
 		"@opentelemetry/semantic-conventions": "^1.43.0",
 		"@temporalio/activity": "1.24.0",
 		"@temporalio/common": "1.24.0",
@@ -32,17 +32,17 @@
 		"campus-contracts": "workspace:*",
 		"htmlparser2": "12.0.0",
 		"ipaddr.js": "2.5.0",
-		"openai": "7.27.0",
-		"undici": "8.11.2",
-		"zod": "^4.6.5"
+		"openai": "7.39.0",
+		"undici": "8.12.3",
+		"zod": "^4.6.7"
 	},
 	"devDependencies": {
 		"@temporalio/testing": "1.24.0",
-		"@types/node": "^24.19.1",
+		"@types/node": "^24.19.2",
 		"esbuild": "^0.28.2",
 		"tsx": "^4.23.15",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.3"
+		"vitest": "^5.0.5"
 	},
 	"license": "Apache-2.0"
 }

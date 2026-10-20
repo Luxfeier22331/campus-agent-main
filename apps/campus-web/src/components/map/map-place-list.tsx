@@ -1,4 +1,4 @@
-import { Button, cn } from "@campus-agent/ui";
+import { Button, cn, focusRing } from "@campus-agent/ui";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { contentSwap } from "@/components/ui/motion";
@@ -63,7 +63,7 @@ export function PlaceList({
 										aria-label={`选择${place.place.title}`}
 										aria-pressed={selected}
 										className={cn(
-											"h-auto min-h-[76px] w-full flex-col items-start rounded-lg border border-transparent bg-[var(--map-overlay-surface-soft)] p-2.5 text-left whitespace-normal outline-none hover:bg-[var(--map-overlay-surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--campus-focus-ring)]",
+											`h-auto min-h-[76px] w-full flex-col items-start rounded-lg border border-transparent bg-[var(--map-overlay-surface-soft)] p-2.5 text-left whitespace-normal outline-none hover:bg-[var(--map-overlay-surface-hover)] ${focusRing}`,
 											active &&
 												"border-[var(--sys-border-default)] bg-[var(--map-overlay-surface)]",
 											selected && "border-border-selected bg-selected",
@@ -86,7 +86,7 @@ export function PlaceList({
 						})}
 						{canToggle && !forceExpanded ? (
 							<Button
-								className="min-h-10 rounded-lg px-2 text-sm font-medium text-[var(--map-overlay-muted)] outline-none hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)] focus-visible:ring-2 focus-visible:ring-[var(--campus-focus-ring)]"
+								className={`min-h-10 rounded-lg px-2 text-sm font-medium text-[var(--map-overlay-muted)] outline-none hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)] ${focusRing}`}
 								onClick={() =>
 									setExpandedGroups((current) => {
 										const next = new Set(current);

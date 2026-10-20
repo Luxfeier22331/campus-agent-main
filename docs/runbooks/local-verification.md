@@ -379,6 +379,15 @@ agent-control、memory-service、campus-search、Model Config；已有 ready 的
 浏览器回归由开发者按变更涉及的边界手动选择，不进入 GitHub Actions，也不是每次修改或 agent 任务的必跑步骤。
 业务状态、错误映射和请求规则由 Vitest 覆盖；浏览器保留布局、焦点、历史导航、剪贴板、流式交互和构建产物边界。
 
+单组件或单页面的浏览器行为（真实 DOM、断点、焦点、弹层）用 Vitest Browser Mode 覆盖，它在自己的端口启动
+测试服务器，因此可以和 `pnpm dev` 同时运行，不需要停掉开发服务器：
+
+```bash
+pnpm --dir apps/campus-web test:browser
+```
+
+跨页面导航、网络拦截和真实构建产物的流程仍用 Playwright：
+
 ```bash
 # 按变更选择文件，也可使用 --grep 选择用例
 pnpm --dir apps/campus-web test:e2e e2e/dining.spec.ts

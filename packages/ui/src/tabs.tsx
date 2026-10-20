@@ -1,6 +1,7 @@
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import * as React from "react";
 import { cn } from "./cn";
+import { focusRing, focusRingInset } from "./control-styles";
 
 export const Tabs = TabsPrimitive.Root;
 
@@ -40,7 +41,7 @@ export const TabsTrigger = React.forwardRef<
 	return (
 		<TabsPrimitive.Trigger
 			className={cn(
-				"min-h-11 shrink-0 whitespace-nowrap px-4 font-medium text-muted-foreground text-sm transition-[color,border-color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:text-[var(--state-disabled-text)]",
+				`min-h-11 shrink-0 whitespace-nowrap px-4 font-medium text-muted-foreground text-sm transition-[color,border-color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:text-foreground ${focusRingInset} disabled:pointer-events-none disabled:text-[var(--state-disabled-text)]`,
 				presentation === "underline"
 					? "border-transparent border-b-2 data-[state=active]:border-border-selected data-[state=active]:text-selected-foreground"
 					: "flex-1 rounded-[var(--radius-md)] border border-transparent hover:bg-surface-hover active:bg-surface-pressed data-[state=active]:border-border-selected data-[state=active]:bg-selected data-[state=active]:text-selected-foreground data-[state=active]:hover:bg-selected-hover data-[state=active]:active:bg-selected-pressed",
@@ -57,13 +58,6 @@ export const TabsContent = React.forwardRef<
 	React.ElementRef<typeof TabsPrimitive.Content>,
 	React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
-	<TabsPrimitive.Content
-		className={cn(
-			"mt-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-			className,
-		)}
-		ref={ref}
-		{...props}
-	/>
+	<TabsPrimitive.Content className={cn(`mt-5 ${focusRing}`, className)} ref={ref} {...props} />
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;

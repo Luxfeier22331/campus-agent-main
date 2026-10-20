@@ -39,7 +39,7 @@ candidate 内的完整 `formalRelease` 提供。manual Stage 本身只是放行�
 - retention 的候选遍历只走 `candidates/staging`；正式版本的保留根逻辑保留（未退役正式版本仍在
   保护范围内，当前没有数据）。
 - release-status 不再报告 manual 启用状态。
-- `docs/delivery.md` 删除手动晋级章节、manual Promotion 示例和 plan/pause/select/resume 表行。
+- 环境仓交付手册删除手动晋级章节、manual Promotion 示例和 plan/pause/select/resume 表行。
 
 保留的部分：`publish`（从成功 Deployment 导出并发布 immutable Release）、`retire`
 （`releases/retired.json`）、retention roots 计算（部署/恢复根、当前选择根、staging 候选边界）、

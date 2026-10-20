@@ -16,6 +16,15 @@ async function readFloorplanScale(page: Page): Promise<number> {
 	return Number.parseFloat(label?.replace("%", "") ?? "NaN") / 100;
 }
 
+async function chooseHall(page: Page, name: string): Promise<void> {
+	await page.getByRole("combobox", { name: "选择食堂" }).click();
+	await page.getByRole("option", { exact: true, name }).click();
+}
+
+async function expectHall(page: Page, name: string): Promise<void> {
+	await expect(page.getByRole("combobox", { name: "选择食堂" })).toContainText(name);
+}
+
 async function selectFirstDiningWindow(page: Page): Promise<void> {
 	await page.getByRole("button", { name: "选择兰州拉面" }).click();
 	await expect(page.getByRole("heading", { name: "兰州拉面" })).toBeVisible();
@@ -27,15 +36,23 @@ test.describe("dining map", () => {
 		await mockCampusApi(page, { requests });
 		await openDiningPage(page);
 
-		await expect(page.getByRole("radio", { name: "海淀一食堂" })).toHaveAttribute(
+		await expectHall(page, "海淀一食堂");
+		await page.getByRole("button", { name: "选择兰州拉面" }).click();
+		await expect(page.getByRole("heading", { name: "兰州拉面" })).toBeVisible();
+		await page.getByRole("combobox", { name: "搜索窗口" }).fill("桂林");
+		const results = page.getByRole("listbox");
+		await expect(results.getByRole("group", { name: "海淀校区 · 海淀一食堂" })).toBeVisible();
+		await expect(results.getByRole("group", { name: "丰台校区 · 荟贤食堂" })).toBeVisible();
+		await expect(results.getByRole("option", { name: /桂林米粉/ })).toHaveCount(3);
+		await expect(page.locator('[data-dining-label="兰州拉面"]')).toHaveClass(/is-dimmed/);
+
+		await results.getByRole("option", { name: /桂林米粉.*荟贤二层/ }).click();
+		await expectHall(page, "荟贤食堂");
+		await expect(page.getByRole("radio", { name: "荟贤二层" })).toHaveAttribute(
 			"aria-checked",
 			"true",
 		);
-		await page.getByRole("button", { name: "选择兰州拉面" }).click();
-		await expect(page.getByRole("heading", { name: "兰州拉面" })).toBeVisible();
-		await page.getByPlaceholder("搜索窗口").fill("桂林");
-		await expect(page.getByRole("option", { name: /桂林米粉/ })).toBeVisible();
-		await expect(page.locator('[data-dining-label="兰州拉面"]')).toHaveClass(/is-dimmed/);
+		await expect(page.getByRole("heading", { name: "桂林米粉" })).toBeVisible();
 
 		expect(requests.filter((request) => request.path === "/api/dining")).toHaveLength(1);
 		expect(
@@ -47,12 +64,35 @@ test.describe("dining map", () => {
 		).toBe(false);
 	});
 
+	test("remembers the last chosen hall only when the URL names none", async ({ page }) => {
+		await mockCampusApi(page);
+		await openDiningPage(page);
+		await chooseHall(page, "荟贤食堂");
+		await expect(page).toHaveURL(/hall=fengtai/);
+
+		await openDiningPage(page);
+		await expectHall(page, "荟贤食堂");
+
+		await page.goto("/dining?hall=haidian");
+		await expectHall(page, "海淀一食堂");
+	});
+
+	test("merges an empty menu and empty submissions into one entry", async ({ page }) => {
+		await mockCampusApi(page, { emptyDiningMenu: true });
+		await openDiningPage(page);
+		await page.getByRole("button", { name: "选择兰州拉面" }).click();
+		const detail = page.getByTestId("dining-detail-panel");
+		await expect(detail.getByRole("heading", { name: "还没有菜单和用户投稿" })).toBeVisible();
+		await expect(detail.getByRole("heading", { exact: true, name: "菜单" })).toHaveCount(0);
+		await expect(detail.getByRole("button", { name: "投稿" })).toHaveCount(1);
+	});
+
 	test("switches halls and floors without another map request", async ({ page }) => {
 		const requests: CampusApiRequestRecord[] = [];
 		await mockCampusApi(page, { requests });
 		await openDiningPage(page);
 
-		await page.getByRole("radio", { name: "荟贤食堂" }).click();
+		await chooseHall(page, "荟贤食堂");
 		await expect(page.getByText("荟贤一层", { exact: true })).toBeVisible();
 		await page.getByRole("radio", { name: "荟贤二层" }).click();
 		await expect(page.getByText("荟贤二层", { exact: true })).toBeVisible();
@@ -75,7 +115,7 @@ test.describe("dining map", () => {
 		await firstWindow.click();
 		await expect(firstWindow).toHaveAttribute("aria-pressed", "true");
 		await expect(page.getByRole("heading", { name: "兰州拉面" })).toBeVisible();
-		await page.getByPlaceholder("搜索窗口").fill("桂林");
+		await page.getByRole("combobox", { name: "搜索窗口" }).fill("桂林");
 		await expect(firstWindow).toBeHidden();
 		await expect(fallback.getByRole("button", { exact: true, name: "桂林米粉" })).toBeVisible();
 		await page.getByRole("button", { name: "清除搜索" }).click();
@@ -116,13 +156,33 @@ test.describe("dining map", () => {
 		expect((desktopMap?.x ?? 0) + (desktopMap?.width ?? 0)).toBeLessThanOrEqual(
 			desktopDetail?.x ?? 0,
 		);
+		await expect(page.getByText("本层窗口")).toBeHidden();
 
 		await page.setViewportSize({ height: 720, width: 390 });
 		await page.reload();
 		await expect(page.getByRole("combobox", { name: "选择食堂" })).toBeVisible();
-		await page.getByRole("button", { name: "选择兰州拉面" }).click();
-		await expect(page.getByRole("heading", { name: "兰州拉面" })).toBeVisible();
+		const detail = page.getByTestId("dining-detail-panel");
+		await expect(detail).toBeHidden();
+		await page.getByRole("button", { exact: true, name: "兰州拉面" }).click();
+		await expect(detail.getByRole("heading", { name: "兰州拉面" })).toBeInViewport();
+		await expect(page.getByTestId("dining-inline-floorplan")).toBeInViewport();
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+
+		await detail.getByRole("button", { name: "收起窗口详情" }).click();
+		await expect(detail.getByRole("heading", { exact: true, name: "菜单" })).toBeHidden();
+		await detail.getByRole("button", { name: "展开窗口详情" }).click();
+		await expect(detail.getByRole("heading", { exact: true, name: "菜单" })).toBeVisible();
+
+		await page.getByRole("button", { exact: true, name: "桂林米粉" }).click();
+		await expect(detail.getByRole("heading", { name: "桂林米粉" })).toBeInViewport();
+		await expect(page.getByRole("button", { exact: true, name: "桂林米粉" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		await detail.getByRole("button", { name: "关闭窗口详情" }).click();
+		await expect(detail).toBeHidden();
+		await expect(page).not.toHaveURL(/window=/);
+		await expect(page.getByRole("button", { name: "选择桂林米粉" })).toBeFocused();
 	});
 
 	test("loads the selected window menu and restores an open review sheet from the URL", async ({

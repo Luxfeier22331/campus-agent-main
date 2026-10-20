@@ -1,6 +1,7 @@
 import {
 	Button,
 	cn,
+	focusRingInset,
 	Sheet,
 	SheetClose,
 	SheetContent,
@@ -146,7 +147,7 @@ export function ProductNavMobileMenu({
 											<ProductNavLink
 												aria-current={active ? "page" : undefined}
 												className={cn(
-													"flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-lg)] px-3 text-sm transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+													`flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-lg)] px-3 text-sm transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:bg-surface-hover ${focusRingInset}`,
 													active && "bg-selected font-semibold text-selected-foreground",
 												)}
 												item={item}

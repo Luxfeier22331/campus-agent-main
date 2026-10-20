@@ -4,6 +4,8 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
+	focusRing,
+	focusRingInset,
 	StateMessage,
 } from "@campus-agent/ui";
 import { useNavigate } from "@tanstack/react-router";
@@ -20,8 +22,7 @@ const MENU_PLACEMENTS = {
 	"top-start": { side: "top", align: "start" },
 } as const;
 
-const menuItemClass =
-	"min-h-11 gap-2 rounded-md px-3 focus:bg-surface-hover focus:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none";
+const menuItemClass = `min-h-11 gap-2 rounded-md px-3 focus:bg-surface-hover focus:text-foreground ${focusRingInset} motion-reduce:transition-none`;
 
 export function AuthenticatedAccountMenu({
 	className,
@@ -84,7 +85,7 @@ export function AuthenticatedAccountMenu({
 			<DropdownMenuTrigger
 				{...(presentation === "icon" ? { "aria-label": `账号：${userName}` } : {})}
 				className={cn(
-					"inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-lg)] text-foreground outline-none transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:pointer-events-none disabled:opacity-50",
+					`inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-lg)] text-foreground outline-none transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:bg-surface-hover ${focusRing} disabled:pointer-events-none disabled:opacity-50`,
 					presentation === "icon"
 						? "size-11 rounded-full"
 						: "w-full min-w-0 justify-start px-2 text-sm",

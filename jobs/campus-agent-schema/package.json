@@ -19,8 +19,8 @@
 		"pg": "^8.23.1"
 	},
 	"devDependencies": {
-		"@testcontainers/postgresql": "12.2.0",
-		"@types/node": "^24.19.1",
+		"@testcontainers/postgresql": "12.2.1",
+		"@types/node": "^24.19.2",
 		"@types/pg": "^8.23.1",
 		"esbuild": "^0.28.2",
 		"tsx": "^4.23.15",
