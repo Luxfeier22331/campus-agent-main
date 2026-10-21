@@ -17,7 +17,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
-import { type OcrImage, OcrImageSchema } from "../shared/ocr-contract";
+import { type OcrResourceWithNotice, OcrResourceWithNoticeSchema } from "../shared/ocr-contract";
 import type { OpsTask } from "../shared/tasks-contract";
 import { formatTimestamp } from "./format";
 import { OcrHistory, ocrStatusLabels } from "./ocr-history";
@@ -55,15 +55,18 @@ export function OcrPage() {
 		queryFn: async ({ signal }) => {
 			const data = (await fetchJson("/api/ops/ocr/tasks", { signal })) as {
 				tasks: OcrTask[];
-				images: OcrImage[];
+				images: OcrResourceWithNotice[];
 			};
-			return { ...data, images: data.images.map((image) => OcrImageSchema.parse(image)) };
+			return {
+				...data,
+				images: data.images.map((resource) => OcrResourceWithNoticeSchema.parse(resource)),
+			};
 		},
 		refetchInterval: (query) =>
 			query.state.data &&
 			[
 				...query.state.data.tasks,
-				...query.state.data.images.flatMap((image) => image.batches),
+				...query.state.data.images.flatMap((resource) => resource.batches),
 			].some((t) => !["completed", "failed"].includes(t.status))
 				? 5000
 				: false,
@@ -75,7 +78,7 @@ export function OcrPage() {
 				result.launchError
 					? `任务已保存，但启动失败：${result.launchError}。可点击“恢复”。`
 					: result.tasks?.length === 0
-						? "该通知没有可识别的正文图片。"
+						? "该通知没有可识别的正文图片或 PDF 附件。"
 						: "识别任务已提交。",
 			);
 			await Promise.all([
@@ -105,17 +108,20 @@ export function OcrPage() {
 		tasks.data?.tasks.filter(
 			(task) =>
 				task.input.kind !== "source" ||
-				task.input.resource?.kind === "attachment" ||
-				!(
-					task.input.contentType.startsWith("image/") ||
-					task.input.resource?.kind === "image" ||
-					task.input.key.includes("/images/")
-				),
+				(task.input.resource?.kind !== "attachment" &&
+					!(
+						task.input.contentType.startsWith("image/") ||
+						task.input.resource?.kind === "image" ||
+						task.input.key.includes("/images/")
+					)),
 		) ?? [];
 
 	return (
 		<section className="space-y-4">
-			<PageHeader title="文档识别" description="识别已采集通知中的正文图片，查看或恢复处理任务。" />
+			<PageHeader
+				title="文档识别"
+				description="识别已采集通知中的正文图片和 PDF 附件，查看或恢复处理任务。"
+			/>
 			<Card className="border-border shadow-none" aria-label="发起识别">
 				<CardContent className="p-4">
 					<form
@@ -138,7 +144,7 @@ export function OcrPage() {
 							</Field>
 						</div>
 						<Button disabled={create.isPending} type="submit">
-							{create.isPending ? "提交中…" : "识别正文图片"}
+							{create.isPending ? "提交中…" : "识别通知文档"}
 						</Button>
 						<Button type="button" variant="ghost" onClick={() => void tasks.refetch()}>
 							刷新
@@ -174,9 +180,9 @@ export function OcrPage() {
 					查看定时任务
 				</Link>
 			</div>
-			<h2 className="ui-section-title">正文图片 · 最近 100 组</h2>
+			<h2 className="ui-section-title">通知文档 · 最近 100 组</h2>
 			{tasks.data?.images.length === 0 ? (
-				<StateMessage description="暂无正文图片识别记录。" />
+				<StateMessage description="暂无图片或 PDF 附件识别记录。" />
 			) : null}
 			<ul className="grid gap-3">
 				{tasks.data?.images.map((resource) => {
@@ -276,7 +282,7 @@ export function OcrPage() {
 										{task.input.kind === "validation"
 											? "模型连接验证"
 											: task.input.kind === "source"
-												? `通知 ${task.input.noticeId} · 其他资源`
+												? `通知 ${task.input.noticeId} · ${task.input.resource?.kind === "attachment" ? "PDF 附件" : "其他资源"}`
 												: "本地上传文件"}
 										<div className="text-xs text-muted-foreground">
 											{formatTimestamp(task.createdAt)}

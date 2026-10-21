@@ -39,7 +39,14 @@ export async function connectProductContentCluster(
 			},
 			signal,
 		);
-		return { database: postgres.database, sourceStore, close };
+		// Exposed for the rclone batch copier, which talks to the same forwarded endpoint.
+		const sourceEndpoint = {
+			endpoint: `http://127.0.0.1:${forward.port}`,
+			bucket: "campus-agent-source",
+			accessKeyId: objects.OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY ?? "",
+			secretAccessKey: objects.OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY ?? "",
+		};
+		return { database: postgres.database, sourceStore, sourceEndpoint, close };
 	} catch (error) {
 		await close();
 		throw error;

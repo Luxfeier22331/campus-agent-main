@@ -3,20 +3,6 @@ import { NOTICE_CONTENT_ALIGNMENTS, NOTICE_CONTENT_ALLOWED_TAGS } from "campus-c
 export const ALLOWED_TAGS = new Set<string>(NOTICE_CONTENT_ALLOWED_TAGS);
 export const ALIGNMENTS = new Set<string>(NOTICE_CONTENT_ALIGNMENTS);
 
-export const BLOCK_TAGS = new Set([
-	"BLOCKQUOTE",
-	"H3",
-	"H4",
-	"H5",
-	"H6",
-	"LI",
-	"P",
-	"TABLE",
-	"TD",
-	"TH",
-	"TR",
-]);
-
 export const ALIGNABLE_TAGS = new Set(["BLOCKQUOTE", "H3", "H4", "H5", "H6", "P", "TD", "TH"]);
 export const INLINE_PRESENTATION_TAGS = new Set([
 	"A",

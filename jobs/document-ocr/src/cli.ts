@@ -26,7 +26,9 @@ export async function main() {
 			task: { type: "string" },
 			directory: { type: "string" },
 			manifest: { type: "string" },
+			concurrency: { type: "string" },
 			"dry-run": { type: "boolean", default: false },
+			"pdf-only": { type: "boolean", default: false },
 		},
 	});
 	const command = positionals[0] ?? "scan";
@@ -46,7 +48,17 @@ export async function main() {
 	) {
 		throw new Error("Unknown OCR command");
 	}
-	const pool = createNoticeDatabasePool(process.env, { max: 2 });
+	if (values["pdf-only"] && !["scan", "notice"].includes(command)) {
+		throw new Error("--pdf-only is supported only with scan or notice");
+	}
+	if (values.concurrency !== undefined && !["scan", "notice", "resume"].includes(command)) {
+		throw new Error("--concurrency is supported only with scan, notice or resume");
+	}
+	const concurrency = values.concurrency ? Number(values.concurrency) : 8;
+	if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 32) {
+		throw new Error("--concurrency must be an integer between 1 and 32");
+	}
+	const pool = createNoticeDatabasePool(process.env, { max: Math.max(2, concurrency + 1) });
 	const objects = createOcrObjects(process.env);
 	const modelUrl = process.env.MODEL_CONFIG_URL || "http://model-config:8000";
 	const controller = new AbortController();
@@ -165,21 +177,34 @@ export async function main() {
 			};
 			// Submitted work always precedes new submissions.
 			tasks.sort((a, b) => Number(a.status === "pending") - Number(b.status === "pending"));
-			for (const task of tasks) {
-				await run(task);
-			}
-			if (command === "scan" || command === "notice") {
+			// Provider jobs run async; a bounded worker pool overlaps submission,
+			// polling and result download across tasks instead of serializing them.
+			// Discovery fills the queue while workers drain it, so an empty initial
+			// queue (the notice command's usual case) still submits new tasks.
+			const queue = [...tasks];
+			const worker = async () => {
+				for (let task = queue.shift(); task; task = queue.shift()) {
+					await run(task);
+				}
+			};
+			const discover = async () => {
+				if (!(command === "scan" || command === "notice")) {
+					return;
+				}
 				const notice = command === "notice" ? required(values.notice, "--notice") : undefined;
-				for await (const input of selectNoticeInputs(pool, objects, notice)) {
+				for await (const input of selectNoticeInputs(pool, objects, notice, {
+					pdfOnly: values["pdf-only"],
+				})) {
 					if (newSubmissions >= 10 || controller.signal.aborted) {
 						break;
 					}
-					const task = await store.create(input, config);
-					if (task.status === "pending") {
-						await run(task);
+					const created = await store.create(input, config);
+					if (created.status === "pending") {
+						queue.push(created);
 					}
 				}
-			}
+			};
+			await Promise.all([discover(), ...Array.from({ length: concurrency }, worker)]);
 			return { newSubmissions };
 		});
 		if (outcome === null && ["migrate-pages", "cleanup-page-objects"].includes(command)) {

@@ -431,7 +431,9 @@ test("通知维护在不同宽度下保持队列、Inspector 和任务中心层�
 		(page.viewportSize()?.width ?? 0) < 1024
 			? page.getByRole("dialog", { name: "通知详情" })
 			: page.getByRole("complementary", { name: "通知检查器" });
-	await expect(inspector.getByText("没有可识别的正文图片。", { exact: true })).toBeVisible();
+	await expect(
+		inspector.getByText("没有可识别的正文图片或 PDF 附件。", { exact: true }),
+	).toBeVisible();
 	await inspector.getByRole("button", { name: "使用模型分类" }).click();
 	if ((page.viewportSize()?.width ?? 0) < 1024) {
 		await inspector.getByRole("button", { name: "关闭" }).first().click();

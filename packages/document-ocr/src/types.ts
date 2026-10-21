@@ -58,7 +58,7 @@ export interface OcrObjects {
 export interface OcrTaskStore {
 	get(id: string): Promise<OcrTask | null>;
 	list(limit?: number): Promise<OcrTask[]>;
-	listRecentImages(): Promise<OcrTask[]>;
+	listRecentResources(): Promise<OcrTask[]>;
 	listNotice(noticeId: string): Promise<OcrTask[]>;
 	create(input: OcrInput, config: OcrConfig, rerun?: boolean): Promise<OcrTask>;
 	save(task: OcrTask): Promise<void>;

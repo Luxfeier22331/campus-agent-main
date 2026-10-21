@@ -92,6 +92,8 @@ configs/sources/**
 !packages/internal-portal-client/**
 !packages/langfuse-identity/
 !packages/langfuse-identity/**
+!packages/text-normalization/
+!packages/text-normalization/**
 !packages/ui/
 !packages/ui/**
 !scripts/

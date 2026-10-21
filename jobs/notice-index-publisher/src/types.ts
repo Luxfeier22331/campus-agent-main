@@ -53,6 +53,7 @@ export interface BuiltNoticeChunk extends NoticeChunk {
 }
 
 export interface DetectedHeading {
+	anchor?: boolean;
 	level: 1 | 2;
 	lineIndex: number;
 	range: SourceRange;

@@ -161,7 +161,7 @@ test("OCR 当前结果、历史失败、调度与通知返回链一致", async (
 	await expect(page).toHaveURL(
 		(url) => JSON.parse(url.searchParams.get("q") ?? "null") === "354516",
 	);
-	await page.getByRole("link", { name: "返回正文图片识别" }).click();
+	await page.getByRole("link", { name: "返回文档识别" }).click();
 	await expect(page).toHaveURL(/\/ocr$/);
 	await expect(page.getByText("当前结果：可用 · 1 页")).toBeVisible();
 });

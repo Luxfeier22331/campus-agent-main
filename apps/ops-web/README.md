@@ -27,7 +27,7 @@
 - `/conversations/:conversationId`：从运行或反馈进入的会话只读详情，可定位消息并查看各轮运行；
 - `/chat-feedback`：当前回答反馈的紧凑列表和响应式详情，通过 App API 读取；数量忽略评价类型与分页、保留时间及请求条件；
 - `/providers`：在线模型配置；
-- `/ocr`：通知正文图片按来源聚合的当前结果、最新尝试和历史记录；支持连续结果阅读、页码跳转和通知维护跳转；Paddle 连接在模型配置页维护。
+- `/ocr`：通知正文图片与 PDF 附件按来源聚合的当前结果、最新尝试和历史记录；支持连续结果阅读、页码跳转和通知维护跳转；Paddle 连接在模型配置页维护。
 - `/internal-portal`：门户凭据与自动化 token；
 - `/email-access`、`/users`、`/users/:userId`、`/users/activity`：账号管理；
 - `/dining`：食堂内容维护；
@@ -40,7 +40,7 @@
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器 DTO 位于 `src/shared/`，HTTP 入口位于
 `src/server/app.ts`。
 
-通知 OCR 入口从通知领域读取来源资源引用，再选择正文图片创建 OCR 任务；通用 OCR 包不负责解析通知。
+通知 OCR 入口从通知领域读取来源资源引用，再选择正文图片与 PDF 附件创建 OCR 任务；通用 OCR 包不负责解析通知。
 Node 构建内联通知 workspace 源码，但外部加载生产依赖 `jsdom`，不将其文件资源读取逻辑打入 ESM bundle。
 镜像构建在独立 production deploy 目录检查所有服务端 JavaScript 的依赖边界，并实际加载和实例化 `jsdom`。
 

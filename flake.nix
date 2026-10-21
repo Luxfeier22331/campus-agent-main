@@ -93,6 +93,7 @@
           fullPackages = lightPackages ++ containerPackages ++ (with pkgs; [
             golangci-lint
             kubectl
+            pkgs.rclone
             tools.conftest
             tools.kustomize
           ]) ++ [ goToolchain ];

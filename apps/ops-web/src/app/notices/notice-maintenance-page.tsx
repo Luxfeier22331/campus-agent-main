@@ -90,7 +90,7 @@ export function NoticeMaintenancePage() {
 		<section className="min-w-0">
 			{search.from === "/ocr" ? (
 				<Link to="/ocr" className="mb-3 inline-flex min-h-11 items-center text-info underline">
-					返回正文图片识别
+					返回文档识别
 				</Link>
 			) : null}
 			<PageHeader

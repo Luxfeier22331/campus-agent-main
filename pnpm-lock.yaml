@@ -972,9 +972,15 @@ importers:
       '@campus-agent/notice-database':
         specifier: workspace:*
         version: link:../../packages/notice-database
+      '@campus-agent/text-normalization':
+        specifier: workspace:*
+        version: link:../../packages/text-normalization
       campus-contracts:
         specifier: workspace:*
         version: link:../../packages/contracts
+      jsdom:
+        specifier: ^30.1.1
+        version: 30.1.3(@noble/hashes@2.4.0)
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -982,6 +988,9 @@ importers:
       '@testcontainers/postgresql':
         specifier: 12.2.1
         version: 12.2.1(supports-color@10.2.2)
+      '@types/jsdom':
+        specifier: ^30.0.0
+        version: 30.0.0
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
@@ -1064,6 +1073,9 @@ importers:
       campus-docs-index-publisher:
         specifier: workspace:*
         version: link:../campus-docs-index-publisher
+      jsdom:
+        specifier: ^30.1.1
+        version: 30.1.3(@noble/hashes@2.4.0)
       notice-index-publisher:
         specifier: workspace:*
         version: link:../notice-index-publisher
@@ -1179,6 +1191,9 @@ importers:
 
   packages/domains/notices:
     dependencies:
+      '@campus-agent/text-normalization':
+        specifier: workspace:*
+        version: link:../../text-normalization
       campus-contracts:
         specifier: workspace:*
         version: link:../../contracts
@@ -1328,6 +1343,28 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/text-normalization:
+    dependencies:
+      campus-contracts:
+        specifier: workspace:*
+        version: link:../contracts
+      jsdom:
+        specifier: ^30.1.1
+        version: 30.1.3(@noble/hashes@2.4.0)
+    devDependencies:
+      '@types/jsdom':
+        specifier: ^30.0.0
+        version: 30.0.0
+      '@types/node':
+        specifier: ^24.19.1
+        version: 24.19.2
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/ui:

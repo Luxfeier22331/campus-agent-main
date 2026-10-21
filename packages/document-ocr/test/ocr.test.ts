@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { RateLimitError, ServiceUnavailableError } from "@paddleocr/api-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	createPaddleClient,
@@ -16,6 +17,7 @@ import {
 	parseResult,
 	persistResult,
 	runOcrTask,
+	throttledSubmission,
 	timeoutFetch,
 	validationDocument,
 } from "../src/index.ts";
@@ -66,7 +68,7 @@ function fixture() {
 		save: vi.fn(),
 		get: vi.fn(),
 		list: vi.fn(),
-		listRecentImages: vi.fn(),
+		listRecentResources: vi.fn(),
 		listNotice: vi.fn(),
 		create: vi.fn(),
 		runnable: vi.fn(),
@@ -84,7 +86,7 @@ function fixture() {
 			.mockResolvedValue({ state: "done", resultUrl: { jsonUrl: "https://result.example/out" } }),
 	} as unknown as ReturnType<typeof createPaddleClient>;
 	const download = vi.fn().mockResolvedValue(raw("CAMPUS OCR 12345"));
-	return { task, objects, store, config, client, download, pollMs: 1 };
+	return { task, objects, store, config, client, download, pollMs: 1, submissionIntervalMs: 1 };
 }
 function raw(text: string, images = {}) {
 	return new TextEncoder().encode(
@@ -306,5 +308,38 @@ describe("Paddle document parsing", () => {
 		);
 		expect(result.pages).toHaveLength(1);
 		expect(result.result.missingImages).toEqual(["a.jpg"]);
+	});
+	it("spaces concurrent submissions so worker concurrency does not burst", async () => {
+		const submitted: number[] = [];
+		const submit = () =>
+			throttledSubmission(async () => {
+				submitted.push(Date.now());
+				return { jobId: `job-${submitted.length}` };
+			}, 40);
+		await Promise.all([submit(), submit(), submit()]);
+		expect(submitted).toHaveLength(3);
+		const gaps = submitted.slice(1).map((time, index) => time - (submitted[index] ?? 0));
+		expect(gaps.every((gap) => gap >= 35)).toBe(true);
+	});
+	it("returns a rate-limited submission to pending instead of failing", async () => {
+		const f = fixture();
+		f.task.input = { kind: "source", noticeId: "1", key: "k", contentType: "application/pdf" };
+		vi.mocked(f.objects.getSource).mockResolvedValue(new TextEncoder().encode("%PDF-1.4 test"));
+		vi.mocked(f.client.submitDocumentParsing).mockRejectedValue(new RateLimitError("请求频率过高"));
+		await runOcrTask(f.task, f);
+		expect(f.task.status).toBe("pending");
+		expect(f.task.error).toBeNull();
+		expect(f.task.providerJobId).toBeNull();
+	});
+	it("still fails terminally on a non-rate-limit submission error", async () => {
+		const f = fixture();
+		f.task.input = { kind: "source", noticeId: "1", key: "k", contentType: "application/pdf" };
+		vi.mocked(f.objects.getSource).mockResolvedValue(new TextEncoder().encode("%PDF-1.4 test"));
+		vi.mocked(f.client.submitDocumentParsing).mockRejectedValue(
+			new ServiceUnavailableError(503, "later"),
+		);
+		await runOcrTask(f.task, f);
+		expect(f.task.status).toBe("failed");
+		expect(f.task.error).toMatch(/Service Unavailable|later/);
 	});
 });

@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { expect, it, vi } from "vitest";
 import { selectNoticeInputs } from "../src/sources.ts";
 
-it("selects only body images without requiring publication/classification", async () => {
+it("selects body images by default without requiring publication/classification", async () => {
 	const query = vi.fn().mockResolvedValue({
 		rows: [{ id: "123" }],
 	});
@@ -16,6 +16,13 @@ it("selects only body images without requiring publication/classification", asyn
 					notice_content_html:
 						'<p><img src="a.jpg"><img src="/static/index/UEditor/themes/default/images/spacer.gif"><img src="b.png"></p>',
 					attachments: [{ suffix: "xlsx" }, { suffix: ".PDF" }, { suffix: null }],
+					resources: [
+						{
+							kind: "attachments",
+							ordinal: 1,
+							object_key: "internal_portal/notices/123/attachments/1",
+						},
+					],
 				}),
 			),
 		),
@@ -43,9 +50,51 @@ it("selects only body images without requiring publication/classification", asyn
 			contentType: "image/*",
 			resource: { kind: "image", ordinal: 2, displayOrdinal: 1 },
 		},
+		{
+			kind: "source",
+			noticeId: "123",
+			key: "internal_portal/notices/123/attachments/1",
+			contentType: "application/pdf",
+			resource: { kind: "attachment", ordinal: 1, displayOrdinal: 0 },
+		},
 	]);
 	expect(objects.getSource).toHaveBeenCalledWith("internal_portal/notices/123.json");
 	expect(query).toHaveBeenCalledWith(expect.any(String), ["123"]);
+});
+
+it("selects only PDF attachments in the explicit PDF pilot mode", async () => {
+	const query = vi.fn().mockResolvedValue({ rows: [{ id: "123" }] });
+	const objects = {
+		getSource: vi.fn().mockResolvedValue(
+			Buffer.from(
+				JSON.stringify({
+					notice_id: 123,
+					is_external: false,
+					notice_content_html: '<img src="a.jpg">',
+					attachments: [{ suffix: "xlsx" }, { suffix: ".PDF" }],
+					resources: [
+						{ kind: "attachments", ordinal: 0, object_key: "xlsx-key" },
+						{ kind: "attachments", ordinal: 1, object_key: "pdf-key" },
+					],
+				}),
+			),
+		),
+	} as unknown as OcrObjects;
+	const inputs: OcrInput[] = [];
+	for await (const input of selectNoticeInputs({ query } as unknown as Pool, objects, "123", {
+		pdfOnly: true,
+	})) {
+		inputs.push(input);
+	}
+	expect(inputs).toEqual([
+		{
+			kind: "source",
+			noticeId: "123",
+			key: "pdf-key",
+			contentType: "application/pdf",
+			resource: { kind: "attachment", ordinal: 1, displayOrdinal: 0 },
+		},
+	]);
 });
 
 it("scans all internal notices, without a title restriction", async () => {

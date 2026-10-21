@@ -1,6 +1,6 @@
 # Document OCR Job
 
-站内通知正文图片的 OCR 消费者。本地和集群使用同一 TypeScript 实现与官方
+站内通知正文图片与 PDF 附件的 OCR 消费者。本地和集群使用同一 TypeScript 实现与官方
 `@paddleocr/api-sdk@0.2.3`，不需要 Python、离线 OCR 镜像或额外识别服务。
 
 ## 配置与本地运行
@@ -50,8 +50,8 @@ pnpm --filter document-ocr ocr cleanup-page-objects
 
 ## 自动扫描
 
-扫描所有已采集站内通知的正文图片，分类、发布和标题均不是前提；指定通知 ID 时只扫描该通知。
-图片选择复用采集器的规范化规则，跳过编辑器占位图；附件和外链通知不参与。
+扫描所有已采集站内通知的正文图片与 PDF 附件，分类、发布和标题均不是前提；指定通知 ID 时只扫描该通知。
+图片选择复用采集器的规范化规则，跳过编辑器占位图；`--pdf-only` 只扫描 PDF 附件，外链通知不参与。
 JPEG/PNG 原样提交，GIF 取首帧、BMP 解码后转静态 PNG，原始来源对象保持不变。
 任务按 source key 去重，展示序号单独保存，避免占位图清除后错配正文图片。
 
@@ -73,5 +73,4 @@ OCR 调度独立于通知流水线。索引源组装在每次构建时读取已�
 
 交付顺序：先应用统一 schema，再发布 Model Config、OCR 与 Ops 镜像，GitOps 选择真实 revision
 与镜像 digest；保持 OCR 暂停，配置密钥、验证连接、导入已有结果、验收 staging，再启用 schedule。
-供应商账户额度、输入限制与结果保留时间未确认前不启用自动扫描。当前实现不自动更新班车业务表，
-不在 production 启用调度。
+启用 schedule 的前置是连接验证通过且 staging 验收完成；不在 production 启用调度。

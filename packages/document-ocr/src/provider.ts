@@ -1,10 +1,14 @@
 import { PaddleOCRClient } from "@paddleocr/api-sdk";
 import type { OcrConfig, OcrTarget } from "./types.ts";
 
+// Match the SDK default requestTimeout: large PDF uploads need minutes, not
+// the 60s that sufficed when OCR inputs were single body images.
+const REQUEST_TIMEOUT_MS = 300_000;
+
 // The SDK clears its request timer after receiving headers. Keep our signal
 // alive through body consumption as well, using its supported fetch injection.
 export function timeoutFetch(
-	timeoutMs = 60_000,
+	timeoutMs = REQUEST_TIMEOUT_MS,
 	implementation: typeof fetch = fetch,
 ): typeof fetch {
 	return (input, init) =>
@@ -33,8 +37,8 @@ export function createPaddleClient(
 	return new PaddleOCRClient({
 		token: config.apiKey,
 		baseUrl: target.baseUrl,
-		requestTimeout: 60_000,
-		fetch: timeoutFetch(60_000, implementation),
+		requestTimeout: REQUEST_TIMEOUT_MS,
+		fetch: timeoutFetch(REQUEST_TIMEOUT_MS, implementation),
 	});
 }
 export async function downloadResource(url: string): Promise<Uint8Array> {

@@ -103,6 +103,54 @@ describe("notice semantic chunking", () => {
 		expect(() => assertValidNoticeChunks(build)).not.toThrow();
 	});
 
+	it("resets the heading path at outline-anchor lines in a compilation", () => {
+		const build = buildNoticeChunks(
+			source(
+				[
+					"《职业生涯规划与就业创业指导》教学大纲",
+					"一、课程性质",
+					"本课程为通识必修课。",
+					"二、教学目标",
+					"了解生涯规划基本方法。",
+					"《数据结构与算法》教学大纲",
+					"一、课程性质",
+					"本课程为专业核心课。",
+					"二、教学目标",
+					"掌握基础数据结构。",
+				].join("\n"),
+			),
+		);
+
+		expect(build.headings.map((heading) => heading.text)).toEqual([
+			"《职业生涯规划与就业创业指导》教学大纲",
+			"一、课程性质",
+			"二、教学目标",
+			"《数据结构与算法》教学大纲",
+			"一、课程性质",
+			"二、教学目标",
+		]);
+		expect(build.chunks.map((chunk) => chunk.headingPath)).toEqual([
+			["《职业生涯规划与就业创业指导》教学大纲", "一、课程性质"],
+			["《职业生涯规划与就业创业指导》教学大纲", "二、教学目标"],
+			["《数据结构与算法》教学大纲", "一、课程性质"],
+			["《数据结构与算法》教学大纲", "二、教学目标"],
+		]);
+		expect(() => assertValidNoticeChunks(build)).not.toThrow();
+	});
+
+	it("does not treat notice titles in 《》 without an outer keyword as anchors", () => {
+		const contentText = [
+			"《中央民族大学2026年专业技术岗位评聘工作方案》的通知",
+			"各单位：",
+			"现将方案印发，请遵照执行。",
+		].join("\n");
+		const build = buildNoticeChunks(source(contentText));
+
+		expect(build.headings).toEqual([]);
+		expect(build.chunks).toHaveLength(1);
+		expect(() => assertValidNoticeChunks(build)).not.toThrow();
+	});
+
 	it("recognizes a short punctuated section heading before structured items", () => {
 		const build = buildNoticeChunks(
 			source(

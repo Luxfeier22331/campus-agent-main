@@ -4,7 +4,7 @@ PaddleOCR 官方 TypeScript SDK 的文档解析适配和 OCR 任务存储。
 任务消费者是 `jobs/document-ocr` 与 Ops Web，通知索引源适配读取已有页面文本；不提取班车业务实体，不写入班次表。
 
 本包不依赖通知领域，也不解析通知 HTML。通知领域的 `listNoticeSourceResources()` 提供来源资源引用，
-Ops Web 和 OCR Job 各自选择正文图片并映射为 `OcrInput`，再交给本包管理任务和识别结果。
+Ops Web 和 OCR Job 各自选择正文图片与 PDF 附件并映射为 `OcrInput`，再交给本包管理任务和识别结果。
 输入 JSON 中的 `noticeId` 用于任务展示及通知索引源读取；OCR 执行只按对象 key 读取字节。
 
 - Provider 固定为 `paddleocr`，协议 `paddleocr.jobs`，模型 `PaddleOCR-VL-1.6`。

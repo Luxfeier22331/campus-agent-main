@@ -35,15 +35,17 @@ Ops Web 提供通知摘要、已采集正文预览、分类维护和一次性维
 正文内显示图片和附件数量；维护页的「正文图片」数量不代表已有识别结果，也不触发提前读取 OCR。
 图片失败时可单独重试，重试不重新请求正文或其他资源。移动端保留顶部关闭入口，关闭后返回通知队列焦点。
 
-### 正文图片 OCR
+### 通知图片与 PDF 附件 OCR
 
-- `GET /api/ops/ocr/notices/:noticeId` 只返回正文图片，`ordinal` 为来源序号，`displayOrdinal` 为展示序号。
-  每张图片包含识别批次、最新状态、错误及可读结果引用；原图使用现有图片预览接口。
-- `POST /api/ops/ocr/tasks` 接受 `{ noticeId: string, imageOrdinal?: number }`；提供展示序号时只识别该图，
-  省略时识别该通知所有正文图片。附件不生成任务，外链通知返回空任务列表。
+- `GET /api/ops/ocr/notices/:noticeId` 返回正文图片与 PDF 附件两类资源，`kind` 为 `image` 或
+  `attachment`，`ordinal` 为来源序号，`displayOrdinal` 为同类资源内的展示序号。每个资源包含识别批次、
+  最新状态、错误及可读结果引用；图片原图使用现有预览接口，附件以 PDF 资源展示。
+- `POST /api/ops/ocr/tasks` 接受 `{ noticeId: string, resourceKind?: "image" | "attachment", resourceOrdinal?: number }`；
+  `resourceKind` 默认 `image`，旧字段 `imageOrdinal` 等价于 `image` 的 `resourceOrdinal`。提供展示序号时
+  只识别该资源，省略时识别该通知该类别的全部资源；附件仅接受 PDF，其他后缀不生成任务。外链通知返回空任务列表。
 - `POST /api/ops/ocr/tasks/:id/rerun` 新建识别批次，`resume` 恢复已有任务；沿用原任务状态约束。
-- `GET /api/ops/ocr/tasks/:id/result` 读取 OCR 文本和表格。通知维护页逐图展示原图、状态，支持识别、
-  恢复、重识别及查看结果；只有维护页处于活动状态且存在未完成任务时轮询。
+- `GET /api/ops/ocr/tasks/:id/result` 读取 OCR 文本和表格。通知维护页逐资源展示原图或 PDF 占位、状态，
+  支持识别、恢复、重识别及查看结果；只有维护页处于活动状态且存在未完成任务时轮询。
 
 OCR 文本只在 Ops 页面显示，不写入公开通知正文。Embedding 读取当时已有文本，识别失败或未完成不阻断它。
 
@@ -97,7 +99,7 @@ OCR 文本只在 Ops 页面显示，不写入公开通知正文。Embedding 读�
 展示列表。历史保留期由 Temporal namespace 管理。`notice-rescan` 接受 `{ from, to }` 半开区间，
 复用采集实现和数据库锁；补查已有维护范围，并刷新已有通知详情以发现来源变化，不推进维护边界。
 页面日期结束值包含当天，提交时转换成次日排他上界。分类与发布的自动执行由 `notice-pipeline` 统一
-编排；正文图片 OCR 使用独立的 `document-ocr` 定时任务，不进入通知流水线的等待条件。
+编排；通知图片与 PDF 附件 OCR 使用独立的 `document-ocr` 定时任务，不进入通知流水线的等待条件。
 
 `local/development` 使用相同接口和任务状态启动当前 worktree 的固定采集、分类或发布 CLI
 （采集使用其本地 adapter 入口加载自身环境）；本地任务只保存在 Ops Web 进程内，服务重启后消失。

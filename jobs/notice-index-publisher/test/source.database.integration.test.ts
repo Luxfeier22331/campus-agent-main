@@ -40,7 +40,7 @@ describe("published notice database source", () => {
 			);
             CREATE TABLE notices.notice_assets(
                 notice_id bigint REFERENCES notices.notices(notice_id), asset_kind text NOT NULL,
-                ordinal integer NOT NULL, content_sha256 text NOT NULL,
+                ordinal integer NOT NULL, content_sha256 text NOT NULL, content_type text NOT NULL,
                 PRIMARY KEY(notice_id, asset_kind, ordinal)
             );
             CREATE SCHEMA ocr;
@@ -68,7 +68,8 @@ describe("published notice database source", () => {
  });
 
  async function asset(notice: string, ordinal: number, digest: string, kind = "image") {
-  await pool.query("INSERT INTO notices.notice_assets VALUES ($1,$2,$3,$4)",[notice,kind,ordinal,digest]);
+  const contentType = kind === "attachment" ? "application/pdf" : "image/jpeg";
+  await pool.query("INSERT INTO notices.notice_assets VALUES ($1,$2,$3,$4,$5)",[notice,kind,ordinal,digest,contentType]);
  }
  async function ocr(input: Record<string, unknown>, digest: string | null, text: string, date = "2026-09-01", status = "completed") {
   const id = randomUUID();
@@ -168,6 +169,18 @@ describe("published notice database source", () => {
   await pool.query("INSERT INTO ocr.pages VALUES ($1,1,'B page 2')",[task]);
   await ocr(hashedInput("1",b,2),b,"未完成","2026-09-03","pending");
   expect((await loadPublishedNoticeSources(pool))[0]?.contentText).toBe("可消费正文\n\nB page 1\n\nB page 2\n\nA\n\nB page 1\n\nB page 2");
+ });
+
+ it("consumes completed PDF attachment OCR text after image text in attachment/page order", async () => {
+  const digest="d".repeat(64);
+  await asset("1",0,digest,"attachment");
+  await asset("1",1,"e".repeat(64),"attachment");
+  const attachmentInput=(ordinal: number, sha: string)=>({kind:"source",noticeId:"1",key:`internal_portal/resources/sha256/${sha}`,resource:{kind:"attachment",ordinal,displayOrdinal:ordinal}});
+  await ocr(attachmentInput(0,digest),digest,"<table><tr><td>附件A页</td><td>表格列</td></tr></table>","2026-09-01");
+  const later = await ocr(attachmentInput(1,"e".repeat(64)),"e".repeat(64),"附件B第一页","2026-09-02");
+  await pool.query("INSERT INTO ocr.pages VALUES ($1,1,'附件B第二页')",[later]);
+  await ocr(attachmentInput(0,digest),digest,"未完成","2026-09-03","pending");
+  expect((await loadPublishedNoticeSources(pool))[0]?.contentText).toBe("可消费正文\n\n附件A页；表格列\n\n附件B第一页\n\n附件B第二页");
  });
 
  it("accepts matching legacy image bytes but rejects mismatched or unknown OCR bytes", async () => {

@@ -109,7 +109,7 @@ pnpm dev:local -- data sync --domain retrieval --context <context>
 pnpm dev:doctor -- --scope data --domain notices --domain docs
 ```
 
-通知日期范围和 `--with-sources` 仅用于选择了 `notices` 的同步；`--with-sources` 复制正文和其图片/附件对象闭包，不带该参数只同步关系数据。日期范围用于 upsert，不与 `--replace` 组合。`data sync --domain notices` 保留本地额外通知并按既有 upsert 路径报告额外记录。`dev:sync-notices` 保留为同一通知同步 owner 的快捷入口。
+通知日期范围和 `--with-sources` 仅用于选择了 `notices` 的同步；`--with-sources` 复制正文和其图片/附件对象闭包，不带该参数只同步关系数据。对象闭包中的二进制对象（图片、附件）由 rclone 批量复制（并发、逐对象重试、已存在对象跳过，中断后重跑即续传）；JSON 元数据对象仍经读取校验路径。rclone 来自 `nix develop` 的 full shell，缺失时同步会明确报错。日期范围用于 upsert，不与 `--replace` 组合。`data sync --domain notices` 保留本地额外通知并按既有 upsert 路径报告额外记录。`dev:sync-notices` 保留为同一通知同步 owner 的快捷入口。
 
 需要自行验证通知分块和 Embedding 时，使用仅通知源数据同步入口：
 

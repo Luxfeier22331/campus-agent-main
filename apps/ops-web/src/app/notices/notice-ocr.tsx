@@ -54,7 +54,8 @@ export function NoticeOcrSection({
 						: {
 								body: JSON.stringify({
 									noticeId: String(noticeId),
-									imageOrdinal: resource.displayOrdinal,
+									resourceKind: resource.kind,
+									resourceOrdinal: resource.displayOrdinal,
 								}),
 							}),
 				},
@@ -75,7 +76,11 @@ export function NoticeOcrSection({
 				识别结果
 			</h3>
 			{query.data && query.data.resources.length > 0 ? (
-				<p className="text-xs text-muted-foreground">正文图片 {query.data.resources.length} 张</p>
+				<p className="text-xs text-muted-foreground">
+					正文图片 {query.data.resources.filter((resource) => resource.kind === "image").length}{" "}
+					张，PDF 附件{" "}
+					{query.data.resources.filter((resource) => resource.kind === "attachment").length} 个
+				</p>
 			) : null}
 			{query.isPending ? (
 				<StateMessage layout="inline" role="status" description={<>正在读取识别结果…</>} />
@@ -88,7 +93,7 @@ export function NoticeOcrSection({
 				/>
 			) : null}
 			{query.data?.resources.length === 0 ? (
-				<StateMessage description={<>没有可识别的正文图片。</>} />
+				<StateMessage description={<>没有可识别的正文图片或 PDF 附件。</>} />
 			) : null}
 			{identify.isError ? <ErrorState error={identify.error} title="识别任务提交失败" /> : null}
 			{identify.data?.launchError ? (
@@ -104,18 +109,24 @@ export function NoticeOcrSection({
 					const latest = resource.batches[0];
 					return (
 						<li key={resource.sourceKey} className="flex min-w-0 flex-wrap items-center gap-3 py-3">
-							<a
-								href={`/api/ops/notices/${noticeId}/images/${resource.displayOrdinal}`}
-								target="_blank"
-								rel="noreferrer"
-							>
-								<img
-									className="h-20 w-24 rounded object-contain"
-									loading="lazy"
-									src={`/api/ops/notices/${noticeId}/images/${resource.displayOrdinal}`}
-									alt={`${resource.label}原图`}
-								/>
-							</a>
+							{resource.kind === "image" ? (
+								<a
+									href={`/api/ops/notices/${noticeId}/images/${resource.displayOrdinal}`}
+									target="_blank"
+									rel="noreferrer"
+								>
+									<img
+										className="h-20 w-24 rounded object-contain"
+										loading="lazy"
+										src={`/api/ops/notices/${noticeId}/images/${resource.displayOrdinal}`}
+										alt={`${resource.label}原图`}
+									/>
+								</a>
+							) : (
+								<div className="flex h-20 w-24 items-center justify-center rounded border text-xs text-muted-foreground">
+									PDF
+								</div>
+							)}
 							<div className="min-w-0 flex-1 basis-40">
 								<p className="break-words text-sm">{resource.label}</p>
 								<p className="text-xs text-muted-foreground">
@@ -136,7 +147,9 @@ export function NoticeOcrSection({
 									? ["completed", "failed"].includes(latest.status)
 										? "重新识别"
 										: "恢复识别"
-									: "识别图片"}
+									: resource.kind === "attachment"
+										? "识别 PDF"
+										: "识别图片"}
 							</Button>
 							{latest?.error ? (
 								<p className="w-full break-words text-sm text-destructive">{latest.error}</p>

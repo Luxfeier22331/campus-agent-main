@@ -3,7 +3,12 @@ import { listNoticeSourceResources } from "@campus-agent/notices";
 import type { Pool } from "pg";
 import portal from "../../../configs/sources/internal-portal.json" with { type: "json" };
 
-export async function* selectNoticeInputs(pool: Pool, objects: OcrObjects, noticeId?: string) {
+export async function* selectNoticeInputs(
+	pool: Pool,
+	objects: OcrObjects,
+	noticeId?: string,
+	options: { pdfOnly?: boolean } = {},
+) {
 	if (noticeId !== undefined && !/^[1-9]\d*$/.test(noticeId)) {
 		throw new Error("noticeId must be a positive integer");
 	}
@@ -23,14 +28,23 @@ export async function* selectNoticeInputs(pool: Pool, objects: OcrObjects, notic
 			row.id,
 			source,
 			new URL(portal.portal_base_url).hostname,
-		).filter((resource) => resource.kind === "image");
-		for (const [displayOrdinal, resource] of resources.entries()) {
+		).filter((resource) =>
+			options.pdfOnly
+				? resource.kind === "attachment" &&
+					resource.suffix?.replace(/^\./, "").toLowerCase() === "pdf"
+				: resource.kind === "image" || resource.suffix?.replace(/^\./, "").toLowerCase() === "pdf",
+		);
+		let imageDisplayOrdinal = 0;
+		let attachmentDisplayOrdinal = 0;
+		for (const resource of resources) {
+			const displayOrdinal =
+				resource.kind === "image" ? imageDisplayOrdinal++ : attachmentDisplayOrdinal++;
 			yield {
 				kind: "source",
 				noticeId: resource.noticeId,
 				key: resource.sourceKey,
-				contentType: "image/*",
-				resource: { kind: "image", ordinal: resource.ordinal, displayOrdinal },
+				contentType: resource.kind === "attachment" ? "application/pdf" : "image/*",
+				resource: { kind: resource.kind, ordinal: resource.ordinal, displayOrdinal },
 			} satisfies OcrInput;
 		}
 	}

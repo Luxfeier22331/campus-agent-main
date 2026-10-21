@@ -189,7 +189,7 @@ it("identifies a single body image, refreshes status, and allows rerunning a fai
 		"/api/ops/ocr/tasks",
 		expect.objectContaining({
 			method: "POST",
-			body: JSON.stringify({ noticeId: "1", imageOrdinal: 0 }),
+			body: JSON.stringify({ noticeId: "1", resourceKind: "image", resourceOrdinal: 0 }),
 		}),
 	);
 	expect(screen.getByRole("img", { name: "班次表原图" })).toHaveAttribute(
@@ -203,6 +203,49 @@ it("identifies a single body image, refreshes status, and allows rerunning a fai
 			expect.objectContaining({ method: "POST" }),
 		),
 	);
+	unmount();
+	client.clear();
+});
+
+it("shows PDF attachment OCR history and opens its page result", async () => {
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	const attachmentBatch = {
+		id: "10000000-0000-4000-8000-000000000010",
+		status: "completed" as const,
+		createdAt: "2026-09-12T00:00:00.000Z",
+		pageCount: 3,
+		missingImageCount: 0,
+		error: null,
+		hasResult: true,
+	};
+	const fetcher = vi.fn(async (url: string) =>
+		url.includes("/result")
+			? Response.json({ pages: [{ index: 0, markdown: "第一页内容" }], missingImages: [] })
+			: Response.json({
+					noticeId: "1",
+					resources: [
+						{
+							sourceKey: "pdf-0",
+							kind: "attachment",
+							ordinal: 0,
+							displayOrdinal: 0,
+							label: "PDF附件1",
+							selectedResultId: attachmentBatch.id,
+							batches: [attachmentBatch],
+						},
+					],
+				}),
+	);
+	vi.stubGlobal("fetch", fetcher);
+	const { unmount } = render(
+		<QueryClientProvider client={client}>
+			<NoticeOcrSection noticeId={1} />
+		</QueryClientProvider>,
+	);
+	expect(await screen.findByText("PDF附件1")).toBeInTheDocument();
+	expect(screen.queryByRole("button", { name: "识别 PDF" })).not.toBeInTheDocument();
+	fireEvent.click(screen.getByRole("button", { name: "查看结果" }));
+	expect(await screen.findByText("第一页内容")).toBeInTheDocument();
 	unmount();
 	client.clear();
 });

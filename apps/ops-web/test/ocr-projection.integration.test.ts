@@ -47,7 +47,7 @@ it("groups before limiting tasks and preserves older successful results per noti
 	const other = await store.create({ ...input, noticeId: "2" }, config);
 	ids.push(other.id);
 	expect((await store.list()).map((task) => task.id)).not.toContain(success.id);
-	const images = await store.listRecentImages();
+	const images = await store.listRecentResources();
 	expect(images.map((task) => task.id)).toContain(success.id);
 	const first = images.filter(
 		(task) => task.input.kind === "source" && task.input.noticeId === "1",

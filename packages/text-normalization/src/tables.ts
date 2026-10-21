@@ -1,6 +1,6 @@
 import { NOTICE_CONTENT_MAX_CELL_SPAN } from "campus-contracts/notices";
 
-interface LogicalNoticeTableCell {
+interface LogicalTableCell {
 	columnSpan: number;
 	id: number;
 	originRow: number;
@@ -8,17 +8,17 @@ interface LogicalNoticeTableCell {
 	text: string;
 }
 
-interface NoticeTableValue {
+interface TableValue {
 	columns: number[];
 	text: string;
 }
 
-type NoticeTableTextDeriver = (root: Element, NodeCtor: typeof Node) => string;
+type TableTextDeriver = (root: Element, NodeCtor: typeof Node) => string;
 
-export function serializeLogicalNoticeTable(
+export function serializeLogicalTable(
 	table: Element,
 	NodeCtor: typeof Node,
-	deriveText: NoticeTableTextDeriver,
+	deriveText: TableTextDeriver,
 ): string {
 	const rows = tableRows(table);
 	if (rows.length === 0) {
@@ -27,30 +27,33 @@ export function serializeLogicalNoticeTable(
 	const physicalRows = rows.map((row) =>
 		tableCells(row).map((cell) => ({
 			cell,
-			text: normalizeNoticeTableCellText(deriveText(cell, NodeCtor)),
+			text: normalizeTableCellText(deriveText(cell, NodeCtor)),
 		})),
 	);
-	const grid = buildNoticeTableGrid(physicalRows);
+	const grid = buildTableGrid(physicalRows);
 	if (!grid) {
-		return serializePhysicalNoticeRows(physicalRows);
+		return serializePhysicalRows(physicalRows);
 	}
 	const headerCount = explicitTableHeaderCount(rows, table);
 	if (headerCount === 0) {
-		return serializePositionedNoticeRows(grid);
+		return serializePositionedRows(grid);
 	}
-	const columnPaths = noticeTableColumnPaths(grid, headerCount);
+	const columnPaths = tableColumnPaths(grid, headerCount);
 	return grid
 		.slice(headerCount)
-		.map((row) => serializeNoticeTableRow(row, columnPaths))
+		.map((row) => serializeTableRow(row, columnPaths))
 		.filter(Boolean)
 		.join("\n");
 }
 
-function normalizeNoticeTableCellText(value: string): string {
-	return value.replace(/[\t\n\r\f\v\u00a0\u3000 ]+/gu, " ").trim();
+function normalizeTableCellText(value: string): string {
+	return value
+		.replace(/\\n/gu, " ")
+		.replace(/[\t\n\r\f\v\u00a0\u3000 ]+/gu, " ")
+		.trim();
 }
 
-function serializePhysicalNoticeRows(
+function serializePhysicalRows(
 	rows: readonly (readonly { cell: Element; text: string }[])[],
 ): string {
 	return rows
@@ -73,18 +76,18 @@ function explicitTableHeaderCount(rows: readonly Element[], table: Element): num
 	return count;
 }
 
-function serializePositionedNoticeRows(
-	grid: readonly (readonly (LogicalNoticeTableCell | undefined)[])[],
+function serializePositionedRows(
+	grid: readonly (readonly (LogicalTableCell | undefined)[])[],
 ): string {
 	let section: string | null = null;
 	const lines: string[] = [];
 	for (const [rowIndex, row] of grid.entries()) {
-		const sectionCell = noticeTableSectionCell(row, rowIndex, grid[0]?.length ?? 0);
+		const sectionCell = tableSectionCell(row, rowIndex, grid[0]?.length ?? 0);
 		if (sectionCell) {
 			section = sectionCell.text;
 			continue;
 		}
-		const values = uniqueNoticeTableCells(row)
+		const values = uniqueTableCells(row)
 			.map((cell) => cell.text)
 			.filter(Boolean);
 		if (values.length === 0) {
@@ -118,10 +121,10 @@ function tableCells(row: Element): Element[] {
 	return [...row.children].filter((cell) => cell.tagName === "TD" || cell.tagName === "TH");
 }
 
-function buildNoticeTableGrid(
+function buildTableGrid(
 	rows: readonly (readonly { cell: Element; text: string }[])[],
-): Array<Array<LogicalNoticeTableCell | undefined>> | null {
-	const grid: Array<Array<LogicalNoticeTableCell | undefined>> = [];
+): Array<Array<LogicalTableCell | undefined>> | null {
+	const grid: Array<Array<LogicalTableCell | undefined>> = [];
 	let cellId = 0;
 	for (const [rowIndex, row] of rows.entries()) {
 		grid[rowIndex] ??= [];
@@ -130,9 +133,9 @@ function buildNoticeTableGrid(
 			while (grid[rowIndex]?.[columnIndex] !== undefined) {
 				columnIndex += 1;
 			}
-			const rowSpan = noticeCellSpan(item.cell.getAttribute("rowspan"));
-			const columnSpan = noticeCellSpan(item.cell.getAttribute("colspan"));
-			const logicalCell: LogicalNoticeTableCell = {
+			const rowSpan = cellSpan(item.cell.getAttribute("rowspan"));
+			const columnSpan = cellSpan(item.cell.getAttribute("colspan"));
+			const logicalCell: LogicalTableCell = {
 				columnSpan,
 				id: cellId,
 				originRow: rowIndex,
@@ -148,8 +151,7 @@ function buildNoticeTableGrid(
 					if (grid[targetRow]?.[targetColumn] !== undefined) {
 						return null;
 					}
-					(grid[targetRow] as Array<LogicalNoticeTableCell | undefined>)[targetColumn] =
-						logicalCell;
+					(grid[targetRow] as Array<LogicalTableCell | undefined>)[targetColumn] = logicalCell;
 				}
 			}
 			columnIndex += columnSpan;
@@ -159,7 +161,7 @@ function buildNoticeTableGrid(
 	return grid.map((row) => Array.from({ length: width }, (_, index) => row[index]));
 }
 
-function noticeCellSpan(value: string | null): number {
+function cellSpan(value: string | null): number {
 	if (!(value && /^[0-9]+$/u.test(value))) {
 		return 1;
 	}
@@ -167,12 +169,12 @@ function noticeCellSpan(value: string | null): number {
 	return span >= 1 && span <= NOTICE_CONTENT_MAX_CELL_SPAN ? span : 1;
 }
 
-function noticeTableSectionCell(
-	row: readonly (LogicalNoticeTableCell | undefined)[],
+function tableSectionCell(
+	row: readonly (LogicalTableCell | undefined)[],
 	rowIndex: number,
 	width: number,
-): LogicalNoticeTableCell | null {
-	const cells = uniqueNoticeTableCells(row);
+): LogicalTableCell | null {
+	const cells = uniqueTableCells(row);
 	const cell = cells[0];
 	return cell &&
 		width > 1 &&
@@ -184,10 +186,8 @@ function noticeTableSectionCell(
 		: null;
 }
 
-function uniqueNoticeTableCells(
-	row: readonly (LogicalNoticeTableCell | undefined)[],
-): LogicalNoticeTableCell[] {
-	const cells: LogicalNoticeTableCell[] = [];
+function uniqueTableCells(row: readonly (LogicalTableCell | undefined)[]): LogicalTableCell[] {
+	const cells: LogicalTableCell[] = [];
 	const seen = new Set<number>();
 	for (const cell of row) {
 		if (!cell || seen.has(cell.id)) {
@@ -199,8 +199,8 @@ function uniqueNoticeTableCells(
 	return cells;
 }
 
-function noticeTableColumnPaths(
-	rows: readonly (readonly (LogicalNoticeTableCell | undefined)[])[],
+function tableColumnPaths(
+	rows: readonly (readonly (LogicalTableCell | undefined)[])[],
 	headerCount: number,
 ): string[][] {
 	const width = rows[0]?.length ?? 0;
@@ -214,11 +214,11 @@ function noticeTableColumnPaths(
 	]);
 }
 
-function serializeNoticeTableRow(
-	row: readonly (LogicalNoticeTableCell | undefined)[],
+function serializeTableRow(
+	row: readonly (LogicalTableCell | undefined)[],
 	columnPaths: readonly (readonly string[])[],
 ): string {
-	const values: NoticeTableValue[] = [];
+	const values: TableValue[] = [];
 	const emitted = new Set<number>();
 	for (const cell of row) {
 		if (!cell || emitted.has(cell.id)) {
@@ -229,13 +229,13 @@ function serializeNoticeTableRow(
 			continue;
 		}
 		const columns = row.flatMap((candidate, index) => (candidate?.id === cell.id ? [index] : []));
-		const label = compactNoticeTableLabel(columns, columnPaths);
+		const label = compactTableLabel(columns, columnPaths);
 		values.push({ columns, text: label ? `${label}：${cell.text}` : cell.text });
 	}
 	return values.map((value) => value.text).join("；");
 }
 
-function compactNoticeTableLabel(
+function compactTableLabel(
 	columns: readonly number[],
 	columnPaths: readonly (readonly string[])[],
 ): string {

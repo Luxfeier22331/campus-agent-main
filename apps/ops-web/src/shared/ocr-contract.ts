@@ -15,7 +15,7 @@ export const OcrBatchSchema = z
 export const OcrResourceSchema = z
 	.object({
 		sourceKey: z.string(),
-		kind: z.literal("image"),
+		kind: z.enum(["image", "attachment"]),
 		ordinal: z.number().int().nonnegative(),
 		displayOrdinal: z.number().int().nonnegative(),
 		label: z.string(),
@@ -26,9 +26,11 @@ export const OcrResourceSchema = z
 export const NoticeOcrSchema = z
 	.object({ noticeId: z.string(), resources: z.array(OcrResourceSchema) })
 	.strict();
-export const OcrImageSchema = OcrResourceSchema.extend({ noticeId: z.string() });
-export type OcrImage = z.infer<typeof OcrImageSchema>;
 export type OcrResource = z.infer<typeof OcrResourceSchema>;
+export const OcrResourceWithNoticeSchema = OcrResourceSchema.extend({ noticeId: z.string() });
+export type OcrResourceWithNotice = z.infer<typeof OcrResourceWithNoticeSchema>;
+export const OcrImageSchema = OcrResourceWithNoticeSchema;
+export type OcrImage = OcrResourceWithNotice;
 export const OcrReadingSchema = z
 	.object({
 		pages: z.array(

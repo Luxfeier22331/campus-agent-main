@@ -73,12 +73,23 @@ export async function syncNotices(
 						...localProductStoreEnv(repoRoot, profile),
 						OBJECT_STORE_BUCKET_DERIVED: profile.sourceBucketName,
 					});
+					const localEnv = localProductStoreEnv(repoRoot, profile);
 					const copied = await copyNoticeSourceClosure({
 						rows,
 						read: (key) => sourceRemote.sourceStore.read(key),
 						write: async (key, body, contentType) => {
 							controller.signal.throwIfAborted();
 							await target.writeBytesObject({ key, body, contentType });
+						},
+						batchCopy: {
+							source: sourceRemote.sourceEndpoint,
+							target: {
+								endpoint: localEnv.OBJECT_STORE_ENDPOINT,
+								bucket: profile.sourceBucketName,
+								accessKeyId: localEnv.OBJECT_STORE_DERIVED_ACCESS_KEY,
+								secretAccessKey: localEnv.OBJECT_STORE_DERIVED_SECRET_KEY,
+							},
+							readLocal: (key) => target.readOptionalBytesObject({ key }),
 						},
 					});
 					console.log(JSON.stringify({ event: "copied_notice_sources", ...copied }));

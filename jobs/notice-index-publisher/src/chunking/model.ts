@@ -1,6 +1,12 @@
 import { unicodeLength } from "../encoding.ts";
 import type { ChunkPart, SourceRange } from "../types.ts";
 
+// 《…》大纲类行是目录合集（如选课手册）中每份大纲的边界锚点；识别它让
+// headingPath 在大纲切换处重置，避免上一份大纲的章节标题漂移到后续 chunk。
+// 关键词必须在《》外：裸书名号行（如《…评聘工作方案》）与通知标题不可区分，不识别。
+export const OUTLINE_ANCHOR_HEADING =
+	/^《[^》]{2,60}》(?:教学大纲|课程大纲|培养方案|实施办法|实施细则|竞赛章程)$/u;
+
 export const PRIMARY_HEADING =
 	/^(?:[一二三四五六七八九十百]+\s*[、.．]|第[一二三四五六七八九十百0-9]+(?:章|节|部分))\s*\S.*$/u;
 

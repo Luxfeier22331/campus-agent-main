@@ -3,10 +3,31 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { RateLimitError } from "@paddleocr/api-sdk";
 import { normalizeImageInput } from "./image-input.ts";
 import { createPaddleClient, downloadResource } from "./provider.ts";
 import { OcrResultError, persistResult } from "./results.ts";
 import type { OcrConfig, OcrObjects, OcrPage, OcrTask, OcrTaskStore } from "./types.ts";
+
+// Provider submissions reject bursts (observed: 6 same-second submissions
+// returned 429 while 5 or fewer passed). Serialize submissions with a minimum
+// spacing so worker concurrency does not translate into submission bursts.
+const SUBMISSION_INTERVAL_MS = 2_000;
+let submissionChain: Promise<unknown> = Promise.resolve();
+export async function throttledSubmission<T>(
+	submit: () => Promise<T>,
+	intervalMs = SUBMISSION_INTERVAL_MS,
+): Promise<T> {
+	const run = submissionChain.then(async () => {
+		await sleep(intervalMs);
+		return await submit();
+	});
+	submissionChain = run.then(
+		() => undefined,
+		() => undefined,
+	);
+	return run;
+}
 
 export interface RunOcrOptions {
 	store: OcrTaskStore;
@@ -15,6 +36,7 @@ export interface RunOcrOptions {
 	signal?: AbortSignal;
 	waitMs?: number;
 	pollMs?: number;
+	submissionIntervalMs?: number;
 	client?: ReturnType<typeof createPaddleClient>;
 	download?: (url: string) => Promise<Uint8Array>;
 	reportValidation?: (updatedAt: string, passed: boolean, message: string) => Promise<void>;
@@ -122,9 +144,13 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 				await writeFile(path, bytes);
 				task.status = "submitting";
 				await store.save(task);
-				const submitted = await client.submitDocumentParsing(
-					{ filePath: path, model: task.target.model, options: task.target.options },
-					{ signal },
+				const submitted = await throttledSubmission(
+					() =>
+						client.submitDocumentParsing(
+							{ filePath: path, model: task.target.model, options: task.target.options },
+							{ signal },
+						),
+					options.submissionIntervalMs,
 				);
 				task.providerJobId = submitted.jobId;
 				task.status = "submitted";
@@ -152,6 +178,14 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 			await sleep(options.pollMs ?? 5_000, undefined, { signal });
 		}
 	} catch (error) {
+		// A rate-limited submission was rejected before upload; the task never
+		// reached the provider and can safely return to pending for the next run.
+		if (error instanceof RateLimitError && !task.providerJobId && task.status === "submitting") {
+			task.status = "pending";
+			task.error = null;
+			await store.save(task);
+			return task;
+		}
 		task.error = error instanceof Error ? error.message : String(error);
 		const terminal = !task.providerJobId || error instanceof OcrResultError;
 		if (terminal) {

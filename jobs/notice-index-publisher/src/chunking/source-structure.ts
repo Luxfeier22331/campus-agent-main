@@ -28,10 +28,21 @@ export function detectHeadings(lines: readonly model.SourceLine[]): DetectedHead
 			(isPunctuatedPrimaryHeading(lines, index) ? 1 : null);
 		return level === null
 			? []
-			: [{ level, lineIndex: line.index, range: rangeOf(line), text: line.text.trim() }];
+			: [
+					{
+						level,
+						lineIndex: line.index,
+						range: rangeOf(line),
+						text: line.text.trim(),
+						// Anchor lines are document boundaries in compilations; their
+						// specificity needs no body evidence, unlike numbered headings.
+						anchor: model.OUTLINE_ANCHOR_HEADING.test(line.text.trim()),
+					},
+				];
 	});
 	const candidateByLine = new Map(candidates.map((candidate) => [candidate.lineIndex, candidate]));
 	return candidates.filter((candidate) => {
+		if (candidate.anchor) return true;
 		let boundary = lines.length;
 		for (const later of candidates) {
 			if (later.lineIndex > candidate.lineIndex && later.level <= candidate.level) {
@@ -101,6 +112,9 @@ function headingLevel(value: string): 1 | 2 | null {
 	if (!text || unicodeLength(text) > MAX_HEADING_CHARS || /[。！？!?；;]$/u.test(text)) {
 		return null;
 	}
+	if (model.OUTLINE_ANCHOR_HEADING.test(text)) {
+		return 1;
+	}
 	if (model.PRIMARY_HEADING.test(text)) {
 		return 1;
 	}
@@ -150,6 +164,9 @@ export function buildSemanticUnits(
 	let headingPath: string[] = [];
 	let groupContext: string | undefined;
 	let primaryHeading: DetectedHeading | undefined;
+	// Inside a compilation the outline anchor is the stable document context;
+	// numbered chapters restart under each outline and must not replace it.
+	let anchorHeading: DetectedHeading | undefined;
 	const flush = () => {
 		if (bodyLines.some((line) => line.text.length > 0)) {
 			segments.push({
@@ -165,7 +182,8 @@ export function buildSemanticUnits(
 		if (!heading && model.isGroupScopeStart(lines, line.index)) {
 			flush();
 			groupContext = line.text.trim();
-			headingPath = primaryHeading ? [primaryHeading.text] : [];
+			const context = anchorHeading ?? primaryHeading;
+			headingPath = context ? [context.text] : [];
 			bodyLines.push(line);
 			continue;
 		}
@@ -174,13 +192,24 @@ export function buildSemanticUnits(
 			continue;
 		}
 		flush();
-		if (heading.level === 1) {
+		if (heading.anchor) {
+			anchorHeading = heading;
+			primaryHeading = undefined;
+			groupContext = undefined;
+			hardSectionId += 1;
+			headingPath = [heading.text];
+		} else if (heading.level === 1) {
 			groupContext = undefined;
 			hardSectionId += 1;
 			primaryHeading = heading;
-			headingPath = [heading.text];
+			headingPath = anchorHeading
+				? [anchorHeading.text, heading.text]
+				: [heading.text];
 		} else {
-			headingPath = primaryHeading ? [primaryHeading.text, heading.text] : [heading.text];
+			const base = anchorHeading ? [anchorHeading.text] : [];
+			headingPath = primaryHeading
+				? [...base, primaryHeading.text, heading.text]
+				: [...base, heading.text];
 		}
 	}
 	flush();
@@ -188,7 +217,11 @@ export function buildSemanticUnits(
 		const units = buildSegmentUnits(segment, sourceText, definition);
 		if (!segment.groupContext) return units;
 		const primaryLength =
-			segment.headingPath[0] && model.PRIMARY_HEADING.test(segment.headingPath[0]) ? 1 : 0;
+			segment.headingPath[0] &&
+			(model.PRIMARY_HEADING.test(segment.headingPath[0]) ||
+				model.OUTLINE_ANCHOR_HEADING.test(segment.headingPath[0]))
+				? 1
+				: 0;
 		for (const unit of units) {
 			const path = unit.retrievalHeadingPath ?? unit.headingPath;
 			unit.retrievalHeadingPath = [

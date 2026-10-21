@@ -59,6 +59,19 @@ test("the agent-control connection migration grants database CONNECT explicitly"
 	assert.match(migration, /GRANT CONNECT ON DATABASE %I TO agent_control/u);
 });
 
+test("the notice_assets delete grant covers the publisher's replace-projection writes", async () => {
+	const migration = await readFile(
+		resolve(jobRoot, "migrations/20261020090000_notice_assets_delete_grant/migration.sql"),
+		"utf8",
+	);
+	assert.match(migration, /GRANT DELETE ON TABLE notices\.notice_assets TO notice_publisher;/u);
+	assert.match(
+		migration,
+		/IF EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'notice_publisher'\)/u,
+	);
+	assert.doesNotMatch(migration, /REVOKE|DROP|TRUNCATE|ALTER/u);
+});
+
 test("the personal-memory cleanup migration only drops the compatibility views", async () => {
 	const migration = await readFile(
 		resolve(

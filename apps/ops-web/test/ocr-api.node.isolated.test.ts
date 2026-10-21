@@ -92,7 +92,7 @@ it("rejects malformed task ids before querying PostgreSQL", async () => {
 	expect(query).not.toHaveBeenCalled();
 });
 
-it("lists only body images with display ordinals independent of source keys", async () => {
+it("lists body images and PDF attachments with independent display ordinals", async () => {
 	const { instance, query } = await app();
 	query
 		.mockResolvedValueOnce({ rows: [{ notice_id: 123 }] })
@@ -101,7 +101,7 @@ it("lists only body images with display ordinals independent of source keys", as
 	const response = await instance.request("http://ops.test/api/ops/ocr/notices/123");
 	expect(response.status).toBe(200);
 	const data = await response.json();
-	expect(data.resources).toHaveLength(2);
+	expect(data.resources).toHaveLength(3);
 	expect(data.resources[0]).toMatchObject({
 		kind: "image",
 		ordinal: 1,
@@ -110,6 +110,12 @@ it("lists only body images with display ordinals independent of source keys", as
 		sourceKey: "internal_portal/notices/123/images/1",
 	});
 	expect(data.resources[1]).toMatchObject({ ordinal: 2, displayOrdinal: 1 });
+	expect(data.resources[2]).toMatchObject({
+		kind: "attachment",
+		ordinal: 0,
+		displayOrdinal: 0,
+		label: "PDF附件1",
+	});
 });
 it("queues only the requested display image and excludes attachments", async () => {
 	const { instance, query } = await app();
@@ -123,6 +129,20 @@ it("queues only the requested display image and excludes attachments", async () 
 	expect(query.mock.calls[1]?.[1]?.[2]).toMatchObject({
 		key: "internal_portal/notices/123/images/2",
 		resource: { kind: "image", ordinal: 2, displayOrdinal: 1 },
+	});
+});
+it("queues one requested PDF attachment with attachment identity and PDF content type", async () => {
+	const { instance, query } = await app();
+	const response = await instance.request("http://ops.test/api/ops/ocr/tasks", {
+		method: "POST",
+		headers: { origin: "http://ops.test", "content-type": "application/json" },
+		body: JSON.stringify({ noticeId: "123", resourceKind: "attachment", resourceOrdinal: 0 }),
+	});
+	expect(response.status).toBe(202);
+	expect(query.mock.calls[1]?.[1]?.[2]).toMatchObject({
+		key: "internal_portal/notices/123/attachments/0",
+		contentType: "application/pdf",
+		resource: { kind: "attachment", ordinal: 0, displayOrdinal: 0 },
 	});
 });
 it("does not create a task for a nonexistent body image", async () => {
