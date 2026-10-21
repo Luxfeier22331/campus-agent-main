@@ -1,7 +1,7 @@
 {
 	"name": "campus-agent-web-workspace",
 	"private": true,
-	"packageManager": "pnpm@11.25.0",
+	"packageManager": "pnpm@11.27.0",
 	"engines": {
 		"node": ">=24 <25"
 	},
@@ -31,7 +31,7 @@
 		"@biomejs/biome": "2.5.15",
 		"@j178/prek": "0.5.6",
 		"@types/node": "^24.19.2",
-		"markdownlint-cli2": "^0.23.3",
+		"markdownlint-cli2": "^0.24.0",
 		"tsx": "^4.23.15",
 		"turbo": "2.11.9",
 		"typescript": "^7.0.2",

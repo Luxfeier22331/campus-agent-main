@@ -118,8 +118,8 @@
         assert goToolchain.version == goToolchainVersion;
         assert tools.nodejs.version == nodeVersion;
         assert pnpmToolchain.version == pnpmVersion;
-        assert pkgs.golangci-lint.version == "2.13.2";
-        assert pkgs.trivy.version == "0.74.0";
+        assert pkgs.golangci-lint.version == "2.15.0";
+        assert pkgs.trivy.version == "0.76.0";
         {
           ci-core = ciCore;
           ci-light = ciLight;

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION=24.21.0
+ARG NODE_VERSION=24.22.1
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
 ENV PNPM_HOME=/pnpm

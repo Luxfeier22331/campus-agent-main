@@ -3,7 +3,7 @@ variable "IMAGE_REVISION" {
 }
 
 variable "NODE_VERSION" {
-  default = "24.21.0"
+  default = "24.22.1"
 }
 
 variable "IMAGE_SOURCE" {

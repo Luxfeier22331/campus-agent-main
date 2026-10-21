@@ -13,7 +13,7 @@ let
     {
       x86_64 = {
         nodeArch = "x64";
-        nodeHash = "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6";
+        nodeHash = "6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6";
         conftestArch = "x86_64";
         conftestHash = "sha256-lvwvvxHwr95RJWZHEn5vAKZM6Dmk2aChrvJCbA5vSz8=";
         kustomizeArch = "amd64";
@@ -27,7 +27,7 @@ let
       };
       aarch64 = {
         nodeArch = "arm64";
-        nodeHash = "6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2";
+        nodeHash = "dbabf7a1cbf947e6059ffad2c27b80041db97dea1e553b62afdee7f13fca336e";
         conftestArch = "arm64";
         conftestHash = "sha256-O5w1Ij/jX5mI4VPN/7AUT5ESATBsdGdYtzvoKDHFQ9k=";
         kustomizeArch = "arm64";
@@ -72,14 +72,19 @@ rec {
       url = "https://nodejs.org/dist/v${version}/node-v${version}-linux-${release.nodeArch}.tar.xz";
       sha256 = release.nodeHash;
     };
-    nativeBuildInputs = [ pkgs.autoPatchelfHook ];
-    buildInputs = [ pkgs.stdenv.cc.cc.lib ];
+    nativeBuildInputs = [ pkgs.patchelf ];
     dontBuild = true;
     installPhase = ''
       runHook preInstall
       mkdir -p "$out"
       cp -r bin lib include share "$out/"
       runHook postInstall
+    '';
+    # patchelf >= 0.18 corrupts node when the interpreter is set before the rpath,
+    # which is the order autoPatchelfHook uses; patch rpath first.
+    postFixup = ''
+      patchelf --set-rpath ${lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]} "$out/bin/node"
+      patchelf --set-interpreter ${pkgs.stdenv.cc.bintools.dynamicLinker} "$out/bin/node"
     '';
     doInstallCheck = true;
     installCheckPhase = ''

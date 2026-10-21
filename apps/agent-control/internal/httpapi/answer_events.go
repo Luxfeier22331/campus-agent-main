@@ -42,7 +42,7 @@ func (s *Server) liveRunEvents(ctx context.Context, requestID string, after int6
 	go func() { _, err := s.answers.WaitForAnswerDeltas(waitCtx, requestID, answerAfter); results <- err }()
 	wakeErr := <-results
 	cancel()
-	<-results
+	<-results //nolint:errcheck // The second listener only reports the cancellation above.
 	if ctx.Err() != nil {
 		return nil, nil, ctx.Err()
 	}

@@ -61,7 +61,8 @@ pnpm --version
 
 CI 使用 `nix develop .#ci-core`；Node 与 pnpm 的启动解释器使用同一版本。
 当前 nixpkgs 的 Node 版本落后，`nix/tools.nix` 下载并校验官方 Linux x64/arm64 二进制，
-只执行解包与动态链接修正，不编译 Node 源码。升级时同步该文件的两个 SHA-256、
+只执行解包与动态链接修正，不编译 Node 源码；patchelf 0.18 起先改解释器再改 rpath 会使 node
+启动即段错误，因此先设 rpath 再设解释器，不使用 `autoPatchelfHook`。升级时同步该文件的两个 SHA-256、
 `.node-version`、Bake 和 Dockerfile 默认值；nixpkgs 提供匹配版本及二进制缓存后可恢复使用其包。
 
 ## Worker 检查
