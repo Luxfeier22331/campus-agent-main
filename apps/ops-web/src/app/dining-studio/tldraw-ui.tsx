@@ -31,9 +31,7 @@ import {
 	TldrawUiButton,
 	TldrawUiButtonIcon,
 	TldrawUiDialogBody,
-	TldrawUiDialogCloseButton,
 	TldrawUiDialogHeader,
-	TldrawUiDialogTitle,
 	TldrawUiMenuActionItem,
 	TldrawUiMenuGroup,
 	TldrawUiMenuToolItem,
@@ -474,12 +472,24 @@ function DiningToolbarItem({ tool }: { tool: TLUiToolItem | undefined }) {
 	return tool ? <TldrawUiMenuToolItem isSelected={isSelected} toolId={tool.id} /> : null;
 }
 
+// DiningDialog 用的是 @radix-ui/react-dialog，tldraw 的 TldrawUiDialogTitle/CloseButton 走的是
+// tldraw 自己依赖的 radix-ui 实例，两者 Dialog context 不互通，这里必须使用同一个包的原语。
 function DiningLayersDialog({ editor, onClose }: TLUiDialogProps & { editor: Editor }) {
 	return (
 		<>
 			<TldrawUiDialogHeader>
-				<TldrawUiDialogTitle>图层与元素</TldrawUiDialogTitle>
-				<TldrawUiDialogCloseButton />
+				<RadixDialog.Title className="tlui-dialog__header__title">图层与元素</RadixDialog.Title>
+				<div className="tlui-dialog__header__close">
+					<RadixDialog.Close asChild>
+						<TldrawUiButton
+							aria-label="关闭"
+							onTouchEnd={(event) => (event.target as HTMLButtonElement).click()}
+							type="icon"
+						>
+							<TldrawUiButtonIcon icon="cross-2" small />
+						</TldrawUiButton>
+					</RadixDialog.Close>
+				</div>
 			</TldrawUiDialogHeader>
 			<TldrawUiDialogBody className="dining-layers-dialog">
 				<DiningElementList editor={editor} onSelect={onClose} />

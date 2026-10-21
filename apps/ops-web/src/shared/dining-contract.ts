@@ -5,6 +5,8 @@ import {
 } from "@campus-agent/dining/floorplans";
 import { z } from "zod";
 
+export const DINING_DRAFT_REQUEST_MAX_BYTES = 8 * 1024 * 1024;
+
 const sha256 = z
 	.string()
 	.regex(/^sha256:[0-9a-f]{64}$/)

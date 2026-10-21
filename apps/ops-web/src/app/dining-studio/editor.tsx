@@ -9,6 +9,7 @@ import {
 } from "@campus-agent/dining/floorplans";
 import {
 	Button,
+	ConfirmDialog,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -27,7 +28,7 @@ import {
 	TldrawEditor,
 	useTldrawCurrentUser,
 } from "@tldraw/editor";
-import { Save } from "lucide-react";
+import { Download, FileUp, Save } from "lucide-react";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type MouseEvent as ReactMouseEvent,
@@ -43,6 +44,12 @@ import { FilterSelect } from "../ui/filter-select";
 import "tldraw/tldraw.css";
 import "./editor.css";
 
+import {
+	type DiningFloorplanBundleSummary,
+	downloadDiningFloorplanBundle,
+	readDiningFloorplanBundleFile,
+	summarizeDiningFloorplanBundle,
+} from "./bundle-file";
 import { DINING_TLDRAW_LICENSE } from "./dining-editor-license";
 import { DiningEditorDiagnosticPanel } from "./editor-diagnostics";
 import { installDiningStoreGuards } from "./editor-store-guards";
@@ -54,6 +61,7 @@ import {
 	loadDiningPages,
 	markInvalidShapes,
 	pageIdForFloor,
+	replaceDiningPages,
 	setMembership,
 	shapesForPage,
 	zoomToDiningCanvas,
@@ -114,6 +122,12 @@ export function DiningFloorplanEditor(props: {
 	const [editor, setEditor] = useState<Editor | null>(null);
 	const [editorFeedback, setEditorFeedback] = useState<DiningEditorFeedback | null>(null);
 	const [pendingWindowName, setPendingWindowName] = useState<PendingWindowName | null>(null);
+	const [pendingImport, setPendingImport] = useState<{
+		bundle: DiningFloorplanBundleV1;
+		fileName: string;
+		summary: DiningFloorplanBundleSummary;
+	} | null>(null);
+	const [importError, setImportError] = useState<string | null>(null);
 	const [status, setStatus] = useState<EditorStatus>({ kind: "idle", message: "草稿已保存" });
 	const [userPreferences, setUserPreferences] = useState<TLUserPreferences>({
 		...defaultUserPreferences,
@@ -345,6 +359,66 @@ export function DiningFloorplanEditor(props: {
 		}
 	}
 
+	function beginImport(): void {
+		if (dirtyFloorIds.size > 0) {
+			setStatus({ kind: "error", message: "请先保存当前画布修改，再导入地图 bundle。" });
+			return;
+		}
+		setImportError(null);
+		const input = document.createElement("input");
+		input.accept = ".json,application/json";
+		input.type = "file";
+		input.onchange = () => {
+			const file = input.files?.[0];
+			if (!file) {
+				return;
+			}
+			setImportError(null);
+			void readDiningFloorplanBundleFile(file)
+				.then((bundle) =>
+					setPendingImport({
+						bundle,
+						fileName: file.name,
+						summary: summarizeDiningFloorplanBundle(bundle),
+					}),
+				)
+				.catch((error: unknown) =>
+					setImportError(error instanceof Error ? error.message : "导入地图 bundle 失败。"),
+				);
+		};
+		input.click();
+	}
+
+	async function confirmImport(): Promise<void> {
+		if (!(editor && pendingImport)) {
+			return;
+		}
+		try {
+			setStatus({ kind: "saving", message: "保存导入的草稿" });
+			const saved = await props.onSave(pendingImport.bundle, props.draft.revision);
+			replaceDiningPages(editor, saved.bundle.layouts, suppressStoreEventsRef);
+			baselineRef.current = new Map(
+				saved.bundle.layouts.map((layout) => [
+					layout.floorId,
+					serializeDiningWayfindingLayout(layout),
+				]),
+			);
+			dirtyFloorIdsRef.current = new Set();
+			setDirtyFloorIds(new Set());
+			setDiagnosticsByFloor(new Map());
+			const firstFloorId = saved.bundle.layouts[0]?.floorId ?? "";
+			activeFloorIdRef.current = firstFloorId;
+			setActiveFloorId(firstFloorId);
+			setPendingImport(null);
+			setImportError(null);
+			setStatus({ kind: "saved", message: "导入草稿已保存" });
+			zoomToDiningCanvas(editor);
+		} catch (error) {
+			setImportError(error instanceof Error ? error.message : "导入地图草稿失败。");
+			setStatus({ kind: "error", message: "导入地图草稿失败" });
+		}
+	}
+
 	function confirmWindowName(): void {
 		if (!(editor && pendingWindowName)) {
 			return;
@@ -401,6 +475,28 @@ export function DiningFloorplanEditor(props: {
 							/>
 						</Field>
 					</div>
+					<fieldset aria-label="地图文件" className="editor-file-actions">
+						<Button
+							aria-label="导入食堂地图 bundle"
+							disabled={props.saving || dirtyFloorIds.size > 0}
+							onClick={beginImport}
+							title={dirtyFloorIds.size > 0 ? "请先保存当前画布修改" : undefined}
+							variant="secondary"
+						>
+							<FileUp />
+							导入
+						</Button>
+						<Button
+							aria-label="导出食堂地图 bundle"
+							disabled={props.saving || dirtyFloorIds.size > 0}
+							onClick={() => downloadDiningFloorplanBundle(props.draft.bundle)}
+							title={dirtyFloorIds.size > 0 ? "请先保存当前画布修改" : undefined}
+							variant="secondary"
+						>
+							<Download />
+							导出
+						</Button>
+					</fieldset>
 					<Button
 						aria-busy={props.saving}
 						className="editor-save min-w-0 whitespace-normal"
@@ -416,12 +512,19 @@ export function DiningFloorplanEditor(props: {
 						<Save aria-hidden="true" size={16} />
 						<span>保存草稿</span>
 					</Button>
-					<span
-						className={`editor-status ui-metadata ${status.kind === "error" ? "error" : ""}`}
-						role="status"
-					>
-						{status.message}
-					</span>
+					<div className="editor-status-group">
+						<span
+							className={`editor-status ui-metadata ${status.kind === "error" ? "error" : ""}`}
+							role="status"
+						>
+							{status.message}
+						</span>
+						{importError && !pendingImport ? (
+							<span className="text-danger text-xs" role="alert">
+								{importError}
+							</span>
+						) : null}
+					</div>
 				</header>
 				<div className="editor-body">
 					<aside aria-label="地图元素" className="editor-sidebar">
@@ -465,6 +568,36 @@ export function DiningFloorplanEditor(props: {
 					</section>
 				</div>
 			</section>
+
+			<ConfirmDialog
+				confirmLabel="替换草稿"
+				confirmVariant="destructive"
+				description="导入会整体替换当前全局地图草稿，不会自动发布到学生端。"
+				error={importError}
+				onConfirm={() => void confirmImport()}
+				onOpenChange={(open) => {
+					if (!(open || props.saving)) {
+						setPendingImport(null);
+						setImportError(null);
+					}
+				}}
+				open={pendingImport !== null}
+				pending={props.saving ?? false}
+				pendingLabel="正在保存草稿…"
+				title="替换全部食堂地图草稿？"
+			>
+				{pendingImport ? (
+					<div className="grid gap-2 text-sm">
+						<p>文件：{pendingImport.fileName}</p>
+						<p>
+							导入内容：{pendingImport.summary.halls} 个食堂、
+							{pendingImport.summary.layouts} 个楼层、
+							{pendingImport.summary.windows} 个窗口。
+						</p>
+						<p>这会替换当前所有校区和食堂的地图草稿；现有发布版本保持不变。</p>
+					</div>
+				) : null}
+			</ConfirmDialog>
 
 			<Dialog
 				open={pendingWindowName !== null}

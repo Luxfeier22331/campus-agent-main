@@ -1033,7 +1033,7 @@ test("食堂地图页展示地图草稿和不可变发布历史", async ({ page 
 	await expect(page.getByRole("heading", { name: "发布历史" })).toBeVisible();
 	await expect(page.getByText("dining-release-1", { exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "发布", exact: true })).toBeDisabled();
-	await expect(page.locator("#ops-main-content")).not.toContainText(/采集记录|预览|导入|导出/);
+	await expect(page.locator("#ops-main-content")).not.toContainText(/采集记录|预览/);
 	await expectStableViewport(page, errors);
 });
 

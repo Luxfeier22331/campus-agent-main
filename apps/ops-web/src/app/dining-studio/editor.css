@@ -42,7 +42,7 @@
 	z-index: 5;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	grid-template-areas: "title" "floor" "save" "status";
+	grid-template-areas: "title" "floor" "file-actions" "save" "status";
 	align-items: center;
 	gap: var(--space-2);
 	padding: var(--space-3);
@@ -60,12 +60,29 @@
 	min-width: 0;
 }
 
+.editor-file-actions {
+	display: flex;
+	grid-area: file-actions;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
 .editor-save {
 	grid-area: save;
 }
 
-.editor-status {
+.editor-status-group {
+	display: grid;
 	grid-area: status;
+	gap: var(--space-1);
+	min-width: 0;
+}
+
+.editor-status {
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
@@ -599,14 +616,14 @@
 @container dining-editor (min-width: 20rem) {
 	.editor-toolbar {
 		grid-template-columns: minmax(0, 1fr) auto;
-		grid-template-areas: "title title" "floor save" "status status";
+		grid-template-areas: "title title" "floor file-actions" "status save";
 	}
 }
 
 @container dining-editor (min-width: 40rem) {
 	.editor-toolbar {
-		grid-template-columns: auto minmax(0, 13rem) minmax(0, 1fr) auto;
-		grid-template-areas: "title floor status save";
+		grid-template-columns: auto minmax(0, 13rem) auto minmax(0, 1fr) auto;
+		grid-template-areas: "title floor file-actions status save";
 	}
 
 	.editor-status {

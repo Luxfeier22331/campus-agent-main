@@ -2,11 +2,13 @@ import {
 	DINING_BOOTSTRAP_FLOORPLANS,
 	DINING_WAYFINDING_CANVAS,
 } from "@campus-agent/dining/floorplans";
-import type { Editor, TLPageId, TLShape } from "tldraw";
+import type { Editor, TLCreateShapePartial, TLPageId, TLShape, TLShapeId } from "tldraw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	loadDiningPages,
 	pageIdForFloor,
+	replaceDiningPages,
+	shapesForPage,
 	zoomToDiningCanvas,
 } from "../src/app/dining-studio/editor-support";
 import {
@@ -23,16 +25,45 @@ function pageEditor() {
 		meta: Record<string, unknown>;
 	}
 	const pages = new Map<TLPageId, Page>();
+	const shapes = new Map<TLPageId, Map<TLShapeId, TLShape>>();
 	let currentPageId = "page:initial" as TLPageId;
 	const api = {
 		clearHistory: vi.fn(),
 		createPage: vi.fn((page: Page) => pages.set(page.id, page)),
-		createShapes: vi.fn(),
+		createShapes: vi.fn((records: TLCreateShapePartial[]) => {
+			const pageShapes = shapes.get(currentPageId) ?? new Map<TLShapeId, TLShape>();
+			for (const record of records) {
+				const shape = {
+					...record,
+					id: record.id,
+					meta: record.meta ?? {},
+					parentId: currentPageId,
+					props: record.props ?? {},
+					rotation: 0,
+					x: record.x ?? 0,
+					y: record.y ?? 0,
+				} as unknown as TLShape;
+				pageShapes.set(shape.id, shape);
+			}
+			shapes.set(currentPageId, pageShapes);
+		}),
 		deletePage: vi.fn((id: TLPageId) => pages.delete(id)),
+		deleteShapes: vi.fn((ids: TLShapeId[]) => {
+			for (const pageShapes of shapes.values()) {
+				for (const id of ids) {
+					pageShapes.delete(id);
+				}
+			}
+		}),
 		getAncestorPageId: vi.fn((shape: TLShape) => shape.parentId),
 		getCurrentPageId: () => currentPageId,
 		getPage: (id: TLPageId) => pages.get(id),
 		getPages: () => [...pages.values()],
+		getPageShapeIds: (id: TLPageId) => new Set(shapes.get(id)?.keys() ?? []),
+		getShape: (id: TLShapeId) =>
+			[...shapes.values()]
+				.flatMap((pageShapes) => [...pageShapes.values()])
+				.find((shape) => shape.id === id),
 		getViewportScreenBounds: () => ({ width: 1000, height: 800 }),
 		run: (callback: () => unknown) => callback(),
 		setCurrentPage: (id: TLPageId) => {
@@ -76,6 +107,42 @@ describe("Dining layout canvas bounds", () => {
 		loadDiningPages(editor, [layout], { current: false });
 		expect(diningCanvasForEditor(editor)).toEqual(layout.canvas);
 		expect(api.createShapes).toHaveBeenCalledTimes(1);
+	});
+
+	it("replaces every imported page and shape while removing pages outside the bundle", () => {
+		const originalLayouts = DINING_BOOTSTRAP_FLOORPLANS.layouts.slice(0, 3);
+		const importedLayouts = originalLayouts.slice(0, 2).map((layout, index) => {
+			const replacement = structuredClone(layout);
+			const importedWindow = replacement.windows[0];
+			if (!importedWindow) {
+				throw new Error("Dining bootstrap needs a layout with a window.");
+			}
+			importedWindow.label = `导入窗口 ${index + 1}`;
+			return replacement;
+		});
+		if (originalLayouts.length !== 3 || importedLayouts.length !== 2) {
+			throw new Error("Dining bootstrap needs three layouts.");
+		}
+		const { api, editor } = pageEditor();
+		const suppressRef = { current: false };
+		loadDiningPages(editor, originalLayouts, suppressRef);
+
+		replaceDiningPages(editor, importedLayouts, suppressRef);
+
+		expect(api.getPages().map((page) => page.id)).toEqual(
+			importedLayouts.map((layout) => pageIdForFloor(layout.floorId)),
+		);
+		for (const [index, layout] of importedLayouts.entries()) {
+			expect(shapesForPage(editor, layout.floorId)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						props: expect.objectContaining({ label: `导入窗口 ${index + 1}` }),
+					}),
+				]),
+			);
+		}
+		expect(suppressRef.current).toBe(false);
+		expect(api.clearHistory).toHaveBeenCalledTimes(2);
 	});
 
 	it("keeps the default bounds for a page without layout metadata", () => {

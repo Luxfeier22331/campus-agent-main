@@ -10,7 +10,11 @@ import {
 } from "@campus-agent/dining/domain";
 import type { Hono } from "hono";
 import { z } from "zod";
-import { DiningDraftUpdateSchema, DiningRevisionSchema } from "../../shared/dining-contract.ts";
+import {
+	DINING_DRAFT_REQUEST_MAX_BYTES,
+	DiningDraftUpdateSchema,
+	DiningRevisionSchema,
+} from "../../shared/dining-contract.ts";
 import type {
 	DiningMapStore,
 	DiningMenuStore,
@@ -88,7 +92,7 @@ export function registerDiningRoutes(input: {
 			return operator;
 		}
 		const body = DiningDraftUpdateSchema.safeParse(
-			await readBoundedJson(context.req.raw, 8 * 1024 * 1024),
+			await readBoundedJson(context.req.raw, DINING_DRAFT_REQUEST_MAX_BYTES),
 		);
 		if (!body.success) {
 			return jsonError("OPS_DINING_DRAFT_INVALID", "食堂地图保存请求无效。", 400);

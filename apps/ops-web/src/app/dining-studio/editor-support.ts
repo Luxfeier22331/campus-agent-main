@@ -58,6 +58,7 @@ export function loadDiningPages(
 	editor: Editor,
 	layouts: readonly DiningWayfindingLayout[],
 	suppressRef: { current: boolean },
+	options: { replaceExisting?: boolean } = {},
 ): void {
 	const originalPages = editor.getPages();
 	suppressRef.current = true;
@@ -67,7 +68,22 @@ export function loadDiningPages(
 			const page = editor.getPage(pageId);
 			const meta = { ...page?.meta, diningCanvas: { ...layout.canvas } };
 			if (page) {
-				editor.run(() => editor.updatePage({ id: pageId, meta }), { history: "ignore" });
+				if (options.replaceExisting) {
+					editor.setCurrentPage(pageId);
+				}
+				editor.run(
+					() => {
+						editor.updatePage({ id: pageId, meta, name: layout.label });
+						if (options.replaceExisting) {
+							const shapeIds = [...editor.getPageShapeIds(pageId)];
+							if (shapeIds.length > 0) {
+								editor.deleteShapes(shapeIds);
+							}
+							editor.createShapes(layoutToTldrawRecords(layout));
+						}
+					},
+					{ history: "ignore" },
+				);
 			} else {
 				editor.run(() => editor.createPage({ id: pageId, name: layout.label, meta }), {
 					history: "ignore",
@@ -89,6 +105,14 @@ export function loadDiningPages(
 	} finally {
 		suppressRef.current = false;
 	}
+}
+
+export function replaceDiningPages(
+	editor: Editor,
+	layouts: readonly DiningWayfindingLayout[],
+	suppressRef: { current: boolean },
+): void {
+	loadDiningPages(editor, layouts, suppressRef, { replaceExisting: true });
 }
 
 export function markInvalidShapes(

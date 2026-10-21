@@ -17,6 +17,7 @@ status: active
 
 ## 平铺条目
 
+- [dining-map-bundle.md](./dining-map-bundle.md)：食堂地图 bundle 导入、导出与草稿替换；
 - [campus-map-authoring.md](./campus-map-authoring.md)：校园地图点位与路线编写；
 - [data-recovery.md](./data-recovery.md)：数据备份与恢复；
 - [local-verification.md](./local-verification.md)：本地验证；
