@@ -27,7 +27,12 @@ export function buildWorkerArtifact(app: string, destination: string, sourceSha:
 		run(["build"]);
 	}
 	mkdirSync(destination, { recursive: true });
-	cpSync(resolve(appRoot, "dist"), resolve(destination, "dist"), { recursive: true });
+	// wrangler --dry-run writes a README stamped with the build time; dropping it keeps the
+	// bundle digest stable for unchanged Source so GitOps does not select a new version.
+	cpSync(resolve(appRoot, "dist"), resolve(destination, "dist"), {
+		recursive: true,
+		filter: (path) => path !== resolve(appRoot, "dist/worker/README.md"),
+	});
 	let config: WorkerConfig;
 	if (app === "campus-web") {
 		config = JSON.parse(readFileSync(resolve(appRoot, "dist/campus_web/wrangler.json"), "utf8"));

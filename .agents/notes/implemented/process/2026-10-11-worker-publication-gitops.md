@@ -23,6 +23,10 @@ GitOps 校验 main 发布 workflow、计划中的 SHA、镜像发布 job 与必�
 GitOps checkout 精确 Source SHA，使用 Source 构建脚本准备 Docs 快照、Worker bundle，在自有 GHCR
 保存 digest 固定的制品。对象存储凭据只进入快照步骤，公开构建值进入编译步骤。
 
+同一 Source 内容的 bundle digest 必须稳定：GitOps 配置变化会重建全部 Worker，digest 若随构建
+时间变化，就会让未变化的 Worker 进入选版并重新切流。构建脚本不收录 wrangler dry-run 在 Worker
+输出目录写入的带生成时间 README；GitOps 打包时固定 tar 排序、mtime 与属主，并固定 OCI `created` 注解。
+
 异步交接按 release 游标去重。前一发布推进游标后，普通 Source 重跑重新计算累计范围，复用所需
 镜像并交接新计划；不能因旧 dispatch 成功而跳过。新范围需要此前没有发布的镜像时正常发布。
 GitOps 保留游标一致性检查，过期计划提示重跑 Source，而不是重复执行同一旧计划。
