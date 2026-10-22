@@ -81,6 +81,7 @@ jobs:
         if: steps.plan.outputs.images != '[]'
         env:
           IMAGES: ${{ steps.plan.outputs.images }}
+          VITE_TLDRAW_LICENSE_KEY: ${{ secrets.TLDRAW_LICENSE_KEY }}
         run: >-
           node --experimental-strip-types scripts/release/images.mts
           --images "$IMAGES" --output "$CANDIDATE_DIRECTORY/image-digests.json"

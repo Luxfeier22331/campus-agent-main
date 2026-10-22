@@ -109,7 +109,9 @@ pnpm --dir apps/ops-web test:database-integration
 生产代码或配置。
 
 Dining 地图编辑器的 tldraw 公开许可证由构建环境的 `VITE_TLDRAW_LICENSE_KEY` 提供；本地 loopback
-开发不设置该变量，使用 tldraw 开发模式。部署镜像构建通过 Docker build stage 传入该变量，runtime
+开发不设置该变量，使用 tldraw 开发模式。当前 key 是绑定 `ops.muc.wiki` 的 hobby license，各泳道共用该域名；
+`staging-candidate-publish` 从仓库 secret `TLDRAW_LICENSE_KEY` 读取并传给 bake。只更换 secret 不会触发
+ops-web 镜像重建，需随 ops-web 源码变更发布。部署镜像构建通过 Docker build stage 传入该变量，runtime
 环境不读取它；公开 key 会按预期出现在客户端资源中，不应写入仓库源码、数据库或对象存储。
 
 同好群和账号管理页面通过服务端配置的 `OPS_WEB_APP_API_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 调用 app-api；
