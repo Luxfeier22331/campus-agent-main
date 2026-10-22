@@ -6,6 +6,11 @@ fail_fast: true
 repos:
   - repo: builtin
     hooks:
+      # Every change reaches main through a PR; Free private repositories have no branch protection.
+      - id: no-commit-to-branch
+        groups: [fast]
+        stages: [pre-commit]
+        args: [--branch, main]
       - id: check-added-large-files
         groups: [fast]
         stages: [pre-commit]

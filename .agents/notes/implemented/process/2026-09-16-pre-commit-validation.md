@@ -41,6 +41,12 @@ PR 的 affected Node 检查中，`test:generators` 虽由 Node 启动，仍需�
 凭证或第二套包依赖映射。`pnpm lint` 排除 validation group，保持全仓静态检查职责；repository checks
 不在 lint hook 中复制命令。
 
+私有仓库在 Free 计划下没有分支保护和 rulesets（API 返回 403），曾有 agent 直接提交并推送 main，
+文档也未约束。pre-commit 第一项用 prek 内置的 `no-commit-to-branch` 拒绝 main 上的提交，AGENTS.md
+同时写明所有改动经分支和 PR。分离 HEAD 不受影响，PR CI 照常运行；`pnpm lint` 跳过该 hook，
+以便在 main 上做全仓静态检查。它可被 `--no-verify` 绕过，只防误操作；以后启用服务端分支保护时
+仍可保留为本地提前失败。
+
 执行器内 Node 任务的 Turbo 并发以半核数（最少 2）为 CPU 上限，再受进程内存额度约束：
 每 2 GiB 允许一个任务，最少一个；运行时未报告内存限制时保留 CPU 上限。6 核、2 GiB 的 runner
 曾在三个任务同时执行时由 cgroup OOM 杀掉 tsc，故不能只按核数调度；该额度用于降低并发，
@@ -63,6 +69,9 @@ PR 的 affected Node 检查中，`test:generators` 虽由 Node 启动，仍需�
 - **只增加 SSH 保活**：对照实验支持它能缓解空闲断线，但仍让网络连接等待本地重验证；提交前运行
   可以直接消除该等待路径。SSH 配置不作为本次迁移的必需改动。
 - **保留 pre-push 再跑一次**：缓存热时开销较小，但冷缓存仍可能长时间等待；PR 已拥有分支验证。
+- **用 pre-push 拦截推送 main**：pre-push 已按上文退役；实测 prek 的 pre-push 在强制回退 main
+  时不触发，拦不住 `--force-with-lease` 一类推送。提交前拦截覆盖了产生直推的源头。
+- **用 workflow 检测非 PR 的 main 提交**：只能在推送后报警，main 已被修改且发布已触发。
 - **只修改 hook stage**：改动少，但原适配器依赖远端提交范围，不能表达待提交工作区。
 - **只缓存 scripts 目录或按提交 SHA 缓存**：前者遗漏根测试消费的应用与配置变化，后者使相同内容
   在提交前后失去复用机会，因此采用文件输入、索引树和实际工具版本。
@@ -74,5 +83,5 @@ PR 的 affected Node 检查中，`test:generators` 虽由 Node 启动，仍需�
 索引或工具环境变化会重新执行。完整仓库默认输入偏保守，文档变化也可能使根测试失效，以保留跨目录
 测试覆盖；若未来要缩小范围，应先调整真实测试消费者，而非排除仍被读取的输入。
 
-验收覆盖实际 Git 提交、部分暂存恢复、失败阻断、依赖传播、根缓存失效与提交前后复用，以及旧 hook
+验收覆盖 main 上提交被拒、实际 Git 提交、部分暂存恢复、失败阻断、依赖传播、根缓存失效与提交前后复用，以及旧 hook
 卸载和本地裸仓库推送不执行验证。外部 CI 缓存命中与部署状态不由本地验证证明。

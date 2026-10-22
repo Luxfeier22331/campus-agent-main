@@ -52,11 +52,11 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 
 | 命令 | 负责 | 不证明 |
 | --- | --- | --- |
-| `pre-commit` | 暂存文件的静态检查与 Secret 扫描、根脚本测试，以及受影响 Node/Go 源码检查 | build、integration、浏览器 E2E 或 runtime |
+| `pre-commit` | 拒绝在 main 上提交；暂存文件的静态检查与 Secret 扫描、根脚本测试，以及受影响 Node/Go 源码检查 | build、integration、浏览器 E2E 或 runtime |
 | `pre-push` | 不再安装仓库重验证 hook | 源码或运行时验证 |
 | `pnpm verify` | 全量源码检查、Inspect 单测、数据库集成、Infra 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
 | `pnpm check` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Inspect 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
-| `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描与 validation group | 文档链接、业务行为或类型正确性 |
+| `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描、main 提交拦截与 validation group | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、笔记树与格式、归档、入口预算、链接和语言合同 | 代码或部署状态 |
 | `pnpm typecheck` | 全仓声明的 TypeScript 检查，包括 tooling notices | Go vet、测试或构建 |
 | `pnpm test` | tooling、Node/DOM、本地 Worker、Go 和 Inspect 单测 | 数据库集成、浏览器 E2E 或外部服务 |

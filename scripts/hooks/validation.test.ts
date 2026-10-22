@@ -149,6 +149,10 @@ function fixture() {
 	);
 	assert(hook);
 	hook.entry = `node --experimental-strip-types ${source}/scripts/ci/pre-commit.mts`;
+	const branchGuard = config.repos
+		.find((r: { repo: string }) => r.repo === "builtin")
+		?.hooks.find((h: { id: string }) => h.id === "no-commit-to-branch");
+	assert(branchGuard);
 	write(
 		".config/.pre-commit-config.yaml",
 		stringify({
@@ -156,6 +160,7 @@ function fixture() {
 			default_install_hook_types: config.default_install_hook_types,
 			fail_fast: config.fail_fast,
 			repos: [
+				{ repo: "builtin", hooks: [branchGuard] },
 				{
 					repo: "local",
 					hooks: [
@@ -243,7 +248,7 @@ test("root test cache hits before/after commit, invalidates real inputs/index, a
 	}
 });
 
-test("installed hook validates staged content and dependencies, restores partial edits, and retires push checks", {
+test("installed hook refuses main commits, validates staged content and dependencies, restores partial edits, and retires push checks", {
 	timeout: 120000,
 }, () => {
 	const f = fixture();
@@ -256,6 +261,15 @@ test("installed hook validates staged content and dependencies, restores partial
 		installHooks({ cwd: f.root, env: f.env });
 		installHooks({ cwd: f.root, env: f.env });
 		assert(!existsSync(path.join(f.root, ".githooks/pre-push")));
+		f.write("root.txt", "good main edit\n");
+		f.git("add", "root.txt");
+		assert.match(
+			f.run("git", ["commit", "-qm", "main commit"], 1),
+			/no-commit-to-branch|Don't commit to branch/iu,
+		);
+		assert.equal(f.counts().length, 0);
+		f.git("restore", "--staged", "--worktree", "root.txt");
+		f.git("switch", "-qc", "feature");
 		f.write("static.txt", "bad\n");
 		f.git("add", "static.txt");
 		f.run("git", ["commit", "-qm", "static fails"], 1);

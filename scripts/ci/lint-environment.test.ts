@@ -157,7 +157,7 @@ test("CI contracts step and registry use the Go environment while lint stays fil
 	const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 	assert.equal(
 		manifest.scripts.lint,
-		"pnpm exec prek run --config .config/.pre-commit-config.yaml --all-files --stage pre-commit --skip staged-secrets --no-group validation",
+		"pnpm exec prek run --config .config/.pre-commit-config.yaml --all-files --stage pre-commit --skip staged-secrets --skip no-commit-to-branch --no-group validation",
 	);
 	const biome = hooks.find((hook) => hook.id === "biome");
 	assert(biome);

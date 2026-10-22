@@ -137,6 +137,29 @@ export function completeCandidate(
 	});
 }
 
+/**
+ * A plan that changes no image, Worker, Source base or topology and keeps the previous maintenance
+ * requirements would publish a candidate identical in deployed content. The cursor stays on the
+ * previous candidate, and the next publication plans the accumulated diff from there. Re-running the
+ * cursor's own commit still publishes, so a failed GitOps dispatch can be retried from Source.
+ */
+export function changesCandidate(
+	plan: CandidatePlan,
+	previous: SourceCandidate | undefined,
+): boolean {
+	if (!previous || previous.sourceSha === plan.head) {
+		return true;
+	}
+	const requirements = [...(plan.maintenanceRequirements ?? [])].sort();
+	return (
+		plan.images.length > 0 ||
+		plan.workers.length > 0 ||
+		plan.sourceBases.length > 0 ||
+		plan.topologyMigrations.length > 0 ||
+		requirements.join("\n") !== previous.maintenanceRequirements.join("\n")
+	);
+}
+
 const run = (command: string, args: string[], cwd = process.cwd()) =>
 	execFileSync(command, args, {
 		cwd,
@@ -184,7 +207,10 @@ async function main(): Promise<void> {
 		await writeFile(path.join(directory, "baseline.json"), JSON.stringify(previous ?? null));
 		await writeFile(path.join(directory, "plan.json"), JSON.stringify(plan));
 		if (process.env.GITHUB_OUTPUT) {
-			await appendFile(process.env.GITHUB_OUTPUT, `images=${JSON.stringify(plan.images)}\n`);
+			await appendFile(
+				process.env.GITHUB_OUTPUT,
+				`images=${JSON.stringify(plan.images)}\npublish=${changesCandidate(plan, previous)}\n`,
+			);
 		}
 		return;
 	}

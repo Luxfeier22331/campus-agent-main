@@ -44,6 +44,7 @@ main 中已验证的源码
 
 Source 的最新完整 OCI candidate 是累计 diff 基线。未变化的镜像、base 和 Worker source identity
 继承上一份快照；首次发布构建完整集合。交接使用 digest，`latest` 仅用于发现基线。
+计划不改变任何部署内容时，workflow 在计划后成功结束，不发布候选也不派发 GitOps。
 GitOps 使用 `publish-source.yml` 组装 Worker candidate；`refresh_worker` 可刷新指定 Worker 或全部。
 交接失败后用同一 OCI candidate_ref 重新组装，候选构建与 Kargo 发布互相独立。
 

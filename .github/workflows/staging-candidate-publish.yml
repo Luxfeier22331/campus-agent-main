@@ -88,9 +88,11 @@ jobs:
           --repository "$GITHUB_REPOSITORY" --source-sha "$GITHUB_SHA"
           --trivy-cache "${RUNNER_TOOL_CACHE}/trivy" --summary "$GITHUB_STEP_SUMMARY"
       - name: Publish complete Source candidate
+        if: steps.plan.outputs.publish == 'true'
         id: candidate
         run: node --experimental-strip-types scripts/release/source-candidate.mts publish
       - name: Upload candidate output
+        if: steps.plan.outputs.publish == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: source-release
@@ -98,6 +100,7 @@ jobs:
           overwrite: true
           retention-days: 7
       - name: Create GitOps dispatch token
+        if: steps.plan.outputs.publish == 'true'
         id: gitops-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
         with:
@@ -107,6 +110,7 @@ jobs:
           repositories: campus-agent-gitops
           permission-actions: write
       - name: Dispatch GitOps candidate assembly
+        if: steps.plan.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
           CANDIDATE_REF: ${{ steps.candidate.outputs.candidate_ref }}

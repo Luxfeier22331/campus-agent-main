@@ -759,6 +759,18 @@ test("Source dispatches publication without waiting for GitOps or reading Worker
 	assert.doesNotMatch(String(dispatch.run), /sleep|watch|while/u);
 });
 
+test("Source publication stops after planning when the plan changes no deployed content", async () => {
+	const job = workflowJob(await loadWorkflow("staging-candidate-publish.yml"), "publish");
+	for (const name of [
+		"Publish complete Source candidate",
+		"Upload candidate output",
+		"Create GitOps dispatch token",
+		"Dispatch GitOps candidate assembly",
+	]) {
+		assert.equal(namedStep(job, name).if, "steps.plan.outputs.publish == 'true'", name);
+	}
+});
+
 test("retention schedules full apply on trusted main and serializes mutations with publication", async () => {
 	const workflow = await loadWorkflow("ghcr-retention.yml");
 	assert.equal(workflow.on.pull_request_target, undefined);

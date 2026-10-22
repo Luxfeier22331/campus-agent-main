@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { type CandidatePlan, SOURCE_BASE_PATHS } from "./candidates.mts";
 import { ACTIVE_IMAGE_TARGETS } from "./image-targets.mts";
-import { completeCandidate, parseSourceCandidate } from "./source-candidate.mts";
+import { changesCandidate, completeCandidate, parseSourceCandidate } from "./source-candidate.mts";
 import { WORKER_CANDIDATES } from "./workers.mts";
 
 const sha = "a".repeat(40);
@@ -123,4 +123,34 @@ test("candidate includes declared maintenance requirements and accepts legacy ca
 		() => parseSourceCandidate({ ...withRequirement, maintenanceRequirements: ["../invalid"] }),
 		/maintenance requirements/,
 	);
+});
+
+test("an empty plan from a newer commit publishes nothing, while the cursor commit can retry dispatch", () => {
+	const previous = completeCandidate(
+		{ ...initial, maintenanceRequirements: ["agent-control-schema-rename"] },
+		undefined,
+		Object.fromEntries(ACTIVE_IMAGE_TARGETS.map((name) => [name, digest])),
+		[],
+	);
+	const empty: CandidatePlan = {
+		base: sha,
+		head: next,
+		images: [],
+		workers: [],
+		sourceBases: [],
+		topologyMigrations: [],
+		maintenanceRequirements: ["agent-control-schema-rename"],
+	};
+	assert.equal(changesCandidate(empty, previous), false);
+	assert.equal(changesCandidate({ ...empty, head: sha }, previous), true);
+	assert.equal(changesCandidate(empty, undefined), true);
+	for (const change of [
+		{ images: ["model-config"] },
+		{ workers: [WORKER_CANDIDATES[0]] },
+		{ sourceBases: [SOURCE_BASE_PATHS[0]] },
+		{ topologyMigrations: [{ id: "retire-example", operations: [] }] },
+		{ maintenanceRequirements: [] },
+	] as Partial<CandidatePlan>[]) {
+		assert.equal(changesCandidate({ ...empty, ...change }, previous), true);
+	}
 });

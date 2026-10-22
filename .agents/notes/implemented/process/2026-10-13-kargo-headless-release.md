@@ -46,6 +46,11 @@ CRD schema，防止校验使用另一份固定 CRD。
 发布范围从最后成功 Deployment 到选版后的树累计计算；没有成功记录时选择全部发布目标，空差异
 复用成功版本。Source 自动和手动发布都只接受 main，避免功能分支改变共享的发布基线。
 
+Source 计划为空时在计划后结束：镜像、Worker、source base、拓扑迁移都没有变化，且维护要求与上一个
+候选相同，就不发布候选、不派发 GitOps 组装。此前纯文档提交（如 `9581443fa`）照样发布候选并生成
+部署内容不变的选版 PR。游标停在上一个候选，下次发布从那里累计计算；计划照常计算，Campus Web 文档
+声明这类真实 Worker 输入仍会发布。游标自身的 SHA 重跑不跳过，保留从 Source 重新派发 GitOps 的入口。
+
 Argo 的 GitOps source 不再用 merge SHA 判断同步完成；文档提交也会改变 SHA，却不改变部署内容。
 同步、流量切换和完成前，Kargo 原生 HTTP step 按与 apply guard 相同的文件范围重新比较期望状态；
 实际部署内容已改变则停止旧发布。检查不依赖可复用的 workflow 成功记录，固定 Helm revision 仍需匹配。
