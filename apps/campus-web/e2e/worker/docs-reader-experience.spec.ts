@@ -10,6 +10,85 @@ const attendanceRootUnitId = attendance.rootUnitIds.body;
 const courseMapRootUnitId = attendance.rootUnitIds.courseMap;
 
 test.describe("docs reader experience", () => {
+	test("animates committed content with design tokens without replaying on anchors", async ({
+		page,
+	}) => {
+		await page.emulateMedia({ reducedMotion: "no-preference" });
+		await page.goto(historicalReaderPath, { waitUntil: "domcontentloaded" });
+		await waitForDocsHydration(page);
+		// Extend the token so the real animation remains observable after navigation.
+		await page.addStyleTag({
+			content: ".docs-page-transition { --motion-duration-standard: 5s; }",
+		});
+		await page.getByRole("link", { name: "查看当前版" }).click();
+		await expect(page).toHaveURL(publicReaderPath);
+		const content = page.locator(".docs-page-transition");
+		const animations = await content.evaluate((element) =>
+			element.getAnimations().map((animation) => {
+				const effect = animation.effect as KeyframeEffect;
+				return {
+					duration: effect.getTiming().duration,
+					easing: effect.getTiming().easing,
+					properties: Object.keys(effect.getKeyframes()[0] ?? {}).filter(
+						(key) => !["offset", "computedOffset", "easing", "composite"].includes(key),
+					),
+				};
+			}),
+		);
+		expect(animations).toHaveLength(2);
+		for (const animation of animations) {
+			expect(animation.duration).toBe(5000);
+			expect(animation.easing).toBe(
+				await content.evaluate(
+					(element) =>
+						new KeyframeEffect(element, [], {
+							easing: getComputedStyle(element).getPropertyValue("--motion-easing-standard").trim(),
+						}).getTiming().easing,
+				),
+			);
+		}
+		expect(animations.flatMap((animation) => animation.properties).sort()).toEqual([
+			"opacity",
+			"transform",
+		]);
+		await content.evaluate((element) => {
+			for (const animation of element.getAnimations()) {
+				animation.finish();
+			}
+			element.setAttribute("data-transition-instance", "current");
+		});
+		await expect(content).toHaveCSS("opacity", "1");
+		await expect(content).toHaveCSS("transform", "none");
+		await page.locator(`.docs-outline-panel a[href="#${attendanceSectionAnchor}"]`).click();
+		await expect(page).toHaveURL(`${publicReaderPath}#${attendanceSectionAnchor}`);
+		await expect(content).toHaveAttribute("data-transition-instance", "current");
+		expect(await content.evaluate((element) => element.getAnimations().length)).toBe(0);
+	});
+
+	test("skips and cancels content motion when reduced motion is requested", async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await page.goto(historicalReaderPath, { waitUntil: "domcontentloaded" });
+		await waitForDocsHydration(page);
+		await page.addStyleTag({
+			content: ".docs-page-transition { --motion-duration-standard: 5s; }",
+		});
+		await page.getByRole("link", { name: "查看当前版" }).click();
+		const content = page.locator(".docs-page-transition");
+		await expect(page).toHaveURL(publicReaderPath);
+		await expect(content).toHaveCSS("opacity", "1");
+		await expect(content).toHaveCSS("transform", "none");
+		expect(await content.evaluate((element) => element.getAnimations().length)).toBe(0);
+
+		await page.emulateMedia({ reducedMotion: "no-preference" });
+		await page.goBack();
+		await expect(page).toHaveURL(historicalReaderPath);
+		await expect.poll(() => content.evaluate((element) => element.getAnimations().length)).toBe(2);
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await expect.poll(() => content.evaluate((element) => element.getAnimations().length)).toBe(0);
+		await expect(content).toHaveCSS("opacity", "1");
+		await expect(content).toHaveCSS("transform", "none");
+	});
+
 	test("renders direct reader highlights and focuses the requested anchor", async ({ page }) => {
 		await page.goto(`${publicReaderPath}?hl=${attendanceRootUnitId}#${attendanceSectionAnchor}`, {
 			timeout: 60_000,

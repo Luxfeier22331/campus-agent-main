@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 
 import { CampusPageMetadataHead } from "@/app/page-metadata-head";
+import { DocsPageTransition } from "@/components/docs/docs-page-transition";
 import { DocsDocumentArticle } from "@/components/docs/docs-reader-view";
 import type { DocsDirectoryRouteData, DocsRouteData } from "@/features/docs/data-source";
 import { resolveDocsPageMetadata } from "@/features/docs/page-metadata";
@@ -19,18 +20,26 @@ export function DocsPage({
 	return (
 		<>
 			{renderMetadata ? <CampusPageMetadataHead metadata={metadata} /> : null}
-			{routeData.kind === "directory" ? (
-				<DocsStartPage data={routeData} />
-			) : (
-				<div className="docs-document-view">
-					<DocsBreadcrumbs items={buildDocumentBreadcrumbs(routeData)} />
-					<DocsDocumentArticle
-						data={routeData}
-						key={routeData.canonicalUrl}
-						locationHref={location.href}
-					/>
-				</div>
-			)}
+			<DocsPageTransition
+				key={
+					routeData.kind === "directory"
+						? "/docs"
+						: `${routeData.canonicalUrl}:${routeData.versionSlug}`
+				}
+			>
+				{routeData.kind === "directory" ? (
+					<DocsStartPage data={routeData} />
+				) : (
+					<div className="docs-document-view">
+						<DocsBreadcrumbs items={buildDocumentBreadcrumbs(routeData)} />
+						<DocsDocumentArticle
+							data={routeData}
+							key={routeData.canonicalUrl}
+							locationHref={location.href}
+						/>
+					</div>
+				)}
+			</DocsPageTransition>
 		</>
 	);
 }
