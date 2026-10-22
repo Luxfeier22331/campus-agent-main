@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
+import { DOCKERFILE_IMAGE_TARGETS } from "../release/image-targets.mts";
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const nodeDockerfiles = [
@@ -68,5 +69,44 @@ test("Node image defaults follow the repository Node version", () => {
 		const dockerfile = readFileSync(resolve(repositoryRoot, file), "utf8");
 		const dockerVersion = dockerfile.match(/^ARG NODE_VERSION=([^\s]+)$/mu)?.[1];
 		assert.equal(dockerVersion, nodeVersion, `${file} default must match .node-version`);
+	}
+});
+
+const imageDockerfiles = [...DOCKERFILE_IMAGE_TARGETS.keys()];
+const runCommands = (file: string) =>
+	readFileSync(resolve(repositoryRoot, file), "utf8")
+		.replaceAll("\\\n", " ")
+		.split("\n")
+		.filter((line) => line.startsWith("RUN "));
+
+test("image Dockerfiles use the builder's built-in frontend", () => {
+	for (const file of imageDockerfiles) {
+		const dockerfile = readFileSync(resolve(repositoryRoot, file), "utf8");
+		assert.doesNotMatch(dockerfile, /^#\s*syntax=/mu, `${file} must not pull a frontend image`);
+	}
+});
+
+test("image pnpm commands reuse the Corepack-cached pnpm binary", () => {
+	for (const file of imageDockerfiles) {
+		for (const command of runCommands(file).filter((line) =>
+			/(?:^|&&|\s)pnpm (?:install|--filter)/u.test(line),
+		)) {
+			assert(
+				command.includes("id=corepack,target=/root/.cache/node/corepack,sharing=locked"),
+				`${file}: ${command}`,
+			);
+		}
+	}
+});
+
+test("image apt commands use builder caches and keep the base cleanup policy", () => {
+	for (const file of imageDockerfiles) {
+		for (const command of runCommands(file).filter((line) => /\bapt-get\b/u.test(line))) {
+			assert(command.includes("id=apt-cache,target=/var/cache/apt,sharing=locked"), file);
+			assert(command.includes("id=apt-lists,target=/var/lib/apt/lists,sharing=locked"), file);
+			assert(command.includes("mv /etc/apt/apt.conf.d/docker-clean /tmp/docker-clean"), file);
+			assert(command.endsWith("mv /tmp/docker-clean /etc/apt/apt.conf.d/docker-clean"), file);
+			assert.doesNotMatch(command, /rm -rf \/var\/lib\/apt\/lists/u, file);
+		}
 	}
 });

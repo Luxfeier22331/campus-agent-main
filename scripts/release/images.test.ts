@@ -119,7 +119,7 @@ test("active selected images run serially in two groups with PR and canonical ca
 			);
 			assert(
 				args.includes(
-					`${image}.cache-to=type=registry,ref=ghcr.io/test/pr-cache-442/${image}:buildcache-arm64,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true`,
+					`${image}.cache-to=type=registry,ref=ghcr.io/test/pr-cache-442/${image}:buildcache-arm64,mode=min,image-manifest=true,oci-mediatypes=true,ignore-error=true`,
 				),
 			);
 		}
@@ -478,14 +478,14 @@ test("reuses an existing immutable linux/arm64 image", async (t) => {
 		],
 	);
 	assert(calls.every((call) => call.nodeVersion === "99.88.77"));
-	assert(logs.some((line) => /stage=run state=start .*cache_mode=max/u.test(line)));
+	assert(logs.some((line) => /stage=run state=start .*cache_mode=min/u.test(line)));
 	assert(logs.some((line) => /stage=inspect state=complete .*reused=true/u.test(line)));
 	assert(logs.some((line) => /stage=scan state=complete duration_ms=\d+/u.test(line)));
 	assert(logs.some((line) => /stage=run state=complete .*reused=1/u.test(line)));
 	assert(!logs.some((line) => line.includes("stage=build")));
 	const summary = await readFile(options.summaryFile, "utf8");
 	assert.match(summary, /Script duration: \d+\.\ds/u);
-	assert.match(summary, /Cache: registry with mode=max/u);
+	assert.match(summary, /Cache: registry with mode=min/u);
 	assert.match(summary, /Results: built=0 reused=1 failed=0 unfinished=0 not-started=0/u);
 	assert.match(summary, /Build and cache export: not run\./u);
 	assert.match(summary, /Trivy feedback: recorded=1 warnings=0 not-run=0/u);
@@ -644,7 +644,7 @@ test("reads the pushed digest from Docker Bake metadata", async (t) => {
 	);
 	assert.equal(
 		build.args.find((argument) => argument.includes(".cache-to=")),
-		"agent-runtime.cache-to=type=registry,ref=ghcr.io/muc-wiki/campus-agent/agent-runtime:buildcache-arm64,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true",
+		"agent-runtime.cache-to=type=registry,ref=ghcr.io/muc-wiki/campus-agent/agent-runtime:buildcache-arm64,mode=min,image-manifest=true,oci-mediatypes=true,ignore-error=true",
 	);
 	assert.equal(calls.find((call) => call.args.includes("--print"))?.output, "capture");
 	assert.equal(calls.find((call) => call.args.includes("imagetools"))?.output, "capture");

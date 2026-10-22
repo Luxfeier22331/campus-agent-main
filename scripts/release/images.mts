@@ -246,7 +246,7 @@ async function appendSummary(
 			mode === "build-only" ? "### Container build results" : "### Published image results",
 			"",
 			`- Mode: ${mode}; Script duration: ${durationCell(runMs)}`,
-			`- Cache: registry with mode=max; per-image ref suffix=:${IMAGE_CACHE_TAG}`,
+			`- Cache: registry with mode=min; per-image ref suffix=:${IMAGE_CACHE_TAG}`,
 			...(mode === "build-only"
 				? ["- Output: BuildKit cacheonly; cache export when configured"]
 				: []),
@@ -458,7 +458,7 @@ function cacheArguments(image: string, imports: string[], exported?: string): st
 	if (exported) {
 		args.push(
 			"--set",
-			`${image}.cache-to=type=registry,ref=${exported.toLowerCase()}/${image}:${IMAGE_CACHE_TAG},mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true`,
+			`${image}.cache-to=type=registry,ref=${exported.toLowerCase()}/${image}:${IMAGE_CACHE_TAG},mode=min,image-manifest=true,oci-mediatypes=true,ignore-error=true`,
 		);
 	}
 	return args;
@@ -643,7 +643,7 @@ export async function publishImages(
 	const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "campus-agent-images-"));
 	const digests: Record<string, string> = {};
 	let failure: unknown;
-	logRun(logger, "start", `images_count=${images.length} cache_type=registry cache_mode=max`);
+	logRun(logger, "start", `images_count=${images.length} cache_type=registry cache_mode=min`);
 	try {
 		const planned = await planBatches(images, root, env, runner);
 		for (const report of reports) {

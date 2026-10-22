@@ -193,7 +193,7 @@ Node prune 保留冻结安装需要的全部 manifest，但只向编译层复制
 `CI_IMAGE_CACHE_IMPORT_REGISTRIES` 传入 JSON 数组。需要导出时显式传入 `--cache-export-registry`。
 build-only 复用正式发布的 BuildKit 分段日志和 summary，不推送运行镜像。
 同仓 PR 的独立镜像 job 默认只导入主线 canonical cache，不写入每个 PR 的 registry cache；这避免了
-合并后 main 发布不会消费的 `mode=max` 导出。reusable workflow 只保留 `cache_read` 输入，不提供
+合并后 main 发布不会消费的缓存导出。reusable workflow 只保留 `cache_read` 输入，不提供
 PR cache 导出。fork、Dependabot 和登录失败时不使用认证缓存；trusted 同仓 PR 读取 canonical cache。
 普通校验 job 不持有
 package write 权限，最终 `repo-checks` 汇总所有选中任务。
@@ -218,7 +218,7 @@ build-only 和正式发布均按现有 Bake `heavy`、`standard` 分组与选中
 目标错误标记为 failed，同批未确认目标为 unfinished，后续组为 not-started。正式发布仍先检查不可变
 tag，仅构建缺失镜像，全部 digest 有效后才写最终结果。主线只读写 canonical 缓存。
 
-registry 缓存继续使用 `mode=max` 和 `ignore-error=true`。镜像发布结果与缓存导出结果分别显示：
+registry 缓存使用 `mode=min` 和 `ignore-error=true`，只导出最终镜像层；中间阶段依赖 builder 本地缓存。镜像发布结果与缓存导出结果分别显示：
 导出失败会留下 warning，不能因为镜像推送成功就声称缓存成功。复用已有镜像时不执行构建或缓存导出。
 同一操作的多段时间取区间并集；操作之间以及 exporter 父子步骤可能重叠，不能相加作为总耗时。
 

@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { NODE_IMAGE_TARGETS } from "../release/image-targets.mts";
 import { imageScopeBetween, successfulImageBaseline } from "./image-scope.mts";
 import { type CommandRunner, run } from "./scope.mts";
 import { planValidation } from "./validation.mts";
@@ -76,6 +77,38 @@ test("compares sibling trees and retains removed production dependency edges", (
 	git("add", "-A");
 	git("commit", "-qm", "remove dependency");
 	assert.deepEqual(imageScopeBetween(current, git("rev-parse", "HEAD"), root).images, ["ops-web"]);
+});
+
+test("root scripts alone do not select Node images", (t) => {
+	const root = mkdtempSync(path.join(os.tmpdir(), "image-scope-root-"));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const git = (...args: string[]) =>
+		execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+	const commit = (manifest: Record<string, unknown>) => {
+		writeFileSync(path.join(root, "package.json"), JSON.stringify(manifest));
+		git("add", ".");
+		git("commit", "-qm", "manifest");
+		return git("rev-parse", "HEAD");
+	};
+	git("init", "-q");
+	git("config", "user.email", "test@example.com");
+	git("config", "user.name", "Test");
+	mkdirSync(path.join(root, "apps/ops-web"), { recursive: true });
+	writeFileSync(path.join(root, "apps/ops-web/package.json"), JSON.stringify({ name: "ops-web" }));
+	const base = commit({ name: "root", scripts: { lint: "prek" }, packageManager: "pnpm@10.0.0" });
+	const scripts = commit({
+		name: "root",
+		scripts: { lint: "prek --skip x" },
+		packageManager: "pnpm@10.0.0",
+	});
+	const manager = commit({
+		name: "root",
+		scripts: { lint: "prek --skip x" },
+		packageManager: "pnpm@10.1.0",
+	});
+	assert.deepEqual(imageScopeBetween(base, scripts, root).changedFiles, ["package.json"]);
+	assert.deepEqual(imageScopeBetween(base, scripts, root).images, []);
+	assert.deepEqual(imageScopeBetween(scripts, manager, root).images, [...NODE_IMAGE_TARGETS]);
 });
 
 test("baseline requires the same PR, successful workflow and successful image job", () => {

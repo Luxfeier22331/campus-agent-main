@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 FROM --platform=$BUILDPLATFORM golang:1.26.9-bookworm AS build
 ARG TARGETOS=linux
 ARG TARGETARCH

@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 FROM --platform=$BUILDPLATFORM golang:1.26.9-bookworm AS build
 
 ARG TARGETOS=linux
@@ -19,10 +18,14 @@ RUN --mount=type=cache,id=go-model-config-modules,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/model-config ./cmd/model-config
 
 FROM debian:bookworm-slim
-RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=locked \
+  mv /etc/apt/apt.conf.d/docker-clean /tmp/docker-clean \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl \
+  && useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
+  && mv /tmp/docker-clean /etc/apt/apt.conf.d/docker-clean
+
 COPY --from=build /out/model-config /usr/local/bin/model-config
 USER appuser
 EXPOSE 8000

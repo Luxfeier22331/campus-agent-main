@@ -23,16 +23,23 @@ PR diff；不保存额外基线文件或数据库。普通校验的 base、缓�
 Docker context 排除测试、校验配置与本地产物；prune 后移除测试依赖源码，但保留 frozen install
 所需 manifest。Go 的模块下载层与生产代码层分开。SQL、schema 和运行时 fixture 保留。
 
+根 `package.json` 的 `scripts` 不是镜像生产输入：镜像内安装均带 `--ignore-scripts`，构建只运行
+workspace 脚本。#666 只改 `lint` 脚本就让六个 Node 镜像全部重建。选择时比较前后两版去掉
+`scripts` 后的 manifest，`packageManager`、`engines`、依赖等其他字段变化仍选择全部 Node 镜像；
+prune 同时从输出的根 manifest 删除 `scripts`，使镜像内容和 prune 之后的层缓存与根脚本无关，
+跳过的镜像与重建结果一致。只有 pruner 的首个安装层仍随根文件失效。
+
 ## 未采用方案
 
 - Turbo affected 能统一校验图，但测试边与生产边不同，继续复用会保留已观察到的重复构建。
 - 每次比较 PR base 简单可靠，但无法跳过同 PR 已成功验证且没有变化的镜像。
 - 固定基础镜像 digest 能稳定缓存，但用户明确不采用，也不新增自动更新流程。
 - 额外记录构建 hash 或 receipt 能保存基线，但 GitHub 现有成功运行记录已经满足当前消费者。
+- 只在选择阶段豁免根脚本改动最小，但镜像会继续携带根脚本，跳过的镜像与当前源码重建结果不同。
 
 ## 后果
 
 回归覆盖 sibling tree、生产依赖删除、失败与取消运行排除、跳过的镜像 job、历史查询失败和
 merge 对象不可获取。构建复验覆盖 package-specific 选择和缓存边界，不新增性能门禁或浏览器测试。
 基础 tag 更新仍可能使选中的镜像缓存失效；这是保留 tag 策略的结果。新增生产开发依赖或包外
-资源时需更新对应映射；本地 builder 缓存不构成生产合同，继续使用现有 registry 缓存。
+资源时需更新对应映射；镜像构建若开始运行根脚本，需撤销根脚本豁免；本地 builder 缓存不构成生产合同，继续使用现有 registry 缓存。

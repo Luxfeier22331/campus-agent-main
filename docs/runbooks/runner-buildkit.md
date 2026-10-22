@@ -11,7 +11,7 @@ status: active
 源码仓库的六个执行工作流读取仓库变量 `CI_RUNNER_MODE`：`pr.yml`、`pr-image-evidence.yml`、
 `staging-candidate-publish.yml`、`manual-evidence.yml`、`dependencies.yml` 和 `ghcr-retention.yml`。
 当前两个仓库都将该变量设置为 `self-hosted`，因此作业默认运行在已注册并通过能力探针的 self-hosted
-Runner（当前为 `nc-arm-6c`）。为保留平台故障下的人工恢复能力，变量仍支持切换到 GitHub-hosted Runner：
+Runner（当前只有 `sq-nixos`）。为保留平台故障下的人工恢复能力，变量仍支持切换到 GitHub-hosted Runner：
 
 - 变量未设置时使用 GitHub-hosted Runner；
 - 变量值为 `self-hosted` 时使用 `self-hosted`、`Linux`、`campus-ci` 三个标签；
@@ -39,7 +39,6 @@ gh variable delete CI_RUNNER_MODE \
 
 | Runner | 目标架构实现 | Builder |
 | --- | --- | --- |
-| `nc-arm-6c` | 原生 ARM64 | `campus-agent-release` |
 | `sq-nixos` | x86_64 + NixOS binfmt/QEMU | `campus-runner-buildkit-v1` |
 
 Self-hosted Runner 服务为作业注入 `HOME`、`DOCKER_CONFIG` 和 `BUILDX_BUILDER`。源码工作流只依赖
@@ -57,64 +56,64 @@ Self-hosted Runner 服务为作业注入 `HOME`、`DOCKER_CONFIG` 和 `BUILDX_BU
 `scratch` Dockerfile 同时输出 OCI 制品和 `mode=max` 本地缓存，再检查 OCI platform 元数据和缓存
 index。探针不删除或重建已有 builder；本地 exporter 验证不替代 GHCR 权限验收。
 
-在对应 Runner 用户环境中执行：
+在 Runner 用户环境中执行：
 
 ```bash
-BUILDX_BUILDER=campus-agent-release \
-HOME=/home/github-runner \
-DOCKER_CONFIG=/home/github-runner/.docker \
+BUILDX_BUILDER=campus-runner-buildkit-v1 \
+HOME=/var/lib/github-runner \
+DOCKER_CONFIG=/var/lib/github-runner/.docker \
 bash scripts/ci/runner-capability-probe.sh
 ```
 
-`sq-nixos` 使用 `/var/lib/github-runner` 作为 `HOME` 和 Docker 配置目录。服务启动前必须通过同一
-探针；失败时 Runner 不接收任务。并发检查读取 Buildx 注册节点的 `buildkitd.toml`，不以宿主机
-上尚未应用的配置文件作为已生效的证据。
+服务启动前必须通过同一探针；失败时 Runner 不接收任务。并发检查读取 Buildx 注册节点的
+`buildkitd.toml`，不以宿主机上尚未应用的配置文件作为已生效的证据。
 
 ## BuildKit 容量治理
 
-两个 builder 的当前配置和定时维护均使用以下 BuildKit GC 上限：
+builder 的 BuildKit daemon 配置负责容量 GC：
 
-- `maxUsedSpace = 12GB`；
+- `maxUsedSpace = 30GB`；
 - `minFreeSpace = 25GB`；
 - `reservedSpace = 2GB`。
 
-BuildKit daemon 配置负责正常 GC，builder-scoped 的定时维护只对对应 builder 执行
-`buildx history rm` 和 `buildx prune`。禁止使用不带 `--builder` 的全局 prune，也不执行
-`docker system prune` 或 `docker volume prune`。
+PR 镜像证据不导出 registry cache，main 发布的 registry cache 只含最终镜像层，中间阶段依赖本地缓存；
+一次全量构建的 node_modules 层约 6GB，上限需容纳多次构建。
+
+每周的 builder-scoped 维护只对对应 builder 执行 `buildx history rm` 和
+`buildx prune --filter until=168h`，清理 7 天未使用的记录，例如基础镜像升级后的旧层。维护不叠加容量参数：
+容量参数让 prune 在占用低于上限时直接结束，不会删除过期记录。禁止使用不带 `--builder` 的全局 prune，
+也不执行 `docker system prune` 或 `docker volume prune`。
 
 检查实际 builder，而不是 Docker CLI 的默认 builder：
 
 ```bash
 sudo -u github-runner env \
-  HOME=/home/github-runner \
-  DOCKER_CONFIG=/home/github-runner/.docker \
-  BUILDX_BUILDER=campus-agent-release \
+  HOME=/var/lib/github-runner \
+  DOCKER_CONFIG=/var/lib/github-runner/.docker \
+  BUILDX_BUILDER=campus-runner-buildkit-v1 \
   docker buildx inspect --bootstrap
 
 sudo -u github-runner env \
-  HOME=/home/github-runner \
-  DOCKER_CONFIG=/home/github-runner/.docker \
-  BUILDX_BUILDER=campus-agent-release \
+  HOME=/var/lib/github-runner \
+  DOCKER_CONFIG=/var/lib/github-runner/.docker \
+  BUILDX_BUILDER=campus-runner-buildkit-v1 \
   docker buildx du
 ```
-
-`sq-nixos` 的路径和 builder 名称替换为上表中的值。
 
 ## Self-hosted 维护
 
 修改 builder 配置前先确认 GitHub Runner `busy=false`，并停止对应 Runner 服务；不要在有作业运行时
 重启 Docker、删除 builder 或清理缓存。维护期间暂停该 builder 的 GC timer，并确认 GC service 已结束。
 
-`nc-arm-6c` 的配置源是 `/etc/campus-agent/buildkit.toml`，初始化入口是
-`campus-agent-buildkit.service` 调用的 `/usr/local/lib/campus-agent/buildkit-ensure.sh`。
-初始化只在 builder 不存在时加载配置；修改宿主机文件不会更新已有 builder。
-初始化参数显式保留该主机的 2 CPU、2GiB 内存、无容器 swap 和现有 bridge 网络设置。
+`sq-nixos` 的 builder 由 NixOS 配置管理，初始化入口是 `campus-runner-buildkit.service`，
+定时维护是 `campus-runner-buildkit-gc.timer`；Runner 服务启动前运行能力探针。
+builder 只在创建时读取 `buildkitd.toml`。初始化服务比较容器中的 `/etc/buildkit/buildkitd.toml` 与
+NixOS 生成的配置，不一致时执行 `docker buildx rm --keep-state campus-runner-buildkit-v1`，再以相同名称和
+更新后的 `--buildkitd-config` 重建；状态卷 `buildx_buildkit_campus-runner-buildkit-v10_state` 和缓存保留。
+初始化服务重启会连带重启 Runner 服务，因此只在 Runner 空闲时执行 `nixos-rebuild switch`。
 
-应用配置时先保存原配置、实际容器镜像 ID、资源限制及状态卷名称。以 Runner 用户对指定 builder 执行
-`docker buildx rm --keep-state campus-agent-release`，然后使用相同 builder 与节点名称、现有 BuildKit
-镜像和资源配置重新创建，传入更新后的 `--buildkitd-config`。不得删除状态卷或顺带升级 BuildKit。
-核对容器中的 `/etc/buildkit/buildkitd.toml`、资源限制、版本和 `/var/lib/buildkit` 挂载仍使用原状态卷，
-再运行能力探针。全部通过后恢复 GC timer 和 Runner 服务；失败时保留状态卷并恢复原配置，
+应用后核对容器中的 `/etc/buildkit/buildkitd.toml`、BuildKit 版本和 `/var/lib/buildkit` 仍挂载原状态卷，
+再确认能力探针通过、Runner 重新上线。失败时执行 `nixos-rebuild switch --rollback`；状态卷保留，
 在构建能力恢复前不接收新任务。
 
 缓存导出失败继续作为发布摘要中的 warning；正式镜像推送失败阻断发布，不输出部分 digest 集合。

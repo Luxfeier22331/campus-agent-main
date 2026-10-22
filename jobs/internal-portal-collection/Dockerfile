@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 ARG NODE_VERSION=24.22.1
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
@@ -39,7 +38,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
 COPY --from=pruner /repo/out/full/ ./
 COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
 
-RUN pnpm --filter internal-portal-collection typecheck \
+RUN --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  pnpm --filter internal-portal-collection typecheck \
   && pnpm --filter internal-portal-collection build \
   && touch /check-complete
 

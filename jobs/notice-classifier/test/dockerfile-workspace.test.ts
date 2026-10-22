@@ -18,7 +18,7 @@ describe("notice-classifier Dockerfile workspace inputs", () => {
 		expect(dockerfile).toContain(
 			"pnpm install --ignore-scripts --prod --frozen-lockfile --filter notice-classifier...",
 		);
-		expect(dockerfile).toContain("RUN pnpm --filter notice-classifier build");
+		expect(dockerfile).toContain("  pnpm --filter notice-classifier build");
 		expect(dockerfile).not.toMatch(/COPY packages\/(?:ingestion-contracts|notice-database)\//u);
 	});
 });

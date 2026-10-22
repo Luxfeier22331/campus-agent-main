@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -42,6 +42,10 @@ test("pruning keeps production resources and test dependency manifests only", (t
 	for (const file of [...keep.filter((file) => !file.endsWith("package.json")), ...remove]) {
 		write(`out/full/${file}`);
 	}
+	const rootManifest = { name: "root", packageManager: "pnpm@10.0.0", scripts: { lint: "prek" } };
+	for (const prefix of ["out/full/", "out/json/"]) {
+		write(`${prefix}package.json`, JSON.stringify(rootManifest));
+	}
 	pruneImageSources("ops-web", path.join(root, "out"), root);
 	for (const file of keep) {
 		assert(existsSync(path.join(root, "out/full", file)), file);
@@ -50,4 +54,14 @@ test("pruning keeps production resources and test dependency manifests only", (t
 		assert(!existsSync(path.join(root, "out/full", file)), file);
 	}
 	assert(existsSync(path.join(root, "out/json/apps/app-api/package.json")));
+	for (const prefix of ["out/full/", "out/json/"]) {
+		assert.deepEqual(JSON.parse(readFileSync(path.join(root, prefix, "package.json"), "utf8")), {
+			name: "root",
+			packageManager: "pnpm@10.0.0",
+		});
+	}
+	assert.deepEqual(
+		JSON.parse(readFileSync(path.join(root, "out/json/apps/ops-web/package.json"), "utf8")),
+		manifests["apps/ops-web"],
+	);
 });

@@ -30,7 +30,6 @@ jobs:
       contents: read
       pull-requests: read
       packages: read
-    # Keep native validation on the same architecture as publication.
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04-arm"') }}
     timeout-minutes: 30
     outputs:
@@ -294,15 +293,22 @@ jobs:
             --exit-code=1 \
             --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"
 
-      - name: Install affected workspaces
-        id: install_affected
+      - name: Require light checks before heavy evidence
+        id: light_checks
         if: >-
-          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') &&
+          !cancelled() && steps.plan.outcome == 'success' &&
           (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
           steps.secrets.outcome == 'success' &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
+        shell: bash -e {0}
+        run: echo "Light checks passed; heavy evidence may start."
+
+      - name: Install affected workspaces
+        id: install_affected
+        if: >-
+          !cancelled() && steps.light_checks.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node')
         continue-on-error: true
         env:
           AFFECTED_PACKAGES: ${{ steps.plan.outputs.affected_packages }}
@@ -336,12 +342,7 @@ jobs:
       - name: Run affected Node evidence
         id: node_evidence
         if: >-
-          !cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.node_evidence_profiles != '[]' && steps.install_affected.outcome == 'success' &&
-          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
-          steps.secrets.outcome == 'success' &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
+          !cancelled() && steps.light_checks.outcome == 'success' && steps.plan.outputs.node_evidence_profiles != '[]' && steps.install_affected.outcome == 'success'
         continue-on-error: true
         env:
           CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/node.jsonl
@@ -358,12 +359,7 @@ jobs:
       - name: Run container build contract evidence
         id: container_build
         if: >-
-          !cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.has_container_build == 'true' &&
-          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
-          steps.secrets.outcome == 'success' &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          !cancelled() && steps.light_checks.outcome == 'success' && steps.plan.outputs.has_container_build == 'true' &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success')
         continue-on-error: true
         env:
@@ -377,12 +373,7 @@ jobs:
       - name: Check affected native code
         id: native_evidence
         if: >-
-          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native') &&
-          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
-          steps.secrets.outcome == 'success' &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          !cancelled() && steps.light_checks.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'container-build') || steps.container_build.outcome == 'success')
         continue-on-error: true
@@ -417,12 +408,7 @@ jobs:
       - name: Verify unified database upgrade
         id: schema_migration
         if: >-
-          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'schema-migration') &&
-          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
-          steps.secrets.outcome == 'success' &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
-          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          !cancelled() && steps.light_checks.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'schema-migration') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'container-build') || steps.container_build.outcome == 'success') &&
           (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native') || steps.native_evidence.outcome == 'success')

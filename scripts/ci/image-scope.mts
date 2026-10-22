@@ -19,7 +19,39 @@ export function imageScopeBetween(
 		...readImageWorkspaces(root, base, runner),
 		...readImageWorkspaces(root, head, runner),
 	];
-	return { base, head, changedFiles, images: imageTargetsForScope({ changedFiles }, workspaces) };
+	const imageFiles =
+		changedFiles.includes("package.json") && rootScriptsOnlyChanged(base, head, root, runner)
+			? changedFiles.filter((file) => file !== "package.json")
+			: changedFiles;
+	return {
+		base,
+		head,
+		changedFiles,
+		images: imageTargetsForScope({ changedFiles: imageFiles }, workspaces),
+	};
+}
+
+// Image builds install with --ignore-scripts and run only workspace scripts, so root scripts are
+// not a production input; every other root manifest field still selects the Node images.
+function rootScriptsOnlyChanged(
+	base: string,
+	head: string,
+	root: string,
+	runner: CommandRunner,
+): boolean {
+	const manifests = [base, head].map((revision) => {
+		const result = runner("git", ["show", `${revision}:package.json`], {
+			cwd: root,
+			env: process.env,
+		});
+		if (result.status !== 0) {
+			// An added or deleted root manifest is a real Node build input change.
+			return revision;
+		}
+		const { scripts: _scripts, ...manifest } = JSON.parse(result.stdout ?? "");
+		return JSON.stringify(manifest);
+	});
+	return manifests[0] === manifests[1];
 }
 
 interface WorkflowRun {

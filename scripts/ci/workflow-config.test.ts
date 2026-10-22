@@ -347,6 +347,12 @@ test("Go caches follow native selection and save fresh successful analysis only"
 
 test("failed prerequisites prevent expensive PR checks while diagnostics remain available", async () => {
 	const job = workflowJob(await loadWorkflow("pr.yml"), "repository-validation");
+	const gate = namedStep(job, "Require light checks before heavy evidence");
+	// Feed the gate result to heavy steps the way GitHub records a step outcome.
+	const withGate = (steps: Record<string, unknown>) => ({
+		...steps,
+		light_checks: { outcome: condition(gate.if, { steps }) ? "success" : "skipped" },
+	});
 	const heavy = [
 		"Install affected workspaces",
 		"Run affected Node evidence",
@@ -395,7 +401,7 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 		const steps = { ...successful, plan, ...(failed ? { [failed]: { outcome: "failure" } } : {}) };
 		for (const name of heavy) {
 			assert.equal(
-				condition(namedStep(job, name).if, { steps }),
+				condition(namedStep(job, name).if, { steps: withGate(steps) }),
 				failed === undefined,
 				`${name}: ${failed}`,
 			);
@@ -409,7 +415,7 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 		repository_test: { outcome: "skipped" },
 	};
 	for (const name of heavy) {
-		assert.equal(condition(namedStep(job, name).if, { steps: lintFailure }), false);
+		assert.equal(condition(namedStep(job, name).if, { steps: withGate(lintFailure) }), false);
 	}
 	// Changes outside every tooling group skip repository stages without blocking evidence.
 	const noRepositoryGroups = {
@@ -420,12 +426,16 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 		repository_test: { outcome: "skipped" },
 	};
 	for (const name of heavy) {
-		assert.equal(condition(namedStep(job, name).if, { steps: noRepositoryGroups }), true, name);
+		assert.equal(
+			condition(namedStep(job, name).if, { steps: withGate(noRepositoryGroups) }),
+			true,
+			name,
+		);
 	}
 	for (const skipped of ["contracts", "canonical_order", "github_actions"]) {
 		const steps = { ...successful, plan, [skipped]: { outcome: "skipped" } };
 		for (const name of heavy) {
-			assert.equal(condition(namedStep(job, name).if, { steps }), false);
+			assert.equal(condition(namedStep(job, name).if, { steps: withGate(steps) }), false);
 		}
 	}
 	const installFailure = {
@@ -435,7 +445,7 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 		node_evidence: { outcome: "skipped" },
 	};
 	for (const name of heavy.slice(1)) {
-		assert.equal(condition(namedStep(job, name).if, { steps: installFailure }), false);
+		assert.equal(condition(namedStep(job, name).if, { steps: withGate(installFailure) }), false);
 	}
 	const nativeOnly = {
 		...successful,
@@ -457,7 +467,7 @@ test("failed prerequisites prevent expensive PR checks while diagnostics remain 
 		container_build: { outcome: "skipped" },
 	};
 	assert.equal(
-		condition(namedStep(job, "Check affected native code").if, { steps: nativeOnly }),
+		condition(namedStep(job, "Check affected native code").if, { steps: withGate(nativeOnly) }),
 		true,
 	);
 	assert.equal(namedStep(job, "Summarize repository evidence").if, "always()");

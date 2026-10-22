@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 ARG NODE_VERSION=24.22.1
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
@@ -38,7 +37,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
 
 COPY --from=pruner /repo/out/full/ ./
 
-RUN pnpm --filter notice-classifier build
+RUN --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  pnpm --filter notice-classifier build
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS production-dependencies
 
@@ -57,6 +57,15 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
+RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=locked \
+  mv /etc/apt/apt.conf.d/docker-clean /tmp/docker-clean \
+  && apt-get update \
+  && apt-get upgrade -y \
+  && rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/pnpm /usr/local/bin/pnpx \
+  && mv /tmp/docker-clean /etc/apt/apt.conf.d/docker-clean
+
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -64,12 +73,6 @@ ENV NODE_ENV=production
 LABEL org.opencontainers.image.source="https://github.com/MUC-WIKI/campus-agent" \
   org.opencontainers.image.title="campus-agent-notice-classifier" \
   org.opencontainers.image.description="One-shot title-only notice classification job"
-
-RUN apt-get update \
-  && apt-get upgrade -y \
-  && rm -rf /var/lib/apt/lists/* \
-  && rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
-  && rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/pnpm /usr/local/bin/pnpx
 
 COPY --from=production-dependencies --chown=node:node /app /app
 COPY --from=build --chown=node:node /app/jobs/notice-classifier/dist /app/jobs/notice-classifier/dist

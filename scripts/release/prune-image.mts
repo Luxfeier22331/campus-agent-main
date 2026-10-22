@@ -1,4 +1,4 @@
-import { readdirSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -35,6 +35,15 @@ export function pruneImageSources(image: ImageTarget, output: string, root = pro
 		}
 	};
 	walk(full);
+	// Image installs ignore lifecycle scripts and run workspace builds only; root scripts are
+	// repository tooling and must not make image content depend on them.
+	for (const directory of ["json", "full"]) {
+		const manifest = path.join(output, directory, "package.json");
+		if (existsSync(manifest)) {
+			const { scripts: _scripts, ...rest } = JSON.parse(readFileSync(manifest, "utf8"));
+			writeFileSync(manifest, `${JSON.stringify(rest, null, "\t")}\n`);
+		}
+	}
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
