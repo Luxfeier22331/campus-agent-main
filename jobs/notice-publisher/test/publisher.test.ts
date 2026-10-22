@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -436,6 +437,89 @@ describe("notice publisher", () => {
 			1,
 			"现存附件.pdf",
 		]);
+	});
+
+	it("omits snapshot images the portal reported missing and keeps display ordinals contiguous", async () => {
+		const insertedAssets: unknown[][] = [];
+		const projected: unknown[][] = [];
+		const client = {
+			query: vi.fn(async (text: string, values?: unknown[]) => {
+				if (text.includes("SELECT notice_id::text")) {
+					return { rowCount: 1, rows: [candidate()] };
+				}
+				if (text.includes("UPDATE notices.notices")) {
+					projected.push(values ?? []);
+					return { rowCount: 1, rows: [] };
+				}
+				if (text.includes("SELECT asset_kind")) {
+					return { rowCount: 0, rows: [] };
+				}
+				if (text.includes("INSERT INTO notices.notice_assets")) {
+					insertedAssets.push(values ?? []);
+				}
+				return { rowCount: 0, rows: [] };
+			}),
+		} as unknown as PoolClient;
+		const present = Buffer.from("present image");
+		const presentSha256 = createHash("sha256").update(present).digest("hex");
+		const source = {
+			attachments: [],
+			external_url: null,
+			is_external: false,
+			notice_content_html: '<p>正文</p><p><img src="/images/missing.png"><img src="/images/present.png"></p>',
+			notice_id: 358159,
+			notice_release_time: "2026-08-11 08:00:00",
+			notice_title: "测试通知",
+			notice_type: 5,
+			organization_id: null,
+			resources: [
+				{ byte_size: null, content_type: null, kind: "images", object_key: null, ordinal: 0, sha256: null },
+				{
+					byte_size: present.byteLength,
+					content_type: "image/png",
+					kind: "images",
+					object_key: `internal_portal/resources/sha256/${presentSha256}`,
+					ordinal: 1,
+					sha256: presentSha256,
+				},
+			],
+			schema_version: "internal_portal_notice_source.v2",
+		};
+		const getSource = vi.fn(async (key: string) =>
+			key.startsWith("internal_portal/resources/")
+				? { body: present, contentType: "image/png" }
+				: {
+						body: Buffer.from(
+							JSON.stringify(
+								key.endsWith("meta.json")
+									? {
+											notice_types: { "5": "办公通知" },
+											organizations: {},
+											schema_version: "internal_portal_meta.v1",
+											updated_at: "2026-08-11T00:00:00.000Z",
+										}
+									: source,
+							),
+						),
+						contentType: "application/json",
+					},
+		);
+		const store: PublisherObjectStore = {
+			close: vi.fn(),
+			createOrVerifyDerived: vi.fn(),
+			getSource,
+			getSourceIfExists: vi.fn(),
+		};
+
+		await expect(
+			publishNotices({ client, objectStore: store, portalHost: "my.muc.edu.cn" }),
+		).resolves.toEqual({ assets: 1, notices: 1, failed: 0, outcome: "success" });
+
+		expect(getSource).not.toHaveBeenCalledWith(expect.stringContaining("/images/0"));
+		expect(insertedAssets).toHaveLength(1);
+		expect(insertedAssets[0]?.slice(0, 3)).toEqual([358159, "image", 0]);
+		expect(JSON.stringify(projected)).toContain("notice-asset:image:0");
+		expect(JSON.stringify(projected)).not.toContain("notice-asset:image:1");
 	});
 
 	it("keeps missing image objects as publication failures", async () => {

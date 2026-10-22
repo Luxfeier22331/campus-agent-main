@@ -108,6 +108,33 @@ describe("notice preview", () => {
 		expect(pdf.headers.get("cache-control")).toBe("private, no-store");
 		expect((await app.request("/api/ops/notices/900001/images/1")).status).toBe(404);
 	});
+	it("omits snapshot images the portal reported missing", () => {
+		const { preview, images } = prepareNoticePreview({
+			...source,
+			notice_content_html: `<p>正文内容</p><img src="https://${host}/gone.jpg"><img src="https://${host}/photo.jpg">`,
+			resources: [
+				{
+					kind: "images",
+					ordinal: 0,
+					object_key: null,
+					content_type: null,
+					byte_size: null,
+					sha256: null,
+				},
+				{
+					kind: "images",
+					ordinal: 1,
+					object_key: "internal_portal/resources/sha256/photo",
+					content_type: "image/jpeg",
+					byte_size: 11,
+					sha256: "a".repeat(64),
+				},
+			],
+		});
+		expect(preview.contentHtml).not.toContain("notice-asset:image:1");
+		expect(preview.images).toEqual([{ ordinal: 0, url: "/api/ops/notices/900001/images/0" }]);
+		expect(images.map(({ sourceOrdinal }) => sourceOrdinal)).toEqual([1]);
+	});
 	it("keeps external notices as links and empty-body attachments available", () => {
 		const external = prepareNoticePreview({
 			...source,

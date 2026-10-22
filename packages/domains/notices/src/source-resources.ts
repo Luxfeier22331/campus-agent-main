@@ -15,6 +15,23 @@ export type NoticeSourceResource =
 			suffix: string | null;
 	  };
 
+interface NoticeSourceResourceRef {
+	kind: "images" | "attachments";
+	ordinal: number;
+	object_key: string | null;
+}
+
+/** 来源快照中门户明确 404、没有资源对象的图片来源序号。 */
+export function missingNoticeImageSourceOrdinals(source: {
+	resources?: readonly NoticeSourceResourceRef[];
+}): Set<number> {
+	return new Set(
+		(source.resources ?? [])
+			.filter((ref) => ref.kind === "images" && ref.object_key === null)
+			.map((ref) => ref.ordinal),
+	);
+}
+
 export function listNoticeSourceResources(
 	noticeId: string,
 	source: {
@@ -23,11 +40,7 @@ export function listNoticeSourceResources(
 		notice_content_html: string | null;
 		notice_title?: string;
 		attachments: readonly { suffix: string | null }[];
-		resources?: readonly {
-			kind: "images" | "attachments";
-			ordinal: number;
-			object_key: string | null;
-		}[];
+		resources?: readonly NoticeSourceResourceRef[];
 	},
 	portalHost: string,
 ): NoticeSourceResource[] {
@@ -39,6 +52,7 @@ export function listNoticeSourceResources(
 	}
 	const resources: NoticeSourceResource[] = normalizeNoticeContent({
 		html: source.notice_content_html,
+		missingImageSourceOrdinals: missingNoticeImageSourceOrdinals(source),
 		title: source.notice_title ?? "",
 		portalHost,
 	}).images.map((image) => ({

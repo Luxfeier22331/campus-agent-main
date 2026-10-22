@@ -884,14 +884,71 @@ describe("notice runner maintenance ranges", () => {
 		expect(stateStore.saveCalls).toBe(0);
 	});
 
-	it("keeps inline image HTTP 404 as a resource failure", async () => {
+	it("registers a notice and advances state when an inline image returns HTTP 404", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		const objectStore = new MemoryObjectStore();
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		let result!: Awaited<ReturnType<typeof syncInternalPortalNotices>>;
+		let missingResourceLog: unknown;
+		try {
+			result = await syncInternalPortalNotices(
+				runnerInput({
+					apiContext: {
+						get: async () => httpErrorResponse(404, "Not Found"),
+						post: async () => {
+							throw new Error("unexpected post");
+						},
+					},
+					fetchNoticeDetail: async () => detailWithImage(1, "2026-08-10 09:00"),
+					fetchNoticePage: async (input) =>
+						input.startDate === ""
+							? page([notice(300, 5, "2026-08-11 09:00")], 1)
+							: page([notice(1, 5, "2026-08-10 09:00")], 1),
+					inventoryStore,
+					objectStore,
+					onProgress: () => undefined,
+					stateStore,
+				}),
+			);
+			missingResourceLog = log.mock.calls
+				.map(([value]) => JSON.parse(String(value)))
+				.find((value) => value.noticeResource);
+		} finally {
+			log.mockRestore();
+		}
+
+		expect(result).toMatchObject({
+			failures: [],
+			maintenanceRange: { from: "2026-08-01", to: "2026-08-12" },
+			noticesProcessed: 1,
+			resources: { attachmentsMissing: 0, imagesDownloaded: 0, imagesReused: 0 },
+		});
+		expect(inventoryStore.registered).toEqual([1]);
+		expect(objectStore.streamWrites).toEqual([]);
+		expect(stateStore.saveCalls).toBe(1);
+		expect(missingResourceLog).toEqual({
+			noticeResource: {
+				disposition: "missing",
+				httpStatus: 404,
+				noticeId: 1,
+				resourceKind: "images",
+				resourceOrdinal: 0,
+			},
+			status: "running",
+		});
+	});
+
+	it("keeps inline image HTTP 500 as a resource failure", async () => {
 		const stateStore = new MemoryStateStore(
 			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
 		);
 		const result = await syncInternalPortalNotices(
 			runnerInput({
 				apiContext: {
-					get: async () => httpErrorResponse(404, "Not Found"),
+					get: async () => httpErrorResponse(500, "Server Error"),
 					post: async () => {
 						throw new Error("unexpected post");
 					},
@@ -912,7 +969,6 @@ describe("notice runner maintenance ranges", () => {
 			resourceKind: "images",
 			resourceOrdinal: 0,
 		});
-		expect(result.resources.attachmentsMissing).toBe(0);
 		expect(stateStore.saveCalls).toBe(0);
 	});
 

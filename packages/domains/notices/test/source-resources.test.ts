@@ -74,4 +74,30 @@ describe("listNoticeSourceResources", () => {
 			),
 		).toThrow("Notice source identity mismatch");
 	});
+	it("skips images whose snapshot reference has no object", () => {
+		expect(
+			listNoticeSourceResources(
+				"123",
+				{
+					notice_id: 123,
+					is_external: false,
+					notice_content_html:
+						'<p><img src="https://portal.example/a.jpg"><img src="https://portal.example/b.png"></p>',
+					attachments: [],
+					resources: [
+						{ kind: "images", ordinal: 0, object_key: null },
+						{ kind: "images", ordinal: 1, object_key: "internal_portal/resources/sha256/b" },
+					],
+				},
+				"portal.example",
+			),
+		).toEqual([
+			{
+				kind: "image",
+				noticeId: "123",
+				ordinal: 1,
+				sourceKey: "internal_portal/resources/sha256/b",
+			},
+		]);
+	});
 });

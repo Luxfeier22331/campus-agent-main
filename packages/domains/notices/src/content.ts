@@ -24,6 +24,8 @@ export type {
 
 export function normalizeNoticeContent(input: {
 	html: string | null;
+	/** 门户已永久缺失的图片来源序号；正文去掉这些图片，展示序号保持连续。 */
+	missingImageSourceOrdinals?: ReadonlySet<number>;
 	portalHost: string;
 	title: string;
 }): NormalizedNoticeContent {
@@ -37,6 +39,7 @@ export function normalizeNoticeContent(input: {
 	cleanChildren(document.body, {
 		document,
 		images,
+		missingImageSourceOrdinals: input.missingImageSourceOrdinals ?? new Set(),
 		portalHost: input.portalHost.toLowerCase(),
 		sourceImageOrdinal: 0,
 	});

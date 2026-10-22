@@ -23,6 +23,22 @@ describe("normalizeNoticeContent", () => {
 		]);
 	});
 
+	it("drops images the portal reported missing and keeps display ordinals contiguous", () => {
+		const result = normalizeNoticeContent({
+			html: '<p>正文</p><img src="/a.png"><img src="/b.png"><img src="/c.png">',
+			missingImageSourceOrdinals: new Set([1]),
+			portalHost: "portal.example.edu",
+			title: "测试通知",
+		});
+		expect(result.contentHtml).toBe(
+			'<p>正文</p><img src="notice-asset:image:0" alt=""><img src="notice-asset:image:1" alt="">',
+		);
+		expect(result.images.map(({ ordinal, sourceOrdinal }) => [ordinal, sourceOrdinal])).toEqual([
+			[0, 0],
+			[1, 2],
+		]);
+	});
+
 	it("drops non-portal images and preserves safe links", () => {
 		const result = normalizeNoticeContent({
 			html: '<img src="https://cdn.example/a.png"><a href="https://example.com/a">外链</a>',

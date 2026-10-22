@@ -138,12 +138,8 @@ export async function ensureNoticeResources(input: {
 				if (error instanceof PortalSessionExpiredError) {
 					throw error;
 				}
-				if (
-					resource.kind === "attachments" &&
-					error instanceof PortalHttpError &&
-					error.status === 404
-				) {
-					permanentlyMissingByKind.attachments += 1;
+				if (error instanceof PortalHttpError && error.status === 404) {
+					permanentlyMissingByKind[resource.kind] += 1;
 					resourceRefs.push({
 						kind: resource.kind,
 						ordinal: resource.ordinal,

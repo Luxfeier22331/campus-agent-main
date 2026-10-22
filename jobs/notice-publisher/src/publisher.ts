@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { extname } from "node:path";
 
 import {
+	missingNoticeImageSourceOrdinals,
 	normalizeNoticeContent,
 	parsePortalReleaseTime,
 	type NoticeAssetKind,
@@ -329,6 +330,7 @@ async function loadRecord(
 	const content = normalizePublishedNoticeContent({
 		html: source.notice_content_html,
 		isExternal: source.is_external,
+		missingImageSourceOrdinals: missingNoticeImageSourceOrdinals(source),
 		portalHost,
 		title: source.notice_title,
 	});
@@ -445,6 +447,7 @@ async function replaceAssets(client: PoolClient, record: PublishedNotice): Promi
 export function normalizePublishedNoticeContent(input: {
 	html: string | null;
 	isExternal: boolean;
+	missingImageSourceOrdinals?: ReadonlySet<number>;
 	portalHost: string;
 	title: string;
 }): ReturnType<typeof normalizeNoticeContent> {
@@ -453,6 +456,9 @@ export function normalizePublishedNoticeContent(input: {
 	}
 	return normalizeNoticeContent({
 		html: input.html,
+		...(input.missingImageSourceOrdinals
+			? { missingImageSourceOrdinals: input.missingImageSourceOrdinals }
+			: {}),
 		portalHost: input.portalHost,
 		title: input.title,
 	});

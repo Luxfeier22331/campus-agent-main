@@ -73,13 +73,13 @@ sync、backfill、rescan 和周期复核都可刷新已有通知详情；无变�
 不改变内部通知的展示排序。标记缺失或不合法时探测失败，不推进维护区间。空门户使用运行时的门户日期下一天。
 
 通知对象、其引用的图片和非永久缺失附件、以及 `meta.json` 全部成功后才推进状态；已有合法 source 对象仍会检查并
-补齐缺失资源，明确返回 HTTP 404 的通知附件除外。增量同步、历史回填与遗漏补查通过 PostgreSQL advisory lock 串行执行。旧
+补齐缺失资源，明确返回 HTTP 404 的通知图片和附件除外。增量同步、历史回填与遗漏补查通过 PostgreSQL advisory lock 串行执行。旧
 `internal_portal_notice_sync_state.v2` 只作为迁移输入读取；它没有可靠的排他上界，下一次 backfill 会重新
 建立完整 v4 区间，sync 在此之前拒绝运行。通知独立、随机消费，不创建 `captures/` 批次。
 
 采集 Job 的 `processedRange` 只记录本次尝试扫描的半开区间；它不是数据库维护边界，也不能在失败后代替
 `_state.json`。只有 source、必需资源、库存映射和状态文件都成功写入后，`maintenanceRange` 才反映新的
-`[covered_from, covered_until)`；通知附件明确返回 HTTP 404 时属于永久缺失，不要求资源对象存在，也不阻止该通知
+`[covered_from, covered_until)`；通知图片或附件明确返回 HTTP 404 时属于永久缺失，不要求资源对象存在，也不阻止该通知
 登记或维护边界推进。因此一个真正失败的 Job 可以有处理进度和本次处理区间，但下一次 Job 仍应从未推进的维护边界
 继续。分类和发布 Job 不拥有日期维护边界，只返回各自的数量摘要。
 
@@ -97,9 +97,10 @@ internal_portal/resources/sha256/<digest>
 可以不连续；publisher 使用 source ordinal 读取正确字节，再为正文占位符和 PostgreSQL 生成连续的
 展示 ordinal。附件 ordinal 与来源 metadata 顺序一致。
 
-附件的 `notice_annex_id` 是门户资源身份，`notice_annex_path` 只作为来源 metadata 保留。正常采集按内容摘要保存资源并在来源快照中记录对象引用，不抓取外部正文。通知附件下载明确返回 HTTP 404
-时，保留 source 中的附件 metadata，但不创建资源对象；该附件不会生成 `notice_assets` 投影，发布时省略它。
-附件的其他下载错误仍使通知采集失败；图片 404 也仍然是失败。仓库不再提供独立的资源维护或状态查看入口。
+附件的 `notice_annex_id` 是门户资源身份，`notice_annex_path` 只作为来源 metadata 保留。正常采集按内容摘要保存资源并在来源快照中记录对象引用，不抓取外部正文。通知图片或附件下载明确返回 HTTP 404
+时，来源快照记录该资源但不创建资源对象（`object_key` 为 `null`），附件 metadata 保留；该资源不会生成
+`notice_assets` 投影。发布和 Ops 预览从正文中去掉缺失图片，其余图片的展示 ordinal 仍连续，source ordinal 不变。
+其他下载错误仍使通知采集失败。仓库不再提供独立的资源维护或状态查看入口。
 
 ## 分类交接
 

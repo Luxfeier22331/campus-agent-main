@@ -42,6 +42,7 @@ export function cleanChildren(
 	input: {
 		document: Document;
 		images: NoticeImageReference[];
+		missingImageSourceOrdinals: ReadonlySet<number>;
 		portalHost: string;
 		sourceImageOrdinal: number;
 	},
@@ -106,7 +107,10 @@ export function cleanChildren(
 			}
 			const sourceOrdinal = input.sourceImageOrdinal;
 			input.sourceImageOrdinal += 1;
-			if (isEditorPlaceholderImage(normalized, originalWidth, originalHeight)) {
+			if (
+				isEditorPlaceholderImage(normalized, originalWidth, originalHeight) ||
+				input.missingImageSourceOrdinals.has(sourceOrdinal)
+			) {
 				element.remove();
 				continue;
 			}

@@ -96,9 +96,9 @@ sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查
 `internal_portal/meta.json`、通知对象、已成功采集的资源对象和 `_state.json`，确认当前 v4 状态中的
 `covered_from/covered_until` 区间符合本次 Job，且对应通知已登记到
 `notices.notices`。来源对象必须通过版本化 schema，内部通知与外链字段必须成对合法；source、metadata、库存登记或
-非永久缺失的资源传输失败时状态不能推进。通知附件明确返回 HTTP 404 时保留 source metadata、跳过附件资源对象，
-继续登记通知并允许状态推进；发布时该附件不进入 `notice_assets`。图片 404、附件的其他 HTTP 错误、超时、流中断
-和对象存储失败仍然阻止推进。单条通知的详情缺失 `notice_info`、source 构造失败（如 `notice_title` 缺失）、
+非永久缺失的资源传输失败时状态不能推进。通知图片或附件明确返回 HTTP 404 时保留 source metadata、跳过资源对象，
+继续登记通知并允许状态推进；发布时该资源不进入 `notice_assets`，缺失图片从正文中去掉。其他 HTTP 错误、超时、
+流中断和对象存储失败仍然阻止推进。单条通知的详情缺失 `notice_info`、source 构造失败（如 `notice_title` 缺失）、
 详情接口非认证性报错、列表项 `notice_type` 非法或库存登记数据冲突时，该通知计入失败（stderr 中的
 `detail`/`source`/`item`/`inventory` operation），其余通知继续处理，但状态不能推进直到失败清除；
 认证失败（TGC 过期等）与列表项 `notice_id` 非法（通知身份不可识别）仍立即终止整批。

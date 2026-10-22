@@ -1,5 +1,5 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { normalizeNoticeContent } from "@campus-agent/notices";
+import { missingNoticeImageSourceOrdinals, normalizeNoticeContent } from "@campus-agent/notices";
 import {
 	type InternalPortalNoticeSource,
 	validateInternalPortalNoticeSource,
@@ -137,6 +137,7 @@ export async function readNoticeSource(
 export function prepareNoticePreview(source: InternalPortalNoticeSource) {
 	const content = normalizeNoticeContent({
 		html: source.is_external ? null : source.notice_content_html,
+		missingImageSourceOrdinals: missingNoticeImageSourceOrdinals(source),
 		title: source.notice_title,
 		portalHost: new URL(portal.portal_base_url).hostname,
 	});
