@@ -265,8 +265,8 @@ publisher；已发布内容与新清洗结果冲突时，由引入清洗合同�
 `file-sync` 或 `notice-publisher` 创建 Job。具体接口见[通知维护合同](../../contracts/ops-web/notices.md)。
 
 Worker 复用既有 Ops Web 凭据入口、数据库 owner Secret、PostgreSQL CA、Model Config 和 source/derived
-对象存储配置。运行前确认到 Ops Web、PostgreSQL、对象存储、门户 HTTPS、模型服务与 Qdrant 的对应网络
-方向。统一 `campus-agent-schema` Job 仍负责数据库结构与角色，不由通知 Workflow 执行迁移。
+对象存储配置。运行前确认到 Ops Web、PostgreSQL、对象存储、门户出口代理、模型服务与 Qdrant 的对应网络
+方向；门户请求经代理出站，见[内部门户认证](../access/portal-auth.md#集群门户出口)。统一 `campus-agent-schema` Job 仍负责数据库结构与角色，不由通知 Workflow 执行迁移。
 
 ## 排查
 

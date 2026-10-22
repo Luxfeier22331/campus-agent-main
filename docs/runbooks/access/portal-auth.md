@@ -65,6 +65,21 @@ pnpm --dir jobs/internal-portal-collection auth:check
 INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
 ```
 
+## 集群门户出口
+
+集群在境外，不直连门户。`notice-pipeline-worker` 由 GitOps 注入
+`INTERNAL_PORTAL_PROXY_SERVER=http://campus-egress.campus-egress.svc.cluster.local:3128`，门户、CAS 和附件
+请求经 tailnet 转到 sq-nixos 上的出口代理，再走校园隧道出站。代理只放行 `*.muc.edu.cn` 的 80/443。
+`ops-web-internal-portal-check` 尚未接入该代理。
+
+连接器、直连条件和重新注册步骤见 GitOps 仓
+[runbook](https://github.com/MUC-WIKI/campus-agent-gitops/blob/main/docs/runbook.md)「门户出口（campus-egress）」；sq-nixos 侧见
+nixos-config `AGENTS.md`「campus-egress 门户出口」。选型理由见
+[门户出口代理](../../../.agents/notes/implemented/architecture/2026-10-22-portal-egress-proxy.md)。
+
+门户请求失败而凭据检查正常时，先在 Worker 内经代理请求 `https://my.muc.edu.cn/page/11`（应返回 302），
+再按 GitOps runbook 用 `tailscale ping` 确认连接器到 sq-nixos 走直连而不是 DERP 中继。
+
 ## Job 认证边界
 
 集群通知工作流的操作入口和回填参数见[采集与发布](../ingestion/ingestion.md#kubernetes)。
@@ -100,3 +115,4 @@ Ops Web 会把这些领域结果映射为对应的 `OPS_INTERNAL_PORTAL_*` 页�
 - [内部门户数据](../../data/internal-portal.md)
 - [内部门户凭据接口](../../contracts/ops-web/internal-portal.md)
 - [简化采集控制面与内部门户凭据所有权](../../../.agents/notes/implemented/simplification/2026-08-19-internal-portal-credential-resolution.md)
+- [门户出口代理](../../../.agents/notes/implemented/architecture/2026-10-22-portal-egress-proxy.md)
