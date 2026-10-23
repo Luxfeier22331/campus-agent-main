@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -104,10 +103,10 @@ export async function rcloneCopier(
 }
 
 interface ClosurePlan {
-	/** Binary object keys (images/attachments) to batch-copy via the copier. */
-	binaryKeys: Array<{ key: string; sha256?: string | null }>;
-	/** JSON metadata objects copied through the read/write path (they need parse+validate). */
-	jsonKeys: string[];
+	/** Binary object keys (images/attachments) for the batch copier. */
+	binaryKeys: string[];
+	/** JSON metadata already read and validated during planning; written from these bytes. */
+	jsonObjects: Map<string, Uint8Array>;
 }
 
 /** Resolve the source closure per notice row: validate refs and enumerate binary objects. */
@@ -115,22 +114,10 @@ async function planNoticeSourceClosure(input: {
 	rows: NoticeSourceRows;
 	read: (key: string) => Promise<Uint8Array>;
 }): Promise<ClosurePlan> {
-	const plan: ClosurePlan = { binaryKeys: [], jsonKeys: [] };
-	const seen = new Set<string>();
-	const addBinary = (key: string, sha256?: string | null) => {
-		if (seen.has(key)) {
-			return;
-		}
-		seen.add(key);
-		plan.binaryKeys.push({ key, sha256 });
-	};
-	const addJson = (key: string) => {
-		if (!seen.has(key)) {
-			seen.add(key);
-			plan.jsonKeys.push(key);
-		}
-	};
-	addJson("internal_portal/meta.json");
+	const binaryKeys = new Set<string>();
+	const jsonObjects = new Map<string, Uint8Array>([
+		["internal_portal/meta.json", await input.read("internal_portal/meta.json")],
+	]);
 	// Ref JSONs are small and independent; bounded concurrency hides per-object latency.
 	const CONCURRENCY = 8;
 	const notices = input.rows["notices.notices"];
@@ -146,13 +133,10 @@ async function planNoticeSourceClosure(input: {
 						.filter(Boolean)
 						.map(String),
 				);
-				const parsed = [...refs].map((key) => {
-					const body = input.read(key);
-					return { key, body };
-				});
 				const entries = await Promise.all(
-					parsed.map(async ({ key, body }) => {
-						const value = JSON.parse(Buffer.from(await body).toString("utf8"));
+					[...refs].map(async (key) => {
+						const body = await input.read(key);
+						const value = JSON.parse(Buffer.from(body).toString("utf8"));
 						if (
 							!validateInternalPortalNoticeSource(value).ok ||
 							String(value.notice_id) !== String(row.notice_id)
@@ -166,18 +150,18 @@ async function planNoticeSourceClosure(input: {
 						) {
 							throw new Error(`Notice source ref mismatch: ${key}`);
 						}
-						return { key, source };
+						return { key, body, source };
 					}),
 				);
 				return { row, entries };
 			}),
 		);
 		for (const { row, entries } of sourcesPerRow) {
-			for (const { key, source } of entries) {
+			for (const { key, body, source } of entries) {
 				if (source.resources) {
 					for (const resource of source.resources) {
 						if (resource.object_key) {
-							addBinary(resource.object_key, resource.sha256);
+							binaryKeys.add(resource.object_key);
 						}
 					}
 				} else if (!source.is_external) {
@@ -187,73 +171,45 @@ async function planNoticeSourceClosure(input: {
 						portalHost: new URL(portal.portal_base_url).hostname,
 					});
 					for (const image of content.images) {
-						addBinary(`internal_portal/notices/${row.notice_id}/images/${image.sourceOrdinal}`);
+						binaryKeys.add(
+							`internal_portal/notices/${row.notice_id}/images/${image.sourceOrdinal}`,
+						);
 					}
 					for (const [ordinal] of source.attachments.entries()) {
-						addBinary(`internal_portal/notices/${row.notice_id}/attachments/${ordinal}`);
+						binaryKeys.add(`internal_portal/notices/${row.notice_id}/attachments/${ordinal}`);
 					}
 				}
-				addJson(key);
+				jsonObjects.set(key, body);
 			}
 		}
 	}
-	return plan;
+	return { binaryKeys: [...binaryKeys], jsonObjects };
 }
 
 /**
  * Copy only the selected rows' current and published source closures before importing
- * their refs. Binary objects go through the batch copier (rclone by default); JSON
- * metadata keeps the read/write path because it is parsed and validated here.
+ * their refs. Binary objects go through the batch copier (rclone by default), whose
+ * `--checksum` transfer already verifies each copy; JSON metadata is written from the
+ * bytes read and validated while planning.
  */
 export async function copyNoticeSourceClosure(input: {
 	rows: NoticeSourceRows;
 	read: (key: string) => Promise<Uint8Array>;
 	write: (key: string, body: Uint8Array, contentType: string) => Promise<void>;
-	/**
-	 * Optional rclone endpoints; without them all objects use the read/write path.
-	 * readLocal must fetch the copied bytes from the target store so digest
-	 * validation checks the local copy instead of re-reading the remote source.
-	 */
-	batchCopy?: {
-		source: RcloneEndpoint;
-		target: RcloneEndpoint;
-		readLocal: (key: string) => Promise<Uint8Array | undefined>;
-		copier?: RcloneCopier;
-	};
+	source: RcloneEndpoint;
+	target: RcloneEndpoint;
+	copier?: RcloneCopier;
 }) {
-	let objects = 0;
 	if (input.rows["notices.notices"].length === 0) {
-		return { objects };
+		return { objects: 0 };
 	}
 	const plan = await planNoticeSourceClosure({ rows: input.rows, read: input.read });
-	if (input.batchCopy) {
-		const { source, target, readLocal, copier = rcloneCopier } = input.batchCopy;
-		objects += await copier({ keys: plan.binaryKeys.map((entry) => entry.key), source, target });
-		// Digest validation stays local: verify the copied bytes, not the remote source.
-		for (const entry of plan.binaryKeys) {
-			if (!entry.sha256) {
-				continue;
-			}
-			const body = await readLocal(entry.key);
-			if (!body) {
-				throw new Error(`Notice resource missing after batch copy: ${entry.key}`);
-			}
-			if (createHash("sha256").update(body).digest("hex") !== entry.sha256) {
-				throw new Error(`Notice resource digest mismatch: ${entry.key}`);
-			}
-		}
-	} else {
-		for (const entry of plan.binaryKeys) {
-			const body = await input.read(entry.key);
-			if (entry.sha256 && createHash("sha256").update(body).digest("hex") !== entry.sha256) {
-				throw new Error(`Notice resource digest mismatch: ${entry.key}`);
-			}
-			await input.write(entry.key, body, "application/octet-stream");
-			objects += 1;
-		}
-	}
-	for (const key of plan.jsonKeys) {
-		const body = await input.read(key);
+	let objects = await (input.copier ?? rcloneCopier)({
+		keys: plan.binaryKeys,
+		source: input.source,
+		target: input.target,
+	});
+	for (const [key, body] of plan.jsonObjects) {
 		await input.write(key, body, "application/json");
 		objects += 1;
 	}

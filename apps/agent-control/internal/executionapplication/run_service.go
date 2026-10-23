@@ -163,21 +163,17 @@ func (s *RunService) RequestRunCancellation(
 	if err := s.requireStore(); err != nil {
 		return execution.DurableRun{}, err
 	}
+	// The store validates request_id and reason; its rejection maps to a request validation error.
 	request.RequestID = strings.TrimSpace(request.RequestID)
 	request.Reason = strings.TrimSpace(request.Reason)
-	if request.RequestID == "" {
-		return execution.DurableRun{}, newRunRequestValidationError(errors.New("request_id is required"))
-	}
-	if request.Reason != "user_requested" {
-		return execution.DurableRun{}, newRunRequestValidationError(
-			errors.New("cancel reason must be user_requested"),
-		)
-	}
 	requested, err := s.store.RequestRunCancellation(ctx, execution.DurableRunCancellationRequest{
 		RequestID: request.RequestID,
 		Reason:    request.Reason,
 		Now:       s.now().UTC().Truncate(time.Microsecond),
 	})
+	if errors.Is(err, execution.ErrInvalidDurableRunCancel) {
+		return execution.DurableRun{}, newRunRequestValidationError(err)
+	}
 	if err != nil {
 		return execution.DurableRun{}, err
 	}

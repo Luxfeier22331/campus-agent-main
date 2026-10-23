@@ -15,12 +15,10 @@ function objectStore(): InternalPortalCollectionObjectStore {
 	return {
 		sourceBucket: "source",
 		close: vi.fn(async () => undefined),
-		createOrVerifyObject: vi.fn(),
-		createOrVerifyStream: vi.fn(),
+		createObject: vi.fn(),
 		getObject: vi.fn(),
 		getObjectIfExists: vi.fn(),
 		hasObject: vi.fn(),
-		pruneObjectVersions: vi.fn(),
 		putObject: vi.fn(),
 	};
 }

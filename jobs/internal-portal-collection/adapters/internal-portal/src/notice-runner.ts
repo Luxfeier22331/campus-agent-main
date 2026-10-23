@@ -51,6 +51,7 @@ export interface NoticeRunnerProgress {
 }
 
 export interface NoticeRunnerInput {
+	abortSignal?: AbortSignal;
 	apiContext: ApiRequestContextLike;
 	fetchNoticeDetail: (input: {
 		apiContext: ApiRequestContextLike;
@@ -310,8 +311,9 @@ export async function rescanInternalPortalNotices(
 	return result("rescan", rescanState, range, counts.failures.length ? null : maintenanceRangeFromState(rescanState), scan.pagesFetched, counts);
 }
 
+// windowDays bounds one run to the newest uncovered days so each run can checkpoint the range.
 export async function backfillInternalPortalNotices(
-	input: NoticeRunnerInput & { startDate: string },
+	input: NoticeRunnerInput & { startDate: string; windowDays?: number },
 ): Promise<NoticeRunnerResult> {
 	const startDate = parseNoticeStartDate(input.startDate);
 	const current = await input.stateStore.load();
@@ -334,7 +336,12 @@ export async function backfillInternalPortalNotices(
 	const latest = completeCurrent
 		? { exclusiveEnd: completeCurrent.coveredFrom, pagesFetched: 0 }
 		: await discoverPortalLatestEnd(input);
-	const processedRange = noticeRange(startDate, latest.exclusiveEnd);
+	const windowStart =
+		input.windowDays === undefined ? startDate : shiftDate(latest.exclusiveEnd, -input.windowDays);
+	const processedRange = noticeRange(
+		[startDate, windowStart].sort().at(-1) as string,
+		latest.exclusiveEnd,
+	);
 
 	const mappings = await fetchMappings(input);
 	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
@@ -425,6 +432,7 @@ async function scanNotices(
 	}
 
 	for (let currentPage = 1; totalPages === null || currentPage <= totalPages; currentPage += 1) {
+		input.abortSignal?.throwIfAborted();
 		const page = await fetchPage(input, currentPage, range.from, previousDate(range.to));
 		pagesFetched += 1;
 		const pagination = parsePagination(page);
@@ -517,6 +525,7 @@ async function discoverPortalLatestEnd(input: NoticeRunnerInput): Promise<{
 	let currentPage = 1;
 	let foundUnpinned = false;
 	while (currentPage <= totalPages || currentPage === 1) {
+		input.abortSignal?.throwIfAborted();
 		const page = await fetchPage(input, currentPage, "", "");
 		pagesFetched += 1;
 		const pagination = parsePagination(page);
@@ -672,6 +681,7 @@ async function writeCandidates(
 		candidates.map((candidate) => candidate.noticeId),
 	);
 	for (const candidate of candidates) {
+		input.abortSignal?.throwIfAborted();
 		try {
 			if (candidate.refresh !== true && unavailableIds.has(candidate.noticeId)) {
 				// Already confirmed deleted on the portal; review passes may still re-probe
@@ -713,6 +723,7 @@ async function writeCandidates(
 				continue;
 			}
 			const resourceResult = await ensureNoticeResources({
+				...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 				apiContext: input.apiContext,
 				dryRun: false,
 				refresh: !reuseResources,
@@ -745,7 +756,9 @@ async function writeCandidates(
 				total: candidates.length,
 			});
 		} catch (error) {
-			console.error("DEBUG candidate error", candidate.noticeId, error);
+			// Cancellation disposes the portal session, so in-flight requests fail with wrapped
+			// errors; they must stop the run rather than become per-notice failures.
+			input.abortSignal?.throwIfAborted();
 			if (error instanceof PortalNoticeUnavailableError) {
 				await input.inventoryStore.markUnavailable(error.noticeId);
 				unavailableIds.add(error.noticeId);

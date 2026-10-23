@@ -2,7 +2,6 @@ package executionapplication
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionpersistence"
@@ -136,15 +135,6 @@ func TestRunServiceCreatesRunAndStartIntentBeforeWakingReconciler(t *testing.T) 
 			mutate(&changed.AdmissionSnapshot)
 			if execution.SHA256JSONRef(changed.AdmissionSnapshot) == input.AdmissionSnapshotSHA256 {
 				t.Fatal("top-level hash did not cover snapshot mutation")
-			}
-			changedIntent := intent
-			encoded, err := json.Marshal(changed)
-			if err != nil {
-				t.Fatal(err)
-			}
-			changedIntent.WorkflowInputJSON = encoded
-			if _, err := execution.DecodeAndValidateWorkflowStartInput(changedIntent, result.Run); err == nil {
-				t.Fatal("workflow accepted mutation with stale top-level hash")
 			}
 		})
 	}

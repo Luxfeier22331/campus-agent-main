@@ -54,34 +54,44 @@ function buildFixture() {
 	return { rows, objects, resourceKey, sha256 };
 }
 
-test("copies selected current and published source closures before exposing refs", async () => {
-	const { rows, objects } = buildFixture();
-	const copied = new Map<string, Uint8Array>();
-	const read = async (key: string) => {
-		const body = objects.get(key);
-		assert.ok(body, key);
-		return body;
-	};
+const endpoint: RcloneEndpoint = {
+	endpoint: "http://src",
+	bucket: "b",
+	accessKeyId: "a",
+	secretAccessKey: "s",
+};
+
+test("copies binaries through the copier and writes each JSON from its single read", async () => {
+	const { rows, objects, resourceKey } = buildFixture();
+	const batchKeys: string[][] = [];
+	const readKeys: string[] = [];
+	const written = new Map<string, Uint8Array>();
 	const result = await copyNoticeSourceClosure({
 		rows,
-		read,
+		read: async (key) => {
+			readKeys.push(key);
+			const body = objects.get(key);
+			assert.ok(body, key);
+			return body;
+		},
 		write: async (key, body) => {
-			copied.set(key, body);
+			written.set(key, body);
+		},
+		source: endpoint,
+		target: endpoint,
+		copier: async ({ keys }) => {
+			batchKeys.push(keys);
+			return keys.length;
 		},
 	});
+	assert.deepEqual(batchKeys, [[resourceKey]]);
+	assert.ok(!readKeys.includes(resourceKey));
+	assert.equal(readKeys.length, new Set(readKeys).size);
+	assert.deepEqual([...written.keys()].sort(), [...readKeys].sort());
+	for (const [key, body] of written) {
+		assert.equal(body, objects.get(key));
+	}
 	assert.equal(result.objects, 4);
-	const copiedKeys = [...copied.keys()];
-	// The legacy path copies binary objects first, then JSON metadata.
-	assert.ok(copiedKeys[0]?.startsWith("internal_portal/resources/"), copiedKeys.join(","));
-	assert.equal(copiedKeys.length, 4);
-	assert.deepEqual([...copiedKeys].slice(1).sort(), [
-		"internal_portal/meta.json",
-		...copiedKeys
-			.slice(1)
-			.filter((key) => key !== "internal_portal/meta.json")
-			.sort(),
-	]);
-	assert.equal(new Set(copiedKeys).size, 4);
 });
 
 test("an empty date selection copies no objects", async () => {
@@ -100,115 +110,38 @@ test("an empty date selection copies no objects", async () => {
 			write: async () => {
 				throw new Error("unexpected write");
 			},
+			source: endpoint,
+			target: endpoint,
+			copier: async () => {
+				throw new Error("unexpected copy");
+			},
 		}),
 		{ objects: 0 },
 	);
 });
 
-test("batch path sends binary keys to the copier and keeps JSON on the read/write path", async () => {
-	const { rows, objects, resourceKey } = buildFixture();
-	const batchKeys: string[][] = [];
-	const readKeys: string[] = [];
-	const written: string[] = [];
-	const result = await copyNoticeSourceClosure({
-		rows,
-		read: async (key) => {
-			readKeys.push(key);
-			const body = objects.get(key);
-			assert.ok(body, key);
-			return body;
-		},
-		write: async (key) => {
-			written.push(key);
-		},
-		batchCopy: {
-			source: { endpoint: "http://src", bucket: "b", accessKeyId: "a", secretAccessKey: "s" },
-			target: { endpoint: "http://dst", bucket: "b", accessKeyId: "a", secretAccessKey: "s" },
-			readLocal: async (key) => objects.get(key),
-			copier: async ({ keys }) => {
-				batchKeys.push(keys);
-				return keys.length;
-			},
-		},
-	});
-	assert.deepEqual(batchKeys, [[resourceKey]]);
-	// Digest validation reads the local copy, never the remote source.
-	assert.ok(!readKeys.includes(resourceKey));
-	assert.equal(written.filter((key) => key === "internal_portal/meta.json").length, 1);
-	assert.equal(written.filter((key) => key.endsWith(".json")).length, 3);
-	assert.equal(result.objects, 4);
-});
-
-test("digest mismatch in the batch path fails before the JSON import", async () => {
-	const { rows, resourceKey } = buildFixture();
-	const objects = new Map([
-		["internal_portal/meta.json", Buffer.from("{}")],
-		[resourceKey, Buffer.from("changed bytes")],
-	]);
-	// Notice source JSON is required for planning; supply a minimal valid pair.
-	const source: InternalPortalNoticeSource = {
-		schema_version: "internal_portal_notice_source.v2",
-		notice_id: 1,
-		notice_type: 5,
-		notice_title: "通知",
-		organization_id: null,
-		notice_release_time: "2026-09-01 10:00",
-		is_external: false,
-		external_url: null,
-		notice_content_html: "<p>正文</p>",
-		attachments: [],
-		resources: [],
-	};
-	objects.set(noticeSourceRef(source), Buffer.from(JSON.stringify(source)));
-	const withRefs: NoticeSourceRows = {
-		...rows,
-		"notices.notices": [
-			{ notice_id: 1, source_ref: noticeSourceRef(source), published_source_ref: null },
-		],
-	};
-	// Re-add the resource to the planned notice source so its digest is checked.
-	const plannedSource = {
-		...source,
-		resources: [
-			{
-				kind: "images",
-				ordinal: 0,
-				object_key: resourceKey,
-				sha256: createHash("sha256").update("file").digest("hex"),
-				byte_size: 4,
-				content_type: "image/png",
-			},
-		],
-	};
-	objects.set(noticeSourceRef(plannedSource), Buffer.from(JSON.stringify(plannedSource)));
+test("an invalid source ref fails before copying or writing", async () => {
+	const { rows, objects } = buildFixture();
+	const ref = String(rows["notices.notices"][0]?.source_ref);
+	objects.set(ref, Buffer.from(JSON.stringify({ notice_id: 1 })));
 	await assert.rejects(
 		copyNoticeSourceClosure({
-			rows: {
-				...withRefs,
-				"notices.notices": [
-					{
-						notice_id: 1,
-						source_ref: noticeSourceRef(plannedSource),
-						published_source_ref: null,
-					},
-				],
-			},
+			rows,
 			read: async (key) => {
 				const body = objects.get(key);
 				assert.ok(body, key);
 				return body;
 			},
 			write: async () => {
-				/* JSON writes never happen: digest failure aborts first. */
+				throw new Error("unexpected write");
 			},
-			batchCopy: {
-				source: { endpoint: "http://src", bucket: "b", accessKeyId: "a", secretAccessKey: "s" },
-				target: { endpoint: "http://dst", bucket: "b", accessKeyId: "a", secretAccessKey: "s" },
-				readLocal: async (key) => objects.get(key),
-				copier: async ({ keys }) => keys.length,
+			source: endpoint,
+			target: endpoint,
+			copier: async () => {
+				throw new Error("unexpected copy");
 			},
 		}),
-		/digest mismatch/,
+		/Invalid notice source/,
 	);
 });
 
@@ -283,12 +216,6 @@ test("rcloneCopier rejects with a hint when the binary fails", async () => {
 });
 
 test("rcloneCopier skips the command entirely for an empty key list", async () => {
-	const endpoint: RcloneEndpoint = {
-		endpoint: "http://src",
-		bucket: "b",
-		accessKeyId: "a",
-		secretAccessKey: "s",
-	};
 	const count = await rcloneCopier(
 		{ keys: [], source: endpoint, target: endpoint },
 		{

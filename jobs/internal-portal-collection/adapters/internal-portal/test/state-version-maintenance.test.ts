@@ -4,7 +4,6 @@ import { join } from "node:path";
 import {
 	DeleteObjectCommand,
 	GetObjectCommand,
-	HeadObjectCommand,
 	ListObjectVersionsCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
@@ -40,10 +39,9 @@ it("inspects, backs up and prunes versions in the configured bucket", async () =
 				],
 			} as never;
 		}
-		if (command instanceof GetObjectCommand || command instanceof HeadObjectCommand) {
+		if (command instanceof GetObjectCommand) {
 			expect(command.input).toEqual({ Bucket: bucket, Key: key, VersionId: "current" });
 			return {
-				ETag: "etag",
 				Body: { transformToByteArray: async () => Buffer.from("{}") },
 			} as never;
 		}

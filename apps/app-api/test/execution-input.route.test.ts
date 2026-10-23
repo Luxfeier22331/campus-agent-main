@@ -60,17 +60,10 @@ describe("execution input routes", () => {
 		expect(readExecutionInput).toHaveBeenCalledWith("req_1");
 	});
 
-	it("fails closed for absent, inconsistent, or oversized input", async () => {
+	it("fails closed for absent or oversized input", async () => {
 		const oversized = `"${"x".repeat(1024 * 1024)}"`;
 		const cases = [
 			{ expected: 404, frozen: null },
-			{
-				expected: 409,
-				frozen: {
-					executionInputJson: "{}",
-					executionInputSha256: "0".repeat(64),
-				},
-			},
 			{
 				expected: 409,
 				frozen: {

@@ -18,12 +18,8 @@ const firstLayout = required(DINING_BOOTSTRAP_FLOORPLANS.layouts[0]);
 const firstWindow = required(firstLayout.windows[0]);
 const windowId = `${firstLayout.hallId}:${firstLayout.floorId}:${firstWindow.anchorId}`;
 const svgAssets: DiningFloorplanAssetStore = {
-	async putSvg({ sha256 }) {
-		return {
-			sha256,
-			objectKey: `dining/floorplans/${sha256.slice(7)}.svg`,
-			svgAssetUrl: `/api/dining/floorplans/${sha256.slice(7)}.svg`,
-		};
+	async putSvg() {
+		return;
 	},
 	async verifyReadiness() {
 		return;

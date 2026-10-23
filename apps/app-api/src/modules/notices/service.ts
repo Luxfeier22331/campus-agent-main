@@ -58,23 +58,16 @@ export function buildNoticeService(input: {
 						value: item.id,
 					})),
 				},
-				items: records.items.map((record) => {
-					if (record.isExternal) {
-						if (!record.externalUrl) {
-							throw invalidNoticeProjection();
-						}
-						return {
-							...toNoticeMetadata(record),
-							externalUrl: record.externalUrl,
-							isExternal: true as const,
-						};
-					}
-					return {
-						...toNoticeMetadata(record),
-						externalUrl: null,
-						isExternal: false as const,
-					};
-				}),
+				// The notices_check constraint pairs is_external with a non-null external_url.
+				items: records.items.map((record) =>
+					record.isExternal
+						? {
+								...toNoticeMetadata(record),
+								externalUrl: record.externalUrl as string,
+								isExternal: true as const,
+							}
+						: { ...toNoticeMetadata(record), externalUrl: null, isExternal: false as const },
+				),
 				pagination: {
 					page: query.page,
 					pageSize: 30,

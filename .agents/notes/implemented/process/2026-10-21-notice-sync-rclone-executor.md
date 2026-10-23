@@ -20,9 +20,10 @@ Status: implemented
 连接串无法携带 `http://` endpoint（实测 rclone 1.75 解析失败），环境变量同时避免凭据落盘。
 rclone 复用同步已建立的同一 port-forward 端口。
 
-sha256 校验改为核对本地副本而非重读远端源：既验证传输完整性，也比原实现（只校验远端读取，
-从未验证写入结果）更强。元数据 JSON 仍走 JS 读路径（需 parse 与 schema 校验），改为 8 路有界
-并发读取以掩盖远端延迟；这是闭包解析的固有开销，rclone 无法替代。
+传输完整性由 rclone `--checksum` 负责，JS 不再在复制后重读本地副本计算 sha256。元数据 JSON
+（`meta.json` 与各 `source_ref`）在闭包解析时以 8 路有界并发读取一次、parse 并做 schema 校验，
+写入本地时直接复用这次读到的字节，不再为写入重读远端；这是闭包解析的固有开销，rclone 无法替代。
+`data sync --with-sources` 与 `dev:sync-notices` 共用这条路径，不保留逐对象 JS 复制分支。
 
 rclone 进入 nix full shell（nixpkgs 提供，不自建 fetchurl 包；CI shell 不包含，同步工具
 不进 CI）。rclone 缺失时同步明确报错提示 `nix develop`，不静默回退 JS 路径——两条路径
@@ -45,6 +46,6 @@ s5cmd 在纯吞吐上更优，但 `--files-from` 清单选择与后端灵活性�
 port-forward 抖动由 rclone 逐对象重试吸收，不再中止窗口。35MB 级 PDF 在 rclone 流式复制
 下不再整体进入 Node 堆内存。
 
-`--checksum` 依赖 MinIO/RustFS 的 ETag 一致性；若后续升级出现 ETag 不可靠，退化为
-`--size-only` 并保留 JS 侧 sha256 本地核对，方案结构不变。升级 nixpkgs 时需同步验证一次
+`--checksum` 依赖 MinIO/RustFS 的 ETag 一致性；若后续升级出现 ETag 不可靠，再按实际失败
+选择 rclone 自身的校验方式，不恢复 JS 侧逐对象重读。升级 nixpkgs 时需同步验证一次
 rclone 连接串与 env-var 配置行为。

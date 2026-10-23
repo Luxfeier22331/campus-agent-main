@@ -1,5 +1,6 @@
 import fetchCookie from "fetch-cookie";
 import {
+	Agent,
 	type Dispatcher,
 	Headers,
 	ProxyAgent,
@@ -26,6 +27,9 @@ const SSO_TGC_COOKIE_NAME = "SSO_TGC";
 const MAX_AUTH_REDIRECTS = 10;
 const MAX_PORTAL_REDIRECTS = 5;
 const REDIRECT_LIMIT_MESSAGE = "Reached maximum redirect";
+// A stalled portal response must fail the request; activity heartbeats alone cannot detect it.
+// The body limit is the gap between chunks, so large attachments are not capped by total time.
+export const PORTAL_REQUEST_TIMEOUTS = { bodyTimeout: 60_000, headersTimeout: 60_000 } as const;
 
 type PortalCookieJar = InstanceType<typeof fetchCookie.toughCookie.CookieJar>;
 type PortalCookieFetch = PortalFetch;
@@ -62,7 +66,7 @@ class PortalSession implements InternalPortalApiContext {
 	private readonly abortController = new AbortController();
 	private readonly config: InternalPortalClientConfig;
 	private readonly dependencies: CreatePortalApiContextDependencies;
-	private readonly dispatcher: Dispatcher | null;
+	private readonly dispatcher: Dispatcher;
 	private disposed = false;
 	private readonly removeUpstreamAbortListener: () => void;
 	private ssoTgc: string;
@@ -74,9 +78,10 @@ class PortalSession implements InternalPortalApiContext {
 		this.config = config;
 		this.dependencies = dependencies;
 		this.ssoTgc = config.ssoTgc;
-		this.dispatcher = config.proxyServer
-			? (dependencies.createDispatcher ?? ((server) => new ProxyAgent(server)))(config.proxyServer)
-			: null;
+		this.dispatcher = (dependencies.createDispatcher ?? createDispatcher)(
+			config.proxyServer ?? null,
+			PORTAL_REQUEST_TIMEOUTS,
+		);
 		this.removeUpstreamAbortListener = forwardAbort(dependencies.abortSignal, this.abortController);
 	}
 
@@ -115,9 +120,7 @@ class PortalSession implements InternalPortalApiContext {
 		this.removeUpstreamAbortListener();
 		this.abortController.abort(new Error("internal portal HTTP session disposed"));
 		this.activeContext = null;
-		if (this.dispatcher) {
-			await this.dispatcher.close();
-		}
+		await this.dispatcher.close();
 	}
 
 	private async performRequest(
@@ -146,7 +149,7 @@ class PortalSession implements InternalPortalApiContext {
 
 async function bootstrapPortalSession(input: {
 	config: InternalPortalClientConfig;
-	dispatcher: Dispatcher | null;
+	dispatcher: Dispatcher;
 	fetch: PortalFetch;
 	signal: AbortSignal;
 }): Promise<{
@@ -221,7 +224,7 @@ async function bootstrapPortalSession(input: {
 
 function createPortalRequestContext(input: {
 	config: InternalPortalClientConfig;
-	dispatcher: Dispatcher | null;
+	dispatcher: Dispatcher;
 	fetch: PortalFetch;
 	jar: PortalCookieJar;
 	signal: AbortSignal;
@@ -296,7 +299,7 @@ async function performPortalRequest(input: {
 
 function createCookieFetch(input: {
 	assertUrl: (url: URL) => void;
-	dispatcher: Dispatcher | null;
+	dispatcher: Dispatcher;
 	fetch: PortalFetch;
 	jar: PortalCookieJar;
 	normalizeRedirectUrl?: (url: URL) => URL;
@@ -308,7 +311,7 @@ function createCookieFetch(input: {
 		const signal = mergeAbortSignals(input.signal, requestInit.signal);
 		return await input.fetch(requestInput, {
 			...requestInit,
-			...(input.dispatcher ? { dispatcher: input.dispatcher } : {}),
+			dispatcher: input.dispatcher,
 			redirect: "manual",
 			signal,
 		});
@@ -541,6 +544,13 @@ function mergeAbortSignals(
 		return sessionSignal;
 	}
 	return AbortSignal.any([sessionSignal, requestSignal]);
+}
+
+function createDispatcher(
+	proxyServer: string | null,
+	timeouts: typeof PORTAL_REQUEST_TIMEOUTS,
+): Dispatcher {
+	return proxyServer ? new ProxyAgent({ uri: proxyServer, ...timeouts }) : new Agent(timeouts);
 }
 
 function forwardAbort(source: AbortSignal | undefined, target: AbortController): () => void {

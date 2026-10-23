@@ -42,6 +42,9 @@ export type PortalFetch = (input: RequestInfo, init?: PortalRequestInit) => Prom
 
 export interface CreatePortalApiContextDependencies {
 	abortSignal?: AbortSignal;
-	createDispatcher?: (proxyServer: string) => Dispatcher;
+	createDispatcher?: (
+		proxyServer: string | null,
+		timeouts: { bodyTimeout: number; headersTimeout: number },
+	) => Dispatcher;
 	fetch?: PortalFetch;
 }

@@ -59,7 +59,7 @@ internal_portal/notices/_state.json
 `notice-sync` 发现门户最新边界 `P` 后扫描 `[max(covered_from, covered_until 前一天), max(covered_until, P))`，
 重扫最后一个覆盖日期以发现同日稍后发布的通知；成功后上界只前进、不后退；
 `notice-backfill --start-date S` 只采集 `[S, covered_from)`，成功后推进到
-`[S, covered_until)`。首次初始化必须显式回填（当前约定起点为 `2025-12-01`），不能用一次 sync 只记录
+`[S, covered_until)`；集群流水线按窗口逐段采集该区间，每个成功窗口都把下界推进到窗口起点，区间仍保持连续。首次初始化必须显式回填（当前约定起点为 `2025-12-01`），不能用一次 sync 只记录
 一个不完整的 head。
 
 `notice-rescan --from F --to T` 显式补查已有维护区间内的遗漏，区间仍为半开区间；不修改维护边界。
@@ -284,8 +284,8 @@ publisher 校验来源资源后，只把通知图片的内容寻址对象写入 
 notices/assets/sha256/<digest>
 ```
 
-实际采集到的附件原始字节继续保留在 source bucket；publisher 读取这些附件以确认字节数、媒体类型和 SHA-256，
-但不把附件复制到 derived bucket。source bucket 由 internal-portal-collection 写入，publisher 按权限读取，
+实际采集到的附件原始字节继续保留在 source bucket；publisher 读取这些附件以确认媒体类型和字节数，SHA-256
+直接取自来源快照的 `resources[]`（资源对象本身按该摘要寻址），但不把附件复制到 derived bucket。source bucket 由 internal-portal-collection 写入，publisher 按权限读取，
 不向 Worker 或浏览器开放。App API 当前只按数据库摘要读取通知图片并通过通知所属
 的同源接口返回字节；
 浏览器不接收 bucket key、摘要或对象存储凭据。附件 metadata 包含门户资源身份，App API 即时构造

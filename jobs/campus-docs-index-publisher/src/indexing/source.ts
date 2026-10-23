@@ -21,7 +21,7 @@ import { canonicalJsonBytes, sha256, sha256Bytes } from "./content-digest.ts";
 export function parseIndexingSource(sourceBytes: Uint8Array): IndexingSource {
 	const sourceValue = parseJson(sourceBytes, "campus docs source");
 	const manifest = normalizeSourceManifest(parseSourceManifest(sourceValue));
-	return { manifest, sourceBytes, sourceDigest: sha256(sourceBytes) };
+	return { manifest };
 }
 export function selectCurrentVersions(source: DocsSourceManifest): IndexedVersionSelection[] {
 	return selectVersions(source).filter((item) => item.isCurrent);

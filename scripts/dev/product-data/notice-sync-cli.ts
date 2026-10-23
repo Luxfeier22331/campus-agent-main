@@ -6,7 +6,7 @@ import { createS3ObjectStore } from "../../../apps/campus-web/src/docs-reader-bu
 import { localDatabaseUrls } from "../lifecycle/environment.ts";
 import { withLifecycleLock } from "../lifecycle/locks.ts";
 import { loadLocalDevProfile, resolveLocalDevRegistryPath } from "../lifecycle/profile.ts";
-import { localProductStoreEnv } from "./connections.ts";
+import { localProductStoreEnv, localSourceEndpoint } from "./connections.ts";
 import { exportNoticeSources, importNoticeSources } from "./notice-sync.ts";
 import { copyNoticeSourceClosure } from "./notice-sync-objects.ts";
 import { parseNoticeSyncSelection } from "./notice-sync-options.ts";
@@ -73,7 +73,6 @@ export async function syncNotices(
 						...localProductStoreEnv(repoRoot, profile),
 						OBJECT_STORE_BUCKET_DERIVED: profile.sourceBucketName,
 					});
-					const localEnv = localProductStoreEnv(repoRoot, profile);
 					const copied = await copyNoticeSourceClosure({
 						rows,
 						read: (key) => sourceRemote.sourceStore.read(key),
@@ -81,16 +80,8 @@ export async function syncNotices(
 							controller.signal.throwIfAborted();
 							await target.writeBytesObject({ key, body, contentType });
 						},
-						batchCopy: {
-							source: sourceRemote.sourceEndpoint,
-							target: {
-								endpoint: localEnv.OBJECT_STORE_ENDPOINT,
-								bucket: profile.sourceBucketName,
-								accessKeyId: localEnv.OBJECT_STORE_DERIVED_ACCESS_KEY,
-								secretAccessKey: localEnv.OBJECT_STORE_DERIVED_SECRET_KEY,
-							},
-							readLocal: (key) => target.readOptionalBytesObject({ key }),
-						},
+						source: sourceRemote.sourceEndpoint,
+						target: localSourceEndpoint(repoRoot, profile),
 					});
 					console.log(JSON.stringify({ event: "copied_notice_sources", ...copied }));
 				}

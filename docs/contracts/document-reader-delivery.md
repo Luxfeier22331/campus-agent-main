@@ -170,9 +170,9 @@ canonical URL 和 `/v/<versionSlug>` 固定别名；历史版本可直接阅读�
 
 ## 候选一致性
 
-构建把 `sourceDigest` 写入 `.docs-source.json` 和 Worker 候选元数据。它不是 Worker 运行变量，也
-不是环境流量指针。一个不可变 Worker version 自带对应的目录、搜索索引、正文和图片；环境回滚到该
-version 时同时回滚全部文档静态内容。
+候选构建读取发布时固定的 Docs snapshot，`sourceDigest` 只用于选择本地生成内容目录，不写入构建产物或
+Worker 候选元数据；它不是 Worker 运行变量，也不是环境流量指针。一个不可变 Worker version 自带对应的
+目录、搜索索引、正文和图片；环境回滚到该 version 时同时回滚全部文档静态内容。
 
 文档来源或构建失败只阻止 Campus Web 候选，不阻塞 App API、认证或其他独立服务。已部署文档不因
 产品数据库不可用而失去读取能力。

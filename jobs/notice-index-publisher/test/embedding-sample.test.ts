@@ -145,12 +145,8 @@ describe("notice embedding sample execution", () => {
 			expect(embed).toHaveBeenCalledTimes(1);
 			const firstManifestBytes = await readFile(join(first.outputDirectory, "manifest.json"));
 			expect(sha256(firstManifestBytes)).toBe(first.run);
-			const firstReportBytes = await readFile(join(first.reportDirectory, "report.json"));
-			const firstReportManifestBytes = await readFile(join(first.reportDirectory, "manifest.json"));
-			expect(sha256(firstReportManifestBytes)).toBe(first.reportRun);
-			expect(sha256(firstReportBytes)).toBe(
-				JSON.parse(firstReportManifestBytes.toString("utf8")).report.sha256,
-			);
+			const firstReportBytes = await readFile(first.reportPath);
+			expect(sha256(firstReportBytes)).toBe(first.reportRun);
 			expect(
 				JSON.parse(firstManifestBytes.toString("utf8")),
 			).toMatchObject({
@@ -160,14 +156,8 @@ describe("notice embedding sample execution", () => {
 			});
 			expect(JSON.parse(firstReportBytes.toString("utf8"))).toMatchObject({
 				generatedEmbeddingInputCount: 1,
-				passed: true,
-				schemaVersion: "notice_embedding_sample_report.v1",
-			});
-			expect(
-				JSON.parse(await readFile(join(first.reportDirectory, "manifest.json"), "utf8")),
-			).toMatchObject({
-				report: { file: "report.json" },
 				sampleRun: first.run,
+				schemaVersion: "notice_embedding_sample_report.v2",
 			});
 		} finally {
 			await rm(root, { force: true, recursive: true });

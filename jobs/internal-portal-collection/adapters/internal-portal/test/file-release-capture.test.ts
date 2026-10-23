@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
-import { sha256Hex } from "../../../src/s3-create-or-verify.js";
+import { createHash } from "node:crypto";
 import { spoolAttachmentToTemporaryFile } from "../src/attachment-temp-file.js";
 import type { InternalPortalConfig } from "../src/config.js";
 import { captureInternalPortalFileRelease } from "../src/file-release-capture.js";
@@ -67,7 +67,7 @@ describe("internal portal file-release capture", () => {
 			file: {
 				byte_size: 10,
 				content_type: "application/pdf",
-				digest: `sha256:${sha256Hex(new TextEncoder().encode("file-bytes"))}`,
+				digest: `sha256:${createHash("sha256").update("file-bytes").digest("hex")}`,
 				object_key: `${prefix}/file`,
 				original_filename: "推免管理办法.pdf",
 			},
@@ -134,20 +134,17 @@ function createMemoryObjectStore(): InternalPortalCollectionObjectStore & {
 		objects,
 		sourceBucket: "campus-agent-source",
 		writes,
-		async createOrVerifyObject(input) {
-			writes.push(input.key);
-			objects.set(input.key, input.body);
-			return { byteSize: input.body.byteLength, contentSha256: sha256Hex(input.body) };
-		},
-		async createOrVerifyStream(input) {
-			const chunks: Buffer[] = [];
-			for await (const chunk of input.body) {
-				chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+		async createObject(input) {
+			if (objects.has(input.key)) {
+				return "existing";
 			}
-			const body = Buffer.concat(chunks);
+			const chunks: Buffer[] = [];
+			for await (const chunk of input.body instanceof Uint8Array ? [input.body] : input.body) {
+				chunks.push(Buffer.from(chunk));
+			}
 			writes.push(input.key);
-			objects.set(input.key, body);
-			return { byteSize: body.byteLength, contentSha256: sha256Hex(body) };
+			objects.set(input.key, Buffer.concat(chunks));
+			return "created";
 		},
 		async getObject(input) {
 			const value = objects.get(input.key);
@@ -162,11 +159,9 @@ function createMemoryObjectStore(): InternalPortalCollectionObjectStore & {
 		async getObjectIfExists(input) {
 			return objects.get(input.key) ?? null;
 		},
-		async pruneObjectVersions() {},
 		async putObject(input) {
 			writes.push(input.key);
 			objects.set(input.key, input.body);
-			return { byteSize: input.body.byteLength, contentSha256: sha256Hex(input.body) };
 		},
 	};
 }

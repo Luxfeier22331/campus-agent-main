@@ -30,10 +30,8 @@ func appendOperationID(bankID, documentID string) string {
 	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(bankID+"/retain/"+documentID)).String()
 }
 
+// Append requests reach the executor only from Admission-validated durable requests.
 func (e hindsightExecutor) SubmitConversationTurn(ctx context.Context, request memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendOperation, error) {
-	if err := memoryruntime.ValidateAppendConversationTurnRequest(request); err != nil {
-		return memoryruntime.AppendOperation{}, err
-	}
 	ctx, cancel := context.WithTimeout(ctx, appendOperationHTTPTimeout)
 	defer cancel()
 	bankID := e.scopedBankIDForGeneration(request.TenantID, request.UserID, request.OwnerGeneration)
@@ -59,9 +57,6 @@ func (e hindsightExecutor) SubmitConversationTurn(ctx context.Context, request m
 }
 
 func (e hindsightExecutor) GetConversationTurnOperation(ctx context.Context, request memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendOperation, error) {
-	if err := memoryruntime.ValidateAppendConversationTurnRequest(request); err != nil {
-		return memoryruntime.AppendOperation{}, err
-	}
 	ctx, cancel := context.WithTimeout(ctx, appendOperationHTTPTimeout)
 	defer cancel()
 	bankID := e.scopedBankIDForGeneration(request.TenantID, request.UserID, request.OwnerGeneration)

@@ -7,7 +7,6 @@ export async function runBuildChunks(input: BuildChunkSetInput): Promise<void> {
 		chunk_count: result.chunkCount,
 		chunk_set: result.chunkSet,
 		document_count: result.documentCount,
-		source_digest: result.sourceDigest,
 		source_projection_sha256: result.sourceProjectionSha256,
 	}, null, 2));
 }

@@ -64,7 +64,6 @@ describe("Campus docs artifact stages", () => {
 			sourceStore: fixtureStore(fixture, changedSourceBytes),
 		});
 
-		expect(second.sourceDigest).not.toBe(first.sourceDigest);
 		expect(second.sourceProjectionSha256).toBe(first.sourceProjectionSha256);
 		expect(second.chunkSet).toBe(first.chunkSet);
 	});
@@ -115,7 +114,7 @@ describe("Campus docs artifact stages", () => {
 			await runBuildChunks({ artifactStore: store, sourceStore: store });
 			const result = JSON.parse(String(output.mock.calls[0]?.[0])) as Record<string, unknown>;
 			expect(result.chunk_set).toMatch(/^sha256:[a-f0-9]{64}$/u);
-			expect(result.source_digest).toMatch(/^sha256:[a-f0-9]{64}$/u);
+			expect(result).not.toHaveProperty("source_digest");
 			expect(result.source_projection_sha256).toMatch(/^sha256:[a-f0-9]{64}$/u);
 		} finally {
 			output.mockRestore();

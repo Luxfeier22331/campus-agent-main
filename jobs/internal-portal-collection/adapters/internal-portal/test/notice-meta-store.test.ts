@@ -8,7 +8,7 @@ import {
 
 describe("internal portal notice metadata store", () => {
 	it("writes the portal-wide mapping and reuses unchanged content", async () => {
-		const putObject = vi.fn(async (_input: unknown) => ({ byteSize: 1, contentSha256: "a" }));
+		const putObject = vi.fn(async (_input: unknown) => undefined);
 		let existing: Uint8Array | null = null;
 		const store = createInternalPortalNoticeMetaStore({
 			objectStore: objectStore({
@@ -16,7 +16,6 @@ describe("internal portal notice metadata store", () => {
 				putObject: async (input) => {
 					putObject(input);
 					existing = input.body instanceof Uint8Array ? input.body : new Uint8Array();
-					return { byteSize: 1, contentSha256: "a" };
 				},
 			}),
 		});
@@ -52,7 +51,6 @@ describe("internal portal notice metadata store", () => {
 				getObjectIfExists: async () => existing,
 				putObject: async (input) => {
 					written = input.body instanceof Uint8Array ? input.body : null;
-					return { byteSize: 1, contentSha256: "a" };
 				},
 			}),
 		});
@@ -78,15 +76,11 @@ function objectStore(
 	overrides: Partial<InternalPortalCollectionObjectStore> = {},
 ): InternalPortalCollectionObjectStore {
 	return {
-		createOrVerifyObject: async () => ({ byteSize: 0, contentSha256: "a" }),
-		createOrVerifyStream: async () => {
-			throw new Error("unexpected stream write");
-		},
+		createObject: async () => "created",
 		getObject: async () => new Uint8Array(),
 		getObjectIfExists: async () => null,
 		hasObject: async () => false,
-		pruneObjectVersions: async () => undefined,
-		putObject: async () => ({ byteSize: 0, contentSha256: "a" }),
+		putObject: async () => undefined,
 		sourceBucket: "campus-agent-source",
 		...overrides,
 	};

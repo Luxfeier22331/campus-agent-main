@@ -702,9 +702,14 @@ func (s *FinalizationService) AppendWorkflowRunCompletedEvent(
 			"terminal_reason": string(run.TerminalReason),
 		},
 	}
-	if err := s.AppendRunEvent(ctx, expected); err != nil {
-		return err
+	_, appendErr := s.RunProjectionStore.AppendRunEvent(ctx, expected)
+	if appendErr == nil {
+		return nil
 	}
+	if !errors.Is(appendErr, execution.ErrInvalidRunEvent) {
+		return appendErr
+	}
+	// The event already exists: a replay must match its full identity, including time and visibility.
 	events, err := s.RunProjectionStore.ListRunEvents(ctx, run.RequestID)
 	if err != nil {
 		return err
@@ -728,7 +733,7 @@ func (s *FinalizationService) AppendWorkflowRunCompletedEvent(
 			true,
 		)
 	}
-	return errors.New("run.completed event is missing after append")
+	return appendErr
 }
 
 func (s *FinalizationService) ValidateCompletedWorkflowFinalizationStep(
@@ -807,11 +812,9 @@ func (s *FinalizationService) CompletedWorkflowFinalizedResponse(
 		if event.EventID != run.RequestID+":finalization-completed-internal" {
 			continue
 		}
+		// The response was validated before this internal event was appended.
 		response := execution.CloneAnyMapFromValue(event.Payload["response"])
 		if len(response) > 0 {
-			if err := validateFinalizationRecoveryResponse(response); err != nil {
-				return nil, err
-			}
 			return response, nil
 		}
 		break

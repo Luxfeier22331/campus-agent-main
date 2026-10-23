@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { EMBEDDING_SPACE, type EmbeddingClient } from "@campus-agent/embedding-runtime";
@@ -7,23 +7,19 @@ import { writeImmutable } from "../artifacts.ts";
 import {
 	NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION,
 	assertNoticeEmbeddingModelTargetSha256,
-	noticeEmbeddingCachePath,
-	parseCachedNoticeEmbedding,
 	resolveNoticeEmbeddingVectors,
 } from "../embedding-cache.ts";
 import { canonicalJsonBytes, sha256 } from "../encoding.ts";
 import {
-	NOTICE_EMBEDDING_SAMPLE_REPORT_MANIFEST_SCHEMA_VERSION,
 	NOTICE_EMBEDDING_SAMPLE_REPORT_SCHEMA_VERSION,
 	type LocalNoticeEmbeddingSampleResult,
 	type NoticeEmbeddingSampleReport,
-	type NoticeEmbeddingSampleReportManifest,
 	type NoticeEmbeddingSampleStatus,
 } from "./model.ts";
 import { buildNoticeEmbeddingSampleManifest } from "./artifacts.ts";
 import { selectNoticeEmbeddingSample } from "./selection.ts";
 import { artifactHex, readNoticeChunkRun } from "../run-reader.ts";
-import type { ArtifactReference, Sha256Ref } from "../types.ts";
+import type { Sha256Ref } from "../types.ts";
 
 export async function runLocalNoticeEmbeddingSample(input: {
 	artifactRoot: string;
@@ -70,36 +66,20 @@ export async function runLocalNoticeEmbeddingSample(input: {
 		...(input.onEmbeddingProgress ? { onProgress: input.onEmbeddingProgress } : {}),
 		textBySha256,
 	});
-	for (const textSha256 of textBySha256.keys()) {
-		const cacheBytes = await readFile(
-			noticeEmbeddingCachePath(input.artifactRoot, input.modelTargetSha256, textSha256),
-		);
-		parseCachedNoticeEmbedding(cacheBytes, textSha256, input.modelTargetSha256);
-	}
+	// Reused vectors were parsed and checked while resolving; generated ones were checked at the provider boundary.
 	const statuses = selection.records.map<NoticeEmbeddingSampleStatus>((record) => ({
 		cacheStatus: resolved.generatedTextSha256s.has(record.retrievalTextSha256)
 			? "generated"
 			: "reused",
 		chunkId: record.chunkId,
 		retrievalTextSha256: record.retrievalTextSha256,
-		valid: true,
 	}));
 	const report: NoticeEmbeddingSampleReport = {
-		cacheValidation: {
-			canonicalJsonPassed: true,
-			embeddingSpacePassed: true,
-			modelTargetPassed: true,
-			schemaPassed: true,
-			textSha256Passed: true,
-		},
 		cacheSchemaVersion: NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION,
 		chunkRun: input.chunkRun,
 		embeddingSpace: EMBEDDING_SPACE,
-		finiteValuesPassed: true,
 		generatedEmbeddingInputCount: resolved.generatedInputCount,
 		modelTargetSha256: input.modelTargetSha256,
-		nonZeroNormPassed: true,
-		passed: true,
 		reusedEmbeddingInputCount: resolved.reusedInputCount,
 		sampleRun: run,
 		schemaVersion: NOTICE_EMBEDDING_SAMPLE_REPORT_SCHEMA_VERSION,
@@ -108,36 +88,22 @@ export async function runLocalNoticeEmbeddingSample(input: {
 		strata: selection.strata,
 		uniqueEmbeddingInputCount: textBySha256.size,
 		vectorDimensions: EMBEDDING_SPACE.dimensions,
-		vectorDimensionsPassed: true,
 	};
 	const reportBytes = canonicalJsonBytes(report);
-	const reportManifest: NoticeEmbeddingSampleReportManifest = {
-		modelTargetSha256: input.modelTargetSha256,
-		report: reference("report.json", reportBytes),
-		sampleRun: run,
-		schemaVersion: NOTICE_EMBEDDING_SAMPLE_REPORT_MANIFEST_SCHEMA_VERSION,
-	};
-	const reportManifestBytes = canonicalJsonBytes(reportManifest);
-	const reportRun = sha256(reportManifestBytes);
-	const reportDirectory = join(outputDirectory, "reports", "sha256", artifactHex(reportRun));
+	const reportRun = sha256(reportBytes);
+	const reportDirectory = join(outputDirectory, "reports", "sha256");
+	const reportPath = join(reportDirectory, `${artifactHex(reportRun)}.json`);
 	await mkdir(reportDirectory, { recursive: true });
-	await Promise.all([
-		writeImmutable(join(reportDirectory, "manifest.json"), reportManifestBytes),
-		writeImmutable(join(reportDirectory, "report.json"), reportBytes),
-	]);
+	await writeImmutable(reportPath, reportBytes);
 	return {
 		generatedEmbeddingInputCount: resolved.generatedInputCount,
 		outputDirectory,
 		report,
-		reportDirectory,
+		reportPath,
 		reportRun,
 		reusedEmbeddingInputCount: resolved.reusedInputCount,
 		run,
 		selectedChunkCount: selection.records.length,
 		uniqueEmbeddingInputCount: textBySha256.size,
 	};
-}
-
-function reference(file: string, bytes: Uint8Array): ArtifactReference {
-	return { byteSize: bytes.byteLength, file, sha256: sha256(bytes) };
 }

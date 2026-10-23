@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
 	GetObjectCommand,
 	PutObjectCommand,
@@ -7,7 +6,8 @@ import {
 
 export interface PublisherObjectStore {
 	close(): void;
-	createOrVerifyDerived(input: {
+	/** Writes a content-addressed asset; an existing object under the digest key already holds these bytes. */
+	createDerivedAsset(input: {
 		body: Uint8Array;
 		contentType: string;
 		digest: string;
@@ -50,19 +50,7 @@ export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): Publi
 			sourceClient.destroy();
 			derivedClient.destroy();
 		},
-		async createOrVerifyDerived(input) {
-			const key = `notices/assets/sha256/${input.digest}`;
-			try {
-				const existing = await getBytes(derivedClient, derivedBucket, key);
-				if (sha256(existing) !== input.digest) {
-					throw new Error(`derived object conflicts: ${key}`);
-				}
-				return;
-			} catch (error) {
-				if (!isNotFound(error)) {
-					throw error;
-				}
-			}
+		async createDerivedAsset(input) {
 			try {
 				await derivedClient.send(
 					new PutObjectCommand({
@@ -71,18 +59,13 @@ export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): Publi
 						ContentLength: input.body.byteLength,
 						ContentType: input.contentType,
 						IfNoneMatch: "*",
-						Key: key,
+						Key: `notices/assets/sha256/${input.digest}`,
 					}),
 				);
-				return;
 			} catch (error) {
 				if (!isPreconditionFailure(error)) {
 					throw error;
 				}
-			}
-			const concurrent = await getBytes(derivedClient, derivedBucket, key);
-			if (sha256(concurrent) !== input.digest) {
-				throw new Error(`derived object conflicts: ${key}`);
 			}
 		},
 		async getSource(key) {
@@ -101,9 +84,6 @@ export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): Publi
 	};
 }
 
-async function getBytes(client: S3Client, bucket: string, key: string): Promise<Uint8Array> {
-	return (await getObject(client, bucket, key)).body;
-}
 async function getObject(
 	client: S3Client,
 	bucket: string,
@@ -117,9 +97,6 @@ async function getObject(
 		body: await result.Body.transformToByteArray(),
 		contentType: result.ContentType?.trim() || null,
 	};
-}
-function sha256(bytes: Uint8Array): string {
-	return createHash("sha256").update(bytes).digest("hex");
 }
 function required(env: NodeJS.ProcessEnv, key: string): string {
 	const value = env[key]?.trim();

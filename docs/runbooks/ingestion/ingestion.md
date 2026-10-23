@@ -91,7 +91,8 @@ pnpm --dir jobs/internal-portal-collection collect -- --mode notice-sync
 
 回填起点必须是本次明确选择的日期；当前首次初始化约定为 `2025-12-01`。没有完整维护区间时，sync
 会拒绝运行。适配器把内部排他上界转换为门户闭区间 `end_date` 的前一天，并用详情发布时间再次执行
-`[start,end)` 校验。sync、backfill 与 rescan 通过 PostgreSQL advisory lock 串行执行，不能并发运行。后续
+`[start,end)` 校验。sync、backfill 与 rescan 通过 PostgreSQL advisory lock 串行执行，不能并发运行；锁被占用时
+本次采集返回 `outcome: skipped`、`reason: already-running` 且不访问门户，锁连接中断时停止当前采集且不推进状态。后续
 sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查 source bucket 包含
 `internal_portal/meta.json`、通知对象、已成功采集的资源对象和 `_state.json`，确认当前 v4 状态中的
 `covered_from/covered_until` 区间符合本次 Job，且对应通知已登记到
@@ -254,6 +255,12 @@ publisher；已发布内容与新清洗结果冲突时，由引入清洗合同�
 启用顺序：先完成一次遗漏补查（回填或 rescan）和一次成功的 `/tasks` 手动运行，确认流水线产物与发布
 结果，再开启 Schedule。手动运行使用固定执行 ID `notice-pipeline-workflow`，与正在进行的流水线或回滚
 重叠时返回 409，单次执行上限 4 小时；定时触发发现已在运行时跳过该轮。
+
+集群回填按 30 天窗口从当前下界向 `start_date` 推进，每个窗口是一次采集 Activity 并在成功后保存
+`covered_from`；窗口出现逐项失败时停止扩展。剩余执行时间不足 2 小时时停止开新窗口，本轮采集记为
+`partial` 并照常分类和发布，再次提交同一起点会从已保存的下界继续。本地 CLI 的 backfill 仍一次处理完整区间。
+取消运行会中止当前门户请求并释放采集锁，已完成窗口的状态保留；门户请求在 60 秒内没有响应头或正文数据时失败，
+不再依赖 Activity heartbeat 发现卡住的连接。
 
 通知维护页的 `/api/ops/notices/jobs` 将八种固定操作映射到 Temporal Workflow；部署环境不再读取
 通知 CronJob 模板。完整流水线从 `/tasks` 运行，单项维护操作及其历史从通知维护页查看。

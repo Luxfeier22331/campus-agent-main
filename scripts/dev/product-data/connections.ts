@@ -17,3 +17,14 @@ export function localProductStoreEnv(repoRoot: string, profile: LocalDevProfile)
 		OBJECT_STORE_DERIVED_READ_SECRET_KEY: secretKey,
 	};
 }
+
+/** Local source bucket as the rclone target for notice source closures. */
+export function localSourceEndpoint(repoRoot: string, profile: LocalDevProfile) {
+	const env = localProductStoreEnv(repoRoot, profile);
+	return {
+		endpoint: env.OBJECT_STORE_ENDPOINT,
+		bucket: profile.sourceBucketName,
+		accessKeyId: env.OBJECT_STORE_DERIVED_ACCESS_KEY,
+		secretAccessKey: env.OBJECT_STORE_DERIVED_SECRET_KEY,
+	};
+}

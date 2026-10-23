@@ -16,10 +16,13 @@ import { publishNotices, republishNotices } from "notice-publisher/publisher";
 import { createPublisherObjectStoreFromEnv } from "notice-publisher/store";
 
 export async function collectNotices(command: CollectionCommand = { mode: "notice-sync" }) {
-	return activity(async (_signal, report) => {
+	return activity(async (signal, report) => {
 		loadInternalPortalEnv(process.env);
-		const credential = await resolveInternalPortalCredentialFromEnv(process.env);
+		const credential = await resolveInternalPortalCredentialFromEnv(process.env, {
+			abortSignal: signal,
+		});
 		return await executeCollectionCommand(command, {
+			abortSignal: signal,
 			env: process.env,
 			ssoTgc: credential.ssoTgc,
 			onProgress: report,
@@ -95,6 +98,10 @@ async function activity<T>(
 			progress = value;
 			heartbeat(value);
 		});
+	} catch (error) {
+		// Aborted I/O surfaces as transport errors; report the cancellation so Temporal records it.
+		signal.throwIfAborted();
+		throw error;
 	} finally {
 		clearInterval(timer);
 	}

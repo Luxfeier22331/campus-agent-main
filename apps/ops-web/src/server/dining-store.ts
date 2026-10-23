@@ -264,12 +264,7 @@ async function uploadAssets(store: DiningFloorplanAssetStore, bundle: DiningFloo
 	}
 	try {
 		await Promise.all(
-			assets.map(async (asset) => {
-				const stored = await store.putSvg({ sha256: asset.sha256, svgMarkup: asset.svgMarkup });
-				if (stored.sha256 !== asset.sha256 || stored.svgAssetUrl !== asset.svgAssetUrl) {
-					throw new Error("Dining floorplan asset identity does not match rendered content.");
-				}
-			}),
+			assets.map((asset) => store.putSvg({ sha256: asset.sha256, svgMarkup: asset.svgMarkup })),
 		);
 	} catch (error) {
 		throw new DiningStoreUnavailableError("食堂地图资源写入失败，公开版本未改变。", {

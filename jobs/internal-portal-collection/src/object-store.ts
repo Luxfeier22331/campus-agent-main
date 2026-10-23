@@ -1,13 +1,11 @@
 import type { Readable } from "node:stream";
 import {
-	DeleteObjectCommand,
 	GetObjectCommand,
 	HeadObjectCommand,
-	ListObjectVersionsCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
 } from "@aws-sdk/client-s3";
-import { createOrVerifyS3Object, sha256Hex } from "./s3-create-or-verify.ts";
+import { createS3Object } from "./s3-create-object.ts";
 import { createSourceObjectStoreConnection } from "./source-object-store.ts";
 
 interface ObjectStoreLocation {
@@ -15,16 +13,10 @@ interface ObjectStoreLocation {
 	key: string;
 }
 
-interface ArtifactWriteInput extends ObjectStoreLocation {
+interface ObjectWriteInput extends ObjectStoreLocation {
+	abortSignal?: AbortSignal;
 	body: Uint8Array;
 	contentType: string;
-	metadata?: Record<string, string>;
-}
-
-interface ArtifactWriteResult {
-	byteSize: number;
-	contentSha256: string;
-	versionId?: string | null;
 }
 
 export interface InternalPortalCollectionObjectStore {
@@ -36,28 +28,16 @@ export interface InternalPortalCollectionObjectStore {
 	): Promise<Uint8Array | null>;
 	hasObject(input: ObjectStoreLocation & { abortSignal?: AbortSignal }): Promise<boolean>;
 	listObjectKeys?(input: { bucket: string; prefix: string }): Promise<string[]>;
-	putObject(
-		input: ArtifactWriteInput & { abortSignal?: AbortSignal },
-	): Promise<ArtifactWriteResult>;
-	pruneObjectVersions(input: {
-		abortSignal?: AbortSignal;
-		bucket: string;
-		key: string;
-		keepVersionId: string;
-	}): Promise<void>;
-	createOrVerifyObject(
-		input: ArtifactWriteInput & { abortSignal?: AbortSignal },
-	): Promise<ArtifactWriteResult>;
-	createOrVerifyStream(input: {
-		abortSignal?: AbortSignal;
-		body: Readable;
-		bucket: string;
-		byteSize: number;
-		contentSha256: string;
-		contentType: string;
-		key: string;
-		metadata?: Record<string, string>;
-	}): Promise<ArtifactWriteResult>;
+	/** Overwrite a mutable object such as `_state.json` or `meta.json`. */
+	putObject(input: ObjectWriteInput): Promise<void>;
+	/** Create an immutable object; see `createS3Object` for when an existing key is accepted. */
+	createObject(
+		input: Omit<ObjectWriteInput, "body"> & {
+			body: Uint8Array | Readable;
+			byteSize?: number;
+			identity?: { byteSize: number; contentSha256: string };
+		},
+	): Promise<"created" | "existing">;
 }
 
 export function createInternalPortalCollectionObjectStoreFromEnv(
@@ -131,92 +111,22 @@ export function createInternalPortalCollectionObjectStoreFromEnv(
 			} while (continuationToken);
 			return keys;
 		},
-		async createOrVerifyObject(input) {
-			assertSourceBucket(input.bucket, sourceBucket);
-			return createOrVerifyS3Object({
-				...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
-				body: input.body,
-				bucket: input.bucket,
-				client,
-				contentType: input.contentType,
-				key: input.key,
-				...(input.metadata ? { metadata: input.metadata } : {}),
-			});
-		},
 		async putObject(input) {
 			assertSourceBucket(input.bucket, sourceBucket);
-			const contentSha256 = sha256Hex(input.body);
-			const result = await client.send(
+			await client.send(
 				new PutObjectCommand({
 					Body: input.body,
 					Bucket: input.bucket,
 					ContentLength: input.body.byteLength,
 					ContentType: input.contentType,
 					Key: input.key,
-					Metadata: { ...input.metadata, "content-sha256": contentSha256 },
 				}),
 				input.abortSignal ? { abortSignal: input.abortSignal } : {},
 			);
-			return {
-				byteSize: input.body.byteLength,
-				contentSha256,
-				etag: result.ETag ?? null,
-				versionId: result.VersionId ?? null,
-			};
 		},
-		async pruneObjectVersions(input) {
+		async createObject(input) {
 			assertSourceBucket(input.bucket, sourceBucket);
-			const keepVersionId = input.keepVersionId.trim();
-			if (!keepVersionId || keepVersionId === "null") {
-				throw new Error("versioned object cleanup requires a concrete keep version id");
-			}
-			let keyMarker: string | undefined;
-			let versionIdMarker: string | undefined;
-			const obsoleteVersionIds: string[] = [];
-			do {
-				const page = await client.send(
-					new ListObjectVersionsCommand({
-						Bucket: input.bucket,
-						KeyMarker: keyMarker,
-						Prefix: input.key,
-						VersionIdMarker: versionIdMarker,
-					}),
-					input.abortSignal ? { abortSignal: input.abortSignal } : {},
-				);
-				for (const entry of [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]) {
-					if (entry.Key !== input.key || !entry.VersionId || entry.VersionId === keepVersionId) {
-						continue;
-					}
-					obsoleteVersionIds.push(entry.VersionId);
-				}
-				keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
-				versionIdMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
-			} while (keyMarker || versionIdMarker);
-			// Keep pagination markers valid until the complete listing has been read.
-			for (const versionId of obsoleteVersionIds) {
-				await client.send(
-					new DeleteObjectCommand({
-						Bucket: input.bucket,
-						Key: input.key,
-						VersionId: versionId,
-					}),
-					input.abortSignal ? { abortSignal: input.abortSignal } : {},
-				);
-			}
-		},
-		async createOrVerifyStream(input) {
-			assertSourceBucket(input.bucket, sourceBucket);
-			return createOrVerifyS3Object({
-				...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
-				body: input.body,
-				byteSize: input.byteSize,
-				bucket: input.bucket,
-				client,
-				contentSha256: input.contentSha256,
-				contentType: input.contentType,
-				key: input.key,
-				...(input.metadata ? { metadata: input.metadata } : {}),
-			});
+			return await createS3Object({ ...input, client });
 		},
 	};
 }

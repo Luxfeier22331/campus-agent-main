@@ -64,6 +64,30 @@ Status: implemented
   closure 校验；
 - chat feedback 的不可达 `Array.isArray` 分支、profile memory 的静态类型守卫移除。
 
+2026-10-23 按同一原则复核后端、agent 与 Temporal 链路，追加收敛：
+
+- agent-control：finalization 新写入路径不再对同一请求二次 canonicalize 与全量校验（replay 路径比对已存
+  记录仍保留）；runs/events 只在写入时校验，Postgres 读取不再逐行重校验（本服务是唯一写入方，内存
+  store 读取本就不校验）；读取自写的 `workflow_input_json` 时不再重算 admission snapshot hash 并二次校验
+  （字段保留在 workflow 输入中，不改变存量 JSON 与 workflow identity）；run.completed 事件追加成功后
+  不再回读比对，冲突时仍按完整身份（含时间与可见性）判定 replay；finalization 恢复响应写入前已校验，
+  读回与追加时不再重复；`InputMetadata` 不再重验写入时已校验的 metadata，取回输入的
+  `execution_input_sha256` 校验保留；取消请求只由 store 校验，service 把其拒绝映射为 400；删除零调用的
+  `SHA256TextRef`；
+- agent-runtime：workflow 内 `validatePlan` 删除，activity `completeStage` 已用同一 `planIssue` 把无效
+  计划转成 failed，删除不改变 Temporal 命令序列；`validateCurrentInput` 与 wire schema 的目标字数检查
+  重复，删除；运行时自建的 failure reason 与 citation diagnostic 不再自校验，agent-control 投影时
+  `citationdiagnostic` 统一规范化；
+- memory-service：append 与个人记忆命令请求在 HTTP 解码和 admission 已校验并持久化，worker 从自有
+  store 读回后不再逐层重验；执行结果的身份与状态校验保留；
+- app-api：通知列表 `is_external`/`external_url` 配对由 `notices_check` 约束保证，去掉不可达分支；
+  同好群目录只由本服务 `replaceCatalog` 校验后写入，读取不再全量 parse；平面图代理在校验实际字节数
+  前不再单独检查 content-length。
+
+保留：跨网络或跨 owner 的输入、模型与 provider 输出、幂等与 replay fencing、Temporal memo identity、
+tool contract fingerprint 双方各自校验、Chat structured parts 读侧容错（合同要求兼容历史行）、
+agent-runtime 对 control wire 的形状 parse（防版本错配）。
+
 ### 配置与依赖
 
 - K8s：移除 notice-pipeline-worker 的 `EXECUTION_CONTROL_DATABASE_URL` 与

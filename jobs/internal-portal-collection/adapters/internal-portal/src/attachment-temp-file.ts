@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { type FileHandle, mkdtemp, open, rm } from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 
 export interface TemporaryAttachmentFile {
 	byteSize: number;
@@ -21,28 +22,28 @@ export async function spoolAttachmentToTemporaryFile(input: {
 	input.abortSignal?.throwIfAborted();
 	const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "campus-agent-attachment-"));
 	const filePath = path.join(temporaryDirectory, "body");
-	const handle = await open(filePath, "wx", 0o600);
 	const hash = createHash("sha256");
 	let byteSize = 0;
-	let handleClosed = false;
 	let removed = false;
 	try {
-		for await (const chunk of input.body) {
-			input.abortSignal?.throwIfAborted();
-			const nextByteSize = byteSize + chunk.byteLength;
-			if (nextByteSize > input.maxBytes) {
-				throw input.sizeLimitError(nextByteSize);
-			}
-			hash.update(chunk);
-			await writeEntireChunk(handle, chunk);
-			byteSize = nextByteSize;
-		}
-		await handle.close();
-		handleClosed = true;
-		const contentSha256 = hash.digest("hex");
+		await pipeline(
+			input.body,
+			async function* measure(source: AsyncIterable<Uint8Array>) {
+				for await (const chunk of source) {
+					byteSize += chunk.byteLength;
+					if (byteSize > input.maxBytes) {
+						throw input.sizeLimitError(byteSize);
+					}
+					hash.update(chunk);
+					yield chunk;
+				}
+			},
+			createWriteStream(filePath, { flags: "wx", mode: 0o600 }),
+			input.abortSignal ? { signal: input.abortSignal } : {},
+		);
 		return {
 			byteSize,
-			contentSha256,
+			contentSha256: hash.digest("hex"),
 			filePath,
 			openReadStream: () => createReadStream(filePath),
 			async remove() {
@@ -54,21 +55,9 @@ export async function spoolAttachmentToTemporaryFile(input: {
 			},
 		};
 	} catch (error) {
-		if (!handleClosed) {
-			await handle.close().catch(() => undefined);
-		}
 		await rm(temporaryDirectory, { force: true, recursive: true });
+		// pipeline reports cancellation as a generic AbortError; surface the caller's reason instead.
+		input.abortSignal?.throwIfAborted();
 		throw error;
-	}
-}
-
-async function writeEntireChunk(handle: FileHandle, chunk: Uint8Array): Promise<void> {
-	let offset = 0;
-	while (offset < chunk.byteLength) {
-		const { bytesWritten } = await handle.write(chunk, offset, chunk.byteLength - offset);
-		if (bytesWritten <= 0) {
-			throw new Error("temporary attachment file write made no progress");
-		}
-		offset += bytesWritten;
 	}
 }

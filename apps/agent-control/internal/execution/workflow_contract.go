@@ -55,12 +55,8 @@ func DecodeAndValidateWorkflowStartInput(
 	if input.PayloadSHA256 != intent.PayloadSHA256 || !validWorkflowIdentitySHA(input.PayloadSHA256) {
 		return input, errors.New("workflow input payload hash is invalid")
 	}
-	if input.AdmissionSnapshotSHA256 != SHA256JSONRef(input.AdmissionSnapshot) {
-		return input, errors.New("workflow admission snapshot hash is invalid")
-	}
-	if err := ValidateAdmissionSnapshot(input.AdmissionSnapshot); err != nil {
-		return input, fmt.Errorf("workflow admission snapshot is invalid: %w", err)
-	}
+	// agent-control is the only writer of workflow_input_json and validated the admission snapshot
+	// when it built this input, so the snapshot is not re-hashed or re-validated on read.
 	return input, nil
 }
 

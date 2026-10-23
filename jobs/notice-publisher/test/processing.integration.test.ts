@@ -20,7 +20,7 @@ describe.skipIf(!process.env.NOTICES_DATABASE_URL)('publication transaction reco
    let outage=false;
    const requested:number[]=[];
    const store:PublisherObjectStore={
-    close(){}, async createOrVerifyDerived(){},async getSourceIfExists(){return null;},
+    close(){}, async createDerivedAsset(){},async getSourceIfExists(){return null;},
     async getSource(key){
      if(key.endsWith('meta.json')) return {body:Buffer.from(JSON.stringify({schema_version:'internal_portal_meta.v1',updated_at:'2026-09-20T00:00:00Z',notice_types:Object.fromEntries(rows.map(r=>[String(r.notice_type),'通知'])),organizations:Object.fromEntries(rows.filter(r=>r.organization_id).map(r=>[r.organization_id,'组织']))})),contentType:'application/json'};
      const row=rows.find(r=>key.endsWith(`/${r.notice_id}.json`));

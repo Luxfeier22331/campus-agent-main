@@ -246,7 +246,7 @@ test("retrieval cleanup can remove versioned artifacts while caches and sources 
 	}
 });
 
-test("source writer can clean only the mutable notice state object", () => {
+test("source identity can maintain versions of only the mutable notice state object", () => {
 	assert.equal(
 		allows(
 			"source-policy.json",
@@ -275,4 +275,25 @@ test("source writer can clean only the mutable notice state object", () => {
 			`ListBucketVersions: ${prefix ?? "missing prefix"}`,
 		);
 	}
+});
+
+test("source lifecycle expires only noncurrent versions of the notice state object", () => {
+	const lifecycle = JSON.parse(data["source-lifecycle.json"]) as {
+		rules: { expiration?: unknown; noncurrentVersionExpiration?: unknown; prefix: string }[];
+	};
+	const stateRules = lifecycle.rules.filter((rule) =>
+		"internal_portal/notices/_state.json".startsWith(rule.prefix),
+	);
+	assert.deepEqual(stateRules, [
+		{
+			id: "notice-state-noncurrent-1d",
+			status: "Enabled",
+			prefix: "internal_portal/notices/_state.json",
+			noncurrentVersionExpiration: { noncurrentDays: 1 },
+		},
+	]);
+	assert.match(
+		data["bootstrap.sh"],
+		/^rc ilm rule import object-store\/campus-agent-source \/bootstrap\/source-lifecycle\.json$/mu,
+	);
 });

@@ -102,7 +102,7 @@ function fakeStore(sources: Record<number, unknown>): PublisherObjectStore {
 	});
 	return {
 		close: vi.fn(),
-		createOrVerifyDerived: vi.fn(),
+		createDerivedAsset: vi.fn(),
 		getSource,
 		getSourceIfExists: vi.fn(async (key: string) => getSource(key)),
 	};

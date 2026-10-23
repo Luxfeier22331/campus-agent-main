@@ -23,8 +23,6 @@ export interface ArtifactObjectStore extends ReaderObjectStore {
 
 export interface IndexingSource {
 	manifest: DocsSourceManifest;
-	sourceBytes: Uint8Array;
-	sourceDigest: `sha256:${string}`;
 }
 
 export interface ReaderSection {
@@ -164,7 +162,6 @@ export interface BuildChunkSetResult {
 	chunkCount: number;
 	chunkSet: Sha256Ref;
 	documentCount: number;
-	sourceDigest: Sha256Ref;
 	sourceProjectionSha256: Sha256Ref;
 }
 

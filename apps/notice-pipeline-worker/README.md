@@ -15,7 +15,8 @@ pnpm --filter notice-pipeline-worker test:unit
 ```
 
 镜像中的 `dist/schedule-cli.js` 初始化调度，更新工作流和重叠策略，同时保留操作员设置的周期和启停。
-单条通知失败继续处理并汇总 partial；阶段级失败阻断后续步骤。
+单条通知失败继续处理并汇总 partial；阶段级失败阻断后续步骤。回填按窗口多次调用采集 Activity，
+每个窗口独立保存维护下界；各阶段 Activity 响应 Temporal 取消，采集、分类和发布的锁被占用时返回 skipped。
 
 边界见[通知领域](../../docs/architecture/domains/notices.md)与
 [检索职责调整](../../.agents/notes/implemented/architecture/2026-10-14-retrieval-index-jobs.md)。

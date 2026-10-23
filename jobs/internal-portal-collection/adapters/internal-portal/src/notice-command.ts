@@ -1,6 +1,11 @@
 import { createInternalPortalCollectionObjectStoreFromEnv } from "../../../src/object-store.js";
-import { createNoticeDatabasePool } from "@campus-agent/notice-database";
+import {
+	createNoticeDatabasePool,
+	type NoticeLockSkipped,
+	withNoticeMaintenanceLock,
+} from "@campus-agent/notice-database";
 import type { PoolClient } from "pg";
+import { bindApiContextCancellation } from "./api-context-cancellation.js";
 import { fetchNoticeDetail, fetchNoticeMetadata, fetchNoticePage } from "./api.js";
 import { resolveInternalPortalConfig } from "./config.js";
 import { createInternalPortalNoticeMetaStore } from "./notice-meta-store.js";
@@ -18,127 +23,117 @@ import { createInternalPortalNoticeSourceStore } from "./notice-source.js";
 import { createObjectStoreInternalPortalNoticeSyncStateStore } from "./notice-state-store.js";
 import { createPortalApiContext } from "./portal.js";
 
-const NOTICE_MAINTENANCE_LOCK_NAMESPACE = 1_315_928_137;
-const NOTICE_MAINTENANCE_LOCK_ID = 1;
-
-export type NoticeCommand = { name: "backfill"; startDate: string } | { name: "sync" } | { name: "rescan"; from: string; to: string };
+export type NoticeCommand =
+	| { name: "backfill"; startDate: string; windowDays?: number }
+	| { name: "sync" }
+	| { name: "rescan"; from: string; to: string };
 
 export interface NoticeCommandOptions {
+	abortSignal?: AbortSignal;
 	env?: NodeJS.ProcessEnv;
 	ssoTgc?: string;
- onProgress?: (progress: NoticeRunnerProgress) => void;
+	onProgress?: (progress: NoticeRunnerProgress) => void;
 }
 
 export async function runNoticeCommand(
 	command: NoticeCommand,
 	options: NoticeCommandOptions = {},
-): Promise<NoticeRunnerResult> {
+): Promise<NoticeRunnerResult | NoticeLockSkipped> {
+	options.abortSignal?.throwIfAborted();
 	const env = options.env ?? process.env;
 	const objectStore = createInternalPortalCollectionObjectStoreFromEnv(env);
 	const databasePool = createNoticeDatabasePool(env, { max: 1 });
 	const stateStore = createObjectStoreInternalPortalNoticeSyncStateStore({ objectStore });
 	let databaseClient: PoolClient | null = null;
-	let lockAcquired = false;
 	let operationFailed = false;
 	try {
-		databaseClient = await databasePool.connect();
-		const lock = await databaseClient.query<{ acquired: boolean }>(
-			"SELECT pg_try_advisory_lock($1, $2) AS acquired",
-			[NOTICE_MAINTENANCE_LOCK_NAMESPACE, NOTICE_MAINTENANCE_LOCK_ID],
-		);
-		lockAcquired = lock.rows[0]?.acquired === true;
-		if (!lockAcquired) {
-			throw new Error("another notice maintenance collection is already running");
-		}
-		if (command.name === "backfill") {
-			const state = await stateStore.load();
-			if (state && isNoticeHistoryCovered(state, command.startDate)) {
-				if (!(state.coveredFrom && state.coveredUntil)) {
-					throw new Error("internal portal notice sync state has no complete maintenance range");
-				}
-				console.log(
-					JSON.stringify({
+		const client = await databasePool.connect();
+		databaseClient = client;
+		return await withNoticeMaintenanceLock(client, async (lockSignal) => {
+			const abortSignal = options.abortSignal
+				? AbortSignal.any([options.abortSignal, lockSignal])
+				: lockSignal;
+			if (command.name === "backfill") {
+				const state = await stateStore.load();
+				if (state && isNoticeHistoryCovered(state, command.startDate)) {
+					if (!(state.coveredFrom && state.coveredUntil)) {
+						throw new Error("internal portal notice sync state has no complete maintenance range");
+					}
+					console.log(
+						JSON.stringify({
+							processedRange: null,
+							progress: { phase: "finalizing", processed: 0, total: 0 },
+							status: "running",
+						}),
+					);
+					return {
+						failures: [],
+						maintenanceRange: { from: state.coveredFrom, to: state.coveredUntil },
+						mode: "backfill",
+						noticesAdded: 0,
+						noticesUpdated: 0,
+						noticesUnchanged: 0,
+						noticesProcessed: 0,
+						objectsReused: 0,
+						objectsWritten: 0,
+						pagesFetched: 0,
 						processedRange: null,
-						progress: { phase: "finalizing", processed: 0, total: 0 },
-						status: "running",
-					}),
-				);
-				return {
-					failures: [],
-					maintenanceRange: { from: state.coveredFrom, to: state.coveredUntil },
-					mode: "backfill",
-					noticesAdded: 0,
-					noticesUpdated: 0,
-					noticesUnchanged: 0,
-					noticesProcessed: 0,
-					objectsReused: 0,
-					objectsWritten: 0,
-					pagesFetched: 0,
-					processedRange: null,
-					resources: {
-						attachmentsDownloaded: 0,
-						attachmentsMissing: 0,
-						attachmentsReused: 0,
-						imagesDownloaded: 0,
-						imagesReused: 0,
-					},
-					state,
-					upToDate: false,
-				};
+						resources: {
+							attachmentsDownloaded: 0,
+							attachmentsMissing: 0,
+							attachmentsReused: 0,
+							imagesDownloaded: 0,
+							imagesReused: 0,
+						},
+						state,
+						upToDate: false,
+					};
+				}
 			}
-		}
 
-		const config = resolveInternalPortalConfig(
-			options.ssoTgc === undefined ? env : { ...env, INTERNAL_PORTAL_SSO_TGC: options.ssoTgc },
-		);
-		const apiContext = await createPortalApiContext(config);
-		try {
-			const runnerInput = {
- ...(options.onProgress ? { onProgress: options.onProgress } : {}),
-				apiContext,
-				fetchNoticeDetail,
-				fetchNoticeMetadata,
-				fetchNoticePage,
-				inventoryStore: createNoticeInventoryStore(databaseClient),
-				metaStore: createInternalPortalNoticeMetaStore({ objectStore }),
-				objectStore,
-				enablePeriodicReview: true,
-				portalHost: new URL(config.portalBaseUrl).hostname,
-				sourceStore: createInternalPortalNoticeSourceStore({ objectStore }),
-				stateStore,
-			};
-			if (command.name === "rescan") {
-				return await rescanInternalPortalNotices({ ...runnerInput, from: command.from, to: command.to });
+			abortSignal.throwIfAborted();
+			const config = resolveInternalPortalConfig(
+				options.ssoTgc === undefined ? env : { ...env, INTERNAL_PORTAL_SSO_TGC: options.ssoTgc },
+			);
+			const apiContext = await createPortalApiContext(config, { abortSignal });
+			const disposeApiContext = bindApiContextCancellation(apiContext, abortSignal);
+			try {
+				const runnerInput = {
+					...(options.onProgress ? { onProgress: options.onProgress } : {}),
+					abortSignal,
+					apiContext,
+					fetchNoticeDetail,
+					fetchNoticeMetadata,
+					fetchNoticePage,
+					inventoryStore: createNoticeInventoryStore(client),
+					metaStore: createInternalPortalNoticeMetaStore({ objectStore }),
+					objectStore,
+					enablePeriodicReview: true,
+					portalHost: new URL(config.portalBaseUrl).hostname,
+					sourceStore: createInternalPortalNoticeSourceStore({ objectStore }),
+					stateStore,
+				};
+				if (command.name === "rescan") {
+					return await rescanInternalPortalNotices({ ...runnerInput, from: command.from, to: command.to });
+				}
+				return await (command.name === "sync"
+					? syncInternalPortalNotices(runnerInput)
+					: backfillInternalPortalNotices({
+							...runnerInput,
+							startDate: command.startDate,
+							...(command.windowDays === undefined ? {} : { windowDays: command.windowDays }),
+						}));
+			} finally {
+				await disposeApiContext();
 			}
-			return await (command.name === "sync"
-				? syncInternalPortalNotices(runnerInput)
-				: backfillInternalPortalNotices({
-						...runnerInput,
-						startDate: command.startDate,
-					}));
-		} finally {
-			await apiContext.dispose();
-		}
+		});
 	} catch (error) {
 		operationFailed = true;
 		throw error;
 	} finally {
 		let cleanupError: unknown;
-		let unlockError: unknown;
-		if (lockAcquired && databaseClient) {
-			try {
-				await databaseClient.query("SELECT pg_advisory_unlock($1, $2)", [
-					NOTICE_MAINTENANCE_LOCK_NAMESPACE,
-					NOTICE_MAINTENANCE_LOCK_ID,
-				]);
-			} catch (error) {
-				unlockError = error;
-				cleanupError = error;
-			}
-		}
-		databaseClient?.release(
-			unlockError === undefined ? undefined : unlockError instanceof Error ? unlockError : true,
-		);
+		// A failed run may have lost or kept its session lock; dropping the connection ends both.
+		databaseClient?.release(operationFailed ? true : undefined);
 		try {
 			await objectStore.close?.();
 		} catch (error) {

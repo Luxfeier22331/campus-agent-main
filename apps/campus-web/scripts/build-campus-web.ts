@@ -13,8 +13,6 @@ import {
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_DOCS_SHARD_TOTAL, parseDocsShardTotal } from "../config/docs-shard.ts";
-import { assertSha256 } from "../src/docs-reader-build/artifact-digest.ts";
-import { readDocsContentMetadata } from "../src/docs-reader-build/docs-content.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
 import { loadCampusWebBuildEnvironment, omitObjectStoreEnvironment } from "./build-process-env.ts";
 import {
@@ -25,7 +23,6 @@ import {
 import { prepareDocsContent } from "./prepare-docs-content.ts";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const BUILD_DOCS_SOURCE_PATH = resolve(APP_ROOT, "dist/campus_web/.docs-source.json");
 const CLIENT_OUTPUT_ROOT = resolve(APP_ROOT, "dist/client");
 const DOCS_CLIENT_OUTPUT_ROOT = resolve(APP_ROOT, "dist/docs-client");
 const APP_BUNDLE_GRAPH_PATH = resolve(APP_ROOT, ".generated/bundle-graph.json");
@@ -90,11 +87,6 @@ export async function buildCampusWeb(input: CampusWebBuildInput): Promise<void> 
 	}
 	buildDocsClient(env);
 	checkBundleBudgets();
-	const metadata = readDocsContentMetadata(content.metadataPath);
-	if (!metadata) {
-		throw new Error("Campus Web docs preparation did not write source metadata.");
-	}
-	writeCampusWebBuildSource(metadata.sourceDigest);
 }
 
 /**
@@ -333,36 +325,6 @@ function appendBundleSummary(input: BundleCheckResult): void {
 		);
 	}
 	appendFileSync(summaryPath, `${lines.join("\n")}\n`, "utf8");
-}
-
-export function readCampusWebBuildSourceDigest(): `sha256:${string}` {
-	let value: unknown;
-	try {
-		value = JSON.parse(readFileSync(BUILD_DOCS_SOURCE_PATH, "utf8"));
-	} catch {
-		throw new Error("Campus Web build is missing its resolved docs source metadata.");
-	}
-	if (!(value && typeof value === "object" && !Array.isArray(value))) {
-		throw new Error("Campus Web build docs source metadata is invalid.");
-	}
-	const record = value as Record<string, unknown>;
-	if (
-		Object.keys(record).length !== 2 ||
-		record.schemaVersion !== "campus_web_docs_source.v1" ||
-		typeof record.sourceDigest !== "string"
-	) {
-		throw new Error("Campus Web build docs source metadata is invalid.");
-	}
-	return assertSha256(record.sourceDigest);
-}
-
-function writeCampusWebBuildSource(sourceDigest: `sha256:${string}`): void {
-	mkdirSync(dirname(BUILD_DOCS_SOURCE_PATH), { recursive: true });
-	writeFileSync(
-		BUILD_DOCS_SOURCE_PATH,
-		`${JSON.stringify({ schemaVersion: "campus_web_docs_source.v1", sourceDigest }, null, "\t")}\n`,
-		"utf8",
-	);
 }
 
 function run(command: string, args: string[], env: NodeJS.ProcessEnv): void {

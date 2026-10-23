@@ -6,7 +6,7 @@ import {
 import { TOOL_EXECUTION_CONTRACT } from "../../integration/generated/tool-execution-contract";
 import type { AcceptedChatCommandStore } from "../store-types";
 import type { ChatCommandServiceContext } from "./context";
-import { executionInputRef, sha256Text } from "./durable-metadata";
+import { executionInputRef } from "./durable-metadata";
 import { toHandledErrorTransportOutcome } from "./errors";
 import type { AcceptedChatCommandContext } from "./types";
 
@@ -69,13 +69,11 @@ function createInputFromStoredRun(input: {
 	requestId: string;
 	surface: string;
 }): AgentControlRunCreateInput {
-	if (
-		!(input.executionInputJson && input.executionInputSha256) ||
-		sha256Text(input.executionInputJson) !== input.executionInputSha256
-	) {
+	// App API hashed this JSON when it froze the input; agent-control verifies it after fetching.
+	if (!(input.executionInputJson && input.executionInputSha256)) {
 		throw new AgentControlTransportError({
 			code: "runtime_invariant_failed",
-			message: "Durable execution input is missing or failed hash validation.",
+			message: "Durable execution input is missing.",
 			retryable: false,
 			status: 500,
 		});

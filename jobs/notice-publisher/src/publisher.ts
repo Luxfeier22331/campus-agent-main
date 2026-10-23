@@ -340,9 +340,9 @@ async function loadRecord(
 			const stored = await requiredNoticeSource(store,
 				sourceResourceKey(source, "images", image.sourceOrdinal)!,
 			);
-			verifyResource(source, stored.body, "images", image.sourceOrdinal);
 			assets.push(
 				await projectAsset({
+					contentSha256: resourceDigest(source, stored.body, "images", image.sourceOrdinal),
 					contentTypeSource: image.normalizedUrl,
 					kind: "image",
 					ordinal: image.ordinal,
@@ -360,9 +360,9 @@ async function loadRecord(
 			if (!stored) {
 				continue;
 			}
-			verifyResource(source, stored.body, "attachments", ordinal);
 			assets.push(
 				await projectAsset({
+					contentSha256: resourceDigest(source, stored.body, "attachments", ordinal),
 					contentTypeSource: attachment.notice_annex_name ?? attachment.notice_annex_path,
 					kind: "attachment",
 					ordinal,
@@ -464,13 +464,15 @@ export function normalizePublishedNoticeContent(input: {
 	});
 }
 
-function verifyResource(source: InternalPortalNoticeSource, body: Uint8Array, kind: "images" | "attachments", ordinal: number): void {
-	if (!source.resources) return;
-	const ref = source.resources.find((item) => item.kind === kind && item.ordinal === ordinal);
-	if (!ref || ref.sha256 !== createHash("sha256").update(body).digest("hex") || ref.byte_size !== body.byteLength) throw new NoticePublicationDataError(`notice ${source.notice_id} resource does not match snapshot: ${kind}/${ordinal}`);
+// v2 snapshots read resources from content-addressed keys, so the recorded digest already names the bytes;
+// only legacy per-notice keys need hashing.
+function resourceDigest(source: InternalPortalNoticeSource, body: Uint8Array, kind: "images" | "attachments", ordinal: number): string {
+	const ref = source.resources?.find((item) => item.kind === kind && item.ordinal === ordinal);
+	return ref?.sha256 ?? createHash("sha256").update(body).digest("hex");
 }
 
 async function projectAsset(input: {
+	contentSha256: string;
 	contentTypeSource: string | null;
 	kind: NoticeAssetKind;
 	ordinal: number;
@@ -479,10 +481,10 @@ async function projectAsset(input: {
 	stored: { body: Uint8Array; contentType: string | null };
 	store: PublisherObjectStore;
 }): Promise<AssetRow> {
-	const contentSha256 = createHash("sha256").update(input.stored.body).digest("hex");
+	const contentSha256 = input.contentSha256;
 	const contentType = resolveAssetContentType(input.stored.contentType, input.contentTypeSource);
 	if (input.kind === "image") {
-		await input.store.createOrVerifyDerived({
+		await input.store.createDerivedAsset({
 			body: input.stored.body,
 			contentType,
 			digest: contentSha256,

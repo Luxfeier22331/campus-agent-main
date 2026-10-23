@@ -228,6 +228,12 @@ data:
           "expiration": {"days": 30},
           "noncurrentVersionExpiration": {"noncurrentDays": 1},
           "abortIncompleteMultipartUploadDays": 7
+        },
+        {
+          "id": "notice-state-noncurrent-1d",
+          "status": "Enabled",
+          "prefix": "internal_portal/notices/_state.json",
+          "noncurrentVersionExpiration": {"noncurrentDays": 1}
         }
       ]
     }

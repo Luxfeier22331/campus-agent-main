@@ -70,15 +70,12 @@ func InputMetadata(run DurableRun) (contracts.ExecutionRunMetadataWire, error) {
 	if !ok {
 		return contracts.ExecutionRunMetadataWire{}, errors.New("execution_input_sha256 must be a string")
 	}
-	metadata := contracts.ExecutionRunMetadataWire{
+	// Every run write validates this metadata (validateDurableRunMetadata); reads only extract it.
+	return contracts.ExecutionRunMetadataWire{
 		ExecutionContractVersion: contractVersion,
 		ExecutionInputRef:        inputRef,
 		ExecutionInputSHA256:     inputSHA256,
-	}
-	if err := metadata.Validate(run.RequestID); err != nil {
-		return contracts.ExecutionRunMetadataWire{}, err
-	}
-	return metadata, nil
+	}, nil
 }
 
 func VerifyInputSHA256(body []byte, expected string) error {

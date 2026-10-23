@@ -18,7 +18,7 @@ function fixture(overrides: Partial<InternalPortalNoticeSource> = {}) {
  });
  const client={query} as unknown as PoolClient;
  const objects=new Map<string,Uint8Array>([[ref,Buffer.from(JSON.stringify(source))],['internal_portal/meta.json',Buffer.from(JSON.stringify({schema_version:'internal_portal_meta.v1',notice_types:{'5':'通知'},organizations:{},updated_at:'2026-10-02T00:00:00Z'}))]]);
- const store:PublisherObjectStore={close(){},createOrVerifyDerived:vi.fn(),async getSource(key){const body=objects.get(key);if(!body)throw Object.assign(new Error(key),{name:'NoSuchKey'});return{body,contentType:'application/octet-stream'};},async getSourceIfExists(key){return objects.has(key)?this.getSource(key):null;}};
+ const store:PublisherObjectStore={close(){},createDerivedAsset:vi.fn(),async getSource(key){const body=objects.get(key);if(!body)throw Object.assign(new Error(key),{name:'NoSuchKey'});return{body,contentType:'application/octet-stream'};},async getSourceIfExists(key){return objects.has(key)?this.getSource(key):null;}};
  return{source,ref,row,query,client,objects,store,assets};
 }
 describe('notice source updates',()=>{
@@ -43,7 +43,7 @@ describe('notice source updates',()=>{
   const body=Buffer.from('image content');const sha256=createHash('sha256').update(body).digest('hex');const key=`internal_portal/resources/sha256/${sha256}`;
   const f=fixture({notice_content_html:'<img src="/image.png">',resources:[{kind:'images',ordinal:0,object_key:key,content_type:'image/png',byte_size:body.length,sha256}]});f.objects.set(key,body);
   expect(await republishNotices({client:f.client,objectStore:f.store,portalHost:'my.muc.edu.cn'})).toMatchObject({notices:1,assets:1,skipped:0});
-  expect(f.store.createOrVerifyDerived).toHaveBeenCalledWith(expect.objectContaining({body,digest:sha256}));
+  expect(f.store.createDerivedAsset).toHaveBeenCalledWith(expect.objectContaining({body,digest:sha256}));
  });
  it.each([publishNotices,republishNotices])('does not replace assets when a newer source arrives before commit',async(run)=>{
   const f=fixture();f.query.mockImplementation(async(sql:string)=>{

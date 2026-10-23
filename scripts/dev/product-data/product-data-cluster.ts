@@ -30,15 +30,6 @@ export async function connectProductContentCluster(
 			remotePort: 9000,
 			...(signal ? { signal } : {}),
 		});
-		const sourceStore = createS3ReaderStoreFromConfig(
-			{
-				endpoint: `http://127.0.0.1:${forward.port}`,
-				bucket: "campus-agent-source",
-				accessKeyId: objects.OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY ?? "",
-				secretAccessKey: objects.OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY ?? "",
-			},
-			signal,
-		);
 		// Exposed for the rclone batch copier, which talks to the same forwarded endpoint.
 		const sourceEndpoint = {
 			endpoint: `http://127.0.0.1:${forward.port}`,
@@ -46,6 +37,7 @@ export async function connectProductContentCluster(
 			accessKeyId: objects.OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY ?? "",
 			secretAccessKey: objects.OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY ?? "",
 		};
+		const sourceStore = createS3ReaderStoreFromConfig(sourceEndpoint, signal);
 		return { database: postgres.database, sourceStore, sourceEndpoint, close };
 	} catch (error) {
 		await close();
@@ -222,16 +214,16 @@ export async function connectProductObjects(
 		signal,
 	});
 	const upper = kind.toUpperCase();
+	// Also exposed for the rclone batch copier, which talks to the same forwarded endpoint.
+	const endpoint = {
+		endpoint: `http://127.0.0.1:${forward.port}`,
+		bucket: `campus-agent-${kind}`,
+		accessKeyId: objects[`OBJECT_STORE_HUMANS_${upper}_ACCESS_KEY`] ?? "",
+		secretAccessKey: objects[`OBJECT_STORE_HUMANS_${upper}_SECRET_KEY`] ?? "",
+	};
 	return {
-		store: createS3ReaderStoreFromConfig(
-			{
-				endpoint: `http://127.0.0.1:${forward.port}`,
-				bucket: `campus-agent-${kind}`,
-				accessKeyId: objects[`OBJECT_STORE_HUMANS_${upper}_ACCESS_KEY`] ?? "",
-				secretAccessKey: objects[`OBJECT_STORE_HUMANS_${upper}_SECRET_KEY`] ?? "",
-			},
-			signal,
-		),
+		endpoint,
+		store: createS3ReaderStoreFromConfig(endpoint, signal),
 		close: () => forward.close(),
 	};
 }

@@ -135,16 +135,6 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 	if err != nil {
 		return execution.RunProjectionFinalizeResult{}, err
 	}
-	if err := execution.ValidateCanonicalFinalizationRecords(
-		run,
-		request.Completion,
-		step,
-		attempt,
-		result,
-		request.FinalizationFingerprintSHA256,
-	); err != nil {
-		return execution.RunProjectionFinalizeResult{}, err
-	}
 	completedRun, err := execution.CompleteDurableRunForFinalization(run, request.Completion)
 	if err != nil {
 		return execution.RunProjectionFinalizeResult{}, err

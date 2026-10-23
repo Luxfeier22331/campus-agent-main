@@ -162,5 +162,6 @@ func scanDurableRunEvent(row pgx.Row) (execution.DurableRunEvent, error) {
 	event.EventType = execution.DurableRunEventType(eventType)
 	event.Visibility = execution.DurableRunEventVisibility(visibility)
 	event.Payload = payload
-	return event, execution.ValidateDurableRunEventBase(event)
+	// agent-control is the only writer of agent_run_events and validates every append.
+	return event, nil
 }

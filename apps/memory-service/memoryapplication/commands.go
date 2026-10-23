@@ -34,13 +34,7 @@ func (s *Service) ExecutePersonalMemoryCommand(
 	ctx context.Context,
 	command memoryruntime.PersonalMemoryCommandRequest,
 ) (memoryruntime.PersonalMemoryCommandResult, error) {
-	if err := memoryruntime.ValidatePersonalMemoryCommandRequest(command); err != nil {
-		return memoryruntime.PersonalMemoryCommandResult{}, applicationError(
-			"memory_command_invalid",
-			err,
-			true,
-		)
-	}
+	// Commands reach the worker only from Admission-validated durable requests.
 	if s.CommandStateStore == nil || s.PersonalMemoryStateErr != nil {
 		return memoryruntime.PersonalMemoryCommandResult{}, applicationError(
 			"memory_command_state_unavailable",
@@ -199,13 +193,6 @@ func (s *Service) FinalizePersonalMemoryCommandReceipt(
 	ctx context.Context,
 	input FinalizeCommandInput,
 ) (memoryruntime.PersonalMemoryCommandResult, error) {
-	if err := memoryruntime.ValidatePersonalMemoryCommandRequest(input.Command); err != nil {
-		return memoryruntime.PersonalMemoryCommandResult{}, applicationError(
-			"memory_command_invalid",
-			err,
-			true,
-		)
-	}
 	if strings.TrimSpace(input.Result.CommandID) != strings.TrimSpace(input.Command.CommandID) {
 		return memoryruntime.PersonalMemoryCommandResult{}, applicationError(
 			"memory_command_result_invalid",

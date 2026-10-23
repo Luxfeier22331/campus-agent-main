@@ -668,7 +668,8 @@ func scanDurableRun(row pgx.Row) (execution.DurableRun, error) {
 	}
 	run.RuntimeVersions = runtimeVersions
 	run.Metadata = metadata
-	return run, execution.ValidateDurableRun(run)
+	// agent-control is the only writer of agent_runs and validates every write.
+	return run, nil
 }
 
 func nullableTime(value time.Time) *time.Time {

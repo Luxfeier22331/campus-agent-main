@@ -121,15 +121,15 @@ describe("internal portal notice source", () => {
 	});
 
 	it("writes an immutable snapshot without replacing the legacy migration input", async () => {
-		const createOrVerifyObject = vi.fn(async () => ({ byteSize: 1, contentSha256: "a" }));
+		const createObject = vi.fn(async () => "created" as const);
 		const source = sourceFixture();
 		const store = createInternalPortalNoticeSourceStore({
-			objectStore: objectStore({ createOrVerifyObject }),
+			objectStore: objectStore({ createObject }),
 		});
 
 		await expect(store.has(source.notice_id)).resolves.toBe(false);
 		await expect(store.put(source)).resolves.toBe("written");
-		expect(createOrVerifyObject).toHaveBeenCalledWith(
+		expect(createObject).toHaveBeenCalledWith(
 			expect.objectContaining({
 				bucket: "campus-agent-source",
 				key: noticeSourceRef(source),
@@ -176,15 +176,11 @@ function objectStore(
 	overrides: Partial<InternalPortalCollectionObjectStore> = {},
 ): InternalPortalCollectionObjectStore {
 	return {
-		createOrVerifyObject: async () => ({ byteSize: 0, contentSha256: "a" }),
-		createOrVerifyStream: async () => {
-			throw new Error("unexpected stream write");
-		},
+		createObject: async () => "created",
 		getObject: async () => new Uint8Array(),
 		getObjectIfExists: async () => null,
 		hasObject: async () => false,
-		pruneObjectVersions: async () => undefined,
-		putObject: async () => ({ byteSize: 0, contentSha256: "a" }),
+		putObject: async () => undefined,
 		sourceBucket: "campus-agent-source",
 		...overrides,
 	};

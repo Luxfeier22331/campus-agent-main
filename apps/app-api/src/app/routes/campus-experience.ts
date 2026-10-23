@@ -99,10 +99,6 @@ export async function loadDiningFloorplanAsset(env: Env, digest: string): Promis
 			status: 502,
 		});
 	}
-	const declaredLength = Number(response.headers.get("content-length"));
-	if (Number.isFinite(declaredLength) && declaredLength > MAX_DINING_FLOORPLAN_BYTES) {
-		throw invalidFloorplanAsset();
-	}
 	const bytes = await response.arrayBuffer();
 	if (bytes.byteLength > MAX_DINING_FLOORPLAN_BYTES) {
 		throw invalidFloorplanAsset();

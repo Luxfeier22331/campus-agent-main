@@ -77,9 +77,6 @@ func (s *FinalizationService) AppendTemporalFinalizationCompletedEvents(
 	finalizedResponse map[string]any,
 	payload map[string]any,
 ) error {
-	if err := validateFinalizationRecoveryResponse(finalizedResponse); err != nil {
-		return err
-	}
 	internalPayload := execution.CloneAnyMapFromValue(payload)
 	internalPayload["response"] = finalizedResponse
 	expected := execution.DurableRunEvent{

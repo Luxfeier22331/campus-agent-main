@@ -7,7 +7,6 @@ import type {
 	AgentRunnerInput,
 	AgentRunnerResult,
 	AgentRunnerSolveDecision,
-	AgentRuntimeLimits,
 	CompletedTaskStep,
 	CreateWorkflowOperationRuntimeOptions,
 	ExecuteStepWorkflowOperationInput,
@@ -309,8 +308,8 @@ export function prepareOperation(
 		input.expectedToolContractFingerprint,
 		catalog.contractFingerprint,
 	);
+	// The agentRunRequestSchema parse that builds this input already enforces currentInputCharLimit.
 	const currentGoal = operationGoal(input);
-	validateCurrentInput(currentGoal, input.limits);
 	const availableSources = availableWorkflowSources(input);
 	const modelInput = modelInputItems(input, currentGoal, availableSources);
 	const allowedToolNames = toolNamesForOperation(input);
@@ -1212,16 +1211,6 @@ function validateExpectedToolContractFingerprint(
 			"tool_contract_mismatch",
 			"Admitted tool contract fingerprint does not match this workflow runtime.",
 			{ operation: "workflow.admission" },
-		);
-	}
-}
-
-function validateCurrentInput(value: string, limits: AgentRuntimeLimits): void {
-	if ([...value].length > limits.currentInputCharLimit) {
-		throw new AgentRuntimeError(
-			"context_budget_exceeded",
-			"Current workflow input exceeds the configured character limit.",
-			{ operation: "workflow.context" },
 		);
 	}
 }

@@ -82,9 +82,6 @@ func (e hindsightExecutor) ExecuteCommand(
 	ctx context.Context,
 	request memoryruntime.PersonalMemoryCommandRequest,
 ) (memoryruntime.PersonalMemoryCommandResult, error) {
-	if err := memoryruntime.ValidatePersonalMemoryCommandRequest(request); err != nil {
-		return memoryruntime.PersonalMemoryCommandResult{}, err
-	}
 	switch request.CommandKind {
 	case "owner_transition":
 		return memoryruntime.PersonalMemoryCommandResult{CommandID: request.CommandID, Status: "succeeded"}, nil

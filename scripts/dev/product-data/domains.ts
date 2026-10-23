@@ -8,7 +8,7 @@ import { withLifecycleLock } from "../lifecycle/locks.ts";
 import { probeLocalPorts } from "../lifecycle/ports.ts";
 import { runCommand } from "../lifecycle/process.ts";
 import { type LocalDevProfile, resolveLocalDevRegistryPath } from "../lifecycle/profile.ts";
-import { localProductStoreEnv } from "./connections.ts";
+import { localProductStoreEnv, localSourceEndpoint } from "./connections.ts";
 import {
 	applyDomainRows,
 	BUSINESS_DOMAINS,
@@ -229,6 +229,8 @@ async function applyDataOperation(
 											write: async (key, body, contentType) => {
 												await sourceTarget.writeBytesObject({ key, body, contentType });
 											},
+											source: objects.endpoint,
+											target: localSourceEndpoint(repoRoot, profile),
 										});
 									} finally {
 										await objects.close();

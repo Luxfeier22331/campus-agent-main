@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { parse as parseContentDisposition } from "content-disposition";
@@ -124,14 +125,14 @@ export async function captureInternalPortalFileRelease(
 			});
 			const contentType = resolveContentType(downloaded.contentType, originalFilename);
 			const stream = downloaded.openReadStream();
-			const storedFile = await input.objectStore
-				.createOrVerifyStream({
+			await input.objectStore
+				.createObject({
 					...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 					body: stream,
 					bucket: input.objectStore.sourceBucket,
 					byteSize: downloaded.byteSize,
-					contentSha256: downloaded.contentSha256,
 					contentType,
+					identity: { byteSize: downloaded.byteSize, contentSha256: downloaded.contentSha256 },
 					key: fileKey,
 				})
 				.finally(() => stream.destroy());
@@ -149,17 +150,21 @@ export async function captureInternalPortalFileRelease(
 					object_key: fileKey,
 					original_filename: originalFilename,
 					content_type: contentType,
-					byte_size: storedFile.byteSize,
-					digest: `sha256:${storedFile.contentSha256}`,
+					byte_size: downloaded.byteSize,
+					digest: `sha256:${downloaded.contentSha256}`,
 				},
 			};
 			assertValidSource(source);
 			const sourceBytes = new TextEncoder().encode(`${JSON.stringify(source, null, 2)}\n`);
-			await input.objectStore.createOrVerifyObject({
+			await input.objectStore.createObject({
 				...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 				body: sourceBytes,
 				bucket: input.objectStore.sourceBucket,
 				contentType: "application/json",
+				identity: {
+					byteSize: sourceBytes.byteLength,
+					contentSha256: createHash("sha256").update(sourceBytes).digest("hex"),
+				},
 				key: sourceKey,
 			});
 			return { disposition: "written", fileReleaseId: input.fileReleaseId, sourceKey };

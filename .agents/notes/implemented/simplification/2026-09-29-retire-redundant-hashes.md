@@ -71,6 +71,45 @@ primary_agent 冻结链路）因仍有真实读者与合同依据而全部保留
   仅差 2 行；活实现下沉为 notice-index-publisher/cleanup（artifact key schema 的 owner），
   两份本地副本删除。
 
+## 2026-10-23 追加：采集与本地同步
+
+通知采集与集群到本地的源对象同步按同一标准再收口一次：
+
+- source 对象创建只做一次 `IfNoneMatch:"*"` PUT。内容寻址 key（`internal_portal/resources/sha256/<digest>`、
+  `sources/<sha256>.json`）遇到 412 直接视为已存在，key 本身就是内容身份，不再 HEAD 比对；固定 key 的
+  file-release `file` 与 `source.json` 仍写入 `content-sha256` 元数据，412 时比对字节数和该元数据，
+  保持合同里“同 key 内容冲突明确失败”。通知源快照写入前不再先 `hasObject`；
+- 可变对象覆盖写（`_state.json`、`meta.json`）不再写 `content-sha256` 元数据，也不返回无读者的
+  sha256、ETag 和 versionId；
+- `state-versions` 盘点只列版本：备份后的并发检查比对当前 versionId，覆盖写一定产生新版本，ETag、
+  HEAD 和整对象 sha256 不提供额外信息；
+- 本地同步不再在 rclone `--checksum` 复制后逐对象重读本地副本算 sha256，JSON 元数据只读一次；
+  产品数据资产复制和 doctor 读取内容寻址的通知图片、餐厅平面图时不再重算 digest，平面图 URL 与
+  key 一致性检查保留。
+
+保留的 sha256 都有消费者：附件落盘时计算的摘要决定内容寻址 key 和 `resources[].sha256`，
+`noticeSourceRef` 决定快照 key，file-release 的 `digest` 是合同字段。
+
+同批按相同标准处理了其他 owner 的无读者或同进程重复 hash：
+
+- notice-publisher 写通知图片 derived 对象时只做一次条件 PUT，412 即已存在，不再写前 GET、冲突后重读
+  比对；v2 快照资源直接使用 `resources[].sha256`，不再对同一字节先校验再重算；
+- Dining 平面图写入不再附带无读者的 `Metadata.sha256`，`putSvg` 不再返回由入参拼出的身份，
+  调用方那条恒等比较随之删除；公开 payload 的 `floorplan.sha256` 属于已发布 release 的 JSON 合同，
+  保持不变；
+- App API 恢复 durable run 和响应执行输入读取时不再自算 `execution_input_sha256`：哈希在冻结时计算，
+  agent-control 读取输入后按合同校验，App API 两处自检不增加信任边界；
+- notice embedding 抽样不再在解析缓存后逐条重读同一缓存，报告删除恒为 true 的 `*Passed` 与 `valid`
+  字段和无读者的报告 manifest，改为按报告字节寻址的单文件（schema `notice_embedding_sample_report.v2`）；
+- Campus Docs Chunk 命令不再计算只用于诊断输出的完整 `source.json` 摘要；
+- Campus Web 构建不再写无读者的 `.docs-source.json`（读取函数零调用），GitOps 调用的 Docs snapshot
+  准备也不再写无读者的 `snapshot.json`。
+
+仍留待按实际需要评估的项：Dining 每次读取 draft/release 时重算 bundle 指纹（存储完整性自检）、
+notice-index-publisher 与 retrieval-index 在 412 冲突时整对象重读比对、map-release 暂存后重算、
+`docsSourceDigest` 用于本地内容目录选择、embedding cache 条目内重复路径信息的字段，以及上文已列的
+Qdrant payload `retrieval_text_sha256`/`text_sha256`。
+
 ## 后果
 
 embedding 缓存命中路径每条记录减少一次 S3 GET+parse；投影 payload 不再携带无读者 digest；

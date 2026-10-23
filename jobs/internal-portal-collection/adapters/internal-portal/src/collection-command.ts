@@ -1,5 +1,7 @@
+import { isNoticeLockSkipped } from "@campus-agent/notice-database";
 import { runFileSync } from "./file-sync.js";
 import { parseNoticeCommand, runNoticeCommand, type NoticeCommandOptions } from "./notice-command.js";
+import type { NoticeMaintenanceRange } from "./notice-runner.js";
 
 export const COLLECTION_USAGE = [
 	"Usage:",
@@ -12,10 +14,22 @@ export const COLLECTION_USAGE = [
 export type CollectionCommand =
 	| { mode: "file-sync" }
 	| { mode: "notice-sync" }
-	| { mode: "notice-backfill"; startDate: string }
+	| { mode: "notice-backfill"; startDate: string; windowDays?: number }
 	| { mode: "notice-rescan"; from: string; to: string };
 
 export interface CollectionCommandOptions extends NoticeCommandOptions {}
+
+export interface CollectionCommandResult {
+	maintenanceRange: NoticeMaintenanceRange | null;
+	processedRange: NoticeMaintenanceRange | null;
+	status?: "failed" | "succeeded";
+	summary: {
+		outcome: "partial" | "skipped" | "success";
+		reason?: "already-running";
+		upToDate?: boolean;
+		[count: string]: boolean | number | string | undefined;
+	};
+}
 
 export function isCollectionHelp(argv: readonly string[]): boolean {
 	const normalized = argv[0] === "--" ? argv.slice(1) : argv;
@@ -64,10 +78,11 @@ export function parseCollectionCommand(argv: string[]): CollectionCommand {
 export async function executeCollectionCommand(
 	command: CollectionCommand,
 	options: CollectionCommandOptions = {},
-) {
+): Promise<CollectionCommandResult> {
 	const env = options.env ?? process.env;
 	if (command.mode === "file-sync") {
 		const summary = await runFileSync({
+			...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
 			env,
 			...(options.ssoTgc === undefined ? {} : { ssoTgc: options.ssoTgc }),
 		});
@@ -83,9 +98,20 @@ export async function executeCollectionCommand(
 			: {
 					name: "backfill",
 					startDate: command.startDate,
+					...(command.windowDays === undefined ? {} : { windowDays: command.windowDays }),
 				},
 		options,
 	);
+	if (isNoticeLockSkipped(noticeSummary)) {
+		const skipped: CollectionCommandResult = {
+			maintenanceRange: null,
+			processedRange: null,
+			summary: { ...noticeSummary },
+			status: "succeeded",
+		};
+		console.log(JSON.stringify(skipped));
+		return skipped;
+	}
 	const { state: _state, ...counts } = noticeSummary;
 	for (const failure of noticeSummary.failures) {
 		console.error(
@@ -101,7 +127,7 @@ export async function executeCollectionCommand(
 			}),
 		);
 	}
-	const result = {
+	const result: CollectionCommandResult = {
 			maintenanceRange: noticeSummary.maintenanceRange,
 			processedRange: noticeSummary.processedRange,
 			summary: {

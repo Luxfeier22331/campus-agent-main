@@ -15,11 +15,7 @@ describe("Dining floorplan publication assets", () => {
 
 		await expect(
 			store.putSvg({ sha256: `sha256:${digest}`, svgMarkup: "<svg></svg>" }),
-		).resolves.toEqual({
-			objectKey: `dining/floorplans/${digest}.svg`,
-			sha256: `sha256:${digest}`,
-			svgAssetUrl: `/api/dining/floorplans/${digest}.svg`,
-		});
+		).resolves.toBeUndefined();
 		const command = send.mock.calls[0]?.[0];
 		expect(command).toBeInstanceOf(PutObjectCommand);
 		expect((command as PutObjectCommand).input).toMatchObject({
@@ -27,6 +23,7 @@ describe("Dining floorplan publication assets", () => {
 			IfNoneMatch: "*",
 			Key: `dining/floorplans/${digest}.svg`,
 		});
+		expect((command as PutObjectCommand).input.Metadata).toBeUndefined();
 	});
 
 	it("reuses an object that already exists at the same digest", async () => {
@@ -42,6 +39,7 @@ describe("Dining floorplan publication assets", () => {
 
 		await expect(
 			store.putSvg({ sha256: `sha256:${"d".repeat(64)}`, svgMarkup: "<svg></svg>" }),
-		).resolves.toBeDefined();
+		).resolves.toBeUndefined();
+		expect(send).toHaveBeenCalledOnce();
 	});
 });

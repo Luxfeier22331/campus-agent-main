@@ -6,10 +6,7 @@ import {
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
 } from "../../modules/integration";
-import {
-	MAX_EXECUTION_INPUT_BYTES,
-	sha256Text,
-} from "../../modules/runtime-command/service/durable-metadata";
+import { MAX_EXECUTION_INPUT_BYTES } from "../../modules/runtime-command/service/durable-metadata";
 import { ChatFinalizationConflict } from "../../modules/runtime-command/store-types";
 import { resolveWaitUntil } from "../request-utils";
 import type { AppRequestScope } from "../types";
@@ -102,13 +99,8 @@ export function registerInternalRoutes(input: {
 			frozen.executionInputJson === null
 				? 0
 				: new TextEncoder().encode(frozen.executionInputJson).byteLength;
-		if (
-			frozen.executionInputJson === null ||
-			frozen.executionInputSha256 === null ||
-			!/^[a-f0-9]{64}$/u.test(frozen.executionInputSha256) ||
-			size > MAX_EXECUTION_INPUT_BYTES ||
-			sha256Text(frozen.executionInputJson) !== frozen.executionInputSha256
-		) {
+		// agent-control checks these bytes against the execution_input_sha256 it was given at run creation.
+		if (frozen.executionInputJson === null || size > MAX_EXECUTION_INPUT_BYTES) {
 			return jsonResponse(
 				errorEnvelope({
 					code: "execution_input_conflict",

@@ -1,4 +1,4 @@
-import { Headers, Response } from "undici";
+import { Agent, Headers, Response } from "undici";
 import { describe, expect, it } from "vitest";
 import {
 	checkPortalAuthentication,
@@ -10,6 +10,7 @@ import {
 	PortalSessionExpiredError,
 	validateSsoTgc,
 } from "../src/index.ts";
+import { PORTAL_REQUEST_TIMEOUTS } from "../src/portal.ts";
 
 describe("internal portal HTTP session", () => {
 	it("establishes an isolated cookie session and exposes a CAS-refreshed TGC", async () => {
@@ -126,6 +127,35 @@ describe("internal portal HTTP session", () => {
 		controller.abort(new Error("check cancelled"));
 
 		await expect(pending).rejects.toThrow("check cancelled");
+	});
+
+	it("routes every portal request through a dispatcher with stall timeouts", async () => {
+		const harness = createAuthenticatedFetch();
+		const dispatcher = new Agent();
+		const created: { proxyServer: string | null; timeouts: object }[] = [];
+		const dispatchers = new Set<unknown>();
+		const fetch: PortalFetch = async (request, init) => {
+			dispatchers.add(init?.dispatcher);
+			return await harness.fetch(request, init);
+		};
+		const context = await createPortalApiContext(
+			{ ...TEST_CONFIG, proxyServer: "http://proxy.example.edu:3128" },
+			{
+				createDispatcher: (proxyServer, timeouts) => {
+					created.push({ proxyServer, timeouts });
+					return dispatcher;
+				},
+				fetch,
+			},
+		);
+		await context.post("/notice", { form: {} });
+		await context.dispose();
+
+		expect(created).toEqual([
+			{ proxyServer: "http://proxy.example.edu:3128", timeouts: PORTAL_REQUEST_TIMEOUTS },
+		]);
+		expect([...dispatchers]).toEqual([dispatcher]);
+		expect(dispatcher.closed).toBe(true);
 	});
 
 	it("accepts only the raw, printable TGC value", () => {

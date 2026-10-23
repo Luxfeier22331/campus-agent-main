@@ -5,7 +5,6 @@ export type {
 } from "campus-contracts/campus-groups";
 export {
 	buildCampusGroupsService,
-	createCampusGroupsCatalog,
 	parseCampusGroupsCatalogInput,
 } from "./service";
 export { createPgCampusGroupsStore } from "./store";

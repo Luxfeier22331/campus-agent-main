@@ -1,8 +1,6 @@
 import {
-	DeleteObjectCommand,
 	GetObjectCommand,
 	HeadObjectCommand,
-	ListObjectVersionsCommand,
 	PutObjectCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
@@ -61,73 +59,19 @@ describe.each([
 		await store.close?.();
 	});
 
-	it("returns the version created by the write", async () => {
-		vi.spyOn(S3Client.prototype, "send").mockImplementation(async (command) => {
-			expect(command).toBeInstanceOf(PutObjectCommand);
-			expect(command.input).toMatchObject({ Bucket: bucket, Key: key });
-			return { VersionId: "new" } as never;
+	it("overwrites mutable objects in the selected source bucket", async () => {
+		const send = vi.spyOn(S3Client.prototype, "send").mockResolvedValue({} as never);
+		const store = createInternalPortalCollectionObjectStoreFromEnv(env);
+		await store.putObject({
+			bucket,
+			key,
+			body: Buffer.from("{}"),
+			contentType: "application/json",
 		});
-		const store = createInternalPortalCollectionObjectStoreFromEnv(env);
-		expect(
-			await store.putObject({
-				bucket,
-				key,
-				body: Buffer.from("{}"),
-				contentType: "application/json",
-			}),
-		).toMatchObject({ versionId: "new" });
-		await store.close?.();
-	});
-
-	it("lists all pages before deleting only exact-key obsolete versions and markers", async () => {
-		const commands: unknown[] = [];
-		vi.spyOn(S3Client.prototype, "send").mockImplementation(async (command) => {
-			commands.push(command);
-			expect(command.input).toMatchObject({ Bucket: bucket });
-			if (command instanceof ListObjectVersionsCommand) {
-				if (!command.input.KeyMarker) {
-					return {
-						Versions: [
-							{ Key: key, VersionId: "new", IsLatest: true },
-							{ Key: key, VersionId: "old" },
-						],
-						IsTruncated: true,
-						NextKeyMarker: key,
-						NextVersionIdMarker: "old",
-					} as never;
-				}
-				expect(command.input.VersionIdMarker).toBe("old");
-				expect(commands.every((entry) => entry instanceof ListObjectVersionsCommand)).toBe(true);
-				return {
-					Versions: [{ Key: `${key}.other`, VersionId: "unrelated" }],
-					DeleteMarkers: [{ Key: key, VersionId: "marker" }],
-				} as never;
-			}
-			expect(command).toBeInstanceOf(DeleteObjectCommand);
-			return {} as never;
-		});
-		const store = createInternalPortalCollectionObjectStoreFromEnv(env);
-		await store.pruneObjectVersions({ bucket, key, keepVersionId: "new" });
-		expect(
-			commands
-				.filter((command) => command instanceof DeleteObjectCommand)
-				.map((command) => (command as DeleteObjectCommand).input),
-		).toEqual([
-			{ Bucket: bucket, Key: key, VersionId: "old" },
-			{ Bucket: bucket, Key: key, VersionId: "marker" },
-		]);
-		await store.close?.();
-	});
-
-	it("does not delete anything after a failed listing", async () => {
-		const send = vi
-			.spyOn(S3Client.prototype, "send")
-			.mockRejectedValue(new Error("access denied"));
-		const store = createInternalPortalCollectionObjectStoreFromEnv(env);
-		await expect(
-			store.pruneObjectVersions({ bucket, key, keepVersionId: "new" }),
-		).rejects.toThrow("access denied");
-		expect(send.mock.calls.every(([command]) => command instanceof ListObjectVersionsCommand)).toBe(true);
+		const command = send.mock.calls[0]?.[0] as PutObjectCommand;
+		expect(command).toBeInstanceOf(PutObjectCommand);
+		expect(command.input).toMatchObject({ Bucket: bucket, Key: key, ContentType: "application/json" });
+		expect(command.input.IfNoneMatch).toBeUndefined();
 		await store.close?.();
 	});
 });

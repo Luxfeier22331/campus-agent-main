@@ -1,8 +1,4 @@
-import {
-	type CitationDiagnostic,
-	CitationDiagnosticSchema,
-	FailureReasonSchema,
-} from "campus-contracts/citation-diagnostic";
+import type { CitationDiagnostic } from "campus-contracts/citation-diagnostic";
 import { ZodError } from "zod";
 import type { ExecutionFailure } from "./agent-run-contract.ts";
 
@@ -44,10 +40,9 @@ export class AgentRuntimeError extends Error {
 		this.failure = {
 			code,
 			operation: failure.operation ?? "agent.runtime",
-			...(FailureReasonSchema.safeParse(failure.reason).success ? { reason: failure.reason } : {}),
-			...(CitationDiagnosticSchema.safeParse(failure.citation).success
-				? { citation: failure.citation }
-				: {}),
+			// Producers build typed reasons and diagnostics; agent-control normalizes both on projection.
+			...(failure.reason ? { reason: failure.reason } : {}),
+			...(failure.citation ? { citation: failure.citation } : {}),
 			...(failure.detail ? { detail: boundedErrorText(failure.detail, 1024) } : {}),
 			...(failure.httpStatus === undefined ? {} : { httpStatus: failure.httpStatus }),
 			...(failure.invocationId ? { invocationId: failure.invocationId } : {}),

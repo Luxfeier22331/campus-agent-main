@@ -43,7 +43,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 				generated_embedding_input_count: result.generatedEmbeddingInputCount,
 				model_target_sha256: connection.targetSha256,
 				output_directory: result.outputDirectory,
-				report_directory: result.reportDirectory,
+				report_path: result.reportPath,
 				report_run: result.reportRun,
 				reused_embedding_input_count: result.reusedEmbeddingInputCount,
 				run: result.run,

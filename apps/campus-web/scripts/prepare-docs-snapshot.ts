@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs/node";
@@ -21,15 +21,8 @@ export async function prepareDocsSnapshot(destination: string): Promise<void> {
 	});
 	const scratch = await mkdtemp(resolve(tmpdir(), "campus-docs-snapshot-"));
 	try {
+		// Building once records every object the candidate build will read into the snapshot.
 		await prepareDocsContent({ appRoot: scratch, client, pages: false, refresh: true });
-		await writeFile(
-			resolve(destination, "snapshot.json"),
-			`${JSON.stringify({
-				schemaVersion: 1,
-				sourceSha: process.env.SOURCE_SHA,
-				docsSourceDigest: publication.sourceDigest,
-			})}\n`,
-		);
 	} finally {
 		await rm(scratch, { recursive: true, force: true });
 	}

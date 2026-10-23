@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NoticeLockSkipped } from "@campus-agent/notice-database";
 import type { NoticeRunnerResult } from "../src/notice-runner.js";
 
 const mocks = vi.hoisted(() => ({
 	runFileSync: vi.fn(),
-	runNoticeCommand: vi.fn(async (): Promise<NoticeRunnerResult> => ({
+	runNoticeCommand: vi.fn(async (): Promise<NoticeRunnerResult | NoticeLockSkipped> => ({
 		failures: [],
 		maintenanceRange: null,
 		mode: "sync" as const,
@@ -33,7 +34,11 @@ vi.mock("../src/notice-command.js", async (importOriginal) => {
 	return { ...actual, runNoticeCommand: mocks.runNoticeCommand };
 });
 
-import { parseCollectionCommand, runCollectionCommand } from "../src/collection-command.js";
+import {
+	executeCollectionCommand,
+	parseCollectionCommand,
+	runCollectionCommand,
+} from "../src/collection-command.js";
 
 describe("collection command", () => {
 	beforeEach(() => {
@@ -77,6 +82,36 @@ describe("collection command", () => {
 			runCollectionCommand({ mode: "file-sync" }, { env, ssoTgc: "TGT-resolved" }),
 		).resolves.toBe(0);
 		expect(mocks.runFileSync).toHaveBeenCalledWith({ env, ssoTgc: "TGT-resolved" });
+		log.mockRestore();
+	});
+
+	it("passes cancellation to both collection kinds", async () => {
+		const abortSignal = new AbortController().signal;
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		await runCollectionCommand(
+			{ mode: "notice-backfill", startDate: "2025-12-01", windowDays: 30 },
+			{ abortSignal, env: {} },
+		);
+		expect(mocks.runNoticeCommand).toHaveBeenCalledWith(
+			{ name: "backfill", startDate: "2025-12-01", windowDays: 30 },
+			{ abortSignal, env: {} },
+		);
+		await runCollectionCommand({ mode: "file-sync" }, { abortSignal, env: {} });
+		expect(mocks.runFileSync).toHaveBeenCalledWith({ abortSignal, env: {} });
+		log.mockRestore();
+	});
+
+	it("reports a held maintenance lock as a skipped collection", async () => {
+		mocks.runNoticeCommand.mockResolvedValueOnce({ outcome: "skipped", reason: "already-running" });
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		await expect(
+			executeCollectionCommand({ mode: "notice-sync" }, { env: {} }),
+		).resolves.toEqual({
+			maintenanceRange: null,
+			processedRange: null,
+			status: "succeeded",
+			summary: { outcome: "skipped", reason: "already-running" },
+		});
 		log.mockRestore();
 	});
 

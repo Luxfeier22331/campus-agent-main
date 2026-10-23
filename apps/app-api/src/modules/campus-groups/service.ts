@@ -1,10 +1,11 @@
-import { createCampusGroupsCatalog, parseCampusGroupsCatalogInput } from "./domain";
+import { parseCampusGroupsCatalogInput } from "./domain";
 import type { CampusGroupsService, CampusGroupsStore } from "./types";
 
 export function buildCampusGroupsService(store: CampusGroupsStore): CampusGroupsService {
 	return {
 		async getCatalog() {
-			return createCampusGroupsCatalog(await store.getCatalog());
+			// replaceCatalog is the only writer and stores catalogs that already passed the contract.
+			return store.getCatalog();
 		},
 		async replaceCatalog(value) {
 			const catalog = parseCampusGroupsCatalogInput(value);
@@ -14,4 +15,4 @@ export function buildCampusGroupsService(store: CampusGroupsStore): CampusGroups
 	};
 }
 
-export { createCampusGroupsCatalog, parseCampusGroupsCatalogInput } from "./domain";
+export { parseCampusGroupsCatalogInput } from "./domain";

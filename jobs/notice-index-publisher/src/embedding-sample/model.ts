@@ -26,9 +26,7 @@ export const NOTICE_EMBEDDING_SAMPLE_DEFINITION = {
 
 export const NOTICE_EMBEDDING_SAMPLE_SCHEMA_VERSION = "notice_embedding_sample_run.v1" as const;
 export const NOTICE_EMBEDDING_SAMPLE_REPORT_SCHEMA_VERSION =
-	"notice_embedding_sample_report.v1" as const;
-export const NOTICE_EMBEDDING_SAMPLE_REPORT_MANIFEST_SCHEMA_VERSION =
-	"notice_embedding_sample_report_run.v1" as const;
+	"notice_embedding_sample_report.v2" as const;
 
 export type ConfiguredSampleStratum =
 	(typeof NOTICE_EMBEDDING_SAMPLE_DEFINITION.strata)[number]["name"];
@@ -86,25 +84,14 @@ export interface NoticeEmbeddingSampleStatus {
 	cacheStatus: "generated" | "reused";
 	chunkId: string;
 	retrievalTextSha256: Sha256Ref;
-	valid: true;
 }
 
 export interface NoticeEmbeddingSampleReport {
-	cacheValidation: {
-		canonicalJsonPassed: true;
-		embeddingSpacePassed: true;
-		modelTargetPassed: true;
-		schemaPassed: true;
-		textSha256Passed: true;
-	};
 	cacheSchemaVersion: typeof NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION;
 	chunkRun: Sha256Ref;
 	embeddingSpace: typeof EMBEDDING_SPACE;
-	finiteValuesPassed: true;
 	generatedEmbeddingInputCount: number;
 	modelTargetSha256: string;
-	nonZeroNormPassed: true;
-	passed: true;
 	reusedEmbeddingInputCount: number;
 	sampleRun: Sha256Ref;
 	schemaVersion: typeof NOTICE_EMBEDDING_SAMPLE_REPORT_SCHEMA_VERSION;
@@ -113,21 +100,13 @@ export interface NoticeEmbeddingSampleReport {
 	strata: NoticeEmbeddingSampleStratumSummary[];
 	uniqueEmbeddingInputCount: number;
 	vectorDimensions: number;
-	vectorDimensionsPassed: true;
-}
-
-export interface NoticeEmbeddingSampleReportManifest {
-	modelTargetSha256: string;
-	report: ArtifactReference;
-	sampleRun: Sha256Ref;
-	schemaVersion: typeof NOTICE_EMBEDDING_SAMPLE_REPORT_MANIFEST_SCHEMA_VERSION;
 }
 
 export interface LocalNoticeEmbeddingSampleResult {
 	generatedEmbeddingInputCount: number;
 	outputDirectory: string;
 	report: NoticeEmbeddingSampleReport;
-	reportDirectory: string;
+	reportPath: string;
 	reportRun: Sha256Ref;
 	reusedEmbeddingInputCount: number;
 	run: Sha256Ref;

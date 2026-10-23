@@ -127,7 +127,9 @@ OCR 文本只在 Ops 页面显示，不写入公开通知正文。Embedding 读�
 
 部署环境的采集进度来自 Activity heartbeat，最终摘要来自 Workflow result；完成但有逐项失败时保留
 `summary.outcome=partial`。sync、backfill 和 rescan 继续串联分类、发布和 RAG 刷新，页面只展示实际运行。
-失败的运行不能据此推断维护边界或索引指针已经推进。
+失败的运行不能据此推断维护边界或索引指针已经推进。分窗回填的 `summary` 计数为各窗口之和，`processedRange`
+覆盖已尝试窗口，`maintenanceRange` 为最后一次成功保存的区间；执行时间不足而未达到起点时采集为 `partial`。
+采集锁被其他维护入口持有时采集摘要为 `outcome: skipped`、`reason: already-running`。
 
 服务端只接受上述固定操作、回填起始日期或补查范围。所有部署环境维护操作共用一个 Workflow ID，
 同时只能有一条运行；前端操作族仍用于展示。浏览器在提交期间显示本地 pending 行，服务端返回后替换为

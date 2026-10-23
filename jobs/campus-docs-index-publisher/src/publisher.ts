@@ -93,7 +93,6 @@ export async function buildCampusDocsChunkSet(
 		chunkCount: chunks.length,
 		chunkSet,
 		documentCount,
-		sourceDigest: source.sourceDigest,
 		sourceProjectionSha256: sourceProjection,
 	};
 }

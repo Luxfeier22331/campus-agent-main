@@ -112,7 +112,7 @@ export async function ensureNoticeResources(input: {
 		});
 		if (bytes) {
 			const sha256 = createHash("sha256").update(bytes).digest("hex");
-			if (!input.dryRun) await input.objectStore.createOrVerifyObject({ body: bytes, bucket: input.objectStore.sourceBucket, contentType: "application/octet-stream", key: resourceContentKey(sha256) });
+			if (!input.dryRun) await input.objectStore.createObject({ body: bytes, bucket: input.objectStore.sourceBucket, contentType: "application/octet-stream", key: resourceContentKey(sha256) });
 			existingByKind[resource.kind] += 1;
 			resourceRefs.push({ kind: resource.kind, ordinal: resource.ordinal, object_key: resourceContentKey(sha256), content_type: "application/octet-stream", byte_size: bytes.byteLength, sha256 });
 		} else {
@@ -165,12 +165,11 @@ export async function ensureNoticeResources(input: {
 				throw new NoticeResourceTransferError(resource, { cause: error });
 			}
 			try {
-				await input.objectStore.createOrVerifyStream({
+				await input.objectStore.createObject({
 					...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
 					body: file.openReadStream(),
 					bucket: input.objectStore.sourceBucket,
 					byteSize: file.byteSize,
-					contentSha256: file.contentSha256,
 					contentType: file.contentType ?? "application/octet-stream",
 					key: resourceContentKey(file.contentSha256),
 				});

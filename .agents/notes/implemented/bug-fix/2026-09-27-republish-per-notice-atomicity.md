@@ -27,7 +27,7 @@ republish 只改写 `notices.notices` 正文投影，页面与 AI 检索（chunk
   `docs/runbooks/ingestion/ingestion.md` 与 `docs/runbooks/ingestion/notice-indexing.md#与-republish-的一致性`。
 - 自动 republish 批次不排除已有 publication 失败记录的通知：republish 本身就是重试入口，幂等写入
   （UPDATE 投影、`insertOrVerifyAssets` 先验证后插入、图片 derived 内容寻址
-  `createOrVerifyDerived`、失败记录 upsert）保证重复尝试无副作用。
+  `createDerivedAsset`、失败记录 upsert）保证重复尝试无副作用。
 
 ## 未采用方案
 

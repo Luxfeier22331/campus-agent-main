@@ -416,7 +416,7 @@ describe("notice publisher", () => {
 		}));
 		const store: PublisherObjectStore = {
 			close: vi.fn(),
-			createOrVerifyDerived: vi.fn(),
+			createDerivedAsset: vi.fn(),
 			getSource,
 			getSourceIfExists: vi.fn(async (key: string) =>
 				key.endsWith("/attachments/0")
@@ -506,7 +506,7 @@ describe("notice publisher", () => {
 		);
 		const store: PublisherObjectStore = {
 			close: vi.fn(),
-			createOrVerifyDerived: vi.fn(),
+			createDerivedAsset: vi.fn(),
 			getSource,
 			getSourceIfExists: vi.fn(),
 		};
@@ -538,7 +538,7 @@ describe("notice publisher", () => {
 		};
 		const store: PublisherObjectStore = {
 			close: vi.fn(),
-			createOrVerifyDerived: vi.fn(),
+			createDerivedAsset: vi.fn(),
 			getSource: vi.fn(async (key: string) => {
 				if (key.endsWith("/images/0")) {
 					throw new Error("missing image object");
@@ -647,7 +647,7 @@ function fakeStore(): PublisherObjectStore {
 	}));
 	return {
 		close: vi.fn(),
-		createOrVerifyDerived: vi.fn(),
+		createDerivedAsset: vi.fn(),
 		getSource,
 		getSourceIfExists: vi.fn(async (key: string) => getSource(key)),
 	};

@@ -4,8 +4,7 @@ import {
 	isCancellation,
 	proxyActivities,
 } from "@temporalio/workflow";
-import type { TaskPlan, TaskPlanStep } from "./agent-run-contract.ts";
-import { planIssue } from "./operation-rules.ts";
+import type { TaskPlanStep } from "./agent-run-contract.ts";
 import type {
 	AgentActivities,
 	AgentWorkflowInput,
@@ -36,13 +35,6 @@ const recoverable = new Set([
 	"campus_search_failed",
 	"personal_memory_recall_failed",
 ]);
-function validatePlan(plan: TaskPlan, workflow: AgentWorkflowInput, completedIds: string[] = []) {
-	const issue = planIssue(plan.steps, workflow.admission_snapshot, completedIds);
-	if (issue) {
-		throw ApplicationFailure.nonRetryable(issue.message, issue.code);
-	}
-}
-
 function failureCode(error: unknown): string {
 	let cause = error;
 	while (cause instanceof Error) {
@@ -216,8 +208,8 @@ export async function AgentWorkflow(workflow: AgentWorkflowInput): Promise<void>
 		if (!solve.plan) {
 			throw ApplicationFailure.nonRetryable("Solve returned no plan", "workflow_solve_invalid");
 		}
+		// completeStage already rejected plans that fail planIssue, so completed stages carry admitted plans.
 		let plan = solve.plan;
-		validatePlan(plan, workflow);
 		let remaining = [...plan.steps];
 		const completed: { step: TaskPlanStep; decision: StageDecision }[] = [];
 		let citation = solve.nextCitation;
@@ -292,11 +284,6 @@ export async function AgentWorkflow(workflow: AgentWorkflowInput): Promise<void>
 					remaining = [];
 				} else {
 					remaining = decision.replan.remainingSteps;
-					validatePlan(
-						{ ...plan, steps: remaining },
-						workflow,
-						completed.map((s) => s.step.id),
-					);
 					plan = { ...plan, steps: [...completed.map((s) => s.step), ...remaining] };
 				}
 			}

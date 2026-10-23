@@ -1,13 +1,7 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
-export interface DiningFloorplanAsset {
-	objectKey: string;
-	sha256: `sha256:${string}`;
-	svgAssetUrl: string;
-}
-
 export interface DiningFloorplanAssetStore {
-	putSvg(input: { sha256: `sha256:${string}`; svgMarkup: string }): Promise<DiningFloorplanAsset>;
+	putSvg(input: { sha256: `sha256:${string}`; svgMarkup: string }): Promise<void>;
 	verifyReadiness(): Promise<void>;
 }
 
@@ -41,8 +35,6 @@ export function createS3DiningFloorplanAssetStore(input: {
 }): DiningFloorplanAssetStore {
 	return {
 		async putSvg({ sha256, svgMarkup }) {
-			const digest = digestFromSha256(sha256);
-			const objectKey = `dining/floorplans/${digest}.svg`;
 			try {
 				await input.client.send(
 					new PutObjectCommand({
@@ -51,20 +43,15 @@ export function createS3DiningFloorplanAssetStore(input: {
 						CacheControl: "public, max-age=31536000, immutable",
 						ContentType: "image/svg+xml; charset=utf-8",
 						IfNoneMatch: "*",
-						Key: objectKey,
-						Metadata: { sha256: digest },
+						Key: `dining/floorplans/${digestFromSha256(sha256)}.svg`,
 					}),
 				);
 			} catch (error) {
+				// The key is the content digest, so an existing object already holds this SVG.
 				if (!isPreconditionFailure(error)) {
 					throw error;
 				}
 			}
-			return {
-				objectKey,
-				sha256,
-				svgAssetUrl: `/api/dining/floorplans/${digest}.svg`,
-			};
 		},
 		async verifyReadiness() {
 			// The first immutable write is the authoritative availability check. Avoid probe objects.

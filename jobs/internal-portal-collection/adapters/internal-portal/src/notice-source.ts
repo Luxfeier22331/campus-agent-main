@@ -75,13 +75,8 @@ export function createInternalPortalNoticeSourceStore(input: {
 		async put(source) {
 			const key = noticeSourceRef(source);
 			const body = Buffer.from(`${JSON.stringify(source, null, 2)}\n`, "utf-8");
-			const existing = await input.objectStore.hasObject({
-				bucket: input.objectStore.sourceBucket,
-				key,
-			});
-			if (existing) return "reused";
-			await input.objectStore.createOrVerifyObject({ body, bucket: input.objectStore.sourceBucket, contentType: "application/json", key });
-			return "written";
+			const created = await input.objectStore.createObject({ body, bucket: input.objectStore.sourceBucket, contentType: "application/json", key });
+			return created === "created" ? "written" : "reused";
 		},
 	};
 }

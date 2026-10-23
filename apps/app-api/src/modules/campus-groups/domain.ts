@@ -24,20 +24,10 @@ export function parseCampusGroupsCatalogInput(value: unknown): CampusGroupsCatal
 	};
 }
 
-export function createCampusGroupsCatalog(value: unknown): CampusGroupsCatalog {
-	const result = CampusGroupsCatalogSchema.safeParse(value);
-	if (!result.success) {
-		throw groupsError("groups_catalog_invalid", "同好群目录数据不符合合同。", 502, {
-			issues: result.error.issues.slice(0, 20),
-		});
-	}
-	return result.data;
-}
-
 export function groupsError(
 	code: string,
 	message: string,
-	status: 422 | 502,
+	status: 422,
 	details?: Record<string, unknown>,
 ): AppApiRouteError {
 	return new AppApiRouteError({ code, details, message, retryable: false, status });

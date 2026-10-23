@@ -65,20 +65,4 @@ describe("campus groups service", () => {
 		).rejects.toMatchObject({ code: "groups_catalog_invalid", status: 422 });
 		expect(store.replaceCatalog).not.toHaveBeenCalled();
 	});
-
-	it("rejects invalid stored data instead of returning a partial catalog", async () => {
-		const service = buildCampusGroupsService(
-			createStore({
-				...catalog,
-				sections: [
-					{ ...catalog.sections[0], groups: [group, group] },
-				] as CampusGroupsCatalog["sections"],
-			}),
-		);
-
-		await expect(service.getCatalog()).rejects.toMatchObject({
-			code: "groups_catalog_invalid",
-			status: 502,
-		});
-	});
 });

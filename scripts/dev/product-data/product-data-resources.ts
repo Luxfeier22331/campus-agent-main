@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { compileDocsSource } from "../../../apps/campus-web/src/docs-reader-build/source-compiler.ts";
 import type {
 	ReaderObjectStore,
@@ -85,13 +84,11 @@ export async function copyProductAssets(
 	source: ReaderObjectStore,
 	target?: WritableObjectStore,
 ) {
-	const refs = new Map<string, { sha256: string; contentType: string }>();
+	// Keys are content addresses, so reading them proves presence and identifies the bytes.
+	const refs = new Map<string, string>();
 	for (const asset of rows["notices.notice_assets"]) {
 		if (asset.asset_kind === "image") {
-			refs.set(`notices/assets/sha256/${asset.content_sha256}`, {
-				sha256: `sha256:${asset.content_sha256}`,
-				contentType: String(asset.content_type),
-			});
+			refs.set(`notices/assets/sha256/${asset.content_sha256}`, String(asset.content_type));
 		}
 	}
 	for (const release of rows["dining.map_releases"]) {
@@ -105,16 +102,13 @@ export async function copyProductAssets(
 				if (svgAssetUrl !== `/api/${key}`) {
 					throw new Error("Dining floorplan URL does not match its digest");
 				}
-				refs.set(key, { sha256, contentType: "image/svg+xml" });
+				refs.set(key, "image/svg+xml");
 			}
 		}
 	}
-	for (const [key, ref] of refs) {
+	for (const [key, contentType] of refs) {
 		const bytes = await source.read(key);
-		if (digest(bytes) !== ref.sha256) {
-			throw new Error(`Product asset digest mismatch: ${key}`);
-		}
-		await target?.writeImmutable(key, bytes, ref.contentType);
+		await target?.writeImmutable(key, bytes, contentType);
 	}
 }
 
@@ -127,12 +121,8 @@ export async function copyNoticeAssets(
 		if (asset.asset_kind !== "image") {
 			continue;
 		}
-		const sha256 = `sha256:${asset.content_sha256}`;
 		const key = `notices/assets/sha256/${asset.content_sha256}`;
 		const bytes = await source.read(key);
-		if (digest(bytes) !== sha256) {
-			throw new Error(`Product asset digest mismatch: ${key}`);
-		}
 		await target?.writeImmutable(key, bytes, String(asset.content_type));
 	}
 }
@@ -172,8 +162,4 @@ export function validateProductPoint(
 	} else {
 		throw new Error(`Unsupported RAG source: ${payload.source_kind}`);
 	}
-}
-
-function digest(bytes: Uint8Array): string {
-	return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }

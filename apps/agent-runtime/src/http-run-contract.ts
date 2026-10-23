@@ -6,7 +6,7 @@ import {
 	type WorkflowTaskPlan,
 	type WorkflowTaskPlanStep,
 } from "campus-contracts/agent-runtime-control";
-import { CitationDiagnosticSchema } from "campus-contracts/citation-diagnostic";
+import type { CitationDiagnostic } from "campus-contracts/citation-diagnostic";
 import { z } from "zod";
 
 export type { AgentRunRequest } from "campus-contracts/agent-runtime-control";
@@ -246,9 +246,8 @@ function mapCompletedStep(value: WorkflowCompletedStep): CompletedTaskStep {
 						...failure,
 						code: value.failure.code,
 						operation: value.failure.operation,
-						...(citation === undefined
-							? {}
-							: { citation: CitationDiagnosticSchema.parse(citation) }),
+						// Saved by this runtime from typed failures; agent-control normalizes on projection.
+						...(citation === undefined ? {} : { citation: citation as CitationDiagnostic }),
 						...(http_status === undefined ? {} : { httpStatus: http_status }),
 						...(invocation_id === undefined ? {} : { invocationId: invocation_id }),
 					},

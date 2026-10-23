@@ -98,13 +98,8 @@ describe("Dining bootstrap PostgreSQL publication", () => {
 
 function createAssetStore(): DiningFloorplanAssetStore {
 	return {
-		async putSvg({ sha256 }) {
-			const digest = sha256.slice("sha256:".length);
-			return {
-				objectKey: `dining/floorplans/${digest}.svg`,
-				sha256,
-				svgAssetUrl: `/api/dining/floorplans/${digest}.svg`,
-			};
+		async putSvg() {
+			return;
 		},
 		async verifyReadiness() {
 			return;

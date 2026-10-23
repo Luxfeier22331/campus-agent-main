@@ -7,7 +7,6 @@ const s3 = vi.hoisted(() => ({
 		commands: Array<{ input: Record<string, unknown>; name: string }>;
 		destroyed: boolean;
 	}>,
-	derivedAssetGetResults: [] as Array<Uint8Array | "not-found">,
 	derivedPutFailures: [] as unknown[],
 }));
 
@@ -39,19 +38,6 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 						$metadata: { httpStatusCode: 403 },
 						name: "AccessDenied",
 					});
-				}
-				if (
-					command.input.Bucket === "campus-agent-derived" &&
-					String(command.input.Key).startsWith("notices/assets/")
-				) {
-					const outcome = s3.derivedAssetGetResults.shift();
-					if (outcome === "not-found" || outcome === undefined) {
-						throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
-					}
-					return {
-						Body: { transformToByteArray: async () => outcome },
-						ContentType: "application/json",
-					};
 				}
 				return {
 					Body: {
@@ -137,7 +123,7 @@ describe("publisher object store identities", () => {
 		await expect(
 			store.getSourceIfExists("internal_portal/notices/358159/attachments/1"),
 		).rejects.toThrow("forbidden");
-		await store.createOrVerifyDerived({ body, contentType: "image/png", digest });
+		await store.createDerivedAsset({ body, contentType: "image/png", digest });
 		store.close();
 
 		const source = s3.clients.find((client) => client.accessKeyId === "source-access");
@@ -147,10 +133,8 @@ describe("publisher object store identities", () => {
 			"GetObjectCommand",
 			"GetObjectCommand",
 		]);
-		expect(derived?.commands.map((command) => command.name)).toEqual([
-			"GetObjectCommand",
-			"PutObjectCommand",
-		]);
+		expect(derived?.commands.map((command) => command.name)).toEqual(["PutObjectCommand"]);
+		expect(derived?.commands[0]?.input.Key).toBe(`notices/assets/sha256/${digest}`);
 		expect(
 			source?.commands.every((command) => command.input.Bucket === "campus-agent-source"),
 		).toBe(true);
@@ -162,47 +146,29 @@ describe("publisher object store identities", () => {
 	});
 });
 
-describe("derived object write convergence", () => {
+describe("derived asset writes", () => {
 	const body = new Uint8Array([1, 2, 3]);
 	const digest = createHash("sha256").update(body).digest("hex");
 
 	beforeEach(() => {
 		s3.clients.length = 0;
-		s3.derivedAssetGetResults.length = 0;
 		s3.derivedPutFailures.length = 0;
 	});
 
-	it("treats a concurrent identical derived write as success", async () => {
-		s3.derivedAssetGetResults.push("not-found", body);
+	it("accepts an existing content-addressed asset without reading it back", async () => {
 		s3.derivedPutFailures.push(preconditionFailure());
 		const store = createPublisherObjectStoreFromEnv(environment);
 
 		await expect(
-			store.createOrVerifyDerived({ body, contentType: "image/png", digest }),
+			store.createDerivedAsset({ body, contentType: "image/png", digest }),
 		).resolves.toBeUndefined();
 		store.close();
 
 		const derived = s3.clients.find((client) => client.accessKeyId === "derived-access");
-		expect(derived?.commands.map((command) => command.name)).toEqual([
-			"GetObjectCommand",
-			"PutObjectCommand",
-			"GetObjectCommand",
-		]);
-	});
-
-	it("reports a conflict when a concurrent derived write differs", async () => {
-		s3.derivedAssetGetResults.push("not-found", new Uint8Array([9, 9, 9]));
-		s3.derivedPutFailures.push(preconditionFailure());
-		const store = createPublisherObjectStoreFromEnv(environment);
-
-		await expect(
-			store.createOrVerifyDerived({ body, contentType: "image/png", digest }),
-		).rejects.toThrow("derived object conflicts");
-		store.close();
+		expect(derived?.commands.map((command) => command.name)).toEqual(["PutObjectCommand"]);
 	});
 
 	it("propagates put failures that are not precondition failures", async () => {
-		s3.derivedAssetGetResults.push("not-found");
 		s3.derivedPutFailures.push(
 			Object.assign(new Error("store unavailable"), {
 				$metadata: { httpStatusCode: 503 },
@@ -212,15 +178,9 @@ describe("derived object write convergence", () => {
 		const store = createPublisherObjectStoreFromEnv(environment);
 
 		await expect(
-			store.createOrVerifyDerived({ body, contentType: "image/png", digest }),
+			store.createDerivedAsset({ body, contentType: "image/png", digest }),
 		).rejects.toThrow("store unavailable");
 		store.close();
-
-		const derived = s3.clients.find((client) => client.accessKeyId === "derived-access");
-		expect(derived?.commands.map((command) => command.name)).toEqual([
-			"GetObjectCommand",
-			"PutObjectCommand",
-		]);
 	});
 });
 

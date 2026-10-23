@@ -267,6 +267,112 @@ describe("notice runner maintenance ranges", () => {
 		);
 	});
 
+	it("limits a backfill window to the newest uncovered days and checkpoints it", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-10", coveredUntil: "2026-08-27" }),
+		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string; endDate: string }) => {
+			expect(input).toMatchObject({ startDate: "2026-07-11", endDate: "2026-08-09" });
+			return page([notice(90, 5, "2026-07-20 09:00")], 1);
+		});
+
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({ fetchNoticePage, stateStore }),
+			startDate: "2025-12-01",
+			windowDays: 30,
+		});
+
+		expect(result.processedRange).toEqual({ from: "2026-07-11", to: "2026-08-10" });
+		expect(result.maintenanceRange).toEqual({ from: "2026-07-11", to: "2026-08-27" });
+		expect(stateStore.saveCalls).toBe(1);
+	});
+
+	it("does not open a backfill window before the requested start date", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-10", coveredUntil: "2026-08-27" }),
+		);
+		const fetchNoticePage = vi.fn(async () => page([], 0));
+
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({ fetchNoticePage, stateStore }),
+			startDate: "2026-08-01",
+			windowDays: 30,
+		});
+
+		expect(result.maintenanceRange).toEqual({ from: "2026-08-01", to: "2026-08-27" });
+	});
+
+	it.each([
+		["between notices", "after-first"],
+		["during a detail request", "in-detail"],
+	] as const)("stops on cancellation %s without recording failures", async (_label, point) => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		const controller = new AbortController();
+		const fetchNoticePage = vi.fn(async (input: { startDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page([notice(1, 5, "2026-08-10 09:00"), notice(2, 5, "2026-08-10 10:00")], 2),
+		);
+		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) => {
+			if (noticeId === 2 && point === "in-detail") {
+				// Disposing the portal session fails the in-flight request with a transport error.
+				controller.abort(new Error("activity cancelled"));
+				throw new TypeError("fetch failed");
+			}
+			return detail(noticeId, noticeId === 1 ? "2026-08-10 09:00" : "2026-08-10 10:00");
+		});
+		inventoryStore.onRegister = (noticeId) => {
+			if (noticeId === 1 && point === "after-first") {
+				controller.abort(new Error("activity cancelled"));
+			}
+		};
+
+		await expect(
+			syncInternalPortalNotices(
+				runnerInput({
+					abortSignal: controller.signal,
+					fetchNoticeDetail,
+					fetchNoticePage,
+					inventoryStore,
+					stateStore,
+				}),
+			),
+		).rejects.toThrow("activity cancelled");
+		expect(inventoryStore.registered).toEqual([1]);
+		expect(fetchNoticeDetail).toHaveBeenCalledTimes(point === "in-detail" ? 2 : 1);
+		expect(stateStore.saveCalls).toBe(0);
+	});
+
+	it("stops paging when cancelled during the scan", async () => {
+		const controller = new AbortController();
+		const fetchNoticePage = vi.fn(async (input: { startDate: string; currentPage: number }) => {
+			if (input.startDate === "") {
+				return page([notice(300, 5, "2026-08-11 09:00")], 1);
+			}
+			controller.abort(new Error("activity cancelled"));
+			return page(
+				Array.from({ length: 20 }, (_, index) => notice(index + 1, 5, "2026-08-10 09:00")),
+				40,
+			);
+		});
+
+		await expect(
+			syncInternalPortalNotices(
+				runnerInput({
+					abortSignal: controller.signal,
+					fetchNoticePage,
+					stateStore: new MemoryStateStore(
+						state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+					),
+				}),
+			),
+		).rejects.toThrow("activity cancelled");
+		expect(fetchNoticePage).toHaveBeenCalledTimes(2);
+	});
+
 	it("enforces the half-open boundary using the detail release date", async () => {
 		const sourceStore = new MemorySourceStore();
 		const fetchNoticePage = vi.fn(async ({ startDate }: { startDate: string }) =>
@@ -1314,12 +1420,14 @@ class MemoryInventoryStore implements NoticeInventoryStore {
 	readonly registered: number[] = [];
 	readonly unavailable: number[] = [];
 	listExisting?: (from: string, to: string) => Promise<NoticeCandidateRecord[]>;
+	onRegister?: (noticeId: number) => void;
 
 	async getSourceRefs(): Promise<Map<number, string | null>> { return new Map(); }
 
 	async register(source: InternalPortalNoticeSource): Promise<"written" | "reused"> {
 		if (this.registered.includes(source.notice_id)) return "reused";
 		this.registered.push(source.notice_id);
+		this.onRegister?.(source.notice_id);
 		return "written";
 	}
 
@@ -1378,22 +1486,28 @@ class MemoryObjectStore implements InternalPortalCollectionObjectStore {
 	readonly sourceBucket = "campus-agent-source";
 	readonly streamWrites: string[] = [];
 
-	async createOrVerifyObject(_input: Parameters<InternalPortalCollectionObjectStore["createOrVerifyObject"]>[0]): Promise<{ byteSize: number; contentSha256: string }> {
-		return { byteSize: 0, contentSha256: "a" };
+	async createObject(
+		input: Parameters<InternalPortalCollectionObjectStore["createObject"]>[0],
+	): Promise<"created" | "existing"> {
+		return input.body instanceof Uint8Array
+			? await this.createBytes({ ...input, body: input.body })
+			: await this.createStream({ ...input, body: input.body });
 	}
 
-	async createOrVerifyStream(input: {
+	async createBytes(_input: { body: Uint8Array; key: string }): Promise<"created" | "existing"> {
+		return "created";
+	}
+
+	async createStream(input: {
 		body: AsyncIterable<Uint8Array>;
-		byteSize: number;
-		contentSha256: string;
 		key: string;
-	}): Promise<{ byteSize: number; contentSha256: string }> {
+	}): Promise<"created" | "existing"> {
 		for await (const _chunk of input.body) {
 			// Drain the source stream in the test double.
 		}
 		this.objects.add(input.key);
 		this.streamWrites.push(input.key);
-		return { byteSize: input.byteSize, contentSha256: input.contentSha256 };
+		return "created";
 	}
 
 	async getObject(): Promise<Uint8Array> {
@@ -1406,11 +1520,8 @@ class MemoryObjectStore implements InternalPortalCollectionObjectStore {
 		return this.objects.has(input.key) ? new Uint8Array([1]) : null;
 	}
 
-	async pruneObjectVersions(): Promise<void> {}
 
-	async putObject(): Promise<{ byteSize: number; contentSha256: string }> {
-		return { byteSize: 0, contentSha256: "a" };
-	}
+	async putObject(): Promise<void> {}
 }
 
 function runnerInput(overrides: Partial<NoticeRunnerInput> = {}): NoticeRunnerInput {
@@ -1607,14 +1718,12 @@ function ioFixture() {
 		.spyOn(objectStore, "hasObject")
 		.mockImplementation(async ({ key }) => objects.has(key));
 	const put = vi.fn(async (value: { key: string; body: Uint8Array }) => {
+		const existing = objects.has(value.key);
 		objects.set(value.key, value.body);
-		return {
-			byteSize: value.body.byteLength,
-			contentSha256: createHash("sha256").update(value.body).digest("hex"),
-		};
+		return existing ? ("existing" as const) : ("created" as const);
 	});
-	objectStore.createOrVerifyObject = put;
-	const stream = vi.spyOn(objectStore, "createOrVerifyStream");
+	objectStore.createBytes = put;
+	const stream = vi.spyOn(objectStore, "createStream");
 	const query = vi.fn(async (sql: string, values: unknown[] = []) => {
 		if (sql.startsWith("SELECT notice_id, source_ref"))
 			return {

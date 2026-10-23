@@ -136,11 +136,7 @@ function createHarness() {
 		releases: [] as DiningMapRelease[],
 	};
 	const assets: DiningFloorplanAssetStore = {
-		putSvg: vi.fn(async ({ sha256 }) => ({
-			objectKey: `dining/floorplans/${sha256.slice(7)}.svg`,
-			sha256,
-			svgAssetUrl: `/api/dining/floorplans/${sha256.slice(7)}.svg`,
-		})),
+		putSvg: vi.fn(async () => undefined),
 		verifyReadiness: vi.fn(async () => undefined),
 	};
 	const query = vi.fn(async (sql: string, values: unknown[] = []) => {

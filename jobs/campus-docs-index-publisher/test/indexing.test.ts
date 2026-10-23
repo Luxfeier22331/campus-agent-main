@@ -858,7 +858,7 @@ describe("Campus docs indexing", () => {
 			source: historicalOnlySource,
 		});
 
-		expect(historicalOnlySource.sourceBytes).not.toEqual(baselineSource.sourceBytes);
+		expect(historicalOnlySource.manifest).not.toEqual(baselineSource.manifest);
 		expect(sourceProjectionSha256(historicalOnlySelections)).toBe(
 			sourceProjectionSha256(baselineSelections),
 		);

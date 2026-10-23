@@ -66,7 +66,7 @@ export async function migrateNoticeSources(input: {
 			}
 			const sha256 = createHash("sha256").update(body).digest("hex");
 			const key = `internal_portal/resources/sha256/${sha256}`;
-			await input.objectStore.createOrVerifyObject({
+			await input.objectStore.createObject({
 				bucket: input.objectStore.sourceBucket,
 				key,
 				body,

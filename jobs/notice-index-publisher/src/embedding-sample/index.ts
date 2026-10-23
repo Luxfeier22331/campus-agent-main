@@ -1,6 +1,5 @@
 export {
 	NOTICE_EMBEDDING_SAMPLE_DEFINITION,
-	NOTICE_EMBEDDING_SAMPLE_REPORT_MANIFEST_SCHEMA_VERSION,
 	NOTICE_EMBEDDING_SAMPLE_REPORT_SCHEMA_VERSION,
 	NOTICE_EMBEDDING_SAMPLE_SCHEMA_VERSION,
 } from "./model.ts";
@@ -10,7 +9,6 @@ export type {
 	NoticeEmbeddingSampleManifest,
 	NoticeEmbeddingSampleRecord,
 	NoticeEmbeddingSampleReport,
-	NoticeEmbeddingSampleReportManifest,
 	NoticeEmbeddingSampleSelection,
 	NoticeEmbeddingSampleStatus,
 	NoticeEmbeddingSampleStratum,

@@ -56,8 +56,7 @@ pnpm --dir jobs/campus-docs-index-publisher build
 
 本地对象键位于仓库根目录 `var/` 下；线上 Chunk Job 使用相同相对键写入现有 derived bucket。
 `campus_docs_chunk_set.v2` manifest 记录当前文档投影摘要、分块定义、数据对象和数量；完整
-`source.json` 摘要只作为命令诊断输出，不参与 Chunk Set 身份。成功 JSON 同时输出 `source_digest` 和
-`source_projection_sha256`。写入前会校验 Chunk identity、可索引 reader 元素覆盖、section 边界、root unit
+`source.json` 的变化不进入 Chunk Set 身份，也不另算摘要。成功 JSON 输出 `source_projection_sha256`。写入前会校验 Chunk identity、可索引 reader 元素覆盖、section 边界、root unit
 顺序、`retrievalText` 来源、字符上限和表格单元格覆盖；任一不变量失败时不产出 Chunk Set。该阶段不
 访问 agent-control、PostgreSQL、Qdrant 或 embedding provider。
 

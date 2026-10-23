@@ -1,22 +1,21 @@
-import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import {
 	DeleteObjectCommand,
 	GetObjectCommand,
-	HeadObjectCommand,
 	ListObjectVersionsCommand,
 	type S3Client,
 	type ObjectVersion,
 	type DeleteMarkerEntry,
 } from "@aws-sdk/client-s3";
-import { createNoticeDatabasePool } from "@campus-agent/notice-database";
+import {
+	createNoticeDatabasePool,
+	isNoticeLockSkipped,
+	withNoticeMaintenanceLock as withSharedNoticeMaintenanceLock,
+} from "@campus-agent/notice-database";
 
 import { createSourceObjectStoreConnection } from "../../../src/source-object-store.ts";
 
 export const INTERNAL_PORTAL_STATE_KEY = "internal_portal/notices/_state.json";
-
-const NOTICE_MAINTENANCE_LOCK_NAMESPACE = 1_315_928_137;
-const NOTICE_MAINTENANCE_LOCK_ID = 1;
 
 type VersionEntry = {
 	key: string;
@@ -31,9 +30,6 @@ export type StateVersionReport = {
 	bucket: string;
 	key: string;
 	currentVersionId: string | null;
-	currentETag: string | null;
-	currentSha256: string | null;
-	currentBytes: number;
 	versions: VersionEntry[];
 };
 
@@ -53,31 +49,10 @@ export async function inspectStateVersions(
 		if (!current) {
 			throw new Error(`current object version not found for s3://${bucket}/${INTERNAL_PORTAL_STATE_KEY}`);
 		}
-		const head = await client.send(
-			new HeadObjectCommand({
-				Bucket: bucket,
-				Key: INTERNAL_PORTAL_STATE_KEY,
-				...(current.versionId !== "null" ? { VersionId: current.versionId } : {}),
-			}),
-		);
-		const body = await client.send(
-			new GetObjectCommand({
-				Bucket: bucket,
-				Key: INTERNAL_PORTAL_STATE_KEY,
-				...(current.versionId !== "null" ? { VersionId: current.versionId } : {}),
-			}),
-		);
-		if (!body.Body) {
-			throw new Error("current state object body is missing");
-		}
-		const bytes = await body.Body.transformToByteArray();
 		return {
 			bucket,
 			key: INTERNAL_PORTAL_STATE_KEY,
 			currentVersionId: current.versionId === "null" ? null : current.versionId,
-			currentETag: head.ETag ?? null,
-			currentSha256: createHash("sha256").update(bytes).digest("hex"),
-			currentBytes: bytes.byteLength,
 			versions,
 		};
 	} finally {
@@ -132,7 +107,8 @@ export async function runStateVersionMaintenance(
 	}
 	await writeBackup(options.backupFile, env, before);
 	const afterBackup = await inspectStateVersions(env);
-	if (afterBackup.currentVersionId !== before.currentVersionId || afterBackup.currentSha256 !== before.currentSha256) {
+	// Every overwrite creates a new version, so an unchanged current version id means unchanged bytes.
+	if (afterBackup.currentVersionId !== before.currentVersionId) {
 		throw new Error("state object changed after backup; refusing to delete versions");
 	}
 	await pruneStateVersions(env, before.currentVersionId);
@@ -149,25 +125,22 @@ export async function withNoticeMaintenanceLock<T>(
 ): Promise<T> {
 	const pool = createNoticeDatabasePool(env, { max: 1 });
 	const client = await pool.connect();
-	let acquired = false;
+	let failed = false;
 	try {
-		const result = await client.query<{ acquired: boolean }>(
-			"SELECT pg_try_advisory_lock($1, $2) AS acquired",
-			[NOTICE_MAINTENANCE_LOCK_NAMESPACE, NOTICE_MAINTENANCE_LOCK_ID],
-		);
-		acquired = result.rows[0]?.acquired === true;
-		if (!acquired) {
+		const result = await withSharedNoticeMaintenanceLock(client, async (signal) => {
+			const value = await operation();
+			signal.throwIfAborted();
+			return value;
+		});
+		if (isNoticeLockSkipped(result)) {
 			throw new Error("another notice maintenance collection is already running");
 		}
-		return await operation();
+		return result;
+	} catch (error) {
+		failed = true;
+		throw error;
 	} finally {
-		if (acquired) {
-			await client.query("SELECT pg_advisory_unlock($1, $2)", [
-				NOTICE_MAINTENANCE_LOCK_NAMESPACE,
-				NOTICE_MAINTENANCE_LOCK_ID,
-			]);
-		}
-		client.release();
+		client.release(failed ? true : undefined);
 		await pool.end();
 	}
 }
@@ -193,8 +166,6 @@ async function writeBackup(path: string, env: Record<string, string | undefined>
 					bucket: report.bucket,
 					key: report.key,
 					versionId: report.currentVersionId,
-					etag: report.currentETag,
-					sha256: report.currentSha256,
 					bodyBase64: Buffer.from(body).toString("base64"),
 				},
 				null,
