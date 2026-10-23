@@ -16,6 +16,7 @@ import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { importHistory } from "./import.ts";
 import { cleanupPageObjects, migratePages } from "./page-migration.ts";
 import { selectNoticeInputs, selectUncoveredNoticeInputs } from "./sources.ts";
+import { runTaskPool } from "./task-pool.ts";
 
 export async function main() {
 	const { positionals, values } = parseArgs({
@@ -205,39 +206,37 @@ export async function main() {
 			// Provider jobs run async; a bounded worker pool overlaps submission,
 			// polling and result download across tasks instead of serializing them.
 			// Discovery fills the queue while workers drain it, so an empty initial
-			// queue (the notice command's usual case) still submits new tasks.
-			const queue = [...tasks];
-			const worker = async () => {
-				for (let task = queue.shift(); task; task = queue.shift()) {
-					await run(task);
-				}
-			};
-			const discover = async () => {
-				if (!(command === "scan" || command === "notice")) {
-					return;
-				}
-				const inputs =
-					command === "notice"
-						? selectNoticeInputs(pool, objects, required(values.notice, "--notice"), {
-								pdfOnly: values["pdf-only"],
-							})
-						: selectUncoveredNoticeInputs(pool, objects, {
-								pdfOnly: values["pdf-only"],
-								...(sinceDays === undefined
-									? {}
-									: { since: new Date(Date.now() - sinceDays * 86_400_000) }),
-							});
-				for await (const input of inputs) {
-					if (submissionsClosed()) {
-						break;
+			// queue (the scan and notice commands' usual case) still submits new tasks.
+			await runTaskPool(
+				tasks,
+				concurrency,
+				async (push) => {
+					if (!(command === "scan" || command === "notice")) {
+						return;
 					}
-					const created = await store.create(input, config);
-					if (created.status === "pending") {
-						queue.push(created);
+					const inputs =
+						command === "notice"
+							? selectNoticeInputs(pool, objects, required(values.notice, "--notice"), {
+									pdfOnly: values["pdf-only"],
+								})
+							: selectUncoveredNoticeInputs(pool, objects, {
+									pdfOnly: values["pdf-only"],
+									...(sinceDays === undefined
+										? {}
+										: { since: new Date(Date.now() - sinceDays * 86_400_000) }),
+								});
+					for await (const input of inputs) {
+						if (submissionsClosed()) {
+							break;
+						}
+						const created = await store.create(input, config);
+						if (created.status === "pending") {
+							push(created);
+						}
 					}
-				}
-			};
-			await Promise.all([discover(), ...Array.from({ length: concurrency }, worker)]);
+				},
+				run,
+			);
 			return { newSubmissions, deferred };
 		});
 		if (outcome === null && ["migrate-pages", "cleanup-page-objects"].includes(command)) {

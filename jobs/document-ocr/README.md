@@ -48,6 +48,11 @@ pnpm --filter document-ocr ocr cleanup-page-objects
 `OBJECT_STORE_ENDPOINT`、source/derived bucket 和各自访问凭据。集群先下载私有来源对象，再以
 文件上传给 Paddle，不向外提供对象存储凭据或内部地址。
 
+集群直连 Paddle 上行只有数 KB/s，GitOps 为 CronJob 注入 `HTTPS_PROXY`（campus-egress 连接器）和
+`NODE_USE_ENV_PROXY=1`，Paddle 提交、轮询与结果下载经 sq-nixos 家宽出站；Model Config 和对象存储是集群内 HTTP，
+不经代理。Ops 按 CronJob 模板创建的手动 Job 继承同一配置。出口拓扑见
+[门户出口代理](../../.agents/notes/implemented/architecture/2026-10-22-portal-egress-proxy.md)。
+
 ## 自动扫描
 
 `scan` 只选择检索会消费的资产：已发布、未下线的站内通知中，尚无任何 OCR 任务的正文图片与 PDF 附件。
@@ -61,7 +66,8 @@ JPEG/PNG 原样提交，GIF 取首帧、BMP 解码后转静态 PNG，原始来�
 通知来源适配由 `@campus-agent/notices` 的 `listNoticeSourceResources()` 提供；本 Job 将资源引用映射为
 OCR 输入，通用 `@campus-agent/document-ocr` 不依赖通知领域。构建保留外部 `jsdom`，由镜像的生产依赖提供。
 
-每轮先恢复未完成任务，再处理新输入；`--max-submissions`（默认 10）限制每轮新提交数，作为费用控制。
+每轮先恢复未完成任务，再处理新输入；扫描发现的新任务在同一轮内提交。`--max-submissions`（默认 10）限制每轮
+新提交数，作为费用控制。
 Paddle 返回 429 或「任务提交队列已满」时任务退回 pending，本轮停止新提交、只完成已受理任务；其他提交拒绝
 标记为失败并需显式重跑。CronJob 每 15 分钟运行，`concurrencyPolicy: Forbid`，Job deadline 为一小时。
 发布模板默认暂停；环境 overlay 负责启用调度和设置发现窗口与每轮上限。

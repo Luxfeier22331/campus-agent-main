@@ -1,4 +1,4 @@
-# Agent Note: 门户出口代理
+# Agent Note: 门户与 OCR 出口代理
 
 Status: implemented
 
@@ -20,6 +20,11 @@ Status: implemented
 - sq-nixos 侧在独立网络命名空间里运行内核 TUN 的 tailscaled。它的 WireGuard 流量经 eno1 回传，命名空间只把
   tailnet 的 3128 转给宿主机 HTTP 代理。代理只放行 `*.muc.edu.cn` 的 80/443，用校园 DNS 解析，从 wg0 出站；
   其他目标一律拒绝。
+- 同一出口服务 `document-ocr` 访问 Paddle（2026-10-23）。集群直连百度上行只有 5–9 KB/s，2–4 MB 的图片提交在
+  300 秒内传不完；sq-nixos 家宽上行约 5 MB/s。代理只为 `paddleocr.aistudio-app.com` 和结果主机
+  `pplines-online.bj.bcebos.com` 的 443 开一条经 eno1、用家宽 DNS 的路由，不放行 `bcebos.com` 后缀。
+  OCR 不改代码，GitOps 注入 `HTTPS_PROXY` 与 `NODE_USE_ENV_PROXY=1`，Node 24 的 `fetch` 据此走代理，
+  集群内的 HTTP 依赖不受影响。
 - 一次性 auth key 只在节点没有状态时注入。tailscaled 在节点进入 Running 前，每次启动都会重发配置里的 key，
   已用过的 key 会被控制面拒绝。
 
@@ -41,6 +46,8 @@ Status: implemented
   但链路仍然可用，所以要按 GitOps runbook 用 `tailscale ping` 判断，不能只看请求是否成功。
 - 采集 Worker 串行下载附件，实际吞吐受单连接上限约束。若回填或同步再次逼近活动时限，应把附件下载改为
   有限并发，而不是加宽代理放行范围或换出口。
+- 门户附件回传与 OCR 上传共用 sq-nixos eno1 上行。互相挤占时先降 `document-ocr` 的 `--concurrency`；Paddle 换用
+  新的结果主机时，在 nixos-config 补放行主机，不放宽到后缀。
 - `ops-web-internal-portal-check` 尚未接入代理；需要它在集群内真实访问门户时，复用同一地址并补对应
   NetworkPolicy。
 

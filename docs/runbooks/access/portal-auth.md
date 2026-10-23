@@ -69,7 +69,8 @@ INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
 
 集群在境外，不直连门户。`notice-pipeline-worker` 由 GitOps 注入
 `INTERNAL_PORTAL_PROXY_SERVER=http://campus-egress.campus-egress.svc.cluster.local:3128`，门户、CAS 和附件
-请求经 tailnet 转到 sq-nixos 上的出口代理，再走校园隧道出站。代理只放行 `*.muc.edu.cn` 的 80/443。
+请求经 tailnet 转到 sq-nixos 上的出口代理，再走校园隧道出站。代理对门户只放行 `*.muc.edu.cn` 的 80/443；
+同一代理还为 `document-ocr` 放行 Paddle（见 [文档识别](../../../jobs/document-ocr/README.md)）。
 `ops-web-internal-portal-check` 尚未接入该代理。
 
 连接器、直连条件和重新注册步骤见 GitOps 仓
