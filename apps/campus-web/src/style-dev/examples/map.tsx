@@ -95,10 +95,13 @@ function MapExample({ mode }: { mode: "error" | "loading" | "ready" | "selected"
 				onPlaceSelect={setSelectedPlaceId}
 				onQueryChange={setQuery}
 				onResetViewport={() => undefined}
+				onZoomIn={() => undefined}
+				onZoomOut={() => undefined}
 				onRetryMap={() => undefined}
 				query={query}
 				selectedPlace={selectedPlace}
 				viewportControlsAvailable
+				zoomControlsAvailable
 			/>
 		</div>
 	);

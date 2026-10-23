@@ -55,6 +55,7 @@ const TASK_FILTER_OPTIONS: Array<{
 	{ label: "运动", value: "sport" },
 ];
 const MAP_TAGS_HIDDEN_FROM_DETAILS = new Set(["丰台", "丰台校区", "海淀", "海淀校区"]);
+const MAP_DETAIL_ROWS_HIDDEN = new Set(["名称状态", "名称来源", "核对说明"]);
 const JINGYUAN_BUILDING_ORDER = new Map([
 	["一", 1],
 	["二", 2],
@@ -80,6 +81,7 @@ export function createMapPlaceViews(places: CampusMapPlace[]): MapPlaceView[] {
 		);
 		const detailRows = [
 			...(place.accessNote ? [{ label: "到达提示", value: place.accessNote }] : []),
+			...(place.additionalProperties ?? []).filter((row) => !MAP_DETAIL_ROWS_HIDDEN.has(row.label)),
 		];
 		return {
 			category: place.category,
@@ -90,7 +92,13 @@ export function createMapPlaceViews(places: CampusMapPlace[]): MapPlaceView[] {
 			featureRefs: place.mapFeatureRefs ?? [],
 			markerVariant: getMarkerVariant(place),
 			place,
-			searchText: [place.title, place.description, place.campus, ...place.tags]
+			searchText: [
+				place.title,
+				place.description,
+				place.campus,
+				...place.tags,
+				...(place.additionalProperties ?? []).flatMap(({ label, value }) => [label, value]),
+			]
 				.join(" ")
 				.toLowerCase(),
 			usesFeatureHighlight: shouldUseFeatureHighlight(place),

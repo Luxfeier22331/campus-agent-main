@@ -1,6 +1,7 @@
 import type * as maplibregl from "maplibre-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+	CAMPUS_GATEHOUSE_SELECTED_LAYER_ID,
 	CAMPUS_HOVER_PLACE_FILL_LAYER_ID,
 	CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID,
 	CAMPUS_SELECTED_PLACE_FILL_LAYER_ID,
@@ -9,6 +10,8 @@ import {
 	type CampusMapProfile,
 	createCampusMapFeatureFilter,
 	createCampusMapStyle,
+	getCampusMapPanBounds,
+	selectGatehouseFeatureRefs,
 } from "@/features/map/campus-map-style";
 import {
 	createFeatureRefKey,
@@ -41,6 +44,10 @@ interface CampusMapRuntimeInput {
 	selectedCampus: string | null;
 	selectedCampusProfile: CampusMapProfile | null;
 	selectedCategory: MapTaskFilter;
+}
+
+function applyCampusMapOverview(map: maplibregl.Map, profile: CampusMapProfile) {
+	map.easeTo({ center: profile.center, duration: 420, zoom: profile.initialZoom });
 }
 
 export function useCampusMapRuntime(input: CampusMapRuntimeInput) {
@@ -119,13 +126,19 @@ export function useCampusMapRuntime(input: CampusMapRuntimeInput) {
 					center: selectedCampusProfile.center,
 					container: mapRef.current,
 					localIdeographFontFamily: "sans-serif",
-					maxBounds: selectedCampusProfile.maxBounds,
+					maxBounds: getCampusMapPanBounds(selectedCampusProfile, {
+						height: mapRef.current.clientHeight,
+						width: mapRef.current.clientWidth,
+					}),
 					maxZoom: selectedCampusProfile.maxZoom,
 					minZoom: selectedCampusProfile.minZoom,
 					style: createCampusMapStyle(readCampusMapStyleColors(), selectedCampusProfile),
 					zoom: selectedCampusProfile.initialZoom,
 				});
-				map.addControl(new runtime.NavigationControl({ visualizePitch: true }), "top-right");
+				map.addControl(
+					new runtime.NavigationControl({ showZoom: false, visualizePitch: true }),
+					"top-right",
+				);
 				map.addControl(new runtime.ScaleControl({ unit: "metric" }), "bottom-left");
 				map.on("click", (event) => {
 					const placeId = findPlaceIdAtPoint(map, event.point, placeFeatureIndexRef.current);
@@ -219,6 +232,33 @@ export function useCampusMapRuntime(input: CampusMapRuntimeInput) {
 	useEffect(() => {
 		const map = mapInstanceRef.current;
 		const selectedCampusProfile = input.selectedCampusProfile;
+		const container = mapRef.current;
+		if (!(map && selectedCampusProfile && container && mapLoaded)) {
+			return;
+		}
+		const syncPanBounds = () => {
+			map.setMaxBounds(
+				getCampusMapPanBounds(selectedCampusProfile, {
+					height: container.clientHeight,
+					width: container.clientWidth,
+				}),
+			);
+		};
+		syncPanBounds();
+		if (typeof ResizeObserver === "undefined") {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			syncPanBounds();
+			map.resize();
+		});
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [input.selectedCampusProfile, mapLoaded]);
+
+	useEffect(() => {
+		const map = mapInstanceRef.current;
+		const selectedCampusProfile = input.selectedCampusProfile;
 		if (!(map && selectedCampusProfile && mapLoaded)) {
 			return;
 		}
@@ -229,7 +269,16 @@ export function useCampusMapRuntime(input: CampusMapRuntimeInput) {
 			return;
 		}
 		const profileChanged = mapReadyProfileRef.current !== selectedCampusProfile.campus;
-		map.setMaxBounds(selectedCampusProfile.maxBounds);
+		const container = mapRef.current;
+		if (!container) {
+			return;
+		}
+		map.setMaxBounds(
+			getCampusMapPanBounds(selectedCampusProfile, {
+				height: container.clientHeight,
+				width: container.clientWidth,
+			}),
+		);
 		map.setMinZoom(selectedCampusProfile.minZoom);
 		map.setMaxZoom(selectedCampusProfile.maxZoom);
 		setMapLoaded(false);
@@ -316,6 +365,10 @@ export function useCampusMapRuntime(input: CampusMapRuntimeInput) {
 		map.setFilter(CAMPUS_SELECTED_PLACE_FILL_LAYER_ID, filter);
 		map.setFilter(CAMPUS_SELECTED_PLACE_HALO_LAYER_ID, filter);
 		map.setFilter(CAMPUS_SELECTED_PLACE_OUTLINE_LAYER_ID, filter);
+		map.setFilter(
+			CAMPUS_GATEHOUSE_SELECTED_LAYER_ID,
+			createCampusMapFeatureFilter(selectGatehouseFeatureRefs(input.selected?.featureRefs ?? [])),
+		);
 	}, [input.selected, input.selectedCampusProfile, mapLoaded]);
 
 	useEffect(() => {
@@ -398,11 +451,13 @@ export function useCampusMapRuntime(input: CampusMapRuntimeInput) {
 				return;
 			}
 			mapMoveIntentRef.current = "filter";
-			map.fitBounds(input.selectedCampusProfile.maxBounds, {
-				duration: 420,
-				maxZoom: 16.8,
-				padding: getMapViewportPadding(),
-			});
+			applyCampusMapOverview(map, input.selectedCampusProfile);
+		},
+		zoomBy(delta: number) {
+			const map = mapInstanceRef.current;
+			if (map) {
+				map.zoomTo(map.getZoom() + delta, { duration: 220 });
+			}
 		},
 		retryMap() {
 			if (mapStyleUpdateTimerRef.current !== null) {

@@ -26,6 +26,12 @@ renderer delivery、lazy loading 和 bundle budget 属于前端实现。替换 M
 当前地图支持 place browsing，不支持 route planning。route overlay 必须等待 [导航边界](./2026-07-16-navigation.md) 的
 navigation data 和 contract。
 
+两个校区的 overview 相机按纬度计算，使比例尺初始显示 200 m；拖动边界按 viewport 扩展，避免
+MapLibre 为适配不同屏幕而夹紧初始 zoom。用户可通过自定义放大/缩小按钮调整比例，重置返回同一
+overview。丰台南北门相邻的门卫 footprint 各合并为一个中点 Point，并分别保留 canonical place；
+独立 marker 和标签避免与建筑名重叠。田径场内场以 `surface=track-infield` 保持绿色实色，不叠加
+跑道纹理；选中门卫时仅高亮 Point，避免把 polygon 顶点绘成圆点。
+
 ## 未采用方案
 
 - **直接依赖公共 OSM tile 或 Nominatim 服务**：可快速接入地图与地理编码，但不是本决策接受的

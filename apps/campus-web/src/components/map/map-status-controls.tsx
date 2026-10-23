@@ -1,19 +1,52 @@
 import { Button, focusRing } from "@campus-agent/ui";
-import { LocateFixed } from "lucide-react";
+import { LocateFixed, Minus, Plus } from "lucide-react";
+
+const controlButtonClass = `inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-[var(--map-overlay-border-strong)] bg-[var(--map-overlay-surface-strong)] px-3 text-sm font-medium text-[var(--map-overlay-muted)] shadow-[var(--map-overlay-shadow-strong)] outline-none backdrop-blur-md hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)] ${focusRing}`;
 
 export function MapViewportControls({
 	onResetViewport,
+	onZoomIn,
+	onZoomOut,
 	showReset,
+	zoomControlsAvailable,
 }: {
 	onResetViewport: () => void;
+	onZoomIn: () => void;
+	onZoomOut: () => void;
 	showReset: boolean;
+	zoomControlsAvailable: boolean;
 }) {
 	return (
-		<div className="pointer-events-auto absolute bottom-12 right-3 z-[var(--layer-domain)] flex flex-col items-end gap-2">
+		<div className="pointer-events-auto absolute bottom-12 right-3 z-[var(--layer-domain)] flex flex-col items-end gap-2 max-lg:bottom-28">
+			{zoomControlsAvailable ? (
+				<fieldset
+					aria-label="地图缩放"
+					className="m-0 flex flex-col overflow-hidden rounded-full border border-[var(--map-overlay-border-strong)] bg-[var(--map-overlay-surface-strong)] p-0 shadow-[var(--map-overlay-shadow-strong)] backdrop-blur-md"
+				>
+					<Button
+						aria-label="放大地图"
+						className={`${controlButtonClass} rounded-b-none border-0 border-b border-[var(--map-overlay-divider)]`}
+						onClick={onZoomIn}
+						size="icon"
+						variant="ghost"
+					>
+						<Plus aria-hidden="true" className="size-5" />
+					</Button>
+					<Button
+						aria-label="缩小地图"
+						className={`${controlButtonClass} rounded-t-none border-0`}
+						onClick={onZoomOut}
+						size="icon"
+						variant="ghost"
+					>
+						<Minus aria-hidden="true" className="size-5" />
+					</Button>
+				</fieldset>
+			) : null}
 			{showReset ? (
 				<Button
 					aria-label="回到当前校区"
-					className={`inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface)] px-3 text-sm font-medium text-[var(--map-overlay-muted)] shadow-[var(--map-overlay-shadow)] outline-none backdrop-blur-md hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)] ${focusRing}`}
+					className={controlButtonClass}
 					onClick={onResetViewport}
 					variant="ghost"
 				>

@@ -3,7 +3,10 @@ import {
 	createCampusMapFeatureFilter,
 	createCampusMapProfilesFromManifest,
 	createCampusMapStyle,
+	getCampusMapPanBounds,
 	getCampusMapProfile,
+	getCampusMapScaleZoom,
+	selectGatehouseFeatureRefs,
 } from "../src/features/map/campus-map-style";
 
 describe("campus map style", () => {
@@ -22,6 +25,16 @@ describe("campus map style", () => {
 			["all", ["==", ["get", "layer"], "building"], ["==", ["get", "fid"], 101]],
 			["all", ["==", ["get", "layer"], "sport"], ["==", ["get", "fid"], 202]],
 		]);
+	});
+
+	it("highlights only the merged gatehouse point features", () => {
+		const featureRefs = [
+			{ fid: 57, layer: "building" as const, sourceId: "fengtai-campus" },
+			{ fid: 58, layer: "building" as const, sourceId: "fengtai-campus" },
+			{ fid: 60, layer: "building" as const, sourceId: "fengtai-campus" },
+			{ fid: 57, layer: "sport" as const, sourceId: "fengtai-campus" },
+		];
+		expect(selectGatehouseFeatureRefs(featureRefs)).toEqual([featureRefs[0], featureRefs[2]]);
 	});
 
 	it("keeps campus building labels local to the MapLibre style", () => {
@@ -105,7 +118,12 @@ describe("campus map style", () => {
 		).toBeLessThan(style.layers?.findIndex((layer) => layer.id === "campus-building-labels") ?? -1);
 		expect(style.layers?.find((layer) => layer.id === "campus-building-labels")).toEqual(
 			expect.objectContaining({
-				filter: ["all", ["has", "name"], ["==", ["get", "layer"], "building"]],
+				filter: [
+					"all",
+					["has", "name"],
+					["==", ["get", "layer"], "building"],
+					["!", ["in", ["get", "name"], ["literal", ["北门门卫", "南门门卫"]]]],
+				],
 				layout: expect.objectContaining({
 					"text-size": ["interpolate", ["linear"], ["zoom"], 14, 0, 15.5, 10, 17, 12, 19, 13],
 				}),
@@ -135,18 +153,33 @@ describe("campus map style", () => {
 			sourceId: "fengtai-campus",
 		});
 		expect(profiles[0]?.center).toEqual([120.05, 30.05]);
+		expect(profiles[0]?.initialZoom).toBe(getCampusMapScaleZoom(30.05));
+		const profile = profiles[0];
+		if (!profile) {
+			throw new Error("expected a campus map profile");
+		}
+		const viewportProfile = {
+			...profile,
+			maxBounds: [
+				[120, 30],
+				[120.001, 30.001],
+			] as [[number, number], [number, number]],
+		};
+		const bounds = getCampusMapPanBounds(viewportProfile, { height: 840, width: 390 });
+		expect(bounds[1][0] - bounds[0][0]).toBeGreaterThan(0.001);
+		expect(bounds[1][1] - bounds[0][1]).toBeGreaterThan(0.001);
 	});
 });
 
 function readTestMapStyleColors() {
 	return {
-		background: "#efeff2",
+		background: "#edf1ed",
 		boundary: "#262627",
 		buildingFill: "#fafafb",
 		buildingOutline: "#8e8e93",
-		greenFill: "#dfeee4",
+		greenFill: "#e1f2d6",
 		label: "#1c1c1e",
-		roadFill: "#d1d1d6",
+		roadFill: "#d3d8d4",
 		selectionFill: "#e8e8eb",
 		selectionHalo: "#ffffff",
 		selectionOutline: "#6f6f76",

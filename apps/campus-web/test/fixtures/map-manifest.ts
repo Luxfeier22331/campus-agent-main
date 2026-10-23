@@ -6,7 +6,7 @@ export const mapPageManifest = {
 		fengtai: {
 			bounds: [120, 30, 120.1, 30.1],
 			geojsonUrl:
-				"/campus-map/assets/7a0cc069cc7c9044bb088e4b41afb742d8e8faf03c2906292ce846185128b993.geojson",
+				"/campus-map/assets/a995be35f38bbb21e1df85b09333449981beffb63ce20edb238781dfd6872e94.geojson",
 			name: "丰台校区",
 		},
 		haidian: {

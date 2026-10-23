@@ -50,6 +50,66 @@ describe("campus map static contract", () => {
 		).not.toThrow();
 	});
 
+	it("represents each pair of gatehouses as a single point without losing place links", async () => {
+		const curated = JSON.parse(
+			await readFile(
+				new URL("../data/campus-map/curated/fengtai.geojson", import.meta.url),
+				"utf8",
+			),
+		) as {
+			features: Array<{
+				geometry: { coordinates: unknown; type: string };
+				properties: { fid: number; layer: string; name?: string };
+			}>;
+		};
+		const placesDoc = JSON.parse(
+			await readFile(new URL("../data/campus-map/places.source.json", import.meta.url), "utf8"),
+		) as PlacesDocument;
+		const gatehouses = curated.features.filter(
+			(feature) =>
+				feature.properties.layer === "building" &&
+				["北门门卫", "南门门卫"].includes(feature.properties.name ?? ""),
+		);
+		expect(gatehouses).toHaveLength(2);
+		expect(gatehouses.map((feature) => feature.properties.fid).sort((a, b) => a - b)).toEqual([
+			57, 60,
+		]);
+		expect(gatehouses.every((feature) => feature.geometry.type === "Point")).toBe(true);
+		for (const id of ["fengtai-north-gate", "fengtai-main-gate"]) {
+			const place = placesDoc.places.find((candidate) => candidate.id === id);
+			expect(place?.mapFeatureRefs).toHaveLength(1);
+		}
+	});
+
+	it("keeps the track infield unnamed so its label does not overlap the track", async () => {
+		const curated = JSON.parse(
+			await readFile(
+				new URL("../data/campus-map/curated/fengtai.geojson", import.meta.url),
+				"utf8",
+			),
+		) as {
+			features: Array<{
+				properties: { fid: number; layer: string; name?: string; surface?: string };
+			}>;
+		};
+		const infieldFeatures = curated.features.filter(
+			(feature) => feature.properties.surface === "track-infield",
+		);
+		expect(
+			infieldFeatures
+				.map((feature) => `${feature.properties.layer}:${feature.properties.fid}`)
+				.sort(),
+		).toEqual(["building:66", "sport:1"]);
+		expect(infieldFeatures.every((feature) => feature.properties.name === undefined)).toBe(true);
+		expect(
+			curated.features.some((feature) => (feature.properties.name ?? "").includes("田径场内场")),
+		).toBe(false);
+		const track = curated.features.find(
+			(feature) => feature.properties.layer === "building" && feature.properties.fid === 63,
+		);
+		expect(track?.properties.name).toBe("田径场");
+	});
+
 	it("keeps manifest assets content-addressed and places tied to campus features", async () => {
 		const manifest = await readJson<Manifest>("manifest.json");
 		expect(manifest.attribution).toContain(

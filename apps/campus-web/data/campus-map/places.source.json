@@ -1669,7 +1669,29 @@
 				"生活",
 				"丰台"
 			],
-			"title": "荟贤食堂"
+			"title": "荟贤食堂",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "2层"
+				},
+				{
+					"label": "地图分类",
+					"value": "餐饮"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -1707,7 +1729,29 @@
 				"生活",
 				"丰台"
 			],
-			"title": "聚雅食堂"
+			"title": "聚雅食堂",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "餐饮"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -1746,7 +1790,29 @@
 				"借阅",
 				"丰台"
 			],
-			"title": "图书馆"
+			"title": "图书馆",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "5层"
+				},
+				{
+					"label": "地图分类",
+					"value": "公共文化"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -1784,7 +1850,29 @@
 				"门诊",
 				"丰台"
 			],
-			"title": "校医院"
+			"title": "校医院",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "2层"
+				},
+				{
+					"label": "地图分类",
+					"value": "医疗服务"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -1822,7 +1910,29 @@
 				"学生服务",
 				"丰台"
 			],
-			"title": "大学生活动中心"
+			"title": "大学生活动中心",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "公共文化"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -1859,7 +1969,29 @@
 				"综合楼",
 				"丰台"
 			],
-			"title": "综合楼"
+			"title": "综合楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -1896,7 +2028,29 @@
 				"教学",
 				"丰台"
 			],
-			"title": "致远楼"
+			"title": "致远楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "4层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -1933,7 +2087,29 @@
 				"教学",
 				"丰台"
 			],
-			"title": "博文楼"
+			"title": "博文楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "4层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -1971,7 +2147,29 @@
 				"活动",
 				"丰台"
 			],
-			"title": "明德楼、崇礼楼与共美厅"
+			"title": "明德楼、崇礼楼与共美厅",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "5层"
+				},
+				{
+					"label": "地图分类",
+					"value": "综合/待核"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "沿用原始复合体名称；官方图局部 OCR 出现“崇理楼”，与参考中的“崇礼楼”存在异文，待人工核实，不擅自更名。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2104,7 +2302,29 @@
 				"生活",
 				"丰台"
 			],
-			"title": "教师公寓区"
+			"title": "教师公寓区",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "8层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2141,7 +2361,29 @@
 				"教学",
 				"丰台"
 			],
-			"title": "博雅楼"
+			"title": "博雅楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2179,7 +2421,29 @@
 				"咖啡",
 				"丰台"
 			],
-			"title": "日新楼与咖啡厅"
+			"title": "日新楼与咖啡厅",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "5层"
+				},
+				{
+					"label": "地图分类",
+					"value": "公共文化"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2222,7 +2486,29 @@
 				"生活",
 				"丰台"
 			],
-			"title": "商业区"
+			"title": "商业区",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "2层"
+				},
+				{
+					"label": "地图分类",
+					"value": "商业服务"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2265,7 +2551,29 @@
 				"生活",
 				"丰台"
 			],
-			"title": "女生浴室"
+			"title": "女生浴室",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "2层、1层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2302,7 +2610,29 @@
 				"学习",
 				"丰台"
 			],
-			"title": "智慧中心"
+			"title": "智慧中心",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2341,7 +2671,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园一号楼"
+			"title": "静园一号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2380,7 +2732,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园二号楼"
+			"title": "静园二号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2419,7 +2793,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园三号楼"
+			"title": "静园三号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2458,7 +2854,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园四号楼"
+			"title": "静园四号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2497,7 +2915,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园五号楼"
+			"title": "静园五号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2536,7 +2976,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园六号楼"
+			"title": "静园六号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2575,7 +3037,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园七号楼"
+			"title": "静园七号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2614,7 +3098,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园八号楼"
+			"title": "静园八号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2653,7 +3159,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园九号楼"
+			"title": "静园九号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2692,7 +3220,29 @@
 				"静园",
 				"丰台"
 			],
-			"title": "静园十号楼"
+			"title": "静园十号楼",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2720,11 +3270,6 @@
 					"fid": 60,
 					"layer": "building",
 					"sourceId": "fengtai-campus"
-				},
-				{
-					"fid": 61,
-					"layer": "building",
-					"sourceId": "fengtai-campus"
 				}
 			],
 			"sourceRefs": [
@@ -2734,7 +3279,29 @@
 				"出入口",
 				"丰台"
 			],
-			"title": "丰台南门"
+			"title": "丰台南门",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "1层"
+				},
+				{
+					"label": "地图分类",
+					"value": "出入口安保"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "南门门卫标记合并原相邻的两处门卫建筑，位置取两处中点。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2746,8 +3313,8 @@
 				"geometry": {
 					"type": "Point",
 					"coordinates": [
-						116.1130193,
-						39.813499125
+						116.1134235,
+						39.8135096
 					]
 				},
 				"properties": {
@@ -2762,11 +3329,6 @@
 					"fid": 57,
 					"layer": "building",
 					"sourceId": "fengtai-campus"
-				},
-				{
-					"fid": 58,
-					"layer": "building",
-					"sourceId": "fengtai-campus"
 				}
 			],
 			"sourceRefs": [
@@ -2776,7 +3338,29 @@
 				"出入口",
 				"丰台"
 			],
-			"title": "丰台北门"
+			"title": "丰台北门",
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "1层"
+				},
+				{
+					"label": "地图分类",
+					"value": "出入口安保"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "北门门卫标记合并原相邻的两处门卫建筑，位置取两处中点。"
+				}
+			]
 		},
 		{
 			"accessNote": null,
@@ -2814,7 +3398,25 @@
 				"田径",
 				"丰台"
 			],
-			"title": "田径场"
+			"title": "田径场",
+			"additionalProperties": [
+				{
+					"label": "地图分类",
+					"value": "体育场地"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			]
 		},
 		{
 			"accessNote": null,

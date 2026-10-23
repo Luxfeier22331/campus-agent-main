@@ -10,7 +10,7 @@
 				116.1159622,
 				39.8136322
 			],
-			"geojsonUrl": "/campus-map/assets/d8b2466ea112ecc5ee46a08c5aa69b7b94beedf38ef8b44e58b485c0e11e0d57.geojson",
+			"geojsonUrl": "/campus-map/assets/a995be35f38bbb21e1df85b09333449981beffb63ce20edb238781dfd6872e94.geojson",
 			"name": "丰台校区"
 		},
 		"haidian": {
@@ -25,5 +25,5 @@
 		}
 	},
 	"licenseBoundary": "Campus GeoJSON is derived from OpenStreetMap data under ODbL 1.0 and is not covered by the repository Apache-2.0 license.",
-	"placesUrl": "/campus-map/places/727f59914046392c6ace328ea0f540464a91ca6d6dcacdbfd2ba83c1c5433d6d.json"
+	"placesUrl": "/campus-map/places/151bddefbf5f9e1f1a4ff4edc74d5a428394907c43722ae68d7e7ac85a5e0226.json"
 }

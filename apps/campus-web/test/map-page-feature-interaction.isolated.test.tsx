@@ -13,6 +13,7 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 	>(),
 	fitBounds: vi.fn(),
 	flyTo: vi.fn(),
+	easeTo: vi.fn(),
 	loadMapLibre: vi.fn(),
 	markerElements: [] as HTMLElement[],
 	queryRenderedFeatures: vi.fn(),
@@ -22,6 +23,7 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 	setMaxZoom: vi.fn(),
 	setMinZoom: vi.fn(),
 	setStyle: vi.fn(),
+	zoomTo: vi.fn(),
 }));
 
 vi.mock("@/components/auth/user/product-account-entry", () => ({
@@ -56,6 +58,10 @@ vi.mock("../src/features/map/maplibre-runtime", () => ({
 			addControl() {
 				return this;
 			}
+			easeTo(input: unknown) {
+				maplibreRuntimeMock.easeTo(input);
+				return this;
+			}
 			fitBounds(input: unknown, options?: unknown) {
 				maplibreRuntimeMock.fitBounds(input, options);
 				return this;
@@ -66,6 +72,13 @@ vi.mock("../src/features/map/maplibre-runtime", () => ({
 			}
 			getCanvas() {
 				return maplibreRuntimeMock.canvas;
+			}
+			getZoom() {
+				return 16;
+			}
+			zoomTo(zoom: number, options?: unknown) {
+				maplibreRuntimeMock.zoomTo(zoom, options);
+				return this;
 			}
 			off() {
 				return this;

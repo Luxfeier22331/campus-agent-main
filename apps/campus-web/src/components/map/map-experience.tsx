@@ -23,10 +23,13 @@ export interface MapExperienceProps {
 	onPlaceSelect: (placeId: string) => void;
 	onQueryChange: (query: string) => void;
 	onResetViewport: () => void;
+	onZoomIn: () => void;
+	onZoomOut: () => void;
 	onRetryMap: () => void;
 	query: string;
 	selectedPlace: MapPlaceView | null;
 	viewportControlsAvailable: boolean;
+	zoomControlsAvailable: boolean;
 }
 
 const DESKTOP_MAP_QUERY = "(min-width: 960px)";
@@ -47,10 +50,13 @@ export function MapExperience({
 	onPlaceSelect,
 	onQueryChange,
 	onResetViewport,
+	onZoomIn,
+	onZoomOut,
 	onRetryMap,
 	query,
 	selectedPlace,
 	viewportControlsAvailable,
+	zoomControlsAvailable,
 }: MapExperienceProps) {
 	const isDesktop = useIsDesktopMap();
 	const [placeListExpanded, setPlaceListExpanded] = useState(
@@ -102,7 +108,10 @@ export function MapExperience({
 				{isDesktop || !selectedPlace ? (
 					<MapViewportControls
 						onResetViewport={onResetViewport}
+						onZoomIn={onZoomIn}
+						onZoomOut={onZoomOut}
 						showReset={viewportControlsAvailable}
+						zoomControlsAvailable={zoomControlsAvailable}
 					/>
 				) : null}
 				{selectedPlace ? (

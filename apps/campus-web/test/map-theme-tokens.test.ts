@@ -10,7 +10,9 @@ const mapThemeTokens = [
 	"map-overlay-surface-soft",
 	"map-overlay-surface-hover",
 	"map-overlay-border",
+	"map-overlay-border-strong",
 	"map-overlay-divider",
+	"map-overlay-shadow-strong",
 	"map-style-background",
 	"map-style-building-fill",
 	"map-style-building-outline",
@@ -36,7 +38,7 @@ describe("campus map theme token contract", () => {
 			expect(designTokens).toContain(`--${token}:`);
 		}
 		expect(designTokens).toContain(":root {");
-		expect(designTokens).toContain("--map-style-background: #efeff2;");
+		expect(designTokens).toContain("--map-style-background: #edf1ed;");
 		expect(designTokens).toContain("--map-style-boundary: var(--campus-brand-identity);");
 		expect(designTokens).toContain("--map-style-selection-fill: var(--campus-selected-bg);");
 		expect(designTokens).toContain("--map-style-selection-outline: var(--campus-selected-border);");

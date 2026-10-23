@@ -25,6 +25,7 @@ export interface CampusMapPlace {
 		};
 	};
 	id: string;
+	additionalProperties?: Array<{ label: string; value: string }>;
 	mapFeatureRefs?: CampusMapFeatureRef[];
 	sourceRefs: string[];
 	tags: string[];
