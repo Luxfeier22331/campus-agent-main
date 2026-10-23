@@ -92,14 +92,27 @@ export function diagnoseBuild(build: BuiltNoticeChunks): ReportBuildDiagnostics 
 
 function formalHeadingPaths(build: BuiltNoticeChunks): Set<string> {
 	const paths = new Set<string>();
+	const sections = build.source.assetSections ?? [];
+	for (const section of sections) {
+		if (section.heading) paths.add(JSON.stringify([section.heading]));
+	}
 	let primary: string | undefined;
+	let sectionIndex = -1;
 	for (const heading of build.headings) {
+		let owner = sectionIndex;
+		while ((sections[owner + 1]?.start ?? Infinity) <= heading.range.start) owner += 1;
+		if (owner !== sectionIndex) {
+			sectionIndex = owner;
+			primary = undefined;
+		}
+		const sectionHeading = sections[sectionIndex]?.heading;
+		const asset = sectionHeading ? [sectionHeading] : [];
 		const path =
 			heading.level === 1
-				? [heading.text]
+				? [...asset, heading.text]
 				: primary
-					? [primary, heading.text]
-					: [heading.text];
+					? [...asset, primary, heading.text]
+					: [...asset, heading.text];
 		paths.add(JSON.stringify(path));
 		if (heading.level === 1) primary = heading.text;
 	}

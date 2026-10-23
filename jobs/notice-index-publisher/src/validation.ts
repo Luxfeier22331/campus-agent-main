@@ -134,9 +134,11 @@ function expectedRetrievalText(title: string, chunk: BuiltNoticeChunk): string {
 }
 
 function hardSectionForRange(range: SourceRange, build: BuiltNoticeChunks): number {
-	return build.headings.filter(
-		(heading) => heading.level === 1 && heading.range.start < range.start,
-	).length;
+	return (
+		build.headings.filter((heading) => heading.level === 1 && heading.range.start < range.start)
+			.length +
+		(build.source.assetSections ?? []).filter((section) => section.start <= range.start).length
+	);
 }
 
 function markRange(

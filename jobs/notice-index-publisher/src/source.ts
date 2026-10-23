@@ -2,15 +2,20 @@ import type { Pool, PoolClient } from "pg";
 
 import { htmlToStructuredText } from "@campus-agent/text-normalization";
 
-import type { NoticeSource } from "./types.ts";
+import type { NoticeAssetSection, NoticeSource } from "./types.ts";
 
 // Source assembly reads available OCR text in the same snapshot as the notice.
 // Chunking and embedding receive text only; neither knows OCR task states.
 // Both image and PDF-attachment OCR text pass the shared HTML-to-text
 // normalization so tables reach the chunker as logical `；`-joined rows.
+// Each asset is returned separately so the chunker can start it as its own
+// hard section instead of continuing the body's last heading.
 export const PUBLISHED_NOTICE_SOURCE_QUERY = `SELECT notice_id::text, title, content_text, released_at,
   COALESCE((
-    SELECT string_agg(p.markdown, E'\\n\\n' ORDER BY asset.ordinal, p.page_index)
+    SELECT json_agg(
+      json_build_object('kind', asset.asset_kind, 'name', asset.original_name, 'text', pages.text)
+      ORDER BY asset.asset_kind = 'attachment', asset.ordinal
+    )
     FROM notices.notice_assets asset
     JOIN LATERAL (
       SELECT t.id
@@ -18,41 +23,36 @@ export const PUBLISHED_NOTICE_SOURCE_QUERY = `SELECT notice_id::text, title, con
       WHERE t.input->>'kind' = 'source'
         AND t.input->>'noticeId' = n.notice_id::text
         AND t.input_sha256 = asset.content_sha256
-        AND (t.input #>> '{resource,kind}' = 'image'
-          OR t.input->>'key' ~ ('^internal_portal/notices/' || n.notice_id || '/images/[0-9]+$'))
+        AND CASE asset.asset_kind
+          WHEN 'image' THEN t.input #>> '{resource,kind}' = 'image'
+            OR t.input->>'key' ~ ('^internal_portal/notices/' || n.notice_id || '/images/[0-9]+$')
+          ELSE t.input #>> '{resource,kind}' = 'attachment'
+        END
         AND t.status = 'completed'
       ORDER BY t.created_at DESC, t.id DESC
       LIMIT 1
-    ) image ON true
-    JOIN ocr.pages p ON p.task_id = image.id
-    WHERE asset.notice_id = n.notice_id AND asset.asset_kind = 'image'
-  ), '') AS image_text,
-  COALESCE((
-    SELECT string_agg(p.markdown, E'\\n\\n' ORDER BY asset.ordinal, p.page_index)
-    FROM notices.notice_assets asset
+    ) task ON true
     JOIN LATERAL (
-      SELECT t.id
-      FROM ocr.tasks t
-      WHERE t.input->>'kind' = 'source'
-        AND t.input->>'noticeId' = n.notice_id::text
-        AND t.input_sha256 = asset.content_sha256
-        AND t.input #>> '{resource,kind}' = 'attachment'
-        AND t.status = 'completed'
-      ORDER BY t.created_at DESC, t.id DESC
-      LIMIT 1
-    ) attachment ON true
-    JOIN ocr.pages p ON p.task_id = attachment.id
-    WHERE asset.notice_id = n.notice_id AND asset.asset_kind = 'attachment'
-      AND asset.content_type = 'application/pdf'
-  ), '') AS attachment_text
+      SELECT string_agg(p.markdown, E'\\n\\n' ORDER BY p.page_index) AS text
+      FROM ocr.pages p
+      WHERE p.task_id = task.id
+    ) pages ON pages.text IS NOT NULL
+    WHERE asset.notice_id = n.notice_id
+      AND (asset.asset_kind = 'image' OR asset.content_type = 'application/pdf')
+  ), '[]') AS assets
 FROM notices.notices n
 WHERE is_published AND NOT is_external AND unavailable_at IS NULL
 ORDER BY notice_id`;
 
+interface NoticeAssetText {
+	kind: "attachment" | "image";
+	name: string | null;
+	text: string;
+}
+
 interface NoticeSourceRow {
-	attachment_text: string;
+	assets: unknown;
 	content_text: string | null;
-	image_text: string;
 	notice_id: string;
 	released_at: Date | string;
 	title: string;
@@ -126,22 +126,60 @@ export function noticeSourceFromRow(row: NoticeSourceRow): NoticeSource {
 		typeof row.title !== "string" ||
 		!row.title ||
 		(row.content_text !== null && typeof row.content_text !== "string") ||
-		typeof row.image_text !== "string" ||
-		typeof row.attachment_text !== "string" ||
+		!Array.isArray(row.assets) ||
+		!row.assets.every(isAssetText) ||
 		(row.released_at instanceof Date && Number.isNaN(row.released_at.getTime()))
 	) {
 		throw new Error("published notice source row is invalid");
 	}
-	const imageText = cleanOcrText(row.image_text);
-	const attachmentText = cleanOcrText(row.attachment_text);
+	// Images are inline body illustrations whose position is lost here, so
+	// their text shares one section without the body's heading context;
+	// every PDF attachment is its own document under its file name.
+	const sections: { heading?: string; text: string }[] = [];
+	const imageText = row.assets
+		.filter((asset) => asset.kind === "image")
+		.map((asset) => cleanOcrText(asset.text))
+		.filter(Boolean)
+		.join("\n\n");
+	if (imageText) sections.push({ text: imageText });
+	for (const asset of row.assets) {
+		if (asset.kind !== "attachment") continue;
+		const text = cleanOcrText(asset.text);
+		if (text) sections.push({ heading: attachmentHeading(asset.name), text });
+	}
+	let contentText = row.content_text?.trim() ? row.content_text : "";
+	const assetSections: NoticeAssetSection[] = [];
+	for (const section of sections) {
+		if (contentText) contentText += "\n\n";
+		assetSections.push({
+			...(section.heading ? { heading: section.heading } : {}),
+			start: contentText.length,
+		});
+		contentText += section.text;
+	}
 	return {
-		contentText:
-			[row.content_text, imageText, attachmentText].filter((text) => text?.trim()).join("\n\n") ||
-			row.title,
+		...(assetSections.length > 0 ? { assetSections } : {}),
+		contentText: contentText || row.title,
 		noticeId: row.notice_id,
 		releasedAt: new Date(String(row.released_at)).toISOString(),
 		title: row.title,
 	};
+}
+
+function isAssetText(value: unknown): value is NoticeAssetText {
+	const asset = value as NoticeAssetText | null;
+	return (
+		typeof asset === "object" &&
+		asset !== null &&
+		(asset.kind === "image" || asset.kind === "attachment") &&
+		(asset.name === null || typeof asset.name === "string") &&
+		typeof asset.text === "string"
+	);
+}
+
+function attachmentHeading(name: string | null): string {
+	const label = name?.replace(/\s+/gu, " ").trim();
+	return label ? `附件《${label}》` : "附件";
 }
 
 export async function* iteratePublishedNoticeSources(

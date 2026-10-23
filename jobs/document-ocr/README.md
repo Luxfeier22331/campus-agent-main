@@ -50,7 +50,10 @@ pnpm --filter document-ocr ocr cleanup-page-objects
 
 ## 自动扫描
 
-扫描所有已采集站内通知的正文图片与 PDF 附件，分类、发布和标题均不是前提；指定通知 ID 时只扫描该通知。
+`scan` 只选择检索会消费的资产：已发布、未下线的站内通知中，尚无任何 OCR 任务的正文图片与 PDF 附件。
+发现先查数据库，只为这些通知读取已发布来源快照；已有任务（含失败）视为已覆盖，不自动重复计费，失败需显式 `rerun`。
+`--since-days <n>` 只发现最近 n 天发布的通知，按发布时间从新到旧提交。`notice --notice <id>` 仍扫描该通知的
+全部资源，分类和发布不是前提。
 图片选择复用采集器的规范化规则，跳过编辑器占位图；`--pdf-only` 只扫描 PDF 附件，外链通知不参与。
 JPEG/PNG 原样提交，GIF 取首帧、BMP 解码后转静态 PNG，原始来源对象保持不变。
 任务按 source key 去重，展示序号单独保存，避免占位图清除后错配正文图片。
@@ -58,8 +61,10 @@ JPEG/PNG 原样提交，GIF 取首帧、BMP 解码后转静态 PNG，原始来�
 通知来源适配由 `@campus-agent/notices` 的 `listNoticeSourceResources()` 提供；本 Job 将资源引用映射为
 OCR 输入，通用 `@campus-agent/document-ocr` 不依赖通知领域。构建保留外部 `jsdom`，由镜像的生产依赖提供。
 
-每轮先恢复未完成任务，再处理新输入；单并发，最多提交 10 个新任务。CronJob 每 15 分钟运行，
-`concurrencyPolicy: Forbid`，Job deadline 为一小时。发布模板默认暂停。
+每轮先恢复未完成任务，再处理新输入；`--max-submissions`（默认 10）限制每轮新提交数，作为费用控制。
+Paddle 返回 429 或「任务提交队列已满」时任务退回 pending，本轮停止新提交、只完成已受理任务；其他提交拒绝
+标记为失败并需显式重跑。CronJob 每 15 分钟运行，`concurrencyPolicy: Forbid`，Job deadline 为一小时。
+发布模板默认暂停；环境 overlay 负责启用调度和设置发现窗口与每轮上限。
 
 ## Ops 与交付
 

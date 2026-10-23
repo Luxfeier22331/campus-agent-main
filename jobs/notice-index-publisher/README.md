@@ -31,7 +31,7 @@ notice-chunk-builder
   -> retrieval-index
 ```
 
-`build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v10 实现并写入 Chunk
+`build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v11 实现并写入 Chunk
 数据。`build-embeddings` 只读取显式 chunks 摘要，从 Model Config 的 `campus_docs_embedding` 槽位读取完整
 连接；同一操作先按原文去重，每个唯一 `retrievalText` 计算一次摘要。已有且通过校验的线上 cache 会复用，
 缺失输入才调用 Provider；每个成功 batch 立即写入 cache，最终写入 `notice_embedding_set.v2`。
@@ -60,7 +60,7 @@ pnpm dev:init -- --target notice-index-publisher
 pnpm --dir jobs/notice-index-publisher build-chunks-local
 ```
 
-当前使用 `notice_text_structure.v10`；[通知数据](../../docs/data/notices.md#检索分块与制品)维护分块、
+当前使用 `notice_text_structure.v11`；[通知数据](../../docs/data/notices.md#检索分块与制品)维护分块、
 字段归属与正文边界，不在模块入口复制规则清单。
 
 本地 Chunk Run 写入：

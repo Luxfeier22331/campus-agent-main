@@ -15,7 +15,7 @@ import {
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { importHistory } from "./import.ts";
 import { cleanupPageObjects, migratePages } from "./page-migration.ts";
-import { selectNoticeInputs } from "./sources.ts";
+import { selectNoticeInputs, selectUncoveredNoticeInputs } from "./sources.ts";
 
 export async function main() {
 	const { positionals, values } = parseArgs({
@@ -27,6 +27,8 @@ export async function main() {
 			directory: { type: "string" },
 			manifest: { type: "string" },
 			concurrency: { type: "string" },
+			"max-submissions": { type: "string" },
+			"since-days": { type: "string" },
 			"dry-run": { type: "boolean", default: false },
 			"pdf-only": { type: "boolean", default: false },
 		},
@@ -57,6 +59,20 @@ export async function main() {
 	const concurrency = values.concurrency ? Number(values.concurrency) : 8;
 	if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 32) {
 		throw new Error("--concurrency must be an integer between 1 and 32");
+	}
+	if (values["max-submissions"] !== undefined && !["scan", "notice", "resume"].includes(command)) {
+		throw new Error("--max-submissions is supported only with scan, notice or resume");
+	}
+	const maxSubmissions = values["max-submissions"] ? Number(values["max-submissions"]) : 10;
+	if (!Number.isInteger(maxSubmissions) || maxSubmissions < 1 || maxSubmissions > 1000) {
+		throw new Error("--max-submissions must be an integer between 1 and 1000");
+	}
+	if (values["since-days"] !== undefined && command !== "scan") {
+		throw new Error("--since-days is supported only with scan");
+	}
+	const sinceDays = values["since-days"] ? Number(values["since-days"]) : undefined;
+	if (sinceDays !== undefined && (!Number.isInteger(sinceDays) || sinceDays < 1)) {
+		throw new Error("--since-days must be a positive integer");
 	}
 	const pool = createNoticeDatabasePool(process.env, { max: Math.max(2, concurrency + 1) });
 	const objects = createOcrObjects(process.env);
@@ -151,11 +167,17 @@ export async function main() {
 				tasks = await store.runnable();
 			}
 			let newSubmissions = 0;
+			// A deferred submission means the provider is saturated; this run only
+			// finishes accepted work and leaves the remaining tasks pending.
+			let deferred = false;
+			const submissionsClosed = () =>
+				controller.signal.aborted || deferred || newSubmissions >= maxSubmissions;
 			const run = async (task: OcrTask) => {
-				if (controller.signal.aborted || (task.status === "pending" && newSubmissions >= 10)) {
+				const submits = task.status === "pending";
+				if (controller.signal.aborted || (submits && submissionsClosed())) {
 					return;
 				}
-				if (task.status === "pending") {
+				if (submits) {
 					newSubmissions++;
 				}
 				const result = await runOcrTask(task, {
@@ -166,6 +188,9 @@ export async function main() {
 					reportValidation: (updatedAt, passed, message) =>
 						reportOcrValidation(modelUrl, updatedAt, passed, message),
 				});
+				if (submits && result.status === "pending") {
+					deferred = true;
+				}
 				console.log(
 					JSON.stringify({
 						taskId: result.id,
@@ -191,11 +216,19 @@ export async function main() {
 				if (!(command === "scan" || command === "notice")) {
 					return;
 				}
-				const notice = command === "notice" ? required(values.notice, "--notice") : undefined;
-				for await (const input of selectNoticeInputs(pool, objects, notice, {
-					pdfOnly: values["pdf-only"],
-				})) {
-					if (newSubmissions >= 10 || controller.signal.aborted) {
+				const inputs =
+					command === "notice"
+						? selectNoticeInputs(pool, objects, required(values.notice, "--notice"), {
+								pdfOnly: values["pdf-only"],
+							})
+						: selectUncoveredNoticeInputs(pool, objects, {
+								pdfOnly: values["pdf-only"],
+								...(sinceDays === undefined
+									? {}
+									: { since: new Date(Date.now() - sinceDays * 86_400_000) }),
+							});
+				for await (const input of inputs) {
+					if (submissionsClosed()) {
 						break;
 					}
 					const created = await store.create(input, config);
@@ -205,7 +238,7 @@ export async function main() {
 				}
 			};
 			await Promise.all([discover(), ...Array.from({ length: concurrency }, worker)]);
-			return { newSubmissions };
+			return { newSubmissions, deferred };
 		});
 		if (outcome === null && ["migrate-pages", "cleanup-page-objects"].includes(command)) {
 			throw new Error("OCR runner already active; page migration/cleanup was not executed");

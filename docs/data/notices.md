@@ -191,12 +191,15 @@ ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不
 
 `jobs/notice-index-publisher` 提供已发布通知的 Chunk Run 与 Embedding Set 集群构建，以及本地结构验证、
 广泛抽样和真实 Embedding dense-retrieval 评测。任务在只读 repeatable-read 快照中读取已发布站内通知，
-以 `content_text` 加上当时已有的正文图片 OCR 文本作为分块输入，按已发布图片资产摘要匹配同通知的 OCR 输入摘要，每张图片取最新完成批次并按已发布序号、页序追加。
+以 `content_text` 加上当时已有的正文图片与 PDF 附件 OCR 文本作为分块输入，按已发布资产摘要匹配同通知的 OCR 输入摘要，每个资产取最新完成批次，按已发布序号、页序追加。
 OCR 失败、未完成或尚无任务都不影响该通知进入构建；无正文文本和识别文本时使用通知标题。
 后续识别完成后，下一次构建才读取新文本。来源适配只读 `ocr.tasks` / `ocr.pages`，Chunk 和 Embedding
-不接收 OCR 状态、不等待 OCR。外链通知不参与，公开通知的两个正文字段不写入 OCR；已发布通知的 PDF 附件与正文图片一样进入 OCR 与分块输入，附件文本经共享 HTML 清洗后按附件序、页序追加，不写回公开正文。
+不接收 OCR 状态、不等待 OCR。外链通知不参与，公开通知的两个正文字段不写入 OCR；OCR 文本经共享 HTML 清洗后追加，不写回公开正文。
+图片文字合为一个分段，每个 PDF 附件各为一个分段；每个分段开启新的硬章节，不继承正文或前一附件的标题。
+附件分段以 `附件《<original_name>》` 作为 `headingPath` 首项，附件内识别出的标题位于其后，
+因此检索证据和 `section_title` 能指出内容来自哪个附件。
 
-当前代码的分块定义为 `notice_text_structure.v10`，使用 Unicode 字符数，目标长度为 800 字符、硬上限为
+当前代码的分块定义为 `notice_text_structure.v11`，使用 Unicode 字符数，目标长度为 800 字符、硬上限为
 1200 字符，硬上限包含返回证据中的章节、局部父项和表头，不使用固定 overlap。图片字节、图片引用及 `alt` 不进入正文 Chunk 或 Embedding，已有 OCR 文字和表格可以进入。结构和字段关系优先于长度：
 
 - `一、` 等正式一级标题开启新的硬章节，Chunk 不跨一级标题；

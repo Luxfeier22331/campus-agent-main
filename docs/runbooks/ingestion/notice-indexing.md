@@ -43,7 +43,7 @@ pnpm --dir jobs/notice-index-publisher import-embedding-cache-local -- \
 ## 与 republish 的一致性
 
 republish 只更新已发布正文。运维执行下一次 Build/Apply 后，检索才反映正文和 OCR 变化；不再承诺
-下一轮通知 Schedule 自动刷新索引。Apply 失败保持机构知识检索关闭，以同一组制品重建。
+下一轮通知 Schedule 自动刷新索引。`document-ocr` 调度完成的识别同样只在下一次 Build/Apply 后进入检索。Apply 失败保持机构知识检索关闭，以同一组制品重建。
 
 ## 相关文档
 

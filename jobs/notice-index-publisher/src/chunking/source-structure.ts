@@ -1,6 +1,6 @@
 import { MAX_HEADING_CHARS, type NoticeChunkDefinition } from "../definitions.ts";
 import { unicodeLength } from "../encoding.ts";
-import type { DetectedHeading, SourceRange } from "../types.ts";
+import type { DetectedHeading, NoticeAssetSection, SourceRange } from "../types.ts";
 import * as lists from "./lists.ts";
 import * as model from "./model.ts";
 import * as tableModule from "./tables.ts";
@@ -22,7 +22,10 @@ export function parseSourceLines(value: string): model.SourceLine[] {
 	return lines;
 }
 
-export function detectHeadings(lines: readonly model.SourceLine[]): DetectedHeading[] {
+export function detectHeadings(
+	lines: readonly model.SourceLine[],
+	assetStartLines: ReadonlySet<number> = new Set(),
+): DetectedHeading[] {
 	const candidates = lines.flatMap((line, index) => {
 		const level = headingLevel(line.text) ??
 			(isPunctuatedPrimaryHeading(lines, index) ? 1 : null);
@@ -49,6 +52,10 @@ export function detectHeadings(lines: readonly model.SourceLine[]): DetectedHead
 				boundary = later.lineIndex;
 				break;
 			}
+		}
+		// A heading's evidence never comes from the next asset's text.
+		for (const start of assetStartLines) {
+			if (start > candidate.lineIndex && start < boundary) boundary = start;
 		}
 		for (let lineIndex = candidate.lineIndex + 1; lineIndex < boundary; lineIndex += 1) {
 			const nested = candidateByLine.get(lineIndex);
@@ -156,12 +163,16 @@ export function buildSemanticUnits(
 	headings: readonly DetectedHeading[],
 	sourceText: string,
 	definition: NoticeChunkDefinition,
+	assetSectionByLine: ReadonlyMap<number, NoticeAssetSection> = new Map(),
 ): model.SemanticUnit[] {
 	const headingByLine = new Map(headings.map((heading) => [heading.lineIndex, heading]));
 	const segments: model.BodySegment[] = [];
 	let bodyLines: model.SourceLine[] = [];
 	let hardSectionId = 0;
 	let headingPath: string[] = [];
+	// Each OCR asset is its own document: body headings never carry into it,
+	// and its synthesized heading prefixes every path inside it.
+	let assetPath: string[] = [];
 	let groupContext: string | undefined;
 	let primaryHeading: DetectedHeading | undefined;
 	// Inside a compilation the outline anchor is the stable document context;
@@ -170,6 +181,7 @@ export function buildSemanticUnits(
 	const flush = () => {
 		if (bodyLines.some((line) => line.text.length > 0)) {
 			segments.push({
+				assetContextLength: assetPath.length,
 				bodyLines, hardSectionId, headingPath: [...headingPath],
 				...(groupContext ? { groupContext } : {}),
 			});
@@ -178,12 +190,22 @@ export function buildSemanticUnits(
 	};
 
 	for (const line of lines) {
+		const assetSection = assetSectionByLine.get(line.index);
+		if (assetSection) {
+			flush();
+			assetPath = assetSection.heading ? [assetSection.heading] : [];
+			anchorHeading = undefined;
+			primaryHeading = undefined;
+			groupContext = undefined;
+			hardSectionId += 1;
+			headingPath = [...assetPath];
+		}
 		const heading = headingByLine.get(line.index);
 		if (!heading && model.isGroupScopeStart(lines, line.index)) {
 			flush();
 			groupContext = line.text.trim();
 			const context = anchorHeading ?? primaryHeading;
-			headingPath = context ? [context.text] : [];
+			headingPath = context ? [...assetPath, context.text] : [...assetPath];
 			bodyLines.push(line);
 			continue;
 		}
@@ -197,16 +219,16 @@ export function buildSemanticUnits(
 			primaryHeading = undefined;
 			groupContext = undefined;
 			hardSectionId += 1;
-			headingPath = [heading.text];
+			headingPath = [...assetPath, heading.text];
 		} else if (heading.level === 1) {
 			groupContext = undefined;
 			hardSectionId += 1;
 			primaryHeading = heading;
 			headingPath = anchorHeading
-				? [anchorHeading.text, heading.text]
-				: [heading.text];
+				? [...assetPath, anchorHeading.text, heading.text]
+				: [...assetPath, heading.text];
 		} else {
-			const base = anchorHeading ? [anchorHeading.text] : [];
+			const base = anchorHeading ? [...assetPath, anchorHeading.text] : [...assetPath];
 			headingPath = primaryHeading
 				? [...base, primaryHeading.text, heading.text]
 				: [...base, heading.text];
@@ -216,12 +238,13 @@ export function buildSemanticUnits(
 	return segments.flatMap((segment) => {
 		const units = buildSegmentUnits(segment, sourceText, definition);
 		if (!segment.groupContext) return units;
+		const primary = segment.headingPath[segment.assetContextLength];
 		const primaryLength =
-			segment.headingPath[0] &&
-			(model.PRIMARY_HEADING.test(segment.headingPath[0]) ||
-				model.OUTLINE_ANCHOR_HEADING.test(segment.headingPath[0]))
+			segment.assetContextLength +
+			(primary &&
+			(model.PRIMARY_HEADING.test(primary) || model.OUTLINE_ANCHOR_HEADING.test(primary))
 				? 1
-				: 0;
+				: 0);
 		for (const unit of units) {
 			const path = unit.retrievalHeadingPath ?? unit.headingPath;
 			unit.retrievalHeadingPath = [
@@ -436,7 +459,7 @@ function buildSegmentUnits(
 		if (model.isIndependentBracketListStart(lines, index)) {
 			const end = lists.findListRunBoundary(lines, index, tables, 2);
 			const listLines = lines.slice(index, end);
-			if (lists.isSequentialList(listLines, segment.headingPath)) {
+			if (lists.isSequentialList(listLines, segment.headingPath.slice(segment.assetContextLength))) {
 				append({
 					atomic: false,
 					bodyLines: listLines,
@@ -461,7 +484,7 @@ function buildSegmentUnits(
 		if (model.isTopLevelListItemStart(line.text)) {
 			const end = lists.findListRunBoundary(lines, index, tables, 1);
 			const listLines = lines.slice(index, end);
-			if (lists.isSequentialList(listLines, segment.headingPath)) {
+			if (lists.isSequentialList(listLines, segment.headingPath.slice(segment.assetContextLength))) {
 				append({
 					atomic: false,
 					bodyLines: listLines,

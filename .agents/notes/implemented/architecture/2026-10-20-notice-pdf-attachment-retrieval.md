@@ -53,8 +53,18 @@ agent-runtime（`workflow-runtime.ts` 只认 document/notice）与 agent-control
 的资产，按 `(asset.ordinal, page_index)` 取该附件最新完成 OCR 任务的页文本，匹配条件与图片一致
 （`input->>'kind'='source'`、`input->>'noticeId'=n.notice_id`、`input_sha256=asset.content_sha256`、
 `input #>> '{resource,kind}'='attachment'`、`status='completed'`，取最新批次）。
-`noticeSourceFromRow` 的拼接顺序为 `content_text` → `image_text` → `attachment_text`。
-分块仍由 `buildNoticeChunks` 使用现有 `notice_text_structure.v10`，不新增分块定义。
+`noticeSourceFromRow` 的拼接顺序为 `content_text` → 图片文本 → 各附件文本。
+
+### 资产分段（2026-10-23，v11）
+
+v10 只按标题切硬章节，附件开头的「关于……的通知」等非编号行不是标题，附件因此继承正文最后一节或
+前一附件的 `headingPath`，可能与正文末尾合成同一 chunk；检索证据也指不出内容来自哪个附件，而
+citation 指向的详情页看不到 OCR 文本。来源查询改为逐资产返回文本，`NoticeSource.assetSections`
+标记每段起点：图片文字合为一段（位置在装配时已丢失，不挂任何正文标题），每个 PDF 附件一段并以
+`附件《original_name》` 为 `headingPath` 首项。分块器在段首开启硬章节、重置标题上下文，段内识别的标题
+接在附件名之后；标题的证据判断不跨段。边界作为结构化字段传入而非插入标记行，因为正文常见「附件：1.xxx」
+行，靠标题识别区分会误判。分块定义升为 `notice_text_structure.v11`；改在全量 OCR 回填之前，重新
+embedding 的范围只有已有 OCR 文本的少数通知。
 
 ### 清洗与图片债一并修
 
@@ -66,6 +76,21 @@ agent-runtime（`workflow-runtime.ts` 只认 document/notice）与 agent-control
 
 `content_text` / `content_html` 与公开通知合同保持不变，附件文本只在索引来源处组装，沿用
 [正文图片独立消费](../feature/2026-10-02-notice-body-image-ocr.md)的既有取舍。
+
+### OCR 发现与调度
+
+`scan` 改为数据库驱动：只选已发布、未下线站内通知中尚无任何 OCR 任务的图片和 PDF 资产（覆盖判断与
+索引匹配一致：内容寻址任务键，或同通知同摘要的旧任务），只为这些通知读取来源快照。原实现每轮遍历全部
+站内通知并逐条读取来源对象，回填完成后每轮仍读约 5,000 个对象；也会为不进入检索的未发布通知付费识别。
+`--since-days` 限定发现窗口，`--max-submissions` 替代写死的每轮 10 个上限。staging 首轮回填只开最近一个月。
+
+Paddle 以 HTTP 400「任务提交队列已满」拒绝时任务从未被受理；此前按「提交结果未知」终态失败，staging 试点
+6 个任务中 3 个因此需要人工重跑。现在与 429 一样退回 pending，本轮停止新提交；其他 400 记为明确拒绝。
+运行在节流排队中被停止时任务保持 pending，不再被标记为 submitting 而终态失败。
+
+调度维持独立 CronJob，不进入 `notice-pipeline`：断点状态已由 `ocr.tasks` 与 advisory lock 承担，结果的唯一
+消费者 Build/Apply 也已是运维触发的一次性 Job，放入 Temporal 只会多一份运行状态，并让常驻 Worker 持有
+OCR 外网出口和凭据。检索 Build/Apply 改为自动串联，或需要在 Ops 运行时按预算启停 OCR 时重新评估。
 
 ## 未采用方案
 
@@ -86,6 +111,11 @@ campus-search、search-api-go、contracts schema、agent-runtime、agent-control
 实现最短，但 Paddle 输出含 HTML 标签、Markdown 标记与图片引用，会让 v10 的标题、表格与字段
 识别失真。清洗作为独立单元处理，见 [PDF 文本清洗单元](./2026-10-20-pdf-text-cleaning-unit.md)。
 
+### 跨通知按内容去重 OCR
+
+staging 可索引资产 5,478 个、不同内容 5,017 份，去重只省约 8%；任务与索引匹配都以通知为界，
+[正文图片独立消费](../feature/2026-10-02-notice-body-image-ocr.md)也要求不同通知的历史不混合，收益不足以改变该边界。
+
 ### 只修 PDF、保留图片 HTML 债
 
 改动面小，但两个来源在分块前形态不一致，且图片的表格列丢失债继续存在。三来源统一清洗，
@@ -105,8 +135,8 @@ campus-search、search-api-go、contracts schema、agent-runtime、agent-control
 - 附件文本变化会改变 chunk 数据与 Embedding Set 身份并触发重新发布；运维在附件 OCR 完成后
   执行一次 Build/Apply 即收敛。
 - 多个 PDF 附件按 `asset.ordinal` 拼接；附件在来源快照更新中被替换或删除时，与图片一样按已发布
-  资产摘要匹配 OCR 输入，避免读到旧字节的识别结果。chunk 不携带「某段来自某附件第几页」的
-  显式来源；若后续需要页级溯源，另行设计来源标记。
+  资产摘要匹配 OCR 输入，避免读到旧字节的识别结果。v11 起 chunk 通过 `headingPath` 首项携带
+  所属附件名；页级来源仍不携带，需要时另行设计。
 - v10 的 `headingLevel` 只识别中文编号标题，PDF 层级若表现为 HTML `<h*>` 清洗后仍可能不被识别
   为 heading；真实附件（扫描页、复杂表格）的识别质量需在启用自动扫描后用真实样本验收，质量不足
   时再评估 PDF 专用结构处理。

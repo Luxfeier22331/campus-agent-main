@@ -60,7 +60,7 @@ Docs 当前 `campus_docs_reader_elements.v5` 使用 Unicode 字符数，不依�
 字符硬上限之外仍保留 16000 UTF-8 byte 传输限制。dense embedding 和 sparse vector 使用由文档
 标题、完整 heading 路径和 evidence 正文组成的 `retrieval_text`；point 分别保存正文和检索文本摘要。
 
-Notice 使用独立的 `notice_text_structure.v10` 分块定义（软目标 800、硬上限 1200、无 overlap）；完整规则和
+Notice 使用独立的 `notice_text_structure.v11` 分块定义（软目标 800、硬上限 1200、无 overlap）；完整规则和
 当前 schema 见[通知数据](../../data/notices.md#检索分块与制品)。其 `retrievalText` 由通知标题、heading path 和正文构成。
 统一 publisher 使用 Chunk 的 `retrievalText` 首行生成 title，并由 `noticeId` 生成 citation；`released_at` 只作为通知发布时间
 证据，不参与 embedding、适用期推断或通知过滤。生产 serving 直接读取内容寻址的 Chunk 数据对象，builder 的 review、

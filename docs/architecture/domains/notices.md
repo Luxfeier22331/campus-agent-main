@@ -21,6 +21,7 @@ status: active
 -> 已发布正文与 derived 资源
    ├-> App API -> Campus Web
    └-> Notice Chunk/Embedding builder -> Notice Embedding Set
+       │   ^ document-ocr：已发布正文图片与 PDF 附件的识别文本
        -> Campus RAG unified publisher -> campus_search
 ```
 
@@ -58,8 +59,8 @@ App API 不代理附件字节。
 Embedding 制品；统一 Publisher 才拥有 Qdrant 发布和当前绑定。制品与查询交接由
 [检索服务](../system/retrieval-serving.md)维护，字段与内容语义由[通知数据](../../data/notices.md)维护。
 
-Agent 不能扫描通知对象存储或 PostgreSQL，也不提供通知结构化查询或附件解析；已发布通知只通过
-`campus_search` 的统一检索入口进入模型上下文。离线问题生成和评测仍只消费与目标 Chunk Run 对齐的
+Agent 不能扫描通知对象存储或 PostgreSQL，也不提供通知结构化查询或在线附件解析；已发布通知及其
+离线 OCR 得到的图片、PDF 附件文本只通过 `campus_search` 的统一检索入口进入模型上下文。离线问题生成和评测仍只消费与目标 Chunk Run 对齐的
 本地产物，不能把分类配置、本地 Chunk 或评测产物视为已部署产品能力。分类、schema、读取接口、页面
 源码和本地制品存在都不表示任一环境已经完成资源回填、统一索引发布或部署。
 

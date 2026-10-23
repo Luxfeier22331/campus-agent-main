@@ -885,6 +885,60 @@ describe("notice semantic chunking", () => {
 		expect(() => assertValidNoticeChunks(build)).not.toThrow();
 	});
 
+	it("starts each OCR asset as its own hard section with the attachment name as context", () => {
+		const body = "一、报名方式\n请登录系统提交材料。";
+		const images = "图片中的二维码说明";
+		const attachment = "申请人须填写以下信息\n（一）基本情况\n姓名、学号。";
+		const contentText = `${body}\n\n${images}\n\n${attachment}`;
+		const build = buildNoticeChunks({
+			...source(contentText),
+			assetSections: [
+				{ start: body.length + 2 },
+				{ heading: "附件《申请表.pdf》", start: body.length + images.length + 4 },
+			],
+		});
+
+		expect(() => assertValidNoticeChunks(build)).not.toThrow();
+		expect(build.chunks.map((chunk) => [chunk.content, chunk.headingPath, chunk.retrievalText])).toEqual([
+			["请登录系统提交材料。", ["一、报名方式"], "测试通知\n一、报名方式\n请登录系统提交材料。"],
+			[images, [], `测试通知\n${images}`],
+			[
+				"申请人须填写以下信息",
+				["附件《申请表.pdf》"],
+				"测试通知\n附件《申请表.pdf》\n申请人须填写以下信息",
+			],
+			[
+				"姓名、学号。",
+				["附件《申请表.pdf》", "（一）基本情况"],
+				"测试通知\n附件《申请表.pdf》\n（一）基本情况\n姓名、学号。",
+			],
+		]);
+	});
+
+	it("keeps short adjacent attachments in separate chunks and resets their headings", () => {
+		const first = "一、评分标准\n满分100分。";
+		const second = "补充说明见下。";
+		const build = buildNoticeChunks({
+			...source(`${first}\n\n${second}`),
+			assetSections: [
+				{ heading: "附件《细则.pdf》", start: 0 },
+				{ heading: "附件《补充.pdf》", start: first.length + 2 },
+			],
+		});
+
+		expect(() => assertValidNoticeChunks(build)).not.toThrow();
+		expect(build.chunks.map((chunk) => chunk.headingPath)).toEqual([
+			["附件《细则.pdf》", "一、评分标准"],
+			["附件《补充.pdf》"],
+		]);
+	});
+
+	it("rejects asset sections that do not start a source line", () => {
+		expect(() =>
+			buildNoticeChunks({ ...source("正文\n附件"), assetSections: [{ start: 1 }] }),
+		).toThrow("asset section is invalid");
+	});
+
 	it("rejects empty content_text so it cannot enter a chunk run", () => {
 		expect(() => buildNoticeChunks(source(""))).toThrow("source is invalid");
 	});

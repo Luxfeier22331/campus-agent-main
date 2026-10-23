@@ -49,6 +49,8 @@ export interface UnitPiece extends ChunkPart {
 }
 
 export interface BodySegment {
+	/** Leading headingPath entries owned by the enclosing asset section. */
+	assetContextLength: number;
 	bodyLines: SourceLine[];
 	hardSectionId: number;
 	headingPath: string[];

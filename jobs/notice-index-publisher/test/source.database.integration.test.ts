@@ -41,7 +41,7 @@ describe("published notice database source", () => {
             CREATE TABLE notices.notice_assets(
                 notice_id bigint REFERENCES notices.notices(notice_id), asset_kind text NOT NULL,
                 ordinal integer NOT NULL, content_sha256 text NOT NULL, content_type text NOT NULL,
-                PRIMARY KEY(notice_id, asset_kind, ordinal)
+                original_name text, PRIMARY KEY(notice_id, asset_kind, ordinal)
             );
             CREATE SCHEMA ocr;
             CREATE TABLE ocr.tasks(id uuid PRIMARY KEY, input jsonb NOT NULL, input_sha256 text, status text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
@@ -69,7 +69,8 @@ describe("published notice database source", () => {
 
  async function asset(notice: string, ordinal: number, digest: string, kind = "image") {
   const contentType = kind === "attachment" ? "application/pdf" : "image/jpeg";
-  await pool.query("INSERT INTO notices.notice_assets VALUES ($1,$2,$3,$4,$5)",[notice,kind,ordinal,digest,contentType]);
+  const name = kind === "attachment" ? `附件${ordinal + 1}.pdf` : null;
+  await pool.query("INSERT INTO notices.notice_assets VALUES ($1,$2,$3,$4,$5,$6)",[notice,kind,ordinal,digest,contentType,name]);
  }
  async function ocr(input: Record<string, unknown>, digest: string | null, text: string, date = "2026-09-01", status = "completed") {
   const id = randomUUID();
@@ -138,7 +139,8 @@ describe("published notice database source", () => {
 		await add("1", 0, "completed", "附件不消费", "2026-09-01", true);
 		const sources = await loadPublishedNoticeSources(pool);
 		expect(sources.map((source) => source.noticeId)).toEqual(["1", "2"]);
-		expect(sources[0]?.contentText).toBe("可消费正文\n\n第一张 \n\n第二张\n\n第二页");
+		expect(sources[0]?.contentText).toBe("可消费正文\n\n第一张\n\n第二张\n\n第二页");
+		expect(sources[0]?.assetSections).toEqual([{ start: 7 }]);
 		expect(sources[1]?.contentText).toBe("纯图片");
 		await add("2", 0, "completed", "后来完成的识别", "2026-09-04");
 		expect((await loadPublishedNoticeSources(pool))[1]?.contentText).toBe("后来完成的识别");
@@ -171,7 +173,7 @@ describe("published notice database source", () => {
   expect((await loadPublishedNoticeSources(pool))[0]?.contentText).toBe("可消费正文\n\nB page 1\n\nB page 2\n\nA\n\nB page 1\n\nB page 2");
  });
 
- it("consumes completed PDF attachment OCR text after image text in attachment/page order", async () => {
+ it("consumes completed PDF attachment OCR text in attachment/page order, one named section per attachment", async () => {
   const digest="d".repeat(64);
   await asset("1",0,digest,"attachment");
   await asset("1",1,"e".repeat(64),"attachment");
@@ -180,7 +182,12 @@ describe("published notice database source", () => {
   const later = await ocr(attachmentInput(1,"e".repeat(64)),"e".repeat(64),"附件B第一页","2026-09-02");
   await pool.query("INSERT INTO ocr.pages VALUES ($1,1,'附件B第二页')",[later]);
   await ocr(attachmentInput(0,digest),digest,"未完成","2026-09-03","pending");
-  expect((await loadPublishedNoticeSources(pool))[0]?.contentText).toBe("可消费正文\n\n附件A页；表格列\n\n附件B第一页\n\n附件B第二页");
+  const [source] = await loadPublishedNoticeSources(pool);
+  expect(source?.contentText).toBe("可消费正文\n\n附件A页；表格列\n\n附件B第一页\n\n附件B第二页");
+  expect(source?.assetSections).toEqual([
+   { heading: "附件《附件1.pdf》", start: 7 },
+   { heading: "附件《附件2.pdf》", start: 17 },
+  ]);
  });
 
  it("accepts matching legacy image bytes but rejects mismatched or unknown OCR bytes", async () => {

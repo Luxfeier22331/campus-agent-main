@@ -9,10 +9,18 @@ import { EMBEDDING_SPACE, type EmbeddingClient } from "@campus-agent/embedding-r
 export type Sha256Ref = `sha256:${string}`;
 
 export interface NoticeSource {
+	/** OCR text sections appended after the body; each starts a hard section at a line start. */
+	assetSections?: readonly NoticeAssetSection[];
 	contentText: string;
 	noticeId: string;
 	releasedAt?: string;
 	title: string;
+}
+
+export interface NoticeAssetSection {
+	/** Context for every chunk in the section; image text has none. */
+	heading?: string;
+	start: number;
 }
 
 export interface NoticeChunk {

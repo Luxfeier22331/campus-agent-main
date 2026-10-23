@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RateLimitError, ServiceUnavailableError } from "@paddleocr/api-sdk";
+import { InvalidRequestError, RateLimitError, ServiceUnavailableError } from "@paddleocr/api-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	createPaddleClient,
@@ -330,6 +330,48 @@ describe("Paddle document parsing", () => {
 		expect(f.task.status).toBe("pending");
 		expect(f.task.error).toBeNull();
 		expect(f.task.providerJobId).toBeNull();
+	});
+	it("returns a submission rejected by a full provider queue to pending", async () => {
+		const f = fixture();
+		f.task.input = { kind: "source", noticeId: "1", key: "k", contentType: "application/pdf" };
+		vi.mocked(f.objects.getSource).mockResolvedValue(new TextEncoder().encode("%PDF-1.4 test"));
+		vi.mocked(f.client.submitDocumentParsing).mockRejectedValue(
+			new InvalidRequestError("Bad request: 任务提交队列已满，请稍后重试"),
+		);
+		await runOcrTask(f.task, f);
+		expect(f.task).toMatchObject({ status: "pending", error: null, providerJobId: null });
+	});
+	it("fails other rejected submissions as rejected, not as an unknown outcome", async () => {
+		const f = fixture();
+		f.task.input = { kind: "source", noticeId: "1", key: "k", contentType: "application/pdf" };
+		vi.mocked(f.objects.getSource).mockResolvedValue(new TextEncoder().encode("%PDF-1.4 test"));
+		vi.mocked(f.client.submitDocumentParsing).mockRejectedValue(
+			new InvalidRequestError("Bad request: 文件格式不支持"),
+		);
+		await runOcrTask(f.task, f);
+		expect(f.task.status).toBe("failed");
+		expect(f.task.error).toMatch(/^Provider rejected the submission; explicit rerun required/);
+	});
+	it("keeps a task pending when the run stops before its submission starts", async () => {
+		const f = fixture();
+		f.task.input = { kind: "source", noticeId: "1", key: "k", contentType: "application/pdf" };
+		vi.mocked(f.objects.getSource).mockResolvedValue(new TextEncoder().encode("%PDF-1.4 test"));
+		const controller = new AbortController();
+		controller.abort();
+		await runOcrTask(f.task, { ...f, signal: controller.signal });
+		expect(f.task.status).toBe("pending");
+		expect(f.client.submitDocumentParsing).not.toHaveBeenCalled();
+		expect(f.store.save).not.toHaveBeenCalledWith(
+			expect.objectContaining({ status: "submitting" }),
+		);
+	});
+	it("still fails terminally on an unreadable input before submission", async () => {
+		const f = fixture();
+		f.task.input = { kind: "source", noticeId: "1", key: "k", contentType: "application/pdf" };
+		vi.mocked(f.objects.getSource).mockResolvedValue(new TextEncoder().encode("not a document"));
+		await runOcrTask(f.task, f);
+		expect(f.task.status).toBe("failed");
+		expect(f.client.submitDocumentParsing).not.toHaveBeenCalled();
 	});
 	it("still fails terminally on a non-rate-limit submission error", async () => {
 		const f = fixture();

@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { RateLimitError } from "@paddleocr/api-sdk";
+import { InvalidRequestError, RateLimitError } from "@paddleocr/api-sdk";
 import { normalizeImageInput } from "./image-input.ts";
 import { createPaddleClient, downloadResource } from "./provider.ts";
 import { OcrResultError, persistResult } from "./results.ts";
@@ -142,16 +142,16 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 			try {
 				const path = join(directory, `input${fileExtension(bytes)}`);
 				await writeFile(path, bytes);
-				task.status = "submitting";
-				await store.save(task);
-				const submitted = await throttledSubmission(
-					() =>
-						client.submitDocumentParsing(
-							{ filePath: path, model: task.target.model, options: task.target.options },
-							{ signal },
-						),
-					options.submissionIntervalMs,
-				);
+				const submitted = await throttledSubmission(async () => {
+					// A run stopped while queued behind the spacing never contacts the provider.
+					signal.throwIfAborted();
+					task.status = "submitting";
+					await store.save(task);
+					return await client.submitDocumentParsing(
+						{ filePath: path, model: task.target.model, options: task.target.options },
+						{ signal },
+					);
+				}, options.submissionIntervalMs);
 				task.providerJobId = submitted.jobId;
 				task.status = "submitted";
 				await store.save(task);
@@ -178,9 +178,14 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 			await sleep(options.pollMs ?? 5_000, undefined, { signal });
 		}
 	} catch (error) {
-		// A rate-limited submission was rejected before upload; the task never
-		// reached the provider and can safely return to pending for the next run.
-		if (error instanceof RateLimitError && !task.providerJobId && task.status === "submitting") {
+		// Rate limiting and a full provider queue reject the submission without
+		// accepting it; the task can safely return to pending for a later run.
+		// A run stopped before submission started leaves nothing at the provider either.
+		if (
+			!task.providerJobId &&
+			((task.status === "pending" && signal.aborted) ||
+				(task.status === "submitting" && isDeferredSubmission(error)))
+		) {
 			task.status = "pending";
 			task.error = null;
 			await store.save(task);
@@ -190,7 +195,10 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 		const terminal = !task.providerJobId || error instanceof OcrResultError;
 		if (terminal) {
 			if (!task.providerJobId && task.status === "submitting") {
-				task.error = `Submission outcome unknown; explicit rerun required. ${task.error}`;
+				task.error =
+					error instanceof InvalidRequestError
+						? `Provider rejected the submission; explicit rerun required. ${task.error}`
+						: `Submission outcome unknown; explicit rerun required. ${task.error}`;
 			}
 			try {
 				if (task.input.kind === "validation") {
@@ -208,6 +216,15 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 		await store.save(task);
 	}
 	return task;
+}
+
+// The provider reports a full submission queue as HTTP 400, which the SDK
+// maps to InvalidRequestError; only the message distinguishes it.
+function isDeferredSubmission(error: unknown): boolean {
+	return (
+		error instanceof RateLimitError ||
+		(error instanceof InvalidRequestError && error.message.includes("队列已满"))
+	);
 }
 
 export function fileExtension(bytes: Uint8Array): string {

@@ -6,7 +6,7 @@ export interface NoticeChunkDefinition {
 }
 
 export const NOTICE_CHUNK_DEFINITION = {
-	algorithm: "notice_text_structure.v10",
+	algorithm: "notice_text_structure.v11",
 	maxChars: 1200,
 	overlapChars: 0,
 	targetChars: 800,
