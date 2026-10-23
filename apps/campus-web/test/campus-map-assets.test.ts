@@ -81,6 +81,35 @@ describe("campus map static contract", () => {
 		}
 	});
 
+	it("keeps the track infield unnamed so its label does not overlap the track", async () => {
+		const curated = JSON.parse(
+			await readFile(
+				new URL("../data/campus-map/curated/fengtai.geojson", import.meta.url),
+				"utf8",
+			),
+		) as {
+			features: Array<{
+				properties: { fid: number; layer: string; name?: string; surface?: string };
+			}>;
+		};
+		const infieldFeatures = curated.features.filter(
+			(feature) => feature.properties.surface === "track-infield",
+		);
+		expect(
+			infieldFeatures
+				.map((feature) => `${feature.properties.layer}:${feature.properties.fid}`)
+				.sort(),
+		).toEqual(["building:66", "sport:1"]);
+		expect(infieldFeatures.every((feature) => feature.properties.name === undefined)).toBe(true);
+		expect(
+			curated.features.some((feature) => (feature.properties.name ?? "").includes("田径场内场")),
+		).toBe(false);
+		const track = curated.features.find(
+			(feature) => feature.properties.layer === "building" && feature.properties.fid === 63,
+		);
+		expect(track?.properties.name).toBe("田径场");
+	});
+
 	it("keeps manifest assets content-addressed and places tied to campus features", async () => {
 		const manifest = await readJson<Manifest>("manifest.json");
 		expect(manifest.attribution).toContain(

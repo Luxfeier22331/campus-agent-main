@@ -168,6 +168,11 @@ describe("campus map style", () => {
 			expect(serialized).toContain("篮球场");
 			expect(serialized).not.toContain("田径场");
 		}
+		for (const layerId of ["campus-sport", "campus-building"]) {
+			const serialized = JSON.stringify(style.layers?.find((layer) => layer.id === layerId)?.paint);
+			expect(serialized).toContain("track-infield");
+			expect(serialized).toContain("#c77963");
+		}
 		expect(
 			JSON.stringify(haidianStyle.layers?.find((layer) => layer.id === "campus-gatehouse-markers")),
 		).toContain('"filter":["==",["get","fid"],-1]');

@@ -485,42 +485,48 @@ function createBuildingOutlineExpression(fallback: string): ExpressionSpecificat
 
 function createSportSurfaceColorExpression(fallback: string): ExpressionSpecification {
 	return [
-		"match",
-		["get", "name"],
-		"田径场",
-		"#c77963",
-		"田径场内场",
+		"case",
+		["==", ["get", "surface"], "track-infield"],
 		"#4eae5b",
-		"篮球场",
-		"#76bfc9",
-		"排球场",
-		"#76bfc9",
-		"网球场",
-		"#76bfc9",
-		"气膜馆",
-		"#b8cddc",
-		fallback,
-	] as ExpressionSpecification;
+		[
+			"match",
+			["get", "name"],
+			"田径场",
+			"#c77963",
+			"篮球场",
+			"#76bfc9",
+			"排球场",
+			"#76bfc9",
+			"网球场",
+			"#76bfc9",
+			"气膜馆",
+			"#b8cddc",
+			fallback,
+		],
+	] as unknown as ExpressionSpecification;
 }
 
 function createSportSurfaceOutlineExpression(fallback: string): ExpressionSpecification {
 	return [
-		"match",
-		["get", "name"],
-		"田径场",
-		"#8d4c3b",
-		"田径场内场",
+		"case",
+		["==", ["get", "surface"], "track-infield"],
 		"#27703d",
-		"篮球场",
-		"#337784",
-		"排球场",
-		"#337784",
-		"网球场",
-		"#337784",
-		"气膜馆",
-		"#5c7c94",
-		fallback,
-	] as ExpressionSpecification;
+		[
+			"match",
+			["get", "name"],
+			"田径场",
+			"#8d4c3b",
+			"篮球场",
+			"#337784",
+			"排球场",
+			"#337784",
+			"网球场",
+			"#337784",
+			"气膜馆",
+			"#5c7c94",
+			fallback,
+		],
+	] as unknown as ExpressionSpecification;
 }
 
 function createSportPatternExpression(): ExpressionSpecification {
