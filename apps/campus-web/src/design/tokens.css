@@ -48,10 +48,12 @@
 	--map-overlay-surface-soft: rgb(255 255 255 / 56%);
 	--map-overlay-surface-hover: rgb(255 255 255 / 82%);
 	--map-overlay-border: rgb(255 255 255 / 70%);
+	--map-overlay-border-strong: rgb(38 38 39 / 26%);
 	--map-overlay-divider: rgb(255 255 255 / 60%);
 	--map-overlay-text: var(--sys-text-default);
 	--map-overlay-muted: var(--sys-text-muted);
 	--map-overlay-shadow: var(--shadow-xs);
+	--map-overlay-shadow-strong: var(--shadow-sm);
 	--map-canvas-bg: var(--sys-bg-muted);
 	--map-marker-border: var(--neutral-0);
 	--map-marker: var(--campus-action);
@@ -141,8 +143,10 @@
 	--map-overlay-surface-soft: rgb(21 21 23 / 72%);
 	--map-overlay-surface-hover: rgb(36 36 38 / 94%);
 	--map-overlay-border: rgb(183 183 189 / 32%);
+	--map-overlay-border-strong: rgb(183 183 189 / 52%);
 	--map-overlay-divider: rgb(183 183 189 / 24%);
 	--map-overlay-shadow: var(--shadow-sm);
+	--map-overlay-shadow-strong: var(--shadow-lg);
 	--map-style-background: var(--sys-bg-muted);
 	--map-style-building-fill: var(--sys-surface-default);
 	--map-style-building-outline: var(--sys-border-default);
@@ -212,8 +216,10 @@
 		--map-overlay-surface-soft: rgb(21 21 23 / 72%);
 		--map-overlay-surface-hover: rgb(36 36 38 / 94%);
 		--map-overlay-border: rgb(183 183 189 / 32%);
+		--map-overlay-border-strong: rgb(183 183 189 / 52%);
 		--map-overlay-divider: rgb(183 183 189 / 24%);
 		--map-overlay-shadow: var(--shadow-sm);
+		--map-overlay-shadow-strong: var(--shadow-lg);
 		--map-style-background: var(--sys-bg-muted);
 		--map-style-building-fill: var(--sys-surface-default);
 		--map-style-building-outline: var(--sys-border-default);

@@ -64,6 +64,70 @@ export interface CampusMapProfile {
 	sourceId: string;
 }
 
+export const CAMPUS_MAP_SCALE_BAR_METERS = 200;
+/**
+ * MapLibre's ScaleControl measures the ground distance across a fixed pixel
+ * width at the map centre and rounds it to a "nice" number (1/2/3/5 × 10ⁿ).
+ * Anchoring on a value inside the 200 m rounding window makes the bar read
+ * exactly "200 m", instead of the viewport-dependent result that fitting bounds
+ * to the viewport produces.
+ */
+const CAMPUS_MAP_SCALE_BAR_WIDTH_PX = 100;
+const CAMPUS_MAP_SCALE_BAR_ANCHOR_METERS = 250;
+/**
+ * MapLibre GL JS renders 512 px tiles, so zoom 0 is 40075016.686 / 512 metres
+ * per pixel. Using the 256 px figure yields a camera one zoom level too close.
+ */
+const EARTH_METERS_PER_PIXEL_AT_ZOOM_0 = 78271.51696402048;
+const METERS_PER_DEGREE_LATITUDE = 110574;
+const METERS_PER_DEGREE_LONGITUDE = 111320;
+
+export function getCampusMapScaleZoom(latitude: number): number {
+	const metersPerPixel = CAMPUS_MAP_SCALE_BAR_ANCHOR_METERS / CAMPUS_MAP_SCALE_BAR_WIDTH_PX;
+	const latitudeScale = Math.cos((latitude * Math.PI) / 180);
+	return Math.log2((EARTH_METERS_PER_PIXEL_AT_ZOOM_0 * latitudeScale) / metersPerPixel);
+}
+
+export function getCampusMapMetersPerPixel(
+	profile: CampusMapProfile,
+	zoom = profile.initialZoom,
+): number {
+	return (
+		(EARTH_METERS_PER_PIXEL_AT_ZOOM_0 * Math.cos((profile.center[1] * Math.PI) / 180)) / 2 ** zoom
+	);
+}
+
+/**
+ * Pan limits for a given viewport. MapLibre raises the zoom whenever the
+ * viewport does not fit inside `maxBounds`, which otherwise makes the scale
+ * depend on the screen. Bounds cover the full viewport at minZoom, keeping the
+ * initial 200 m camera stable while allowing zoom-out to the configured limit.
+ */
+export function getCampusMapPanBounds(
+	profile: CampusMapProfile,
+	viewport: { height: number; width: number },
+): [[number, number], [number, number]] {
+	// profile.maxBounds is already padded beyond the campus outline, so it is a
+	// safe floor even before the container has been measured.
+	const [[minLng, minLat], [maxLng, maxLat]] = profile.maxBounds;
+	const centerLng = (minLng + maxLng) / 2;
+	const centerLat = (minLat + maxLat) / 2;
+	const metersPerPixel = getCampusMapMetersPerPixel(profile, profile.minZoom);
+	const latitudeScale = Math.max(Math.cos((centerLat * Math.PI) / 180), 0.01);
+	const halfLng = Math.max(
+		(maxLng - minLng) / 2,
+		((viewport.width / 2) * metersPerPixel * 1.02) / (METERS_PER_DEGREE_LONGITUDE * latitudeScale),
+	);
+	const halfLat = Math.max(
+		(maxLat - minLat) / 2,
+		((viewport.height / 2) * metersPerPixel * 1.02) / METERS_PER_DEGREE_LATITUDE,
+	);
+	return [
+		[centerLng - halfLng, centerLat - halfLat],
+		[centerLng + halfLng, centerLat + halfLat],
+	];
+}
+
 export interface CampusMapStyleColors {
 	background: string;
 	boundary: string;
@@ -87,7 +151,7 @@ export function createCampusMapProfilesFromManifest(
 			attribution: manifest.attribution.join(" · "),
 			bounds: campus.bounds,
 			campus: campus.name,
-			initialZoom: campusId === "fengtai" ? 16 : 15.8,
+			initialZoom: getCampusMapScaleZoom((campus.bounds[1] + campus.bounds[3]) / 2),
 			maxZoom: 20.2,
 			minZoom: 12.8,
 			sourceId: `${campusId}-campus`,
@@ -408,6 +472,11 @@ function createSingleFeatureFilter(featureRef: CampusMapFeatureRef): ExpressionS
 	];
 }
 
+/**
+ * The runtime expands these bounds for the measured viewport before creating a
+ * MapLibre map. Keeping the profile bounds themselves stable preserves the
+ * published campus contract and gives non-browser consumers a safe fallback.
+ */
 function createCampusMapProfile(input: {
 	assetUrl: string;
 	attribution: string;

@@ -4,6 +4,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MapPage } from "../src/app/routes/map-page";
+import { getCampusMapScaleZoom } from "../src/features/map/campus-map-style";
 import {
 	expandMapResults,
 	installMapStyleTokens,
@@ -12,15 +13,22 @@ import {
 
 const stylesSource = readFileSync("src/campus-styles.css", "utf8");
 const FENGTAI_CAMPUS_CENTER = [120.05, 30.05] as const;
+// 丰台校区 keeps the published bounds unpadded (see createCampusMapProfile).
 const FENGTAI_CAMPUS_MAX_BOUNDS = [
-	[119.964, 29.964],
-	[120.136, 30.136000000000003],
+	[120, 30],
+	[120.1, 30.1],
 ] as const;
+// Derived from the same formula the app uses, so the fixture latitude (30.05)
+// cannot drift from the expectation.
+const FENGTAI_CAMPUS_SCALE_ZOOM = getCampusMapScaleZoom(30.05);
 
 const maplibreRuntimeMock = vi.hoisted(() => ({
 	canvas: null as HTMLElement | null,
+	easeTo: vi.fn(),
 	fitBounds: vi.fn(),
 	flyTo: vi.fn(),
+	getZoom: vi.fn().mockReturnValue(16),
+	zoomTo: vi.fn(),
 	deferInitialLoad: false,
 	loadMapLibre: vi.fn(),
 	mapLoadListeners: [] as Array<() => void>,
@@ -97,6 +105,17 @@ vi.mock("../src/features/map/maplibre-runtime", () => ({
 			}
 			flyTo(input: unknown) {
 				maplibreRuntimeMock.flyTo(input);
+				return this;
+			}
+			easeTo(input: unknown) {
+				maplibreRuntimeMock.easeTo(input);
+				return this;
+			}
+			getZoom() {
+				return maplibreRuntimeMock.getZoom();
+			}
+			zoomTo(zoom: number, options?: unknown) {
+				maplibreRuntimeMock.zoomTo(zoom, options);
 				return this;
 			}
 			fitBounds(input: unknown, options?: unknown) {
@@ -204,8 +223,11 @@ describe("campus map page", () => {
 	beforeEach(() => {
 		window.history.pushState({}, "", "/map");
 		mockMapWorkspaceWidth(true, vi.fn);
+		maplibreRuntimeMock.easeTo.mockReset();
 		maplibreRuntimeMock.fitBounds.mockReset();
 		maplibreRuntimeMock.flyTo.mockReset();
+		maplibreRuntimeMock.getZoom.mockReset().mockReturnValue(16);
+		maplibreRuntimeMock.zoomTo.mockReset();
 		maplibreRuntimeMock.deferInitialLoad = false;
 		maplibreRuntimeMock.resize.mockReset();
 		maplibreRuntimeMock.mapClickListeners.length = 0;
@@ -290,7 +312,12 @@ describe("campus map page", () => {
 		expect(screen.getByRole("region", { name: "地图画布" })).not.toHaveClass("absolute", "inset-0");
 		const resultPanel = screen.getByRole("complementary", { name: "地点搜索与结果" });
 		expect(resultPanel).toBeInTheDocument();
-		expect(resultPanel).toHaveClass("bg-[var(--map-overlay-surface)]", "backdrop-blur-md");
+		expect(resultPanel).toHaveClass(
+			"border-2",
+			"border-[var(--map-overlay-border-strong)]",
+			"bg-[var(--map-overlay-surface-strong)]",
+			"backdrop-blur-md",
+		);
 		expect(resultPanel.className).toContain("w-[min(360px,calc(100vw-1.5rem))]");
 		expect(resultPanel.className).toContain("max-h-[min(58dvh,430px)]");
 		expect(resultPanel.className).not.toContain("w-[min(420px");
@@ -344,10 +371,9 @@ describe("campus map page", () => {
 		expect(search).not.toHaveAttribute("aria-controls");
 		const resultPanel = screen.getByRole("complementary", { name: "地点搜索与结果" });
 		expect(resultPanel.className).toContain("max-h-[min(34dvh,220px)]");
-		expect(screen.getByRole("button", { name: "展开地点结果" })).toHaveAttribute(
-			"aria-expanded",
-			"false",
-		);
+		const expandResultsButton = screen.getByRole("button", { name: "展开地点结果" });
+		expect(expandResultsButton).toHaveAttribute("aria-expanded", "false");
+		expect(expandResultsButton).toHaveClass("bg-selected", "font-semibold", "min-h-10");
 		expect(screen.queryByRole("heading", { name: "地点" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "选择示例二食堂" })).toBeNull();
 
@@ -390,21 +416,38 @@ describe("campus map page", () => {
 		expect(screen.getByRole("radio", { name: "丰台校区" })).toBeInTheDocument();
 	});
 
+	it("provides explicit controls for zooming the campus map", async () => {
+		const user = userEvent.setup();
+		window.history.pushState({}, "", "/map?campus=fengtai");
+		render(<MapPage />);
+
+		const zoomIn = await screen.findByRole("button", { name: "放大地图" });
+		const zoomOut = screen.getByRole("button", { name: "缩小地图" });
+		expect(zoomIn).toHaveClass("min-h-11", "min-w-11");
+		expect(zoomOut).toHaveClass("min-h-11", "min-w-11");
+
+		await user.click(zoomIn);
+		expect(maplibreRuntimeMock.zoomTo).toHaveBeenCalledWith(17, { duration: 220 });
+		await user.click(zoomOut);
+		expect(maplibreRuntimeMock.zoomTo).toHaveBeenCalledWith(15, { duration: 220 });
+	});
+
 	it("lets the user return to the current campus view from map controls", async () => {
 		const user = userEvent.setup();
 		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
 		expect(await screen.findByRole("button", { name: "回到当前校区" })).toBeInTheDocument();
-		maplibreRuntimeMock.fitBounds.mockClear();
+		maplibreRuntimeMock.easeTo.mockClear();
 
 		await user.click(screen.getByRole("button", { name: "回到当前校区" }));
 
-		expect(maplibreRuntimeMock.fitBounds).toHaveBeenCalledWith(
-			FENGTAI_CAMPUS_MAX_BOUNDS,
+		// The overview camera is fixed rather than fitted, so the scale bar reads
+		// the same distance on a phone and on a desktop.
+		expect(maplibreRuntimeMock.easeTo).toHaveBeenCalledWith(
 			expect.objectContaining({
-				maxZoom: 16.8,
-				padding: { bottom: 80, left: 360, right: 96, top: 96 },
+				center: FENGTAI_CAMPUS_CENTER,
+				zoom: FENGTAI_CAMPUS_SCALE_ZOOM,
 			}),
 		);
 	});
@@ -457,7 +500,7 @@ describe("campus map page", () => {
 				maxBounds: FENGTAI_CAMPUS_MAX_BOUNDS,
 				maxZoom: 20.2,
 				minZoom: 12.8,
-				zoom: 15.8,
+				zoom: FENGTAI_CAMPUS_SCALE_ZOOM,
 			}),
 		);
 		expect(maplibreRuntimeMock.navigationControlCount).toBe(1);
@@ -766,16 +809,30 @@ describe("campus map page", () => {
 		expect(screen.queryByRole("button", { name: "选择示例图书馆" })).toBeNull();
 		expect(screen.getByRole("button", { name: "选择示例东门" })).toBeInTheDocument();
 		await waitFor(() => {
+			// Switching campus restores the fixed overview camera, so the scale
+			// bar is identical on every device instead of viewport-dependent.
+			expect(maplibreRuntimeMock.easeTo).toHaveBeenCalledWith(
+				expect.objectContaining({
+					center: FENGTAI_CAMPUS_CENTER,
+					zoom: FENGTAI_CAMPUS_SCALE_ZOOM,
+				}),
+			);
+		});
+
+		await user.click(screen.getByRole("radio", { name: "食堂" }));
+
+		await waitFor(() => {
 			expect(maplibreRuntimeMock.fitBounds).toHaveBeenCalledWith(
-				FENGTAI_CAMPUS_MAX_BOUNDS,
+				[
+					[expect.any(Number), expect.any(Number)],
+					[expect.any(Number), expect.any(Number)],
+				],
 				expect.objectContaining({
 					maxZoom: 16.8,
 					padding: { bottom: 80, left: 360, right: 96, top: 96 },
 				}),
 			);
 		});
-
-		await user.click(screen.getByRole("radio", { name: "食堂" }));
 
 		expect(screen.getByRole("button", { name: "选择示例二食堂" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "选择示例一食堂" })).toBeInTheDocument();

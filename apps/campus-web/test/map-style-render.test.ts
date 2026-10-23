@@ -1,14 +1,43 @@
 import { describe, expect, it } from "vitest";
 import {
+	CAMPUS_MAP_SCALE_BAR_METERS,
 	createCampusMapFeatureFilter,
 	createCampusMapProfilesFromManifest,
 	createCampusMapStyle,
 	getCampusMapProfile,
+	getCampusMapScaleZoom,
 	selectGatehouseFeatureRefs,
 } from "../src/features/map/campus-map-style";
 import { INTERACTIVE_CAMPUS_MAP_LAYER_IDS } from "../src/features/map/feature-selection";
 
+const EARTH_METERS_PER_PIXEL_AT_ZOOM_0 = 78271.51696402048;
+
+/**
+ * Mirrors MapLibre's ScaleControl: it measures the ground distance across 100
+ * CSS px at the map centre, then rounds it to a "nice" number. A reading of
+ * 200 m therefore requires the raw distance to land in [200, 300).
+ */
+function readScaleBarMeters(zoom: number, latitude: number): number {
+	const metersPerPixel =
+		(EARTH_METERS_PER_PIXEL_AT_ZOOM_0 * Math.cos((latitude * Math.PI) / 180)) / 2 ** zoom;
+	const rawMeters = metersPerPixel * 100;
+	const pow10 = 10 ** (`${Math.floor(rawMeters)}`.length - 1);
+	const leading = rawMeters / pow10;
+	const rounded = leading >= 10 ? 10 : leading >= 5 ? 5 : leading >= 3 ? 3 : leading >= 2 ? 2 : 1;
+	return pow10 * rounded;
+}
+
 describe("campus map style", () => {
+	it("pins the initial camera so the scale bar reads 200 m on every device", () => {
+		expect(CAMPUS_MAP_SCALE_BAR_METERS).toBe(200);
+		// Both published campuses must resolve to a 200 m bar despite sitting at
+		// different latitudes, and a viewport-dependent camera must not be used.
+		for (const latitude of [39.8099875173832, 39.95005385]) {
+			expect(readScaleBarMeters(getCampusMapScaleZoom(latitude), latitude)).toBe(200);
+		}
+		expect(readScaleBarMeters(getCampusMapScaleZoom(30.05), 30.05)).toBe(200);
+	});
+
 	it("creates empty, single, and combined feature filters", () => {
 		expect(createCampusMapFeatureFilter([])).toEqual(["==", ["get", "fid"], -1]);
 		expect(

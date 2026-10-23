@@ -1,5 +1,5 @@
 import { Button, cn, Input } from "@campus-agent/ui";
-import { List, Search, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { LayoutGroup, motion } from "motion/react";
 import { useState } from "react";
 import { contentSwap, panelPresence } from "@/components/ui/motion";
@@ -60,7 +60,7 @@ export function MapSearchPanel({
 		<motion.aside
 			aria-label="地点搜索与结果"
 			className={cn(
-				"pointer-events-auto absolute z-[var(--layer-domain)] rounded-2xl border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface)] shadow-[var(--map-overlay-shadow)] backdrop-blur-md",
+				"pointer-events-auto absolute z-[var(--layer-domain)] rounded-2xl border-2 border-[var(--map-overlay-border-strong)] bg-[var(--map-overlay-surface-strong)] shadow-[var(--map-overlay-shadow-strong)] backdrop-blur-md",
 				isDesktop
 					? "left-3 top-3 flex w-[min(360px,calc(100vw-1.5rem))] flex-col"
 					: "inset-x-3 top-3 flex flex-col overflow-hidden",
@@ -114,7 +114,7 @@ export function MapSearchPanel({
 										}
 										aria-label="搜索地点"
 										className={cn(
-											"rounded-full border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface-soft)] pl-9 shadow-[var(--map-overlay-shadow)]",
+											"rounded-full border-2 border-[var(--map-overlay-border-strong)] bg-[var(--map-overlay-surface-strong)] pl-9 font-medium shadow-[var(--map-overlay-shadow)]",
 											hasQuery ? "pr-10" : "pr-3",
 											isDesktop ? "min-h-10" : "min-h-11",
 										)}
@@ -186,15 +186,22 @@ export function MapSearchPanel({
 									aria-expanded={listExpanded}
 									aria-label={listExpanded ? "收起地点结果" : "展开地点结果"}
 									className={cn(
-										"rounded-full bg-[var(--map-overlay-surface-soft)] text-[var(--map-overlay-muted)] hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)]",
+										"shrink-0 gap-1 rounded-full border border-[var(--map-overlay-border)] font-semibold shadow-[var(--map-overlay-shadow)]",
+										listExpanded
+											? "bg-[var(--map-overlay-surface-soft)] text-[var(--map-overlay-muted)] hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)]"
+											: "bg-selected text-selected-foreground hover:bg-[var(--campus-selected-hover)]",
 										isDesktop ? "min-h-10 text-xs" : "min-h-11 text-sm",
 									)}
 									onClick={() => onListExpandedChange(!listExpanded)}
 									title={listExpanded ? "收起地点结果" : "展开地点结果"}
 									variant="ghost"
 								>
-									<List aria-hidden="true" className="size-4" />
-									<span className="hidden sm:inline">{listExpanded ? "收起" : "地点"}</span>
+									{listExpanded ? (
+										<ChevronUp aria-hidden="true" className="size-4" />
+									) : (
+										<ChevronDown aria-hidden="true" className="size-4" />
+									)}
+									<span>{listExpanded ? "收起" : "地点"}</span>
 								</Button>
 							)}
 						</div>

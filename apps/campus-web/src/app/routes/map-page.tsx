@@ -137,9 +137,12 @@ export function MapPage() {
 					onQueryChange={searchPlaces}
 					onResetViewport={mapController.resetCampusViewport}
 					onRetryMap={retryMap}
+					onZoomIn={() => mapController.zoomBy(1)}
+					onZoomOut={() => mapController.zoomBy(-1)}
 					query={query}
 					selectedPlace={selected}
 					viewportControlsAvailable={mapController.mapLoaded}
+					zoomControlsAvailable={mapController.mapLoaded}
 				/>
 			) : (
 				<MapStateShell>
