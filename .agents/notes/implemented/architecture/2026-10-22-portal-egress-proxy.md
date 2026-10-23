@@ -25,6 +25,9 @@ Status: implemented
   `pplines-online.bj.bcebos.com` 的 443 开一条经 eno1、用家宽 DNS 的路由，不放行 `bcebos.com` 后缀。
   OCR 不改代码，GitOps 注入 `HTTPS_PROXY` 与 `NODE_USE_ENV_PROXY=1`，Node 24 的 `fetch` 据此走代理，
   集群内的 HTTP 依赖不受影响。
+- 集群到 sq-nixos 方向（欧洲进国内）跨境丢包约 3–6%，RTT 约 240ms，cubic 单连接只有约 30 KB/s；门户回传方向
+  没有这个问题，最初选型只测了回传。连接器 socat 只给隧道 socket 设置 BBR，单连接实测 300–800 KB/s，
+  节点开机加载并放行 `tcp_bbr`，系统默认仍为 cubic，不改其他工作负载。
 - 一次性 auth key 只在节点没有状态时注入。tailscaled 在节点进入 Running 前，每次启动都会重发配置里的 key，
   已用过的 key 会被控制面拒绝。
 
