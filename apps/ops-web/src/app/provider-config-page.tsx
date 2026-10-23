@@ -2,6 +2,7 @@ import { Card, CardContent, StateMessage } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import type { ModelSettingKind } from "../shared/ops-contract";
+import { NoticeClassificationForm } from "./notice-classification-form";
 import { OcrConfigForm } from "./ocr-config-form";
 import { fetchExecutionModelSettings } from "./ops-api/model-settings";
 import { ErrorState, PageHeader, StaleDataWarning } from "./ops-display";
@@ -44,7 +45,6 @@ function ExecutionModelSettings() {
 		embedding: false,
 		llm: false,
 		reranker: false,
-		notice_classifier: false,
 	});
 	const status = useQuery({
 		queryFn: ({ signal }) => fetchExecutionModelSettings({ signal }),
@@ -53,8 +53,7 @@ function ExecutionModelSettings() {
 	const onDirtyChange = useCallback((kind: ModelSettingKind, dirty: boolean) => {
 		setDirtyKinds((current) => (current[kind] === dirty ? current : { ...current, [kind]: dirty }));
 	}, []);
-	const dirty =
-		dirtyKinds.llm || dirtyKinds.embedding || dirtyKinds.reranker || dirtyKinds.notice_classifier;
+	const dirty = dirtyKinds.llm || dirtyKinds.embedding || dirtyKinds.reranker;
 
 	if (status.isPending) {
 		return <LoadingSettings />;
@@ -104,12 +103,7 @@ function ExecutionModelSettings() {
 				</section>
 				<section id="model-classification" className="min-w-0 scroll-mt-24 space-y-3">
 					<h2 className="ui-section-title">通知分类连接</h2>
-					<ExecutionModelSettingForm
-						embeddingContract={status.data.embeddingContract}
-						kind="notice_classifier"
-						onDirtyChange={onDirtyChange}
-						setting={status.data.settings.notice_classifier}
-					/>
+					<NoticeClassificationForm settings={status.data.noticeClassification} />
 				</section>
 			</div>
 		</>

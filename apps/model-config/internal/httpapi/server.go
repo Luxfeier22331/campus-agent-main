@@ -23,6 +23,7 @@ type store interface {
 	Status(context.Context) (modelconfig.Status, error)
 	Put(context.Context, string, modelconfig.ConfigInput, modelconfig.Validation) (modelconfig.ConfigView, error)
 	RecordValidation(context.Context, modelconfig.ConfigName, string, modelconfig.Validation) (modelconfig.ConfigView, error)
+	Select(context.Context, string, modelconfig.ConfigName, modelconfig.ConfigName) (modelconfig.Selection, error)
 }
 
 func New(store store) *Server {
@@ -60,6 +61,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/internal/admin/model-configs" && r.Method == http.MethodGet {
 		s.serveStatus(w, r)
+		return
+	}
+	if alias, ok := routeName(r.URL.Path, "/internal/admin/config-selections/", ""); ok && r.Method == http.MethodPut {
+		s.serveSelect(w, r, alias)
+		return
+	}
+	// Read aliases resolve to the selected credential; admin writes address
+	// the stored credential names instead.
+	if name, ok := adminConfigName(r.URL.Path); ok && modelconfig.IsAlias(name) {
+		writeError(w, http.StatusNotFound, "not_found", "Route not found.")
 		return
 	}
 	if name, ok := routeName(r.URL.Path, "/internal/admin/model-configs/", ""); ok && r.Method == http.MethodPut {
@@ -212,6 +223,30 @@ func (s *Server) servePut(w http.ResponseWriter, r *http.Request, name modelconf
 	writeJSON(w, http.StatusOK, view)
 }
 
+func (s *Server) serveSelect(w http.ResponseWriter, r *http.Request, alias modelconfig.ConfigName) {
+	if r.URL.RawQuery != "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "This endpoint does not accept query parameters.")
+		return
+	}
+	if !modelconfig.IsAlias(alias) {
+		writeError(w, http.StatusNotFound, "not_found", "Route not found.")
+		return
+	}
+	var input struct {
+		ConfigName modelconfig.ConfigName `json:"config_name"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	selection, err := s.store.Select(r.Context(), validationActor(r), alias, input.ConfigName)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	noStore(w)
+	writeJSON(w, http.StatusOK, selection)
+}
+
 func (s *Server) serveValidate(w http.ResponseWriter, r *http.Request, name modelconfig.ConfigName) {
 	if name == modelconfig.ConfigDocumentOCR {
 		writeError(w, http.StatusUnprocessableEntity, "async_validation_required", "Start OCR validation through Ops OCR tasks.")
@@ -287,6 +322,16 @@ func (s *Server) serveModels(w http.ResponseWriter, r *http.Request, name modelc
 	writeJSON(w, http.StatusOK, map[string]any{"models": models, "sampled_at": time.Now().UTC()})
 }
 
+// adminConfigName returns the config name segment of any admin config route.
+func adminConfigName(path string) (modelconfig.ConfigName, bool) {
+	value, ok := strings.CutPrefix(path, "/internal/admin/model-configs/")
+	if !ok {
+		return "", false
+	}
+	name, _, _ := strings.Cut(value, "/")
+	return modelconfig.ConfigName(name), name != ""
+}
+
 func routeName(path, prefix, suffix string) (modelconfig.ConfigName, bool) {
 	if !strings.HasPrefix(path, prefix) || (suffix != "" && !strings.HasSuffix(path, suffix)) {
 		return "", false
@@ -351,6 +396,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "model_config_not_found", "Model config was not found.")
 	case errors.Is(err, modelconfig.ErrTargetMismatch):
 		writeError(w, http.StatusConflict, "model_target_mismatch", "Model target no longer matches the expected hash.")
+	case errors.Is(err, modelconfig.ErrSelectionNotReady):
+		writeError(w, http.StatusUnprocessableEntity, "selection_not_ready", "Selected config must belong to the alias and be saved and validated before selection.")
 	case errors.Is(err, modelconfig.ErrInitialAPIKeyRequired):
 		writeError(w, http.StatusUnprocessableEntity, "api_key_required", "API key is required for the initial model config.")
 	default:

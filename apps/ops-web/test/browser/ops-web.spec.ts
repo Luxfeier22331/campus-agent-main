@@ -1347,18 +1347,8 @@ async function mockExecutionModelSettings(page: Page) {
 				updatedAt: "2026-07-16T00:00:00.000Z",
 				updatedBy: "ops@example.test",
 			},
-			notice_classifier: {
-				baseUrl: "https://classifier.example/v1",
-				credentialConfigured: true,
-				kind: "notice_classifier",
-				latestValidation: null,
-				model: "deepseek-v4-flash-0731",
-				provider: "openai-compatible",
-				transport: "chat_completions",
-				updatedAt: "2026-07-16T00:00:00.000Z",
-				updatedBy: "ops@example.test",
-			},
 		},
+		noticeClassification: { backend: null, credentials: { decision: null, llm: null } },
 	};
 	await page.route("**/api/ops/model-configs**", async (route) => {
 		const request = route.request();

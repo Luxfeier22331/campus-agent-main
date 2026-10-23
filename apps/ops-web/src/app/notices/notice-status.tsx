@@ -38,6 +38,7 @@ const NOTICE_OPERATION_LABELS: Record<NoticeJobOperation, string> = {
 	"notice-backfill": "历史回填",
 	"notice-classify-missing": "分类缺失通知",
 	"notice-classify-one": "单条模型分类",
+	"notice-reclassify-all": "全量重判内部通知",
 	"notice-publish-one": "单条发布",
 	"notice-publish-pending": "发布待发布通知",
 	"notice-republish-one": "单条重新发布",
@@ -78,7 +79,11 @@ export function noticeJobFamily(operation: NoticeJobOperation): NoticeJobFamily 
 	) {
 		return "collection";
 	}
-	if (operation === "notice-classify-missing" || operation === "notice-classify-one") {
+	if (
+		operation === "notice-classify-missing" ||
+		operation === "notice-classify-one" ||
+		operation === "notice-reclassify-all"
+	) {
 		return "classification";
 	}
 	return "publication";
@@ -98,6 +103,7 @@ export function isBatchNoticeJob(job: Pick<NoticeJob, "operation">): boolean {
 		job.operation === "notice-rescan" ||
 		job.operation === "notice-backfill" ||
 		job.operation === "notice-classify-missing" ||
+		job.operation === "notice-reclassify-all" ||
 		job.operation === "notice-publish-pending"
 	);
 }

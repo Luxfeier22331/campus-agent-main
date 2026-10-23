@@ -22,7 +22,7 @@ status: active
 | Primary Agent | Model Config 的 `primary_agent` config | agent-control、agent-runtime | 准入冻结 target hash；Agent Runtime 按该 hash 读取完整配置 |
 | Embedding 连接 | Model Config 的 `campus_docs_embedding` config | Campus Docs 与 Notice Embedding Job | Job 一次读取完整配置；Ops Web 只替换 Base URL 和 API key，provider、model 和 protocol 由共享 canonical embedding 合同拥有 |
 | Reranker 连接 | Model Config 的 `campus_docs_reranker` config | Campus Search service 的 `campus_search` | Cohere Rerank provider/protocol 由该具名配置约束；离线实验继续使用独立本地 profile |
-| 通知分类连接 | Model Config 的 `notice_classification` config | notice-classifier 在线 Job | Job 启动阶段一次读取完整配置；API key 不返回浏览器 |
+| 通知分类连接 | Model Config 的 `notice_classification_decision` 与 `notice_classification_llm` config，`notice_classification` 别名指向当前后端 | notice-classifier 在线 Job | Job 启动阶段一次读取别名解析出的完整配置；API key 不返回浏览器 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Inspect 评测命令 | 不复用在线配置数据库或浏览器凭据 |
 
@@ -37,10 +37,10 @@ agent-runtime 不直接读取 Embedding 连接、Qdrant 或 `campus_docs_serving
 具体模型、transport 和 endpoint 由当前模型设置、索引制品与可执行注册表维护，不在本文复制。
 
 通知分类 Job 在启动分类阶段后读取一次 `notice_classification` runtime config，直接调用其中的
-protocol。模型名、provider、Base URL 和 API key 由 Ops Web 通过 Model Config 的具名配置维护；
+protocol（决策模型为 System One 接口 `typesafe.systemone`，供应商 Nace Drex 或 TypeSafe Jev；LLM 为 OpenAI 兼容接口）。两家后端的模型名、provider、Base URL 和
+API key 各存一份，当前后端由 Ops Web 通过 Model Config 的别名选择切换；
 本地 `pnpm --dir jobs/notice-classifier classify:local` 通过端口转发读取同一份 Model Config，不保存模型连接。
-保留的 `pnpm --dir scripts notice:classify` JSONL/评测命令可以由调用进程显式提供连接，用于离线模型比较，不是在线
-Job 的配置来源。
+评测 `pnpm --dir jobs/notice-classifier classify:eval` 按存储名读取某一家的配置做离线比较，不改 Ops Web 的选择。
 
 ## 数据服务
 

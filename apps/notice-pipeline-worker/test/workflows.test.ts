@@ -58,6 +58,18 @@ it("republishes an explicit notice", async () => {
 	expect(stages.publishNoticesStage).toHaveBeenCalledWith([42], true);
 	expect(stages.collectNotices).not.toHaveBeenCalled();
 });
+it("relabels every internal notice in classify-all mode", async () => {
+	await noticePipelineRun({ mode: "classify-all" });
+	expect(stages.classifyNotices).toHaveBeenCalledWith("all");
+	expect(stages.collectNotices).not.toHaveBeenCalled();
+	expect(stages.publishNoticesStage).not.toHaveBeenCalled();
+});
+it("classifies explicit notices or the missing ones in classify-one mode", async () => {
+	await noticePipelineRun({ mode: "classify-one", noticeIds: [42] });
+	expect(stages.classifyNotices).toHaveBeenLastCalledWith({ noticeIds: [42] });
+	await noticePipelineRun({ mode: "classify-one" });
+	expect(stages.classifyNotices).toHaveBeenLastCalledWith("missing");
+});
 
 function backfillWindow(from: string, to: string, outcome = "success") {
 	return {

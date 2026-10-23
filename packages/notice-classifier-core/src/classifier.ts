@@ -1,8 +1,7 @@
-export { NOTICE_CATEGORIES, type NoticeCategory } from "campus-contracts/notices";
+import type { NoticeLabel } from "campus-contracts/notices";
+import type { NoticeModelInput } from "./model.ts";
 
-import type { NoticeCategory } from "campus-contracts/notices";
-
-export type NoticeModelClassifier = (noticeTitle: string) => Promise<NoticeCategory>;
+export type NoticeModelClassifier = (input: NoticeModelInput) => Promise<NoticeLabel>;
 
 export const NOTICE_CLASSIFICATION_RETRY_DELAYS_MS = [15_000, 30_000] as const;
 
@@ -40,13 +39,13 @@ export function isRetryableNoticeClassificationError(error: unknown): boolean {
 }
 
 export async function classifyNotice(
-	noticeTitle: string,
+	input: NoticeModelInput,
 	classifyWithModel: NoticeModelClassifier,
 	sleep: (delayMs: number) => Promise<void> = delay,
-): Promise<NoticeCategory> {
+): Promise<NoticeLabel> {
 	for (let attempt = 1; attempt <= 3; attempt += 1) {
 		try {
-			return await classifyWithModel(noticeTitle);
+			return await classifyWithModel(input);
 		} catch (error) {
 			if (isRetryableNoticeClassificationError(error) && attempt < 3) {
 				await sleep(NOTICE_CLASSIFICATION_RETRY_DELAYS_MS[attempt - 1] ?? 0);

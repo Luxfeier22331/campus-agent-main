@@ -3,9 +3,13 @@
 Model Config 是具名在线模型配置及其 Provider API Key 的唯一所有者，负责保存、验证和下发配置；
 它不代理模型请求，内部 consumer 读取配置后直接调用 Provider。
 
-当前配置名为 `primary_agent`、`campus_docs_embedding`、`campus_docs_reranker`、`notice_classification`
-和 `document_ocr`。`name` 表示产品配置槽位，`api_protocol` 决定验证与调用方式；服务不维护额外的
-模型类型或 consumer 类型字段。
+当前存储的配置名为 `primary_agent`、`campus_docs_embedding`、`campus_docs_reranker`、
+`notice_classification_decision`、`notice_classification_llm` 和 `document_ocr`。`name` 表示产品配置槽位，
+`api_protocol` 决定验证与调用方式；服务不维护额外的模型类型或 consumer 类型字段。
+
+`notice_classification` 是只读别名，不存行：`model_config.config_selections` 记录它当前选中的凭据，
+target 和 runtime 读取在同一条 SQL 里解析到所选行，响应中的 `name` 是被选中的存储名。没有选择时按
+未找到返回 404，不回退到另一家。
 
 `target_sha256` 只包含 `name`、`provider`、`api_protocol`、规范化 Base URL 和 model，不包含
 API Key，因此仅轮换 API Key 不会改变目标 hash。
@@ -21,7 +25,13 @@ API Key，因此仅轮换 API Key 不会改变目标 hash。
 - `PUT /internal/admin/model-configs/{name}`：验证后替换当前配置；
 - `POST /internal/admin/model-configs/{name}/validate`：使用当前配置重新验证并只更新验证结果；
 - `POST /internal/admin/model-configs/{name}/models`：发现 Provider 模型；
-- `POST /internal/admin/model-configs/document_ocr/validation-result`：回写异步 OCR 验证结果。
+- `POST /internal/admin/model-configs/document_ocr/validation-result`：回写异步 OCR 验证结果；
+- `PUT /internal/admin/config-selections/{alias}`：请求体 `{config_name}`，把别名指向一个验证通过的
+  存储配置，不调用 Provider、不改凭据；未保存、未通过验证或不属于该别名时返回 422
+  `selection_not_ready`。
+
+管理写接口只接受存储名；对别名 `notice_classification` 的 `PUT`、`validate` 和 `models` 返回 404。
+管理状态的 `selections` 按别名列出当前选择。
 
 ## 验证与保存
 
@@ -58,6 +68,18 @@ consumer 各自校验配置并失败
 `https://generativelanguage.googleapis.com/v1beta`），验证使用 `:generateContent`，模型发现使用分页
 `/models`，鉴权使用 `x-goog-api-key`。Gemini 只开放给主模型槽位，不扩展到 Embedding、Reranker 或
 通知分类；切换需通过管理接口验证后保存。
+
+通知分类两份凭据各自固定协议：`notice_classification_decision` 只接受 `nace`（Drex）或
+`typesafe`（Jev）的 `typesafe.systemone`，`notice_classification_llm` 只接受 `openai` /
+`openai-compatible` 的 `openai.responses` 或 `openai.chat_completions`。LLM 验证要求严格 JSON schema
+输出 15 个类别与 5 个 intent 内的 `{category,intent}`；System One 验证同时提问 `category` 和 `intent`
+两个 choice，答案都必须落在集合内。
+
+本地 seed 从 `NOTICE_CLASSIFICATION_DECISION_{BASE_URL,API_KEY,MODEL,PROVIDER}` 和
+`NOTICE_CLASSIFICATION_LLM_{BASE_URL,API_KEY,MODEL,API_PROTOCOL}` 写入完整的那几份凭据（决策模型 provider
+默认 `nace`、模型默认 `drex-max`，LLM 协议默认 `openai.chat_completions`），并在别名尚无选择时按
+`NOTICE_CLASSIFICATION_BACKEND`（`decision` 或 `llm`）写入选择；未设置时选已配置的一家，两家都有时选决策模型。
+本地 seed 不做 Provider 验证，因此写入选择时不要求验证通过；已有选择保持不变。
 
 管理视图、target 和 runtime 响应使用同一能力推导规则；`hosted_web_search` 表示当前 provider/协议
 允许的托管搜索接入，不表示供应商搜索已实测通过。

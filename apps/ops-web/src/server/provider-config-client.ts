@@ -7,6 +7,9 @@ import {
 	ModelDiscoveryResponseSchema,
 	type ModelSettingKindSchema,
 	type ModelSettingUpdate,
+	type NoticeClassificationBackend,
+	type NoticeClassificationCredentialUpdate,
+	NoticeClassificationDecisionUpdateSchema,
 	NoticeClassifierModelSettingUpdateSchema,
 	RerankerModelSettingUpdateSchema,
 } from "../shared/ops-contract.ts";
@@ -47,6 +50,7 @@ export function createProviderConfigAdminClient(
 			actorId?: string;
 			body?: unknown;
 			method: "GET" | "POST" | "PUT";
+			root?: string;
 		},
 	) {
 		if (!baseUrl) {
@@ -54,15 +58,18 @@ export function createProviderConfigAdminClient(
 		}
 		let response: Response;
 		try {
-			response = await fetchImplementation(`${baseUrl}/internal/admin/model-configs${path}`, {
-				...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-				headers: {
-					...(options.actorId ? { "x-model-config-actor": options.actorId } : {}),
-					...(options.body === undefined ? {} : { "content-type": "application/json" }),
+			response = await fetchImplementation(
+				`${baseUrl}${options.root ?? "/internal/admin/model-configs"}${path}`,
+				{
+					...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+					headers: {
+						...(options.actorId ? { "x-model-config-actor": options.actorId } : {}),
+						...(options.body === undefined ? {} : { "content-type": "application/json" }),
+					},
+					method: options.method,
+					signal: AbortSignal.timeout(PROVIDER_CONFIG_ADMIN_REQUEST_TIMEOUT_MS),
 				},
-				method: options.method,
-				signal: AbortSignal.timeout(PROVIDER_CONFIG_ADMIN_REQUEST_TIMEOUT_MS),
-			});
+			);
 		} catch (error) {
 			throw new ProviderConfigAdminUnavailableError(
 				error instanceof Error ? error.message : "Model settings admin API is unavailable.",
@@ -104,7 +111,7 @@ export function createProviderConfigAdminClient(
 		discoverModels(
 			body: z.input<typeof ModelDiscoveryRequestSchema>,
 			actorId: string,
-			kind: "llm" | "reranker" | "notice_classifier" = "llm",
+			kind: "llm" | "reranker" = "llm",
 		) {
 			return request(`/${configNameForKind(kind)}/models`, {
 				actorId,
@@ -121,9 +128,7 @@ export function createProviderConfigAdminClient(
 					? EmbeddingModelSettingUpdateSchema.parse(body)
 					: kind === "reranker"
 						? RerankerModelSettingUpdateSchema.parse(body)
-						: kind === "notice_classifier"
-							? NoticeClassifierModelSettingUpdateSchema.parse(body)
-							: LLMModelSettingUpdateSchema.parse(body);
+						: LLMModelSettingUpdateSchema.parse(body);
 			await request(`/${configNameForKind(kind)}`, {
 				actorId,
 				body: updateInput(kind, parsed),
@@ -138,6 +143,68 @@ export function createProviderConfigAdminClient(
 			});
 			return mapStatus(await request("", { method: "GET" }));
 		},
+		// Each notice classification backend keeps its own credential; the
+		// selection only chooses which one the classifier job reads.
+		async selectNoticeClassification(backend: NoticeClassificationBackend, actorId: string) {
+			await request("/notice_classification", {
+				actorId,
+				body: { config_name: NOTICE_CLASSIFICATION_CONFIG_NAMES[backend] },
+				method: "PUT",
+				root: "/internal/admin/config-selections",
+			});
+			return mapStatus(await request("", { method: "GET" }));
+		},
+		async putNoticeClassificationCredential(
+			backend: NoticeClassificationBackend,
+			body: NoticeClassificationCredentialUpdate,
+			actorId: string,
+		) {
+			await request(`/${NOTICE_CLASSIFICATION_CONFIG_NAMES[backend]}`, {
+				actorId,
+				body:
+					backend === "decision"
+						? decisionInput(NoticeClassificationDecisionUpdateSchema.parse(body))
+						: updateInput("llm", NoticeClassifierModelSettingUpdateSchema.parse(body)),
+				method: "PUT",
+			});
+			return mapStatus(await request("", { method: "GET" }));
+		},
+		async validateNoticeClassificationCredential(
+			backend: NoticeClassificationBackend,
+			actorId: string,
+		) {
+			await request(`/${NOTICE_CLASSIFICATION_CONFIG_NAMES[backend]}/validate`, {
+				actorId,
+				method: "POST",
+			});
+			return mapStatus(await request("", { method: "GET" }));
+		},
+		discoverNoticeClassificationModels(
+			backend: NoticeClassificationBackend,
+			body: z.input<typeof ModelDiscoveryRequestSchema>,
+			actorId: string,
+		) {
+			return request(`/${NOTICE_CLASSIFICATION_CONFIG_NAMES[backend]}/models`, {
+				actorId,
+				body: discoveryInput(ModelDiscoveryRequestSchema.parse(body)),
+				method: "POST",
+			}).then((response) => ModelDiscoveryResponseSchema.parse(discoveryResponse(response)));
+		},
+	};
+}
+
+const NOTICE_CLASSIFICATION_CONFIG_NAMES = {
+	decision: "notice_classification_decision",
+	llm: "notice_classification_llm",
+} as const satisfies Record<NoticeClassificationBackend, string>;
+
+function decisionInput(input: z.infer<typeof NoticeClassificationDecisionUpdateSchema>) {
+	return {
+		...(input.apiKey ? { api_key: input.apiKey } : {}),
+		api_protocol: "typesafe.systemone",
+		base_url: input.baseUrl,
+		provider: input.provider,
+		model: input.model,
 	};
 }
 
@@ -145,7 +212,6 @@ const CONFIG_NAME_BY_KIND = {
 	embedding: "campus_docs_embedding",
 	llm: "primary_agent",
 	reranker: "campus_docs_reranker",
-	notice_classifier: "notice_classification",
 } as const;
 
 function configNameForKind(kind: ModelSettingKind) {
@@ -209,8 +275,7 @@ function mapStatus(value: unknown) {
 		);
 	}
 	const configs = asRecord(raw.configs);
-	const setting = (kind: ModelSettingKind) => {
-		const config = configs[configNameForKind(kind)];
+	const view = (config: unknown) => {
 		if (config === undefined || config === null) {
 			return null;
 		}
@@ -220,7 +285,6 @@ function mapStatus(value: unknown) {
 		return {
 			baseUrl: b.base_url,
 			credentialConfigured: b.credential_configured,
-			kind,
 			latestValidation: unvalidated
 				? null
 				: {
@@ -248,11 +312,21 @@ function mapStatus(value: unknown) {
 								? "rerank"
 								: b.api_protocol === "openai.embeddings"
 									? "embeddings"
-									: undefined,
+									: b.api_protocol === "typesafe.systemone"
+										? "systemone"
+										: undefined,
 			updatedAt: b.updated_at,
 			updatedBy: b.updated_by,
 		};
 	};
+	const setting = (kind: ModelSettingKind) => {
+		const config = view(configs[configNameForKind(kind)]);
+		return config === null ? null : { ...config, kind };
+	};
+	const selected = asRecord(asRecord(raw.selections).notice_classification).config_name;
+	const backend = (
+		Object.keys(NOTICE_CLASSIFICATION_CONFIG_NAMES) as NoticeClassificationBackend[]
+	).find((candidate) => NOTICE_CLASSIFICATION_CONFIG_NAMES[candidate] === selected);
 	const result = ExecutionModelSettingsStatusSchema.safeParse({
 		embeddingContract: {
 			dimensions: 2560,
@@ -265,7 +339,13 @@ function mapStatus(value: unknown) {
 			embedding: setting("embedding"),
 			llm: setting("llm"),
 			reranker: setting("reranker"),
-			notice_classifier: setting("notice_classifier"),
+		},
+		noticeClassification: {
+			backend: selected === undefined ? null : (backend ?? selected),
+			credentials: {
+				decision: view(configs.notice_classification_decision),
+				llm: view(configs.notice_classification_llm),
+			},
 		},
 	});
 	if (!result.success) {

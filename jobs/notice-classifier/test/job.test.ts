@@ -4,14 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { NoticeClassificationInvalidOutputError, NoticeClassificationProviderError } from "../src/classifier.ts";
 import { NoticeClassificationJobError, runNoticeClassificationJob } from "../src/job.ts";
 
+const LABEL = { category: "news", intent: "result" } as const;
+
 describe("notice classification job", () => {
 	it("quarantines invalid output after retries while continuing good notices", async () => {
 		vi.useFakeTimers();
 		try {
 			const database = fakeDatabase([{ notice_id: "1", title: "bad" }, { notice_id: "2", title: "good" }]);
-			const classify = vi.fn(async (title: string) => {
-				if (title === "bad") throw new NoticeClassificationInvalidOutputError("invalid category");
-				return "campus_news" as const;
+			const classify = vi.fn(async ({ noticeTitle }: { noticeTitle: string }) => {
+				if (noticeTitle === "bad") throw new NoticeClassificationInvalidOutputError("invalid category");
+				return LABEL;
 			});
 			const run = runNoticeClassificationJob({ database, concurrency: 1, createModelClassifier: () => classify });
 			await vi.runAllTimersAsync();
@@ -31,23 +33,73 @@ describe("notice classification job", () => {
 		expect(database.query).toHaveBeenCalledTimes(1);
 	});
 
-	it("classifies only rows whose category is missing", async () => {
+	it("labels only internal notices whose label is missing", async () => {
 		const database = fakeDatabase([{ notice_id: "1", title: "临时关闭校园南门" }]);
+		const classify = vi.fn(async () => LABEL);
 		const result = await runNoticeClassificationJob({
-			createModelClassifier: () => async () => "campus_operations",
+			createModelClassifier: () => classify,
 			database,
 		});
 		expect(result).toEqual({ classified: 1, failed: 0, outcome: "success", requested: 1, skipped: 0 });
-		expect(database.query).toHaveBeenLastCalledWith(
-			expect.stringContaining("WHERE notice_id=$1 AND category IS NULL AND title=$3 RETURNING notice_id"),
-			[1, "campus_operations", "临时关闭校园南门"],
+		expect(database.query).toHaveBeenNthCalledWith(
+			1,
+			expect.stringContaining("WHERE NOT n.is_external AND n.label_category IS NULL"),
 		);
+		expect(classify).toHaveBeenCalledWith({
+			noticeId: 1,
+			noticeTitle: "临时关闭校园南门",
+			noticeType: 9978,
+			noticeTypeName: "测试栏目",
+		});
+		expect(database.query).toHaveBeenLastCalledWith(
+			expect.stringContaining("WHERE notice_id=$1 AND title=$4 AND label_category IS NULL RETURNING notice_id"),
+			[1, "news", "result", "临时关闭校园南门"],
+		);
+	});
+
+	it("writes rule-lane labels without calling the model", async () => {
+		const database = fakeDatabase([
+			{ notice_id: "1", title: "关于信息门户升级的通知", notice_type: 5, notice_type_name: "办公通知" },
+		]);
+		const createModelClassifier = vi.fn();
+		await runNoticeClassificationJob({ createModelClassifier, database });
+		expect(createModelClassifier).not.toHaveBeenCalled();
+		expect(database.query).toHaveBeenLastCalledWith(expect.any(String), [
+			1,
+			"service_info",
+			"notice",
+			"关于信息门户升级的通知",
+		]);
+	});
+
+	it("relabels every internal notice in the all scope", async () => {
+		const database = fakeDatabase([{ notice_id: "1", title: "测试通知" }]);
+		await runNoticeClassificationJob({
+			createModelClassifier: () => async () => LABEL,
+			database,
+			scope: "all",
+		});
+		expect(database.query).toHaveBeenNthCalledWith(1, expect.stringMatching(/WHERE NOT n\.is_external\s+ORDER BY/u));
+		expect(database.query).toHaveBeenLastCalledWith(
+			expect.stringContaining("WHERE notice_id=$1 AND title=$4 RETURNING notice_id"),
+			[1, "news", "result", "测试通知"],
+		);
+	});
+
+	it("rejects an explicitly requested external notice", async () => {
+		await expect(
+			runNoticeClassificationJob({
+				createModelClassifier: () => async () => LABEL,
+				database: fakeDatabase([{ notice_id: "3", title: "外部通知", is_external: true }]),
+				scope: { noticeIds: [3] },
+			}),
+		).rejects.toThrow("external notices are not classified: 3");
 	});
 
 	it("reports processing, writing, and finalizing progress", async () => {
 		const progress: unknown[] = [];
 		await runNoticeClassificationJob({
-			createModelClassifier: () => async () => "campus_operations",
+			createModelClassifier: () => async () => LABEL,
 			database: fakeDatabase([{ notice_id: "1", title: "临时关闭校园南门" }]),
 			onProgress: (value) => progress.push(value),
 		});
@@ -63,7 +115,7 @@ describe("notice classification job", () => {
 		const database = fakeDatabase([{ notice_id: "1", title: "测试通知" }], 0);
 		await expect(
 			runNoticeClassificationJob({
-				createModelClassifier: () => async () => "campus_news",
+				createModelClassifier: () => async () => LABEL,
 				database,
 			}),
 		).resolves.toEqual({ classified: 0, failed: 0, outcome: "success", requested: 1, skipped: 1 });
@@ -72,22 +124,22 @@ describe("notice classification job", () => {
 	it("explicitly reclassifies an existing notice", async () => {
 		const database = fakeDatabase([{ notice_id: "2", title: "测试通知" }]);
 		await runNoticeClassificationJob({
-			createModelClassifier: () => async () => "research_affairs",
+			createModelClassifier: () => async () => LABEL,
 			database,
-			noticeIds: [2],
+			scope: { noticeIds: [2] },
 		});
 		expect(database.query).toHaveBeenLastCalledWith(
-			expect.stringContaining("WHERE notice_id=$1 AND title=$3 RETURNING notice_id"),
-			[2, "research_affairs", "测试通知"],
+			expect.stringContaining("WHERE notice_id=$1 AND title=$4 RETURNING notice_id"),
+			[2, "news", "result", "测试通知"],
 		);
 	});
 
 	it("fails when an explicitly requested notice does not exist", async () => {
 		await expect(
 			runNoticeClassificationJob({
-				createModelClassifier: () => async () => "campus_news",
+				createModelClassifier: () => async () => LABEL,
 				database: fakeDatabase([]),
-				noticeIds: [9],
+				scope: { noticeIds: [9] },
 			}),
 		).rejects.toThrow("notice does not exist: 9");
 	});
@@ -102,17 +154,17 @@ describe("notice classification job", () => {
 		await expect(
 			runNoticeClassificationJob({
 				concurrency: 2,
-				createModelClassifier: () => async (title) => {
-					started.push(title);
+				createModelClassifier: () => async ({ noticeTitle }) => {
+					started.push(noticeTitle);
 					active += 1;
 					maximum = Math.max(maximum, active);
-					if (title === "通知 1") {
+					if (noticeTitle === "通知 1") {
 						active -= 1;
 						throw new Error("provider failure");
 					}
 					await new Promise((resolve) => setTimeout(resolve, 10));
 					active -= 1;
-					return "campus_operations";
+					return LABEL;
 				},
 				database,
 			}),
@@ -142,7 +194,7 @@ describe("notice classification job", () => {
 
 		const run = runNoticeClassificationJob({
 			concurrency: 8,
-			createModelClassifier: () => async (title) => {
+			createModelClassifier: () => async ({ noticeTitle: title }) => {
 				classifications.set(title, (classifications.get(title) ?? 0) + 1);
 				active += 1;
 				started += 1;
@@ -152,7 +204,7 @@ describe("notice classification job", () => {
 				}
 				await workerGate;
 				active -= 1;
-				return "campus_operations";
+				return LABEL;
 			},
 			database,
 		});
@@ -167,11 +219,26 @@ describe("notice classification job", () => {
 	});
 });
 
-function fakeDatabase(rows: Array<{ notice_id: string; title: string }>, updateCount = 1) {
+interface FakeNoticeRow {
+	notice_id: string;
+	title: string;
+	notice_type?: number;
+	notice_type_name?: string;
+	is_external?: boolean;
+}
+
+/** 默认栏目 9978 不在任何规则车道，标题都交给模型。 */
+function fakeDatabase(rows: FakeNoticeRow[], updateCount = 1) {
+	const selected = rows.map((row) => ({
+		is_external: false,
+		notice_type: 9978,
+		notice_type_name: "测试栏目",
+		...row,
+	}));
 	return {
 		query: vi.fn(async (text: string) =>
 			text.startsWith("SELECT")
-				? { rowCount: rows.length, rows }
+				? { rowCount: selected.length, rows: selected }
 				: { rowCount: updateCount, rows: [] },
 		),
 	} as unknown as Pick<Pool, "query">;

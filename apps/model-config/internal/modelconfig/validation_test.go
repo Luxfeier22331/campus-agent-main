@@ -52,6 +52,7 @@ func TestValidateNoticeClassificationUsesStructuredOutput(t *testing.T) {
 		name       string
 		protocol   string
 		path       string
+		provider   string
 		response   map[string]any
 		assertBody func(*testing.T, map[string]any)
 	}{
@@ -59,7 +60,7 @@ func TestValidateNoticeClassificationUsesStructuredOutput(t *testing.T) {
 			name:     "responses",
 			protocol: "openai.responses",
 			path:     "/v1/responses",
-			response: map[string]any{"output_text": `{"category":"campus_operations"}`},
+			response: map[string]any{"output_text": `{"category":"examination","intent":"event"}`},
 			assertBody: func(t *testing.T, body map[string]any) {
 				t.Helper()
 				if _, ok := body["max_output_tokens"]; ok {
@@ -77,7 +78,7 @@ func TestValidateNoticeClassificationUsesStructuredOutput(t *testing.T) {
 			name:     "chat completions",
 			protocol: "openai.chat_completions",
 			path:     "/v1/chat/completions",
-			response: map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": `{"category":"campus_operations"}`}}}},
+			response: map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": `{"category":"examination","intent":"event"}`}}}},
 			assertBody: func(t *testing.T, body map[string]any) {
 				t.Helper()
 				if _, ok := body["max_tokens"]; ok {
@@ -91,6 +92,32 @@ func TestValidateNoticeClassificationUsesStructuredOutput(t *testing.T) {
 				assertNoticeClassificationSchema(t, jsonSchema["schema"])
 			},
 		},
+		{
+			name:     "system one",
+			provider: "typesafe",
+			protocol: "typesafe.systemone",
+			path:     "/v1/systemone",
+			response: map[string]any{"answers": map[string]any{
+				"category": map[string]any{"choice": "examination", "confidence": 0.9, "type": "choice"},
+				"intent":   map[string]any{"choice": "event", "confidence": 0.9, "type": "choice"},
+			}},
+			assertBody: func(t *testing.T, body map[string]any) {
+				t.Helper()
+				for _, name := range []string{"category", "intent"} {
+					question := body["questions"].(map[string]any)[name].(map[string]any)
+					if question["type"] != "choice" {
+						t.Fatalf("system one %s question type = %#v", name, question)
+					}
+					criteria := question["criteria"].(map[string]any)
+					if len(criteria) < 2 {
+						t.Fatalf("system one %s criteria must offer at least two options: %#v", name, criteria)
+					}
+				}
+				if _, ok := body["state"]; !ok {
+					t.Fatalf("system one validation request must set state: %#v", body)
+				}
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -102,7 +129,10 @@ func TestValidateNoticeClassificationUsesStructuredOutput(t *testing.T) {
 				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 					t.Fatalf("decode validation request: %v", err)
 				}
-				if body["model"] != "classifier-model" || body["temperature"] != float64(0) {
+				if body["model"] != "classifier-model" {
+					t.Fatalf("validation request = %#v", body)
+				}
+				if test.protocol != "typesafe.systemone" && body["temperature"] != float64(0) {
 					t.Fatalf("validation request = %#v", body)
 				}
 				test.assertBody(t, body)
@@ -113,9 +143,13 @@ func TestValidateNoticeClassificationUsesStructuredOutput(t *testing.T) {
 			http.DefaultTransport = server.Client().Transport
 			defer func() { http.DefaultTransport = previous }()
 
+			provider, name := test.provider, ConfigNoticeClassificationDecision
+			if provider == "" {
+				provider, name = "openai-compatible", ConfigNoticeClassificationLLM
+			}
 			validation := Validate(context.Background(), Target{
-				Name:        ConfigNoticeClassification,
-				Provider:    "openai-compatible",
+				Name:        name,
+				Provider:    provider,
 				APIProtocol: test.protocol,
 				BaseURL:     server.URL + "/v1",
 				Model:       "classifier-model",
@@ -134,8 +168,10 @@ func TestValidateNoticeClassificationRejectsInvalidOutputWithRawDetails(t *testi
 		wantBody   string
 		wantReason string
 	}{
-		{name: "unknown category", output: `{"category":"not-a-category"}`, wantBody: "not-a-category", wantReason: "is not allowed"},
-		{name: "extra property", output: `{"category":"campus_operations","reason":"guess"}`, wantBody: "reason", wantReason: "unknown field"},
+		{name: "unknown category", output: `{"category":"not-a-category","intent":"event"}`, wantBody: "not-a-category", wantReason: "is not allowed"},
+		{name: "old category", output: `{"category":"campus_operations","intent":"event"}`, wantBody: "campus_operations", wantReason: "is not allowed"},
+		{name: "missing intent", output: `{"category":"examination"}`, wantBody: "examination", wantReason: "intent \"\" is not allowed"},
+		{name: "extra property", output: `{"category":"examination","intent":"event","reason":"guess"}`, wantBody: "reason", wantReason: "unknown field"},
 		{name: "invalid JSON", output: `{"category":`, wantBody: "output_text", wantReason: "decode notice classification output"},
 	}
 	for _, test := range tests {
@@ -149,7 +185,7 @@ func TestValidateNoticeClassificationRejectsInvalidOutputWithRawDetails(t *testi
 			defer func() { http.DefaultTransport = previous }()
 
 			validation := Validate(context.Background(), Target{
-				Name:        ConfigNoticeClassification,
+				Name:        ConfigNoticeClassificationLLM,
 				Provider:    "openai-compatible",
 				APIProtocol: "openai.responses",
 				BaseURL:     server.URL,
@@ -178,7 +214,7 @@ func TestValidatePreservesProviderRejection(t *testing.T) {
 	defer func() { http.DefaultTransport = previous }()
 
 	validation := Validate(context.Background(), Target{
-		Name:        ConfigNoticeClassification,
+		Name:        ConfigNoticeClassificationLLM,
 		Provider:    "openai-compatible",
 		APIProtocol: "openai.responses",
 		BaseURL:     server.URL,
@@ -204,7 +240,7 @@ func TestValidateDoesNotTruncateProviderRejection(t *testing.T) {
 	defer func() { http.DefaultTransport = previous }()
 
 	validation := Validate(context.Background(), Target{
-		Name:        ConfigNoticeClassification,
+		Name:        ConfigNoticeClassificationLLM,
 		Provider:    "openai-compatible",
 		APIProtocol: "openai.responses",
 		BaseURL:     server.URL,
@@ -218,11 +254,90 @@ func TestValidateDoesNotTruncateProviderRejection(t *testing.T) {
 	}
 }
 
+func TestValidateSystemOneRejectsInvalidAnswers(t *testing.T) {
+	tests := []struct {
+		name       string
+		response   map[string]any
+		wantReason string
+	}{
+		{name: "missing category answer", response: map[string]any{"answers": map[string]any{}}, wantReason: "missing the category answer"},
+		{name: "unknown category", response: map[string]any{"answers": map[string]any{"category": map[string]any{"choice": "not-a-category"}}}, wantReason: "is not allowed"},
+		{name: "no choice", response: map[string]any{"answers": map[string]any{"category": map[string]any{"type": "choice"}}}, wantReason: "is not allowed"},
+		{name: "missing intent answer", response: map[string]any{"answers": map[string]any{"category": map[string]any{"choice": "examination"}}}, wantReason: "missing the intent answer"},
+		{name: "unknown intent", response: map[string]any{"answers": map[string]any{"category": map[string]any{"choice": "examination"}, "intent": map[string]any{"choice": "upcoming"}}}, wantReason: "intent \"upcoming\" is not allowed"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_ = json.NewEncoder(w).Encode(test.response)
+			}))
+			defer server.Close()
+			previous := http.DefaultTransport
+			http.DefaultTransport = server.Client().Transport
+			defer func() { http.DefaultTransport = previous }()
+
+			validation := Validate(context.Background(), Target{
+				Name:        ConfigNoticeClassificationDecision,
+				Provider:    "typesafe",
+				APIProtocol: "typesafe.systemone",
+				BaseURL:     server.URL,
+				Model:       "jev-latest",
+			}, "secret")
+			if validation.Status != "failed" || validation.ErrorCode != "invalid_provider_response" {
+				t.Fatalf("Validate() = %#v", validation)
+			}
+			if !strings.Contains(validation.Message, test.wantReason) {
+				t.Fatalf("validation message = %q", validation.Message)
+			}
+		})
+	}
+}
+
+func TestValidateShapeBindsEachNoticeClassificationBackendToItsProtocol(t *testing.T) {
+	jev := Target{Name: ConfigNoticeClassificationDecision, Provider: "typesafe", APIProtocol: "typesafe.systemone", BaseURL: "https://gateway.example/v1", Model: "jev-latest"}
+	drex := Target{Name: ConfigNoticeClassificationDecision, Provider: "nace", APIProtocol: "typesafe.systemone", BaseURL: "https://console.nace.ai/v1", Model: "drex-max"}
+	llm := Target{Name: ConfigNoticeClassificationLLM, Provider: "openai-compatible", APIProtocol: "openai.chat_completions", BaseURL: "https://llm.example/v1", Model: "llm-model"}
+	for _, target := range []Target{jev, drex, llm} {
+		if err := validateShape(target, "secret"); err != nil {
+			t.Fatalf("validateShape(%s) = %v", target.Name, err)
+		}
+	}
+	responses := llm
+	responses.Provider, responses.APIProtocol = "openai", "openai.responses"
+	if err := validateShape(responses, "secret"); err != nil {
+		t.Fatalf("validateShape(responses) = %v", err)
+	}
+	for _, invalid := range []Target{
+		{Name: jev.Name, Provider: "openai-compatible", APIProtocol: "typesafe.systemone", BaseURL: jev.BaseURL, Model: jev.Model},
+		{Name: jev.Name, Provider: "openai-compatible", APIProtocol: "openai.chat_completions", BaseURL: jev.BaseURL, Model: jev.Model},
+		{Name: drex.Name, Provider: "nace", APIProtocol: "openai.chat_completions", BaseURL: drex.BaseURL, Model: drex.Model},
+		{Name: llm.Name, Provider: "typesafe", APIProtocol: "typesafe.systemone", BaseURL: llm.BaseURL, Model: llm.Model},
+		{Name: llm.Name, Provider: "nace", APIProtocol: "typesafe.systemone", BaseURL: llm.BaseURL, Model: llm.Model},
+		{Name: ConfigNoticeClassification, Provider: "typesafe", APIProtocol: "typesafe.systemone", BaseURL: jev.BaseURL, Model: jev.Model},
+	} {
+		if err := validateShape(invalid, "secret"); err == nil {
+			t.Fatalf("validateShape() accepted %#v", invalid)
+		}
+	}
+	if !discoveryProviderAllowed(ConfigNoticeClassificationDecision, "typesafe") || !discoveryProviderAllowed(ConfigNoticeClassificationDecision, "nace") ||
+		discoveryProviderAllowed(ConfigNoticeClassificationDecision, "openai") ||
+		!discoveryProviderAllowed(ConfigNoticeClassificationLLM, "openai-compatible") || discoveryProviderAllowed(ConfigNoticeClassificationLLM, "typesafe") ||
+		discoveryProviderAllowed(ConfigNoticeClassification, "openai") {
+		t.Fatal("discovery providers are not bound to the notice classification backends")
+	}
+}
+
 func assertNoticeClassificationSchema(t *testing.T, value any) {
 	t.Helper()
 	schema := value.(map[string]any)
 	properties := schema["properties"].(map[string]any)
 	category := properties["category"].(map[string]any)
+	if intent := properties["intent"].(map[string]any); len(intent["enum"].([]any)) != len(noticeClassificationIntents) {
+		t.Fatalf("intent enum = %#v", intent)
+	}
+	if required := schema["required"].([]any); len(required) != 2 {
+		t.Fatalf("required = %#v", required)
+	}
 	got := category["enum"].([]any)
 	if len(got) != len(noticeClassificationCategories) {
 		t.Fatalf("category enum length = %d, want %d", len(got), len(noticeClassificationCategories))
@@ -375,6 +490,24 @@ func TestDiscoverModels(t *testing.T) {
 	}
 	if !reflect.DeepEqual(models, []string{"a-model", "z-model"}) {
 		t.Fatalf("DiscoverModels() = %#v", models)
+	}
+}
+
+func TestDiscoverModelsReadsNaceModelNames(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" || r.Header.Get("Authorization") != "Bearer secret" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = fmt.Fprint(w, "{\"models\":[{\"name\":\"drex-max\",\"alias_for\":null},{\"name\":\"drex-latest\",\"alias_for\":\"drex-v2.0\"}],\"request_id\":\"r\"}")
+	}))
+	defer server.Close()
+	previous := http.DefaultTransport
+	http.DefaultTransport = server.Client().Transport
+	defer func() { http.DefaultTransport = previous }()
+
+	models, validation := DiscoverModels(context.Background(), ConfigNoticeClassificationDecision, "nace", server.URL+"/v1", "secret")
+	if validation.Status != "passed" || !reflect.DeepEqual(models, []string{"drex-latest", "drex-max"}) {
+		t.Fatalf("DiscoverModels() = %#v %#v", models, validation)
 	}
 }
 

@@ -17,6 +17,12 @@ var ErrInitialAPIKeyRequired = errors.New("api key is required for the initial m
 var ErrTargetMismatch = errors.New("model target hash mismatch")
 var ErrLocalSeedRequiresConfig = errors.New("at least one model config is required for local seed")
 var ErrLocalCheckRequiresConfig = errors.New("at least one model config is required for local check")
+var ErrSelectionNotReady = errors.New("selected config must exist, belong to the alias and pass validation")
+
+// storedNameSQL resolves a read alias to its selected credential row in the
+// same statement, so a concurrent switch cannot mix rows. A stored name
+// resolves to itself; an alias without a selection matches no row.
+const storedNameSQL = `coalesce((select config_name from model_config.config_selections where alias=$1),$1)`
 
 const maxPoolConns = 4
 
@@ -106,7 +112,7 @@ func configAAD(name ConfigName) string {
 
 func (s *Store) Descriptor(ctx context.Context, name ConfigName) (Descriptor, error) {
 	var descriptor Descriptor
-	err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model from model_config.model_configs where name=$1`, name).Scan(
+	err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model from model_config.model_configs where name=`+storedNameSQL, name).Scan(
 		&descriptor.Name,
 		&descriptor.Provider,
 		&descriptor.APIProtocol,
@@ -129,7 +135,7 @@ func (s *Store) Resolve(ctx context.Context, name ConfigName, expected string) (
 	var target Target
 	var encrypted []byte
 	var updatedAt time.Time
-	err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model,encrypted_api_key,updated_at from model_config.model_configs where name=$1`, name).Scan(
+	err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model,encrypted_api_key,updated_at from model_config.model_configs where name=`+storedNameSQL, name).Scan(
 		&target.Name,
 		&target.Provider,
 		&target.APIProtocol,
@@ -148,7 +154,7 @@ func (s *Store) Resolve(ctx context.Context, name ConfigName, expected string) (
 	if expected != "" && expected != targetSHA256 {
 		return RuntimeConfig{}, ErrTargetMismatch
 	}
-	apiKey, err := s.cipher.DecryptValue(encrypted, configAAD(name))
+	apiKey, err := s.cipher.DecryptValue(encrypted, configAAD(target.Name))
 	if err != nil {
 		return RuntimeConfig{}, err
 	}
@@ -172,6 +178,7 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 		SchemaVersion: "model_config_status.v1",
 		SampledAt:     time.Now().UTC(),
 		Configs:       map[ConfigName]*ConfigView{},
+		Selections:    map[ConfigName]*Selection{},
 	}
 	rows, err := s.pool.Query(ctx, `select name,provider,api_protocol,base_url,model,(length(encrypted_api_key)>0),validation_status,validation_error_code,validation_message,coalesce(validation_observed_dimensions,0),validated_at,validated_by,updated_at,updated_by from model_config.model_configs order by name`)
 	if err != nil {
@@ -185,15 +192,43 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 		}
 		status.Configs[view.Name] = &view
 	}
-	return status, rows.Err()
+	if err := rows.Err(); err != nil {
+		return Status{}, err
+	}
+	selections, err := s.pool.Query(ctx, `select alias,config_name,updated_at,updated_by from model_config.config_selections order by alias`)
+	if err != nil {
+		return Status{}, err
+	}
+	defer selections.Close()
+	for selections.Next() {
+		var alias ConfigName
+		var selection Selection
+		if err := selections.Scan(&alias, &selection.ConfigName, &selection.UpdatedAt, &selection.UpdatedBy); err != nil {
+			return Status{}, err
+		}
+		selection.UpdatedAt = selection.UpdatedAt.UTC()
+		status.Selections[alias] = &selection
+	}
+	return status, selections.Err()
 }
 
-func (s *Store) Seed(ctx context.Context, configs []LocalSeedConfig) error {
+// LocalSeedSelection points a read alias at a seeded credential.
+type LocalSeedSelection struct {
+	Alias      ConfigName
+	ConfigName ConfigName
+}
+
+func (s *Store) Seed(ctx context.Context, configs []LocalSeedConfig, selections []LocalSeedSelection) error {
 	if s == nil || s.pool == nil || s.cipher == nil {
 		return errors.New("model config store is not configured")
 	}
-	if len(configs) == 0 {
+	if len(configs) == 0 && len(selections) == 0 {
 		return ErrLocalSeedRequiresConfig
+	}
+	for _, selection := range selections {
+		if !AliasAllows(selection.Alias, selection.ConfigName) {
+			return fmt.Errorf("local model config selection %s cannot use %s", selection.Alias, selection.ConfigName)
+		}
 	}
 
 	type preparedConfig struct {
@@ -259,6 +294,19 @@ func (s *Store) Seed(ctx context.Context, configs []LocalSeedConfig) error {
 			return fmt.Errorf("seed local model config %s: %w", config.Name, err)
 		}
 	}
+	// Local seed skips the passed-validation requirement of Select: seeded
+	// credentials are never provider-validated, and an existing selection
+	// is left as the operator set it.
+	for _, selection := range selections {
+		if _, err := tx.Exec(ctx, `insert into model_config.config_selections(alias,config_name,updated_at,updated_by) values($1,$2,$3,$4) on conflict(alias) do nothing`,
+			selection.Alias,
+			selection.ConfigName,
+			now,
+			"local-seed",
+		); err != nil {
+			return fmt.Errorf("seed local model config selection %s: %w", selection.Alias, err)
+		}
+	}
 	return tx.Commit(ctx)
 }
 
@@ -278,7 +326,7 @@ func (s *Store) Check(ctx context.Context, names []ConfigName) ([]LocalConfigChe
 		seen[name] = struct{}{}
 		var target Target
 		var encrypted []byte
-		err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model,encrypted_api_key from model_config.model_configs where name=$1`, name).Scan(
+		err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model,encrypted_api_key from model_config.model_configs where name=`+storedNameSQL, name).Scan(
 			&target.Name,
 			&target.Provider,
 			&target.APIProtocol,
@@ -293,7 +341,7 @@ func (s *Store) Check(ctx context.Context, names []ConfigName) ([]LocalConfigChe
 		if err != nil {
 			return nil, err
 		}
-		apiKey, err := s.cipher.DecryptValue(encrypted, configAAD(name))
+		apiKey, err := s.cipher.DecryptValue(encrypted, configAAD(target.Name))
 		if err != nil {
 			checks = append(checks, LocalConfigCheck{
 				Name:   name,
@@ -393,6 +441,26 @@ func (s *Store) Put(ctx context.Context, actor string, input ConfigInput, valida
 		return ConfigView{}, err
 	}
 	return view, nil
+}
+
+// Select points a read alias at a stored credential. It does not call the
+// provider; the credential must already carry a passed validation.
+func (s *Store) Select(ctx context.Context, actor string, alias, name ConfigName) (Selection, error) {
+	if !AliasAllows(alias, name) {
+		return Selection{}, ErrSelectionNotReady
+	}
+	var selection Selection
+	err := s.pool.QueryRow(ctx, `insert into model_config.config_selections(alias,config_name,updated_at,updated_by) select $1,name,$3,$4 from model_config.model_configs where name=$2 and validation_status='passed' on conflict(alias) do update set config_name=excluded.config_name,updated_at=excluded.updated_at,updated_by=excluded.updated_by returning config_name,updated_at,updated_by`,
+		alias, name, time.Now().UTC(), validationActor(actor),
+	).Scan(&selection.ConfigName, &selection.UpdatedAt, &selection.UpdatedBy)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Selection{}, ErrSelectionNotReady
+	}
+	if err != nil {
+		return Selection{}, err
+	}
+	selection.UpdatedAt = selection.UpdatedAt.UTC()
+	return selection, nil
 }
 
 func (s *Store) RecordValidation(

@@ -5,6 +5,7 @@ export type NoticePipelineMode =
 	| "backfill"
 	| "rescan"
 	| "classify-one"
+	| "classify-all"
 	| "publish-one"
 	| "republish-one";
 

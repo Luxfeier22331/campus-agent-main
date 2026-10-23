@@ -938,6 +938,9 @@ importers:
       notice-classifier-core:
         specifier: workspace:*
         version: link:../../packages/notice-classifier-core
+      openai:
+        specifier: 7.39.0
+        version: 7.39.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(undici@8.12.3)(ws@8.22.0)(zod@4.6.7)
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -1303,9 +1306,6 @@ importers:
 
   packages/notice-classifier-core:
     dependencies:
-      '@campus-agent/notices':
-        specifier: workspace:*
-        version: link:../domains/notices
       campus-contracts:
         specifier: workspace:*
         version: link:../contracts
@@ -1493,24 +1493,15 @@ importers:
       ingestion-contracts:
         specifier: workspace:*
         version: link:../packages/ingestion-contracts
-      notice-classifier-core:
-        specifier: workspace:*
-        version: link:../packages/notice-classifier-core
       notice-index-publisher:
         specifier: workspace:*
         version: link:../jobs/notice-index-publisher
-      openai:
-        specifier: 7.39.0
-        version: 7.39.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(undici@8.12.3)(ws@8.22.0)(zod@4.6.7)
       pg:
         specifier: ^8.23.1
         version: 8.23.1
       retrieval-index:
         specifier: workspace:*
         version: link:../jobs/retrieval-index
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
@@ -15853,7 +15844,7 @@ snapshots:
 
   parse5@8.0.1:
     dependencies:
-      entities: 8.0.0
+      entities: 8.1.0
 
   parseley@0.12.1:
     dependencies:

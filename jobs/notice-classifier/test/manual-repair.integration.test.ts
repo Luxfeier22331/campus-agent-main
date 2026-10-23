@@ -28,7 +28,7 @@ describe.skipIf(!process.env.NOTICE_TEST_ADMIN_DATABASE_URL)("manual repair and 
 				await recordAutomaticClassificationFailure(first, id, new Error("invalid output"));
 				pending = store.updateCategory(id, "campus_news");
 			} else {
-				await first.query("UPDATE notices.notices SET category='campus_news' WHERE notice_id=$1", [id]);
+				await first.query("UPDATE notices.notices SET category='campus_news', label_category='news', label_intent='result' WHERE notice_id=$1", [id]);
 				await first.query("DELETE FROM notices.processing_failures WHERE notice_id=$1", [id]);
 				pending = recordAutomaticClassificationFailure(second, id, new Error("late invalid output"));
 			}

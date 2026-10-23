@@ -41,8 +41,12 @@ status: active
 - `GET /api/ops/model-configs`
 - `POST /api/ops/model-configs/llm/models`
 - `POST /api/ops/model-configs/reranker/models`
-- `POST /api/ops/model-configs/notice_classifier/models`
 - `PUT /api/ops/model-configs/:kind`
+- `POST /api/ops/model-configs/:kind/validate`
+- `PUT /api/ops/model-configs/notice_classification`
+- `PUT /api/ops/model-configs/notice_classification/credentials/:backend`
+- `POST /api/ops/model-configs/notice_classification/credentials/:backend/validate`
+- `POST /api/ops/model-configs/notice_classification/credentials/:backend/models`
 
 内部门户凭据：
 

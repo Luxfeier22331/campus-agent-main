@@ -28,6 +28,7 @@ export function transportLabel(value: string) {
 			embeddings: "Embeddings API",
 			rerank: "Rerank API",
 			responses: "Responses API",
+			systemone: "System One API",
 		}[value] ?? value
 	);
 }

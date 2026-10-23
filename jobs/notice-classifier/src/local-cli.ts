@@ -51,7 +51,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 				return modelClassifier(input);
 			},
 			database,
-			...(options.noticeIds ? { noticeIds: options.noticeIds } : {}),
+			scope: options.scope,
 			onProgress: (progress) =>
 				console.log(JSON.stringify({ progress, status: "running" })),
 		}));

@@ -33,10 +33,12 @@ profile 保持独立。
 | `primary_agent` | agent-control（执行准入读取 target）、agent-runtime（携带预期 hash 读取完整配置） |
 | `campus_docs_embedding` | Campus Search service、campus-docs-index-publisher、notice-index-publisher、retrieval-index（目标一致性检查） |
 | `campus_docs_reranker` | Campus Search service |
-| `notice_classification` | notice-pipeline-worker（分类 activity，复用 notice-classifier 运行时） |
+| `notice_classification`（别名，解析到 `notice_classification_decision` 或 `notice_classification_llm`） | notice-pipeline-worker（分类 activity，复用 notice-classifier 运行时） |
 | `document_ocr` | document-ocr job（读取配置并回写异步验证结果） |
 
-Ops Web 通过管理接口保存和重新验证全部五个 name，不直接调用 Provider。
+Ops Web 通过管理接口保存和重新验证全部存储名，并通过 `config-selections` 切换通知分类后端，不直接调用
+Provider。通知分类的决策模型与 LLM 各存一份凭据，切换不丢 Key；`model_config.config_selections` 每个别名
+一行，是读取别名的唯一来源。
 
 `name` 表达产品配置槽位，`api_protocol` 决定验证与调用方式；Model Config 不保存独立模型类型字段。
 数据库保存每个 name 的当前配置和加密 API key；验证是可选状态。新建或重建数据库由

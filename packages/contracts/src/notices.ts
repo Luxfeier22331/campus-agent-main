@@ -55,6 +55,67 @@ export const NOTICE_FILTER_CATEGORIES = [
 ] as const satisfies readonly NoticeCategory[];
 export type NoticeFilterCategory = (typeof NOTICE_FILTER_CATEGORIES)[number];
 
+/**
+ * 内部通知的新标签：category 表示业务主题，intent 表示读者要做什么，两者正交。外部通知不分类。
+ * 第二次发布把读者侧切到这组值后删除上面的旧类别。
+ */
+export const NOTICE_LABEL_CATEGORIES = [
+	"procurement",
+	"competition",
+	"lecture_forum",
+	"training",
+	"application",
+	"recruitment",
+	"international",
+	"selection_result",
+	"examination",
+	"service_info",
+	"teaching_schedule",
+	"activity",
+	"news",
+	"affairs",
+	"governance",
+] as const;
+export type NoticeLabelCategory = (typeof NOTICE_LABEL_CATEGORIES)[number];
+
+export const NOTICE_LABEL_CATEGORY_LABELS = {
+	procurement: "采购招标",
+	competition: "竞赛",
+	lecture_forum: "讲座论坛",
+	training: "培训",
+	application: "申报遴选",
+	recruitment: "招聘就业",
+	international: "国际交流",
+	selection_result: "结果公示",
+	examination: "考试",
+	service_info: "服务信息",
+	teaching_schedule: "教学安排",
+	activity: "校园活动",
+	news: "校园新闻",
+	affairs: "事务办理",
+	governance: "组织工作",
+} as const satisfies Record<NoticeLabelCategory, string>;
+
+/**
+ * 读者动作：这条通知要读者做什么，只看标题判定，与 category 正交。时效不在标签里，读者侧按发布时间
+ * 组合入口（近期待办、近期活动、近期安排）。
+ */
+export const NOTICE_LABEL_INTENTS = ["action", "event", "notice", "result", "reference"] as const;
+export type NoticeLabelIntent = (typeof NOTICE_LABEL_INTENTS)[number];
+
+export const NOTICE_LABEL_INTENT_LABELS = {
+	action: "需办理",
+	event: "可参加",
+	notice: "需知悉",
+	result: "看结果",
+	reference: "长期参考",
+} as const satisfies Record<NoticeLabelIntent, string>;
+
+export interface NoticeLabel {
+	category: NoticeLabelCategory;
+	intent: NoticeLabelIntent;
+}
+
 export const NOTICE_STREAMS = ["notices", "campus_news"] as const;
 
 export const NOTICE_CONTENT_ALLOWED_TAGS = [
@@ -106,6 +167,8 @@ export const NOTICE_CONTENT_ALLOWED_ATTRIBUTES = {
 export const NoticeCategorySchema = z.enum(NOTICE_CATEGORIES);
 export const NoticeFilterCategorySchema = z.enum(NOTICE_FILTER_CATEGORIES);
 export const NoticeStreamSchema = z.enum(NOTICE_STREAMS);
+export const NoticeLabelCategorySchema = z.enum(NOTICE_LABEL_CATEGORIES);
+export const NoticeLabelIntentSchema = z.enum(NOTICE_LABEL_INTENTS);
 export type NoticeStream = z.infer<typeof NoticeStreamSchema>;
 
 const PositiveDecimalIdSchema = z.string().regex(/^[1-9][0-9]*$/u);

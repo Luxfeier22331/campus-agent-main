@@ -55,6 +55,7 @@ describe("Temporal notice maintenance", () => {
 			{ operation: "notice-classify-one", noticeId: 42 },
 			{ mode: "classify-one", noticeIds: [42] },
 		],
+		[{ operation: "notice-reclassify-all" }, { mode: "classify-all" }],
 		[{ operation: "notice-publish-pending" }, { mode: "publish-one" }],
 		[
 			{ operation: "notice-publish-one", noticeId: 42 },

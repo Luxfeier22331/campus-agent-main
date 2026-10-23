@@ -1,0 +1,135 @@
+{
+  "role": "校园通知标题分类器。每个标题输出两个正交字段：category（业务主题）和 status（动作状态）。",
+  "output_format": {
+    "description": "只返回 JSON：{\"category\": \"<十三类之一>\", \"status\": \"<三值之一>\"}",
+    "category_enum": [
+      "procurement",
+      "competition",
+      "lecture_forum",
+      "training",
+      "application",
+      "recruitment",
+      "examination",
+      "activity",
+      "governance",
+      "international",
+      "service_info",
+      "affairs",
+      "selection_result",
+      "news"
+    ],
+    "status_enum": ["upcoming", "completed", "static"]
+  },
+  "judgment_order": "先判断 category（主维度，决定归属），再判断 status（附属维度，决定状态）。status 不反向影响 category：已结束的竞赛仍是 competition，只是 status=completed。",
+  "general_principle": "每个类别都是正向定义（标题表达了什么业务机制或主题），不是否定定义。业务主题一旦由标题确立，不因状态（预告/结果/回顾）改类。分类只依据标题，不依据日期或事项是否已过。",
+  "step1_category": {
+    "instruction": "判断标题表达的业务主题，从十四类中选择一个。每类定义：",
+    "categories": {
+      "procurement": "采购、招标、比选、成交、中标、询价、磋商。例：宿舍家具购置项目中标公告。",
+      "competition": "有完整竞赛机制的事件：报名→选拔→赛制→初赛决赛→评审→排名→奖项。有竞赛身份词（竞赛、大赛、比赛、杯、挑战赛、选拔赛、辩论赛、演讲赛等）且表达了竞赛流程或结果。例：外研社杯英语辩论赛校选赛。",
+      "lecture_forum": "知识交流：讲座、论坛、沙龙、讲堂、研讨会、读书会、经典精读、共读、阅读分享、学术报告。例：学术大讲堂第4期、经典精读《神农本草经》。",
+      "training": "教学指导与训练：培训、研修、读书班、训练营、学习班。例：入党积极分子培训班。",
+      "application": "报名、申报、征集、立项、参与邀请、选拔推荐。主题是科研项目、奖学金、活动、志愿服务等。例：关于组织参加…活动的通知。",
+      "recruitment": "招聘、岗位、就业、实习、选调、津贴、勤工助学、聘任。例：关于招聘勤工助学岗位的通知。",
+      "examination": "考试、考核、测试、测评、体质测试、等级考试。例：计算机等级考试报名通知。",
+      "activity": "文化活动、晚会、展演、运动会、社会实践、志愿服务、展览、嘉年华。以参与为主要用途，且活动尚未举办（预告、报名、招募、筹备）。例：红石榴文化节系列活动。",
+      "governance": "党组织/团组织的党务、党建、纪检、团务工作：党课、党员大会、支部工作、组织生活、主题团日、联学联建、廉洁自律、监督检查、以及这些活动的报道。即使标题里有『报送』『填报』等办理动作，只要主题是党建团务，仍归 governance。此外，面向单位或部门、没有具体表单手续的工作部署（『关于做好X工作的通知』『关于开展X工作的通知』）也归 governance。例：党委召开党员大会、关于报送纪检委员监督检查表的通知、关于做好假期安全稳定工作的通知。",
+      "international": "留学、交换、公派、访学、境外项目、国际培养。例：短期访学项目启动报名。",
+      "service_info": "校园设施与服务的状态信息：食堂、超市、浴室、公寓、班车、快递、场馆、教室等场所的开放与关闭，停水停电、维修抢修，校医院门诊、体检、疫苗，开放时间、服务指南、成绩查询入口。读者不需要办任何事，只需要知道这个状态。例：校医院增开皮肤科门诊、超市临时关闭通知。",
+      "affairs": "读者（个人或单位）需要完成一项具体事务：在系统或线下提交材料、填报信息、办理手续、录入数据、接受审核、参加认定评定、注册、离校。判据是标题里有明确的『要办的事』（表单、系统、材料、手续、审核、录入）。例：关于做好国家助学贷款办理和回执录入的通知、关于开展学期注册的通知、关于毕业生基本信息修改审核的通知。",
+      "selection_result": "权威结果作为主体：名单、公示、录取、入选、中标、成交结果的公示公告。例：拟录用人员公示公告。",
+      "news": "纯叙事：人物报道、访谈、文化专栏、宣传口号、文化活动风采展示、文化活动报道与回顾、喜报祝贺、综合宣传。标题没有表达任何待执行动作或业务机制（无竞赛/讲座/培训/报名/招聘/考试/活动参与/党建/留学/设施服务/结果公示），只是叙述人物、现场、过程、记忆、成果供读者了解欣赏。注意：党建、团日、组织生活的报道归 governance，不归 news。例：今天，听他们讲述《旗帜下的青春》。"
+    }
+  },
+  "step2_status": {
+    "instruction": "在 category 基础上判断标题表达的事件处于什么阶段，从三值中选择一个。status 独立判定，不反向影响 category。判断依据是『读者是否需要在一个时间窗口内做一件事』：需要 → upcoming；事情已办完 → completed；没有时间窗口、长期有效 → static。",
+    "statuses": {
+      "upcoming": "未发生或进行中，读者需要执行一个动作（报名、申报、报送、领取、报销、修改、参加、参选、应聘），或事件尚未举办。即使标题没有写具体日期，只要有『做好…工作』『开展…工作』『领取…』『报销…』这类待办事项，就归 upcoming。临时性的服务变更（暂停服务、抢修、封闭、停水停电）有起止时间，也归 upcoming。信号词：预告、报名、招募、申报、征集、遴选、选拔、聘任、即日起、即将、启动、拟定、定于、将于、开展、做好、领取、报送、暂停、抢修、封闭、含具体未来日期（如X月X日）。例：关于做好2025年假期安全稳定工作的通知、关于领取体检报告单的通知、浴室暂停服务的紧急通知。",
+      "completed": "已发生，有结果或回顾。信号词：成功举办、圆满、落幕、结项、结题、获奖、名单、公示、结果、录取、中标、成交、赛果、纪要、回顾、喜报、已结束、顺利、召开、斩获佳绩。注意：『举办/举行/召开』默认归 upcoming（校园通知语境里多为组织预告）；只有带『成功/圆满/顺利/落幕/已举办』或『记.../纪实/回顾』等事后叙事才归 completed。",
+      "static": "没有时间窗口、长期有效的规则或服务状态，读者不需要执行一次性办理动作。信号词：办法、规定、制度、细则、指南、须知、办事流程、平台、上线、开通、运行、门诊、成绩查询、开放时间、放假安排、作息、校历。注意：标题出现『办理』『领取』『报销』『报送』等具体待办动作时归 upcoming，不归 static；只有描述『办事流程/办理指南/如何办理』这类常设说明才归 static。例：校园一卡通使用指南、图书馆开放时间调整。"
+    }
+  },
+  "category_boundary_rules": {
+    "instruction": "以下易混组合，按此裁决。",
+    "rules": [
+      {
+        "pair": "competition vs selection_result",
+        "verdict": "标题主体是竞赛事件（报名/赛制/赛果/回顾）归 competition；标题主体是结果公示（名单/录取/中标/成交公告）归 selection_result。例如『…辩论邀请赛决赛赛果速递』是竞赛本体，归 competition，status=completed。"
+      },
+      {
+        "pair": "application vs international",
+        "verdict": "报名/申报/选拔的主体是留学、访学、交换、公派、境外项目时，归 international（业务主题是留学，报名是动作，status=upcoming）；主体是科研项目、奖学金、活动、志愿服务时归 application。例如『短期访学项目启动报名』归 international。"
+      },
+      {
+        "pair": "lecture_forum vs activity",
+        "verdict": "知识交流（讲座、论坛、沙龙、讲堂、读书会、研讨会）归 lecture_forum；文化活动（晚会、展演、运动会、社会实践、展览）归 activity。例如『《黄帝内经》养生读书会』是读书会，归 lecture_forum。"
+      },
+      {
+        "pair": "training vs lecture_forum",
+        "verdict": "教学指导与训练（培训、研修、读书班、训练营）归 training；知识分享（讲座、论坛、沙龙）归 lecture_forum。培训提供授课、实操、考核的归 training。"
+      },
+      {
+        "pair": "governance vs activity",
+        "verdict": "党建、会议、部署、制度（党课、党员大会、推进会、座谈会、组织生活）归 governance；文化活动（晚会、运动会、实践、志愿服务）归 activity。党建主题的文体活动若主体是组织行为归 governance，主体是娱乐参与归 activity。"
+      },
+      {
+        "pair": "competition vs activity",
+        "verdict": "有完整竞赛机制（报名→选拔→赛制→评审→排名→奖项）归 competition；只有展示、征集、评选、汇演而无竞赛流程链条，归 activity。例如『阅读推广优秀案例风采展示』无竞赛机制，归 activity。"
+      },
+      {
+        "pair": "activity vs news",
+        "verdict": "文化活动尚未举办、标题表达可参与（举办、报名、招募、筹备、预告）归 activity；文化活动已经办完、标题是报道/纪实/回顾（记…、…活动报道、圆满举行、顺利举办、成功举办）且无待执行动作，归 news。党建、团日、组织生活的活动及其报道不适用本条，一律归 governance。例如『…帮扶学生考研活动』去参与/报名是 activity；『——记2024年…帮扶学生考研活动』是活动报道，归 news；『…开展主题团日活动』归 governance。"
+      },
+      {
+        "pair": "governance vs service_info",
+        "verdict": "党建团务与工作部署（做好X工作、开展X工作、会议、检查、调研、来访交流、制度制定、党建团日活动）归 governance；设施与服务的状态信息（食堂/超市/浴室/公寓/班车/快递/场馆/教室的开放关闭、停水停电、校医院门诊、开放时间、服务指南）归 service_info。判据是『读者要不要办事』：要办事 → affairs；只是知道状态 → service_info；组织行为 → governance。例如『关于做好2025年假期安全稳定工作的通知』是部署，归 governance；『超市临时关闭通知』只是状态，归 service_info。"
+      },
+      {
+        "pair": "affairs vs governance",
+        "verdict": "主题是党务、党建、纪检、团务（党课、党员大会、支部工作、组织生活、主题团日、廉洁自律、监督检查）→ governance，即使标题含『报送』『填报』。其余需要完成具体事务、有表单/系统/材料/审核/录入 → affairs。例如『关于报送纪检委员对支部党内政治生活监督检查表的通知』是党建主题，归 governance；『关于报送离校系统经办人信息的通知』是事务办理，归 affairs。"
+      },
+      {
+        "pair": "affairs vs application",
+        "verdict": "主动争取名额或资格（报名、申报、征集、评选、选拔、立项申请）归 application；完成既定流程的办理动作（注册、报送、录入、审核、认定、采集、统计、登记、离校手续）归 affairs。例如『重补修申请』归 application；『学期注册』归 affairs。"
+      },
+      {
+        "pair": "affairs vs service_info",
+        "verdict": "读者需要去做一件事（提交材料、填报、办理、审核、领取、注册）归 affairs；读者只需要知道一个设施或服务状态（开放关闭、停水停电、门诊时间）归 service_info。"
+       },
+      {
+        "pair": "affairs vs examination",
+        "verdict": "考试本身（报名、安排、注意事项、考试内容）归 examination；围绕考试产生的录入、审核、资格认定等事务归 affairs。例如『课程期末成绩录入和课堂评教工作』归 affairs。"
+      },
+      {
+        "pair": "affairs vs selection_result",
+        "verdict": "结果公示（名单、成绩、录取、拟录用）归 selection_result；产生结果之前的手续（审核、认定、采集、评定过程）归 affairs。"
+      },
+      {
+        "pair": "affairs vs competition",
+        "verdict": "竞赛本体（报名、赛制、赛果、回顾）归 competition；竞赛结束后的行政手续（获奖团队系统填报、提交承诺书）归 affairs。"
+      },
+      {
+        "pair": "examination vs selection_result",
+        "verdict": "标题主体是考试/测试本身（报名、安排、注意事项、内容）归 examination；标题主体是成绩或名单的公示公告（成绩公示、名单公示）归 selection_result。例：『体质健康测试成绩公示』主体是公示，归 selection_result，status=completed；『体质健康测试安排』归 examination。"
+      },
+      {
+        "pair": "service_info vs examination",
+        "verdict": "通知的是考场占用、教室借用、因考试调整场所使用 → service_info；通知的是考试本身（报名、内容、注意事项）→ examination。例：『公开招聘考试使用教室的通知』是教室使用信息，归 service_info。"
+      },
+      {
+        "pair": "业务实施细则 vs governance",
+        "verdict": "某项业务的实施细则、办法、工作方案，业务主题由该业务决定，归对应业务类（如推免工作实施细则归 application），不因出现『细则』『制度』字样就归 governance。governance 只收没有具体业务主题的校务制度。"
+      }
+    ]
+  },
+  "news_leakage_guard": {
+    "instruction": "news 只收无业务机制的纯叙事。以下情况绝不归 news：",
+    "guards": [
+      "标题有竞赛身份且表达竞赛流程或结果（哪怕已结束、是回顾、是邀请赛）→ competition，不归 news。",
+      "标题有讲座/论坛/培训/报名/招聘/考试/活动参与/党建/留学/设施服务/结果公示任一机制 → 归对应业务类，不归 news。",
+      "标题表达经典精读、共读、阅读分享、读书会等知识交流 → 归 lecture_forum，不归 news。",
+      "标题有『举办/报名/招募』等可参与语义的文化活动 → 归 activity，不归 news；只有文化活动的报道、纪实、回顾、喜报、祝贺才归 news。",
+      "只有人物报道、文化专栏、宣传口号、活动剪影、综合宣传（无任何业务机制）→ 才归 news。"
+    ]
+  }
+}

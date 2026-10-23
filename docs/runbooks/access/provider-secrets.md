@@ -8,8 +8,9 @@ status: active
 
 ## 边界
 
-Model Config 管理五个 name 的当前 config：`primary_agent`、
-`campus_docs_embedding`、`campus_docs_reranker`、`notice_classification` 和 `document_ocr`。本文规定这些在线模型
+Model Config 管理六个 name 的当前 config：`primary_agent`、
+`campus_docs_embedding`、`campus_docs_reranker`、`notice_classification_decision`、`notice_classification_llm` 和
+`document_ocr`。`notice_classification` 是指向其中一份通知分类凭据的只读别名，不保存密钥。本文规定这些在线模型
 配置中供应商密钥的首次配置、验证、替换、轮换和撤销。Provider 与环境所有权见
 [Provider 与 Secret](../../environment/providers.md)，接口边界见 [模型配置接口](../../contracts/ops-web/providers.md)。
 
@@ -29,6 +30,11 @@ revision、bundle、activation、history、fallback 或在线 rollback。不同�
    冻结的 hash，新准入或新制品构建读取新目标。
 
 尚未配置某个 name 时，Ops Web 自身仍可进入修复页；读取该配置的 consumer 必须失败关闭。
+
+通知分类的决策模型与 LLM 各自保存凭据，在 Ops Web 通知分类卡片里分别保存和重新验证；切换后端只改
+`notice_classification` 别名的选择，不调用供应商、不改动任何一份密钥，且只能选中验证通过的凭据。未选择
+后端时分类任务失败关闭，不回退到另一家。旧 `notice_classification` 行的密钥以行名为加密 AAD，迁移
+`notice_classification_backends` 删除该行；上线后需在 Ops Web 重新填写所需后端的 Key 并选择后端。
 
 `document_ocr` 由文档 OCR consumer 使用，不属于当前 Ops Web 的四种 UI kind。首次配置和替换通过
 Model Config 的内部管理接口完成；候选设置会调用 PaddleOCR `paddleocr.jobs` 协议进行异步验证，

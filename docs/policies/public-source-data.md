@@ -50,6 +50,11 @@ evidence 的具体保留周期。
 - `source-derived-publicly-redistributable`：来源及再分发权利已有记录；
 - `internal-only-not-for-public-repo`：公开前必须移除或替换。
 
+当前仓库为私有仓库，只对经过认证的组织成员开放。上文「禁止进入仓库」中的 raw notice 与 provider
+response 限制针对公开仓库；私有仓库内可以保存为所属模块评测整理的通知标题和模型输出标签，前提是
+所在目录的 README 标注 `internal-only-not-for-public-repo`，且不含正文、附件、HTML、原始 provider
+response 或任何 secret。当前这类数据只有 `jobs/notice-classifier/eval/`。
+
 新增第三方或来源派生 artifact 时，按需更新 `NOTICE`、下方[第三方来源声明](#第三方来源声明)或所属
 provenance 文档。
 

@@ -47,6 +47,13 @@ describe("local notice jobs", () => {
 			"--notice-id",
 			"354516",
 		]);
+		expect(localNoticeCommand({ operation: "notice-reclassify-all" }, {}).args).toEqual([
+			"--dir",
+			"jobs/notice-classifier",
+			"run",
+			"classify:local",
+			"--all",
+		]);
 		expect(localNoticeCommand({ operation: "notice-publish-pending" }, {}).args).toEqual([
 			"--filter",
 			"notice-publisher",

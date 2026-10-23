@@ -72,6 +72,23 @@ test("the notice_assets delete grant covers the publisher's replace-projection w
 	assert.doesNotMatch(migration, /REVOKE|DROP|TRUNCATE|ALTER/u);
 });
 
+test("the notice classification migration keeps per-backend keys and a separate alias selection", async () => {
+	const migration = await readFile(
+		resolve(jobRoot, "migrations/20261022135401_notice_classification_backends/migration.sql"),
+		"utf8",
+	);
+	assert.match(
+		migration,
+		/DELETE FROM model_config\.model_configs WHERE name = 'notice_classification';/u,
+	);
+	assert.match(migration, /'notice_classification_decision', 'notice_classification_llm'\n/u);
+	assert.doesNotMatch(migration, /'document_ocr',\s+'notice_classification'/u);
+	assert.match(migration, /CREATE TABLE model_config\.config_selections/u);
+	assert.match(migration, /REFERENCES model_config\.model_configs \(name\)/u);
+	assert.match(migration, /ON TABLE model_config\.config_selections TO model_config;/u);
+	assert.doesNotMatch(migration, /REVOKE|DROP TABLE|TRUNCATE/u);
+});
+
 test("the personal-memory cleanup migration only drops the compatibility views", async () => {
 	const migration = await readFile(
 		resolve(
@@ -168,4 +185,17 @@ test("schema migration lock is released after success and failure", async () => 
 		/migration failed/u,
 	);
 	assert.equal(queries.length, 2);
+});
+
+test("notice labels are internal-only paired columns beside the old category", async () => {
+	const migration = await readFile(
+		resolve(jobRoot, "migrations/20261022143323_notice_label_columns/migration.sql"),
+		"utf8",
+	);
+	assert.match(migration, /ADD COLUMN label_category text;/u);
+	assert.match(migration, /ADD COLUMN label_intent text;/u);
+	assert.match(migration, /\(label_category IS NULL\) = \(label_intent IS NULL\)/u);
+	assert.match(migration, /NOT is_external OR label_category IS NULL/u);
+	assert.equal(migration.match(/'[a-z_]+'/gu)?.length, 20);
+	assert.doesNotMatch(migration, /DROP|DELETE FROM|UPDATE notices/u);
 });

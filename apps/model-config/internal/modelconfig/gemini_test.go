@@ -46,7 +46,7 @@ func TestGeminiValidationAndDiscovery(t *testing.T) {
 	if result.Status != "passed" || !reflect.DeepEqual(models, []string{"gemini-a", "gemini-b"}) {
 		t.Fatalf("discovery: %v %#v", models, result)
 	}
-	for _, name := range []ConfigName{ConfigCampusDocsEmbedding, ConfigCampusDocsReranker, ConfigNoticeClassification} {
+	for _, name := range []ConfigName{ConfigCampusDocsEmbedding, ConfigCampusDocsReranker, ConfigNoticeClassificationDecision, ConfigNoticeClassificationLLM} {
 		target.Name = name
 		if validateShape(target, "secret") == nil || discoveryProviderAllowed(name, "google") {
 			t.Fatalf("Gemini unexpectedly accepted for %s", name)

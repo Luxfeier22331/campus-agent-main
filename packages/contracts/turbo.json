@@ -22,6 +22,7 @@
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
+				"$TURBO_ROOT$/apps/model-config/internal/modelconfig/validation.go",
 				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
 				"$TURBO_ROOT$/configs/runtime/**",
 				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",

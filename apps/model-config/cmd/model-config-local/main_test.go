@@ -35,34 +35,6 @@ func TestLocalSeedConfigsMapEachNameToItsEnvironmentContract(t *testing.T) {
 			},
 		},
 		{
-			name: modelconfig.ConfigNoticeClassification,
-			environment: map[string]string{
-				"LLM_API_KEY":                    "must-not-be-used",
-				"LLM_BASE_URL":                   "https://primary.example/v1",
-				"NOTICE_CLASSIFICATION_API_KEY":  "classifier-key",
-				"NOTICE_CLASSIFICATION_BASE_URL": "https://classifier.example/v1",
-				"NOTICE_CLASSIFICATION_MODEL":    "classifier-model",
-			},
-			want: modelconfig.LocalSeedConfig{
-				APIKey: "classifier-key", Name: modelconfig.ConfigNoticeClassification, Provider: "openai-compatible",
-				APIProtocol: "openai.responses", BaseURL: "https://classifier.example/v1", Model: "classifier-model",
-			},
-		},
-		{
-			name: modelconfig.ConfigNoticeClassification,
-			environment: map[string]string{
-				"NOTICE_CLASSIFICATION_API_KEY":      "classifier-key",
-				"NOTICE_CLASSIFICATION_BASE_URL":     "https://classifier.example/v1",
-				"NOTICE_CLASSIFICATION_MODEL":        "classifier-model",
-				"NOTICE_CLASSIFICATION_PROVIDER":     "openai",
-				"NOTICE_CLASSIFICATION_API_PROTOCOL": "openai.chat_completions",
-			},
-			want: modelconfig.LocalSeedConfig{
-				APIKey: "classifier-key", Name: modelconfig.ConfigNoticeClassification, Provider: "openai",
-				APIProtocol: "openai.chat_completions", BaseURL: "https://classifier.example/v1", Model: "classifier-model",
-			},
-		},
-		{
 			name: modelconfig.ConfigCampusDocsEmbedding,
 			environment: map[string]string{
 				"EMBEDDING_API_KEY":  "embedding-key",
@@ -89,12 +61,12 @@ func TestLocalSeedConfigsMapEachNameToItsEnvironmentContract(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(string(test.name), func(t *testing.T) {
-			configs, missing := localSeedConfigs([]modelconfig.ConfigName{test.name}, func(key string) (string, bool) {
+			configs, _, missing, err := localSeedConfigs([]modelconfig.ConfigName{test.name}, func(key string) (string, bool) {
 				value, ok := test.environment[key]
 				return value, ok
 			})
-			if len(missing) != 0 {
-				t.Fatalf("missing = %v", missing)
+			if err != nil || len(missing) != 0 {
+				t.Fatalf("missing = %v, err = %v", missing, err)
 			}
 			if !reflect.DeepEqual(configs, []modelconfig.LocalSeedConfig{test.want}) {
 				t.Fatalf("configs = %#v, want %#v", configs, []modelconfig.LocalSeedConfig{test.want})
@@ -103,14 +75,117 @@ func TestLocalSeedConfigsMapEachNameToItsEnvironmentContract(t *testing.T) {
 	}
 }
 
+func TestLocalSeedConfigsSeedsNoticeClassificationBackendsAndSelection(t *testing.T) {
+	decision := modelconfig.LocalSeedConfig{
+		APIKey: "decision-key", Name: modelconfig.ConfigNoticeClassificationDecision, Provider: "nace",
+		APIProtocol: "typesafe.systemone", BaseURL: "https://decision.example/v1", Model: "drex-max",
+	}
+	jev := decision
+	jev.Provider, jev.Model = "typesafe", "jev-latest"
+	llm := modelconfig.LocalSeedConfig{
+		APIKey: "llm-key", Name: modelconfig.ConfigNoticeClassificationLLM, Provider: "openai-compatible",
+		APIProtocol: "openai.chat_completions", BaseURL: "https://llm.example/v1", Model: "llm-model",
+	}
+	decisionEnvironment := map[string]string{
+		"NOTICE_CLASSIFICATION_DECISION_API_KEY":  "decision-key",
+		"NOTICE_CLASSIFICATION_DECISION_BASE_URL": "https://decision.example/v1",
+	}
+	llmEnvironment := map[string]string{
+		"NOTICE_CLASSIFICATION_LLM_API_KEY":  "llm-key",
+		"NOTICE_CLASSIFICATION_LLM_BASE_URL": "https://llm.example/v1",
+		"NOTICE_CLASSIFICATION_LLM_MODEL":    "llm-model",
+	}
+	merge := func(values ...map[string]string) map[string]string {
+		result := map[string]string{}
+		for _, value := range values {
+			for key, item := range value {
+				result[key] = item
+			}
+		}
+		return result
+	}
+	tests := []struct {
+		name        string
+		environment map[string]string
+		wantConfigs []modelconfig.LocalSeedConfig
+		wantBackend modelconfig.ConfigName
+		wantMissing []string
+		wantErr     string
+	}{
+		{name: "decision only", environment: decisionEnvironment, wantConfigs: []modelconfig.LocalSeedConfig{decision}, wantBackend: modelconfig.ConfigNoticeClassificationDecision},
+		{
+			name: "decision provider and model override",
+			environment: merge(decisionEnvironment, map[string]string{
+				"NOTICE_CLASSIFICATION_DECISION_PROVIDER": "typesafe",
+				"NOTICE_CLASSIFICATION_DECISION_MODEL":    "jev-latest",
+			}),
+			wantConfigs: []modelconfig.LocalSeedConfig{jev},
+			wantBackend: modelconfig.ConfigNoticeClassificationDecision,
+		},
+		{name: "llm only", environment: llmEnvironment, wantConfigs: []modelconfig.LocalSeedConfig{llm}, wantBackend: modelconfig.ConfigNoticeClassificationLLM},
+		{name: "both default to decision", environment: merge(decisionEnvironment, llmEnvironment), wantConfigs: []modelconfig.LocalSeedConfig{decision, llm}, wantBackend: modelconfig.ConfigNoticeClassificationDecision},
+		{
+			name:        "explicit llm",
+			environment: merge(decisionEnvironment, llmEnvironment, map[string]string{"NOTICE_CLASSIFICATION_BACKEND": "llm"}),
+			wantConfigs: []modelconfig.LocalSeedConfig{decision, llm},
+			wantBackend: modelconfig.ConfigNoticeClassificationLLM,
+		},
+		{
+			name:        "selected backend incomplete",
+			environment: merge(decisionEnvironment, map[string]string{"NOTICE_CLASSIFICATION_BACKEND": "llm"}),
+			wantMissing: []string{"NOTICE_CLASSIFICATION_LLM_API_KEY", "NOTICE_CLASSIFICATION_LLM_BASE_URL", "NOTICE_CLASSIFICATION_LLM_MODEL"},
+		},
+		{
+			name:        "unknown backend",
+			environment: merge(decisionEnvironment, map[string]string{"NOTICE_CLASSIFICATION_BACKEND": "both"}),
+			wantErr:     "must be decision or llm",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			configs, selections, missing, err := localSeedConfigs([]modelconfig.ConfigName{modelconfig.ConfigNoticeClassification}, func(key string) (string, bool) {
+				value, ok := test.environment[key]
+				return value, ok
+			})
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("error = %v, want %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.wantMissing != nil {
+				if !reflect.DeepEqual(missing, test.wantMissing) {
+					t.Fatalf("missing = %v, want %v", missing, test.wantMissing)
+				}
+				return
+			}
+			if len(missing) != 0 || !reflect.DeepEqual(configs, test.wantConfigs) {
+				t.Fatalf("configs = %#v missing = %v", configs, missing)
+			}
+			want := []modelconfig.LocalSeedSelection{{Alias: modelconfig.ConfigNoticeClassification, ConfigName: test.wantBackend}}
+			if !reflect.DeepEqual(selections, want) {
+				t.Fatalf("selections = %#v, want %#v", selections, want)
+			}
+		})
+	}
+}
+
 func TestLocalSeedConfigsReportsSortedMissingVariables(t *testing.T) {
-	_, missing := localSeedConfigs([]modelconfig.ConfigName{modelconfig.ConfigNoticeClassification}, func(string) (string, bool) {
+	_, _, missing, err := localSeedConfigs([]modelconfig.ConfigName{modelconfig.ConfigNoticeClassification}, func(string) (string, bool) {
 		return "", false
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := []string{
-		"NOTICE_CLASSIFICATION_API_KEY",
-		"NOTICE_CLASSIFICATION_BASE_URL",
-		"NOTICE_CLASSIFICATION_MODEL",
+		"NOTICE_CLASSIFICATION_DECISION_API_KEY",
+		"NOTICE_CLASSIFICATION_DECISION_BASE_URL",
+		"NOTICE_CLASSIFICATION_LLM_API_KEY",
+		"NOTICE_CLASSIFICATION_LLM_BASE_URL",
+		"NOTICE_CLASSIFICATION_LLM_MODEL",
 	}; !reflect.DeepEqual(missing, want) {
 		t.Fatalf("missing = %v, want %v", missing, want)
 	}
@@ -119,7 +194,7 @@ func TestLocalSeedConfigsReportsSortedMissingVariables(t *testing.T) {
 func TestLocalSeedConfigsDoesNotModifyNames(t *testing.T) {
 	names := []modelconfig.ConfigName{modelconfig.ConfigPrimaryAgent, modelconfig.ConfigCampusDocsEmbedding}
 	want := append([]modelconfig.ConfigName(nil), names...)
-	localSeedConfigs(names, func(key string) (string, bool) {
+	if _, _, _, err := localSeedConfigs(names, func(key string) (string, bool) {
 		return map[string]string{
 			"LLM_API_KEY":        "key",
 			"LLM_BASE_URL":       "https://provider.example/v1",
@@ -127,7 +202,9 @@ func TestLocalSeedConfigsDoesNotModifyNames(t *testing.T) {
 			"EMBEDDING_API_KEY":  "embedding-key",
 			"EMBEDDING_BASE_URL": "https://embedding.example/v1",
 		}[key], true
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("names changed from %v to %v", want, names)
 	}

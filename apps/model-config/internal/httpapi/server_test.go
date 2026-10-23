@@ -22,6 +22,8 @@ type fakeStore struct {
 	recordedValidation  *modelconfig.Validation
 	recordedActor       string
 	currentTarget       *modelconfig.Target
+	selectErr           error
+	selected            *[3]string
 }
 
 func (s *fakeStore) Readiness(context.Context) error {
@@ -30,6 +32,10 @@ func (s *fakeStore) Readiness(context.Context) error {
 }
 
 func targetForName(name modelconfig.ConfigName) modelconfig.Target {
+	// The store resolves the read alias to its selected credential row.
+	if name == modelconfig.ConfigNoticeClassification {
+		name = modelconfig.ConfigNoticeClassificationLLM
+	}
 	target := modelconfig.Target{
 		Name:        name,
 		Provider:    "openai",
@@ -112,6 +118,15 @@ func (s *fakeStore) RecordValidation(_ context.Context, name modelconfig.ConfigN
 	return modelconfig.ConfigView{Descriptor: fakeDescriptor(name), Validation: &validation}, nil
 }
 
+func (s *fakeStore) Select(_ context.Context, actor string, alias, name modelconfig.ConfigName) (modelconfig.Selection, error) {
+	s.reads++
+	if s.selectErr != nil {
+		return modelconfig.Selection{}, s.selectErr
+	}
+	s.selected = &[3]string{actor, string(alias), string(name)}
+	return modelconfig.Selection{ConfigName: name, UpdatedBy: actor}, nil
+}
+
 func TestRuntimeReadsNeedNoCredentialAndAreNotConsumerScoped(t *testing.T) {
 	store := &fakeStore{}
 	tests := []struct {
@@ -120,7 +135,7 @@ func TestRuntimeReadsNeedNoCredentialAndAreNotConsumerScoped(t *testing.T) {
 		wantAPIKey bool
 	}{
 		{path: "/internal/model-targets/primary_agent", wantName: modelconfig.ConfigPrimaryAgent},
-		{path: "/internal/model-configs/notice_classification", wantName: modelconfig.ConfigNoticeClassification, wantAPIKey: true},
+		{path: "/internal/model-configs/notice_classification", wantName: modelconfig.ConfigNoticeClassificationLLM, wantAPIKey: true},
 		{path: "/internal/model-configs/campus_docs_reranker", wantName: modelconfig.ConfigCampusDocsReranker, wantAPIKey: true},
 	}
 	for _, test := range tests {
@@ -236,7 +251,7 @@ func TestAdminPutReturnsFailedValidationWithoutRecordingIt(t *testing.T) {
 
 	store := &fakeStore{currentAPIKey: "existing-secret"}
 	body := fmt.Sprintf(`{"provider":"openai-compatible","api_protocol":"openai.responses","base_url":%q,"model":"candidate-model"}`, provider.URL)
-	request := httptest.NewRequest(http.MethodPut, "/internal/admin/model-configs/notice_classification", strings.NewReader(body))
+	request := httptest.NewRequest(http.MethodPut, "/internal/admin/model-configs/notice_classification_llm", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Model-Config-Actor", "ops-user")
 	response := httptest.NewRecorder()
@@ -264,8 +279,8 @@ func TestAdminRevalidatesCurrentConfigAndRecordsTheOutcome(t *testing.T) {
 		wantStatus int
 		wantResult string
 	}{
-		{name: "passed", output: `{"category":"campus_operations"}`, wantStatus: http.StatusOK, wantResult: "passed"},
-		{name: "failed", output: `{"category":"invalid"}`, wantStatus: http.StatusUnprocessableEntity, wantResult: "failed"},
+		{name: "passed", output: `{"category":"examination","intent":"event"}`, wantStatus: http.StatusOK, wantResult: "passed"},
+		{name: "failed", output: `{"category":"invalid","intent":"event"}`, wantStatus: http.StatusUnprocessableEntity, wantResult: "failed"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -281,14 +296,14 @@ func TestAdminRevalidatesCurrentConfigAndRecordsTheOutcome(t *testing.T) {
 			defer func() { http.DefaultTransport = previousTransport }()
 
 			target := modelconfig.Target{
-				Name:        modelconfig.ConfigNoticeClassification,
+				Name:        modelconfig.ConfigNoticeClassificationLLM,
 				Provider:    "openai-compatible",
 				APIProtocol: "openai.responses",
 				BaseURL:     provider.URL,
 				Model:       "classifier-model",
 			}
 			store := &fakeStore{currentAPIKey: "current-secret", currentTarget: &target}
-			request := httptest.NewRequest(http.MethodPost, "/internal/admin/model-configs/notice_classification/validate", nil)
+			request := httptest.NewRequest(http.MethodPost, "/internal/admin/model-configs/notice_classification_llm/validate", nil)
 			request.Header.Set("X-Model-Config-Actor", "ops-user")
 			response := httptest.NewRecorder()
 			New(store).ServeHTTP(response, request)
@@ -301,6 +316,61 @@ func TestAdminRevalidatesCurrentConfigAndRecordsTheOutcome(t *testing.T) {
 			}
 			if store.recordedActor != "ops-user" {
 				t.Fatalf("actor = %q", store.recordedActor)
+			}
+		})
+	}
+}
+
+func TestAdminWritesToAReadAliasAreNotRoutes(t *testing.T) {
+	for _, test := range []struct{ method, path string }{
+		{http.MethodPut, "/internal/admin/model-configs/notice_classification"},
+		{http.MethodPost, "/internal/admin/model-configs/notice_classification/validate"},
+		{http.MethodPost, "/internal/admin/model-configs/notice_classification/models"},
+	} {
+		store := &fakeStore{}
+		request := httptest.NewRequest(test.method, test.path, strings.NewReader(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		New(store).ServeHTTP(response, request)
+		if response.Code != http.StatusNotFound || store.reads != 0 {
+			t.Fatalf("%s %s status=%d reads=%d", test.method, test.path, response.Code, store.reads)
+		}
+	}
+}
+
+func TestAdminSelectionPointsAnAliasAtAStoredCredential(t *testing.T) {
+	store := &fakeStore{}
+	request := httptest.NewRequest(http.MethodPut, "/internal/admin/config-selections/notice_classification", strings.NewReader(`{"config_name":"notice_classification_decision"}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Model-Config-Actor", "ops-user")
+	response := httptest.NewRecorder()
+	New(store).ServeHTTP(response, request)
+	if response.Code != http.StatusOK || store.selected == nil || *store.selected != [3]string{"ops-user", "notice_classification", "notice_classification_decision"} {
+		t.Fatalf("status=%d body=%s selected=%v", response.Code, response.Body.String(), store.selected)
+	}
+
+	for _, test := range []struct {
+		name, path string
+		store      *fakeStore
+		wantStatus int
+		wantCode   string
+	}{
+		{name: "stored name is not an alias", path: "/internal/admin/config-selections/notice_classification_decision", store: &fakeStore{}, wantStatus: http.StatusNotFound, wantCode: "not_found"},
+		{name: "credential not ready", path: "/internal/admin/config-selections/notice_classification", store: &fakeStore{selectErr: modelconfig.ErrSelectionNotReady}, wantStatus: http.StatusUnprocessableEntity, wantCode: "selection_not_ready"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPut, test.path, strings.NewReader(`{"config_name":"notice_classification_decision"}`))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			New(test.store).ServeHTTP(response, request)
+			var payload struct {
+				Error struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			_ = json.Unmarshal(response.Body.Bytes(), &payload)
+			if response.Code != test.wantStatus || payload.Error.Code != test.wantCode {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 			}
 		})
 	}

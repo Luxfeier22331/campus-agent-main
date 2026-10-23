@@ -53,8 +53,14 @@ export async function noticePipelineRun(input: NoticePipelineInput = { mode: "sc
 		const files = await pipelineStages.syncFiles();
 		return { outcome: files.summary.outcome, files };
 	}
-	if (input.mode === "classify-one") {
-		const classification = await pipelineStages.classifyNotices(input.noticeIds);
+	if (input.mode === "classify-one" || input.mode === "classify-all") {
+		const classification = await pipelineStages.classifyNotices(
+			input.mode === "classify-all"
+				? "all"
+				: input.noticeIds
+					? { noticeIds: input.noticeIds }
+					: "missing",
+		);
 		return { outcome: classification.outcome, classification };
 	}
 	if (input.mode === "publish-one" || input.mode === "republish-one") {

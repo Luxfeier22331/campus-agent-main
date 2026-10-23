@@ -2,6 +2,8 @@ import type {
 	ModelDiscoveryRequest,
 	ModelSettingKind,
 	ModelSettingUpdate,
+	NoticeClassificationBackend,
+	NoticeClassificationCredentialUpdate,
 } from "../../shared/ops-contract";
 import {
 	ExecutionModelSettingsStatusSchema,
@@ -16,7 +18,7 @@ export async function fetchExecutionModelSettings(input: { signal?: AbortSignal 
 }
 
 export async function discoverExecutionModels(
-	kind: "llm" | "reranker" | "notice_classifier",
+	kind: "llm" | "reranker",
 	payload: ModelDiscoveryRequest,
 ) {
 	return ModelDiscoveryResponseSchema.parse(
@@ -47,6 +49,52 @@ export async function putExecutionModelSetting(
 export async function validateExecutionModelSetting(kind: ModelSettingKind) {
 	return ExecutionModelSettingsStatusSchema.parse(
 		await fetchJson(`/api/ops/model-configs/${kind}/validate`, {
+			method: "POST",
+		}),
+	);
+}
+
+const noticeClassificationPath = "/api/ops/model-configs/notice_classification";
+
+export async function selectNoticeClassificationBackend(backend: NoticeClassificationBackend) {
+	return ExecutionModelSettingsStatusSchema.parse(
+		await fetchJson(noticeClassificationPath, {
+			body: JSON.stringify({ backend }),
+			headers: { "content-type": "application/json" },
+			method: "PUT",
+		}),
+	);
+}
+
+export async function putNoticeClassificationCredential(
+	backend: NoticeClassificationBackend,
+	payload: NoticeClassificationCredentialUpdate,
+) {
+	return ExecutionModelSettingsStatusSchema.parse(
+		await fetchJson(`${noticeClassificationPath}/credentials/${backend}`, {
+			body: JSON.stringify(payload),
+			headers: { "content-type": "application/json" },
+			method: "PUT",
+		}),
+	);
+}
+
+export async function validateNoticeClassificationCredential(backend: NoticeClassificationBackend) {
+	return ExecutionModelSettingsStatusSchema.parse(
+		await fetchJson(`${noticeClassificationPath}/credentials/${backend}/validate`, {
+			method: "POST",
+		}),
+	);
+}
+
+export async function discoverNoticeClassificationModels(
+	backend: NoticeClassificationBackend,
+	payload: ModelDiscoveryRequest,
+) {
+	return ModelDiscoveryResponseSchema.parse(
+		await fetchJson(`${noticeClassificationPath}/credentials/${backend}/models`, {
+			body: JSON.stringify(payload),
+			headers: { "content-type": "application/json" },
 			method: "POST",
 		}),
 	);

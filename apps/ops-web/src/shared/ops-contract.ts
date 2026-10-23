@@ -40,6 +40,7 @@ export const NoticeJobOperationSchema = z.enum([
 	"notice-backfill",
 	"notice-classify-missing",
 	"notice-classify-one",
+	"notice-reclassify-all",
 	"notice-publish-pending",
 	"notice-publish-one",
 	"notice-republish-one",
@@ -79,6 +80,7 @@ export const NoticeJobCreateSchema = z.discriminatedUnion("operation", [
 	z.object({ operation: z.literal("notice-backfill"), startDate: NoticeDateSchema }).strict(),
 	z.object({ operation: z.literal("notice-classify-missing") }).strict(),
 	z.object({ operation: z.literal("notice-classify-one"), noticeId: NoticeIdSchema }).strict(),
+	z.object({ operation: z.literal("notice-reclassify-all") }).strict(),
 	z.object({ operation: z.literal("notice-publish-pending") }).strict(),
 	z.object({ operation: z.literal("notice-publish-one"), noticeId: NoticeIdSchema }).strict(),
 	z.object({ operation: z.literal("notice-republish-one"), noticeId: NoticeIdSchema }).strict(),
@@ -188,7 +190,7 @@ export const NoticeDetailResponseSchema = z.object({ notice: NoticeDetailSchema 
 export const NoticeCategoryUpdateSchema = z.object({ category: NoticeCategorySchema }).strict();
 export type NoticeCategoryUpdate = z.infer<typeof NoticeCategoryUpdateSchema>;
 
-export const ModelSettingKindSchema = z.enum(["llm", "embedding", "reranker", "notice_classifier"]);
+export const ModelSettingKindSchema = z.enum(["llm", "embedding", "reranker"]);
 export type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
 
 export const ModelProviderSchema = z.enum([
@@ -197,6 +199,8 @@ export const ModelProviderSchema = z.enum([
 	"openai-compatible",
 	"cohere",
 	"cohere-compatible",
+	"nace",
+	"typesafe",
 ]);
 
 export const ModelSettingLatestValidationSchema = z.object({
@@ -235,10 +239,39 @@ export const ExecutionModelSettingSchema = z.object({
 	latestValidation: ModelSettingLatestValidationSchema.nullable(),
 	model: z.string().min(1),
 	provider: ModelProviderSchema,
-	transport: z.enum(["responses", "chat_completions", "generate_content", "embeddings", "rerank"]),
+	transport: z.enum([
+		"responses",
+		"chat_completions",
+		"generate_content",
+		"embeddings",
+		"rerank",
+		"systemone",
+	]),
 	updatedAt: IsoDateTimeSchema,
 	updatedBy: z.string().min(1),
 });
+
+export const NoticeClassificationBackendSchema = z.enum(["decision", "llm"]);
+export type NoticeClassificationBackend = z.infer<typeof NoticeClassificationBackendSchema>;
+
+export const NoticeClassificationCredentialSchema = ExecutionModelSettingSchema.omit({
+	kind: true,
+});
+export type NoticeClassificationCredential = z.infer<typeof NoticeClassificationCredentialSchema>;
+
+/** 每个后端各存一份凭据；`backend` 为 `null` 表示尚未选择，通知分类不可用。 */
+export const NoticeClassificationSettingsSchema = z
+	.object({
+		backend: NoticeClassificationBackendSchema.nullable(),
+		credentials: z
+			.object({
+				decision: NoticeClassificationCredentialSchema.nullable(),
+				llm: NoticeClassificationCredentialSchema.nullable(),
+			})
+			.strict(),
+	})
+	.strict();
+export type NoticeClassificationSettings = z.infer<typeof NoticeClassificationSettingsSchema>;
 
 export const EmbeddingContractSchema = z
 	.object({
@@ -256,8 +289,8 @@ export const ExecutionModelSettingsStatusSchema = z.object({
 		embedding: ExecutionModelSettingSchema.nullable(),
 		llm: ExecutionModelSettingSchema.nullable(),
 		reranker: ExecutionModelSettingSchema.nullable(),
-		notice_classifier: ExecutionModelSettingSchema.nullable(),
 	}),
+	noticeClassification: NoticeClassificationSettingsSchema,
 });
 
 export type ExecutionModelSettingsStatus = z.infer<typeof ExecutionModelSettingsStatusSchema>;
@@ -275,6 +308,13 @@ const LLMModelSettingUpdateBaseSchema = z.object({
 export const NoticeClassifierModelSettingUpdateSchema = LLMModelSettingUpdateBaseSchema.extend({
 	transport: z.enum(["responses", "chat_completions"]),
 }).strict();
+/** 决策模型的接口固定为 System One，provider 为兼容该接口的供应商。 */
+export const NoticeClassificationDecisionUpdateSchema = LLMModelSettingUpdateBaseSchema.extend({
+	provider: z.enum(["nace", "typesafe"]),
+}).strict();
+export const NoticeClassificationSelectionUpdateSchema = z
+	.object({ backend: NoticeClassificationBackendSchema })
+	.strict();
 export const LLMModelSettingUpdateSchema = z.union([
 	NoticeClassifierModelSettingUpdateSchema,
 	LLMModelSettingUpdateBaseSchema.extend({
@@ -311,6 +351,10 @@ export type ModelSettingUpdate =
 	| z.infer<typeof LLMModelSettingUpdateSchema>
 	| z.infer<typeof EmbeddingModelSettingUpdateSchema>
 	| z.infer<typeof RerankerModelSettingUpdateSchema>;
+
+export type NoticeClassificationCredentialUpdate =
+	| z.infer<typeof NoticeClassificationDecisionUpdateSchema>
+	| z.infer<typeof NoticeClassifierModelSettingUpdateSchema>;
 
 export const InternalPortalAutomationTokenMetadataSchema = z
 	.object({

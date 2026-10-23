@@ -130,29 +130,6 @@
 			"outputs": [],
 			"outputLogs": "new-only"
 		},
-		"test:notices": {
-			"dependsOn": [
-				"@campus-agent/notices#source",
-				"ingestion-contracts#source",
-				"notice-classifier-core#source"
-			],
-			"inputs": [
-				"package.json",
-				"ci/repository-test.mts",
-				"ci/tooling-tasks.mts",
-				"ci/turbo.mts",
-				"toolchain/**",
-				"$TURBO_ROOT$/package.json",
-				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"$TURBO_ROOT$/turbo.json",
-				"$TURBO_ROOT$/flake.nix",
-				"$TURBO_ROOT$/flake.lock",
-				"notices/**"
-			],
-			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
-			"outputs": [],
-			"outputLogs": "new-only"
-		},
 		"test:release": {
 			"dependsOn": [],
 			"inputs": [
@@ -188,28 +165,14 @@
 			"outputLogs": "new-only"
 		},
 		"test": {
-			"dependsOn": [
-				"test:ci",
-				"test:dev",
-				"test:docs",
-				"test:hooks",
-				"test:infra",
-				"test:notices",
-				"test:release"
-			],
+			"dependsOn": ["test:ci", "test:dev", "test:docs", "test:hooks", "test:infra", "test:release"],
 			"inputs": [],
 			"outputs": []
 		},
 		"typecheck": {
-			"dependsOn": ["typecheck:notices"],
+			"dependsOn": [],
 			"inputs": [],
 			"outputs": []
-		},
-		"typecheck:notices": {
-			"dependsOn": ["^source"],
-			"inputs": ["package.json", "notices/**"],
-			"outputs": [],
-			"env": ["CAMPUS_NODE_RUNTIME"]
 		}
 	}
 }

@@ -104,7 +104,7 @@ func parseOptions(
 	seen := make(map[modelconfig.ConfigName]struct{}, len(rawNames))
 	for _, rawName := range rawNames {
 		name := modelconfig.ConfigName(rawName)
-		if _, ok := localSeedEnvironment(name); !ok {
+		if _, ok := localSeedEnvironment(name); !ok && name != modelconfig.ConfigNoticeClassification {
 			return localCommandOptions{}, fmt.Errorf("unsupported model config name %q", rawName)
 		}
 		if _, duplicate := seen[name]; duplicate {
@@ -133,11 +133,14 @@ func runSeed(ctx context.Context, options localCommandOptions, stdout io.Writer)
 	if len(names) == 0 {
 		return writeJSON(stdout, seedOutput{Seeded: []modelconfig.ConfigName{}})
 	}
-	configs, missing := localSeedConfigs(names, options.storeEnvironment)
+	configs, selections, missing, err := localSeedConfigs(names, options.storeEnvironment)
+	if err != nil {
+		return err
+	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required local model config environment variables: %s", strings.Join(missing, ", "))
 	}
-	if err := store.Seed(ctx, configs); err != nil {
+	if err := store.Seed(ctx, configs, selections); err != nil {
 		return errors.New("local model config seed failed")
 	}
 	return writeJSON(stdout, seedOutput{Seeded: names})
@@ -191,10 +194,25 @@ func runCheck(ctx context.Context, options localCommandOptions, stdout io.Writer
 func localSeedConfigs(
 	names []modelconfig.ConfigName,
 	lookup environmentLookup,
-) ([]modelconfig.LocalSeedConfig, []string) {
+) ([]modelconfig.LocalSeedConfig, []modelconfig.LocalSeedSelection, []string, error) {
 	configs := make([]modelconfig.LocalSeedConfig, 0, len(names))
+	selections := []modelconfig.LocalSeedSelection{}
 	missingSet := make(map[string]struct{})
 	for _, name := range names {
+		if name == modelconfig.ConfigNoticeClassification {
+			backendConfigs, selection, missing, err := noticeClassificationSeed(lookup)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			for _, key := range missing {
+				missingSet[key] = struct{}{}
+			}
+			configs = append(configs, backendConfigs...)
+			if selection != nil {
+				selections = append(selections, *selection)
+			}
+			continue
+		}
 		definition, _ := localSeedEnvironment(name)
 		values := make(map[string]string, len(definition.environmentKeys))
 		for _, key := range definition.environmentKeys {
@@ -216,16 +234,6 @@ func localSeedConfigs(
 				values["LLM_API_PROTOCOL"] = "openai.responses"
 			}
 		}
-		if name == modelconfig.ConfigNoticeClassification {
-			values["NOTICE_CLASSIFICATION_PROVIDER"], _ = lookup("NOTICE_CLASSIFICATION_PROVIDER")
-			values["NOTICE_CLASSIFICATION_API_PROTOCOL"], _ = lookup("NOTICE_CLASSIFICATION_API_PROTOCOL")
-			if values["NOTICE_CLASSIFICATION_PROVIDER"] == "" {
-				values["NOTICE_CLASSIFICATION_PROVIDER"] = "openai-compatible"
-			}
-			if values["NOTICE_CLASSIFICATION_API_PROTOCOL"] == "" {
-				values["NOTICE_CLASSIFICATION_API_PROTOCOL"] = "openai.responses"
-			}
-		}
 		configs = append(configs, definition.build(values))
 	}
 	missing := make([]string, 0, len(missingSet))
@@ -233,7 +241,89 @@ func localSeedConfigs(
 		missing = append(missing, key)
 	}
 	sort.Strings(missing)
-	return configs, missing
+	return configs, selections, missing, nil
+}
+
+var (
+	noticeClassificationDecisionKeys = []string{"NOTICE_CLASSIFICATION_DECISION_API_KEY", "NOTICE_CLASSIFICATION_DECISION_BASE_URL"}
+	noticeClassificationLLMKeys      = []string{
+		"NOTICE_CLASSIFICATION_LLM_API_KEY",
+		"NOTICE_CLASSIFICATION_LLM_BASE_URL",
+		"NOTICE_CLASSIFICATION_LLM_MODEL",
+	}
+)
+
+// noticeClassificationSeed seeds every backend whose credential is complete
+// and selects NOTICE_CLASSIFICATION_BACKEND, defaulting to the decision model
+// when both are present. One complete backend is enough.
+func noticeClassificationSeed(
+	lookup environmentLookup,
+) ([]modelconfig.LocalSeedConfig, *modelconfig.LocalSeedSelection, []string, error) {
+	value := func(key string) string {
+		raw, _ := lookup(key)
+		return strings.TrimSpace(raw)
+	}
+	missingKeys := func(keys []string) []string {
+		missing := []string{}
+		for _, key := range keys {
+			if value(key) == "" {
+				missing = append(missing, key)
+			}
+		}
+		return missing
+	}
+	decisionMissing := missingKeys(noticeClassificationDecisionKeys)
+	llmMissing := missingKeys(noticeClassificationLLMKeys)
+	configs := []modelconfig.LocalSeedConfig{}
+	if len(decisionMissing) == 0 {
+		provider := value("NOTICE_CLASSIFICATION_DECISION_PROVIDER")
+		if provider == "" {
+			provider = "nace"
+		}
+		model := value("NOTICE_CLASSIFICATION_DECISION_MODEL")
+		if model == "" {
+			model = "drex-max"
+		}
+		configs = append(configs, modelconfig.LocalSeedConfig{
+			APIKey: value("NOTICE_CLASSIFICATION_DECISION_API_KEY"), Name: modelconfig.ConfigNoticeClassificationDecision, Provider: provider,
+			APIProtocol: "typesafe.systemone", BaseURL: value("NOTICE_CLASSIFICATION_DECISION_BASE_URL"), Model: model,
+		})
+	}
+	if len(llmMissing) == 0 {
+		protocol := value("NOTICE_CLASSIFICATION_LLM_API_PROTOCOL")
+		if protocol == "" {
+			protocol = "openai.chat_completions"
+		}
+		configs = append(configs, modelconfig.LocalSeedConfig{
+			APIKey: value("NOTICE_CLASSIFICATION_LLM_API_KEY"), Name: modelconfig.ConfigNoticeClassificationLLM, Provider: "openai-compatible",
+			APIProtocol: protocol, BaseURL: value("NOTICE_CLASSIFICATION_LLM_BASE_URL"), Model: value("NOTICE_CLASSIFICATION_LLM_MODEL"),
+		})
+	}
+	backend := value("NOTICE_CLASSIFICATION_BACKEND")
+	if backend == "" {
+		switch {
+		case len(decisionMissing) == 0:
+			backend = "decision"
+		case len(llmMissing) == 0:
+			backend = "llm"
+		default:
+			return nil, nil, append(decisionMissing, llmMissing...), nil
+		}
+	}
+	var selected modelconfig.ConfigName
+	var missing []string
+	switch backend {
+	case "decision":
+		selected, missing = modelconfig.ConfigNoticeClassificationDecision, decisionMissing
+	case "llm":
+		selected, missing = modelconfig.ConfigNoticeClassificationLLM, llmMissing
+	default:
+		return nil, nil, nil, fmt.Errorf("NOTICE_CLASSIFICATION_BACKEND must be decision or llm, got %q", backend)
+	}
+	if len(missing) > 0 {
+		return nil, nil, missing, nil
+	}
+	return configs, &modelconfig.LocalSeedSelection{Alias: modelconfig.ConfigNoticeClassification, ConfigName: selected}, nil, nil
 }
 
 type localSeedDefinition struct {
@@ -250,20 +340,6 @@ func localSeedEnvironment(name modelconfig.ConfigName) (localSeedDefinition, boo
 				return modelconfig.LocalSeedConfig{
 					APIKey: values["LLM_API_KEY"], Name: name, Provider: values["LLM_PROVIDER"],
 					APIProtocol: values["LLM_API_PROTOCOL"], BaseURL: values["LLM_BASE_URL"], Model: values["LLM_MODEL"],
-				}
-			},
-		}, true
-	case modelconfig.ConfigNoticeClassification:
-		return localSeedDefinition{
-			environmentKeys: []string{
-				"NOTICE_CLASSIFICATION_API_KEY",
-				"NOTICE_CLASSIFICATION_BASE_URL",
-				"NOTICE_CLASSIFICATION_MODEL",
-			},
-			build: func(values map[string]string) modelconfig.LocalSeedConfig {
-				return modelconfig.LocalSeedConfig{
-					APIKey: values["NOTICE_CLASSIFICATION_API_KEY"], Name: name, Provider: values["NOTICE_CLASSIFICATION_PROVIDER"],
-					APIProtocol: values["NOTICE_CLASSIFICATION_API_PROTOCOL"], BaseURL: values["NOTICE_CLASSIFICATION_BASE_URL"], Model: values["NOTICE_CLASSIFICATION_MODEL"],
 				}
 			},
 		}, true

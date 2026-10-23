@@ -335,8 +335,9 @@ seed 缺失的 Model Config；它不访问 Provider、不覆盖已有配置，�
 [在线模型密钥操作](./access/provider-secrets.md) 操作。应用启动不能静默 seed 在线配置。main checkout 导入的 provider 字段只是
 初始化输入，不是 runtime source；映射由 target 声明的 config name 决定，通用 LLM 连接不会隐式覆盖已有
 通知分类配置。`notice_classification` 本地 seed 使用独立的
-`NOTICE_CLASSIFICATION_BASE_URL`、`NOTICE_CLASSIFICATION_API_KEY` 和
-`NOTICE_CLASSIFICATION_MODEL` 输入；是否复用 endpoint 或凭据由调用方的本地输入决定，不把两个配置
+`NOTICE_CLASSIFICATION_DECISION_{BASE_URL,API_KEY,MODEL,PROVIDER}`（provider 默认 `nace`，模型默认 `drex-max`）、
+`NOTICE_CLASSIFICATION_LLM_{BASE_URL,API_KEY,MODEL,API_PROTOCOL}` 输入，至少一家完整即可 seed，
+`NOTICE_CLASSIFICATION_BACKEND` 选择本地后端；是否复用 endpoint 或凭据由调用方的本地输入决定，不把两个配置
 合并，也不改变通知消费者逻辑。
 Gemini 本地初始连接使用 `LLM_PROVIDER=google`、`LLM_API_PROTOCOL=google.generate_content`，以及
 `LLM_BASE_URL`（包含 `/v1beta` 等原生版本路径）、`LLM_MODEL` 和 `LLM_API_KEY`。已有配置使用 Ops 的

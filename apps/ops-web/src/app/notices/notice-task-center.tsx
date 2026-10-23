@@ -184,7 +184,7 @@ export function NoticeTaskCenter({
 								</ActionGroup>
 
 								<ActionGroup
-									description="为当前所有缺少分类的通知运行模型分类。"
+									description="为缺少标签的内部通知分类；切换分类后端或升级判定文本后全量重判，覆盖已有标签。"
 									icon={<Sparkles aria-hidden="true" />}
 									title="分类"
 								>
@@ -192,6 +192,11 @@ export function NoticeTaskCenter({
 										disabled={isFamilyBusy("classification")}
 										onClick={() => onCreate({ operation: "notice-classify-missing" })}
 										title="分类缺失通知"
+									/>
+									<TaskAction
+										disabled={isFamilyBusy("classification")}
+										onClick={() => onCreate({ operation: "notice-reclassify-all" })}
+										title="全量重判内部通知"
 									/>
 								</ActionGroup>
 

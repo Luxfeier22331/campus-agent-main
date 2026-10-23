@@ -80,7 +80,7 @@ CR，由 CNPG 删除 role（DatabaseRole 不接受 `ensure: absent`）。当前�
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `agent_control.agent_*`、`agent_control.conversation_run_locks`、`agent_control.owner_deletion_fences` | agent-control | agent-control、获准 Ops Web 投影、App API 的两列运行状态摘要 |
 | 独立数据库 `memory` 中的 `memory.*` | Memory API / Worker | Memory API / Worker；其他消费者使用 HTTP |
-| `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
+| `model_config.model_configs`、`model_config.config_selections` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
 | `campus_docs_serving.current_index` | Campus RAG serving（retrieval-index 复用 `agent_control` 技术身份写入） | retrieval-index；Campus Search service 以独立只读角色读取 |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
@@ -232,8 +232,8 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 - `current_index` 保存当前版本化 collection 与 Docs/Notice 制品引用，不保存回滚目标；旧 publisher 的
   `index_versions` 与 `previous_collection` 已在首次 Apply 后删除。
 - `notices.processing_failures` 由分类和发布 Job 写入，Ops 只读及删除用于人工分类修复，App API 无权限；
-- `model_config.model_configs` 可以为空或只配置一个 name；schema 安装不把业务配置完整性
-  变成部署门禁。缺失 name 由其消费路径失败关闭。
+- `model_config.model_configs` 可以为空或只配置一个 name，`config_selections` 可以没有别名选择；
+  schema 安装不把业务配置完整性变成部署门禁。缺失 name 或选择由其消费路径失败关闭。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   可读取评价历史的清理标识、期限与操作者列并清理到期记录，不能读取历史正文、地图草稿或修改地图菜单；
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和分类业务表，不能读取

@@ -1,0 +1,174 @@
+notice_id	batch	judge	result	category	status	source	review
+188621	b1	judge-0.1.1	agreed	recruitment	upcoming	dual_model	
+190863	b1	judge-0.1.1	agreed	recruitment	upcoming	dual_model	
+234730	b1	judge-0.1.1	agreed	application	upcoming	dual_model	
+244559	b1	judge-0.1.1	agreed	activity	upcoming	dual_model	
+244703	b1	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+244727	b1	judge-0.1.1	agreed	governance	upcoming	dual_model	
+244760	b1	judge-0.1.1	agreed	governance	upcoming	dual_model	
+244777	b1	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+244793	b1	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+244813	b1	judge-0.1.1	agreed	examination	upcoming	dual_model	
+244814	b1	judge-0.1.1	agreed	activity	upcoming	dual_model	
+244846	b1	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+244847	b1	judge-0.1.1	agreed	governance	upcoming	dual_model	
+244888	b1	judge-0.1.1	agreed	governance	upcoming	dual_model	
+244921	b1	judge-0.1.1	agreed	activity	upcoming	dual_model	
+244963	b1	judge-0.1.1	agreed	governance	upcoming	dual_model	
+244974	b1	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+245145	b1	judge-0.1.1	agreed	selection_result	completed	dual_model	
+245167	b1	judge-0.1.1	agreed	news	completed	dual_model	
+245246	b1	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245269	b1	judge-0.1.1	agreed	examination	upcoming	dual_model	
+245276	b1	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245285	b1	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245287	b2	judge-0.1.1	agreed	governance	upcoming	dual_model	
+245290	b2	judge-0.1.1	agreed	governance	upcoming	dual_model	
+245323	b2	judge-0.1.1	ruled	governance	upcoming	human	spot_checked
+245328	b2	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245329	b2	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245331	b2	judge-0.1.1	agreed	recruitment	upcoming	dual_model	
+245337	b2	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245340	b2	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245341	b2	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245351	b2	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245366	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245372	b2	judge-0.1.1	agreed	activity	upcoming	dual_model	
+245381	b2	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245392	b2	judge-0.1.1	ruled	affairs	upcoming	human	
+245398	b2	judge-0.1.1	agreed	service_info	static	dual_model	
+245404	b2	judge-0.1.1	agreed	selection_result	completed	dual_model	
+245416	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245420	b2	judge-0.1.1	ruled	lecture_forum	upcoming	human	
+245421	b2	judge-0.1.1	agreed	activity	upcoming	dual_model	
+245422	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245424	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245428	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245429	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245430	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245432	b2	judge-0.1.1	agreed	lecture_forum	upcoming	dual_model	
+245433	b2	judge-0.1.1	agreed	examination	upcoming	dual_model	
+245445	b2	judge-0.1.1	agreed	activity	upcoming	dual_model	
+245451	b2	judge-0.1.1	agreed	selection_result	completed	dual_model	
+245476	b2	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+245477	b2	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+245498	b2	judge-0.1.1	agreed	lecture_forum	completed	dual_model	
+245516	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245518	b2	judge-0.1.1	agreed	examination	upcoming	dual_model	
+245519	b2	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+245548	b2	judge-0.1.1	agreed	training	upcoming	dual_model	
+245552	b2	judge-0.1.1	agreed	recruitment	upcoming	dual_model	
+245576	b2	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245582	b2	judge-0.1.1	agreed	recruitment	upcoming	dual_model	
+245601	b2	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+245623	b2	judge-0.1.1	agreed	news	completed	dual_model	
+245655	b2	judge-0.1.1	ruled	application	upcoming	human	
+245656	b2	judge-0.1.1	ruled	application	upcoming	human	
+245666	b2	judge-0.1.1	agreed	training	upcoming	dual_model	
+245667	b2	judge-0.1.1	agreed	examination	upcoming	dual_model	
+245674	b2	judge-0.1.1	agreed	governance	upcoming	dual_model	
+245675	b2	judge-0.1.1	agreed	activity	upcoming	dual_model	
+245704	b2	judge-0.1.1	ruled	affairs	upcoming	human	
+245707	b2	judge-0.1.1	ruled	application	upcoming	human	
+244849	b2	judge-0.1.1	agreed	governance	upcoming	dual_model	spot_checked
+245193	b2	judge-0.1.1	ruled	selection_result	completed	human	
+245708	b3	judge-0.1.1	agreed	application	upcoming	dual_model	
+245733	b3	judge-0.1.1	ruled	activity	upcoming	human	spot_checked
+245742	b3	judge-0.1.1	agreed	lecture_forum	upcoming	dual_model	
+245747	b3	judge-0.1.1	agreed	governance	completed	dual_model	
+245753	b3	judge-0.1.1	agreed	recruitment	upcoming	dual_model	
+245773	b3	judge-0.1.1	agreed	governance	upcoming	dual_model	
+245781	b3	judge-0.1.1	ruled	governance	upcoming	human	
+245783	b3	judge-0.1.1	agreed	recruitment	upcoming	dual_model	
+245804	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245854	b3	judge-0.1.1	agreed	activity	upcoming	dual_model	
+245862	b3	judge-0.1.1	ruled	activity	upcoming	human	
+245864	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245877	b3	judge-0.1.1	agreed	application	upcoming	dual_model	
+245886	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+245915	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246010	b3	judge-0.1.1	ruled	governance	upcoming	human	
+246025	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246030	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246040	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246050	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246061	b3	judge-0.1.1	agreed	governance	completed	dual_model	
+246072	b3	judge-0.1.1	ruled	affairs	upcoming	human	
+246084	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246086	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246088	b3	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+246089	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246114	b3	judge-0.1.1	agreed	examination	upcoming	dual_model	
+246119	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246125	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246142	b3	judge-0.1.1	agreed	international	upcoming	dual_model	
+246145	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246165	b3	judge-0.1.1	agreed	international	upcoming	dual_model	
+246174	b3	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+246242	b3	judge-0.1.1	agreed	examination	upcoming	dual_model	
+246246	b3	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+246257	b3	judge-0.1.1	agreed	activity	upcoming	dual_model	
+246275	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246276	b3	judge-0.1.1	agreed	activity	upcoming	dual_model	
+246278	b3	judge-0.1.1	agreed	selection_result	completed	dual_model	
+246292	b3	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+246299	b3	judge-0.1.1	agreed	news	completed	dual_model	
+246422	b3	judge-0.1.1	ruled	service_info	upcoming	human	
+246445	b3	judge-0.1.1	agreed	recruitment	upcoming	dual_model	
+246451	b3	judge-0.1.1	agreed	governance	upcoming	dual_model	
+246530	b3	judge-0.1.1	ruled	governance	upcoming	human	
+246544	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246545	b3	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+246580	b3	judge-0.1.1	agreed	application	upcoming	dual_model	
+246585	b3	judge-0.1.1	agreed	lecture_forum	upcoming	dual_model	
+246587	b3	judge-0.1.1	ruled	service_info	static	human	
+246593	b4	judge-0.1.1	agreed	training	upcoming	dual_model	
+246617	b4	judge-0.1.1	agreed	selection_result	completed	dual_model	
+246619	b4	judge-0.1.1	agreed	examination	upcoming	dual_model	
+246620	b4	judge-0.1.1	agreed	competition	upcoming	dual_model	
+246621	b4	judge-0.1.1	agreed	governance	upcoming	dual_model	spot_check
+246628	b4	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+246651	b4	judge-0.1.1	agreed	training	upcoming	dual_model	
+246652	b4	judge-0.1.1	agreed	training	upcoming	dual_model	
+246658	b4	judge-0.1.1	agreed	application	upcoming	dual_model	
+246665	b4	judge-0.1.1	agreed	application	upcoming	dual_model	
+246697	b4	judge-0.1.1	pending				
+246719	b4	judge-0.1.1	pending				
+246724	b4	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+246725	b4	judge-0.1.1	agreed	service_info	upcoming	dual_model	
+246742	b4	judge-0.1.1	agreed	news	completed	dual_model	
+246746	b4	judge-0.1.1	pending				
+246762	b4	judge-0.1.1	pending				
+246794	b4	judge-0.1.1	pending				
+246795	b4	judge-0.1.1	pending				
+246803	b4	judge-0.1.1	agreed	application	upcoming	dual_model	
+246813	b4	judge-0.1.1	agreed	governance	upcoming	dual_model	
+246878	b4	judge-0.1.1	agreed	application	upcoming	dual_model	
+246879	b4	judge-0.1.1	agreed	examination	upcoming	dual_model	
+246912	b4	judge-0.1.1	agreed	governance	upcoming	dual_model	
+246945	b4	judge-0.1.1	agreed	news	completed	dual_model	spot_check
+247007	b4	judge-0.1.1	agreed	examination	upcoming	dual_model	
+247020	b4	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+247026	b4	judge-0.1.1	agreed	training	upcoming	dual_model	
+247040	b4	judge-0.1.1	agreed	activity	upcoming	dual_model	
+247084	b4	judge-0.1.1	agreed	application	upcoming	dual_model	
+247101	b4	judge-0.1.1	agreed	service_info	static	dual_model	
+247119	b4	judge-0.1.1	pending				
+247136	b4	judge-0.1.1	pending				
+247148	b4	judge-0.1.1	agreed	governance	upcoming	dual_model	
+247195	b4	judge-0.1.1	pending				
+247196	b4	judge-0.1.1	pending				
+247198	b4	judge-0.1.1	pending				
+247211	b4	judge-0.1.1	agreed	selection_result	completed	dual_model	
+247244	b4	judge-0.1.1	agreed	lecture_forum	upcoming	dual_model	
+247287	b4	judge-0.1.1	pending				
+247330	b4	judge-0.1.1	agreed	training	upcoming	dual_model	
+247333	b4	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+247362	b4	judge-0.1.1	agreed	examination	upcoming	dual_model	
+247369	b4	judge-0.1.1	agreed	service_info	upcoming	dual_model	spot_check
+247400	b4	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+247402	b4	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+247404	b4	judge-0.1.1	agreed	affairs	upcoming	dual_model	
+247410	b4	judge-0.1.1	pending				
+247447	b4	judge-0.1.1	agreed	governance	upcoming	dual_model	
+247453	b4	judge-0.1.1	agreed	affairs	upcoming	dual_model	

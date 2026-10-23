@@ -1,11 +1,14 @@
+import { DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY, type NoticeClassificationScope } from "./job.ts";
+
 export interface NoticeClassifierCliOptions {
 	concurrency: number;
-	noticeIds: number[] | undefined;
+	scope: NoticeClassificationScope;
 	modelConfigUrl: string | undefined;
 }
 
 export function parseNoticeClassifierOptions(argv: readonly string[]): NoticeClassifierCliOptions {
-	let concurrency = 2;
+	let concurrency = DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY;
+	let all = false;
 	const noticeIds: number[] = [];
 	let modelConfigUrl: string | undefined;
 	for (let index = 0; index < argv.length; index += 1) {
@@ -21,6 +24,10 @@ export function parseNoticeClassifierOptions(argv: readonly string[]): NoticeCla
 			index += 1;
 			continue;
 		}
+		if (argument === "--all") {
+			all = true;
+			continue;
+		}
 		if (argument === "--notice-id" && value) {
 			if (!/^[1-9][0-9]*$/u.test(value) || !Number.isSafeInteger(Number(value))) {
 				throw new Error(`invalid notice id: ${value}`);
@@ -32,12 +39,15 @@ export function parseNoticeClassifierOptions(argv: readonly string[]): NoticeCla
 			continue;
 		}
 		throw new Error(
-			"Usage: notice-classifier [--concurrency <positive-integer>] [--model-config-url <url>] [--notice-id <positive-integer> ...]",
+			"Usage: notice-classifier [--concurrency <positive-integer>] [--model-config-url <url>] [--all | --notice-id <positive-integer> ...]",
 		);
+	}
+	if (all && noticeIds.length > 0) {
+		throw new Error("--all cannot be combined with --notice-id");
 	}
 	return {
 		concurrency,
-		noticeIds: noticeIds.length > 0 ? noticeIds : undefined,
+		scope: all ? "all" : noticeIds.length > 0 ? { noticeIds } : "missing",
 		modelConfigUrl,
 	};
 }

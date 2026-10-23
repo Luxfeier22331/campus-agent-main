@@ -1,0 +1,3376 @@
+notice_id	category	intent	source	judge
+184155	recruitment	action	rule_lane	
+188541	recruitment	action	rule_lane	
+188621	recruitment	action	dual_model	0.3.27
+190863	recruitment	action	dual_model	0.3.27
+228184	recruitment	action	rule_lane	
+232782	recruitment	action	rule_lane	
+232931	recruitment	action	rule_lane	
+233636	selection_result	result	rule_lane	
+234730	application	action	dual_model	0.3.27
+240481	recruitment	action	rule_lane	
+244325	selection_result	result	rule_lane	
+244559	activity	event	dual_model	0.3.27
+244678	competition	event	rule_lane	
+244697	news	result	rule_lane	
+244699	news	result	rule_lane	
+244703	affairs	action	dual_model	0.3.27
+244722	news	result	rule_lane	
+244724	affairs	action	rule_lane	
+244727	governance	event	dual_model	0.3.27
+244730	lecture_forum	result	rule_lane	
+244731	competition	event	rule_lane	
+244736	application	action	rule_lane	
+244746	affairs	action	rule_lane	
+244750	lecture_forum	event	rule_lane	
+244752	news	result	rule_lane	
+244759	procurement	result	rule_lane	
+244760	governance	event	dual_model	0.3.27
+244763	news	result	rule_lane	
+244766	procurement	action	rule_lane	
+244768	lecture_forum	event	rule_lane	
+244770	procurement	result	rule_lane	
+244771	procurement	result	rule_lane	
+244774	competition	event	rule_lane	
+244776	selection_result	result	rule_lane	
+244777	service_info	notice	dual_model	0.3.27
+244780	application	action	rule_lane	
+244783	training	event	rule_lane	
+244784	news	result	rule_lane	
+244785	recruitment	action	rule_lane	
+244786	recruitment	action	rule_lane	
+244787	application	action	rule_lane	
+244793	teaching_schedule	notice	rule_lane	
+244794	lecture_forum	result	rule_lane	
+244813	examination	event	rule_lane	
+244814	activity	event	dual_model	0.3.27
+244815	application	action	rule_lane	
+244817	news	result	rule_lane	
+244821	governance	event	rule_lane	
+244822	affairs	action	rule_lane	
+244831	selection_result	result	rule_lane	
+244832	news	result	rule_lane	
+244837	selection_result	result	rule_lane	
+244838	application	action	rule_lane	
+244840	governance	notice	rule_lane	
+244841	competition	action	rule_lane	
+244842	application	action	rule_lane	
+244843	service_info	notice	rule_lane	
+244844	service_info	notice	rule_lane	
+244845	procurement	result	rule_lane	
+244846	affairs	action	dual_model	0.3.27
+244847	training	action	dual_model	0.3.27
+244848	service_info	notice	rule_lane	
+244849	governance	notice	dual_model	0.3.27
+244860	lecture_forum	result	rule_lane	
+244863	news	result	rule_lane	
+244870	competition	action	rule_lane	
+244871	service_info	notice	rule_lane	
+244883	procurement	action	rule_lane	
+244888	governance	notice	dual_model	0.3.27
+244897	competition	event	rule_lane	
+244903	news	result	rule_lane	
+244904	competition	action	rule_lane	
+244905	competition	action	rule_lane	
+244906	competition	action	rule_lane	
+244907	application	action	rule_lane	
+244921	activity	event	dual_model	0.3.27
+244963	governance	action	dual_model	0.3.27
+244968	application	action	rule_lane	
+244973	selection_result	result	rule_lane	
+244974	service_info	notice	dual_model	0.3.27
+244975	application	action	rule_lane	
+244976	application	action	rule_lane	
+244988	governance	action	rule_lane	
+244990	selection_result	result	rule_lane	
+245036	news	result	rule_lane	
+245042	application	action	rule_lane	
+245045	lecture_forum	result	rule_lane	
+245049	selection_result	result	rule_lane	
+245057	competition	event	rule_lane	
+245065	competition	event	rule_lane	
+245066	selection_result	result	rule_lane	
+245067	service_info	notice	rule_lane	
+245078	competition	event	rule_lane	
+245082	competition	result	rule_lane	
+245085	competition	result	rule_lane	
+245086	competition	result	rule_lane	
+245099	news	result	rule_lane	
+245106	examination	event	rule_lane	
+245113	affairs	action	rule_lane	
+245120	examination	event	rule_lane	
+245145	selection_result	result	dual_model	0.3.27
+245147	service_info	notice	rule_lane	
+245165	selection_result	result	rule_lane	
+245167	news	result	dual_model	0.3.27
+245168	service_info	notice	rule_lane	
+245171	training	event	rule_lane	
+245179	competition	result	rule_lane	
+245193	selection_result	result	dual_model	0.3.27
+245195	examination	action	rule_lane	
+245196	application	action	rule_lane	
+245197	application	action	rule_lane	
+245199	news	result	rule_lane	
+245201	affairs	action	rule_lane	
+245206	selection_result	result	rule_lane	
+245207	selection_result	result	rule_lane	
+245246	governance	action	dual_model	0.3.27
+245248	competition	event	rule_lane	
+245250	recruitment	action	rule_lane	
+245251	affairs	action	rule_lane	
+245252	affairs	action	rule_lane	
+245255	international	result	rule_lane	
+245256	competition	action	rule_lane	
+245262	affairs	action	rule_lane	
+245263	recruitment	action	rule_lane	
+245264	recruitment	action	rule_lane	
+245265	affairs	action	rule_lane	
+245266	affairs	action	rule_lane	
+245269	examination	event	dual_model	0.3.27
+245271	service_info	notice	rule_lane	
+245272	service_info	notice	rule_lane	
+245276	affairs	action	dual_model	0.3.27
+245279	recruitment	action	rule_lane	
+245280	recruitment	action	rule_lane	
+245284	recruitment	action	rule_lane	
+245285	affairs	action	dual_model	0.3.27
+245287	teaching_schedule	notice	rule_lane	
+245288	recruitment	action	rule_lane	
+245290	teaching_schedule	notice	rule_lane	
+245291	competition	event	rule_lane	
+245293	examination	event	rule_lane	
+245294	news	result	rule_lane	
+245316	international	event	rule_lane	
+245317	recruitment	action	rule_lane	
+245318	affairs	action	rule_lane	
+245323	governance	action	rule_lane	
+245324	recruitment	action	rule_lane	
+245328	affairs	action	dual_model	0.3.27
+245329	affairs	action	rule_lane	
+245330	training	event	rule_lane	
+245331	recruitment	action	dual_model	0.3.27
+245336	lecture_forum	result	rule_lane	
+245337	governance	action	rule_lane	
+245340	affairs	action	dual_model	0.3.27
+245341	affairs	action	dual_model	0.3.27
+245346	recruitment	action	rule_lane	
+245347	recruitment	action	rule_lane	
+245348	recruitment	action	rule_lane	
+245351	affairs	action	dual_model	0.3.27
+245357	news	result	rule_lane	
+245359	competition	event	rule_lane	
+245361	recruitment	action	rule_lane	
+245366	news	result	rule_lane	
+245367	recruitment	action	rule_lane	
+245372	activity	event	dual_model	0.3.27
+245374	recruitment	action	rule_lane	
+245375	teaching_schedule	notice	rule_lane	
+245378	affairs	action	rule_lane	
+245381	affairs	action	rule_lane	
+245382	news	result	rule_lane	
+245387	affairs	action	rule_lane	
+245392	affairs	action	rule_lane	
+245393	affairs	action	rule_lane	
+245394	application	action	rule_lane	
+245395	service_info	notice	rule_lane	
+245397	training	event	rule_lane	
+245398	service_info	reference	dual_model	0.3.27
+245403	selection_result	result	rule_lane	
+245404	selection_result	result	dual_model	0.3.27
+245408	training	action	rule_lane	
+245409	training	action	rule_lane	
+245410	training	action	rule_lane	
+245411	training	action	rule_lane	
+245412	training	action	rule_lane	
+245414	training	action	rule_lane	
+245415	affairs	action	rule_lane	
+245416	news	result	rule_lane	
+245420	lecture_forum	action	dual_model	0.3.27
+245421	activity	action	dual_model	0.3.27
+245422	news	result	rule_lane	
+245424	news	result	rule_lane	
+245426	teaching_schedule	notice	rule_lane	
+245428	news	result	rule_lane	
+245429	news	result	rule_lane	
+245430	news	result	rule_lane	
+245432	lecture_forum	event	dual_model	0.3.27
+245433	examination	event	dual_model	0.3.27
+245437	competition	event	rule_lane	
+245439	teaching_schedule	notice	rule_lane	
+245445	activity	event	dual_model	0.3.27
+245446	service_info	notice	rule_lane	
+245447	training	event	rule_lane	
+245450	selection_result	result	rule_lane	
+245451	selection_result	result	dual_model	0.3.27
+245455	training	event	rule_lane	
+245460	competition	event	rule_lane	
+245461	recruitment	event	rule_lane	
+245474	training	result	rule_lane	
+245476	teaching_schedule	notice	rule_lane	
+245477	teaching_schedule	notice	rule_lane	
+245481	international	event	rule_lane	
+245482	international	event	rule_lane	
+245483	governance	notice	rule_lane	
+245486	training	action	rule_lane	
+245490	training	action	rule_lane	
+245491	training	action	rule_lane	
+245494	examination	action	rule_lane	
+245495	affairs	action	rule_lane	
+245498	lecture_forum	result	dual_model	0.3.30
+245505	recruitment	event	rule_lane	
+245507	international	action	rule_lane	
+245511	recruitment	event	rule_lane	
+245512	news	result	rule_lane	
+245516	news	result	rule_lane	
+245518	examination	action	dual_model	0.3.27
+245519	service_info	notice	dual_model	0.3.27
+245521	service_info	notice	rule_lane	
+245524	news	result	rule_lane	
+245529	application	action	rule_lane	
+245532	teaching_schedule	notice	rule_lane	
+245537	recruitment	event	rule_lane	
+245538	recruitment	action	rule_lane	
+245539	service_info	notice	rule_lane	
+245540	recruitment	action	rule_lane	
+245541	recruitment	action	rule_lane	
+245546	application	action	rule_lane	
+245547	international	result	rule_lane	
+245548	training	event	dual_model	0.3.27
+245549	recruitment	event	rule_lane	
+245550	competition	event	rule_lane	
+245551	service_info	notice	rule_lane	
+245552	recruitment	action	dual_model	0.3.27
+245553	recruitment	action	rule_lane	
+245559	selection_result	result	rule_lane	
+245566	application	action	rule_lane	
+245567	news	result	rule_lane	
+245571	selection_result	result	rule_lane	
+245573	governance	notice	rule_lane	
+245574	selection_result	result	rule_lane	
+245576	affairs	action	dual_model	0.3.27
+245577	selection_result	result	rule_lane	
+245580	selection_result	result	rule_lane	
+245582	recruitment	action	dual_model	0.3.27
+245583	selection_result	result	rule_lane	
+245584	selection_result	result	rule_lane	
+245585	selection_result	result	rule_lane	
+245587	selection_result	result	rule_lane	
+245588	selection_result	result	rule_lane	
+245593	news	result	rule_lane	
+245594	international	action	rule_lane	
+245600	international	action	rule_lane	
+245601	teaching_schedule	notice	rule_lane	
+245602	selection_result	result	rule_lane	
+245608	application	action	rule_lane	
+245611	training	event	rule_lane	
+245613	training	event	rule_lane	
+245615	governance	event	rule_lane	
+245616	selection_result	result	rule_lane	
+245617	recruitment	action	rule_lane	
+245619	selection_result	result	rule_lane	
+245623	news	result	rule_lane	
+245625	news	result	rule_lane	
+245630	news	result	rule_lane	
+245637	recruitment	event	rule_lane	
+245645	recruitment	action	rule_lane	
+245646	service_info	notice	rule_lane	
+245648	application	action	rule_lane	
+245654	selection_result	result	rule_lane	
+245655	application	action	dual_model	0.3.27
+245656	application	action	rule_lane	
+245657	selection_result	result	rule_lane	
+245658	selection_result	result	rule_lane	
+245661	competition	result	rule_lane	
+245662	affairs	action	rule_lane	
+245666	training	event	dual_model	0.3.27
+245667	examination	event	dual_model	0.3.27
+245672	recruitment	event	rule_lane	
+245674	governance	notice	dual_model	0.3.27
+245675	activity	event	dual_model	0.3.27
+245701	affairs	action	rule_lane	
+245704	affairs	action	rule_lane	
+245705	lecture_forum	event	rule_lane	
+245706	teaching_schedule	notice	rule_lane	
+245707	application	action	rule_lane	
+245708	application	action	rule_lane	
+245710	training	event	rule_lane	
+245712	news	result	rule_lane	
+245713	examination	action	rule_lane	
+245714	selection_result	result	rule_lane	
+245719	news	result	rule_lane	
+245720	competition	action	rule_lane	
+245733	activity	event	dual_model	0.3.27
+245735	recruitment	event	rule_lane	
+245736	international	result	rule_lane	
+245742	lecture_forum	event	dual_model	0.3.27
+245747	governance	result	rule_lane	
+245753	recruitment	action	dual_model	0.3.27
+245760	affairs	action	rule_lane	
+245765	lecture_forum	event	rule_lane	
+245766	lecture_forum	event	rule_lane	
+245773	governance	notice	dual_model	0.3.27
+245776	selection_result	result	rule_lane	
+245781	governance	action	dual_model	0.3.27
+245783	recruitment	action	dual_model	0.3.27
+245793	training	event	rule_lane	
+245794	recruitment	event	rule_lane	
+245795	selection_result	result	rule_lane	
+245796	news	result	rule_lane	
+245798	selection_result	result	rule_lane	
+245801	lecture_forum	event	rule_lane	
+245802	news	result	rule_lane	
+245803	lecture_forum	event	rule_lane	
+245804	affairs	action	dual_model	0.3.27
+245806	international	result	rule_lane	
+245807	international	result	rule_lane	
+245811	international	result	rule_lane	
+245827	service_info	notice	rule_lane	
+245834	selection_result	result	rule_lane	
+245835	application	action	rule_lane	
+245841	procurement	result	rule_lane	
+245853	governance	event	rule_lane	
+245854	activity	event	dual_model	0.3.27
+245856	lecture_forum	event	rule_lane	
+245860	competition	action	rule_lane	
+245862	activity	event	dual_model	0.3.30
+245864	affairs	action	dual_model	0.3.27
+245865	recruitment	action	rule_lane	
+245873	news	result	rule_lane	
+245877	application	action	rule_lane	
+245878	application	action	rule_lane	
+245886	affairs	action	dual_model	0.3.27
+245894	recruitment	action	rule_lane	
+245895	recruitment	action	rule_lane	
+245896	news	result	rule_lane	
+245901	recruitment	event	rule_lane	
+245902	selection_result	result	rule_lane	
+245905	news	result	rule_lane	
+245906	news	result	rule_lane	
+245909	news	result	rule_lane	
+245910	news	result	rule_lane	
+245915	affairs	action	dual_model	0.3.32
+245916	application	action	rule_lane	
+245925	service_info	notice	rule_lane	
+245933	competition	event	rule_lane	
+245944	examination	event	rule_lane	
+245951	service_info	notice	rule_lane	
+245964	international	result	rule_lane	
+245978	recruitment	action	rule_lane	
+245984	lecture_forum	event	rule_lane	
+245991	recruitment	event	rule_lane	
+246004	recruitment	event	rule_lane	
+246006	recruitment	event	rule_lane	
+246007	recruitment	event	rule_lane	
+246009	training	event	rule_lane	
+246010	governance	action	dual_model	0.3.27
+246012	selection_result	result	rule_lane	
+246020	selection_result	result	rule_lane	
+246024	affairs	action	rule_lane	
+246025	affairs	action	dual_model	0.3.27
+246026	recruitment	action	rule_lane	
+246028	lecture_forum	event	rule_lane	
+246029	lecture_forum	event	rule_lane	
+246030	affairs	action	rule_lane	
+246032	lecture_forum	event	rule_lane	
+246038	recruitment	event	rule_lane	
+246039	training	event	rule_lane	
+246040	affairs	action	dual_model	0.3.27
+246044	lecture_forum	event	rule_lane	
+246048	affairs	action	rule_lane	
+246050	governance	action	dual_model	0.3.30
+246051	selection_result	result	rule_lane	
+246055	competition	event	rule_lane	
+246061	governance	result	rule_lane	
+246067	international	action	rule_lane	
+246071	recruitment	event	rule_lane	
+246072	affairs	action	rule_lane	
+246073	training	event	rule_lane	
+246075	application	action	rule_lane	
+246083	service_info	notice	rule_lane	
+246084	affairs	action	dual_model	0.3.27
+246086	affairs	action	dual_model	0.3.27
+246088	service_info	notice	rule_lane	
+246089	affairs	action	dual_model	0.3.27
+246090	competition	result	rule_lane	
+246095	lecture_forum	event	rule_lane	
+246114	examination	event	dual_model	0.3.27
+246119	affairs	action	dual_model	0.3.27
+246124	recruitment	event	rule_lane	
+246125	affairs	action	dual_model	0.3.27
+246131	news	result	rule_lane	
+246132	recruitment	event	rule_lane	
+246136	training	event	rule_lane	
+246142	international	event	dual_model	0.3.27
+246144	lecture_forum	event	rule_lane	
+246145	affairs	action	dual_model	0.3.27
+246146	competition	action	rule_lane	
+246150	service_info	notice	rule_lane	
+246152	lecture_forum	event	rule_lane	
+246153	news	result	rule_lane	
+246163	news	result	rule_lane	
+246164	recruitment	event	rule_lane	
+246165	international	action	dual_model	0.3.27
+246166	recruitment	event	rule_lane	
+246167	training	event	rule_lane	
+246170	news	result	rule_lane	
+246174	service_info	reference	dual_model	0.3.27
+246175	international	action	rule_lane	
+246180	news	result	rule_lane	
+246181	recruitment	action	rule_lane	
+246182	recruitment	action	rule_lane	
+246183	recruitment	action	rule_lane	
+246190	lecture_forum	event	rule_lane	
+246193	recruitment	event	rule_lane	
+246206	lecture_forum	event	rule_lane	
+246208	news	result	rule_lane	
+246213	competition	event	rule_lane	
+246216	recruitment	action	rule_lane	
+246218	service_info	notice	rule_lane	
+246225	competition	event	rule_lane	
+246230	training	result	rule_lane	
+246242	examination	action	dual_model	0.3.27
+246244	training	event	rule_lane	
+246246	service_info	reference	dual_model	0.3.27
+246247	service_info	notice	rule_lane	
+246251	governance	action	rule_lane	
+246253	selection_result	result	rule_lane	
+246254	lecture_forum	event	rule_lane	
+246255	lecture_forum	event	rule_lane	
+246256	selection_result	result	rule_lane	
+246257	activity	event	dual_model	0.3.27
+246274	service_info	notice	rule_lane	
+246275	affairs	action	dual_model	0.3.27
+246276	activity	event	dual_model	0.3.27
+246277	lecture_forum	event	rule_lane	
+246278	news	result	dual_model	0.3.27
+246279	recruitment	action	rule_lane	
+246281	application	action	rule_lane	
+246292	service_info	notice	dual_model	0.3.27
+246293	training	event	rule_lane	
+246295	lecture_forum	result	rule_lane	
+246299	news	result	dual_model	0.3.27
+246306	lecture_forum	event	rule_lane	
+246308	news	result	rule_lane	
+246312	training	event	rule_lane	
+246314	competition	event	rule_lane	
+246319	news	result	rule_lane	
+246320	news	result	rule_lane	
+246321	news	result	rule_lane	
+246323	recruitment	event	rule_lane	
+246325	selection_result	result	rule_lane	
+246326	selection_result	result	rule_lane	
+246331	news	result	rule_lane	
+246347	recruitment	event	rule_lane	
+246354	news	result	rule_lane	
+246355	news	result	rule_lane	
+246372	lecture_forum	event	rule_lane	
+246375	competition	action	rule_lane	
+246377	lecture_forum	event	rule_lane	
+246381	lecture_forum	event	rule_lane	
+246383	news	result	rule_lane	
+246394	governance	event	rule_lane	
+246405	competition	action	rule_lane	
+246406	news	result	rule_lane	
+246420	lecture_forum	event	rule_lane	
+246421	training	event	rule_lane	
+246422	service_info	reference	dual_model	0.3.27
+246423	training	event	rule_lane	
+246427	lecture_forum	result	rule_lane	
+246444	recruitment	event	rule_lane	
+246445	recruitment	action	rule_lane	
+246451	governance	notice	dual_model	0.3.27
+246463	lecture_forum	event	rule_lane	
+246464	lecture_forum	event	rule_lane	
+246466	recruitment	event	rule_lane	
+246469	competition	action	rule_lane	
+246475	affairs	action	rule_lane	
+246478	recruitment	action	rule_lane	
+246479	recruitment	action	rule_lane	
+246480	recruitment	action	rule_lane	
+246506	competition	action	rule_lane	
+246519	lecture_forum	event	rule_lane	
+246530	teaching_schedule	notice	rule_lane	
+246536	recruitment	action	rule_lane	
+246540	service_info	notice	rule_lane	
+246544	affairs	action	dual_model	0.3.27
+246545	affairs	action	dual_model	0.3.27
+246546	news	result	rule_lane	
+246548	news	result	rule_lane	
+246549	lecture_forum	result	rule_lane	
+246551	news	result	rule_lane	
+246554	lecture_forum	event	rule_lane	
+246555	application	action	rule_lane	
+246556	recruitment	event	rule_lane	
+246557	news	result	rule_lane	
+246558	examination	event	rule_lane	
+246567	news	result	rule_lane	
+246568	recruitment	event	rule_lane	
+246572	recruitment	event	rule_lane	
+246573	international	event	rule_lane	
+246576	lecture_forum	event	rule_lane	
+246580	application	action	dual_model	0.3.27
+246585	lecture_forum	event	dual_model	0.3.27
+246587	service_info	reference	dual_model	0.3.27
+246590	recruitment	event	rule_lane	
+246592	recruitment	event	rule_lane	
+246593	training	event	dual_model	0.3.27
+246595	affairs	action	rule_lane	
+246600	lecture_forum	event	rule_lane	
+246601	lecture_forum	event	rule_lane	
+246602	governance	event	rule_lane	
+246607	international	action	rule_lane	
+246615	lecture_forum	event	rule_lane	
+246617	selection_result	result	dual_model	0.3.27
+246619	examination	action	dual_model	0.3.27
+246620	competition	event	dual_model	0.3.27
+246621	governance	notice	dual_model	0.3.27
+246625	examination	event	rule_lane	
+246626	selection_result	result	rule_lane	
+246628	service_info	notice	rule_lane	
+246636	service_info	notice	rule_lane	
+246645	recruitment	event	rule_lane	
+246650	news	result	rule_lane	
+246651	training	event	dual_model	0.3.27
+246652	training	event	dual_model	0.3.27
+246658	application	action	rule_lane	
+246665	application	action	rule_lane	
+246668	news	result	rule_lane	
+246673	training	event	rule_lane	
+246674	recruitment	event	rule_lane	
+246683	training	event	rule_lane	
+246686	news	result	rule_lane	
+246689	application	action	rule_lane	
+246692	lecture_forum	result	rule_lane	
+246693	lecture_forum	event	rule_lane	
+246697	competition	reference	dual_model	0.3.27
+246700	lecture_forum	result	rule_lane	
+246701	lecture_forum	event	rule_lane	
+246702	lecture_forum	event	rule_lane	
+246703	competition	event	rule_lane	
+246708	lecture_forum	event	rule_lane	
+246709	recruitment	event	rule_lane	
+246719	application	action	dual_model	0.3.27
+246724	service_info	notice	dual_model	0.3.28
+246725	activity	reference	dual_model	0.3.27
+246728	lecture_forum	event	rule_lane	
+246733	international	result	rule_lane	
+246734	competition	result	rule_lane	
+246735	selection_result	result	rule_lane	
+246738	application	action	rule_lane	
+246742	news	result	dual_model	0.3.27
+246746	news	result	dual_model	0.3.27
+246750	recruitment	action	rule_lane	
+246751	recruitment	action	rule_lane	
+246752	recruitment	action	rule_lane	
+246753	lecture_forum	event	rule_lane	
+246757	recruitment	event	rule_lane	
+246762	teaching_schedule	notice	rule_lane	
+246765	news	result	rule_lane	
+246771	lecture_forum	event	rule_lane	
+246772	lecture_forum	event	rule_lane	
+246776	affairs	action	rule_lane	
+246780	news	result	rule_lane	
+246781	selection_result	result	rule_lane	
+246786	news	result	rule_lane	
+246794	recruitment	action	dual_model	0.3.27
+246795	activity	event	dual_model	0.3.27
+246798	lecture_forum	result	rule_lane	
+246802	selection_result	result	rule_lane	
+246803	application	action	dual_model	0.3.27
+246805	competition	result	rule_lane	
+246813	governance	action	dual_model	0.3.27
+246815	recruitment	event	rule_lane	
+246816	news	result	rule_lane	
+246821	lecture_forum	event	rule_lane	
+246836	lecture_forum	result	rule_lane	
+246841	lecture_forum	result	rule_lane	
+246842	news	result	rule_lane	
+246843	competition	action	rule_lane	
+246844	competition	action	rule_lane	
+246845	service_info	notice	rule_lane	
+246847	news	result	rule_lane	
+246849	news	result	rule_lane	
+246851	selection_result	result	rule_lane	
+246852	service_info	notice	rule_lane	
+246854	lecture_forum	event	rule_lane	
+246855	lecture_forum	result	rule_lane	
+246857	lecture_forum	event	rule_lane	
+246875	affairs	action	rule_lane	
+246878	application	action	dual_model	0.3.27
+246879	examination	event	dual_model	0.3.27
+246893	news	result	rule_lane	
+246901	recruitment	event	rule_lane	
+246902	lecture_forum	event	rule_lane	
+246907	lecture_forum	event	rule_lane	
+246908	lecture_forum	event	rule_lane	
+246909	lecture_forum	event	rule_lane	
+246912	affairs	action	rule_lane	
+246913	application	action	rule_lane	
+246924	news	result	rule_lane	
+246927	activity	result	rule_lane	
+246928	application	action	rule_lane	
+246930	lecture_forum	event	rule_lane	
+246938	training	action	rule_lane	
+246940	examination	event	rule_lane	
+246945	news	result	dual_model	0.3.27
+246951	recruitment	event	rule_lane	
+246958	lecture_forum	result	rule_lane	
+246977	competition	result	rule_lane	
+246987	competition	result	rule_lane	
+246996	lecture_forum	event	rule_lane	
+247001	lecture_forum	result	rule_lane	
+247007	examination	action	dual_model	0.3.32
+247014	service_info	notice	rule_lane	
+247015	service_info	notice	rule_lane	
+247016	competition	event	rule_lane	
+247020	affairs	action	dual_model	0.3.27
+247025	news	result	rule_lane	
+247026	training	event	dual_model	0.3.27
+247033	affairs	action	rule_lane	
+247034	lecture_forum	event	rule_lane	
+247035	recruitment	event	rule_lane	
+247037	international	event	rule_lane	
+247040	activity	event	dual_model	0.3.27
+247045	application	action	rule_lane	
+247049	service_info	notice	rule_lane	
+247055	examination	event	rule_lane	
+247062	international	event	rule_lane	
+247063	news	result	rule_lane	
+247064	news	result	rule_lane	
+247068	recruitment	action	rule_lane	
+247069	recruitment	action	rule_lane	
+247070	recruitment	action	rule_lane	
+247076	news	result	rule_lane	
+247084	application	action	rule_lane	
+247088	application	action	rule_lane	
+247101	service_info	reference	dual_model	0.3.27
+247103	lecture_forum	event	rule_lane	
+247104	competition	event	rule_lane	
+247105	news	result	rule_lane	
+247106	application	action	rule_lane	
+247107	lecture_forum	result	rule_lane	
+247108	news	result	rule_lane	
+247119	competition	event	dual_model	0.3.27
+247126	lecture_forum	event	rule_lane	
+247134	lecture_forum	event	rule_lane	
+247135	selection_result	result	rule_lane	
+247136	affairs	action	rule_lane	
+247138	lecture_forum	event	rule_lane	
+247141	selection_result	result	rule_lane	
+247142	lecture_forum	result	rule_lane	
+247147	lecture_forum	result	rule_lane	
+247148	governance	notice	dual_model	0.3.27
+247150	lecture_forum	result	rule_lane	
+247151	lecture_forum	result	rule_lane	
+247169	affairs	action	rule_lane	
+247170	competition	action	rule_lane	
+247172	affairs	action	rule_lane	
+247175	service_info	notice	rule_lane	
+247177	governance	event	rule_lane	
+247178	lecture_forum	result	rule_lane	
+247179	lecture_forum	event	rule_lane	
+247194	competition	action	rule_lane	
+247195	affairs	action	rule_lane	
+247196	affairs	action	rule_lane	
+247197	lecture_forum	event	rule_lane	
+247198	service_info	notice	dual_model	0.3.27
+247207	affairs	action	rule_lane	
+247209	procurement	result	rule_lane	
+247211	selection_result	result	dual_model	0.3.27
+247219	competition	result	rule_lane	
+247220	news	result	rule_lane	
+247225	lecture_forum	event	rule_lane	
+247231	international	action	rule_lane	
+247237	application	action	rule_lane	
+247238	lecture_forum	result	rule_lane	
+247241	lecture_forum	event	rule_lane	
+247244	lecture_forum	event	dual_model	0.3.27
+247246	service_info	notice	rule_lane	
+247251	procurement	action	rule_lane	
+247252	news	result	rule_lane	
+247253	competition	event	rule_lane	
+247255	service_info	notice	rule_lane	
+247266	lecture_forum	event	rule_lane	
+247273	lecture_forum	event	rule_lane	
+247275	selection_result	result	rule_lane	
+247279	selection_result	result	rule_lane	
+247282	news	result	rule_lane	
+247284	lecture_forum	event	rule_lane	
+247285	application	action	rule_lane	
+247287	application	action	rule_lane	
+247288	recruitment	event	rule_lane	
+247296	lecture_forum	result	rule_lane	
+247297	selection_result	result	rule_lane	
+247299	selection_result	result	rule_lane	
+247302	lecture_forum	event	rule_lane	
+247303	lecture_forum	event	rule_lane	
+247315	news	result	rule_lane	
+247317	service_info	notice	rule_lane	
+247318	training	event	rule_lane	
+247322	competition	event	rule_lane	
+247330	training	action	dual_model	0.3.27
+247333	affairs	action	dual_model	0.3.27
+247336	lecture_forum	event	rule_lane	
+247339	recruitment	event	rule_lane	
+247344	lecture_forum	event	rule_lane	
+247347	lecture_forum	event	rule_lane	
+247356	competition	result	rule_lane	
+247358	application	action	rule_lane	
+247359	lecture_forum	event	rule_lane	
+247362	examination	event	dual_model	0.3.27
+247364	news	result	rule_lane	
+247368	selection_result	result	rule_lane	
+247369	service_info	notice	dual_model	0.3.27
+247370	news	result	rule_lane	
+247381	selection_result	result	rule_lane	
+247382	news	result	rule_lane	
+247388	competition	event	rule_lane	
+247389	competition	result	rule_lane	
+247391	news	result	rule_lane	
+247399	news	result	rule_lane	
+247400	affairs	action	dual_model	0.3.27
+247401	procurement	result	rule_lane	
+247402	affairs	action	rule_lane	
+247404	affairs	action	rule_lane	
+247406	lecture_forum	event	rule_lane	
+247407	lecture_forum	result	rule_lane	
+247410	governance	notice	dual_model	0.3.27
+247416	lecture_forum	event	rule_lane	
+247422	lecture_forum	event	rule_lane	
+247425	lecture_forum	event	rule_lane	
+247434	competition	result	rule_lane	
+247436	training	result	rule_lane	
+247439	lecture_forum	event	rule_lane	
+247440	lecture_forum	event	rule_lane	
+247447	governance	notice	dual_model	0.3.27
+247453	affairs	action	dual_model	0.3.27
+247460	procurement	action	rule_lane	
+247462	service_info	notice	rule_lane	
+247508	news	result	rule_lane	
+247509	recruitment	event	rule_lane	
+247510	international	action	rule_lane	
+247514	application	action	dual_model	0.3.27
+247521	service_info	notice	dual_model	0.3.27
+247522	recruitment	action	rule_lane	
+247524	recruitment	action	rule_lane	
+247525	recruitment	action	rule_lane	
+247538	affairs	action	rule_lane	
+247540	competition	result	rule_lane	
+247542	lecture_forum	event	rule_lane	
+247553	affairs	action	rule_lane	
+247557	procurement	result	rule_lane	
+247558	international	action	rule_lane	
+247559	service_info	notice	rule_lane	
+247562	competition	result	rule_lane	
+247580	service_info	notice	rule_lane	
+247582	examination	action	rule_lane	
+247586	recruitment	event	rule_lane	
+247587	training	event	rule_lane	
+247598	lecture_forum	result	rule_lane	
+247599	affairs	action	rule_lane	
+247619	lecture_forum	result	rule_lane	
+247627	selection_result	result	dual_model	0.3.27
+247628	examination	event	dual_model	0.3.27
+247637	application	action	rule_lane	
+247638	selection_result	result	rule_lane	
+247648	governance	notice	dual_model	0.3.27
+247660	lecture_forum	result	rule_lane	
+247661	lecture_forum	result	rule_lane	
+247664	activity	action	dual_model	0.3.27
+247677	international	action	rule_lane	
+247678	news	result	rule_lane	
+247680	service_info	notice	rule_lane	
+247681	news	result	rule_lane	
+247689	competition	event	dual_model	0.3.30
+247693	selection_result	result	rule_lane	
+247702	news	result	rule_lane	
+247703	procurement	result	rule_lane	
+247705	governance	notice	dual_model	0.3.27
+247709	service_info	notice	dual_model	0.3.27
+247710	teaching_schedule	notice	rule_lane	
+247711	affairs	action	dual_model	0.3.27
+247715	affairs	action	rule_lane	
+247720	governance	event	rule_lane	
+247721	lecture_forum	result	rule_lane	
+247726	service_info	notice	rule_lane	
+247732	selection_result	result	dual_model	0.3.27
+247734	service_info	notice	rule_lane	
+247746	recruitment	event	rule_lane	
+247755	governance	notice	rule_lane	
+247757	news	result	rule_lane	
+247758	affairs	action	dual_model	0.3.27
+247759	competition	result	rule_lane	
+247767	competition	action	rule_lane	
+247778	international	action	rule_lane	
+247780	international	result	rule_lane	
+247784	news	result	rule_lane	
+247785	governance	event	rule_lane	
+247795	news	result	rule_lane	
+247798	recruitment	action	rule_lane	
+247800	recruitment	action	rule_lane	
+247801	recruitment	action	rule_lane	
+247811	service_info	notice	rule_lane	
+247814	examination	action	rule_lane	
+247815	application	action	dual_model	0.3.27
+247817	affairs	action	rule_lane	
+247820	affairs	action	rule_lane	
+247821	examination	event	rule_lane	
+247824	service_info	notice	rule_lane	
+247829	training	event	rule_lane	
+247833	lecture_forum	result	rule_lane	
+247835	lecture_forum	result	rule_lane	
+247836	application	action	dual_model	0.3.28
+247846	affairs	action	rule_lane	
+247849	application	action	rule_lane	
+247861	governance	action	dual_model	0.3.27
+247865	application	action	rule_lane	
+247875	application	action	dual_model	0.3.27
+247879	international	result	rule_lane	
+247883	selection_result	result	rule_lane	
+247885	news	result	rule_lane	
+247899	news	result	rule_lane	
+247900	lecture_forum	event	rule_lane	
+247904	affairs	action	rule_lane	
+247906	affairs	action	dual_model	0.3.27
+247907	governance	event	rule_lane	
+247908	international	action	rule_lane	
+247916	international	result	rule_lane	
+247917	news	result	rule_lane	
+247918	affairs	reference	dual_model	0.3.27
+247919	recruitment	event	rule_lane	
+247943	selection_result	result	rule_lane	
+247950	lecture_forum	result	rule_lane	
+247951	affairs	action	rule_lane	
+247955	service_info	notice	rule_lane	
+247970	service_info	notice	rule_lane	
+247978	service_info	notice	rule_lane	
+247983	governance	notice	dual_model	0.3.27
+247985	service_info	notice	rule_lane	
+247991	teaching_schedule	notice	rule_lane	
+247994	training	result	rule_lane	
+247995	service_info	notice	rule_lane	
+248000	service_info	notice	rule_lane	
+248003	service_info	notice	dual_model	0.3.27
+248006	service_info	notice	dual_model	0.3.27
+248009	service_info	notice	rule_lane	
+248010	news	result	rule_lane	
+248011	competition	event	rule_lane	
+248029	affairs	action	rule_lane	
+248039	selection_result	result	rule_lane	
+248040	service_info	notice	rule_lane	
+248042	service_info	notice	rule_lane	
+248043	selection_result	result	rule_lane	
+248057	selection_result	result	rule_lane	
+248058	governance	notice	rule_lane	
+248073	service_info	notice	rule_lane	
+248074	recruitment	action	rule_lane	
+248080	selection_result	result	rule_lane	
+248086	news	result	rule_lane	
+248117	international	result	rule_lane	
+248123	international	result	rule_lane	
+248133	competition	action	rule_lane	
+248156	service_info	notice	rule_lane	
+248166	affairs	action	rule_lane	
+248175	affairs	action	dual_model	0.3.27
+248176	service_info	notice	rule_lane	
+248186	service_info	notice	rule_lane	
+248192	service_info	notice	rule_lane	
+248202	affairs	action	dual_model	0.3.27
+248208	service_info	notice	rule_lane	
+248210	governance	notice	dual_model	0.3.27
+248211	affairs	action	rule_lane	
+248212	teaching_schedule	notice	rule_lane	
+248215	service_info	notice	rule_lane	
+248216	international	result	rule_lane	
+248217	application	action	rule_lane	
+248220	teaching_schedule	notice	rule_lane	
+248226	affairs	action	rule_lane	
+248227	affairs	action	rule_lane	
+248234	recruitment	action	rule_lane	
+248235	recruitment	action	rule_lane	
+248247	recruitment	action	rule_lane	
+248250	recruitment	action	dual_model	0.3.27
+248251	recruitment	action	rule_lane	
+248252	recruitment	action	rule_lane	
+248255	service_info	reference	dual_model	0.3.27
+248256	selection_result	result	dual_model	0.3.27
+348246	activity	event	dual_model	0.3.30
+348248	recruitment	action	rule_lane	
+348251	international	action	rule_lane	
+348252	service_info	notice	rule_lane	
+348253	service_info	notice	rule_lane	
+348254	recruitment	action	rule_lane	
+348257	recruitment	action	rule_lane	
+348259	affairs	action	rule_lane	
+348260	recruitment	action	rule_lane	
+348262	recruitment	action	rule_lane	
+348264	recruitment	action	rule_lane	
+348265	recruitment	action	rule_lane	
+348266	affairs	action	rule_lane	
+348269	training	result	rule_lane	
+348271	recruitment	action	rule_lane	
+348272	service_info	notice	rule_lane	
+348276	affairs	action	rule_lane	
+348279	examination	event	rule_lane	
+348280	competition	event	rule_lane	
+348286	competition	event	rule_lane	
+348287	recruitment	action	rule_lane	
+348289	news	result	rule_lane	
+348290	recruitment	action	rule_lane	
+348291	service_info	notice	rule_lane	
+348298	news	result	rule_lane	
+348299	international	action	rule_lane	
+348300	international	event	rule_lane	
+348301	selection_result	result	rule_lane	
+348303	selection_result	result	rule_lane	
+348307	affairs	action	rule_lane	
+348331	activity	event	dual_model	0.3.27
+348332	affairs	action	dual_model	0.3.27
+348333	selection_result	result	rule_lane	
+348334	service_info	notice	rule_lane	
+348336	recruitment	action	dual_model	0.3.27
+348337	application	action	rule_lane	
+348338	affairs	action	rule_lane	
+348341	teaching_schedule	notice	rule_lane	
+348347	governance	event	rule_lane	
+348348	news	result	rule_lane	
+348355	news	result	rule_lane	
+348357	recruitment	action	dual_model	0.3.27
+348362	affairs	action	dual_model	0.3.27
+348379	lecture_forum	result	rule_lane	
+348380	activity	event	rule_lane	
+348381	examination	action	rule_lane	
+348382	competition	event	rule_lane	
+348383	competition	event	rule_lane	
+348389	recruitment	action	dual_model	0.3.27
+348391	service_info	notice	rule_lane	
+348392	affairs	action	rule_lane	
+348394	lecture_forum	event	rule_lane	
+348396	teaching_schedule	notice	dual_model	0.3.27
+348400	lecture_forum	event	rule_lane	
+348404	lecture_forum	event	rule_lane	
+348405	affairs	action	rule_lane	
+348410	competition	action	rule_lane	
+348426	affairs	action	rule_lane	
+348440	competition	action	rule_lane	
+348446	examination	event	rule_lane	
+348447	competition	event	rule_lane	
+348449	recruitment	action	rule_lane	
+348457	service_info	notice	rule_lane	
+348460	news	result	rule_lane	
+348461	affairs	action	dual_model	0.3.27
+348483	service_info	notice	rule_lane	
+348484	competition	action	rule_lane	
+348485	service_info	reference	rule_lane	
+348486	affairs	action	rule_lane	
+348491	selection_result	result	dual_model	0.3.27
+348493	selection_result	result	rule_lane	
+348498	news	result	rule_lane	
+348503	competition	event	rule_lane	
+348506	lecture_forum	event	rule_lane	
+348507	lecture_forum	event	rule_lane	
+348510	lecture_forum	event	rule_lane	
+348511	lecture_forum	event	rule_lane	
+348512	application	action	rule_lane	
+348513	recruitment	action	rule_lane	
+348519	service_info	notice	rule_lane	
+348521	application	action	rule_lane	
+348524	news	result	rule_lane	
+348528	service_info	reference	dual_model	0.3.27
+348535	lecture_forum	event	rule_lane	
+348539	international	action	rule_lane	
+348544	international	event	rule_lane	
+348545	international	event	rule_lane	
+348550	affairs	action	rule_lane	
+348557	governance	notice	dual_model	0.3.27
+348558	training	action	rule_lane	
+348559	examination	action	rule_lane	
+348560	competition	action	rule_lane	
+348561	competition	action	rule_lane	
+348568	affairs	action	dual_model	0.3.27
+348569	affairs	action	dual_model	0.3.27
+348574	affairs	action	rule_lane	
+348582	governance	action	dual_model	0.3.27
+348585	affairs	action	rule_lane	
+348586	competition	result	rule_lane	
+348587	competition	action	rule_lane	
+348589	governance	action	rule_lane	
+348599	news	result	rule_lane	
+348604	selection_result	result	rule_lane	
+348612	selection_result	result	rule_lane	
+348613	affairs	action	dual_model	0.3.27
+348616	international	result	rule_lane	
+348620	selection_result	result	rule_lane	
+348628	news	result	rule_lane	
+348629	competition	event	rule_lane	
+348632	competition	action	rule_lane	
+348639	lecture_forum	event	rule_lane	
+348648	lecture_forum	event	dual_model	0.3.27
+348649	news	result	rule_lane	
+348650	affairs	action	rule_lane	
+348651	examination	event	dual_model	0.3.27
+348655	service_info	reference	rule_lane	
+348660	international	event	rule_lane	
+348664	lecture_forum	event	rule_lane	
+348669	lecture_forum	event	rule_lane	
+348670	international	action	rule_lane	
+348671	competition	event	rule_lane	
+348672	international	event	rule_lane	
+348673	governance	notice	rule_lane	
+348679	international	event	rule_lane	
+348683	service_info	reference	rule_lane	
+348684	competition	event	rule_lane	
+348689	lecture_forum	event	rule_lane	
+348691	lecture_forum	event	rule_lane	
+348692	application	action	rule_lane	
+348694	examination	event	rule_lane	
+348695	international	result	rule_lane	
+348696	affairs	action	dual_model	0.3.27
+348700	lecture_forum	result	rule_lane	
+348707	lecture_forum	event	rule_lane	
+348712	governance	action	dual_model	0.3.27
+348716	service_info	notice	dual_model	0.3.27
+348717	selection_result	result	rule_lane	
+348718	lecture_forum	event	dual_model	0.3.27
+348719	news	result	rule_lane	
+348720	news	result	rule_lane	
+348721	selection_result	result	rule_lane	
+348723	selection_result	result	rule_lane	
+348725	news	result	rule_lane	
+348727	news	result	rule_lane	
+348732	news	result	dual_model	0.3.27
+348735	selection_result	result	rule_lane	
+348744	news	result	rule_lane	
+348745	international	event	rule_lane	
+348748	selection_result	result	rule_lane	
+348749	governance	result	rule_lane	
+348762	affairs	action	dual_model	0.3.27
+348763	affairs	action	rule_lane	
+348767	lecture_forum	event	rule_lane	
+348768	procurement	action	rule_lane	
+348769	procurement	action	rule_lane	
+348774	governance	action	rule_lane	
+348788	lecture_forum	event	rule_lane	
+348801	lecture_forum	result	rule_lane	
+348802	international	action	rule_lane	
+348803	international	event	rule_lane	
+348810	news	result	rule_lane	
+348811	news	result	rule_lane	
+348812	lecture_forum	event	rule_lane	
+348813	affairs	event	dual_model	0.3.27
+348814	news	result	rule_lane	
+348816	activity	result	rule_lane	
+348820	lecture_forum	event	rule_lane	
+348822	lecture_forum	event	rule_lane	
+348826	governance	notice	rule_lane	
+348832	selection_result	result	rule_lane	
+348837	news	result	rule_lane	
+348838	governance	action	dual_model	0.3.27
+348856	international	result	rule_lane	
+348857	service_info	reference	dual_model	0.3.27
+348858	governance	event	rule_lane	
+348860	competition	event	rule_lane	
+348861	competition	action	rule_lane	
+348865	news	result	rule_lane	
+348866	procurement	action	rule_lane	
+348878	international	result	rule_lane	
+348879	recruitment	action	rule_lane	
+348880	service_info	notice	rule_lane	
+348881	affairs	action	rule_lane	
+348882	governance	action	rule_lane	
+348884	lecture_forum	result	rule_lane	
+348897	international	result	rule_lane	
+348898	service_info	notice	rule_lane	
+348899	competition	event	rule_lane	
+348903	competition	event	rule_lane	
+348904	training	event	rule_lane	
+348908	activity	event	dual_model	0.3.27
+348910	teaching_schedule	notice	rule_lane	
+348911	application	action	rule_lane	
+348919	selection_result	result	rule_lane	
+348920	lecture_forum	event	rule_lane	
+348921	competition	action	rule_lane	
+348925	service_info	reference	dual_model	0.3.27
+348937	news	result	rule_lane	
+348939	news	result	rule_lane	
+348941	recruitment	action	rule_lane	
+348944	lecture_forum	event	rule_lane	
+348946	lecture_forum	result	rule_lane	
+348950	application	action	rule_lane	
+348956	governance	reference	dual_model	0.3.27
+348961	news	result	rule_lane	
+348963	international	action	rule_lane	
+348965	news	result	rule_lane	
+348966	competition	action	rule_lane	
+348969	selection_result	result	rule_lane	
+348977	affairs	action	dual_model	0.3.27
+348978	affairs	action	dual_model	0.3.27
+348980	competition	result	rule_lane	
+348989	procurement	result	rule_lane	
+348990	procurement	result	rule_lane	
+348991	service_info	notice	dual_model	0.3.30
+348999	activity	event	dual_model	0.3.27
+349002	competition	action	rule_lane	
+349005	governance	action	rule_lane	
+349006	governance	action	rule_lane	
+349016	lecture_forum	event	rule_lane	
+349017	selection_result	result	rule_lane	
+349018	international	event	rule_lane	
+349032	lecture_forum	event	rule_lane	
+349034	lecture_forum	event	rule_lane	
+349036	governance	action	rule_lane	
+349048	governance	action	rule_lane	
+349049	training	event	dual_model	0.3.27
+349050	competition	event	rule_lane	
+349051	lecture_forum	event	rule_lane	
+349060	affairs	action	rule_lane	
+349061	competition	event	dual_model	0.3.27
+349063	activity	action	dual_model	0.3.27
+349070	news	result	rule_lane	
+349071	lecture_forum	event	dual_model	0.3.27
+349072	selection_result	result	rule_lane	
+349080	governance	action	rule_lane	
+349081	competition	action	rule_lane	
+349082	service_info	reference	rule_lane	
+349092	procurement	result	rule_lane	
+349094	news	result	rule_lane	
+349110	affairs	action	dual_model	0.3.27
+349113	competition	event	rule_lane	
+349118	application	action	dual_model	0.3.27
+349124	application	action	rule_lane	
+349127	selection_result	result	rule_lane	
+349129	news	result	rule_lane	
+349130	activity	event	dual_model	0.3.27
+349135	news	result	rule_lane	
+349136	news	result	rule_lane	
+349138	service_info	notice	rule_lane	
+349142	examination	event	dual_model	0.3.27
+349144	international	event	rule_lane	
+349146	governance	notice	dual_model	0.3.27
+349148	examination	event	rule_lane	
+349151	selection_result	result	rule_lane	
+349153	service_info	notice	rule_lane	
+349165	competition	event	rule_lane	
+349167	news	result	rule_lane	
+349168	service_info	notice	dual_model	0.3.27
+349170	examination	event	rule_lane	
+349175	service_info	notice	dual_model	0.3.27
+349176	competition	event	rule_lane	
+349178	competition	event	rule_lane	
+349190	lecture_forum	event	rule_lane	
+349193	selection_result	result	rule_lane	
+349207	international	event	rule_lane	
+349216	governance	notice	dual_model	0.3.27
+349221	news	result	rule_lane	
+349222	training	event	dual_model	0.3.27
+349227	news	result	rule_lane	
+349231	lecture_forum	event	rule_lane	
+349237	affairs	action	rule_lane	
+349240	teaching_schedule	notice	dual_model	0.3.27
+349241	news	result	rule_lane	
+349243	affairs	action	rule_lane	
+349246	service_info	notice	rule_lane	
+349247	service_info	notice	rule_lane	
+349249	news	result	rule_lane	
+349257	competition	event	rule_lane	
+349258	lecture_forum	event	rule_lane	
+349269	application	action	rule_lane	
+349276	recruitment	event	rule_lane	
+349279	international	result	rule_lane	
+349282	training	event	rule_lane	
+349294	competition	event	rule_lane	
+349295	examination	action	dual_model	0.3.27
+349299	competition	event	rule_lane	
+349300	competition	event	rule_lane	
+349303	training	result	rule_lane	
+349305	competition	event	rule_lane	
+349308	application	action	rule_lane	
+349310	selection_result	result	rule_lane	
+349313	lecture_forum	event	rule_lane	
+349315	international	result	rule_lane	
+349316	international	result	rule_lane	
+349326	affairs	action	dual_model	0.3.27
+349329	competition	event	rule_lane	
+349330	selection_result	result	rule_lane	
+349331	lecture_forum	event	rule_lane	
+349333	governance	action	rule_lane	
+349334	lecture_forum	result	rule_lane	
+349335	affairs	action	dual_model	0.3.27
+349336	affairs	action	dual_model	0.3.27
+349338	lecture_forum	event	dual_model	0.3.27
+349339	application	action	rule_lane	
+349342	service_info	reference	dual_model	0.3.27
+349343	lecture_forum	event	rule_lane	
+349360	training	event	dual_model	0.3.27
+349366	selection_result	result	rule_lane	
+349367	selection_result	result	rule_lane	
+349368	international	event	rule_lane	
+349376	competition	result	rule_lane	
+349379	selection_result	result	rule_lane	
+349381	recruitment	event	rule_lane	
+349390	activity	event	dual_model	0.3.27
+349408	lecture_forum	event	rule_lane	
+349410	news	result	rule_lane	
+349413	selection_result	result	rule_lane	
+349419	lecture_forum	event	rule_lane	
+349430	affairs	action	rule_lane	
+349431	activity	event	dual_model	0.3.27
+349444	procurement	action	rule_lane	
+349447	recruitment	event	rule_lane	
+349463	news	result	rule_lane	
+349471	competition	action	rule_lane	
+349476	service_info	notice	rule_lane	
+349484	selection_result	result	rule_lane	
+349486	teaching_schedule	notice	rule_lane	
+349493	teaching_schedule	notice	dual_model	0.3.27
+349494	service_info	notice	rule_lane	
+349495	examination	event	rule_lane	
+349497	affairs	action	rule_lane	
+349504	teaching_schedule	notice	dual_model	0.3.27
+349511	competition	result	rule_lane	
+349512	selection_result	result	rule_lane	
+349514	governance	notice	rule_lane	
+349521	service_info	notice	dual_model	0.3.27
+349522	service_info	notice	rule_lane	
+349524	application	action	rule_lane	
+349530	news	result	rule_lane	
+349531	news	result	dual_model	0.3.27
+349532	service_info	notice	dual_model	0.3.27
+349540	news	result	rule_lane	
+349551	governance	event	dual_model	0.3.27
+349552	governance	notice	rule_lane	
+349610	training	event	rule_lane	
+349629	training	event	rule_lane	
+349630	training	event	dual_model	0.3.27
+349631	training	event	dual_model	0.3.28
+349632	examination	action	dual_model	0.3.27
+349633	affairs	action	rule_lane	
+349634	governance	action	rule_lane	
+349638	service_info	notice	rule_lane	
+349645	affairs	action	dual_model	0.3.27
+349653	affairs	action	rule_lane	
+349667	news	result	rule_lane	
+349668	competition	event	rule_lane	
+349669	competition	event	rule_lane	
+349671	lecture_forum	event	rule_lane	
+349674	procurement	result	rule_lane	
+349688	training	event	rule_lane	
+349691	selection_result	result	rule_lane	
+349694	governance	action	rule_lane	
+349698	service_info	reference	rule_lane	
+349704	selection_result	result	rule_lane	
+349707	lecture_forum	event	rule_lane	
+349711	examination	event	rule_lane	
+349714	news	result	rule_lane	
+349724	selection_result	result	dual_model	0.3.27
+349725	selection_result	result	rule_lane	
+349733	training	event	rule_lane	
+349746	competition	action	rule_lane	
+349749	affairs	action	rule_lane	
+349750	affairs	action	rule_lane	
+349759	lecture_forum	event	rule_lane	
+349767	selection_result	result	rule_lane	
+349769	selection_result	result	rule_lane	
+349771	news	result	rule_lane	
+349778	selection_result	result	rule_lane	
+349781	selection_result	result	rule_lane	
+349790	application	action	rule_lane	
+349793	application	action	rule_lane	
+349796	competition	action	rule_lane	
+349797	lecture_forum	event	rule_lane	
+349802	selection_result	result	rule_lane	
+349807	activity	event	dual_model	0.3.27
+349809	competition	event	rule_lane	
+349820	competition	event	rule_lane	
+349825	affairs	action	dual_model	0.3.27
+349826	lecture_forum	event	rule_lane	
+349831	lecture_forum	event	rule_lane	
+349833	affairs	action	rule_lane	
+349852	examination	event	rule_lane	
+349855	procurement	action	rule_lane	
+349864	governance	notice	dual_model	0.3.27
+349865	governance	notice	dual_model	0.3.27
+349868	selection_result	result	rule_lane	
+349870	application	action	rule_lane	
+349872	application	action	dual_model	0.3.27
+349873	application	action	rule_lane	
+349874	news	result	rule_lane	
+349878	selection_result	result	rule_lane	
+349881	application	action	rule_lane	
+349882	application	action	rule_lane	
+349886	application	action	rule_lane	
+349891	international	event	rule_lane	
+349897	lecture_forum	event	rule_lane	
+349898	lecture_forum	event	rule_lane	
+349901	examination	action	dual_model	0.3.27
+349906	news	result	rule_lane	
+349909	affairs	action	rule_lane	
+349911	application	action	rule_lane	
+349913	selection_result	result	rule_lane	
+349914	news	result	rule_lane	
+349915	news	result	rule_lane	
+349916	lecture_forum	event	rule_lane	
+349920	news	result	rule_lane	
+349922	competition	action	rule_lane	
+349927	application	action	rule_lane	
+349936	application	action	rule_lane	
+349938	selection_result	result	rule_lane	
+349939	selection_result	result	rule_lane	
+349940	recruitment	action	rule_lane	
+349942	application	action	rule_lane	
+349946	lecture_forum	event	rule_lane	
+349948	application	action	rule_lane	
+349951	procurement	action	rule_lane	
+349954	news	result	rule_lane	
+349957	news	result	rule_lane	
+349959	activity	event	dual_model	0.3.27
+349971	news	result	rule_lane	
+349972	news	result	rule_lane	
+349973	service_info	reference	rule_lane	
+349974	affairs	action	rule_lane	
+349975	lecture_forum	event	rule_lane	
+349977	competition	action	rule_lane	
+349980	lecture_forum	event	rule_lane	
+349989	activity	event	dual_model	0.3.27
+349998	selection_result	result	rule_lane	
+350010	governance	notice	dual_model	0.3.27
+350013	competition	event	rule_lane	
+350028	affairs	action	dual_model	0.3.27
+350030	service_info	notice	rule_lane	
+350035	affairs	action	dual_model	0.3.27
+350039	recruitment	action	rule_lane	
+350041	governance	action	dual_model	0.3.27
+350051	selection_result	result	rule_lane	
+350063	affairs	action	dual_model	0.3.27
+350064	competition	event	rule_lane	
+350068	activity	event	dual_model	0.3.27
+350070	lecture_forum	event	rule_lane	
+350076	procurement	result	rule_lane	
+350079	news	result	rule_lane	
+350083	news	result	rule_lane	
+350086	competition	event	rule_lane	
+350101	application	action	rule_lane	
+350104	news	result	rule_lane	
+350106	application	action	dual_model	0.3.27
+350107	news	result	rule_lane	
+350110	news	result	rule_lane	
+350114	application	action	rule_lane	
+350120	selection_result	result	rule_lane	
+350128	selection_result	result	rule_lane	
+350137	affairs	action	rule_lane	
+350138	examination	event	rule_lane	
+350139	affairs	action	rule_lane	
+350140	service_info	notice	rule_lane	
+350142	selection_result	result	rule_lane	
+350143	service_info	notice	rule_lane	
+350150	competition	event	rule_lane	
+350161	governance	notice	dual_model	0.3.27
+350164	selection_result	result	rule_lane	
+350171	affairs	action	rule_lane	
+350184	affairs	action	rule_lane	
+350196	procurement	result	rule_lane	
+350198	competition	event	dual_model	0.3.27
+350201	recruitment	action	rule_lane	
+350206	competition	event	rule_lane	
+350225	affairs	action	rule_lane	
+350251	service_info	reference	dual_model	0.3.27
+350253	lecture_forum	event	rule_lane	
+350254	lecture_forum	event	rule_lane	
+350277	selection_result	result	rule_lane	
+350278	procurement	action	rule_lane	
+350280	service_info	notice	rule_lane	
+350282	news	result	rule_lane	
+350286	application	action	rule_lane	
+350290	affairs	action	rule_lane	
+350292	competition	action	rule_lane	
+350296	examination	event	dual_model	0.3.27
+350299	competition	event	rule_lane	
+350303	lecture_forum	event	rule_lane	
+350316	news	result	rule_lane	
+350318	news	result	rule_lane	
+350319	news	result	rule_lane	
+350320	application	action	rule_lane	
+350322	procurement	action	rule_lane	
+350331	affairs	action	dual_model	0.3.27
+350334	application	action	dual_model	0.3.27
+350341	competition	action	rule_lane	
+350342	recruitment	action	rule_lane	
+350344	service_info	notice	rule_lane	
+350346	governance	event	dual_model	0.3.27
+350347	competition	event	rule_lane	
+350350	recruitment	action	rule_lane	
+350352	affairs	action	rule_lane	
+350366	selection_result	result	rule_lane	
+350395	procurement	result	rule_lane	
+350396	service_info	notice	rule_lane	
+350397	competition	result	rule_lane	
+350402	application	action	rule_lane	
+350403	affairs	action	rule_lane	
+350406	application	action	rule_lane	
+350419	affairs	action	dual_model	0.3.27
+350420	affairs	action	dual_model	0.3.27
+350423	service_info	notice	dual_model	0.3.27
+350437	selection_result	result	dual_model	0.3.27
+350438	competition	action	rule_lane	
+350439	competition	event	rule_lane	
+350453	affairs	action	dual_model	0.3.27
+350462	affairs	action	dual_model	0.3.27
+350466	application	action	rule_lane	
+350469	selection_result	result	rule_lane	
+350470	affairs	action	rule_lane	
+350478	affairs	action	rule_lane	
+350480	affairs	action	rule_lane	
+350481	selection_result	result	rule_lane	
+350482	lecture_forum	event	rule_lane	
+350485	application	action	dual_model	0.3.27
+350493	activity	result	rule_lane	
+350494	selection_result	result	rule_lane	
+350503	competition	result	rule_lane	
+350519	application	action	dual_model	0.3.27
+350523	lecture_forum	event	rule_lane	
+350525	training	event	rule_lane	
+350543	selection_result	result	rule_lane	
+350544	teaching_schedule	notice	rule_lane	
+350545	selection_result	result	rule_lane	
+350546	affairs	action	rule_lane	
+350547	affairs	action	rule_lane	
+350566	affairs	event	dual_model	0.3.27
+350579	governance	notice	rule_lane	
+350585	procurement	action	rule_lane	
+350586	lecture_forum	event	dual_model	0.3.27
+350587	lecture_forum	event	rule_lane	
+350588	selection_result	result	rule_lane	
+350590	affairs	reference	dual_model	0.3.27
+350592	procurement	result	rule_lane	
+350593	governance	reference	dual_model	0.3.27
+350602	service_info	notice	rule_lane	
+350603	selection_result	result	rule_lane	
+350609	affairs	action	dual_model	0.3.27
+350615	selection_result	result	rule_lane	
+350616	competition	result	rule_lane	
+350619	affairs	action	dual_model	0.3.27
+350620	activity	event	dual_model	0.3.27
+350627	activity	event	dual_model	0.3.27
+350630	application	event	rule_lane	
+350636	affairs	action	dual_model	0.3.27
+350641	application	action	rule_lane	
+350642	examination	action	rule_lane	
+350644	affairs	action	rule_lane	
+350645	procurement	result	rule_lane	
+350647	lecture_forum	event	dual_model	0.3.27
+350651	governance	notice	rule_lane	
+350657	selection_result	result	rule_lane	
+350662	selection_result	result	rule_lane	
+350667	activity	event	dual_model	0.3.27
+350676	lecture_forum	event	rule_lane	
+350678	activity	event	dual_model	0.3.27
+350679	service_info	notice	rule_lane	
+350680	selection_result	result	rule_lane	
+350681	affairs	action	rule_lane	
+350697	selection_result	result	rule_lane	
+350700	affairs	action	dual_model	0.3.27
+350706	service_info	notice	dual_model	0.3.27
+350715	governance	action	dual_model	0.3.27
+350720	selection_result	result	rule_lane	
+350737	selection_result	result	rule_lane	
+350739	news	result	rule_lane	
+350742	affairs	action	rule_lane	
+350744	affairs	action	rule_lane	
+350755	competition	event	rule_lane	
+350763	news	result	dual_model	0.3.27
+350764	application	action	rule_lane	
+350768	selection_result	result	rule_lane	
+350777	affairs	action	rule_lane	
+350779	selection_result	result	rule_lane	
+350780	affairs	action	dual_model	0.3.27
+350791	governance	event	rule_lane	
+350796	selection_result	result	dual_model	0.3.27
+350801	lecture_forum	event	rule_lane	
+350803	affairs	action	rule_lane	
+350805	activity	event	dual_model	0.3.27
+350806	governance	notice	dual_model	0.3.27
+350807	lecture_forum	event	rule_lane	
+350808	lecture_forum	event	dual_model	0.3.27
+350811	examination	event	dual_model	0.3.27
+350817	competition	event	rule_lane	
+350819	examination	action	rule_lane	
+350820	examination	event	rule_lane	
+350822	news	result	rule_lane	
+350828	news	result	rule_lane	
+350836	activity	event	dual_model	0.3.27
+350839	affairs	action	rule_lane	
+350840	selection_result	result	rule_lane	
+350841	news	result	rule_lane	
+350842	teaching_schedule	notice	rule_lane	
+350843	activity	event	dual_model	0.3.27
+350844	training	event	rule_lane	
+350845	application	action	rule_lane	
+350846	governance	event	rule_lane	
+350847	application	action	rule_lane	
+350883	affairs	action	rule_lane	
+350890	affairs	action	rule_lane	
+350891	training	event	rule_lane	
+350893	affairs	action	rule_lane	
+350897	service_info	notice	rule_lane	
+350906	news	result	rule_lane	
+350924	news	result	rule_lane	
+350927	application	action	rule_lane	
+350930	service_info	notice	rule_lane	
+350935	application	action	rule_lane	
+350954	procurement	action	rule_lane	
+350957	service_info	reference	dual_model	0.3.27
+350960	application	action	rule_lane	
+350961	selection_result	result	rule_lane	
+350964	news	result	rule_lane	
+350965	application	action	rule_lane	
+350966	training	action	rule_lane	
+350968	competition	result	rule_lane	
+350978	teaching_schedule	notice	dual_model	0.3.27
+350987	training	event	rule_lane	
+350992	procurement	result	rule_lane	
+350993	competition	action	rule_lane	
+350994	governance	action	dual_model	0.3.27
+350997	governance	notice	rule_lane	
+351012	lecture_forum	event	rule_lane	
+351017	affairs	action	dual_model	0.3.27
+351019	procurement	action	rule_lane	
+351026	training	result	rule_lane	
+351029	affairs	action	dual_model	0.3.27
+351030	service_info	notice	rule_lane	
+351031	news	result	rule_lane	
+351043	selection_result	result	rule_lane	
+351053	service_info	notice	dual_model	0.3.27
+351056	news	result	rule_lane	
+351057	lecture_forum	result	rule_lane	
+351058	news	result	rule_lane	
+351066	governance	event	rule_lane	
+351067	service_info	notice	dual_model	0.3.27
+351072	news	result	rule_lane	
+351079	news	result	rule_lane	
+351085	governance	event	dual_model	0.3.27
+351093	service_info	notice	rule_lane	
+351111	affairs	action	dual_model	0.3.27
+351117	news	result	rule_lane	
+351118	affairs	action	rule_lane	
+351119	affairs	reference	rule_lane	
+351121	selection_result	result	rule_lane	
+351122	procurement	result	rule_lane	
+351127	service_info	notice	rule_lane	
+351138	recruitment	action	dual_model	0.3.27
+351141	application	action	rule_lane	
+351152	news	result	rule_lane	
+351157	application	action	dual_model	0.3.27
+351167	application	action	rule_lane	
+351172	selection_result	result	rule_lane	
+351176	training	event	rule_lane	
+351190	teaching_schedule	notice	rule_lane	
+351196	affairs	action	rule_lane	
+351197	application	action	rule_lane	
+351206	application	action	rule_lane	
+351207	procurement	result	rule_lane	
+351240	selection_result	result	rule_lane	
+351247	application	action	rule_lane	
+351250	selection_result	result	rule_lane	
+351256	service_info	notice	rule_lane	
+351260	procurement	action	rule_lane	
+351262	procurement	action	rule_lane	
+351269	competition	result	rule_lane	
+351270	selection_result	result	rule_lane	
+351272	competition	result	rule_lane	
+351280	competition	action	rule_lane	
+351323	recruitment	action	rule_lane	
+351325	selection_result	result	rule_lane	
+351332	application	action	rule_lane	
+351333	selection_result	result	rule_lane	
+351341	service_info	notice	dual_model	0.3.27
+351342	procurement	result	rule_lane	
+351348	service_info	notice	dual_model	0.3.27
+351349	international	action	rule_lane	
+351350	service_info	notice	rule_lane	
+351362	procurement	result	rule_lane	
+351363	procurement	result	rule_lane	
+351364	competition	action	rule_lane	
+351365	news	result	rule_lane	
+351392	lecture_forum	result	rule_lane	
+351414	service_info	notice	rule_lane	
+351417	examination	event	rule_lane	
+351460	affairs	action	rule_lane	
+351467	application	action	dual_model	0.3.27
+351475	competition	event	rule_lane	
+351483	competition	result	rule_lane	
+351484	training	event	dual_model	0.3.27
+351485	international	action	rule_lane	
+351513	selection_result	result	rule_lane	
+351519	news	result	rule_lane	
+351532	service_info	notice	rule_lane	
+351534	selection_result	result	rule_lane	
+351541	service_info	notice	rule_lane	
+351542	application	action	rule_lane	
+351554	governance	result	rule_lane	
+351559	application	action	rule_lane	
+351560	service_info	notice	dual_model	0.3.27
+351561	lecture_forum	event	dual_model	0.3.27
+351570	selection_result	result	rule_lane	
+351579	service_info	notice	rule_lane	
+351585	selection_result	result	dual_model	0.3.27
+351601	governance	action	rule_lane	
+351602	examination	event	rule_lane	
+351603	service_info	notice	rule_lane	
+351610	selection_result	result	rule_lane	
+351613	application	action	rule_lane	
+351617	application	action	rule_lane	
+351638	application	action	rule_lane	
+351647	recruitment	action	rule_lane	
+351648	teaching_schedule	notice	rule_lane	
+351649	affairs	action	rule_lane	
+351652	affairs	action	dual_model	0.3.27
+351662	selection_result	result	rule_lane	
+351663	selection_result	result	rule_lane	
+351664	selection_result	result	rule_lane	
+351665	teaching_schedule	notice	rule_lane	
+351669	examination	event	rule_lane	
+351683	selection_result	result	rule_lane	
+351691	recruitment	action	rule_lane	
+351693	teaching_schedule	notice	rule_lane	
+351694	affairs	action	rule_lane	
+351695	examination	event	rule_lane	
+351696	service_info	notice	rule_lane	
+351697	affairs	action	rule_lane	
+351699	governance	reference	rule_lane	
+351700	news	result	rule_lane	
+351704	governance	reference	rule_lane	
+351714	affairs	action	rule_lane	
+351717	recruitment	action	dual_model	0.3.27
+351718	recruitment	action	rule_lane	
+351719	competition	action	rule_lane	
+351722	examination	event	dual_model	0.3.27
+351729	selection_result	result	rule_lane	
+351730	service_info	notice	rule_lane	
+351731	recruitment	action	rule_lane	
+351732	selection_result	result	rule_lane	
+351734	affairs	action	rule_lane	
+351736	affairs	action	rule_lane	
+351744	selection_result	result	rule_lane	
+351756	competition	event	rule_lane	
+351757	teaching_schedule	notice	rule_lane	
+351758	recruitment	action	rule_lane	
+351760	affairs	action	rule_lane	
+351770	affairs	action	rule_lane	
+351773	affairs	action	dual_model	0.3.27
+351774	recruitment	action	dual_model	0.3.27
+351789	news	result	rule_lane	
+351798	competition	action	rule_lane	
+351800	affairs	action	rule_lane	
+351806	recruitment	action	rule_lane	
+351810	affairs	action	dual_model	0.3.27
+351811	training	event	rule_lane	
+351812	affairs	action	dual_model	0.3.27
+351819	competition	event	rule_lane	
+351822	recruitment	action	dual_model	0.3.27
+351823	competition	action	rule_lane	
+351824	activity	event	dual_model	0.3.27
+351826	recruitment	action	dual_model	0.3.27
+351828	service_info	notice	dual_model	0.3.27
+351830	governance	reference	rule_lane	
+351837	application	action	rule_lane	
+351841	service_info	reference	dual_model	0.3.27
+351851	affairs	action	rule_lane	
+351855	procurement	action	rule_lane	
+351857	activity	event	dual_model	0.3.27
+351862	service_info	notice	rule_lane	
+351867	affairs	action	dual_model	0.3.27
+351872	application	action	rule_lane	
+351874	affairs	action	dual_model	0.3.27
+351876	selection_result	result	dual_model	0.3.27
+351878	service_info	notice	dual_model	0.3.27
+351879	application	action	rule_lane	
+351882	governance	action	rule_lane	
+351883	service_info	notice	rule_lane	
+351886	service_info	reference	dual_model	0.3.27
+351887	affairs	action	rule_lane	
+351888	selection_result	result	rule_lane	
+351889	application	action	rule_lane	
+351891	news	result	rule_lane	
+351893	application	action	rule_lane	
+351896	selection_result	result	rule_lane	
+351897	application	action	rule_lane	
+351898	selection_result	result	dual_model	0.3.27
+351900	application	action	rule_lane	
+351901	news	result	rule_lane	
+351902	selection_result	result	rule_lane	
+351903	application	action	rule_lane	
+351904	selection_result	result	rule_lane	
+351905	selection_result	result	rule_lane	
+351906	news	result	rule_lane	
+351907	application	action	rule_lane	
+351908	application	action	rule_lane	
+351912	application	action	rule_lane	
+351915	application	action	rule_lane	
+351917	selection_result	result	rule_lane	
+351918	selection_result	result	rule_lane	
+351920	affairs	action	rule_lane	
+351922	news	result	rule_lane	
+351923	selection_result	result	rule_lane	
+351925	selection_result	result	rule_lane	
+351930	service_info	notice	rule_lane	
+351931	selection_result	result	rule_lane	
+351940	selection_result	result	rule_lane	
+351941	activity	event	dual_model	0.3.27
+351943	recruitment	action	rule_lane	
+351944	teaching_schedule	notice	rule_lane	
+351945	affairs	action	rule_lane	
+351946	selection_result	result	rule_lane	
+351947	application	action	rule_lane	
+351953	recruitment	action	rule_lane	
+351954	selection_result	result	rule_lane	
+351959	competition	event	rule_lane	
+351960	recruitment	action	dual_model	0.3.27
+351965	selection_result	result	rule_lane	
+351971	application	action	dual_model	0.3.27
+351975	examination	event	rule_lane	
+351976	international	result	rule_lane	
+351977	affairs	action	rule_lane	
+351980	activity	event	dual_model	0.3.27
+351981	governance	notice	rule_lane	
+351982	application	action	rule_lane	
+351983	selection_result	result	rule_lane	
+351985	international	result	rule_lane	
+351988	selection_result	result	rule_lane	
+351990	competition	event	rule_lane	
+352003	service_info	reference	rule_lane	
+352004	governance	action	dual_model	0.3.27
+352005	affairs	action	rule_lane	
+352008	affairs	action	rule_lane	
+352009	examination	action	rule_lane	
+352010	application	action	rule_lane	
+352013	examination	event	rule_lane	
+352016	affairs	event	dual_model	0.3.27
+352018	recruitment	action	dual_model	0.3.27
+352019	recruitment	action	rule_lane	
+352020	selection_result	result	rule_lane	
+352021	examination	event	dual_model	0.3.27
+352028	procurement	result	rule_lane	
+352032	governance	notice	dual_model	0.3.27
+352037	service_info	reference	rule_lane	
+352039	selection_result	result	rule_lane	
+352040	competition	action	rule_lane	
+352041	examination	action	rule_lane	
+352042	recruitment	action	rule_lane	
+352043	recruitment	event	rule_lane	
+352044	recruitment	event	rule_lane	
+352045	recruitment	action	rule_lane	
+352064	selection_result	result	rule_lane	
+352067	affairs	action	dual_model	0.3.27
+352068	activity	event	dual_model	0.3.30
+352069	selection_result	result	rule_lane	
+352091	lecture_forum	event	rule_lane	
+352092	lecture_forum	event	rule_lane	
+352103	selection_result	result	rule_lane	
+352104	selection_result	result	rule_lane	
+352105	selection_result	result	rule_lane	
+352111	selection_result	result	rule_lane	
+352117	lecture_forum	event	rule_lane	
+352126	international	action	rule_lane	
+352129	affairs	action	rule_lane	
+352137	international	action	rule_lane	
+352141	international	event	rule_lane	
+352148	news	result	dual_model	0.3.32
+352149	affairs	action	rule_lane	
+352150	application	action	dual_model	0.3.27
+352151	service_info	notice	rule_lane	
+352152	recruitment	event	rule_lane	
+352159	application	action	rule_lane	
+352160	selection_result	result	rule_lane	
+352161	service_info	notice	dual_model	0.3.27
+352163	service_info	notice	rule_lane	
+352172	affairs	action	rule_lane	
+352174	selection_result	result	rule_lane	
+352175	news	result	dual_model	0.3.28
+352183	recruitment	event	rule_lane	
+352184	affairs	action	rule_lane	
+352185	news	result	rule_lane	
+352187	lecture_forum	event	rule_lane	
+352188	lecture_forum	event	rule_lane	
+352189	lecture_forum	event	rule_lane	
+352194	teaching_schedule	notice	rule_lane	
+352197	selection_result	result	dual_model	0.3.27
+352199	procurement	action	rule_lane	
+352209	recruitment	action	rule_lane	
+352212	international	result	rule_lane	
+352217	service_info	notice	rule_lane	
+352218	service_info	notice	rule_lane	
+352238	application	action	dual_model	0.3.27
+352240	affairs	action	dual_model	0.3.27
+352245	lecture_forum	event	rule_lane	
+352246	lecture_forum	event	rule_lane	
+352249	teaching_schedule	notice	rule_lane	
+352251	service_info	notice	rule_lane	
+352253	international	action	rule_lane	
+352254	training	event	rule_lane	
+352258	activity	event	dual_model	0.3.27
+352259	competition	event	rule_lane	
+352266	selection_result	result	rule_lane	
+352274	selection_result	result	rule_lane	
+352276	affairs	action	dual_model	0.3.27
+352279	recruitment	result	rule_lane	
+352287	international	event	rule_lane	
+352288	international	event	rule_lane	
+352289	international	event	rule_lane	
+352292	selection_result	result	rule_lane	
+352303	selection_result	result	rule_lane	
+352304	examination	event	dual_model	0.3.27
+352309	affairs	action	dual_model	0.3.27
+352316	application	action	rule_lane	
+352322	news	result	rule_lane	
+352325	service_info	notice	rule_lane	
+352332	application	action	dual_model	0.3.27
+352343	application	action	dual_model	0.3.27
+352345	service_info	notice	rule_lane	
+352351	affairs	action	rule_lane	
+352352	affairs	action	rule_lane	
+352353	selection_result	result	rule_lane	
+352354	application	action	rule_lane	
+352367	affairs	action	dual_model	0.3.27
+352374	governance	notice	rule_lane	
+352375	international	result	rule_lane	
+352380	selection_result	result	rule_lane	
+352381	international	result	rule_lane	
+352383	international	result	rule_lane	
+352385	governance	notice	dual_model	0.3.27
+352390	selection_result	result	rule_lane	
+352391	recruitment	result	rule_lane	
+352392	affairs	action	rule_lane	
+352395	governance	notice	rule_lane	
+352397	affairs	action	rule_lane	
+352406	service_info	notice	rule_lane	
+352425	international	action	rule_lane	
+352426	lecture_forum	event	dual_model	0.3.27
+352435	procurement	result	rule_lane	
+352446	recruitment	event	rule_lane	
+352447	affairs	action	rule_lane	
+352448	governance	notice	rule_lane	
+352449	examination	event	dual_model	0.3.27
+352453	examination	event	dual_model	0.3.27
+352454	affairs	action	dual_model	0.3.30
+352485	news	result	rule_lane	
+352508	recruitment	action	rule_lane	
+352510	affairs	action	rule_lane	
+352515	affairs	action	dual_model	0.3.27
+352516	governance	event	rule_lane	
+352518	application	action	rule_lane	
+352521	competition	event	rule_lane	
+352523	selection_result	result	rule_lane	
+352524	affairs	action	dual_model	0.3.27
+352525	international	event	rule_lane	
+352534	news	result	rule_lane	
+352557	recruitment	event	rule_lane	
+352558	affairs	action	dual_model	0.3.27
+352559	affairs	action	dual_model	0.3.27
+352563	governance	action	rule_lane	
+352565	affairs	action	rule_lane	
+352572	service_info	reference	dual_model	0.3.27
+352573	governance	action	dual_model	0.3.27
+352576	activity	event	dual_model	0.3.27
+352592	affairs	action	dual_model	0.3.27
+352595	governance	action	dual_model	0.3.27
+352596	affairs	action	rule_lane	
+352598	affairs	action	dual_model	0.3.27
+352599	training	result	rule_lane	
+352608	governance	notice	dual_model	0.3.27
+352610	lecture_forum	event	rule_lane	
+352611	lecture_forum	event	rule_lane	
+352615	governance	event	rule_lane	
+352628	affairs	action	dual_model	0.3.27
+352630	teaching_schedule	notice	rule_lane	
+352633	training	event	rule_lane	
+352634	application	action	rule_lane	
+352640	news	result	rule_lane	
+352647	news	result	rule_lane	
+352656	service_info	notice	rule_lane	
+352658	news	result	rule_lane	
+352660	procurement	action	rule_lane	
+352663	application	action	rule_lane	
+352664	governance	notice	rule_lane	
+352665	governance	action	dual_model	0.3.27
+352680	recruitment	action	rule_lane	
+352681	governance	action	rule_lane	
+352691	examination	event	dual_model	0.3.27
+352695	news	result	rule_lane	
+352697	news	result	rule_lane	
+352698	training	event	rule_lane	
+352702	affairs	action	dual_model	0.3.27
+352709	international	event	rule_lane	
+352710	application	action	rule_lane	
+352712	application	action	rule_lane	
+352715	application	action	rule_lane	
+352716	international	action	dual_model	0.3.27
+352726	affairs	action	dual_model	0.3.27
+352740	recruitment	event	rule_lane	
+352741	selection_result	result	rule_lane	
+352742	application	action	rule_lane	
+352743	examination	action	dual_model	0.3.27
+352744	governance	notice	dual_model	0.3.27
+352748	affairs	action	rule_lane	
+352749	lecture_forum	result	rule_lane	
+352756	teaching_schedule	action	dual_model	0.3.27
+352757	affairs	action	rule_lane	
+352769	selection_result	result	rule_lane	
+352786	procurement	result	rule_lane	
+352788	news	result	dual_model	0.3.27
+352797	news	result	rule_lane	
+352810	application	action	dual_model	0.3.27
+352815	application	action	dual_model	0.3.27
+352834	selection_result	result	rule_lane	
+352839	governance	action	dual_model	0.3.27
+352842	news	result	rule_lane	
+352843	news	result	rule_lane	
+352850	governance	notice	dual_model	0.3.27
+352864	news	result	rule_lane	
+352865	news	result	rule_lane	
+352871	affairs	action	rule_lane	
+352875	competition	event	rule_lane	
+352878	competition	result	rule_lane	
+352879	training	event	rule_lane	
+352882	affairs	action	rule_lane	
+352883	lecture_forum	event	rule_lane	
+352902	lecture_forum	result	rule_lane	
+352912	teaching_schedule	notice	rule_lane	
+352916	teaching_schedule	notice	rule_lane	
+352919	selection_result	result	rule_lane	
+352920	selection_result	result	rule_lane	
+352923	selection_result	result	rule_lane	
+352924	application	action	rule_lane	
+352932	examination	event	dual_model	0.3.27
+352936	news	result	rule_lane	
+352940	competition	event	rule_lane	
+352950	international	result	rule_lane	
+352953	lecture_forum	event	rule_lane	
+352983	activity	event	dual_model	0.3.27
+352984	affairs	action	dual_model	0.3.27
+352988	training	result	rule_lane	
+352992	news	result	rule_lane	
+353022	procurement	action	rule_lane	
+353024	affairs	action	rule_lane	
+353038	training	result	rule_lane	
+353039	training	result	rule_lane	
+353043	activity	result	rule_lane	
+353049	affairs	action	dual_model	0.3.27
+353053	competition	event	rule_lane	
+353056	application	action	rule_lane	
+353067	news	result	rule_lane	
+353076	competition	event	rule_lane	
+353085	lecture_forum	event	dual_model	0.3.27
+353086	lecture_forum	event	dual_model	0.3.27
+353088	international	result	rule_lane	
+353089	news	event	rule_lane	
+353091	training	result	rule_lane	
+353092	selection_result	result	rule_lane	
+353104	lecture_forum	event	rule_lane	
+353105	lecture_forum	event	rule_lane	
+353106	application	action	rule_lane	
+353112	competition	action	rule_lane	
+353126	news	result	rule_lane	
+353128	news	result	rule_lane	
+353131	training	result	rule_lane	
+353133	training	result	rule_lane	
+353139	selection_result	result	rule_lane	
+353141	competition	event	rule_lane	
+353142	international	action	rule_lane	
+353155	news	result	rule_lane	
+353156	application	action	rule_lane	
+353157	competition	action	rule_lane	
+353176	affairs	action	dual_model	0.3.27
+353181	affairs	action	rule_lane	
+353183	service_info	notice	rule_lane	
+353186	activity	event	dual_model	0.3.27
+353197	lecture_forum	event	rule_lane	
+353202	selection_result	result	dual_model	0.3.27
+353206	service_info	notice	rule_lane	
+353209	activity	event	dual_model	0.3.27
+353210	examination	event	rule_lane	
+353214	governance	event	rule_lane	
+353223	international	result	rule_lane	
+353225	application	action	rule_lane	
+353227	application	action	rule_lane	
+353228	application	action	rule_lane	
+353229	application	action	rule_lane	
+353239	selection_result	result	rule_lane	
+353245	affairs	action	dual_model	0.3.27
+353249	lecture_forum	event	rule_lane	
+353253	application	action	rule_lane	
+353254	news	result	rule_lane	
+353255	procurement	result	rule_lane	
+353260	governance	notice	dual_model	0.3.27
+353262	training	event	dual_model	0.3.27
+353265	news	result	rule_lane	
+353270	lecture_forum	result	rule_lane	
+353281	international	event	rule_lane	
+353284	governance	event	rule_lane	
+353286	examination	event	rule_lane	
+353291	procurement	action	rule_lane	
+353299	governance	event	dual_model	0.3.27
+353301	news	result	dual_model	0.3.27
+353302	governance	event	dual_model	0.3.27
+353327	selection_result	result	rule_lane	
+353336	procurement	action	rule_lane	
+353345	lecture_forum	result	rule_lane	
+353375	application	action	rule_lane	
+353378	competition	result	rule_lane	
+353387	training	event	rule_lane	
+353390	affairs	action	dual_model	0.3.27
+353393	selection_result	result	rule_lane	
+353394	news	result	rule_lane	
+353395	affairs	action	rule_lane	
+353404	selection_result	result	rule_lane	
+353423	international	result	rule_lane	
+353426	selection_result	result	rule_lane	
+353427	selection_result	result	rule_lane	
+353435	governance	action	rule_lane	
+353436	examination	event	rule_lane	
+353440	competition	event	rule_lane	
+353442	application	action	rule_lane	
+353443	news	result	rule_lane	
+353454	application	action	rule_lane	
+353460	affairs	action	rule_lane	
+353462	training	event	rule_lane	
+353465	service_info	reference	dual_model	0.3.27
+353466	activity	action	dual_model	0.3.27
+353483	service_info	notice	dual_model	0.3.27
+353486	competition	event	rule_lane	
+353487	selection_result	result	rule_lane	
+353489	affairs	action	dual_model	0.3.27
+353492	affairs	action	rule_lane	
+353502	application	action	rule_lane	
+353508	application	action	rule_lane	
+353524	recruitment	event	rule_lane	
+353532	news	result	rule_lane	
+353534	examination	event	rule_lane	
+353536	affairs	action	dual_model	0.3.27
+353537	service_info	notice	rule_lane	
+353548	procurement	result	rule_lane	
+353549	news	result	rule_lane	
+353550	affairs	action	dual_model	0.3.27
+353555	lecture_forum	result	rule_lane	
+353557	affairs	reference	dual_model	0.3.27
+353559	application	action	dual_model	0.3.27
+353566	affairs	action	rule_lane	
+353567	news	result	rule_lane	
+353570	news	result	rule_lane	
+353571	international	event	rule_lane	
+353573	lecture_forum	result	rule_lane	
+353574	service_info	reference	dual_model	0.3.27
+353575	international	event	dual_model	0.3.27
+353578	lecture_forum	event	rule_lane	
+353585	affairs	action	rule_lane	
+353596	service_info	reference	rule_lane	
+353605	service_info	notice	rule_lane	
+353639	application	action	rule_lane	
+353640	news	result	rule_lane	
+353641	affairs	action	dual_model	0.3.27
+353646	service_info	notice	dual_model	0.3.27
+353651	recruitment	event	dual_model	0.3.27
+353658	service_info	notice	rule_lane	
+353659	governance	notice	dual_model	0.3.27
+353668	affairs	action	rule_lane	
+353669	news	result	rule_lane	
+353670	news	result	rule_lane	
+353673	international	action	rule_lane	
+353674	international	action	rule_lane	
+353676	examination	event	rule_lane	
+353678	service_info	notice	rule_lane	
+353683	international	action	rule_lane	
+353689	international	action	rule_lane	
+353696	examination	action	dual_model	0.3.27
+353699	competition	event	rule_lane	
+353700	activity	event	dual_model	0.3.27
+353701	training	action	dual_model	0.3.27
+353723	news	result	rule_lane	
+353733	service_info	reference	dual_model	0.3.27
+353734	training	result	rule_lane	
+353743	examination	action	dual_model	0.3.27
+353744	governance	notice	dual_model	0.3.27
+353745	governance	action	dual_model	0.3.27
+353751	affairs	action	rule_lane	
+353752	affairs	action	rule_lane	
+353756	international	result	rule_lane	
+353764	news	result	rule_lane	
+353772	news	result	rule_lane	
+353781	application	action	rule_lane	
+353788	affairs	action	dual_model	0.3.27
+353804	activity	result	rule_lane	
+353805	application	action	dual_model	0.3.27
+353813	affairs	action	dual_model	0.3.27
+353816	service_info	notice	rule_lane	
+353817	affairs	action	rule_lane	
+353819	news	result	rule_lane	
+353830	international	action	rule_lane	
+353832	news	result	rule_lane	
+353838	news	result	rule_lane	
+353848	affairs	action	dual_model	0.3.27
+353854	affairs	action	rule_lane	
+353859	selection_result	result	rule_lane	
+353860	application	action	dual_model	0.3.27
+353867	news	result	rule_lane	
+353869	news	result	rule_lane	
+353871	selection_result	result	rule_lane	
+353873	training	action	dual_model	0.3.27
+353879	service_info	notice	rule_lane	
+353888	recruitment	event	rule_lane	
+353895	news	result	dual_model	0.3.27
+353896	international	result	rule_lane	
+353898	governance	action	rule_lane	
+353900	governance	action	dual_model	0.3.27
+353901	service_info	notice	rule_lane	
+353903	service_info	notice	rule_lane	
+353906	affairs	action	dual_model	0.3.27
+353907	governance	notice	dual_model	0.3.27
+353908	selection_result	result	rule_lane	
+353924	application	action	dual_model	0.3.27
+353928	lecture_forum	result	rule_lane	
+353934	competition	result	rule_lane	
+353935	service_info	notice	rule_lane	
+353937	competition	result	rule_lane	
+353944	application	action	rule_lane	
+353947	application	action	dual_model	0.3.27
+353963	application	action	dual_model	0.3.27
+353968	international	result	rule_lane	
+353981	news	result	rule_lane	
+353990	application	action	dual_model	0.3.27
+353993	selection_result	result	dual_model	0.3.27
+353997	service_info	notice	rule_lane	
+354007	examination	action	dual_model	0.3.30
+354008	selection_result	result	rule_lane	
+354010	selection_result	result	rule_lane	
+354014	competition	result	rule_lane	
+354016	application	action	dual_model	0.3.27
+354023	application	action	dual_model	0.3.27
+354027	activity	event	dual_model	0.3.27
+354033	selection_result	result	rule_lane	
+354034	service_info	notice	dual_model	0.3.27
+354039	examination	event	dual_model	0.3.27
+354047	service_info	notice	rule_lane	
+354049	service_info	notice	rule_lane	
+354054	selection_result	result	rule_lane	
+354055	selection_result	result	rule_lane	
+354056	selection_result	result	rule_lane	
+354059	selection_result	result	rule_lane	
+354060	international	result	rule_lane	
+354066	application	action	dual_model	0.3.27
+354073	procurement	action	rule_lane	
+354076	lecture_forum	result	rule_lane	
+354081	affairs	action	rule_lane	
+354082	affairs	action	dual_model	0.3.27
+354083	affairs	action	rule_lane	
+354085	procurement	action	rule_lane	
+354096	selection_result	result	rule_lane	
+354097	selection_result	result	rule_lane	
+354098	selection_result	result	rule_lane	
+354099	selection_result	result	rule_lane	
+354104	examination	action	rule_lane	
+354118	service_info	notice	rule_lane	
+354121	application	action	rule_lane	
+354127	competition	result	rule_lane	
+354128	selection_result	result	rule_lane	
+354129	affairs	action	rule_lane	
+354130	selection_result	result	rule_lane	
+354149	procurement	action	rule_lane	
+354153	service_info	notice	rule_lane	
+354161	governance	event	rule_lane	
+354162	selection_result	result	rule_lane	
+354166	news	result	dual_model	0.3.27
+354169	affairs	action	dual_model	0.3.27
+354172	international	action	rule_lane	
+354179	procurement	action	rule_lane	
+354182	application	action	rule_lane	
+354192	affairs	action	rule_lane	
+354193	selection_result	result	rule_lane	
+354195	competition	action	rule_lane	
+354197	governance	notice	dual_model	0.3.27
+354201	procurement	action	rule_lane	
+354203	affairs	action	dual_model	0.3.27
+354206	governance	action	rule_lane	
+354210	selection_result	result	dual_model	0.3.27
+354211	affairs	action	dual_model	0.3.27
+354214	recruitment	action	rule_lane	
+354216	procurement	result	rule_lane	
+354217	procurement	result	rule_lane	
+354218	competition	action	rule_lane	
+354232	selection_result	result	rule_lane	
+354235	application	event	dual_model	0.3.27
+354237	international	action	rule_lane	
+354244	examination	action	rule_lane	
+354250	governance	notice	rule_lane	
+354255	international	result	rule_lane	
+354257	activity	action	dual_model	0.3.27
+354264	affairs	action	rule_lane	
+354269	governance	action	dual_model	0.3.27
+354270	service_info	notice	rule_lane	
+354271	service_info	notice	rule_lane	
+354272	selection_result	result	rule_lane	
+354274	selection_result	result	rule_lane	
+354279	service_info	notice	rule_lane	
+354284	application	action	dual_model	0.3.27
+354288	procurement	result	rule_lane	
+354292	service_info	notice	rule_lane	
+354294	affairs	action	rule_lane	
+354305	governance	reference	dual_model	0.3.27
+354310	procurement	result	rule_lane	
+354312	examination	event	rule_lane	
+354342	governance	event	rule_lane	
+354343	service_info	notice	dual_model	0.3.27
+354348	affairs	action	dual_model	0.3.27
+354359	selection_result	result	rule_lane	
+354365	governance	event	rule_lane	
+354367	procurement	result	rule_lane	
+354371	international	action	rule_lane	
+354372	application	action	rule_lane	
+354374	selection_result	result	rule_lane	
+354386	international	action	rule_lane	
+354395	affairs	action	rule_lane	
+354396	governance	notice	dual_model	0.3.27
+354403	affairs	action	dual_model	0.3.27
+354405	international	action	rule_lane	
+354406	governance	notice	dual_model	0.3.27
+354420	news	result	rule_lane	
+354427	affairs	action	rule_lane	
+354434	affairs	action	rule_lane	
+354436	selection_result	result	rule_lane	
+354437	selection_result	result	rule_lane	
+354438	affairs	action	dual_model	0.3.27
+354441	news	result	rule_lane	
+354450	news	result	rule_lane	
+354451	procurement	action	rule_lane	
+354452	international	result	rule_lane	
+354453	procurement	action	rule_lane	
+354454	news	result	rule_lane	
+354484	affairs	action	rule_lane	
+354487	news	result	rule_lane	
+354491	governance	notice	rule_lane	
+354496	competition	event	rule_lane	
+354502	service_info	notice	rule_lane	
+354503	procurement	action	rule_lane	
+354505	service_info	notice	rule_lane	
+354512	international	action	rule_lane	
+354516	application	action	rule_lane	
+354517	selection_result	result	rule_lane	
+354518	selection_result	result	rule_lane	
+354520	service_info	notice	rule_lane	
+354521	governance	event	rule_lane	
+354524	application	action	dual_model	0.3.27
+354525	service_info	notice	dual_model	0.3.27
+354526	procurement	result	rule_lane	
+354527	governance	notice	dual_model	0.3.27
+354533	service_info	notice	rule_lane	
+354538	application	action	rule_lane	
+354542	competition	event	rule_lane	
+354543	international	action	rule_lane	
+354548	service_info	notice	rule_lane	
+354551	training	event	dual_model	0.3.27
+354552	governance	notice	dual_model	0.3.27
+354566	procurement	result	rule_lane	
+354567	procurement	result	rule_lane	
+354569	selection_result	result	rule_lane	
+354573	service_info	notice	rule_lane	
+354575	service_info	notice	dual_model	0.3.27
+354578	service_info	notice	rule_lane	
+354582	news	result	rule_lane	
+354593	news	result	rule_lane	
+354605	competition	event	dual_model	0.3.27
+354606	international	action	rule_lane	
+354609	procurement	action	rule_lane	
+354614	competition	action	rule_lane	
+354635	procurement	result	rule_lane	
+354640	governance	notice	dual_model	0.3.27
+354658	activity	event	dual_model	0.3.27
+354659	service_info	notice	rule_lane	
+354669	affairs	action	rule_lane	
+354674	service_info	notice	rule_lane	
+354684	news	result	rule_lane	
+354708	application	action	rule_lane	
+354714	affairs	action	rule_lane	
+354715	application	action	rule_lane	
+354762	recruitment	action	rule_lane	
+354765	application	action	rule_lane	
+354775	selection_result	result	dual_model	0.3.27
+354777	service_info	notice	rule_lane	
+354780	recruitment	action	rule_lane	
+354782	recruitment	action	rule_lane	
+354784	teaching_schedule	notice	rule_lane	
+354787	affairs	action	dual_model	0.3.27
+354788	affairs	action	rule_lane	
+354789	teaching_schedule	notice	rule_lane	
+354793	affairs	action	rule_lane	
+354794	selection_result	result	rule_lane	
+354796	teaching_schedule	notice	rule_lane	
+354797	governance	notice	rule_lane	
+354799	competition	event	rule_lane	
+354800	affairs	action	rule_lane	
+354801	affairs	action	rule_lane	
+354802	affairs	action	dual_model	0.3.27
+354805	selection_result	result	rule_lane	
+354807	governance	action	rule_lane	
+354813	affairs	action	rule_lane	
+354815	teaching_schedule	notice	dual_model	0.3.27
+354818	recruitment	action	rule_lane	
+354822	recruitment	action	dual_model	0.3.27
+354825	recruitment	action	rule_lane	
+354826	examination	event	rule_lane	
+354829	service_info	notice	rule_lane	
+354831	activity	event	dual_model	0.3.27
+354832	affairs	action	rule_lane	
+354835	recruitment	action	rule_lane	
+354837	news	result	rule_lane	
+354840	affairs	action	dual_model	0.3.27
+354842	recruitment	action	rule_lane	
+354843	recruitment	action	rule_lane	
+354845	service_info	notice	rule_lane	
+354847	recruitment	action	rule_lane	
+354849	international	result	rule_lane	
+354856	activity	result	rule_lane	
+354862	affairs	action	rule_lane	
+354863	governance	action	dual_model	0.3.27
+354867	recruitment	action	dual_model	0.3.27
+354869	recruitment	action	dual_model	0.3.27
+354870	activity	event	dual_model	0.3.30
+354874	examination	action	rule_lane	
+354875	training	action	rule_lane	
+354884	affairs	action	dual_model	0.3.27
+354886	affairs	action	rule_lane	
+354887	competition	event	rule_lane	
+354888	competition	event	rule_lane	
+354889	service_info	notice	rule_lane	
+354890	service_info	notice	rule_lane	
+354891	competition	event	rule_lane	
+354892	competition	event	rule_lane	
+354897	service_info	reference	dual_model	0.3.27
+354898	recruitment	action	rule_lane	
+354906	selection_result	result	rule_lane	
+354918	competition	action	rule_lane	
+354919	affairs	action	rule_lane	
+354920	competition	event	rule_lane	
+354922	recruitment	action	rule_lane	
+354924	governance	notice	dual_model	0.3.27
+354925	affairs	action	rule_lane	
+354938	affairs	action	rule_lane	
+354939	teaching_schedule	notice	rule_lane	
+354944	selection_result	result	rule_lane	
+354945	news	result	rule_lane	
+354947	recruitment	event	rule_lane	
+354949	competition	event	rule_lane	
+354950	competition	event	rule_lane	
+354952	activity	result	rule_lane	
+354954	competition	action	rule_lane	
+354962	affairs	action	dual_model	0.3.27
+354964	selection_result	result	rule_lane	
+354965	international	action	rule_lane	
+354966	governance	notice	dual_model	0.3.27
+354968	selection_result	result	rule_lane	
+354970	examination	action	rule_lane	
+354973	news	result	rule_lane	
+354974	recruitment	action	rule_lane	
+354980	teaching_schedule	notice	dual_model	0.3.30
+354981	news	result	rule_lane	
+354982	application	action	rule_lane	
+354983	news	result	rule_lane	
+354986	teaching_schedule	notice	rule_lane	
+354987	selection_result	result	rule_lane	
+354988	training	event	dual_model	0.3.27
+354989	affairs	action	dual_model	0.3.27
+355002	governance	action	rule_lane	
+355003	procurement	action	rule_lane	
+355005	competition	event	rule_lane	
+355006	governance	action	rule_lane	
+355009	international	action	rule_lane	
+355011	international	action	rule_lane	
+355015	examination	event	rule_lane	
+355029	selection_result	result	rule_lane	
+355030	affairs	action	rule_lane	
+355035	governance	action	dual_model	0.3.27
+355040	selection_result	result	rule_lane	
+355042	news	result	rule_lane	
+355043	competition	action	rule_lane	
+355044	competition	action	rule_lane	
+355045	selection_result	result	rule_lane	
+355046	international	action	rule_lane	
+355047	application	action	rule_lane	
+355052	governance	notice	dual_model	0.3.27
+355064	selection_result	result	rule_lane	
+355074	competition	event	rule_lane	
+355075	service_info	notice	rule_lane	
+355077	affairs	action	dual_model	0.3.27
+355081	governance	notice	dual_model	0.3.27
+355084	affairs	action	dual_model	0.3.27
+355085	affairs	action	rule_lane	
+355086	international	action	rule_lane	
+355099	selection_result	result	rule_lane	
+355100	international	action	rule_lane	
+355101	procurement	action	rule_lane	
+355111	examination	event	rule_lane	
+355112	recruitment	action	rule_lane	
+355114	governance	event	rule_lane	
+355115	news	result	rule_lane	
+355118	affairs	action	rule_lane	
+355119	application	action	dual_model	0.3.27
+355122	service_info	notice	rule_lane	
+355123	selection_result	result	rule_lane	
+355124	selection_result	result	rule_lane	
+355125	examination	event	dual_model	0.3.27
+355131	competition	event	rule_lane	
+355136	application	action	rule_lane	
+355137	competition	action	dual_model	0.3.27
+355138	affairs	action	dual_model	0.3.27
+355148	service_info	notice	rule_lane	
+355150	training	event	rule_lane	
+355151	international	result	rule_lane	
+355152	news	result	rule_lane	
+355161	governance	action	rule_lane	
+355162	procurement	result	rule_lane	
+355166	lecture_forum	event	dual_model	0.3.27
+355167	selection_result	result	rule_lane	
+355172	competition	event	rule_lane	
+355176	selection_result	result	rule_lane	
+355178	news	result	rule_lane	
+355187	service_info	reference	dual_model	0.3.27
+355189	service_info	notice	rule_lane	
+355191	service_info	notice	rule_lane	
+355205	competition	event	rule_lane	
+355207	training	result	rule_lane	
+355208	procurement	action	rule_lane	
+355209	selection_result	result	rule_lane	
+355210	teaching_schedule	notice	rule_lane	
+355214	international	event	rule_lane	
+355215	affairs	action	rule_lane	
+355221	procurement	action	rule_lane	
+355222	procurement	action	rule_lane	
+355223	selection_result	result	rule_lane	
+355224	news	result	rule_lane	
+355226	recruitment	action	rule_lane	
+355228	application	action	rule_lane	
+355231	affairs	reference	dual_model	0.3.27
+355233	international	event	rule_lane	
+355234	international	result	rule_lane	
+355245	lecture_forum	event	rule_lane	
+355247	lecture_forum	event	rule_lane	
+355254	activity	event	dual_model	0.3.27
+355260	international	action	rule_lane	
+355263	news	result	rule_lane	
+355264	lecture_forum	event	rule_lane	
+355269	application	action	rule_lane	
+355270	lecture_forum	event	rule_lane	
+355275	affairs	action	rule_lane	
+355282	affairs	reference	dual_model	0.3.27
+355283	service_info	notice	rule_lane	
+355285	governance	notice	rule_lane	
+355290	lecture_forum	event	rule_lane	
+355303	selection_result	result	rule_lane	
+355308	selection_result	result	rule_lane	
+355314	governance	notice	dual_model	0.3.27
+355316	affairs	action	dual_model	0.3.27
+355317	international	result	rule_lane	
+355320	competition	event	rule_lane	
+355324	procurement	result	rule_lane	
+355325	procurement	result	rule_lane	
+355326	procurement	result	rule_lane	
+355327	international	action	rule_lane	
+355331	governance	notice	dual_model	0.3.30
+355341	international	result	rule_lane	
+355345	competition	event	rule_lane	
+355361	international	action	rule_lane	
+355364	application	action	rule_lane	
+355365	lecture_forum	event	rule_lane	
+355366	international	result	rule_lane	
+355369	governance	reference	dual_model	0.3.27
+355371	affairs	action	rule_lane	
+355373	affairs	action	rule_lane	
+355374	application	action	rule_lane	
+355377	competition	event	rule_lane	
+355383	selection_result	result	rule_lane	
+355384	selection_result	result	rule_lane	
+355385	international	action	rule_lane	
+355391	international	result	rule_lane	
+355393	news	result	rule_lane	
+355395	affairs	action	dual_model	0.3.27
+355396	affairs	action	dual_model	0.3.27
+355398	competition	event	rule_lane	
+355399	competition	event	rule_lane	
+355400	affairs	action	rule_lane	
+355401	application	action	rule_lane	
+355403	competition	result	rule_lane	
+355405	application	action	rule_lane	
+355426	international	result	rule_lane	
+355437	selection_result	result	rule_lane	
+355449	competition	event	rule_lane	
+355464	training	event	dual_model	0.3.27
+355470	application	action	rule_lane	
+355472	service_info	reference	dual_model	0.3.27
+355473	competition	action	rule_lane	
+355474	international	event	rule_lane	
+355476	lecture_forum	event	rule_lane	
+355479	service_info	notice	rule_lane	
+355488	international	result	rule_lane	
+355491	activity	event	dual_model	0.3.27
+355493	application	action	rule_lane	
+355494	affairs	action	dual_model	0.3.27
+355503	international	result	rule_lane	
+355510	procurement	action	rule_lane	
+355512	service_info	notice	rule_lane	
+355520	application	action	rule_lane	
+355522	lecture_forum	event	rule_lane	
+355523	news	result	rule_lane	
+355529	international	result	rule_lane	
+355532	competition	event	rule_lane	
+355536	examination	event	dual_model	0.3.27
+355546	lecture_forum	event	rule_lane	
+355547	lecture_forum	event	rule_lane	
+355549	service_info	notice	rule_lane	
+355550	selection_result	result	rule_lane	
+355554	governance	event	rule_lane	
+355560	affairs	action	dual_model	0.3.27
+355561	affairs	action	dual_model	0.3.27
+355564	lecture_forum	event	rule_lane	
+355569	activity	result	rule_lane	
+355570	affairs	action	rule_lane	
+355579	competition	action	rule_lane	
+355582	teaching_schedule	action	dual_model	0.3.27
+355588	application	action	rule_lane	
+355589	service_info	notice	rule_lane	
+355590	activity	event	dual_model	0.3.27
+355593	procurement	result	rule_lane	
+355600	news	result	rule_lane	
+355618	governance	notice	rule_lane	
+355628	activity	event	dual_model	0.3.27
+355635	international	result	rule_lane	
+355636	governance	reference	dual_model	0.3.28
+355641	international	action	rule_lane	
+355645	news	result	rule_lane	
+355648	lecture_forum	event	rule_lane	
+355649	competition	event	rule_lane	
+355650	service_info	notice	rule_lane	
+355653	lecture_forum	event	dual_model	0.3.27
+355656	competition	event	rule_lane	
+355658	news	result	rule_lane	
+355669	competition	result	rule_lane	
+355670	teaching_schedule	action	dual_model	0.3.27
+355671	news	result	rule_lane	
+355676	lecture_forum	event	rule_lane	
+355678	procurement	result	rule_lane	
+355679	procurement	action	rule_lane	
+355680	procurement	action	rule_lane	
+355682	teaching_schedule	notice	rule_lane	
+355687	examination	event	rule_lane	
+355693	news	result	rule_lane	
+355695	lecture_forum	event	rule_lane	
+355696	affairs	reference	dual_model	0.3.27
+355697	governance	reference	rule_lane	
+355701	affairs	action	dual_model	0.3.27
+355702	examination	event	dual_model	0.3.27
+355705	selection_result	result	rule_lane	
+355717	activity	event	dual_model	0.3.27
+355724	affairs	action	dual_model	0.3.27
+355742	international	result	rule_lane	
+355743	governance	action	rule_lane	
+355750	competition	action	rule_lane	
+355766	examination	event	rule_lane	
+355772	lecture_forum	event	dual_model	0.3.27
+355773	competition	event	rule_lane	
+355775	procurement	result	rule_lane	
+355776	lecture_forum	result	rule_lane	
+355795	governance	notice	dual_model	0.3.27
+355797	competition	result	rule_lane	
+355798	application	action	rule_lane	
+355803	affairs	action	rule_lane	
+355804	service_info	notice	rule_lane	
+355822	application	action	dual_model	0.3.27
+355829	selection_result	result	rule_lane	
+355850	governance	notice	rule_lane	
+355851	procurement	result	rule_lane	
+355853	application	action	rule_lane	
+355854	application	action	dual_model	0.3.27
+355858	selection_result	result	rule_lane	
+355859	service_info	notice	rule_lane	
+355866	application	action	rule_lane	
+355867	service_info	notice	rule_lane	
+355881	service_info	notice	dual_model	0.3.27
+355885	news	result	rule_lane	
+355890	lecture_forum	event	dual_model	0.3.27
+355891	application	action	dual_model	0.3.27
+355892	news	result	rule_lane	
+355896	lecture_forum	result	rule_lane	
+355902	competition	event	rule_lane	
+355904	competition	action	rule_lane	
+355912	application	action	rule_lane	
+355920	competition	event	rule_lane	
+355924	application	action	rule_lane	
+355929	application	action	rule_lane	
+355930	selection_result	result	rule_lane	
+355945	competition	action	rule_lane	
+355970	service_info	notice	rule_lane	
+355973	teaching_schedule	notice	rule_lane	
+356030	lecture_forum	result	rule_lane	
+356052	affairs	action	rule_lane	
+356079	news	result	rule_lane	
+356081	governance	notice	rule_lane	
+356083	application	action	rule_lane	
+356135	affairs	action	dual_model	0.3.27
+356151	competition	event	rule_lane	
+356152	affairs	action	rule_lane	
+356158	competition	event	rule_lane	
+356163	service_info	reference	dual_model	0.3.27
+356169	competition	event	rule_lane	
+356179	lecture_forum	event	rule_lane	
+356200	lecture_forum	event	rule_lane	
+356201	international	result	rule_lane	
+356206	competition	event	dual_model	0.3.27
+356213	recruitment	action	dual_model	0.3.27
+356214	recruitment	action	dual_model	0.3.27
+356218	governance	event	rule_lane	
+356220	activity	event	dual_model	0.3.27
+356231	service_info	notice	rule_lane	
+356232	service_info	notice	rule_lane	
+356238	affairs	action	rule_lane	
+356240	affairs	action	dual_model	0.3.27
+356241	training	event	rule_lane	
+356243	lecture_forum	event	rule_lane	
+356244	lecture_forum	event	rule_lane	
+356245	lecture_forum	event	rule_lane	
+356251	activity	event	dual_model	0.3.27
+356260	selection_result	result	rule_lane	
+356265	lecture_forum	event	rule_lane	
+356266	lecture_forum	event	rule_lane	
+356267	lecture_forum	event	rule_lane	
+356288	recruitment	event	dual_model	0.3.27
+356292	examination	event	rule_lane	
+356299	affairs	action	rule_lane	
+356309	activity	event	dual_model	0.3.27
+356315	training	event	dual_model	0.3.27
+356319	affairs	action	dual_model	0.3.27
+356330	competition	event	rule_lane	
+356340	application	action	rule_lane	
+356341	service_info	notice	rule_lane	
+356346	governance	action	rule_lane	
+356354	activity	event	dual_model	0.3.27
+356358	selection_result	result	rule_lane	
+356359	competition	event	rule_lane	
+356361	selection_result	result	rule_lane	
+356364	application	action	rule_lane	
+356374	lecture_forum	event	rule_lane	
+356380	application	action	rule_lane	
+356383	service_info	reference	dual_model	0.3.27
+356388	selection_result	result	rule_lane	
+356391	application	action	rule_lane	
+356392	activity	event	dual_model	0.3.27
+356394	governance	notice	dual_model	0.3.27
+356405	governance	notice	dual_model	0.3.27
+356412	selection_result	result	dual_model	0.3.27
+356415	activity	event	dual_model	0.3.27
+356416	procurement	action	rule_lane	
+356417	affairs	action	rule_lane	
+356421	examination	event	rule_lane	
+356424	lecture_forum	event	rule_lane	
+356431	lecture_forum	event	rule_lane	
+356443	service_info	notice	dual_model	0.3.30
+356445	affairs	action	rule_lane	
+356452	lecture_forum	result	rule_lane	
+356454	lecture_forum	result	rule_lane	
+356455	affairs	action	rule_lane	
+356470	lecture_forum	event	rule_lane	
+356481	affairs	action	dual_model	0.3.27
+356482	selection_result	result	rule_lane	
+356484	application	action	dual_model	0.3.27
+356486	news	result	rule_lane	
+356495	news	result	rule_lane	
+356496	procurement	action	rule_lane	
+356497	activity	event	dual_model	0.3.27
+356503	affairs	action	rule_lane	
+356504	application	action	rule_lane	
+356505	application	action	rule_lane	
+356516	governance	event	rule_lane	
+356518	lecture_forum	event	rule_lane	
+356519	lecture_forum	event	rule_lane	
+356526	selection_result	result	rule_lane	
+356527	selection_result	result	rule_lane	
+356529	recruitment	action	rule_lane	
+356531	training	event	dual_model	0.3.27
+356532	service_info	notice	rule_lane	
+356556	examination	action	dual_model	0.3.27
+356560	competition	event	rule_lane	
+356562	application	action	rule_lane	
+356563	application	action	rule_lane	
+356564	application	action	rule_lane	
+356566	application	action	dual_model	0.3.27
+356569	application	action	rule_lane	
+356575	affairs	action	rule_lane	
+356584	affairs	action	rule_lane	
+356586	recruitment	action	rule_lane	
+356596	governance	event	rule_lane	
+356597	service_info	reference	dual_model	0.3.27
+356599	selection_result	result	rule_lane	
+356608	activity	action	dual_model	0.3.27
+356616	application	action	rule_lane	
+356622	governance	action	rule_lane	
+356623	news	result	rule_lane	
+356627	news	result	rule_lane	
+356628	competition	action	rule_lane	
+356631	procurement	action	rule_lane	
+356632	lecture_forum	result	rule_lane	
+356650	lecture_forum	event	dual_model	0.3.27
+356654	lecture_forum	event	rule_lane	
+356656	examination	event	rule_lane	
+356664	affairs	action	rule_lane	
+356668	examination	action	rule_lane	
+356669	procurement	result	rule_lane	
+356670	procurement	result	rule_lane	
+356674	affairs	action	dual_model	0.3.27
+356685	lecture_forum	event	rule_lane	
+356775	service_info	notice	rule_lane	
+356776	affairs	action	rule_lane	
+356783	service_info	notice	rule_lane	
+356784	activity	event	dual_model	0.3.27
+356785	service_info	notice	rule_lane	
+356792	affairs	action	dual_model	0.3.27
+356794	selection_result	result	rule_lane	
+356802	competition	event	rule_lane	
+356806	activity	event	dual_model	0.3.27
+356813	lecture_forum	event	rule_lane	
+356823	procurement	action	rule_lane	
+356845	procurement	action	rule_lane	
+356853	training	event	rule_lane	
+356868	competition	event	rule_lane	
+356869	affairs	action	rule_lane	
+356873	service_info	notice	dual_model	0.3.27
+356876	selection_result	result	rule_lane	
+356880	selection_result	result	rule_lane	
+356887	news	result	rule_lane	
+356890	teaching_schedule	notice	rule_lane	
+356909	procurement	action	rule_lane	
+356923	affairs	action	rule_lane	
+356924	affairs	action	dual_model	0.3.27
+356927	governance	action	dual_model	0.3.27
+356940	international	result	rule_lane	
+356948	service_info	notice	rule_lane	
+356955	competition	action	rule_lane	
+356958	procurement	action	rule_lane	
+356959	procurement	action	rule_lane	
+356960	application	action	rule_lane	
+356973	lecture_forum	event	rule_lane	
+356985	recruitment	action	rule_lane	
+356990	training	result	rule_lane	
+356991	training	result	rule_lane	
+356992	procurement	result	rule_lane	
+357003	service_info	reference	dual_model	0.3.27
+357009	affairs	action	dual_model	0.3.27
+357010	affairs	action	dual_model	0.3.27
+357011	competition	event	rule_lane	
+357014	news	result	rule_lane	
+357015	news	result	rule_lane	
+357017	news	result	rule_lane	
+357019	affairs	action	rule_lane	
+357020	selection_result	result	dual_model	0.3.27
+357025	application	action	rule_lane	
+357030	service_info	notice	rule_lane	
+357031	application	action	rule_lane	
+357041	application	action	rule_lane	
+357052	selection_result	result	rule_lane	
+357053	service_info	notice	rule_lane	
+357063	teaching_schedule	notice	rule_lane	
+357067	competition	action	rule_lane	
+357068	procurement	result	rule_lane	
+357074	service_info	notice	rule_lane	
+357077	affairs	action	rule_lane	
+357081	activity	action	dual_model	0.3.27
+357082	training	result	rule_lane	
+357086	application	action	dual_model	0.3.27
+357089	news	result	rule_lane	
+357111	affairs	action	rule_lane	
+357118	activity	event	dual_model	0.3.27
+357136	selection_result	result	rule_lane	
+357142	lecture_forum	event	rule_lane	
+357162	examination	action	dual_model	0.3.27
+357166	procurement	result	rule_lane	
+357167	procurement	result	rule_lane	
+357202	selection_result	result	rule_lane	
+357209	examination	event	dual_model	0.3.27
+357215	lecture_forum	result	rule_lane	
+357221	lecture_forum	event	rule_lane	
+357222	selection_result	result	rule_lane	
+357229	international	result	rule_lane	
+357238	competition	event	rule_lane	
+357240	competition	event	rule_lane	
+357242	affairs	event	dual_model	0.3.27
+357245	news	result	rule_lane	
+357248	lecture_forum	event	rule_lane	
+357253	competition	result	rule_lane	
+357254	news	result	rule_lane	
+357262	affairs	action	rule_lane	
+357264	competition	result	rule_lane	
+357278	affairs	event	dual_model	0.3.27
+357280	selection_result	result	rule_lane	
+357289	selection_result	result	rule_lane	
+357291	application	action	dual_model	0.3.27
+357292	application	action	rule_lane	
+357304	procurement	action	rule_lane	
+357306	procurement	action	rule_lane	
+357308	governance	notice	rule_lane	
+357309	selection_result	result	rule_lane	
+357311	affairs	action	dual_model	0.3.27
+357313	competition	event	rule_lane	
+357314	procurement	result	rule_lane	
+357315	procurement	action	rule_lane	
+357317	service_info	notice	rule_lane	
+357328	competition	action	rule_lane	
+357331	affairs	action	rule_lane	
+357339	affairs	action	rule_lane	
+357340	selection_result	result	rule_lane	
+357341	international	result	rule_lane	
+357342	affairs	action	dual_model	0.3.27
+357344	competition	action	rule_lane	
+357346	news	result	rule_lane	
+357347	selection_result	result	rule_lane	
+357352	affairs	action	rule_lane	
+357362	application	action	rule_lane	
+357363	affairs	action	dual_model	0.3.27
+357368	lecture_forum	event	rule_lane	
+357371	affairs	action	rule_lane	
+357374	affairs	action	dual_model	0.3.27
+357375	governance	notice	rule_lane	
+357377	procurement	action	rule_lane	
+357378	lecture_forum	event	rule_lane	
+357379	affairs	action	dual_model	0.3.27
+357380	affairs	action	dual_model	0.3.27
+357381	affairs	action	dual_model	0.3.27
+357393	selection_result	result	dual_model	0.3.27
+357394	affairs	action	rule_lane	
+357395	application	action	rule_lane	
+357396	affairs	action	rule_lane	
+357400	application	action	rule_lane	
+357406	governance	notice	rule_lane	
+357407	activity	event	dual_model	0.3.27
+357415	application	action	rule_lane	
+357429	affairs	action	rule_lane	
+357436	lecture_forum	event	dual_model	0.3.27
+357440	activity	event	rule_lane	
+357441	lecture_forum	event	rule_lane	
+357443	affairs	action	dual_model	0.3.27
+357447	international	result	rule_lane	
+357448	governance	action	rule_lane	
+357449	selection_result	result	rule_lane	
+357451	selection_result	result	rule_lane	
+357469	activity	event	dual_model	0.3.27
+357475	affairs	action	rule_lane	
+357476	competition	event	rule_lane	
+357477	lecture_forum	event	rule_lane	
+357480	recruitment	event	rule_lane	
+357492	teaching_schedule	notice	rule_lane	
+357493	procurement	result	rule_lane	
+357494	procurement	result	rule_lane	
+357500	application	action	dual_model	0.3.27
+357502	news	result	rule_lane	
+357506	lecture_forum	action	rule_lane	
+357518	selection_result	result	rule_lane	
+357522	lecture_forum	event	rule_lane	
+357524	governance	action	dual_model	0.3.27
+357525	governance	notice	rule_lane	
+357529	service_info	notice	rule_lane	
+357537	procurement	result	rule_lane	
+357538	procurement	action	rule_lane	
+357539	procurement	action	rule_lane	
+357546	procurement	result	rule_lane	
+357548	news	result	rule_lane	
+357560	lecture_forum	event	rule_lane	
+357563	news	result	rule_lane	
+357565	examination	event	dual_model	0.3.27
+357568	examination	action	rule_lane	
+357570	selection_result	result	rule_lane	
+357573	selection_result	result	rule_lane	
+357577	governance	event	rule_lane	
+357594	recruitment	result	rule_lane	
+357596	competition	action	rule_lane	
+357650	selection_result	result	rule_lane	
+357655	governance	notice	dual_model	0.3.27
+357657	selection_result	result	rule_lane	
+357659	affairs	action	rule_lane	
+357661	news	result	rule_lane	
+357663	news	result	rule_lane	
+357666	procurement	result	rule_lane	
+357672	recruitment	action	dual_model	0.3.27
+357673	affairs	action	dual_model	0.3.27
+357679	affairs	action	rule_lane	
+357685	competition	action	rule_lane	
+357702	procurement	result	rule_lane	
+357707	lecture_forum	event	rule_lane	
+357710	competition	event	rule_lane	
+357712	news	result	rule_lane	
+357713	selection_result	result	rule_lane	
+357714	selection_result	result	rule_lane	
+357717	procurement	action	rule_lane	
+357720	news	result	rule_lane	
+357726	governance	action	rule_lane	
+357728	affairs	action	rule_lane	
+357729	activity	event	rule_lane	
+357733	affairs	action	rule_lane	
+357735	procurement	action	rule_lane	
+357746	news	result	rule_lane	
+357757	selection_result	result	dual_model	0.3.27
+357759	teaching_schedule	notice	rule_lane	
+357761	service_info	notice	rule_lane	
+357763	examination	event	rule_lane	
+357765	selection_result	result	rule_lane	
+357766	selection_result	result	rule_lane	
+357775	news	result	rule_lane	
+357784	application	event	rule_lane	
+357794	application	action	rule_lane	
+357803	service_info	notice	rule_lane	
+357813	service_info	notice	rule_lane	
+357814	service_info	notice	rule_lane	
+357815	training	action	rule_lane	
+357818	procurement	action	rule_lane	
+357827	selection_result	result	rule_lane	
+357833	selection_result	result	rule_lane	
+357838	application	action	rule_lane	
+357840	competition	action	rule_lane	
+357844	competition	event	rule_lane	
+357847	procurement	result	rule_lane	
+357852	service_info	notice	rule_lane	
+357854	governance	reference	dual_model	0.3.27
+357855	selection_result	result	rule_lane	
+357859	affairs	action	rule_lane	
+357862	training	event	dual_model	0.3.27
+357866	governance	event	dual_model	0.3.27
+357871	application	action	rule_lane	
+357879	application	action	rule_lane	
+357880	training	event	rule_lane	
+357881	news	result	rule_lane	
+357883	affairs	action	rule_lane	
+357884	selection_result	result	rule_lane	
+357887	procurement	action	rule_lane	
+357894	service_info	notice	rule_lane	
+357895	competition	action	rule_lane	
+357896	competition	action	rule_lane	
+357897	competition	action	rule_lane	
+357899	application	action	rule_lane	
+357907	service_info	notice	dual_model	0.3.27
+357908	international	action	rule_lane	
+357918	selection_result	result	rule_lane	
+357919	affairs	action	dual_model	0.3.27
+357923	affairs	action	dual_model	0.3.27
+357927	service_info	notice	dual_model	0.3.27
+357934	governance	notice	rule_lane	
+357936	selection_result	result	rule_lane	
+357944	governance	event	rule_lane	
+357947	selection_result	result	rule_lane	
+357949	service_info	notice	rule_lane	
+357951	international	event	rule_lane	
+357956	procurement	action	rule_lane	
+357958	application	action	rule_lane	
+357960	application	action	rule_lane	
+357961	lecture_forum	event	dual_model	0.3.27
+357966	news	result	rule_lane	
+357971	procurement	result	rule_lane	
+357972	affairs	action	rule_lane	
+357982	affairs	action	rule_lane	
+357993	application	action	rule_lane	
+358002	governance	action	rule_lane	
+358011	competition	action	rule_lane	
+358020	governance	action	dual_model	0.3.27
+358023	training	result	rule_lane	
+358027	selection_result	result	rule_lane	
+358032	procurement	result	rule_lane	
+358038	procurement	result	rule_lane	
+358050	news	result	rule_lane	
+358052	procurement	action	rule_lane	
+358059	governance	notice	rule_lane	
+358078	application	action	rule_lane	
+358118	competition	event	rule_lane	
+358119	governance	action	rule_lane	
+358131	procurement	action	rule_lane	
+358139	training	result	rule_lane	
+358159	service_info	notice	dual_model	0.3.27
+358171	procurement	action	rule_lane	
+358196	procurement	result	rule_lane	
+358198	application	action	rule_lane	
+358209	application	action	dual_model	0.3.27
+358215	selection_result	result	rule_lane	
+358216	service_info	notice	rule_lane	
+358219	governance	result	rule_lane	
+358222	selection_result	result	rule_lane	
+358230	news	result	rule_lane	
+358238	examination	event	dual_model	0.3.27
+358241	news	result	rule_lane	
+358242	governance	notice	dual_model	0.3.27
+358244	selection_result	result	rule_lane	
+358246	selection_result	result	dual_model	0.3.27
+358248	procurement	action	rule_lane	
+358249	affairs	action	dual_model	0.3.27
+358250	selection_result	result	rule_lane	
+358252	governance	notice	dual_model	0.3.30
+358253	application	action	rule_lane	
+358255	selection_result	result	rule_lane	
+358256	news	result	rule_lane	
+358258	service_info	notice	rule_lane	
+358261	lecture_forum	event	rule_lane	
+358262	recruitment	action	rule_lane	
+358263	selection_result	result	rule_lane	
+358265	application	action	rule_lane	
+358266	recruitment	action	rule_lane	
+358267	selection_result	result	dual_model	0.3.27
+358269	teaching_schedule	notice	rule_lane	
+358270	governance	action	dual_model	0.3.27
+358274	application	action	rule_lane	
+358275	affairs	action	rule_lane	
+358276	examination	event	rule_lane	
+358278	recruitment	action	rule_lane	
+358279	procurement	result	rule_lane	
+358281	recruitment	action	rule_lane	
+358282	recruitment	action	dual_model	0.3.27
+358288	governance	notice	rule_lane	
+358292	affairs	action	rule_lane	
+358293	affairs	action	dual_model	0.3.27
+358294	recruitment	action	rule_lane	
+358295	affairs	action	rule_lane	
+358296	competition	action	rule_lane	
+358297	affairs	action	dual_model	0.3.27
+358298	procurement	action	rule_lane	
+358299	procurement	action	rule_lane	
+358301	selection_result	result	rule_lane	
+358302	selection_result	result	rule_lane	
+358314	affairs	action	dual_model	0.3.27
+358315	affairs	action	rule_lane	
+358321	teaching_schedule	notice	rule_lane	
+358322	application	action	rule_lane	
+358324	teaching_schedule	notice	rule_lane	
+358325	training	action	rule_lane	
+358326	application	action	rule_lane	
+358327	service_info	notice	rule_lane	
+358330	examination	event	dual_model	0.3.27
+358334	recruitment	action	rule_lane	
+358335	training	event	rule_lane	
+358337	recruitment	action	rule_lane	
+358340	affairs	action	dual_model	0.3.27
+358341	affairs	action	rule_lane	
+358346	application	action	dual_model	0.3.27
+358347	application	action	rule_lane	
+358348	activity	event	rule_lane	
+358349	affairs	action	dual_model	0.3.27
+358354	affairs	action	dual_model	0.3.27
+358362	affairs	action	dual_model	0.3.27
+358363	affairs	action	dual_model	0.3.27
+358365	news	result	rule_lane	
+358369	service_info	reference	dual_model	0.3.27
+358375	recruitment	action	rule_lane	
+358376	application	action	rule_lane	
+358377	affairs	action	rule_lane	
+358378	affairs	action	rule_lane	
+358380	application	action	rule_lane	
+358381	recruitment	action	rule_lane	
+358383	affairs	action	rule_lane	
+358385	application	action	rule_lane	
+358390	application	action	rule_lane	
+358391	application	action	dual_model	0.3.27
+358392	application	action	rule_lane	
+358393	application	action	rule_lane	
+358395	application	action	rule_lane	
+358396	application	action	rule_lane	
+358397	application	action	rule_lane	
+358399	service_info	notice	rule_lane	
+358400	application	action	rule_lane	
+358402	affairs	action	dual_model	0.3.27
+358403	application	action	rule_lane	
+358406	training	event	dual_model	0.3.27
+358407	application	action	rule_lane	
+358415	service_info	reference	dual_model	0.3.27
+358416	governance	notice	dual_model	0.3.27
+358420	application	action	rule_lane	
+358421	affairs	action	dual_model	0.3.27
+358429	application	action	rule_lane	
+358432	selection_result	result	rule_lane	
+358436	affairs	action	dual_model	0.3.27
+358445	governance	notice	dual_model	0.3.27
+358446	recruitment	action	rule_lane	
+358451	service_info	reference	dual_model	0.3.27
+358452	service_info	notice	dual_model	0.3.27
+358454	application	action	rule_lane	
+358455	service_info	notice	rule_lane	
+358461	selection_result	result	rule_lane	
+358464	selection_result	result	rule_lane	
+358465	selection_result	result	rule_lane	
+358471	activity	event	dual_model	0.3.27
+358473	governance	event	rule_lane	
+358474	application	action	rule_lane	
+358476	selection_result	result	rule_lane	
+358477	selection_result	result	rule_lane	
+358478	selection_result	result	rule_lane	
+358479	application	action	dual_model	0.3.27
+358480	selection_result	result	rule_lane	
+358481	selection_result	result	rule_lane	
+358482	affairs	action	dual_model	0.3.27
+358484	selection_result	result	rule_lane	
+358485	selection_result	result	rule_lane	
+358486	recruitment	action	dual_model	0.3.27
+358487	recruitment	action	rule_lane	
+358488	procurement	result	rule_lane	
+358489	selection_result	result	rule_lane	
+358490	selection_result	result	rule_lane	
+358492	selection_result	result	rule_lane	
+358493	procurement	result	rule_lane	
+358495	procurement	result	rule_lane	
+358497	selection_result	result	rule_lane	
+358507	selection_result	result	rule_lane	
+358512	affairs	action	rule_lane	
+358513	selection_result	result	rule_lane	
+358516	service_info	reference	rule_lane	
+358525	teaching_schedule	notice	rule_lane	
+358526	affairs	action	dual_model	0.3.27
+358528	service_info	notice	rule_lane	
+358530	recruitment	action	dual_model	0.3.27
+358532	recruitment	action	rule_lane	
+358533	governance	event	rule_lane	
+358535	recruitment	action	rule_lane	
+358540	international	event	rule_lane	
+358543	affairs	action	rule_lane	
+358548	selection_result	result	dual_model	0.3.27
+358549	affairs	action	rule_lane	
+358550	affairs	action	rule_lane	
+358551	competition	event	rule_lane	
+358552	service_info	notice	dual_model	0.3.27
+358553	affairs	action	dual_model	0.3.27
+358555	affairs	action	rule_lane	
+358556	international	action	rule_lane	
+358557	application	action	rule_lane	
+358561	procurement	result	rule_lane	
+358563	affairs	action	rule_lane	
+358564	examination	event	rule_lane	
+358565	examination	action	rule_lane	
+358567	selection_result	result	rule_lane	
+358569	lecture_forum	event	rule_lane	
+358570	selection_result	result	rule_lane	
+358571	competition	event	rule_lane	
+358573	competition	event	rule_lane	
+358575	application	action	rule_lane	
+358576	examination	event	dual_model	0.3.27
+358577	examination	event	rule_lane	
+358578	selection_result	result	rule_lane	
+358579	selection_result	result	rule_lane	
+358582	selection_result	result	rule_lane	
+358583	selection_result	result	rule_lane	
+358584	selection_result	result	rule_lane	
+358585	selection_result	result	rule_lane	
+358586	selection_result	result	rule_lane	
+358588	teaching_schedule	notice	rule_lane	
+358589	governance	event	rule_lane	
+358591	recruitment	action	rule_lane	
+358594	news	result	rule_lane	
+358595	competition	action	rule_lane	
+358596	competition	action	rule_lane	
+358597	competition	event	rule_lane	
+358599	application	action	rule_lane	
+358602	application	action	rule_lane	
+358603	application	action	rule_lane	
+358608	selection_result	result	rule_lane	
+358610	international	action	rule_lane	
+358612	selection_result	result	rule_lane	
+358618	news	result	rule_lane	
+358619	recruitment	action	rule_lane	
+358621	examination	action	rule_lane	
+358622	teaching_schedule	notice	rule_lane	
+358623	service_info	reference	dual_model	0.3.27
+358624	international	action	rule_lane	
+358625	lecture_forum	event	rule_lane	
+358626	lecture_forum	event	rule_lane	
+358628	affairs	action	rule_lane	
+358629	competition	action	rule_lane	
+358630	affairs	action	rule_lane	
+358631	service_info	notice	rule_lane	
+358635	teaching_schedule	notice	rule_lane	
+358638	recruitment	action	rule_lane	
+358652	recruitment	action	rule_lane	
+358653	application	action	rule_lane	
+358654	selection_result	result	rule_lane	
+358655	lecture_forum	event	rule_lane	
+358656	lecture_forum	event	rule_lane	
+358660	service_info	notice	rule_lane	
+358664	training	action	rule_lane	
+358669	governance	notice	dual_model	0.3.27
+358672	recruitment	action	rule_lane	
+358682	affairs	action	dual_model	0.3.27
+358684	competition	action	rule_lane	
+358685	teaching_schedule	action	dual_model	0.3.27
+358687	selection_result	result	rule_lane	
+358688	affairs	action	rule_lane	
+358690	international	action	rule_lane	
+358692	affairs	action	rule_lane	
+358693	governance	notice	rule_lane	
+358695	selection_result	result	rule_lane	
+358702	selection_result	result	rule_lane	
+358703	international	action	rule_lane	
+358704	selection_result	result	rule_lane	
+358705	service_info	notice	rule_lane	
+358707	governance	result	rule_lane	
+358710	governance	notice	dual_model	0.3.27
+358711	service_info	notice	rule_lane	
+358712	affairs	action	dual_model	0.3.27
+358713	international	event	rule_lane	
+358763	selection_result	result	rule_lane	
+358764	governance	action	dual_model	0.3.27
+358765	selection_result	result	rule_lane	
+358766	selection_result	result	rule_lane	
+358768	examination	event	dual_model	0.3.27
+358769	lecture_forum	event	rule_lane	
+358774	selection_result	result	rule_lane	
+358782	selection_result	result	rule_lane	
+358783	selection_result	result	rule_lane	
+358784	affairs	action	rule_lane	
+358785	selection_result	result	rule_lane	
+358791	application	action	rule_lane	
+358792	selection_result	result	rule_lane	
+358793	competition	event	rule_lane	
+358794	service_info	reference	dual_model	0.3.27
+358796	news	result	rule_lane	
+358797	affairs	action	rule_lane	
+358798	governance	notice	dual_model	0.3.32
+358802	service_info	reference	dual_model	0.3.27
+358812	affairs	action	dual_model	0.3.27
+358816	news	result	rule_lane	
+358817	affairs	action	rule_lane	
+358818	affairs	action	dual_model	0.3.27
+358823	competition	action	rule_lane	
+358824	international	action	rule_lane	
+358826	affairs	action	dual_model	0.3.27
+358828	lecture_forum	event	dual_model	0.3.27
+358829	selection_result	result	rule_lane	
+358830	news	result	rule_lane	
+358835	competition	action	rule_lane	
+358838	application	action	rule_lane	
+358840	international	result	rule_lane	
+358841	international	event	rule_lane	
+358844	governance	notice	dual_model	0.3.32
+358846	news	result	rule_lane	
+358849	affairs	action	dual_model	0.3.27
+358852	affairs	action	rule_lane	
+358858	training	event	rule_lane	
+358861	examination	event	rule_lane	
+358862	governance	reference	dual_model	0.3.27
+358868	affairs	action	rule_lane	
+358870	news	result	rule_lane	
+358871	selection_result	result	rule_lane	
+358874	selection_result	result	rule_lane	
+358879	governance	notice	rule_lane	
+358884	selection_result	result	rule_lane	
+358888	application	action	rule_lane	
+358895	application	action	rule_lane	
+358898	affairs	action	dual_model	0.3.27
+358899	selection_result	result	rule_lane	
+358907	recruitment	action	rule_lane	
+358920	service_info	notice	rule_lane	
+358922	service_info	notice	rule_lane	
+358923	governance	notice	rule_lane	
+358925	international	event	rule_lane	
+358934	service_info	reference	dual_model	0.3.27
+358937	international	result	rule_lane	
+358938	international	result	rule_lane	
+358939	news	result	rule_lane	
+358942	recruitment	action	rule_lane	
+358948	procurement	action	rule_lane	
+358959	news	result	rule_lane	
+358960	service_info	notice	dual_model	0.3.27
+358964	news	result	rule_lane	
+358968	governance	notice	rule_lane	
+358972	selection_result	result	rule_lane	
+358974	examination	event	dual_model	0.3.27
+358976	application	action	rule_lane	
+358979	news	result	rule_lane	
+358994	affairs	action	dual_model	0.3.27
+358999	training	event	rule_lane	
+359001	governance	notice	rule_lane	
+359013	affairs	action	dual_model	0.3.27
+359021	affairs	action	rule_lane	
+359023	competition	action	rule_lane	
+359024	selection_result	result	rule_lane	
+359025	application	action	dual_model	0.3.27
+359026	competition	event	rule_lane	
+359029	selection_result	result	rule_lane	
+359030	procurement	action	rule_lane	
+359031	governance	notice	dual_model	0.3.27
+359032	procurement	action	rule_lane	
+359033	affairs	action	rule_lane	
+359036	affairs	action	dual_model	0.3.27
+359039	selection_result	result	rule_lane	
+359046	service_info	notice	rule_lane	
+359048	selection_result	result	rule_lane	
+359055	selection_result	result	rule_lane	
+359056	selection_result	result	rule_lane	
+359060	affairs	action	rule_lane	
+359079	service_info	notice	rule_lane	
+359091	selection_result	result	rule_lane	
+359092	selection_result	result	rule_lane	
+359093	governance	action	dual_model	0.3.27
+359094	selection_result	result	rule_lane	
+359095	selection_result	result	rule_lane	
+359096	selection_result	result	rule_lane	
+359098	affairs	action	rule_lane	
+359100	selection_result	result	rule_lane	
+359101	governance	action	dual_model	0.3.27
+359102	service_info	notice	rule_lane	
+359105	governance	action	rule_lane	
+359106	selection_result	result	rule_lane	
+359114	examination	event	dual_model	0.3.27
+359115	recruitment	action	rule_lane	
+359117	selection_result	result	rule_lane	
+359118	competition	event	rule_lane	
+359122	governance	event	rule_lane	
+359123	selection_result	result	rule_lane	
+359124	application	action	dual_model	0.3.27
+359125	service_info	reference	dual_model	0.3.27
+359131	procurement	result	rule_lane	
+359132	procurement	action	rule_lane	
+359133	application	action	rule_lane	
+359137	selection_result	result	rule_lane	
+359138	international	result	rule_lane	
+359139	international	result	rule_lane	
+359145	news	result	rule_lane	
+359146	affairs	action	dual_model	0.3.27
+359154	selection_result	result	rule_lane	
+359155	affairs	action	rule_lane	
+359157	selection_result	result	rule_lane	
+359159	procurement	result	rule_lane	
+359170	lecture_forum	result	rule_lane	
+359175	service_info	notice	rule_lane	
+359183	news	result	rule_lane	
+359186	service_info	notice	rule_lane	
+359188	affairs	action	dual_model	0.3.27
+359190	application	action	rule_lane	
+359198	procurement	action	rule_lane	
+359200	application	action	dual_model	0.3.27
+359203	application	action	rule_lane	
+359204	service_info	notice	rule_lane	
+359205	lecture_forum	event	dual_model	0.3.27
+359208	lecture_forum	event	rule_lane	
+359210	lecture_forum	event	dual_model	0.3.27
+359211	governance	reference	dual_model	0.3.27
+359217	selection_result	result	rule_lane	
+359224	procurement	action	rule_lane	
+359230	affairs	action	dual_model	0.3.27
+359231	application	action	dual_model	0.3.27
+359232	affairs	action	dual_model	0.3.27
+359236	training	event	rule_lane	
+359243	governance	notice	rule_lane	
+359248	procurement	result	rule_lane	
+359249	procurement	result	rule_lane	
+359250	procurement	action	rule_lane	
+359251	international	result	rule_lane	
+359253	international	result	rule_lane	
+359254	international	result	rule_lane	
+359258	lecture_forum	event	rule_lane	
+359259	lecture_forum	result	rule_lane	
+359261	lecture_forum	event	rule_lane	
+359262	selection_result	result	rule_lane	
+359265	news	result	rule_lane	
+359268	selection_result	result	rule_lane	
+359269	news	result	rule_lane	
+359270	application	action	rule_lane	
+359271	selection_result	result	rule_lane	
+359273	selection_result	result	rule_lane	
+359280	lecture_forum	event	rule_lane	
+359281	lecture_forum	event	rule_lane	
+359299	affairs	action	dual_model	0.3.27
+359304	news	result	rule_lane	
+359310	competition	event	rule_lane	

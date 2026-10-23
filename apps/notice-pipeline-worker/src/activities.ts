@@ -6,7 +6,7 @@ import {
 } from "internal-portal-collection/collection-command";
 import { loadInternalPortalEnv } from "internal-portal-collection/config";
 import { resolveInternalPortalCredentialFromEnv } from "internal-portal-collection/ops-web-credential-resolver";
-import { runNoticeClassificationJob } from "notice-classifier/job";
+import { type NoticeClassificationScope, runNoticeClassificationJob } from "notice-classifier/job";
 import {
 	createNoticeClassifierFromRuntimeConfig,
 	resolveNoticeClassifierRuntimeConfig,
@@ -34,9 +34,9 @@ export async function syncFiles() {
 	return collectNotices({ mode: "file-sync" });
 }
 
-export async function classifyNotices(noticeIds?: readonly number[]) {
+export async function classifyNotices(scope: NoticeClassificationScope = "missing") {
 	return activity(async (signal, report) => {
-		const pool = createNoticeDatabasePool(process.env, { max: 3 });
+		const pool = createNoticeDatabasePool(process.env, { max: 4 });
 		try {
 			const lockClient = await pool.connect();
 			try {
@@ -50,7 +50,7 @@ export async function classifyNotices(noticeIds?: readonly number[]) {
 						signal: AbortSignal.any([signal, lockSignal]),
 						createModelClassifier: () => createNoticeClassifierFromRuntimeConfig(runtime, fetch),
 						onProgress: report,
-						...(noticeIds ? { noticeIds } : {}),
+						scope,
 					});
 				});
 			} finally {

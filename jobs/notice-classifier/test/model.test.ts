@@ -7,45 +7,82 @@ import {
 import { NoticeClassificationProviderError } from "../src/classifier.ts";
 
 describe("notice classifier provider client", () => {
-	it.each(["responses", "chat_completions"] as const)(
-		"sends title-only input over %s without SDK headers",
-		async (transport) => {
+	it.each(["openai.responses", "openai.chat_completions"] as const)(
+		"sends the title and portal column over %s without SDK headers",
+		async (protocol) => {
 			let requestHeaders: Headers | undefined;
 			let requestBody: Record<string, unknown> | undefined;
+			const label = '{"category":"service_info","intent":"notice"}';
 			const classifier = createNoticeClassifierFromRuntimeConfig(
 				{
 					apiKey: "secret",
 					baseUrl: "https://provider.example/v1",
 					model: "classifier-model",
-					provider: "openai-compatible",
-					schemaVersion: "notice_classifier_runtime_config.v1",
-					transport,
+					name: "notice_classification_llm",
+					protocol,
+					schemaVersion: "notice_classifier_runtime_config.v2",
 				},
 				async (_input, init) => {
 					requestHeaders = new Headers(init?.headers);
 					requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-					return new Response(
-						transport === "responses"
-							? JSON.stringify({ output_text: '{"category":"campus_operations"}' })
-							: JSON.stringify({
-									choices: [{ message: { content: '{"category":"campus_operations"}' } }],
-								}),
-						{ headers: { "content-type": "application/json" }, status: 200 },
+					return Response.json(
+						protocol === "openai.responses"
+							? { output_text: label }
+							: { choices: [{ message: { content: label } }] },
 					);
 				},
 			);
 
-			expect(await classifier("关于临时关闭校园南门的通知")).toBe("campus_operations");
+			expect(
+				await classifier({ noticeTitle: "关于临时关闭校园南门的通知", noticeTypeName: "办公通知" }),
+			).toEqual({ category: "service_info", intent: "notice" });
 			expect(requestHeaders?.get("user-agent")).toBeNull();
 			expect(requestHeaders?.get("authorization")).toBe("Bearer secret");
 			const serialized = JSON.stringify(requestBody);
-			expect(serialized).toContain("notice_title");
-			expect(serialized).toContain("关于临时关闭校园南门的通知");
+			expect(serialized).toContain("notice_type：办公通知\\n标题：关于临时关闭校园南门的通知");
 			expect(serialized).not.toContain("notice_content_html");
-			expect(serialized).not.toContain("notice_type");
-			expect(serialized).not.toContain("门户栏目");
 		},
 	);
+
+	it.each([
+		["nace", "drex-max"],
+		["typesafe", "jev-latest"],
+	])("accepts the %s decision credential selected behind the alias", async (provider, model) => {
+		const result = await importedSnapshot(async () =>
+			Response.json({
+				api_key: "secret",
+				api_protocol: "typesafe.systemone",
+				base_url: "https://decision.example/v1",
+				model,
+				name: "notice_classification_decision",
+				provider,
+				schema_version: "model_runtime_config.v1",
+				target_sha256: "a".repeat(64),
+			}),
+		);
+		expect(result).toMatchObject({
+			model,
+			name: "notice_classification_decision",
+			protocol: "typesafe.systemone",
+		});
+	});
+
+	it("rejects a protocol that does not belong to the selected backend", async () => {
+		await expect(
+			importedSnapshot(async () =>
+				Response.json({
+					api_key: "secret",
+					api_protocol: "typesafe.systemone",
+					base_url: "https://provider.example/v1",
+					model: "classifier-model",
+					name: "notice_classification_llm",
+					provider: "openai-compatible",
+					schema_version: "model_runtime_config.v1",
+					target_sha256: "a".repeat(64),
+				}),
+			),
+		).rejects.toThrow("Model Config is unavailable");
+	});
 
 	it("loads the complete config with one unauthenticated GET", async () => {
 		const targetSha256 = "a".repeat(64);
@@ -59,7 +96,7 @@ describe("notice classifier provider client", () => {
 				api_protocol: "openai.responses",
 				base_url: "https://provider.example/v1",
 				model: "classifier-model",
-				name: "notice_classification",
+				name: "notice_classification_llm",
 				provider: "openai-compatible",
 				schema_version: "model_runtime_config.v1",
 				target_sha256: targetSha256,
@@ -80,7 +117,7 @@ describe("notice classifier provider client", () => {
 				api_protocol: "openai.responses",
 				base_url: "https://provider.example/v1",
 				model: "classifier-model",
-				name: "notice_classification",
+				name: "notice_classification_llm",
 				provider: "openai-compatible",
 				schema_version: "model_runtime_config.v1",
 				target_sha256: targetSha256,
@@ -93,6 +130,41 @@ describe("notice classifier provider client", () => {
 			).rejects.toThrow("Model Config is unavailable");
 		},
 	);
+
+	it("reads a stored backend by name for evaluation and rejects a different backend", async () => {
+		const urls: string[] = [];
+		const runtime = {
+			api_key: "secret",
+			api_protocol: "typesafe.systemone",
+			base_url: "https://decision.example",
+			model: "drex-max",
+			name: "notice_classification_decision",
+			provider: "nace",
+			schema_version: "model_runtime_config.v1",
+			target_sha256: "a".repeat(64),
+		};
+		const fetchRuntime: typeof fetch = async (input) => {
+			urls.push(String(input));
+			return Response.json(runtime);
+		};
+		await expect(
+			resolveNoticeClassifierRuntimeConfig(
+				fetchRuntime,
+				"https://model-config.example",
+				"notice_classification_decision",
+			),
+		).resolves.toMatchObject({ name: "notice_classification_decision" });
+		expect(urls).toEqual([
+			"https://model-config.example/internal/model-configs/notice_classification_decision",
+		]);
+		await expect(
+			resolveNoticeClassifierRuntimeConfig(
+				fetchRuntime,
+				"https://model-config.example",
+				"notice_classification_llm",
+			),
+		).rejects.toThrow("Model Config is unavailable");
+	});
 
 	it("rejects an invalid Model Config response", async () => {
 		await expect(
@@ -108,9 +180,9 @@ describe("notice classifier provider client", () => {
 				apiKey: "secret",
 				baseUrl: "https://provider.example/v1",
 				model: "classifier-model",
-				provider: "openai-compatible",
-				schemaVersion: "notice_classifier_runtime_config.v1",
-				transport: "responses",
+				name: "notice_classification_llm",
+				protocol: "openai.responses",
+				schemaVersion: "notice_classifier_runtime_config.v2",
 			},
 			async () =>
 				new Response("upstream response body", {
@@ -121,17 +193,16 @@ describe("notice classifier provider client", () => {
 
 		let failure: unknown;
 		try {
-			await classifier("测试通知");
+			await classifier({ noticeTitle: "测试通知", noticeTypeName: "办公通知" });
 		} catch (error) {
 			failure = error;
 		}
 
 		expect(failure).toBeInstanceOf(NoticeClassificationProviderError);
-		expect((failure as Error).cause).toEqual(
-			expect.objectContaining({
-				message: "model provider returned HTTP 429 Too Many Requests: upstream response body",
-			}),
-		);
+		expect((failure as NoticeClassificationProviderError).retryable).toBe(true);
+		const cause = (failure as Error).cause as { status?: number; message?: string };
+		expect(cause.status).toBe(429);
+		expect(cause.message).toContain("upstream response body");
 	});
 });
 

@@ -45,16 +45,21 @@ const executionStatus: ExecutionModelSettingsStatus = {
 			updatedAt: "2026-07-21T01:00:00.000Z",
 			updatedBy: "ops@example.test",
 		},
-		notice_classifier: {
-			baseUrl: "https://classifier.example.test/v1",
-			credentialConfigured: true,
-			kind: "notice_classifier",
-			latestValidation: null,
-			model: "deepseek-v4-flash-0731",
-			provider: "openai-compatible",
-			transport: "chat_completions",
-			updatedAt: "2026-07-21T01:00:00.000Z",
-			updatedBy: "ops@example.test",
+	},
+	noticeClassification: {
+		backend: "llm",
+		credentials: {
+			decision: null,
+			llm: {
+				baseUrl: "https://classifier.example.test/v1",
+				credentialConfigured: true,
+				latestValidation: null,
+				model: "deepseek-v4-flash",
+				provider: "openai-compatible",
+				transport: "chat_completions",
+				updatedAt: "2026-07-21T01:00:00.000Z",
+				updatedBy: "ops@example.test",
+			},
 		},
 	},
 };
@@ -63,11 +68,11 @@ const noticeClassifierUpdatedAt = "2026-07-21T01:00:00.000Z";
 
 function noticeClassifierStatus(
 	validation: NonNullable<
-		ExecutionModelSettingsStatus["settings"]["notice_classifier"]
+		ExecutionModelSettingsStatus["noticeClassification"]["credentials"]["llm"]
 	>["latestValidation"],
 ): ExecutionModelSettingsStatus {
 	const status = structuredClone(executionStatus);
-	const setting = status.settings.notice_classifier;
+	const setting = status.noticeClassification.credentials.llm;
 	if (!setting) {
 		throw new Error("Expected the notice classifier setting.");
 	}
@@ -183,7 +188,7 @@ describe("model settings page", () => {
 		}
 		expect(screen.getAllByText("当前密钥已配置；留空保持不变。")).toHaveLength(4);
 
-		expect(screen.getAllByText("高级设置")).toHaveLength(3);
+		expect(screen.getAllByText("高级设置")).toHaveLength(2);
 		expect(screen.queryByLabelText("请求超时（秒）")).not.toBeInTheDocument();
 	});
 
@@ -382,7 +387,9 @@ describe("model settings page", () => {
 		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			if (
 				init?.method === "POST" &&
-				String(input).endsWith("/api/ops/model-configs/notice_classifier/validate")
+				String(input).endsWith(
+					"/api/ops/model-configs/notice_classification/credentials/llm/validate",
+				)
 			) {
 				current = refreshed;
 			}
@@ -395,14 +402,16 @@ describe("model settings page", () => {
 		expect(buttons).toHaveLength(4);
 		fireEvent.click(buttons[3] as HTMLElement);
 
-		expect(await screen.findByText("当前配置已重新验证。")).toBeInTheDocument();
+		expect(await screen.findByText("当前凭据已重新验证。")).toBeInTheDocument();
 		expect(screen.getAllByText(/2026-07-21 09:00:00/u)).toHaveLength(4);
 		expect(screen.getByText(/2026-07-21 10:05:00/u)).toBeInTheDocument();
 		expect(
 			fetchMock.mock.calls.some(
 				([input, init]) =>
 					init?.method === "POST" &&
-					String(input).endsWith("/api/ops/model-configs/notice_classifier/validate"),
+					String(input).endsWith(
+						"/api/ops/model-configs/notice_classification/credentials/llm/validate",
+					),
 			),
 		).toBe(true);
 	});
@@ -427,7 +436,9 @@ describe("model settings page", () => {
 			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 				if (
 					init?.method === "POST" &&
-					String(input).endsWith("/api/ops/model-configs/notice_classifier/validate")
+					String(input).endsWith(
+						"/api/ops/model-configs/notice_classification/credentials/llm/validate",
+					)
 				) {
 					current = failed;
 					return Response.json(
@@ -452,5 +463,71 @@ describe("model settings page", () => {
 		expect(await screen.findByText("验证失败")).toBeInTheDocument();
 		expect(await screen.findByText("HTTP 422: schema unsupported")).toBeInTheDocument();
 		expect(screen.getAllByText(/2026-07-21 09:00:00/u)).toHaveLength(4);
+	});
+
+	it("switches the notice classification backend only to a validated credential", async () => {
+		const decisionValidated = structuredClone(executionStatus);
+		decisionValidated.noticeClassification.credentials.decision = {
+			baseUrl: "https://decision.example.test/v1",
+			credentialConfigured: true,
+			latestValidation: {
+				message: "ok",
+				status: "passed",
+				validatedAt: "2026-07-21T01:05:00.000Z",
+				validatedBy: "ops@example.test",
+			},
+			model: "drex-max",
+			provider: "nace",
+			transport: "systemone",
+			updatedAt: "2026-07-21T01:00:00.000Z",
+			updatedBy: "ops@example.test",
+		};
+		let current = decisionValidated;
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			if (
+				init?.method === "PUT" &&
+				String(input).endsWith("/api/ops/model-configs/notice_classification")
+			) {
+				current = structuredClone(current);
+				current.noticeClassification.backend = JSON.parse(String(init.body)).backend;
+			}
+			return Response.json(current);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		render(<OpsWebApp initialPath="/providers" />);
+
+		const backend = await screen.findByLabelText("当前分类后端");
+		expect(backend).toHaveValue("llm");
+		fireEvent.change(backend, { target: { value: "decision" } });
+		fireEvent.click(screen.getByRole("button", { name: "切换" }));
+
+		await waitFor(() =>
+			expect(
+				fetchMock.mock.calls.some(
+					([input, init]) =>
+						init?.method === "PUT" &&
+						String(input).endsWith("/api/ops/model-configs/notice_classification") &&
+						init.body === JSON.stringify({ backend: "decision" }),
+				),
+			).toBe(true),
+		);
+		await waitFor(() => expect(screen.getByLabelText("当前分类后端")).toHaveValue("decision"));
+		expect(screen.getByText("决策模型 凭据（当前使用）")).toBeInTheDocument();
+		expect(
+			screen.getByLabelText("服务商", { selector: "#notice-classification-decision-provider" }),
+		).toHaveValue("nace");
+	});
+
+	it("keeps an unvalidated backend unselectable", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json(executionStatus)),
+		);
+		render(<OpsWebApp initialPath="/providers" />);
+		const backend = await screen.findByLabelText("当前分类后端");
+		const decisionOption = within(backend).getByRole("option", { name: "决策模型" });
+		expect(decisionOption).toBeDisabled();
+		expect(screen.getByText("决策模型 凭据")).toBeInTheDocument();
+		expect(screen.getByText("尚未配置")).toBeInTheDocument();
 	});
 });

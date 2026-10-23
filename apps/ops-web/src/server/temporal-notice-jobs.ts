@@ -49,6 +49,7 @@ export function noticePipelineInput(input: NoticeJobCreate) {
 		"notice-backfill": "backfill",
 		"notice-classify-missing": "classify-one",
 		"notice-classify-one": "classify-one",
+		"notice-reclassify-all": "classify-all",
 		"notice-publish-pending": "publish-one",
 		"notice-publish-one": "publish-one",
 		"notice-republish-one": "republish-one",
@@ -169,17 +170,19 @@ export async function projectNoticeJob(
 				? noticeId
 					? "notice-classify-one"
 					: "notice-classify-missing"
-				: args.mode === "publish-one"
-					? noticeId
-						? "notice-publish-one"
-						: "notice-publish-pending"
-					: args.mode === "republish-one"
-						? "notice-republish-one"
-						: args.mode === "rescan"
-							? "notice-rescan"
-							: args.mode === "backfill"
-								? "notice-backfill"
-								: "notice-sync";
+				: args.mode === "classify-all"
+					? "notice-reclassify-all"
+					: args.mode === "publish-one"
+						? noticeId
+							? "notice-publish-one"
+							: "notice-publish-pending"
+						: args.mode === "republish-one"
+							? "notice-republish-one"
+							: args.mode === "rescan"
+								? "notice-rescan"
+								: args.mode === "backfill"
+									? "notice-backfill"
+									: "notice-sync";
 		input = NoticeJobCreateSchema.safeParse({
 			operation,
 			...(noticeId ? { noticeId } : {}),

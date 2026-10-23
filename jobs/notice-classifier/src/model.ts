@@ -1,17 +1,13 @@
 export * from "notice-classifier-core/model";
 
+import type { NoticeModelClassifier } from "notice-classifier-core/classifier";
 import {
-	NOTICE_CLASSIFIER_SYSTEM_PROMPT,
-	NOTICE_CLASSIFIER_TEMPERATURE,
-	parseNoticeModelOutput,
-	toModelInput,
-} from "notice-classifier-core/model";
-import { NOTICE_CATEGORIES } from "campus-contracts/notices";
-import {
-	NoticeClassificationInvalidOutputError,
-	NoticeClassificationProviderError,
-	type NoticeModelClassifier,
-} from "./classifier.ts";
+	createNoticeProtocolClassifier,
+	OPENAI_CHAT_COMPLETIONS_PROTOCOL,
+	OPENAI_RESPONSES_PROTOCOL,
+	type NoticeClassifierProtocol,
+	TYPESAFE_SYSTEMONE_PROTOCOL,
+} from "notice-classifier-core/protocol";
 
 export const NOTICE_CLASSIFIER_MODEL_CONFIG_URL = "http://model-config:8000";
 
@@ -19,28 +15,38 @@ export interface NoticeClassifierRuntimeConfig {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
-	provider: "openai" | "openai-compatible";
-	schemaVersion: "notice_classifier_runtime_config.v1";
-	transport: "responses" | "chat_completions";
+	/** 运维在 Ops Web 选中的后端；读别名 `notice_classification` 返回其凭据。 */
+	name: "notice_classification_decision" | "notice_classification_llm";
+	protocol: NoticeClassifierProtocol;
+	schemaVersion: "notice_classifier_runtime_config.v2";
 }
 
-const CLASSIFICATION_SCHEMA = {
-	additionalProperties: false,
-	properties: {
-		category: { enum: [...NOTICE_CATEGORIES], type: "string" },
+const RUNTIME_BACKENDS = {
+	notice_classification_decision: {
+		providers: ["nace", "typesafe"],
+		protocols: [TYPESAFE_SYSTEMONE_PROTOCOL],
 	},
-	required: ["category"],
-	type: "object",
-} as const;
+	notice_classification_llm: {
+		providers: ["openai", "openai-compatible"],
+		protocols: [OPENAI_RESPONSES_PROTOCOL, OPENAI_CHAT_COMPLETIONS_PROTOCOL],
+	},
+} as const satisfies Record<
+	NoticeClassifierRuntimeConfig["name"],
+	{ providers: readonly string[]; protocols: readonly NoticeClassifierProtocol[] }
+>;
 
+/**
+ * 默认读别名 `notice_classification`，即 Ops Web 选中的后端；评测按存储名直接读某一家，不改选择。
+ */
 export async function resolveNoticeClassifierRuntimeConfig(
 	fetchImplementation: typeof fetch = fetch,
 	url = process.env.MODEL_CONFIG_URL ?? NOTICE_CLASSIFIER_MODEL_CONFIG_URL,
+	name: "notice_classification" | NoticeClassifierRuntimeConfig["name"] = "notice_classification",
 ): Promise<NoticeClassifierRuntimeConfig> {
 	try {
 		const baseUrl = url.replace(/\/$/u, "");
 		const response = await fetchImplementation(
-			`${baseUrl}/internal/model-configs/notice_classification`,
+			`${baseUrl}/internal/model-configs/${name}`,
 			{
 				headers: { accept: "application/json" },
 				method: "GET",
@@ -53,10 +59,10 @@ export async function resolveNoticeClassifierRuntimeConfig(
 		if (
 			!isRecord(runtime) ||
 			runtime.schema_version !== "model_runtime_config.v1" ||
-			runtime.name !== "notice_classification" ||
-			(runtime.provider !== "openai" && runtime.provider !== "openai-compatible") ||
-			(runtime.api_protocol !== "openai.responses" &&
-				runtime.api_protocol !== "openai.chat_completions") ||
+			!isRuntimeBackend(runtime.name) ||
+			(name !== "notice_classification" && runtime.name !== name) ||
+			!includes(RUNTIME_BACKENDS[runtime.name].providers, runtime.provider) ||
+			!includes(RUNTIME_BACKENDS[runtime.name].protocols, runtime.api_protocol) ||
 			!nonEmptyString(runtime.base_url) ||
 			!nonEmptyString(runtime.model) ||
 			!nonEmptyString(runtime.api_key) ||
@@ -68,9 +74,9 @@ export async function resolveNoticeClassifierRuntimeConfig(
 			apiKey: runtime.api_key,
 			baseUrl: runtime.base_url,
 			model: runtime.model,
-			provider: runtime.provider,
-			schemaVersion: "notice_classifier_runtime_config.v1",
-			transport: runtime.api_protocol === "openai.responses" ? "responses" : "chat_completions",
+			name: runtime.name,
+			protocol: runtime.api_protocol,
+			schemaVersion: "notice_classifier_runtime_config.v2",
 		};
 	} catch (error) {
 		throw new Error("notice classifier Model Config is unavailable", { cause: error });
@@ -81,124 +87,22 @@ export function createNoticeClassifierFromRuntimeConfig(
 	runtimeConfig: NoticeClassifierRuntimeConfig,
 	fetchImplementation: typeof fetch = fetch,
 ): NoticeModelClassifier {
-	return async (noticeTitle) => {
-		const raw = await requestClassification(runtimeConfig, noticeTitle, fetchImplementation);
-		return parseNoticeModelOutput(raw);
-	};
+	return createNoticeProtocolClassifier({
+		apiKey: runtimeConfig.apiKey,
+		baseUrl: runtimeConfig.baseUrl,
+		fetchImplementation,
+		model: runtimeConfig.model,
+		protocol: runtimeConfig.protocol,
+		timeoutMs: 60_000,
+	});
 }
 
-async function requestClassification(
-	runtimeConfig: NoticeClassifierRuntimeConfig,
-	noticeTitle: string,
-	fetchImplementation: typeof fetch,
-): Promise<string> {
-	const isChatCompletions = runtimeConfig.transport === "chat_completions";
-	const endpoint = isChatCompletions ? "/chat/completions" : "/responses";
-	const payload = isChatCompletions
-		? {
-				messages: [
-					{ content: NOTICE_CLASSIFIER_SYSTEM_PROMPT, role: "system" },
-					{ content: JSON.stringify(toModelInput(noticeTitle)), role: "user" },
-				],
-				model: runtimeConfig.model,
-				response_format: {
-					type: "json_schema",
-					json_schema: {
-						name: "notice_classification",
-						schema: CLASSIFICATION_SCHEMA,
-						strict: true,
-					},
-				},
-				temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-			}
-		: {
-				input: [
-					{ content: NOTICE_CLASSIFIER_SYSTEM_PROMPT, role: "system" },
-					{ content: JSON.stringify(toModelInput(noticeTitle)), role: "user" },
-				],
-				model: runtimeConfig.model,
-				temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-				text: {
-					format: {
-						name: "notice_classification",
-						schema: CLASSIFICATION_SCHEMA,
-						strict: true,
-						type: "json_schema",
-					},
-				},
-			};
-	let response: Response;
-	try {
-		response = await fetchImplementation(`${runtimeConfig.baseUrl}${endpoint}`, {
-			body: JSON.stringify(payload),
-			headers: {
-				accept: "application/json",
-				authorization: `Bearer ${runtimeConfig.apiKey}`,
-				"content-type": "application/json",
-			},
-			method: "POST",
-			signal: AbortSignal.timeout(60_000),
-		});
-	} catch (error) {
-		throw new NoticeClassificationProviderError("model provider request failed", {
-			cause: error,
-			retryable: true,
-		});
-	}
-	if (!response.ok) {
-		const body = (await response.text()).trim();
-		throw new NoticeClassificationProviderError("model provider request failed", {
-			cause: new Error(
-				`model provider returned HTTP ${response.status} ${response.statusText}${body ? `: ${body}` : ""}`,
-			),
-			retryable: isRetryableStatus(response.status),
-		});
-	}
-	let body: unknown;
-	try {
-		body = JSON.parse(await response.text()) as unknown;
-	} catch (error) {
-		throw new NoticeClassificationInvalidOutputError("model provider returned invalid JSON", {
-			cause: error,
-		});
-	}
-	const raw = isChatCompletions ? chatCompletionText(body) : responseText(body);
-	if (!raw) {
-		throw new NoticeClassificationInvalidOutputError("model provider returned no classification");
-	}
-	return raw;
+function isRuntimeBackend(value: unknown): value is NoticeClassifierRuntimeConfig["name"] {
+	return typeof value === "string" && Object.hasOwn(RUNTIME_BACKENDS, value);
 }
 
-function responseText(value: unknown): string | null {
-	if (!isRecord(value)) return null;
-	if (typeof value.output_text === "string") return value.output_text;
-	if (!Array.isArray(value.output)) return null;
-	for (const item of value.output) {
-		if (!isRecord(item) || !Array.isArray(item.content)) continue;
-		for (const content of item.content) {
-			if (isRecord(content) && typeof content.text === "string") return content.text;
-		}
-	}
-	return null;
-}
-
-function chatCompletionText(value: unknown): string | null {
-	if (!isRecord(value) || !Array.isArray(value.choices)) return null;
-	const first = value.choices[0];
-	if (!isRecord(first) || !isRecord(first.message)) return null;
-	const content = first.message.content;
-	if (typeof content === "string") return content;
-	if (!Array.isArray(content)) return null;
-	return (
-		content
-			.filter((item): item is Record<string, unknown> => isRecord(item))
-			.map((item) => (typeof item.text === "string" ? item.text : ""))
-			.join("") || null
-	);
-}
-
-function isRetryableStatus(status: number): boolean {
-	return status === 408 || status === 409 || status === 429 || status >= 500;
+function includes<Value extends string>(values: readonly Value[], value: unknown): value is Value {
+	return (values as readonly unknown[]).includes(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

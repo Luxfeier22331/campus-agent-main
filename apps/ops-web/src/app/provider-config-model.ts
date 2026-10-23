@@ -8,8 +8,21 @@ export interface ExecutionDraft {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
-	provider: "google" | "openai" | "openai-compatible" | "cohere" | "cohere-compatible";
-	transport: "generate_content" | "responses" | "chat_completions" | "embeddings" | "rerank";
+	provider:
+		| "google"
+		| "openai"
+		| "openai-compatible"
+		| "cohere"
+		| "cohere-compatible"
+		| "nace"
+		| "typesafe";
+	transport:
+		| "generate_content"
+		| "responses"
+		| "chat_completions"
+		| "embeddings"
+		| "rerank"
+		| "systemone";
 }
 
 export function executionDraftFromSetting(
@@ -102,6 +115,8 @@ export function providerLabel(provider: ExecutionDraft["provider"]): string {
 			google: "Gemini",
 			openai: "OpenAI",
 			"openai-compatible": "OpenAI 兼容接口",
+			nace: "Nace（Drex）",
+			typesafe: "TypeSafe（Jev）",
 		} as const
 	)[provider];
 }

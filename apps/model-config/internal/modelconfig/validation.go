@@ -15,38 +15,57 @@ import (
 )
 
 const (
-	embeddingModel                    = "Qwen3-Embedding-4B"
-	embeddingDimensions               = 2560
-	rerankerProviderValidationTimeout = 45 * time.Second
-	providerValidationTimeout         = 10 * time.Second
-	rerankAPIProtocol                 = "cohere.rerank"
+	embeddingModel                        = "Qwen3-Embedding-4B"
+	embeddingDimensions                   = 2560
+	rerankerProviderValidationTimeout     = 45 * time.Second
+	providerValidationTimeout             = 10 * time.Second
+	noticeClassificationValidationTimeout = 45 * time.Second
+	rerankAPIProtocol                     = "cohere.rerank"
 )
 
+// noticeClassificationCategories and noticeClassificationIntents mirror the
+// notice label contract that the classifier job writes.
 var noticeClassificationCategories = []string{
-	"research_affairs",
-	"lectures_forums",
-	"teaching_affairs",
-	"student_affairs",
-	"competitions",
-	"admissions",
-	"international_programs",
-	"employment",
-	"campus_operations",
-	"human_resources",
-	"governance",
 	"procurement",
-	"campus_activities",
-	"campus_news",
-	"unclassified",
+	"competition",
+	"lecture_forum",
+	"training",
+	"application",
+	"recruitment",
+	"examination",
+	"activity",
+	"governance",
+	"international",
+	"service_info",
+	"teaching_schedule",
+	"affairs",
+	"selection_result",
+	"news",
 }
 
-var noticeClassificationCategorySet = func() map[string]struct{} {
-	result := make(map[string]struct{}, len(noticeClassificationCategories))
-	for _, category := range noticeClassificationCategories {
-		result[category] = struct{}{}
+var noticeClassificationIntents = []string{"action", "event", "notice", "result", "reference"}
+
+var noticeClassificationCategorySet = stringSet(noticeClassificationCategories)
+
+var noticeClassificationIntentSet = stringSet(noticeClassificationIntents)
+
+func stringSet(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		result[value] = struct{}{}
 	}
 	return result
-}()
+}
+
+const noticeClassificationValidationInput = "notice_type：教学\n标题：关于2025级本科生第二次转专业考试安排的通知"
+
+// noticeClassificationValidationPrompt spells out both fields and their
+// values: the shared gateway does not enforce strict schemas, and without the
+// lists models echoed notice_type or answered with a Chinese column name.
+var noticeClassificationValidationPrompt = "Classify the notice. Return only a JSON object " +
+	`{"category": ..., "intent": ...} with no other fields. category is one of: ` +
+	strings.Join(noticeClassificationCategories, ", ") + ". intent is one of: " +
+	strings.Join(noticeClassificationIntents, ", ") + "."
 
 func Validate(ctx context.Context, target Target, apiKey string) Validation {
 	if err := validateShape(target, apiKey); err != nil {
@@ -55,6 +74,11 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 	validationTimeout := providerValidationTimeout
 	if target.APIProtocol == rerankAPIProtocol {
 		validationTimeout = rerankerProviderValidationTimeout
+	}
+	if NoticeClassificationConfig(target.Name) {
+		// A structured classification answer through the shared gateway
+		// regularly takes longer than the bare-ping budget.
+		validationTimeout = noticeClassificationValidationTimeout
 	}
 	client := &http.Client{Timeout: validationTimeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	endpoint, body, err := validationRequest(target)
@@ -129,10 +153,15 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 	}
 	if target.APIProtocol == "google.generate_content" || target.APIProtocol == "openai.responses" || target.APIProtocol == "openai.chat_completions" {
 		validator := validateTextProviderResponse
-		if target.Name == ConfigNoticeClassification {
+		if NoticeClassificationConfig(target.Name) {
 			validator = validateNoticeClassificationResponse
 		}
 		if err := validator(target.APIProtocol, raw); err != nil {
+			return invalidProviderResponse(resp, raw, err.Error())
+		}
+	}
+	if target.APIProtocol == "typesafe.systemone" {
+		if err := validateSystemOneClassificationResponse(raw); err != nil {
 			return invalidProviderResponse(resp, raw, err.Error())
 		}
 	}
@@ -144,11 +173,11 @@ func validationRequest(target Target) (string, any, error) {
 	case "google.generate_content":
 		return target.BaseURL + "/models/" + target.Model + ":generateContent", map[string]any{"contents": []any{map[string]any{"role": "user", "parts": []any{map[string]string{"text": "Reply with OK."}}}}, "generationConfig": map[string]any{"maxOutputTokens": 128}}, nil
 	case "openai.responses":
-		if target.Name == ConfigNoticeClassification {
+		if NoticeClassificationConfig(target.Name) {
 			return target.BaseURL + "/responses", map[string]any{
 				"input": []map[string]string{
-					{"role": "system", "content": "Classify the notice title and return only the JSON object required by the schema."},
-					{"role": "user", "content": `{"notice_title":"model-config validation"}`},
+					{"role": "system", "content": noticeClassificationValidationPrompt},
+					{"role": "user", "content": noticeClassificationValidationInput},
 				},
 				"model":       target.Model,
 				"temperature": 0,
@@ -163,11 +192,11 @@ func validationRequest(target Target) (string, any, error) {
 			"max_output_tokens": 1,
 		}, nil
 	case "openai.chat_completions":
-		if target.Name == ConfigNoticeClassification {
+		if NoticeClassificationConfig(target.Name) {
 			return target.BaseURL + "/chat/completions", map[string]any{
 				"messages": []map[string]string{
-					{"role": "system", "content": "Classify the notice title and return only the JSON object required by the schema."},
-					{"role": "user", "content": `{"notice_title":"model-config validation"}`},
+					{"role": "system", "content": noticeClassificationValidationPrompt},
+					{"role": "user", "content": noticeClassificationValidationInput},
 				},
 				"model":       target.Model,
 				"temperature": 0,
@@ -183,6 +212,33 @@ func validationRequest(target Target) (string, any, error) {
 				{"role": "user", "content": "model-config validation"},
 			},
 			"max_tokens": 1,
+		}, nil
+	case "typesafe.systemone":
+		return target.BaseURL + "/systemone", map[string]any{
+			"model": target.Model,
+			"questions": map[string]any{
+				"category": map[string]any{
+					"criteria": map[string]any{
+						"examination":       "考试的报名、安排、考场与注意事项",
+						"teaching_schedule": "校历、课表、开课与课程安排",
+						"news":              "已发生事件的报道与通报",
+					},
+					"instructions": "model-config validation：判断通知类别。",
+					"type":         "choice",
+				},
+				"intent": map[string]any{
+					"criteria": map[string]any{
+						"action":    "读者要在期限内办理一件事",
+						"event":     "读者可以或需要到场参加的事",
+						"notice":    "读者只需知道的安排与提醒",
+						"result":    "已经产生的结果或已发生的事",
+						"reference": "长期有效的制度、服务或说明",
+					},
+					"instructions": "model-config validation：判断读者要做什么。",
+					"type":         "choice",
+				},
+			},
+			"state": map[string]any{"notice_title": "关于2025级本科生第二次转专业考试安排的通知", "notice_type": "教学"},
 		}, nil
 	case "openai.embeddings":
 		return target.BaseURL + "/embeddings", map[string]any{
@@ -206,8 +262,9 @@ func noticeClassificationJSONSchema(protocol string) map[string]any {
 		"additionalProperties": false,
 		"properties": map[string]any{
 			"category": map[string]any{"enum": noticeClassificationCategories, "type": "string"},
+			"intent":   map[string]any{"enum": noticeClassificationIntents, "type": "string"},
 		},
-		"required": []string{"category"},
+		"required": []string{"category", "intent"},
 		"type":     "object",
 	}
 	result := map[string]any{
@@ -275,6 +332,7 @@ func validateNoticeClassificationResponse(protocol string, raw []byte) error {
 	decoder.DisallowUnknownFields()
 	var output struct {
 		Category string `json:"category"`
+		Intent   string `json:"intent"`
 	}
 	if err := decoder.Decode(&output); err != nil {
 		return fmt.Errorf("decode notice classification output: %w", err)
@@ -284,6 +342,36 @@ func validateNoticeClassificationResponse(protocol string, raw []byte) error {
 	}
 	if _, ok := noticeClassificationCategorySet[output.Category]; !ok {
 		return fmt.Errorf("notice classification category %q is not allowed", output.Category)
+	}
+	if _, ok := noticeClassificationIntentSet[output.Intent]; !ok {
+		return fmt.Errorf("notice classification intent %q is not allowed", output.Intent)
+	}
+	return nil
+}
+
+func validateSystemOneClassificationResponse(raw []byte) error {
+	var decoded struct {
+		Answers map[string]struct {
+			Choice string `json:"choice"`
+		} `json:"answers"`
+	}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return fmt.Errorf("decode system one response: %w", err)
+	}
+	for _, question := range []struct {
+		name    string
+		allowed map[string]struct{}
+	}{
+		{"category", noticeClassificationCategorySet},
+		{"intent", noticeClassificationIntentSet},
+	} {
+		answer, ok := decoded.Answers[question.name]
+		if !ok {
+			return fmt.Errorf("system one response is missing the %s answer", question.name)
+		}
+		if _, ok := question.allowed[answer.Choice]; !ok {
+			return fmt.Errorf("system one %s %q is not allowed", question.name, answer.Choice)
+		}
 	}
 	return nil
 }
@@ -403,7 +491,7 @@ func DiscoverModels(ctx context.Context, name ConfigName, provider, baseURL, api
 	}
 	var items []string
 	switch provider {
-	case "cohere":
+	case "cohere", "nace":
 		if decoded.Models == nil {
 			return nil, Validation{Status: "failed", ErrorCode: "invalid_response", Message: "provider model response is invalid"}
 		}
@@ -454,7 +542,9 @@ func discoveryProviderAllowed(name ConfigName, provider string) bool {
 	switch name {
 	case ConfigPrimaryAgent:
 		return provider == "google" || provider == "openai" || provider == "openai-compatible"
-	case ConfigNoticeClassification:
+	case ConfigNoticeClassificationDecision:
+		return provider == "typesafe" || provider == "nace"
+	case ConfigNoticeClassificationLLM:
 		return provider == "openai" || provider == "openai-compatible"
 	case ConfigCampusDocsReranker:
 		return provider == "cohere" || provider == "cohere-compatible"
@@ -473,7 +563,7 @@ func validateShape(target Target, apiKey string) error {
 		}
 		return nil
 	}
-	if target.Name != ConfigPrimaryAgent && target.Name != ConfigCampusDocsEmbedding && target.Name != ConfigCampusDocsReranker && target.Name != ConfigNoticeClassification {
+	if target.Name != ConfigPrimaryAgent && target.Name != ConfigCampusDocsEmbedding && target.Name != ConfigCampusDocsReranker && !NoticeClassificationConfig(target.Name) {
 		return errors.New("name is invalid")
 	}
 	if target.Name == ConfigCampusDocsEmbedding && (target.Provider != "openai-compatible" || target.APIProtocol != "openai.embeddings" || target.Model != embeddingModel) {
@@ -486,6 +576,12 @@ func validateShape(target Target, apiKey string) error {
 		return nil
 	}
 	if target.Name == ConfigPrimaryAgent && target.Provider == "google" && target.APIProtocol == "google.generate_content" {
+		return nil
+	}
+	if target.Name == ConfigNoticeClassificationDecision {
+		if (target.Provider != "typesafe" && target.Provider != "nace") || target.APIProtocol != "typesafe.systemone" {
+			return errors.New("notice_classification_decision requires typesafe or nace and typesafe.systemone")
+		}
 		return nil
 	}
 	if target.Provider != "openai" && target.Provider != "openai-compatible" {

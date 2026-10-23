@@ -113,26 +113,7 @@ notice type 映射（`notice_type_id`/`notice_type_name`、重复项、非空）
 请求按门户附件 ID 和通知 ID 构造，单个图片或附件上限为 100 MiB；外链通知不会触发外部正文或图片
 抓取。仓库不提供独立的资源维护或状态查看命令。通知数据结构见 [通知数据](../../data/notices.md)。
 
-### 本地分类交接
-
-分类脚本只读本地来源并把结果写到标准输出：
-
-```bash
-pnpm --dir scripts notice:classify --concurrency 2 --notice-id "$NOTICE_ID"
-```
-
-该命令是 JSONL stdout 交接和离线模型比较入口，由调用进程显式提供模型连接，生成一次性的
-`notice_id/category` JSONL；它不读取或修改 agent-control 的在线模型设置。整批成功后把结果保存到
-未跟踪路径，并设置：
-
-```bash
-NOTICE_CLASSIFICATIONS=/absolute/path/to/classifications.jsonl
-```
-
-每个通知只能出现一次，并具有一个共享合同允许的分类；标题不足以判断唯一分类时才使用
-`unclassified`。单条通知对临时 provider 和非法结构化输出最多尝试三次，耗尽预算后整批失败。
-分类文件不保存理由、置信度、模型名称或原始响应，也不写入对象存储或 PostgreSQL。
-具体脚本输入和平衡模型评估见 [内部门户通知分类](../../../scripts/notices/README.md)。
+### 本地分类
 
 需要在本地验证在线 Job 时，使用同一数据库实现：
 
@@ -141,20 +122,54 @@ kubectl port-forward svc/model-config 18003:8000
 
 pnpm --dir jobs/notice-classifier classify:local \
   --model-config-url http://127.0.0.1:18003 \
-  --notice-id "$NOTICE_ID" \
-  --concurrency 2
+  --notice-id "$NOTICE_ID"
 ```
 
-该入口从当前 worktree 的通知数据库读取 ID 与标题，并写回 `category`。默认运行只分类
-`category IS NULL` 的通知；`--notice-id` 明确覆盖指定通知的当前分类。它不读取独立模型凭据，也不把
-API key 写入本地文件。
+该入口从当前 worktree 的通知数据库读取内部通知的 ID、栏目与标题，写回 `label_category` 与
+`label_intent`。默认运行只处理尚无标签的内部通知；`--notice-id` 覆盖指定通知的当前标签，`--all`
+覆盖全部内部通知。它不读取独立模型凭据，也不把 API key 写入本地文件。
+
+### 分类评测
+
+改判定文本、车道规则，或换模型、换后端后，用标准答案比较当前实现，不写数据库：
+
+```bash
+pnpm --dir jobs/notice-classifier classify:eval --backend decision
+pnpm --dir jobs/notice-classifier classify:eval --backend llm
+pnpm --dir jobs/notice-classifier classify:eval --backend rules
+```
+
+标准答案是 `jobs/notice-classifier/eval/labels.tsv`，输入是同目录的 `titles.tsv`（判定时的栏目与标题），
+不读数据库，任何 worktree 跑同一份输入。`--backend decision|llm` 按存储名读取 Model Config（`--model-config-url`、`MODEL_CONFIG_URL` 或本地托管环境）中那一家的配置，
+不改 Ops Web 的选择；`rules` 只评规则车道，不调用模型。与标准答案不同的模型车道条目再各重跑
+`--repeats` 次：多数回到标准答案的记为 `sampling`，仍偏离的记为 `consistent`，规则车道差异记为
+`rule`。默认只有 `llm` 重跑 5 次；决策模型同一输入的输出是确定的，默认不重跑。结果写入 `var/notices/classification/evaluations/<时间>-judge-<版本>-<后端>/` 的 `summary.json`
+与 `diffs.tsv`，`diffs.tsv` 列出 `expected` 与 `actual`。`consistent` 条目回看车道规则、判定文本或标准答案；
+确认标准答案有误时按规则或判定文本口径改 `labels.tsv`，并在决策笔记记录原因；不加人工特判。
+
+`--notice-ids`、`--categories`、`--intents`（逗号分隔，按标准答案的期望标签筛选，条件同时生效）只评其中一部分。
+模型车道每条通知是一次付费调用，决策模型每次按完整判据计费、没有提示缓存，评测按以下顺序收敛：
+
+1. 先用 `--notice-ids` 从模型车道未抽过的条目里每次取 50 条，两种后端各跑一次，按差异逐批修正，不先跑全量；
+2. 决策模型的差异先回放旧版本：按提交取出旧的 `packages/notice-classifier-core/src/model.ts` 与
+   `notice-judge.json`，只跑差异条目，确认是哪一版改动引起；回放后用 `git checkout HEAD --` 恢复这两个文件；
+3. 差异能由标题信号判定的改车道规则，用 `--backend rules` 验证，不调用模型；标准答案中被新规则给出同一
+   标签的 `dual_model` 行改记 `rule_lane`、清空 `judge`，评测单元测试要求规则车道复现全部 `rule_lane` 标签；
+4. 其余差异合并成一次判定文本升版，先用 `--notice-ids` 只跑这些条目，再用 `--categories` 或 `--intents`
+   跑改动涉及的期望标签；
+5. 改车道规则或判定文本都升判定版本末位；调用记录追加到 `jobs/notice-classifier/eval/experiments/` 当前试标
+   目录的 `runs.tsv`，版本对应的 `lanes.ts` 提交与逐版本改动记在该目录 README；
+6. 模型车道都抽过且最近几批无差异后，两种后端各跑一次全量评测，检查共享判定文本的回归。
+
+本地托管环境下 `--backend llm` 经代理访问模型网关时，Node 的 `fetch` 默认不读 `HTTPS_PROXY`，需加
+`NODE_USE_ENV_PROXY=1`，否则表现为 `Connection error`。
 
 ### 在线分类 Job
 
 集群常规分类由通知流水线执行；单独使用 `notice-classifier` Job 前须确认目标环境已显式部署该暂停模板。
-当前 ingestion base 不安装它，不能仅因源码存在就运行下述命令。分类器从数据库读取待分类通知；传入 `--notice-id` 时
-只处理指定通知并强制重分类。Job 只向模型发送
-原始标题，不消费正文、门户栏目或清洗结果：
+当前 ingestion base 不安装它，不能仅因源码存在就运行下述命令。分类器从数据库读取尚无标签的内部通知；传入 `--notice-id` 时
+只处理指定通知并强制重分类，`--all` 重判全部内部通知。规则车道未命中的通知才调用模型，模型只收到
+原始标题与门户栏目名，不消费正文或清洗结果：
 
 ```bash
 kubectl create job \
@@ -162,11 +177,10 @@ kubectl create job \
   notice-classifier-$(date +%Y%m%d%H%M%S)
 ```
 
-在线模板使用 `--concurrency 8`，分类器 PostgreSQL 连接池上限与该并发一致；本地 CLI 默认并发为 2，
-可按机器资源显式调整。失败以非零状态结束。默认批量更新不会覆盖分类期间发生的人工修改；
-不会自动继续下一阶段。Job 启动分类阶段后从 `model-config:8000` 一次读取
-`notice_classification` 完整配置，模型名和 provider 由 Ops Web 配置，不在镜像或 Kubernetes Secret
-中固定。
+在线模板与本地 CLI 默认并发都是 8，可按机器资源显式调整。失败以非零状态结束。默认批量更新不会覆盖分类期间发生的人工修改；
+不会自动继续下一阶段。Job 启动分类阶段后从 `model-config:8000` 一次读取别名
+`notice_classification`，得到 Ops Web 当前选中的决策模型或 LLM 凭据；未选择时分类失败，不在两家之间
+fallback。切换后端在下一轮分类生效，模型名和 provider 不在镜像或 Kubernetes Secret 中固定。
 
 ### 通知 schema
 
@@ -296,8 +310,6 @@ Ops 通知维护的部署环境响应来自 Temporal failure 与 Workflow result
 pnpm --dir packages/contracts contracts:check
 pnpm exec turbo run typecheck test --filter=ops-web --filter=ingestion-contracts --filter=internal-portal-collection --concurrency=1 --summarize
 pnpm --dir apps/ops-web test:database-integration
-pnpm --dir scripts typecheck:notices
-pnpm exec tsx --test scripts/notices/*.test.ts
 pnpm --filter notice-classifier typecheck
 pnpm test --filter=notice-classifier
 pnpm --filter notice-classifier build

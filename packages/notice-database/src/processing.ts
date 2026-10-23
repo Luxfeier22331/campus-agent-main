@@ -10,7 +10,7 @@ export async function recordAutomaticClassificationFailure(
 	await database.query(
 		`WITH eligible AS (
 			SELECT notice_id FROM notices.notices
-			WHERE notice_id=$1 AND category IS NULL FOR UPDATE
+			WHERE notice_id=$1 AND label_category IS NULL FOR UPDATE
 		)
 		INSERT INTO notices.processing_failures(notice_id, stage, error_type, raw_error)
 		SELECT notice_id, $2, $3, $4 FROM eligible

@@ -87,7 +87,7 @@ func TestScanConfigViewNormalizesDatabaseTimestampsToUTC(t *testing.T) {
 
 func TestScanConfigViewLeavesOptionalValidationUnset(t *testing.T) {
 	view, err := scanConfigView(configViewScannerStub{values: []any{
-		ConfigNoticeClassification,
+		ConfigNoticeClassificationLLM,
 		"openai-compatible",
 		"openai.responses",
 		"https://provider.example/v1",

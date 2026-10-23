@@ -51,6 +51,11 @@ const OPERATIONS: Record<NoticeJobOperation, OperationDefinition> = {
 		family: "classification",
 		template: "notice-classifier",
 	},
+	"notice-reclassify-all": {
+		container: "classifier",
+		family: "classification",
+		template: "notice-classifier",
+	},
 	"notice-publish-pending": {
 		container: "publisher",
 		family: "publication",
@@ -376,6 +381,8 @@ function applyOperation(container: V1Container, input: NoticeJobCreate): void {
 		];
 	} else if (input.operation === "notice-classify-one") {
 		container.args = [...(container.args ?? []), "--notice-id", String(input.noticeId)];
+	} else if (input.operation === "notice-reclassify-all") {
+		container.args = [...(container.args ?? []), "--all"];
 	} else if (input.operation === "notice-publish-one") {
 		container.args = [...(container.args ?? []), "--notice-id", String(input.noticeId)];
 	} else if (input.operation === "notice-republish-one") {

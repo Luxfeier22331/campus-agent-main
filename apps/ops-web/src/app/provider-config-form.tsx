@@ -58,21 +58,12 @@ export function ExecutionModelSettingForm({
 	const queryClient = useQueryClient();
 	const embedding = kind === "embedding";
 	const reranker = kind === "reranker";
-	const noticeClassifier = kind === "notice_classifier";
-	const settingTitle = embedding
-		? "Embedding"
-		: reranker
-			? "Reranker"
-			: noticeClassifier
-				? "通知分类"
-				: "LLM";
+	const settingTitle = embedding ? "Embedding" : reranker ? "Reranker" : "LLM";
 	const settingDescription = embedding
 		? "检索查询向量"
 		: reranker
 			? "候选文档重排"
-			: noticeClassifier
-				? "通知标题分类"
-				: "Agent 文本生成";
+			: "Agent 文本生成";
 	const [baseline, setBaseline] = useState<ExecutionDraft>(() =>
 		executionDraftFromSetting(setting, embedding, reranker, embeddingContract),
 	);
@@ -131,14 +122,11 @@ export function ExecutionModelSettingForm({
 	});
 	const discovery = useMutation({
 		mutationFn: () =>
-			discoverExecutionModels(
-				reranker ? "reranker" : noticeClassifier ? "notice_classifier" : "llm",
-				{
-					apiKey: draft.apiKey,
-					baseUrl: draft.baseUrl,
-					provider: draft.provider,
-				},
-			),
+			discoverExecutionModels(reranker ? "reranker" : "llm", {
+				apiKey: draft.apiKey,
+				baseUrl: draft.baseUrl,
+				provider: draft.provider,
+			}),
 		onSuccess: () => setErrors((current) => clearErrors(current, ["model"])),
 	});
 	const updateDraft = (
@@ -459,7 +447,7 @@ export function ExecutionModelSettingForm({
 	);
 }
 
-function SecretField({
+export function SecretField({
 	disabled = false,
 	error,
 	helper,

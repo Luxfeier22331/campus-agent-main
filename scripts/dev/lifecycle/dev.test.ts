@@ -519,45 +519,52 @@ describe("managed worktree environment", () => {
 				"LLM_BASE_URL=https://primary.example/v1",
 				"LLM_API_KEY=primary-key",
 				"LLM_MODEL=primary-model",
-				"NOTICE_CLASSIFICATION_BASE_URL=https://notice.example/v1",
-				"NOTICE_CLASSIFICATION_API_KEY=notice-key",
-				"NOTICE_CLASSIFICATION_MODEL=deepseek-v4-flash-0731",
-				"NOTICE_CLASSIFICATION_PROVIDER=openai",
-				"NOTICE_CLASSIFICATION_API_PROTOCOL=openai.responses",
+				"NOTICE_CLASSIFICATION_DECISION_BASE_URL=https://decision.example/v1",
+				"NOTICE_CLASSIFICATION_DECISION_API_KEY=decision-key",
+				"NOTICE_CLASSIFICATION_LLM_BASE_URL=https://notice.example/v1",
+				"NOTICE_CLASSIFICATION_LLM_API_KEY=notice-key",
+				"NOTICE_CLASSIFICATION_LLM_MODEL=deepseek-v4-flash",
+				"NOTICE_CLASSIFICATION_LLM_API_PROTOCOL=openai.chat_completions",
 				"RERANK_API_KEY=must-not-reach-classifier",
 				"",
 			].join("\n"),
 		);
 		const environment = localModelConfigEnvironment({
 			environment: {
-				NOTICE_CLASSIFICATION_API_KEY: "process-notice-key",
+				NOTICE_CLASSIFICATION_BACKEND: "llm",
+				NOTICE_CLASSIFICATION_LLM_API_KEY: "process-notice-key",
 				RERANK_API_KEY: "process-rerank-key",
 			},
 			names: ["notice_classification"],
 			repoRoot,
 		});
 		assert.deepEqual(environment, {
-			NOTICE_CLASSIFICATION_BASE_URL: "https://notice.example/v1",
-			NOTICE_CLASSIFICATION_API_KEY: "process-notice-key",
-			NOTICE_CLASSIFICATION_MODEL: "deepseek-v4-flash-0731",
-			NOTICE_CLASSIFICATION_PROVIDER: "openai",
-			NOTICE_CLASSIFICATION_API_PROTOCOL: "openai.responses",
+			NOTICE_CLASSIFICATION_BACKEND: "llm",
+			NOTICE_CLASSIFICATION_DECISION_BASE_URL: "https://decision.example/v1",
+			NOTICE_CLASSIFICATION_DECISION_API_KEY: "decision-key",
+			NOTICE_CLASSIFICATION_LLM_BASE_URL: "https://notice.example/v1",
+			NOTICE_CLASSIFICATION_LLM_API_KEY: "process-notice-key",
+			NOTICE_CLASSIFICATION_LLM_MODEL: "deepseek-v4-flash",
+			NOTICE_CLASSIFICATION_LLM_API_PROTOCOL: "openai.chat_completions",
 		});
 
 		const commandEnvironment = localModelConfigCommandEnvironment({
 			environment: {
-				NOTICE_CLASSIFICATION_API_KEY: "process-notice-key",
+				NOTICE_CLASSIFICATION_LLM_API_KEY: "process-notice-key",
 				RERANK_API_KEY: "process-rerank-key",
 			},
 			names: ["notice_classification"],
 			profile: createProfile(repoRoot),
 			repoRoot,
 		});
-		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_API_KEY, "process-notice-key");
-		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_BASE_URL, "https://notice.example/v1");
-		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_MODEL, "deepseek-v4-flash-0731");
-		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_PROVIDER, "openai");
-		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_API_PROTOCOL, "openai.responses");
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_LLM_API_KEY, "process-notice-key");
+		assert.equal(
+			commandEnvironment.NOTICE_CLASSIFICATION_LLM_BASE_URL,
+			"https://notice.example/v1",
+		);
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_LLM_MODEL, "deepseek-v4-flash");
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_DECISION_API_KEY, "decision-key");
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_BACKEND, undefined);
 		assert.equal(commandEnvironment.LLM_API_KEY, undefined);
 		assert.equal(commandEnvironment.LLM_BASE_URL, undefined);
 		assert.equal(commandEnvironment.RERANK_API_KEY, undefined);

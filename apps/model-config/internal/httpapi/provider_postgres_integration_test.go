@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -133,7 +134,7 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 				_, _ = fmt.Fprint(w, `{"error":"candidate rejected"}`)
 				return
 			}
-			_ = json.NewEncoder(w).Encode(map[string]string{"output_text": `{"category":"campus_operations"}`})
+			_ = json.NewEncoder(w).Encode(map[string]string{"output_text": `{"category":"examination","intent":"event"}`})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -224,7 +225,7 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			request, err := http.NewRequestWithContext(ctx, http.MethodPut, server.URL+"/internal/admin/model-configs/"+string(modelconfig.ConfigNoticeClassification), bytes.NewReader(body))
+			request, err := http.NewRequestWithContext(ctx, http.MethodPut, server.URL+"/internal/admin/model-configs/"+string(modelconfig.ConfigNoticeClassificationLLM), bytes.NewReader(body))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -255,22 +256,22 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		before := beforeStatus.Configs[modelconfig.ConfigNoticeClassification]
+		before := beforeStatus.Configs[modelconfig.ConfigNoticeClassificationLLM]
 		if before == nil {
 			t.Fatal("initial notice classification view is missing")
 		}
-		descriptor, err := store.Descriptor(ctx, modelconfig.ConfigNoticeClassification)
+		descriptor, err := store.Descriptor(ctx, modelconfig.ConfigNoticeClassificationLLM)
 		if err != nil {
 			t.Fatal(err)
 		}
-		resolved, err := store.Resolve(ctx, modelconfig.ConfigNoticeClassification, descriptor.TargetSHA256)
+		resolved, err := store.Resolve(ctx, modelconfig.ConfigNoticeClassificationLLM, descriptor.TargetSHA256)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if before.Capabilities != saved.Capabilities || before.Capabilities != descriptor.Capabilities || before.Capabilities != resolved.Capabilities {
 			t.Fatal("management, descriptor and runtime capabilities differ")
 		}
-		validated, err := store.RecordValidation(ctx, modelconfig.ConfigNoticeClassification, "integration-test", *before.Validation)
+		validated, err := store.RecordValidation(ctx, modelconfig.ConfigNoticeClassificationLLM, "integration-test", *before.Validation)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -289,12 +290,51 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		after := afterStatus.Configs[modelconfig.ConfigNoticeClassification]
+		after := afterStatus.Configs[modelconfig.ConfigNoticeClassificationLLM]
 		if after == nil {
 			t.Fatal("current notice classification view is missing after candidate validation")
 		}
 		if !reflect.DeepEqual(*after, *before) {
 			t.Fatalf("candidate validation changed current config: before=%#v after=%#v", *before, *after)
+		}
+	})
+
+	t.Run("the notice classification alias resolves only the selected credential", func(t *testing.T) {
+		if _, err := store.Resolve(ctx, modelconfig.ConfigNoticeClassification, ""); !errors.Is(err, modelconfig.ErrNotFound) {
+			t.Fatalf("unselected alias Resolve() error = %v", err)
+		}
+		if _, err := store.Select(ctx, "integration-test", modelconfig.ConfigNoticeClassification, modelconfig.ConfigNoticeClassificationDecision); !errors.Is(err, modelconfig.ErrSelectionNotReady) {
+			t.Fatalf("selecting a missing credential error = %v", err)
+		}
+		if _, err := store.Select(ctx, "integration-test", modelconfig.ConfigNoticeClassification, modelconfig.ConfigCampusDocsReranker); !errors.Is(err, modelconfig.ErrSelectionNotReady) {
+			t.Fatalf("selecting a foreign credential error = %v", err)
+		}
+		selection, err := store.Select(ctx, "integration-test", modelconfig.ConfigNoticeClassification, modelconfig.ConfigNoticeClassificationLLM)
+		if err != nil || selection.ConfigName != modelconfig.ConfigNoticeClassificationLLM {
+			t.Fatalf("Select() = %#v, %v", selection, err)
+		}
+		response, err := client.Get(server.URL + "/internal/model-configs/" + string(modelconfig.ConfigNoticeClassification))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		var runtime modelconfig.RuntimeConfig
+		if err := json.NewDecoder(response.Body).Decode(&runtime); err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != http.StatusOK || runtime.Name != modelconfig.ConfigNoticeClassificationLLM || runtime.APIKey != "notice-secret" {
+			t.Fatalf("alias runtime status=%d name=%q", response.StatusCode, runtime.Name)
+		}
+		checks, err := store.Check(ctx, []modelconfig.ConfigName{modelconfig.ConfigNoticeClassification})
+		if err != nil || len(checks) != 1 || checks[0].State != modelconfig.LocalConfigCheckReady {
+			t.Fatalf("alias Check() = %#v, %v", checks, err)
+		}
+		status, err := store.Status(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := status.Selections[modelconfig.ConfigNoticeClassification]; got == nil || got.ConfigName != modelconfig.ConfigNoticeClassificationLLM || got.UpdatedBy != "integration-test" {
+			t.Fatalf("status selections = %#v", status.Selections)
 		}
 	})
 }

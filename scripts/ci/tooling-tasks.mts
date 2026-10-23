@@ -1,12 +1,4 @@
-export const TOOLING_GROUPS = [
-	"ci",
-	"dev",
-	"docs",
-	"hooks",
-	"infra",
-	"notices",
-	"release",
-] as const;
+export const TOOLING_GROUPS = ["ci", "dev", "docs", "hooks", "infra", "release"] as const;
 
 // Only these groups inspect which paths are tracked. File contents belong to Turbo inputs.
 export const TOOLING_TRACKED_PATHS = {
@@ -54,9 +46,6 @@ export function toolingGroupsForFiles(files: readonly string[]): ToolingGroup[] 
 			file === ".config/.pre-commit-config.yaml"
 		) {
 			selected.add("hooks");
-		}
-		if (file === "notices" || file.startsWith("notices/") || file.startsWith("scripts/notices/")) {
-			selected.add("notices");
 		}
 		if (
 			file === "release" ||

@@ -23,8 +23,20 @@ const status = ExecutionModelSettingsStatusSchema.parse({
 		transport: "embeddings",
 	},
 	sampledAt: "2026-07-14T10:00:00.000Z",
-	settings: { embedding: null, llm: null, reranker: null, notice_classifier: null },
+	settings: { embedding: null, llm: null, reranker: null },
+	noticeClassification: { backend: null, credentials: { decision: null, llm: null } },
 });
+
+const noticeClassificationClient = {
+	discoverNoticeClassificationModels: vi.fn(),
+	putNoticeClassificationCredential: vi.fn(),
+	selectNoticeClassification: vi.fn(),
+	validateNoticeClassificationCredential: vi.fn(),
+};
+const sameOriginHeaders = {
+	origin: "https://ops.example.test",
+	"sec-fetch-site": "same-origin",
+};
 
 describe("ops model settings BFF", () => {
 	it("admits native Gemini only for the primary LLM slot", () => {
@@ -166,6 +178,7 @@ describe("ops model settings BFF", () => {
 				getStatus: async () => status,
 				put,
 				validate,
+				...noticeClassificationClient,
 			},
 		});
 		const body = {
@@ -233,34 +246,6 @@ describe("ops model settings BFF", () => {
 			"ops@example.test",
 		);
 
-		const classifierCatalog = await app.request(
-			"http://ops-web:5178/api/ops/model-configs/notice_classifier/models",
-			{
-				body: JSON.stringify({
-					apiKey: "classifier-secret",
-					baseUrl: "https://classifier.example.test/v1",
-					provider: "openai-compatible",
-				}),
-				headers: {
-					"content-type": "application/json",
-					origin: "https://ops.example.test",
-					"sec-fetch-site": "same-origin",
-				},
-				method: "POST",
-			},
-		);
-		expect(classifierCatalog.status).toBe(200);
-		expect(discoverModels).toHaveBeenNthCalledWith(
-			2,
-			{
-				apiKey: "classifier-secret",
-				baseUrl: "https://classifier.example.test/v1",
-				provider: "openai-compatible",
-			},
-			"ops@example.test",
-			"notice_classifier",
-		);
-
 		const rerankerCatalog = await app.request(
 			"http://ops-web:5178/api/ops/model-configs/reranker/models",
 			{
@@ -279,7 +264,7 @@ describe("ops model settings BFF", () => {
 		);
 		expect(rerankerCatalog.status).toBe(200);
 		expect(discoverModels).toHaveBeenNthCalledWith(
-			3,
+			2,
 			{
 				apiKey: "reranker-secret",
 				baseUrl: "https://reranker.example.test/v1",
@@ -290,17 +275,17 @@ describe("ops model settings BFF", () => {
 		);
 
 		const revalidated = await app.request(
-			"http://ops-web:5178/api/ops/model-configs/notice_classifier/validate",
-			{
-				headers: {
-					origin: "https://ops.example.test",
-					"sec-fetch-site": "same-origin",
-				},
-				method: "POST",
-			},
+			"http://ops-web:5178/api/ops/model-configs/reranker/validate",
+			{ headers: sameOriginHeaders, method: "POST" },
 		);
 		expect(revalidated.status).toBe(200);
-		expect(validate).toHaveBeenCalledWith("notice_classifier", "ops@example.test");
+		expect(validate).toHaveBeenCalledWith("reranker", "ops@example.test");
+
+		const retiredKind = await app.request(
+			"http://ops-web:5178/api/ops/model-configs/notice_classifier/validate",
+			{ headers: sameOriginHeaders, method: "POST" },
+		);
+		expect(retiredKind.status).toBe(404);
 	});
 
 	it("preserves the upstream validation message", async () => {
@@ -317,6 +302,7 @@ describe("ops model settings BFF", () => {
 				discoverModels: vi.fn(),
 				getStatus: async () => status,
 				put: vi.fn(),
+				...noticeClassificationClient,
 				validate: vi.fn(async () => {
 					throw new ProviderConfigAdminResponseError(
 						upstream,
@@ -327,16 +313,13 @@ describe("ops model settings BFF", () => {
 			},
 		});
 
-		const response = await app.request(
-			"http://ops.test/api/ops/model-configs/notice_classifier/validate",
-			{
-				headers: {
-					origin: "https://ops.example.test",
-					"sec-fetch-site": "same-origin",
-				},
-				method: "POST",
+		const response = await app.request("http://ops.test/api/ops/model-configs/llm/validate", {
+			headers: {
+				origin: "https://ops.example.test",
+				"sec-fetch-site": "same-origin",
 			},
-		);
+			method: "POST",
+		});
 		expect(response.status).toBe(422);
 		expect(await response.json()).toEqual({
 			error: {
@@ -364,6 +347,7 @@ describe("ops model settings BFF", () => {
 				},
 				put: vi.fn(),
 				validate: vi.fn(),
+				...noticeClassificationClient,
 			},
 		});
 
@@ -375,6 +359,180 @@ describe("ops model settings BFF", () => {
 				message: "在线模型配置操作失败。",
 				upstreamCode: "model_settings_error",
 			},
+		});
+	});
+
+	it("routes notice classification switching and per-backend credentials through the BFF", async () => {
+		const client = {
+			discoverNoticeClassificationModels: vi.fn().mockResolvedValue({
+				models: ["drex-max"],
+				sampledAt: "2026-07-14T10:01:00.000Z",
+			}),
+			putNoticeClassificationCredential: vi.fn().mockResolvedValue(status),
+			selectNoticeClassification: vi.fn().mockResolvedValue(status),
+			validateNoticeClassificationCredential: vi.fn().mockResolvedValue(status),
+		};
+		const app = createTestOpsApp({
+			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
+			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
+			providerConfigClient: {
+				getOcrConfig: async () => null,
+				putOcrConfig: vi.fn(),
+				discoverModels: vi.fn(),
+				getStatus: async () => status,
+				put: vi.fn(),
+				validate: vi.fn(),
+				...client,
+			},
+		});
+		const json = (
+			method: string,
+			body: unknown,
+			headers: Record<string, string> = sameOriginHeaders,
+		) => ({
+			body: JSON.stringify(body),
+			headers: { "content-type": "application/json", ...headers },
+			method,
+		});
+		const base = "http://ops-web:5178/api/ops/model-configs/notice_classification";
+
+		expect(
+			(
+				await app.request(
+					base,
+					json("PUT", { backend: "decision" }, { origin: "http://attacker.test" }),
+				)
+			).status,
+		).toBe(403);
+		expect((await app.request(base, json("PUT", { backend: "both" }))).status).toBe(400);
+		expect((await app.request(base, json("PUT", { backend: "decision" }))).status).toBe(200);
+		expect(client.selectNoticeClassification).toHaveBeenCalledWith("decision", "ops@example.test");
+
+		const decision = {
+			apiKey: "decision-secret",
+			baseUrl: "https://decision.example.test/v1",
+			model: "drex-max",
+			provider: "nace",
+		};
+		expect(
+			(
+				await app.request(
+					`${base}/credentials/decision`,
+					json("PUT", { ...decision, provider: "openai" }),
+				)
+			).status,
+		).toBe(400);
+		expect((await app.request(`${base}/credentials/decision`, json("PUT", decision))).status).toBe(
+			200,
+		);
+		expect(client.putNoticeClassificationCredential).toHaveBeenCalledWith(
+			"decision",
+			decision,
+			"ops@example.test",
+		);
+		const llm = {
+			baseUrl: "https://llm.example.test/v1",
+			model: "deepseek-v4-flash",
+			provider: "openai-compatible",
+			transport: "chat_completions",
+		};
+		expect((await app.request(`${base}/credentials/llm`, json("PUT", llm))).status).toBe(200);
+		expect(client.putNoticeClassificationCredential).toHaveBeenLastCalledWith(
+			"llm",
+			llm,
+			"ops@example.test",
+		);
+		expect((await app.request(`${base}/credentials/other`, json("PUT", llm))).status).toBe(404);
+
+		expect(
+			(
+				await app.request(`${base}/credentials/llm/validate`, {
+					headers: sameOriginHeaders,
+					method: "POST",
+				})
+			).status,
+		).toBe(200);
+		expect(client.validateNoticeClassificationCredential).toHaveBeenCalledWith(
+			"llm",
+			"ops@example.test",
+		);
+		const discovery = { baseUrl: "https://decision.example.test/v1", provider: "nace" };
+		expect(
+			(await app.request(`${base}/credentials/decision/models`, json("POST", discovery))).status,
+		).toBe(200);
+		expect(client.discoverNoticeClassificationModels).toHaveBeenCalledWith(
+			"decision",
+			discovery,
+			"ops@example.test",
+		);
+	});
+
+	it("maps per-backend credentials and the selection to Model Config names", async () => {
+		const decisionConfig = {
+			...config,
+			api_protocol: "typesafe.systemone",
+			model: "drex-max",
+			provider: "nace",
+		};
+		const calls: [string, RequestInit | undefined][] = [];
+		const fetchImplementation = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			calls.push([String(input), init]);
+			return Response.json(
+				init?.method === "GET"
+					? {
+							sampled_at: "2026-09-08T00:00:00Z",
+							configs: { notice_classification_decision: decisionConfig },
+							selections: {
+								notice_classification: {
+									config_name: "notice_classification_decision",
+									updated_at: "2026-09-08T00:00:00Z",
+									updated_by: "operator",
+								},
+							},
+						}
+					: {},
+			);
+		}) as typeof fetch;
+		const client = createProviderConfigAdminClient(
+			{ MODEL_CONFIG_URL: "http://model-config:8000" },
+			{ fetchImplementation },
+		);
+
+		const result = await client.getStatus();
+		expect(result.noticeClassification).toMatchObject({
+			backend: "decision",
+			credentials: { decision: { provider: "nace", transport: "systemone" }, llm: null },
+		});
+
+		await client.selectNoticeClassification("llm", "ops@example.test");
+		expect(calls.at(-2)?.[0]).toBe(
+			"http://model-config:8000/internal/admin/config-selections/notice_classification",
+		);
+		expect(JSON.parse(String(calls.at(-2)?.[1]?.body))).toEqual({
+			config_name: "notice_classification_llm",
+		});
+
+		await client.putNoticeClassificationCredential(
+			"decision",
+			{ baseUrl: "https://decision.example.test/v1", model: "jev-latest", provider: "typesafe" },
+			"ops@example.test",
+		);
+		expect(calls.at(-2)?.[0]).toBe(
+			"http://model-config:8000/internal/admin/model-configs/notice_classification_decision",
+		);
+		expect(JSON.parse(String(calls.at(-2)?.[1]?.body))).toEqual({
+			api_protocol: "typesafe.systemone",
+			base_url: "https://decision.example.test/v1",
+			model: "jev-latest",
+			provider: "typesafe",
+		});
+	});
+
+	it("reports an unselected notice classification backend as null", async () => {
+		const result = await clientFor({}).getStatus();
+		expect(result.noticeClassification).toEqual({
+			backend: null,
+			credentials: { decision: null, llm: null },
 		});
 	});
 });

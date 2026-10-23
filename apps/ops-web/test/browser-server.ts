@@ -30,6 +30,8 @@ import { createFixtureOpsStatusStore } from "../src/server/ops-status/store/fixt
 import type { DiningReleaseSummary } from "../src/shared/dining-contract.ts";
 import type {
 	ExecutionModelSettingsStatus,
+	NoticeClassificationBackend,
+	NoticeClassificationCredentialUpdate,
 	NoticeJob,
 	NoticeSummary,
 } from "../src/shared/ops-contract.ts";
@@ -748,24 +750,35 @@ function fixtureProviderConfigClient() {
 				updatedAt: "2026-07-16T00:00:00.000Z",
 				updatedBy: "ops@example.test",
 			},
-			notice_classifier: {
-				baseUrl: "https://classifier.example.test/v1",
-				credentialConfigured: true,
-				kind: "notice_classifier",
-				latestValidation: {
-					message: "Notice classifier validation passed.",
-					status: "passed",
-					validatedAt: "2026-07-16T00:05:00.000Z",
-					validatedBy: "ops@example.test",
+		},
+		noticeClassification: {
+			backend: "llm",
+			credentials: {
+				decision: null,
+				llm: {
+					baseUrl: "https://classifier.example.test/v1",
+					credentialConfigured: true,
+					latestValidation: {
+						message: "Notice classifier validation passed.",
+						status: "passed",
+						validatedAt: "2026-07-16T00:05:00.000Z",
+						validatedBy: "ops@example.test",
+					},
+					model: "deepseek-v4-flash",
+					provider: "openai-compatible",
+					transport: "chat_completions",
+					updatedAt: "2026-07-16T00:00:00.000Z",
+					updatedBy: "ops@example.test",
 				},
-				model: "deepseek-v4-flash-0731",
-				provider: "openai-compatible",
-				transport: "chat_completions",
-				updatedAt: "2026-07-16T00:00:00.000Z",
-				updatedBy: "ops@example.test",
 			},
 		},
 	};
+	const passed = () => ({
+		message: "Validation passed.",
+		status: "passed" as const,
+		validatedAt: new Date().toISOString(),
+		validatedBy: "ops@example.test",
+	});
 	return {
 		async discoverModels() {
 			return {
@@ -782,10 +795,7 @@ function fixtureProviderConfigClient() {
 		async getStatus() {
 			return status;
 		},
-		async put(
-			kind: "llm" | "embedding" | "reranker" | "notice_classifier",
-			body: Record<string, unknown>,
-		) {
+		async put(kind: "llm" | "embedding" | "reranker", body: Record<string, unknown>) {
 			status.settings[kind] = {
 				baseUrl: String(body.baseUrl),
 				credentialConfigured: true,
@@ -811,7 +821,37 @@ function fixtureProviderConfigClient() {
 			};
 			return status;
 		},
-		async validate(kind: "llm" | "embedding" | "reranker" | "notice_classifier") {
+		async selectNoticeClassification(backend: NoticeClassificationBackend) {
+			status.noticeClassification.backend = backend;
+			return status;
+		},
+		async putNoticeClassificationCredential(
+			backend: NoticeClassificationBackend,
+			body: NoticeClassificationCredentialUpdate,
+		) {
+			status.noticeClassification.credentials[backend] = {
+				baseUrl: body.baseUrl,
+				credentialConfigured: true,
+				latestValidation: passed(),
+				model: body.model,
+				provider: body.provider,
+				transport: "transport" in body ? body.transport : "systemone",
+				updatedAt: new Date().toISOString(),
+				updatedBy: "ops@example.test",
+			};
+			return status;
+		},
+		async validateNoticeClassificationCredential(backend: NoticeClassificationBackend) {
+			const credential = status.noticeClassification.credentials[backend];
+			if (credential) {
+				credential.latestValidation = passed();
+			}
+			return status;
+		},
+		async discoverNoticeClassificationModels() {
+			return { models: ["drex-max", "deepseek-v4-flash"], sampledAt: new Date().toISOString() };
+		},
+		async validate(kind: "llm" | "embedding" | "reranker") {
 			const setting = status.settings[kind];
 			if (setting) {
 				setting.latestValidation = {

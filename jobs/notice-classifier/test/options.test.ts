@@ -3,12 +3,19 @@ import { describe, expect, it } from "vitest";
 import { parseNoticeClassifierOptions } from "../src/options.ts";
 
 describe("notice classifier CLI options", () => {
-	it("defaults to concurrency two and scans all notices", () => {
+	it("defaults to concurrency eight and labels notices still missing labels", () => {
 		expect(parseNoticeClassifierOptions([])).toEqual({
-			concurrency: 2,
-			noticeIds: undefined,
+			concurrency: 8,
+			scope: "missing",
 			modelConfigUrl: undefined,
 		});
+	});
+
+	it("relabels every internal notice with --all", () => {
+		expect(parseNoticeClassifierOptions(["--all"])).toMatchObject({ scope: "all" });
+		expect(() => parseNoticeClassifierOptions(["--all", "--notice-id", "1"])).toThrow(
+			"--all cannot be combined with --notice-id",
+		);
 	});
 
 	it("accepts an explicit concurrency and ordered notice ids", () => {
@@ -21,14 +28,14 @@ describe("notice classifier CLI options", () => {
 				"--notice-id",
 				"9",
 			]),
-		).toEqual({ concurrency: 3, modelConfigUrl: undefined, noticeIds: [12, 9] });
+		).toEqual({ concurrency: 3, modelConfigUrl: undefined, scope: { noticeIds: [12, 9] } });
 	});
 
 	it("accepts an explicit Model Config URL", () => {
 		expect(parseNoticeClassifierOptions(["--model-config-url", "http://127.0.0.1:18003/"])).toEqual({
-			concurrency: 2,
+			concurrency: 8,
 			modelConfigUrl: "http://127.0.0.1:18003",
-			noticeIds: undefined,
+			scope: "missing",
 		});
 	});
 

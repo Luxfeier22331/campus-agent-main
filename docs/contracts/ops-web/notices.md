@@ -90,7 +90,8 @@ OCR 文本只在 Ops 页面显示，不写入公开通知正文。Embedding 读�
 - `GET /api/ops/notices/jobs/:jobName`
 
 允许操作为 `notice-sync`、`notice-backfill`、`notice-rescan`、`notice-classify-missing`、`notice-classify-one`、
-`notice-publish-pending`、`notice-publish-one` 和 `notice-republish-one`。部署环境的所有通知维护操作与
+`notice-reclassify-all`、`notice-publish-pending`、`notice-publish-one` 和 `notice-republish-one`。
+`notice-reclassify-all` 覆盖全部内部通知的标签，切换分类后端或升级判定文本后使用。部署环境的所有通知维护操作与
 定时流水线共用 `notice-pipeline-workflow`，原子启动冲突返回 `409 OPS_NOTICE_JOB_CONFLICT`。
 `jobName` 为 Temporal runId；查询固定到该次运行，不跟随重试或后续运行。单条任务从输入投影 `noticeId`，
 批量任务返回 `null`。`summary.outcome` 保留 success、partial、failed、skipped；运行完成不掩盖部分失败。

@@ -9,13 +9,15 @@
 		"classify": "tsx src/cli.ts",
 		"typecheck": "tsc --noEmit",
 		"test:unit": "vitest run",
-		"classify:local": "tsx src/local-cli.ts"
+		"classify:local": "tsx src/local-cli.ts",
+		"classify:eval": "tsx src/eval-cli.ts"
 	},
 	"dependencies": {
 		"@campus-agent/notice-database": "workspace:*",
 		"campus-contracts": "workspace:*",
 		"ingestion-contracts": "workspace:*",
 		"notice-classifier-core": "workspace:*",
+		"openai": "7.39.0",
 		"pg": "^8.23.1"
 	},
 	"devDependencies": {

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
 	NOTICE_CATEGORIES,
@@ -5,6 +6,10 @@ import {
 	NOTICE_CONTENT_ALIGNMENTS,
 	NOTICE_CONTENT_ALLOWED_ATTRIBUTES,
 	NOTICE_CONTENT_ALLOWED_TAGS,
+	NOTICE_LABEL_CATEGORIES,
+	NOTICE_LABEL_CATEGORY_LABELS,
+	NOTICE_LABEL_INTENT_LABELS,
+	NOTICE_LABEL_INTENTS,
 	NoticeDetailResponseSchema,
 	NoticeListRequestQuerySchema,
 	NoticeListResponseSchema,
@@ -23,6 +28,29 @@ describe("notice contracts", () => {
 	it("keeps every category paired with one Chinese label", () => {
 		expect(Object.keys(NOTICE_CATEGORY_LABELS)).toEqual([...NOTICE_CATEGORIES]);
 		expect(NOTICE_CATEGORY_LABELS.unclassified).toBe("未分类");
+	});
+
+	it("pairs every label category and intent with one Chinese label", () => {
+		expect(Object.keys(NOTICE_LABEL_CATEGORY_LABELS)).toEqual([...NOTICE_LABEL_CATEGORIES]);
+		expect(Object.keys(NOTICE_LABEL_INTENT_LABELS)).toEqual([...NOTICE_LABEL_INTENTS]);
+		expect(NOTICE_LABEL_CATEGORIES).toHaveLength(15);
+	});
+
+	it("keeps the Model Config classification check on the same label values", () => {
+		// Model Config 验证分类后端时自带一份取值列表；改类别时这里会提醒同步改 Go。
+		const source = readFileSync(
+			new URL("../../../apps/model-config/internal/modelconfig/validation.go", import.meta.url),
+			"utf8",
+		);
+		const goList = (name: string) => {
+			const body = new RegExp(`var ${name} = \\[\\]string\\{([^}]*)\\}`, "u").exec(source)?.[1];
+			return [...(body ?? "").matchAll(/"([a-z_]+)"/gu)].map((match) => match[1]);
+		};
+		expect(new Set(goList("noticeClassificationCategories"))).toEqual(
+			new Set(NOTICE_LABEL_CATEGORIES),
+		);
+		expect(goList("noticeClassificationCategories")).toHaveLength(NOTICE_LABEL_CATEGORIES.length);
+		expect(goList("noticeClassificationIntents")).toEqual([...NOTICE_LABEL_INTENTS]);
 	});
 
 	it("defines the bounded normalized notice HTML contract", () => {

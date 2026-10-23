@@ -106,20 +106,19 @@ internal_portal/resources/sha256/<digest>
 
 ## 分类交接
 
-本地 `scripts/notices` 继续读取来源对象用于离线模型比较；在线 `jobs/notice-classifier` 直接读取数据库中
-待分类通知的 ID 与标题。`category` 表示标题所表达的
-通知主要用途，不根据运行日期或标题所述事项是否已过改变。人物、综合宣传、成果展示，以及没有办理、
-参与、权威状态、后续动作或可复用服务信息的纯叙事报道归 `campus_news`；正式竞赛流程、业务办理和
-权威状态按对应分类处理。标题不足以判断唯一分类时才使用 `unclassified`。
+`jobs/notice-classifier` 只给内部通知打标签，外部通知不分类。标签是两个正交字段：`label_category`
+（15 类，业务主题）与 `label_intent`（`action`、`event`、`notice`、`result`、`reference`，读者要做什么），
+值集合由 `campus-contracts/notices` 的 `NOTICE_LABEL_CATEGORIES` 与 `NOTICE_LABEL_INTENTS` 登记，两列同空同有。
+时效不在标签里，读者侧按 intent 与发布时间组合入口。
+分类只依据标题与门户栏目：先按 `notice_type` 走 `notice-classifier-core` 的规则车道，标题信号明确的直接
+给出标签；其余交给 Model Config 当前选择的后端（决策模型或 LLM），两者使用同一份判定文本。判定文本、
+规则与取舍见[通知标签重设计](../../.agents/notes/proposed/feature/2026-10-21-notice-classification-redesign.md)。
 
-离线评估的 `label-gold`、candidate prediction 和 regression case 命名及产物合同见
-[内部门户通知分类](../../scripts/notices/README.md)；这些本地评估产物不进入通知数据库，也不改变在线分类交接。
+默认批量只处理仍无标签的内部通知，不覆盖分类期间发生的人工修改；显式单条分类与「全量重判内部通知」
+覆盖已有标签，后者在切换分类后端或升级判定文本后由运维发起。分类完成不表示通知已发布。
 
-当前每条通知都调用模型分类，不使用标题规则；模型只接收来源对象中的原始 `notice_title`。门户栏目、
-正文、外链标记和 URL 仍按来源、API 与发布合同保存，但不作为分类证据，也不是分类入口的必需字段。
-在线 Job 把结果写回同一通知行。默认批量分类只更新仍为空的分类，不覆盖分类期间发生的人工修改；
-显式单条分类可以覆盖已有值。`unclassified` 是合法分类，不等于待分类。本地 JSONL 输出只用于开发和
-模型比较，不作为 publisher 输入。分类完成不表示通知已发布。
+旧 `category` 列在第二次发布前继续服务学生端、发布与 Ops 编辑；新分类 Job 不再写它，过渡期新通知
+没有旧分类，不会被发布。
 
 ## 当前处理问题
 
@@ -146,8 +145,9 @@ chunk/embedding 制品，正文变化在下一次完整检索刷新进入 AI 搜
 ### PostgreSQL
 
 `notices.notice_types` 和 `notices.organizations` 保存门户 ID 与名称映射，`notices.categories` 保存允许的
-单一分类。`notices.notices` 从采集完成后即存在，保存通知 ID、类型、可空组织 ID、原始标题、发布时间、
-外链标记与 URL、可空 `category`、`is_published` 以及发布后写入的 `content_html`、`content_text`。
+旧分类。`notices.notices` 从采集完成后即存在，保存通知 ID、类型、可空组织 ID、原始标题、发布时间、
+外链标记与 URL、可空 `category`、可空 `label_category` 与 `label_intent`（只允许内部通知有值）、
+`is_published` 以及发布后写入的 `content_html`、`content_text`。
 
 门户确认删除的通知保留行与来源对象，仅记录 `unavailable_at`：detail 探测返回门户固定删除/失效消息时采集器写入该时间戳，
 学生端查询、班车关联与检索分块输入过滤 `unavailable_at IS NULL`；复核重新取回该通知时登记行为清除 `unavailable_at`。

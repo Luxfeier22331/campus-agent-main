@@ -80,7 +80,7 @@ export class LocalNoticeJobStore implements NoticeJobStore {
 			family === "collection"
 				? ["notice-sync", "notice-backfill", "notice-rescan"]
 				: family === "classification"
-					? ["notice-classify-missing", "notice-classify-one"]
+					? ["notice-classify-missing", "notice-classify-one", "notice-reclassify-all"]
 					: ["notice-publish-pending", "notice-publish-one", "notice-republish-one"];
 		return (
 			[...this.jobs.values()].find(
@@ -194,6 +194,11 @@ export function localNoticeCommand(
 			};
 		case "notice-classify-missing":
 			return { args: ["--dir", "jobs/notice-classifier", "run", "classify:local"], env };
+		case "notice-reclassify-all":
+			return {
+				args: ["--dir", "jobs/notice-classifier", "run", "classify:local", "--all"],
+				env,
+			};
 		case "notice-classify-one":
 			return {
 				args: [
