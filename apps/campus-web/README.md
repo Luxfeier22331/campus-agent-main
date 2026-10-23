@@ -52,6 +52,24 @@ pnpm typecheck --filter=campus-web
 完整产品开发使用根 `pnpm dev`。文档来源维护使用 `docs-source/` 声明、`docs:source:check` 与 `docs:source:publish`；
 来源合同、构建输入、缓存目录和交付行为由文档站架构、合同和可执行脚本维护。
 
+## 静态预览站发布
+
+GitHub Pages 上有一份只读静态站，供不方便运行本地服务的人查看校园地图：
+
+```bash
+pnpm --dir apps/campus-web build                                    # 生成 dist/client
+pnpm --dir apps/campus-web static:prepare -- dist/client https://luxfeier22331.github.io
+pnpm --dir apps/campus-web static:publish                           # 推送到 Pages 仓库
+```
+
+`static:prepare` 补上静态托管缺失的两件事：注入 Worker 原本在响应时写入的运行时配置，并为每个应用路由
+生成同名目录外壳。`static:publish` 用临时索引把 `dist/client` 提交到
+`Luxfeier22331/Luxfeier22331.github.io`，不改动工作区。
+
+该站点必须发布在 Pages 的**根路径**：应用按 `/assets/…`、`/campus-map/…` 这样的绝对路径取资源，发布到
+项目子路径会让这些请求全部 404。发布到用户站点仓库即可满足。站点没有后端，因此登录、通知和问答不可用；
+地图、班车、食堂和文档是只读静态视图。
+
 ## 相关文档
 
 - `docs/product/web.md`
