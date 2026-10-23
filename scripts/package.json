@@ -4,7 +4,6 @@
 	"type": "module",
 	"scripts": {
 		"test:ci": "tsx --test ci/*.test.ts",
-		"test:deploy": "tsx --test deploy/*.test.ts",
 		"test:dev": "tsx --test dev/*.test.ts dev/*/*.test.ts",
 		"test:docs": "tsx --test docs/*.test.ts",
 		"test:hooks": "tsx --test hooks/*.test.ts",

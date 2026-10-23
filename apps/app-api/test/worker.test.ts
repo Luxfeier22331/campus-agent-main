@@ -206,13 +206,7 @@ describe("app-api worker foundation", () => {
 		expect(parsedWranglerConfig.workers_dev).toBe(false);
 		expect(parsedWranglerConfig.preview_urls).toBe(false);
 		expect(staging).not.toHaveProperty("routes");
-		expect(staging?.vars).toMatchObject({
-			AUTH_SHELL_ORIGIN: "https://campus-staging.mucwiki-edge.link",
-			DEPLOYMENT_ENVIRONMENT: "staging",
-			CLUSTER_PRIVATE_ORIGIN:
-				"http://cluster-private-ingress.campus-agent-staging.svc.cluster.local:8000",
-		});
-		expect(staging?.vars).not.toHaveProperty("CLUSTER_PRIVATE_BASE_URL");
+		expect(staging).not.toHaveProperty("vars");
 		expect(staging?.hyperdrive).toEqual([expect.objectContaining({ binding: "APP_API_DB" })]);
 		expect(staging?.vpc_services).toEqual([
 			expect.objectContaining({ binding: "CLUSTER_PRIVATE_API", remote: true }),

@@ -11,9 +11,6 @@ DEPLOYMENT_ENVIRONMENT = "development"
 STATUS_CAMPUS_ORIGIN = "http://127.0.0.1:27014"
 STATUS_QA_ORIGIN = "http://127.0.0.1:27031"
 
-[env.staging.vars]
-DEPLOYMENT_ENVIRONMENT = "staging"
-
 [[env.staging.kv_namespaces]]
 binding = "STATUS_SNAPSHOT"
 id = "00000000000000000000000000000000"

@@ -1,14 +1,14 @@
 # Agent Note: Staging 与 production 共用 chat.muc.wiki 并按泳道分发
 
-Status: proposed
+Status: implemented
 
 ## 背景
 
-产品入口计划迁到 `chat.muc.wiki`。staging 需要直接邀请外部用户体验，production 尚未建立。
+产品入口迁到 `chat.muc.wiki`。staging 需要直接邀请外部用户体验，production 尚未建立。
 目标是两个环境共用这一个主机名，通过泳道选择访问哪个环境，而不是为 staging 另配主机名。
 `staging.chat.muc.wiki` 这类四级主机名不在 Universal SSL 的 `*.muc.wiki` 覆盖范围内，不作为方案。
 
-当前每个环境的 `campus-web` 直接挂自己的域名，经 Service Binding 调用同环境 `app-api`，再连接各自的
+此前每个环境的 `campus-web` 直接挂自己的域名，经 Service Binding 调用同环境 `app-api`，再连接各自的
 Hyperdrive、VPC Service 和 Kubernetes namespace；Cloudflare Terraform 与 Kargo 按环境管理域名和流量版本，
 见[运行时发布架构](../../../../docs/architecture/system/runtime-release.md)。Workers 路由只按主机名和路径
 匹配，不能按 Cookie 选择 Worker。两个环境共用一个浏览器 origin 后，还会在以下位置互相影响：
@@ -21,12 +21,12 @@ Hyperdrive、VPC Service 和 Kubernetes namespace；Cloudflare Terraform 与 Kar
 - [Federation 合同](../../../../docs/contracts/app-api/federation.md)要求 metadata host 与部署 origin 一致，
   两个环境的 issuer 不能同时落在同一 origin。
 
-## 提案
+## 决策
 
 ### 边缘路由
 
-在 `apps/` 下新增 `edge-router` Worker，以 Worker route 挂载 `chat.muc.wiki/*`，作为该主机名唯一的 Worker，
-通过 fetch 形式的 Service Binding 把请求转给目标环境的 `campus-web`。各环境 `campus-web` 不再自行挂载该域名，
+`apps/edge-router` Worker 以 Worker route 挂载 `chat.muc.wiki/*`，作为该主机名唯一的 Worker，
+通过 fetch 形式的 Service Binding 把请求转给目标环境的 `campus-web`。各环境 `campus-web` 不自行挂载该域名，
 下游 `app-api` 和集群链路不变。两个环境从 Worker 到数据库、集群都是独立部署，只需要在入口选择一次环境，
 泳道标记不向下游服务传播。
 
@@ -42,7 +42,8 @@ router 只做泳道判定、Cookie 隔离和转发，不读取产品数据、不
 for SaaS 接入：`mucwiki-edge.link` zone 以 `saas-fallback.mucwiki-edge.link` 为 fallback origin，把 `chat.muc.wiki`
 登记为 custom hostname（Cloudflare 签发 DV 证书，TXT 验证），再在该 zone 上挂载 `chat.muc.wiki/*` Worker route。
 `muc.wiki` 的 owner 只维护 DNS only 的 `chat` CNAME 与首次签发所需的 TXT 记录。Free 套餐包含 100 个 custom
-hostname，足够当前用途。
+hostname，足够当前用途。custom hostname 与证书生效后才把 Campus 公开 origin 改为 `https://chat.muc.wiki`，
+旧 `campus-staging.mucwiki-edge.link` 301 到它，邮件与认证链接不会先指向尚未生效的域名。
 
 - 默认环境由 router 配置决定。production 建立前默认环境是 staging；production 上线时只把默认目标改为
   production。
@@ -103,18 +104,15 @@ hostname，足够当前用途。
 
 production 建立前只有 staging 环境仓，router 以 `edge-router-staging` 加入现有 Worker 候选链：源码仓在
 `scripts/release/workers.mts` 登记并构建 bundle，GitOps 注入 `DEFAULT_LANE` 与 `CAMPUS_WEB_STAGING` binding，
-platform root 管理 SaaS fallback 与 custom hostname，traffic root 创建 `chat.muc.wiki/*` Worker route。接入分两步：
-先发布 router 与 route，公开 origin 仍为旧 staging 主机名；custom hostname 与证书生效后再把 Campus 公开 origin
-改为 `https://chat.muc.wiki`，并把旧主机名 301 到它，避免邮件与认证链接先指向尚未生效的域名。新增 Worker 前发布的候选不含
-router，两边读取已发布候选时只要求其发布时的 Worker 集合，新组装的候选必须包含 router。源码仓须先合并，使
-Source 候选含有 router，GitOps 再要求它。
+platform root 管理 SaaS fallback 与 custom hostname，traffic root 创建 `chat.muc.wiki/*` Worker route。
+新增 router 前发布的候选不含它，两边读取已发布候选时只要求其发布时的 Worker 集合，新组装的候选必须包含 router。
 
 现有 GitOps 只允许单一版本承接 100% 流量，router 与其他 Worker 一样按此发布，不使用渐进式部署或版本覆盖；
 回滚即重新选择上一版本。router 的变更直接影响所有环境，按 production 标准评审；逻辑保持在上述判定、隔离和
 转发之内。production 建立时重新评估 router 的名称、所属环境仓与发布方式。
 
-同批更新[运行时发布架构](../../../../docs/architecture/system/runtime-release.md)和
-[产品运行时](../../../../docs/architecture/system/product-runtime.md)中的域名所有权与浏览器路径。
+域名所有权与浏览器路径的现行描述见[运行时发布架构](../../../../docs/architecture/system/runtime-release.md)和
+[产品运行时](../../../../docs/architecture/system/product-runtime.md)。
 
 ## 未采用方案
 
@@ -130,27 +128,22 @@ Source 候选含有 router，GitOps 再要求它。
 - **用 Snippets 代替 router Worker。** 不新增 Worker 部署单元，但 Snippets 需要 Pro 以上套餐，单次执行上限 5 ms，
   且没有 Service Binding，无法直接把请求交给另一环境的 Worker。
 
-## 可观察结果
+## 后果
 
-- 访问 `chat.muc.wiki` 无泳道时进入默认环境；`?lane=staging` 后后续请求进入 staging，`?lane=prod` 后进入
-  production（未部署时回到默认环境）；
-- 两个环境可在同一浏览器中各自保持登录，切换泳道不会注销另一环境；
-- 转发到任一环境的请求不包含另一环境的 Better Auth Cookie；
-- 同一公开 URL 在两个环境的边缘缓存响应互不覆盖；切换泳道后，浏览器不再使用另一环境缓存的公开响应；
-- 非导航请求上的 `?lane=` 参数不改变泳道；
-- staging 发出的验证和重置链接在没有泳道 Cookie 的浏览器中仍完成于 staging；
-- 两个泳道的 discovery 各自返回本泳道 issuer，token、userinfo、JWKS 不依赖 Cookie 到达签发泳道；
-- 任一泳道的用户登录另一泳道的 relying party 时，授权、登录与 consent 在签发泳道完成；
+- 访问 `chat.muc.wiki` 无泳道时进入默认环境；`?lane=staging` 后后续请求进入 staging，`?lane=prod` 写入
+  production Cookie，production 未部署时仍由默认环境服务；非导航请求上的 `?lane=` 不改变泳道。
+- 两个环境可在同一浏览器中各自保持登录，转发到任一环境的请求不含另一环境的 Better Auth Cookie；同一公开 URL
+  在两个环境的边缘缓存互不覆盖。
+- staging 发出的验证、重置和邀请链接在没有泳道 Cookie 的浏览器中仍完成于 staging；文档和测试指向 staging
+  页面时同样带 `?lane=staging`，不依赖当前默认泳道。
 - production 上线只修改 router 的默认目标，所有未主动选择 staging 的用户进入 production。
-
-## 风险
-
 - router 是两个环境共用的单点，无法先在 staging 验证再晋级；router 故障会同时中断两个环境。现有发布流程
   一次切换 100% 流量，只能靠评审和单元测试降低风险。
 - 静态资源请求原本免费，经过 router 后每个都计一次 Worker 请求。Service Binding 不另计请求费，CPU 时间按两个
   Worker 合计；按官方文档，Service Binding 默认在同一线程执行，不增加延迟。按当前流量，额外费用可以忽略。
 - 官方文档未说明经 Service Binding 进入带静态资源的 Worker 时，`run_worker_first` 的排除规则是否生效、资源是否
-  仍直接由资源层返回。若不生效，静态资源会经过 `campus-web` 的 Worker 代码，行为和计费都会改变；实现前须实测。
+  仍直接由资源层返回；router 单元测试使用伪造 binding，同样不覆盖这一点。若不生效，静态资源会经过 `campus-web`
+  的 Worker 代码，行为和计费都会改变。
 - `Clear-Site-Data: "cache"` 清除的是整个 origin 的浏览器缓存，包括带 hash 的静态资源，切换后首次加载需要重新下载。
 - staging 不做访问控制，所有人都可进入。团队成员在 staging 泳道时，production 会话 Cookie 仍在同一 origin 下：
   页面脚本读不到 HttpOnly Cookie，router 也会剥离它，但两个环境不再有浏览器 origin 级隔离。若 production

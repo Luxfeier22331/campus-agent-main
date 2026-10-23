@@ -46,4 +46,4 @@ pnpm --dir apps/edge-router build
 
 - `docs/architecture/system/product-runtime.md`
 - `docs/architecture/system/runtime-release.md`
-- `.agents/notes/proposed/architecture/2026-10-18-shared-domain-environment-lanes.md`
+- `.agents/notes/implemented/architecture/2026-10-18-shared-domain-environment-lanes.md`

@@ -13,7 +13,7 @@ status: active
 
 | 项目 | 值 |
 | --- | --- |
-| 登录地址 | `https://campus-staging.mucwiki-edge.link/account/login` |
+| 登录地址 | `https://chat.muc.wiki/account/login?lane=staging` |
 | 邮箱 | `agent-staging@muc.edu.cn` |
 | 密码 | `CampusAgent-Staging-2026!` |
 | 显示名称 | Agent 测试用户 |

@@ -9,7 +9,6 @@ const parsedWranglerConfig = parse(wranglerConfig) as {
 			routes?: unknown;
 			secrets?: unknown;
 			services?: Array<{ binding?: string; service?: string }>;
-			vars?: Record<string, string>;
 		};
 	};
 	observability?: unknown;
@@ -30,9 +29,7 @@ describe("campus web staging config", () => {
 		expect(parsedWranglerConfig.preview_urls).toBe(false);
 		expect(staging).not.toHaveProperty("routes");
 		expect(staging).not.toHaveProperty("secrets");
-		expect(staging?.vars).toEqual({
-			APP_API_BASE_URL: "https://app-api.internal",
-		});
+		expect(staging).not.toHaveProperty("vars");
 		expect(staging?.services).toEqual([
 			expect.objectContaining({ binding: "APP_API", service: "app-api-staging" }),
 		]);

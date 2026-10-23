@@ -29,7 +29,7 @@ status: active
 
 - staging 与 production 共用公共 Campus 主机名。`edge-router` 是该主机名唯一挂载的 Worker，按
   `__Host-campus_lane` 选择环境并经 Service Binding 转给对应 `campus-web`；无泳道时进入默认环境。
-  OIDC 按泳道各有固定 issuer，服务端调用按 issuer 路径路由（见 [Federation 合同](../../contracts/app-api/federation.md)）。选择理由见[共用域名与泳道分发](../../../.agents/notes/proposed/architecture/2026-10-18-shared-domain-environment-lanes.md)。
+  OIDC 按泳道各有固定 issuer，服务端调用按 issuer 路径路由（见 [Federation 合同](../../contracts/app-api/federation.md)）。选择理由见[共用域名与泳道分发](../../../.agents/notes/implemented/architecture/2026-10-18-shared-domain-environment-lanes.md)。
 - `campus-web` 通过 Service Binding 或已配置的 app-api origin 调用 `app-api`。
 - `status-web` 通过独立的 `status.*` origin 提供公开页面和只读状态快照；它不经由
   `campus-web` 或 `app-api` 代理状态数据。

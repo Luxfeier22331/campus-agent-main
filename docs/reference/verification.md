@@ -112,7 +112,7 @@ Node/Go 源码任务，不依赖远端引用或自动 fetch。PR 继续按真实
 `pnpm lint` 通过排除 validation group 保持全仓静态检查语义；动态 repository checks 由统一 evidence
 executor 负责，不在 lint hook 中复制一套命令。
 
-`pnpm test:tooling` 串行执行 `scripts` tooling workspace 的 CI、deploy、dev、docs、hooks、notices 和
+`pnpm test:tooling` 串行执行 `scripts` tooling workspace 的 CI、dev、docs、hooks、infra、notices 和
 release 测试组，各组独立缓存。脚本的业务依赖属于 tooling workspace，不进入根包的全局依赖 hash。
 各组声明实际读取的源码、工作流、文档、配置和工具链；CI 组检查全仓合同，保留广泛输入。
 读取 Git 文件清单的组额外使用对应范围的跟踪路径摘要，文件内容仍由 Turbo 输入负责；实际

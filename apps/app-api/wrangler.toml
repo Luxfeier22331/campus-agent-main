@@ -34,11 +34,6 @@ required = [
   "OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 ]
 
-[env.staging.vars]
-DEPLOYMENT_ENVIRONMENT = "staging"
-AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"
-CLUSTER_PRIVATE_ORIGIN = "http://cluster-private-ingress.campus-agent-staging.svc.cluster.local:8000"
-
 [env.staging.images]
 binding = "DINING_IMAGES"
 

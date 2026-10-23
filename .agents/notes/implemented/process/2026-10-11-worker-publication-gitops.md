@@ -23,6 +23,10 @@ GitOps 校验 main 发布 workflow、计划中的 SHA、镜像发布 job 与必�
 GitOps checkout 精确 Source SHA，使用 Source 构建脚本准备 Docs 快照、Worker bundle，在自有 GHCR
 保存 digest 固定的制品。对象存储凭据只进入快照步骤，公开构建值进入编译步骤。
 
+Source `wrangler.toml` 的 staging 环境只声明 binding 与 secret 名称，不写环境变量值：制品构建删除 `vars`，
+GitOps 部署时整体注入。源码里的 staging 变量值从不生效，却会被测试断言而显得仍是事实；共用域名迁移后
+`AUTH_SHELL_ORIGIN` 即在源码里停留在旧主机名。`local` 环境的变量仍由源码维护。
+
 同一 Source 内容的 bundle digest 必须稳定：GitOps 配置变化会重建全部 Worker，digest 若随构建
 时间变化，就会让未变化的 Worker 进入选版并重新切流。构建脚本不收录 wrangler dry-run 在 Worker
 输出目录写入的带生成时间 README；GitOps 打包时固定 tar 排序、mtime 与属主，并固定 OCI `created` 注解。

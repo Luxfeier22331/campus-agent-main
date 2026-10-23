@@ -1,6 +1,5 @@
 export const TOOLING_GROUPS = [
 	"ci",
-	"deploy",
 	"dev",
 	"docs",
 	"hooks",
@@ -31,9 +30,6 @@ export function toolingGroupsForFiles(files: readonly string[]): ToolingGroup[] 
 		}
 		if (file === ".github" || file.startsWith(".github/") || file.startsWith("scripts/ci/")) {
 			selected.add("ci");
-		}
-		if (file === "deploy" || file.startsWith("deploy/") || file.startsWith("scripts/deploy/")) {
-			selected.add("deploy");
 		}
 		if (file === "dev" || file.startsWith("dev/") || file.startsWith("scripts/dev/")) {
 			selected.add("dev");

@@ -24,30 +24,6 @@
 			"outputs": [],
 			"outputLogs": "new-only"
 		},
-		"test:deploy": {
-			"dependsOn": ["@campus-agent/document-ocr#source"],
-			"inputs": [
-				"package.json",
-				"ci/repository-test.mts",
-				"ci/tooling-tasks.mts",
-				"ci/turbo.mts",
-				"toolchain/**",
-				"$TURBO_ROOT$/package.json",
-				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"$TURBO_ROOT$/turbo.json",
-				"$TURBO_ROOT$/flake.nix",
-				"$TURBO_ROOT$/flake.lock",
-				"deploy/**",
-				"release/**",
-				"ci/image-scope.mts",
-				"ci/scope.mts",
-				"ci/validation-profiles.mts",
-				"$TURBO_ROOT$/apps/*/wrangler*.toml"
-			],
-			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
-			"outputs": [],
-			"outputLogs": "new-only"
-		},
 		"test:infra": {
 			"dependsOn": ["@campus-agent/document-ocr#source"],
 			"inputs": [
@@ -214,7 +190,6 @@
 		"test": {
 			"dependsOn": [
 				"test:ci",
-				"test:deploy",
 				"test:dev",
 				"test:docs",
 				"test:hooks",

@@ -17,9 +17,6 @@ STATUS_WEB_PUBLIC_ORIGIN = "http://127.0.0.1:8788"
 binding = "APP_API"
 service = "app-api-local"
 
-[env.staging.vars]
-APP_API_BASE_URL = "https://app-api.internal"
-
 [[env.staging.services]]
 binding = "APP_API"
 service = "app-api-staging"

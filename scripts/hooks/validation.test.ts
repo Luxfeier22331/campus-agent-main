@@ -80,7 +80,7 @@ function fixture() {
 		futureFlags: { affectedUsingTaskInputs: true },
 		tasks: {
 			...Object.fromEntries(
-				["ci", "deploy", "dev", "docs", "hooks", "infra", "notices", "release"].map((group) => [
+				["ci", "dev", "docs", "hooks", "infra", "notices", "release"].map((group) => [
 					`@campus-agent/tooling#test:${group}`,
 					{
 						...rootTask,

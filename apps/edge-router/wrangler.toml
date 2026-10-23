@@ -12,9 +12,6 @@ DEFAULT_LANE = "staging"
 binding = "CAMPUS_WEB_STAGING"
 service = "campus-web-local"
 
-[env.staging.vars]
-DEFAULT_LANE = "staging"
-
 [[env.staging.services]]
 binding = "CAMPUS_WEB_STAGING"
 service = "campus-web-staging"
