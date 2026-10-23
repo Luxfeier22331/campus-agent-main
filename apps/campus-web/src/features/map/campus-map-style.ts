@@ -30,6 +30,25 @@ const SOUTH_GATEHOUSE_FILTER = [
 	["==", ["get", "layer"], "building"],
 	["==", ["get", "fid"], 60],
 ] as unknown as FilterSpecification;
+const SPORT_COURT_NAMES = ["篮球场", "排球场", "网球场"] as const;
+const SPORT_COURT_FILTER = [
+	"match",
+	["get", "name"],
+	[...SPORT_COURT_NAMES],
+	true,
+	false,
+] as unknown as ExpressionSpecification;
+const SPORT_PATTERN_FILTER = [
+	"all",
+	["==", ["get", "layer"], "sport"],
+	SPORT_COURT_FILTER,
+] as unknown as FilterSpecification;
+const BUILDING_SPORT_PATTERN_FILTER = [
+	"all",
+	["==", ["get", "layer"], "building"],
+	["==", ["get", "category"], "体育场地"],
+	SPORT_COURT_FILTER,
+] as unknown as FilterSpecification;
 export interface CampusMapProfile {
 	assetUrl: string;
 	attribution: string;
@@ -189,12 +208,7 @@ export function createCampusMapStyle(
 				type: "fill",
 			},
 			{
-				filter: [
-					"all",
-					["==", ["get", "layer"], "sport"],
-					["!=", ["get", "name"], "气膜馆"],
-					["!=", ["get", "name"], "田径场"],
-				],
+				filter: SPORT_PATTERN_FILTER,
 				id: "campus-sport-pattern",
 				paint: {
 					"fill-pattern": createSportPatternExpression(),
@@ -205,13 +219,7 @@ export function createCampusMapStyle(
 				type: "fill",
 			},
 			{
-				filter: [
-					"all",
-					["==", ["get", "layer"], "building"],
-					["==", ["get", "category"], "体育场地"],
-					["!=", ["get", "name"], "气膜馆"],
-					["!=", ["get", "name"], "田径场"],
-				],
+				filter: BUILDING_SPORT_PATTERN_FILTER,
 				id: "campus-building-sport-pattern",
 				paint: {
 					"fill-pattern": createSportPatternExpression(),
