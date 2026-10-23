@@ -16,7 +16,7 @@ const BUILDING_LABEL_FILTER = [
 	"all",
 	["has", "name"],
 	["==", ["get", "layer"], "building"],
-	["!in", ["get", "name"], ["literal", ["北门门卫", "南门门卫"]]],
+	["!", ["in", ["get", "name"], ["literal", ["北门门卫", "南门门卫"]]]],
 ] as unknown as FilterSpecification;
 const NORTH_GATEHOUSE_FILTER = [
 	"all",

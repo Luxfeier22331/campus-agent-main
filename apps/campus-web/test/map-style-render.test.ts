@@ -124,7 +124,7 @@ describe("campus map style", () => {
 					"all",
 					["has", "name"],
 					["==", ["get", "layer"], "building"],
-					["!in", ["get", "name"], ["literal", ["北门门卫", "南门门卫"]]],
+					["!", ["in", ["get", "name"], ["literal", ["北门门卫", "南门门卫"]]]],
 				],
 				layout: expect.objectContaining({
 					"text-allow-overlap": true,
