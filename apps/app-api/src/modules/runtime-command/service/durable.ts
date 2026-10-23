@@ -1,0 +1,341 @@
+import {
+	AGENT_CONTROL_FAILURE_MESSAGE,
+	AgentControlTransportError,
+	isSafeAgentControlErrorCode,
+	parseExecutionFinalizationResponsePayload,
+	type ToolExecutionResponse,
+} from "../../integration";
+import type { LiveRunEvent } from "../../integration/live-run-events";
+import { executionFinalizationErrorResponse, toTerminalChatStreamEvent } from "./stream";
+import type { ChatCommandResponse, ChatCommandStreamEvent } from "./types";
+
+export interface DurableRunEventContext {
+	acceptedAt: string;
+	requestId: string;
+}
+
+export type DurableTerminalSourceEvent =
+	| "execution.cancelled"
+	| "execution.completed"
+	| "execution.failed";
+
+export interface DurableTerminalRunOutcome {
+	response: ToolExecutionResponse;
+	sourceEvent: DurableTerminalSourceEvent;
+}
+
+function asJsonRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null;
+}
+
+export function chatStreamEventsForFinalized(input: {
+	context: DurableRunEventContext;
+	finalized: ChatCommandResponse;
+	occurredAt: string;
+	sourceEvent?: DurableTerminalSourceEvent;
+	sequence?: number;
+}): ChatCommandStreamEvent[] {
+	const terminal = toTerminalChatStreamEvent({
+		occurredAt: input.occurredAt,
+		response: input.finalized,
+		...(input.sequence === undefined ? {} : { sequence: input.sequence }),
+		...(input.sourceEvent ? { sourceEvent: input.sourceEvent } : {}),
+	});
+	return [terminal];
+}
+
+export function answerDeltaEventFromDurableRunEvent(
+	context: DurableRunEventContext,
+	event: LiveRunEvent,
+): ChatCommandStreamEvent | null {
+	if (event.eventType !== "answer.delta") {
+		return null;
+	}
+	assertDurableEventRunMatches(
+		context,
+		event,
+		"Durable answer delta event request_id does not match the accepted request.",
+	);
+	const requestId =
+		typeof event.payload.request_id === "string" && event.payload.request_id.trim()
+			? event.payload.request_id.trim()
+			: context.requestId;
+	if (requestId !== context.requestId) {
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
+			message: "Durable answer delta event request_id does not match the accepted request.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	const messageId = getRequiredString(
+		event.payload,
+		"message_id",
+		"Durable answer delta event message_id is required.",
+	);
+	const delta = event.payload.delta;
+	if (typeof delta !== "string" || delta.length === 0) {
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
+			message: "Durable answer delta event delta is required.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	return {
+		data: {
+			delta,
+			messageId,
+			occurredAt: event.occurredAt,
+			requestId: context.requestId,
+			...(event.answerIndex === undefined
+				? { sequence: event.sequence }
+				: { answerIndex: event.answerIndex }),
+			status: "streaming",
+		},
+		event: "answer.delta",
+	};
+}
+
+function getRequiredString(record: Record<string, unknown>, key: string, message: string): string {
+	const value = record[key];
+	if (typeof value !== "string" || value.trim() === "") {
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
+			message,
+			retryable: true,
+			status: 502,
+		});
+	}
+	return value;
+}
+
+function getRequiredBoolean(
+	record: Record<string, unknown>,
+	key: string,
+	message: string,
+): boolean {
+	const value = record[key];
+	if (typeof value !== "boolean") {
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
+			message,
+			retryable: true,
+			status: 502,
+		});
+	}
+	return value;
+}
+
+export function assertDurableEventRunMatches(
+	context: DurableRunEventContext,
+	event: LiveRunEvent,
+	message: string,
+) {
+	if (event.requestId !== context.requestId) {
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
+			message,
+			retryable: true,
+			status: 502,
+		});
+	}
+}
+
+export function lifecycleEventFromDurableRunEvent(
+	context: DurableRunEventContext,
+	event: LiveRunEvent,
+): ChatCommandStreamEvent | null {
+	if (event.answerIndex !== undefined) {
+		return null;
+	}
+	assertDurableEventRunMatches(
+		context,
+		event,
+		"Durable request event request_id does not match the accepted request.",
+	);
+	const baseData = {
+		occurredAt: event.occurredAt,
+		requestId: context.requestId,
+		sequence: event.sequence,
+	};
+	if (event.eventType === "run.retrieval_status") {
+		const { source, status } = event.payload;
+		if (
+			source !== "campus" ||
+			typeof status !== "string" ||
+			!["started", "completed", "no_match", "failed", "canceled"].includes(status)
+		) {
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
+				message: "Invalid retrieval status",
+				retryable: false,
+				status: 502,
+			});
+		}
+		return { event: "retrieval.status", data: { ...baseData, source, status } };
+	}
+	if (event.eventType === "run.queued") {
+		return {
+			data: {
+				...baseData,
+				status: "queued",
+			},
+			event: "execution.queued",
+		};
+	}
+	if (event.eventType === "run.started") {
+		return {
+			data: {
+				...baseData,
+				status: "running",
+			},
+			event: "execution.running",
+		};
+	}
+	if (event.eventType === "run.progress") {
+		const phase = event.payload.phase;
+		if (phase !== "generating" && phase !== "finalizing") {
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
+				message: "Durable run progress event phase is invalid.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		return {
+			data: {
+				...baseData,
+				phase,
+				status: "running",
+			},
+			event: "execution.phase",
+		};
+	}
+	if (event.eventType === "run.answer_started") {
+		return {
+			data: {
+				...baseData,
+				phase: "generating",
+				status: "running",
+			},
+			event: "execution.phase",
+		};
+	}
+	return null;
+}
+
+export function finalizationResponseFromDurableRunEvent(
+	context: DurableRunEventContext,
+	event: LiveRunEvent,
+): ToolExecutionResponse | null {
+	const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, event);
+	return terminalOutcome?.response ?? null;
+}
+
+export function durableTerminalOutcomeFromDurableRunEvent(
+	context: DurableRunEventContext,
+	event: LiveRunEvent,
+): DurableTerminalRunOutcome | null {
+	if (event.eventType === "run.canceled") {
+		assertDurableEventRunMatches(
+			context,
+			event,
+			"Durable request canceled event request_id does not match the accepted request.",
+		);
+		return {
+			response: executionFinalizationErrorResponse({
+				code: "execution_cancelled",
+				message: "The request was cancelled.",
+				retryable: false,
+				status: "cancelled",
+			}),
+			sourceEvent: "execution.cancelled",
+		};
+	}
+	if (event.eventType === "run.failed") {
+		assertDurableEventRunMatches(
+			context,
+			event,
+			"Durable request failed event request_id does not match the accepted request.",
+		);
+		if (event.payload.request_id !== context.requestId) {
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
+				message: "Durable run failed event request_id does not match the accepted request.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		const error = asJsonRecord(event.payload.error);
+		if (!error) {
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
+				message: "Durable run failed event error must be an object.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		const code = getRequiredString(
+			error,
+			"code",
+			"Durable run failed event error.code is required.",
+		).trim();
+		if (!isSafeAgentControlErrorCode(code)) {
+			throw new AgentControlTransportError({
+				code: "agent_control_invalid_response",
+				message: "Durable run failed event error.code is invalid.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		getRequiredString(error, "message", "Durable run failed event error.message is required.");
+		const retryable = getRequiredBoolean(
+			error,
+			"retryable",
+			"Durable run failed event error.retryable is required.",
+		);
+		return {
+			response: executionFinalizationErrorResponse({
+				code,
+				message: AGENT_CONTROL_FAILURE_MESSAGE,
+				retryable,
+			}),
+			sourceEvent: "execution.failed",
+		};
+	}
+	if (event.eventType !== "finalization.completed") {
+		return null;
+	}
+	assertDurableEventRunMatches(
+		context,
+		event,
+		"Durable finalization event request_id does not match the accepted request.",
+	);
+	if (event.visibility !== "internal") {
+		return null;
+	}
+	if (event.payload.request_id !== context.requestId) {
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
+			message: "Durable finalization event request_id does not match the accepted request.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	const response = asJsonRecord(event.payload.response);
+	if (!response) {
+		throw new AgentControlTransportError({
+			code: "agent_control_invalid_response",
+			message: "Durable finalization event response must be an object.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	return {
+		response: parseExecutionFinalizationResponsePayload(response),
+		sourceEvent: "execution.completed",
+	};
+}

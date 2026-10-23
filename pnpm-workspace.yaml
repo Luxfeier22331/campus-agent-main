@@ -1,0 +1,44 @@
+packages:
+  - "apps/*"
+  - "jobs/*"
+  - "packages/*"
+  - "packages/domains/*"
+  - "scripts"
+
+overrides:
+  # 本节是 override 的唯一当前清单。上游依赖图不再请求对应范围后才能删除条目，
+  # 并使用 pnpm why、frozen install 和依赖漏洞扫描确认解析结果。
+  "@xmldom/xmldom@<0.9.12": "0.9.12"
+  # minimatch 通过 Testcontainers 和 React Email 仍请求 brace-expansion；
+  # 这些链路不再落入受影响范围后删除。
+  "brace-expansion@>=5.0.0 <5.0.12": "5.0.12"
+  # AJV 及 schema-utils 仍由 contracts、Campus Web、ingestion 和 webpack 链路消费；
+  # 它们不再请求旧 fast-uri 后删除。
+  "fast-uri@<3.1.8": "3.1.8"
+  # Testcontainers、React Email 和 archiver/glob 链仍请求旧 minimatch；
+  # 其依赖范围收敛后删除。
+  "minimatch@>=5.0.0 <10.2.5": "10.2.5"
+  # Temporal 与 Testcontainers 的 gRPC/proto 链仍消费 protobufjs；两条链路均不再请求旧版本后删除。
+  "protobufjs@<7.6.5": "7.6.5"
+  # Cloudflare 本地开发与 Worker 测试使用的 Miniflare 固定旧 sharp；
+  # 上游依赖不再请求受影响版本后删除。
+  "sharp@<0.35.4": "0.35.4"
+  # Miniflare 固定 undici 7.29.0；上游更新到安全版本后删除，不影响 undici 8 链路。
+  "miniflare>undici@7.29.0": "7.29.1"
+  # markdownlint-cli2 仍固定 smol-toml 1.8.0，落在 parseKey 二次时间拒绝服务范围内；
+  # 上游不再固定受影响版本后删除。
+  "markdownlint-cli2>smol-toml@<1.9.0": "1.9.1"
+  # markdownlint 的 micromark-extension-math 仍固定 katex 0.16，落在既有原型污染
+  # 绕过范围内；上游放宽到 0.18 以上后删除。
+  "micromark-extension-math>katex@<0.18.2": "0.18.11"
+
+minimumReleaseAge: 0
+
+allowBuilds:
+  "@google/genai": false
+  "@swc/core": false
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  ssh2: false
+  workerd: false

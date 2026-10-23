@@ -1,0 +1,936 @@
+// @vitest-environment node
+
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Client, Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import campusWebWorker from "../../campus-web/test-support/worker";
+import { createApp } from "../src/app";
+import type { Env } from "../src/config";
+import {
+	buildAccountLifecycleService,
+	createPgAccountLifecycleStore,
+} from "../src/modules/account-lifecycle";
+import { createAppAuth, getOpsAccountAdminApi } from "../src/modules/auth";
+import {
+	buildEmailAccessService,
+	createPgEmailAccessGrantStore,
+} from "../src/modules/email-access";
+import { buildSharedDbIntegrationEnv } from "./shared-db-integration-helpers";
+import {
+	provisionTestOAuthClient,
+	TEST_FEDERATION_CLIENT_ID,
+	TEST_FEDERATION_CLIENT_SECRET,
+	TEST_FEDERATION_REDIRECT_URI,
+} from "./support/federation-client";
+
+const postgres = inject("appApiPostgres");
+const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
+const OPS_TOKEN = "account-journeys-ops-token";
+const PASSWORD = "password12345";
+
+interface CapturedEmail {
+	subject: string;
+	text: string;
+	to: string[];
+}
+
+function cookieHeader(response: Response): string {
+	const setCookie = response.headers.get("set-cookie");
+	if (!setCookie) {
+		throw new Error("Expected authentication response to include a session cookie.");
+	}
+	return setCookie
+		.split(",")
+		.map((value) => value.split(";", 1)[0])
+		.join("; ");
+}
+
+function authRequest(input: {
+	body?: unknown;
+	method?: string;
+	path: string;
+	cookie?: string;
+	authShellOrigin: string;
+	headers?: HeadersInit;
+}): Request {
+	return new Request(`https://app-api.internal/api/auth${input.path}`, {
+		...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
+		headers: {
+			...(input.body === undefined ? {} : { "content-type": "application/json" }),
+			...(input.cookie ? { cookie: input.cookie } : {}),
+			...input.headers,
+			origin: input.authShellOrigin,
+			"x-captcha-response": TURNSTILE_TEST_TOKEN,
+		},
+		method: input.method ?? "GET",
+	});
+}
+
+function adminHeaders(idempotencyKey: string): HeadersInit {
+	return {
+		authorization: `Bearer ${OPS_TOKEN}`,
+		"content-type": "application/json",
+		"idempotency-key": idempotencyKey,
+		"x-ops-actor-id": "ops@campus.test",
+	};
+}
+
+function latestEmail(input: {
+	emails: CapturedEmail[];
+	recipient: string;
+	subject: string;
+}): CapturedEmail {
+	const email = [...input.emails]
+		.reverse()
+		.find(
+			(candidate) => candidate.subject === input.subject && candidate.to.includes(input.recipient),
+		);
+	if (!email) {
+		throw new Error(`Expected ${input.subject} for ${input.recipient}.`);
+	}
+	return email;
+}
+
+function verificationUrl(emails: CapturedEmail[], email: string): URL {
+	const message = latestEmail({
+		emails,
+		recipient: email,
+		subject: "验证中央民族大学校园问答邮箱",
+	});
+	const url = message.text
+		.split(/\s+/u)
+		.find((value) => value.includes("/api/auth/verify-email?token="));
+	if (!url) {
+		throw new Error(`Expected a verification URL for ${email}.`);
+	}
+	return new URL(url);
+}
+
+function resetToken(emails: CapturedEmail[], email: string): string {
+	const message = latestEmail({
+		emails,
+		recipient: email,
+		subject: "重置中央民族大学校园问答密码",
+	});
+	const url = message.text
+		.split(/\s+/u)
+		.find((value) => value.includes("/api/auth/reset-password/"));
+	if (!url) {
+		throw new Error(`Expected a password reset URL for ${email}.`);
+	}
+	return new URL(url).pathname.split("/").at(-1) ?? "";
+}
+
+function emailActionUrl(input: {
+	emails: CapturedEmail[];
+	recipient: string;
+	subject: string;
+}): URL {
+	const message = latestEmail(input);
+	const url = message.text.split(/\s+/u).find((value) => value.includes("/api/auth/"));
+	if (!url) {
+		throw new Error(`Expected an authentication URL for ${input.recipient}.`);
+	}
+	return new URL(url);
+}
+
+async function pkceChallenge(verifier: string): Promise<string> {
+	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+	return Buffer.from(digest).toString("base64url");
+}
+
+describe("account journeys PostgreSQL integration", () => {
+	let app: ReturnType<typeof createApp>;
+	let client: Client;
+	let pool: Pool;
+	let env: Env;
+	let authShellOrigin: string;
+	let auth: ReturnType<typeof createAppAuth>;
+	let lifecycle: ReturnType<typeof buildAccountLifecycleService>;
+	const emails: CapturedEmail[] = [];
+
+	async function signUp(email: string): Promise<{ userId: string }> {
+		const response = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { email, name: "Journey Student", password: PASSWORD },
+				headers: { "x-campus-legal-accepted": "terms-and-privacy" },
+				method: "POST",
+				path: "/sign-up/email",
+			}),
+		);
+		if (response.status !== 200) {
+			throw new Error(
+				`Expected sign-up to succeed, received ${response.status}: ${await response.text()}`,
+			);
+		}
+		const verificationRequest = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { callbackURL: "/account", email },
+				method: "POST",
+				path: "/send-verification-email",
+			}),
+		);
+		if (verificationRequest.status !== 200) {
+			throw new Error(
+				`Expected verification email request to succeed, received ${verificationRequest.status}: ${await verificationRequest.text()}`,
+			);
+		}
+		const rows = await client.query<{ id: string }>(
+			`select "id" from "app_auth"."user" where "email" = $1`,
+			[email],
+		);
+		const userId = rows.rows[0]?.id;
+		if (!userId) {
+			throw new Error(`Expected ${email} to be persisted after sign-up.`);
+		}
+		return { userId };
+	}
+
+	async function verify(email: string): Promise<void> {
+		const response = await app.fetch(new Request(verificationUrl(emails, email)));
+		if (response.status !== 302) {
+			throw new Error(`Expected verification to redirect, received ${response.status}.`);
+		}
+		const user = await client.query<{ emailVerified: boolean }>(
+			`select "emailVerified" from "app_auth"."user" where "email" = $1`,
+			[email],
+		);
+		if (user.rows[0]?.emailVerified !== true) {
+			throw new Error(`Expected ${email} to be marked verified after the verification request.`);
+		}
+	}
+
+	async function signIn(
+		email: string,
+		password = PASSWORD,
+		rememberMe?: boolean,
+	): Promise<Response> {
+		return app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { email, password, ...(rememberMe === undefined ? {} : { rememberMe }) },
+				method: "POST",
+				path: "/sign-in/email",
+			}),
+		);
+	}
+
+	async function latestSessionExpiry(userId: string): Promise<Date> {
+		const result = await client.query<{ expiresAt: Date }>(
+			`select "expiresAt" from "app_auth"."session"
+			 where "userId" = $1 order by "createdAt" desc limit 1`,
+			[userId],
+		);
+		const expiresAt = result.rows[0]?.expiresAt;
+		if (!expiresAt) {
+			throw new Error(`Expected a session for ${userId}.`);
+		}
+		return new Date(expiresAt);
+	}
+
+	async function adminAction(userId: string, action: string, body: unknown, key: string) {
+		return app.fetch(
+			new Request(`https://app-api.internal/api/internal/admin/users/${userId}/${action}`, {
+				body: JSON.stringify(body),
+				headers: adminHeaders(key),
+				method: "POST",
+			}),
+		);
+	}
+
+	beforeAll(async () => {
+		env = buildSharedDbIntegrationEnv({
+			runtimeConnectionString: postgres.runtimeConnectionString,
+			overrides: { OPS_WEB_INTERNAL_TOKEN: OPS_TOKEN },
+		});
+		authShellOrigin = env.AUTH_SHELL_ORIGIN ?? "";
+		pool = new Pool({ connectionString: postgres.runtimeConnectionString, max: 2, ssl: false });
+		client = new Client({
+			connectionString: postgres.managementConnectionString,
+			ssl: false,
+		});
+		await client.connect();
+		await provisionTestOAuthClient({
+			executeSql: (sql, params) => client.query(sql, params),
+		});
+
+		const database = drizzle({ client: pool });
+		auth = createAppAuth(env, {
+			database,
+			emailSender: {
+				async send(payload) {
+					if (!payload.subject) {
+						throw new Error("Captured authentication email must have a subject.");
+					}
+					emails.push({
+						subject: payload.subject,
+						text: payload.text ?? "",
+						to: Array.isArray(payload.to) ? payload.to : [payload.to],
+					});
+					return { id: `account-journey-email-${emails.length}` };
+				},
+			},
+		});
+		lifecycle = buildAccountLifecycleService({
+			memoryController: { finalizeOwnerDeletion: async () => undefined },
+			diningLifecycleService: { eraseForAccountDeletion: async () => true },
+			agentController: {
+				beginOwnerDeletion: async () => ({ activeRunCount: 0, state: "draining" as const }),
+				finalizeOwnerDeletion: async () => ({ activeRunCount: 0, state: "deleted" as const }),
+			},
+			profileMemoryService: {
+				eraseForAccountDeletion: async ({
+					principal,
+				}: {
+					principal: { actor: { userId: string } };
+				}) => {
+					await pool.query(
+						`update "profile"."memory_settings"
+						 set "lifecycle_state" = 'erased', "sync_status" = 'synced',
+						     "erased_at" = now(), "updated_at" = now()
+						 where "owner_user_id" = $1`,
+						[principal.actor.userId],
+					);
+				},
+				dispatchPending: async () => undefined,
+			} as never,
+			removeAuthUser: async (userId) => {
+				await getOpsAccountAdminApi(await auth).opsRemoveUser({ body: { userId } });
+			},
+			safetyIdentifierForUser: () => null,
+			store: createPgAccountLifecycleStore({ getDb: async () => database }),
+		});
+		app = createApp(env, {
+			accountLifecycleService: lifecycle,
+			getAppAuth: () => auth,
+			runtimeScopeDependencies: { createRuntimeDatabase: async () => database },
+		});
+	});
+
+	afterAll(async () => {
+		await client.end();
+		await pool.end();
+	});
+
+	it("completes campus registration through backend-captured verification", async () => {
+		const email = `journey-campus-${Date.now()}@muc.edu.cn`;
+		await signUp(email);
+		expect((await signIn(email)).status).toBe(403);
+		await verify(email);
+		const response = await signIn(email);
+		expect(response.status).toBe(200);
+		const me = await app.fetch(
+			new Request("https://app-api.internal/api/me", {
+				headers: { cookie: cookieHeader(response) },
+			}),
+		);
+		expect(me.status).toBe(200);
+	});
+
+	it("creates a 30-day persistent session by default", async () => {
+		const email = `journey-session-persistent-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+
+		const startedAt = Date.now();
+		const response = await signIn(email);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("set-cookie")).toMatch(/Max-Age=2592000/u);
+
+		const expiresAt = (await latestSessionExpiry(userId)).getTime();
+		expect(expiresAt).toBeGreaterThanOrEqual(startedAt + 29 * 24 * 60 * 60 * 1000);
+		expect(expiresAt).toBeLessThanOrEqual(Date.now() + 31 * 24 * 60 * 60 * 1000);
+	});
+
+	it("creates a one-day session when rememberMe is disabled", async () => {
+		const email = `journey-session-short-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+
+		const startedAt = Date.now();
+		const response = await signIn(email, PASSWORD, false);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("set-cookie")).not.toMatch(/Max-Age=/u);
+
+		const expiresAt = (await latestSessionExpiry(userId)).getTime();
+		expect(expiresAt).toBeGreaterThanOrEqual(startedAt + 23 * 60 * 60 * 1000);
+		expect(expiresAt).toBeLessThanOrEqual(Date.now() + 25 * 60 * 60 * 1000);
+	});
+
+	it("preserves a real Better Auth session across the Campus Web worker boundary", async () => {
+		const email = `journey-campus-worker-${Date.now()}@muc.edu.cn`;
+		await signUp(email);
+		await verify(email);
+		const campusEnv = {
+			APP_API: { fetch: (request: Request) => app.fetch(request) },
+			APP_API_BASE_URL: "https://app-api.internal",
+			ASSETS: { fetch: () => new Response("campus shell", { status: 200 }) },
+		};
+		const signedIn = await campusWebWorker.fetch(
+			new Request("https://campus.muc.wiki/api/auth/sign-in/email", {
+				body: JSON.stringify({ email, password: PASSWORD }),
+				headers: {
+					"content-type": "application/json",
+					origin: authShellOrigin,
+					"x-captcha-response": TURNSTILE_TEST_TOKEN,
+				},
+				method: "POST",
+			}),
+			campusEnv as never,
+		);
+		expect(signedIn.status).toBe(200);
+		const cookie = cookieHeader(signedIn);
+		const me = await campusWebWorker.fetch(
+			new Request("https://campus.muc.wiki/api/me", { headers: { cookie } }),
+			campusEnv as never,
+		);
+		expect(me.status).toBe(200);
+		await expect(me.json()).resolves.toMatchObject({ principal: { email } });
+		const protectedShell = await campusWebWorker.fetch(
+			new Request("https://campus.muc.wiki/account/settings/security", {
+				headers: { accept: "text/html", cookie },
+			}),
+			campusEnv as never,
+		);
+		expect(protectedShell.status).toBe(200);
+		expect(await protectedShell.text()).toBe("campus shell");
+	});
+
+	it("claims an external invitation only after email verification", async () => {
+		const email = `journey-invited-${Date.now()}@example.com`;
+		const database = drizzle({ client: pool });
+		const access = buildEmailAccessService({
+			environment: "test",
+			store: createPgEmailAccessGrantStore({ getDb: async () => database }),
+		});
+		const grant = await access.createGrant({
+			actorId: "ops@campus.test",
+			email,
+			idempotencyKey: `grant-${Date.now()}`,
+			kind: "invitation",
+		});
+		const { userId } = await signUp(email);
+		await verify(email);
+		const activeGrant = await client.query<{ state: string; userId: string }>(
+			`select "state", "user_id" as "userId" from "app_auth"."email_access_grant" where "id" = $1`,
+			[grant.id],
+		);
+		expect(activeGrant.rows[0]).toEqual({ state: "active", userId });
+		expect((await signIn(email)).status).toBe(200);
+	});
+
+	it("signs in a retained issuer credential, resets its password and revokes sessions", async () => {
+		const email = `journey-reset-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await client.query(
+			`update app_auth.account set issuer='local:credential' where "userId"=$1 and "providerId"='credential'`,
+			[userId],
+		);
+		await verify(email);
+		const beforeReset = await signIn(email);
+		expect(beforeReset.status).toBe(200);
+		const oldCookie = cookieHeader(beforeReset);
+		const requestReset = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { email, redirectTo: `${authShellOrigin}/account/reset-password` },
+				method: "POST",
+				path: "/request-password-reset",
+			}),
+		);
+		expect(requestReset.status).toBe(200);
+		const token = resetToken(emails, email);
+		const reset = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { newPassword: "new-password-12345", token },
+				method: "POST",
+				path: "/reset-password",
+			}),
+		);
+		expect(reset.status).toBe(200);
+		expect(
+			(
+				await app.fetch(
+					new Request("https://app-api.internal/api/me", { headers: { cookie: oldCookie } }),
+				)
+			).status,
+		).toBe(401);
+		expect((await signIn(email)).status).toBe(401);
+		expect((await signIn(email, "new-password-12345")).status).toBe(200);
+		const replay = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { newPassword: "another-password-12345", token },
+				method: "POST",
+				path: "/reset-password",
+			}),
+		);
+		expect(replay.status).toBe(400);
+	});
+
+	it("lists the verification and concurrent sign-in sessions and revokes only the selected one", async () => {
+		const email = `journey-sessions-${Date.now()}@muc.edu.cn`;
+		await signUp(email);
+		await verify(email);
+		const first = await signIn(email);
+		const second = await signIn(email);
+		const firstCookie = cookieHeader(first);
+		const secondCookie = cookieHeader(second);
+		const sessions = await app.fetch(
+			authRequest({ authShellOrigin, cookie: firstCookie, path: "/list-sessions" }),
+		);
+		expect(sessions.status).toBe(200);
+		const listed = (await sessions.json()) as Array<{ token: string }>;
+		expect(listed).toHaveLength(3);
+		const secondToken = listed.find((candidate) => secondCookie.includes(candidate.token))?.token;
+		expect(secondToken).toBeTruthy();
+
+		const revoked = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { token: secondToken },
+				cookie: firstCookie,
+				method: "POST",
+				path: "/revoke-session",
+			}),
+		);
+		expect(revoked.status).toBe(200);
+		expect(
+			(
+				await app.fetch(
+					new Request("https://app-api.internal/api/me", { headers: { cookie: firstCookie } }),
+				)
+			).status,
+		).toBe(200);
+		expect(
+			(
+				await app.fetch(
+					new Request("https://app-api.internal/api/me", { headers: { cookie: secondCookie } }),
+				)
+			).status,
+		).toBe(401);
+	});
+
+	it("changes to an invited external email only after both addresses are verified", async () => {
+		const suffix = Date.now();
+		const oldEmail = `journey-change-${suffix}@muc.edu.cn`;
+		const newEmail = `journey-change-${suffix}@example.com`;
+		const database = drizzle({ client: pool });
+		const access = buildEmailAccessService({
+			environment: "test",
+			store: createPgEmailAccessGrantStore({ getDb: async () => database }),
+		});
+		await access.createGrant({
+			actorId: "ops@campus.test",
+			email: newEmail,
+			idempotencyKey: `change-email-grant-${suffix}`,
+			kind: "invitation",
+		});
+		const { userId } = await signUp(oldEmail);
+		await verify(oldEmail);
+		const signedIn = await signIn(oldEmail);
+		const oldCookie = cookieHeader(signedIn);
+
+		const requested = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { callbackURL: "/account/settings/account", newEmail },
+				cookie: oldCookie,
+				method: "POST",
+				path: "/change-email",
+			}),
+		);
+		expect(requested.status).toBe(200);
+		expect(
+			(await client.query(`select "email" from "app_auth"."user" where "id" = $1`, [userId]))
+				.rows[0]?.email,
+		).toBe(oldEmail);
+
+		const confirmedOld = await app.fetch(
+			new Request(
+				emailActionUrl({
+					emails,
+					recipient: oldEmail,
+					subject: "确认更换中央民族大学校园问答邮箱",
+				}),
+			),
+		);
+		expect(confirmedOld.status).toBe(302);
+		expect(
+			(await client.query(`select "email" from "app_auth"."user" where "id" = $1`, [userId]))
+				.rows[0]?.email,
+		).toBe(oldEmail);
+
+		const verifiedNew = await app.fetch(
+			new Request(
+				emailActionUrl({
+					emails,
+					recipient: newEmail,
+					subject: "验证中央民族大学校园问答邮箱",
+				}),
+			),
+		);
+		expect(verifiedNew.status).toBe(302);
+		expect(
+			(
+				await client.query<{ email: string; emailVerified: boolean }>(
+					`select "email", "emailVerified" from "app_auth"."user" where "id" = $1`,
+					[userId],
+				)
+			).rows[0],
+		).toEqual({ email: newEmail, emailVerified: true });
+		expect(
+			(
+				await app.fetch(
+					new Request("https://app-api.internal/api/me", { headers: { cookie: oldCookie } }),
+				)
+			).status,
+		).toBe(401);
+		expect((await signIn(oldEmail)).status).toBe(401);
+		expect((await signIn(newEmail)).status).toBe(200);
+	});
+
+	it("forces a temporary-password user through password change", async () => {
+		const email = `journey-temporary-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+		const issue = await adminAction(
+			userId,
+			"temporary-password",
+			{ reason: "账号恢复" },
+			`temporary-${Date.now()}`,
+		);
+		expect(issue.status).toBe(200);
+		expect(
+			(
+				await client.query<{ accountId: string; issuer: string | null; providerId: string }>(
+					`select "accountId", "issuer", "providerId"
+					 from "app_auth"."account" where "userId" = $1`,
+					[userId],
+				)
+			).rows,
+		).toEqual([
+			{
+				accountId: userId,
+				issuer: null,
+				providerId: "credential",
+			},
+		]);
+		const issued = (await issue.json()) as { temporaryPassword: string };
+		const temporarySignIn = await signIn(email, issued.temporaryPassword);
+		expect(temporarySignIn.status).toBe(200);
+		const blockedMe = await app.fetch(
+			new Request("https://app-api.internal/api/me", {
+				headers: { cookie: cookieHeader(temporarySignIn) },
+			}),
+		);
+		expect(blockedMe.status).toBe(401);
+		const rejectedChange = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: {
+					currentPassword: "wrong-temporary-password",
+					newPassword: "permanent-password-12345",
+					revokeOtherSessions: false,
+				},
+				cookie: cookieHeader(temporarySignIn),
+				method: "POST",
+				path: "/change-password",
+			}),
+		);
+		expect(rejectedChange.status).not.toBe(200);
+		const stateAfterRejectedChange = await client.query<{
+			passwordChangeRequired: boolean;
+			temporaryPasswordExpiresAt: Date | null;
+		}>(
+			`select "passwordChangeRequired", "temporaryPasswordExpiresAt"
+			 from "app_auth"."user" where "id" = $1`,
+			[userId],
+		);
+		expect(stateAfterRejectedChange.rows[0]).toMatchObject({
+			passwordChangeRequired: true,
+		});
+		expect(stateAfterRejectedChange.rows[0]?.temporaryPasswordExpiresAt).not.toBeNull();
+		expect(
+			(
+				await app.fetch(
+					new Request("https://app-api.internal/api/me", {
+						headers: { cookie: cookieHeader(temporarySignIn) },
+					}),
+				)
+			).status,
+		).toBe(401);
+		const changed = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: {
+					currentPassword: issued.temporaryPassword,
+					newPassword: "permanent-password-12345",
+					revokeOtherSessions: false,
+				},
+				cookie: cookieHeader(temporarySignIn),
+				method: "POST",
+				path: "/change-password",
+			}),
+		);
+		expect(changed.status).toBe(200);
+		expect((await signIn(email, issued.temporaryPassword)).status).toBe(401);
+		expect((await signIn(email, "permanent-password-12345")).status).toBe(200);
+	});
+
+	it("rolls back every temporary-password write when credential revocation fails", async () => {
+		const suffix = Date.now().toString(36);
+		const email = `journey-temporary-rollback-${suffix}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+		await client.query(
+			`insert into "app_auth"."session"
+				("id", "token", "userId", "expiresAt", "createdAt", "updatedAt")
+			 values ($1, $2, $3, $4, $5, $5)`,
+			[
+				`rollback-session-${suffix}`,
+				`rollback-token-${suffix}`,
+				userId,
+				new Date("2026-07-22T00:00:00.000Z"),
+				new Date("2026-07-21T00:00:00.000Z"),
+			],
+		);
+		const readTemporaryPasswordState = () =>
+			client.query<{
+				password: string;
+				passwordChangeRequired: boolean;
+				sessionCount: string;
+				temporaryPasswordExpiresAt: Date | null;
+			}>(
+				`select a."password", u."passwordChangeRequired", u."temporaryPasswordExpiresAt",
+					(select count(*)::text from "app_auth"."session" where "userId" = u."id") as "sessionCount"
+				 from "app_auth"."user" u
+				 join "app_auth"."account" a on a."userId" = u."id" and a."providerId" = 'credential'
+				 where u."id" = $1`,
+				[userId],
+			);
+		const before = await readTemporaryPasswordState();
+		await client.query(
+			`create or replace function app_auth.test_fail_temporary_password_session_delete()
+			 returns trigger language plpgsql as $$
+			 begin
+				if old."token" like 'rollback-token-%' then
+					raise exception 'injected session deletion failure';
+				end if;
+				return old;
+			 end
+			 $$`,
+		);
+		await client.query(
+			`create trigger test_fail_temporary_password_session_delete
+			 before delete on app_auth."session"
+			 for each row execute function app_auth.test_fail_temporary_password_session_delete()`,
+		);
+		try {
+			const issue = await adminAction(
+				userId,
+				"temporary-password",
+				{ reason: "事务回滚验证" },
+				`temporary-rollback-${suffix}`,
+			);
+			expect(issue.status).toBe(500);
+		} finally {
+			await client.query(
+				`drop trigger if exists test_fail_temporary_password_session_delete on app_auth."session"`,
+			);
+			await client.query(
+				"drop function if exists app_auth.test_fail_temporary_password_session_delete()",
+			);
+		}
+
+		const after = await readTemporaryPasswordState();
+		expect(after.rows[0]).toEqual(before.rows[0]);
+	});
+
+	it("blocks an account after ban and permits login again after unban", async () => {
+		const email = `journey-ban-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+		expect((await signIn(email)).status).toBe(200);
+		const banned = await adminAction(userId, "ban", { reason: "安全审查" }, `ban-${Date.now()}`);
+		expect(banned.status).toBe(200);
+		expect((await signIn(email)).status).toBe(403);
+		const unbanned = await adminAction(
+			userId,
+			"unban",
+			{ reason: "审查完成" },
+			`unban-${Date.now()}`,
+		);
+		expect(unbanned.status).toBe(200);
+		expect((await signIn(email)).status).toBe(200);
+	});
+
+	it("issues federation tokens through PKCE and revokes them when the account is banned", async () => {
+		const email = `journey-federation-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+		const signedIn = await signIn(email);
+		const cookie = cookieHeader(signedIn);
+		const publicClient = await app.fetch(
+			new Request(
+				`https://app-api.internal/api/federation/client?client_id=${TEST_FEDERATION_CLIENT_ID}`,
+				{ headers: { cookie } },
+			),
+		);
+		expect(publicClient.status).toBe(200);
+		const publicClientPayload = (await publicClient.json()) as Record<string, unknown>;
+		expect(publicClientPayload).toMatchObject({
+			client_id: TEST_FEDERATION_CLIENT_ID,
+			client_name: "Test OAuth Client",
+		});
+		expect(publicClientPayload).not.toHaveProperty("client_secret");
+		expect(publicClientPayload).not.toHaveProperty("redirect_uris");
+		expect(publicClientPayload).not.toHaveProperty("metadata");
+		const verifier = "federation-pkce-verifier-0123456789-abcdefghijk";
+		const authorizeUrl = new URL("https://app-api.internal/api/federation/authorize");
+		authorizeUrl.searchParams.set("response_type", "code");
+		authorizeUrl.searchParams.set("client_id", TEST_FEDERATION_CLIENT_ID);
+		authorizeUrl.searchParams.set("redirect_uri", TEST_FEDERATION_REDIRECT_URI);
+		authorizeUrl.searchParams.set("scope", "openid profile email");
+		authorizeUrl.searchParams.set("state", "journey-state");
+		authorizeUrl.searchParams.set("code_challenge", await pkceChallenge(verifier));
+		authorizeUrl.searchParams.set("code_challenge_method", "S256");
+		const authorized = await app.fetch(new Request(authorizeUrl, { headers: { cookie } }));
+		expect(authorized.status).toBe(302);
+		const consentPage = new URL(authorized.headers.get("location") ?? "", authShellOrigin);
+		expect(consentPage.pathname).toBe("/account/federation/consent");
+		expect(consentPage.searchParams.get("sig")).toBeTruthy();
+		expect(consentPage.searchParams.getAll("ba_param")).toContain("client_id");
+		const signedOAuthQuery = consentPage.searchParams.toString();
+		const consentRequest = (oauthQuery: string, accept = true) =>
+			app.fetch(
+				new Request("https://app-api.internal/api/federation/consent", {
+					body: JSON.stringify({ accept, oauth_query: oauthQuery }),
+					headers: {
+						accept: "application/json",
+						cookie,
+						"content-type": "application/json",
+						origin: authShellOrigin,
+					},
+					method: "POST",
+				}),
+			);
+
+		const tamperedOAuthQuery = new URLSearchParams(signedOAuthQuery);
+		tamperedOAuthQuery.set("client_id", "tampered-client");
+		expect((await consentRequest(tamperedOAuthQuery.toString())).status).toBe(400);
+
+		const signedAt = Date.now();
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			vi.setSystemTime(signedAt + 11 * 60 * 1000);
+			expect((await consentRequest(signedOAuthQuery)).status).toBe(400);
+		} finally {
+			vi.useRealTimers();
+		}
+
+		const denied = await consentRequest(signedOAuthQuery, false);
+		expect(denied.status).toBe(200);
+		const deniedPayload = (await denied.json()) as { redirect: boolean; url: string };
+		expect(deniedPayload.redirect).toBe(true);
+		const deniedCallback = new URL(deniedPayload.url);
+		expect(deniedCallback.searchParams.get("error")).toBe("access_denied");
+		expect(deniedCallback.searchParams.get("state")).toBe("journey-state");
+
+		const consent = await consentRequest(signedOAuthQuery);
+		expect(consent.status).toBe(200);
+		const consentPayload = (await consent.json()) as { redirect: boolean; url: string };
+		expect(consentPayload.redirect).toBe(true);
+		const callback = new URL(consentPayload.url);
+		expect(callback.origin + callback.pathname).toBe(TEST_FEDERATION_REDIRECT_URI);
+		expect(callback.searchParams.get("state")).toBe("journey-state");
+		const code = callback.searchParams.get("code");
+		expect(code).toBeTruthy();
+
+		const token = await app.fetch(
+			new Request("https://app-api.internal/api/federation/token", {
+				body: new URLSearchParams({
+					client_id: TEST_FEDERATION_CLIENT_ID,
+					code: code ?? "",
+					code_verifier: verifier,
+					grant_type: "authorization_code",
+					redirect_uri: TEST_FEDERATION_REDIRECT_URI,
+				}),
+				headers: {
+					authorization: `Basic ${Buffer.from(`${TEST_FEDERATION_CLIENT_ID}:${TEST_FEDERATION_CLIENT_SECRET}`).toString("base64")}`,
+					"content-type": "application/x-www-form-urlencoded",
+				},
+				method: "POST",
+			}),
+		);
+		expect(token.status).toBe(200);
+		const tokenPayload = (await token.json()) as { access_token: string };
+		expect(tokenPayload.access_token).toBeTruthy();
+
+		const userInfoRequest = () =>
+			app.fetch(
+				new Request("https://app-api.internal/api/federation/userinfo", {
+					headers: { authorization: `Bearer ${tokenPayload.access_token}` },
+				}),
+			);
+		const userInfo = await userInfoRequest();
+		expect(userInfo.status).toBe(200);
+		await expect(userInfo.json()).resolves.toMatchObject({
+			email,
+			email_verified: true,
+			sub: userId,
+		});
+
+		expect(
+			(await adminAction(userId, "ban", { reason: "联邦访问审查" }, `federation-ban-${Date.now()}`))
+				.status,
+		).toBe(200);
+		expect((await userInfoRequest()).status).not.toBe(200);
+		expect(
+			(
+				await client.query(`select 1 from "app_auth"."oauthAccessToken" where "userId" = $1`, [
+					userId,
+				])
+			).rowCount,
+		).toBe(0);
+	});
+
+	it("fences credentials and completes account deletion", async () => {
+		const email = `journey-delete-${Date.now()}@muc.edu.cn`;
+		const { userId } = await signUp(email);
+		await verify(email);
+		const signedIn = await signIn(email);
+		const cookie = cookieHeader(signedIn);
+		await client.query(
+			`insert into "profile"."memory_settings" ("owner_user_id", "updated_at") values ($1, now()) on conflict ("owner_user_id") do nothing`,
+			[userId],
+		);
+		const deletion = await app.fetch(
+			new Request("https://app-api.internal/api/account/delete", {
+				body: JSON.stringify({ password: PASSWORD }),
+				headers: {
+					cookie,
+					"content-type": "application/json",
+					origin: authShellOrigin,
+				},
+				method: "POST",
+			}),
+		);
+		expect(deletion.status).toBe(202);
+		expect(
+			(await app.fetch(new Request("https://app-api.internal/api/me", { headers: { cookie } })))
+				.status,
+		).toBe(401);
+		expect((await signIn(email)).status).toBe(403);
+		const dispatch = await lifecycle.dispatchPending();
+		expect(dispatch.failed).toBe(0);
+		expect(dispatch.completed).toBeGreaterThanOrEqual(1);
+		expect(dispatch.processed).toBeGreaterThanOrEqual(1);
+		expect(
+			(await client.query(`select 1 from "app_auth"."user" where "id" = $1`, [userId])).rowCount,
+		).toBe(0);
+	});
+});

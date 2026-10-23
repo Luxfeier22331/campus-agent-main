@@ -1,0 +1,125 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-postgres-instance-ingress
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: campus-agent-postgres
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: campus-agent
+      ports:
+        - protocol: TCP
+          port: 5432
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: temporal
+      ports:
+        - protocol: TCP
+          port: 5432
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hindsight
+              app.kubernetes.io/instance: hindsight
+              app.kubernetes.io/component: api
+      ports:
+        - protocol: TCP
+          port: 5432
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cnpg-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudnative-pg
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: campus-agent-schema-egress
+  labels:
+    app.kubernetes.io/name: campus-agent-schema
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: campus-agent-schema
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-postgres-instance-egress
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: campus-agent-postgres
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+              app.kubernetes.io/instance: rustfs
+      ports:
+        - protocol: TCP
+          port: 9000

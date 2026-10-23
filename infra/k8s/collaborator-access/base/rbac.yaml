@@ -1,0 +1,153 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: collaborator-portforwarder
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+rules:
+  - apiGroups: [""]
+    resources: ["pods/portforward"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hindsight-ro-secret-reader
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["pg-hindsight-ro"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: objectstore-ro-secret-reader
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["objectstore-ro"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: qdrant-ro-secret-reader
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["qdrant-ro"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: campus-viewers-view
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+subjects:
+  - kind: Group
+    name: campus-viewers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: campus-viewers-portforward
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+subjects:
+  - kind: Group
+    name: campus-viewers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: collaborator-portforwarder
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hindsight-readers-secret
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+subjects:
+  - kind: Group
+    name: hindsight-readers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hindsight-ro-secret-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: objectstore-readers-secret
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+subjects:
+  - kind: Group
+    name: objectstore-readers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: objectstore-ro-secret-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vector-readers-secret
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+subjects:
+  - kind: Group
+    name: vector-readers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: qdrant-ro-secret-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: product-data-ro-secret-reader
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["pg-product-data-ro", "objectstore-ro", "qdrant-ro"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: product-data-readers-secret
+  labels:
+    app.kubernetes.io/name: collaborator-access
+    app.kubernetes.io/part-of: campus-agent
+subjects:
+  - kind: Group
+    name: product-data-readers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: product-data-ro-secret-reader

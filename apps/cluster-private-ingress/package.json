@@ -1,0 +1,11 @@
+{
+	"name": "cluster-private-ingress",
+	"private": true,
+	"scripts": {
+		"dev": "bash scripts/dev.sh",
+		"native:test": "go test ./cmd/... ./internal/...",
+		"test:e2e": "go test ./integration -count=1 -timeout=30s",
+		"native:vet": "go vet ./...",
+		"native:format": "test -z \"$(gofmt -l cmd internal integration)\""
+	}
+}

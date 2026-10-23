@@ -1,0 +1,240 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"test:ci": {
+			"dependsOn": [],
+			"inputs": [
+				"package.json",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"ci/turbo.mts",
+				"toolchain/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/.github/**",
+				"$TURBO_ROOT$/scripts/ci/**",
+				"$TURBO_ROOT$/scripts/package.json",
+				"$TURBO_ROOT$/.config/.pre-commit-config.yaml"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME", "CAMPUS_TOOLING_TRACKED_CI"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:deploy": {
+			"dependsOn": ["@campus-agent/document-ocr#source"],
+			"inputs": [
+				"package.json",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"ci/turbo.mts",
+				"toolchain/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/flake.lock",
+				"deploy/**",
+				"release/**",
+				"ci/image-scope.mts",
+				"ci/scope.mts",
+				"ci/validation-profiles.mts",
+				"$TURBO_ROOT$/apps/*/wrangler*.toml"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:infra": {
+			"dependsOn": ["@campus-agent/document-ocr#source"],
+			"inputs": [
+				"package.json",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"ci/turbo.mts",
+				"toolchain/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/infra/**",
+				"$TURBO_ROOT$/packages/document-ocr/**"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:dev": {
+			"dependsOn": [
+				"@campus-agent/dining#source",
+				"@campus-agent/embedding-runtime#source",
+				"@campus-agent/notices#source",
+				"campus-docs-index-publisher#source",
+				"retrieval-index#source",
+				"notice-index-publisher#source"
+			],
+			"inputs": [
+				"package.json",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"ci/turbo.mts",
+				"toolchain/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/flake.lock",
+				"dev/**",
+				"deploy/*.ts",
+				"deploy/*.mts",
+				"$TURBO_ROOT$/compose*.yml",
+				"$TURBO_ROOT$/apps/*/package.json",
+				"$TURBO_ROOT$/apps/*/wrangler*.toml",
+				"$TURBO_ROOT$/apps/campus-web/src/docs-reader-build/**",
+				"$TURBO_ROOT$/jobs/*/src/**",
+				"$TURBO_ROOT$/jobs/campus-agent-schema/migrations/**",
+				"$TURBO_ROOT$/packages/contracts/test/campus-docs/**",
+				"$TURBO_ROOT$/packages/contracts/src/**",
+				"$TURBO_ROOT$/packages/contracts/schemas/**",
+				"$TURBO_ROOT$/apps/campus-web/package.json",
+				"$TURBO_ROOT$/apps/*/scripts/dev*.sh"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:docs": {
+			"dependsOn": [],
+			"inputs": [
+				"package.json",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"ci/turbo.mts",
+				"toolchain/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/flake.lock",
+				"docs/**",
+				"$TURBO_ROOT$/docs/**",
+				"$TURBO_ROOT$/.agents/**",
+				"$TURBO_ROOT$/README.md",
+				"$TURBO_ROOT$/.markdownlint-cli2.jsonc",
+				"$TURBO_ROOT$/.gitignore"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME", "CAMPUS_TOOLING_TRACKED_DOCS"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:hooks": {
+			"dependsOn": [],
+			"inputs": [
+				"package.json",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"ci/turbo.mts",
+				"toolchain/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/flake.lock",
+				"hooks/**",
+				"ci/scope.mts",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"$TURBO_ROOT$/.config/.pre-commit-config.yaml"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:notices": {
+			"dependsOn": [
+				"@campus-agent/notices#source",
+				"ingestion-contracts#source",
+				"notice-classifier-core#source"
+			],
+			"inputs": [
+				"package.json",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"ci/turbo.mts",
+				"toolchain/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/flake.lock",
+				"notices/**"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:release": {
+			"dependsOn": [],
+			"inputs": [
+				"package.json",
+				"ci/repository-test.mts",
+				"ci/tooling-tasks.mts",
+				"ci/turbo.mts",
+				"toolchain/**",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/turbo.json",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/flake.lock",
+				"release/**",
+				"deploy/**",
+				"ci/image-scope.mts",
+				"ci/scope.mts",
+				"ci/validation-profiles.mts",
+				"$TURBO_ROOT$/docker-bake.hcl",
+				"$TURBO_ROOT$/.dockerignore",
+				"$TURBO_ROOT$/apps/*/package.json",
+				"$TURBO_ROOT$/apps/*/Dockerfile",
+				"$TURBO_ROOT$/apps/*/wrangler*.toml",
+				"$TURBO_ROOT$/jobs/*/package.json",
+				"$TURBO_ROOT$/jobs/*/Dockerfile",
+				"$TURBO_ROOT$/packages/*/package.json",
+				"$TURBO_ROOT$/packages/domains/*/package.json",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/configs/sources/**"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME", "CAMPUS_REPO_TEST_RUNTIME", "CAMPUS_TOOLING_TRACKED_RELEASE"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test": {
+			"dependsOn": [
+				"test:ci",
+				"test:deploy",
+				"test:dev",
+				"test:docs",
+				"test:hooks",
+				"test:infra",
+				"test:notices",
+				"test:release"
+			],
+			"inputs": [],
+			"outputs": []
+		},
+		"typecheck": {
+			"dependsOn": ["typecheck:notices"],
+			"inputs": [],
+			"outputs": []
+		},
+		"typecheck:notices": {
+			"dependsOn": ["^source"],
+			"inputs": ["package.json", "notices/**"],
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		}
+	}
+}

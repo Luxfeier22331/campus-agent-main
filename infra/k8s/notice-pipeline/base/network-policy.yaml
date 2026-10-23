@@ -1,0 +1,64 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: notice-pipeline-worker-egress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - notice-pipeline-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: temporal
+      ports:
+        - protocol: TCP
+          port: 7233
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: model-config
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ops-web
+      ports:
+        - protocol: TCP
+          port: 5178
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

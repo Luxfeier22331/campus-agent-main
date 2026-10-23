@@ -1,0 +1,43 @@
+{
+	"name": "@campus-agent/tooling",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test:ci": "tsx --test ci/*.test.ts",
+		"test:deploy": "tsx --test deploy/*.test.ts",
+		"test:dev": "tsx --test dev/*.test.ts dev/*/*.test.ts",
+		"test:docs": "tsx --test docs/*.test.ts",
+		"test:hooks": "tsx --test hooks/*.test.ts",
+		"test:infra": "tsx --test ../infra/k8s/tests/*.test.ts",
+		"test:notices": "tsx --test notices/*.test.ts",
+		"test:release": "tsx --test release/*.test.ts release/*.test.mjs",
+		"notice:classify": "cd .. && tsx scripts/notices/cli.ts",
+		"notice:classify:eval": "cd .. && tsx scripts/notices/eval.ts",
+		"typecheck:notices": "tsc --project notices/tsconfig.json"
+	},
+	"dependencies": {
+		"@campus-agent/dining": "workspace:*",
+		"@campus-agent/embedding-runtime": "workspace:*",
+		"@campus-agent/notices": "workspace:*",
+		"ingestion-contracts": "workspace:*",
+		"notice-classifier-core": "workspace:*",
+		"@aws-sdk/client-s3": "^3.1153.0",
+		"@types/pg": "^8.23.1",
+		"@types/react": "19.3.0",
+		"@types/react-dom": "19.3.0",
+		"openai": "7.39.0",
+		"pg": "^8.23.1",
+		"zod": "^4.6.7",
+		"@campus-agent/document-ocr": "workspace:*",
+		"campus-web": "workspace:*",
+		"campus-docs-index-publisher": "workspace:*",
+		"retrieval-index": "workspace:*",
+		"notice-index-publisher": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.19.2",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"yaml": "2.9.1"
+	}
+}

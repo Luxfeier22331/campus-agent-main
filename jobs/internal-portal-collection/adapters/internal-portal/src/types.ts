@@ -1,0 +1,126 @@
+export interface NoticeItem {
+	notice_id?: number | string | null;
+	notice_stick?: number | string | null;
+	notice_type?: number | string | null;
+	notice_release_time?: string | null;
+	organization_id?: string | null;
+	organization_name?: string | null;
+	notice_link?: string | null;
+}
+
+export interface NoticeMetadataResponse {
+	state?: boolean;
+	msg?: string;
+	datas?: {
+		type?: Array<{
+			notice_type_id?: number | string | null;
+			notice_type_name?: string | null;
+		}>;
+		org?: Array<{
+			organization_id?: string | null;
+			organization_name?: string | null;
+		}>;
+	};
+}
+
+export interface NoticePage {
+	pageSize?: number | string;
+	total?: number | string;
+	totalCounts?: number | string;
+}
+
+export interface NoticeListResponse {
+	state?: boolean;
+	msg?: string;
+	datas?: {
+		tables?: NoticeItem[];
+		page?: NoticePage;
+	};
+}
+
+export interface NoticeDetailInfo {
+	notice_title?: string | null;
+	notice_content?: string | null;
+	notice_link?: string | null;
+	notice_type_name?: string | null;
+	organization_name?: string | null;
+	organization_id?: string | null;
+	notice_id?: number | null;
+	notice_release_time?: string | null;
+	notice_annext?: NoticeAnnexInfo[] | null;
+}
+
+export interface NoticeAnnexInfo {
+	notice_annex_path?: string | null;
+	notice_annex_id?: string | null;
+	notice_annex_name?: string | null;
+	suffix?: string | null;
+	type?: string | null;
+}
+
+export interface NoticeDetailResponse {
+	state?: boolean;
+	msg?: string;
+	datas?: {
+		notice_info?: NoticeDetailInfo | null;
+	};
+}
+
+export interface FileReleaseDetailResponse {
+	id?: number | string | null;
+	filename?: string | null;
+	filecode?: string | null;
+	fileurl?: string | null;
+	filetime?: string | null;
+	state?: number | boolean | null;
+	filedepartment?: string | null;
+	upfilename?: string | null;
+	explainDept?: string | null;
+}
+
+export interface FileReleaseListItem {
+	id?: number | string | null;
+	filename?: string | null;
+	filetime?: string | null;
+}
+
+export interface FileReleaseListResponse {
+	state?: number | boolean | null;
+	datas?: {
+		tables?: FileReleaseListItem[] | null;
+		page?: {
+			pageSize?: number | string | null;
+			total?: number | string | null;
+			totalCounts?: number | string | null;
+		} | null;
+	} | null;
+}
+
+export interface FileReleaseDownloadUrlResponse {
+	state?: boolean;
+	url?: string | null;
+}
+
+export interface ApiResponseLike {
+	bodyStream?(): AsyncIterable<Uint8Array>;
+	cancelBody?(reason?: unknown): Promise<void>;
+	headers?(): Record<string, string>;
+	ok(): boolean;
+	status(): number;
+	statusText(): string;
+	text(): Promise<string>;
+}
+
+export interface ApiRequestContextLike {
+	get(path: string): Promise<ApiResponseLike>;
+	post(
+		path: string,
+		input: {
+			form: Record<string, string>;
+		},
+	): Promise<ApiResponseLike>;
+}
+
+export interface DisposableApiContextLike {
+	dispose(): Promise<void>;
+}

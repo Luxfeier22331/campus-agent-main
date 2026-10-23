@@ -1,0 +1,213 @@
+// @vitest-environment node
+
+import { createHash } from "node:crypto";
+import { DINING_BOOTSTRAP_FLOORPLANS } from "@campus-agent/dining/floorplans";
+import { buildDiningMapResponse, renderDiningMapAssets } from "@campus-agent/dining/publisher";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createApp } from "../src/app";
+import { loadDiningFloorplanAsset } from "../src/app/routes/campus-experience";
+import {
+	buildCampusExperienceService,
+	type CampusExperienceService,
+} from "../src/modules/campus-experience";
+
+const env = {
+	DEPLOYMENT_ENVIRONMENT: "test" as const,
+	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	CLUSTER_PRIVATE_BASE_URL: "https://agent-control.internal",
+	EDGE_INGRESS_SHARED_SECRET: "shared-secret",
+	APP_API_INTERNAL_SHARED_SECRET: "shared-secret",
+	APP_API_DB: {
+		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+	},
+};
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+	globalThis.fetch = originalFetch;
+});
+
+function createService(): CampusExperienceService {
+	return {
+		submitFeedback: vi.fn().mockResolvedValue({
+			feedback: {
+				category: "content_issue",
+				feedbackId: "fb_test",
+				receivedAt: "2026-06-01T00:00:00.000Z",
+				routeContext: "/docs/student",
+				status: "received",
+			},
+		}),
+	};
+}
+
+function diningMap() {
+	return buildDiningMapResponse({
+		assets: renderDiningMapAssets(DINING_BOOTSTRAP_FLOORPLANS),
+		bundle: DINING_BOOTSTRAP_FLOORPLANS,
+		releaseId: "release-1",
+		updatedAt: "2026-07-24T08:00:00.000Z",
+	});
+}
+
+describe("campus experience routes", () => {
+	it("keeps the campus experience service limited to feedback", () => {
+		const service = buildCampusExperienceService();
+
+		expect(Object.keys(service)).toEqual(["submitFeedback"]);
+	});
+
+	it("returns one complete Dining map", async () => {
+		const service = createService();
+		const getMap = vi.fn(async () => diningMap());
+		const app = createApp(env, {
+			campusExperienceService: service,
+			diningMapReadService: { getMap },
+		});
+
+		const dining = await app.fetch(new Request("https://app-api.internal/api/dining"));
+
+		expect(dining.status).toBe(200);
+		expect(dining.headers.get("cache-control")).toBe(
+			"public, max-age=60, s-maxage=300, stale-while-revalidate=86400",
+		);
+		await expect(dining.json()).resolves.toMatchObject({
+			halls: expect.arrayContaining([
+				expect.objectContaining({
+					floors: expect.arrayContaining([
+						expect.objectContaining({
+							floorplan: {
+								canvas: expect.any(Object),
+								floorplanId: expect.any(String),
+								sha256: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+								svgAssetUrl: expect.stringMatching(
+									/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/,
+								),
+							},
+							windows: expect.any(Array),
+						}),
+					]),
+				}),
+			]),
+			releaseId: "release-1",
+		});
+		expect(getMap).toHaveBeenCalledOnce();
+	});
+
+	it("does not expose retired Dining routes", async () => {
+		const app = createApp(env, {
+			campusExperienceService: createService(),
+			diningMapReadService: { getMap: vi.fn(async () => diningMap()) },
+		});
+
+		for (const path of [
+			"/api/dining/bootstrap",
+			"/api/dining/publication",
+			"/api/dining/halls",
+			"/api/dining/search?q=test",
+		]) {
+			expect((await app.fetch(new Request(`https://app-api.internal${path}`))).status).toBe(404);
+		}
+	});
+
+	it("serves a content-addressed floorplan only after digest verification", async () => {
+		const markup = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+		const digest = createHash("sha256").update(markup).digest("hex");
+		globalThis.fetch = vi.fn(function (this: typeof globalThis) {
+			expect(this).toBe(globalThis);
+			return Promise.resolve(
+				new Response(markup, { headers: { "content-type": "image/svg+xml" }, status: 200 }),
+			);
+		}) as typeof fetch;
+		const app = createApp(
+			{ ...env, OBJECT_STORE_LOCAL_BASE_URL: "https://assets.example.test/public/" },
+			{ campusExperienceService: createService() },
+		);
+
+		const response = await app.fetch(
+			new Request(`https://app-api.internal/api/dining/floorplans/${digest}.svg`),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toContain("immutable");
+		await expect(response.text()).resolves.toBe(markup);
+		expect(globalThis.fetch).toHaveBeenCalledWith(
+			new URL(`https://assets.example.test/public/dining/floorplans/${digest}.svg`),
+			expect.objectContaining({ headers: { accept: "image/svg+xml" } }),
+		);
+	});
+
+	it("uses the private object-store binding in a deployed environment", async () => {
+		const markup = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+		const digest = createHash("sha256").update(markup).digest("hex");
+		const privateFetch = vi.fn(
+			async () =>
+				new Response(markup, { headers: { "content-type": "image/svg+xml" }, status: 200 }),
+		);
+		globalThis.fetch = vi.fn(async () => {
+			throw new Error("global fetch must not be used in staging");
+		});
+
+		await expect(
+			loadDiningFloorplanAsset(
+				{
+					...env,
+					DEPLOYMENT_ENVIRONMENT: "staging",
+					OBJECT_STORE_PRIVATE: { fetch: privateFetch },
+				},
+				digest,
+			),
+		).resolves.toBeInstanceOf(Response);
+		expect(privateFetch).toHaveBeenCalledWith(
+			new URL(`http://object-store/campus-agent-derived/dining/floorplans/${digest}.svg`),
+			expect.objectContaining({ headers: { accept: "image/svg+xml" } }),
+		);
+		expect(globalThis.fetch).not.toHaveBeenCalled();
+	});
+
+	it("requires the private object-store binding in a deployed environment", async () => {
+		await expect(
+			loadDiningFloorplanAsset({ ...env, DEPLOYMENT_ENVIRONMENT: "staging" }, "0".repeat(64)),
+		).rejects.toMatchObject({ code: "service_unavailable", status: 503 });
+	});
+
+	it("fails closed when a floorplan object does not match its content address", async () => {
+		globalThis.fetch = vi.fn(async () => new Response("<svg></svg>", { status: 200 }));
+		const app = createApp(
+			{ ...env, OBJECT_STORE_LOCAL_BASE_URL: "https://assets.example.test/" },
+			{ campusExperienceService: createService() },
+		);
+
+		const response = await app.fetch(
+			new Request(`https://app-api.internal/api/dining/floorplans/${"0".repeat(64)}.svg`),
+		);
+		expect(response.status).toBe(502);
+	});
+
+	it("accepts global feedback with explicit route context", async () => {
+		const service = createService();
+		const app = createApp(env, { campusExperienceService: service });
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/feedback", {
+				body: JSON.stringify({
+					body: "这里的信息需要更新。",
+					category: "content_issue",
+					contact: "student@example.edu",
+					routeContext: "/docs/student",
+				}),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(201);
+		expect(service.submitFeedback).toHaveBeenCalledWith({
+			body: "这里的信息需要更新。",
+			category: "content_issue",
+			contact: "student@example.edu",
+			routeContext: "/docs/student",
+		});
+	});
+});

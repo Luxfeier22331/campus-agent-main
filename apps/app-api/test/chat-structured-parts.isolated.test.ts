@@ -1,0 +1,501 @@
+// @vitest-environment node
+
+import { describe, expect, it } from "vitest";
+
+import { normalizeChatStructuredParts } from "../src/modules/chat";
+import { normalizeSourceItemsPart } from "../src/modules/runtime-command/service/normalize";
+
+describe("chat structured parts", () => {
+	it("keeps complementary notice passages in their own citation previews", () => {
+		const parts = normalizeSourceItemsPart({
+			status: "completed",
+			result: {
+				sources: [
+					{ citation_index: 2, section_title: "正文", snippet: "项目选项" },
+					{ citation_index: 11, section_title: "其他说明", snippet: "费用及资助条件" },
+				].map((passage) => ({
+					...passage,
+					kind: "campus_notice",
+					notice_id: "348539",
+					citation_href: "/notices/348539",
+					title: "访学项目",
+				})),
+			},
+		});
+		expect(parts[0]?.sourceItems).toMatchObject([
+			{ citationIndexes: [2], sectionTitle: "正文", snippet: "项目选项" },
+			{ citationIndexes: [11], sectionTitle: "其他说明", snippet: "费用及资助条件" },
+		]);
+		expect(normalizeChatStructuredParts(JSON.parse(JSON.stringify(parts)))).toEqual(parts);
+	});
+	it("persists resolved and unavailable sources without inventing an empty link", () => {
+		const parts = normalizeSourceItemsPart({
+			status: "completed",
+			result: {
+				sources: [
+					{
+						kind: "web_page",
+						title: "民大概况",
+						citation_index: 1,
+						url: "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm",
+						citation_href: "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm",
+						hostname: "www.muc.edu.cn",
+					},
+					{
+						kind: "web_page",
+						title: "网页标题暂不可用",
+						citation_index: 2,
+						url: null,
+						citation_href: null,
+						hostname: null,
+						unavailable_reason: "source_unavailable",
+					},
+					{
+						kind: "web_page",
+						title: "网页标题暂不可用",
+						citation_index: 3,
+						url: null,
+						citation_href: null,
+						hostname: null,
+						unavailable_reason: "source_unavailable",
+					},
+				],
+			},
+		});
+		expect(parts[0]?.sourceItems).toHaveLength(3);
+		expect(parts[0]?.sourceItems[0]).toMatchObject({
+			title: "民大概况",
+			primaryAction: { href: "https://www.muc.edu.cn/ggfw/cjwt/mdgk.htm", disabledReason: null },
+		});
+		expect(parts[0]?.sourceItems[1]).toMatchObject({
+			citationIndexes: [2],
+			hostname: null,
+			primaryAction: { href: null, disabledReason: "source_unavailable" },
+		});
+		expect(normalizeChatStructuredParts(JSON.parse(JSON.stringify(parts)))).toEqual(parts);
+		expect(() =>
+			normalizeSourceItemsPart({
+				status: "completed",
+				result: {
+					sources: [
+						{
+							kind: "web_page",
+							title: "invalid",
+							citation_index: 1,
+							url: null,
+							citation_href: null,
+							hostname: null,
+						},
+					],
+				},
+			}),
+		).toThrow("invalid");
+	});
+	it("discards retired Google search suggestions from execution results", () => {
+		const html = '<div><a href="https://www.google.com/search?q=muc">MUC</a></div>';
+		const parts = normalizeSourceItemsPart({
+			status: "completed",
+			result: {
+				search_suggestions: [
+					{ provider: "google", rendered_content: html },
+					{ provider: "google", rendered_content: html },
+				],
+			},
+		});
+		expect(parts).toEqual([]);
+		expect(
+			normalizeSourceItemsPart({
+				status: "error",
+				result: { search_suggestions: [{ provider: "google", rendered_content: html }] },
+			}),
+		).toEqual([]);
+	});
+	it("projects a document source result into browser source items", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				sources: [
+					{
+						citation_index: 1,
+						document_id: "curriculum_plan/computer-science",
+						kind: "campus_document",
+						root_unit_ids: ["curriculum-root-001", "curriculum-root-002"],
+						section_ref:
+							"/docs/curriculum/curriculum_plan/computer-science/v/2026#graduation-requirements",
+						section_title: "二、毕业要求",
+						snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+						title: "计算机类本科人才培养方案",
+						version_id: "version-computer-science-2026",
+						version_slug: "2026",
+					},
+				],
+			},
+			status: "completed",
+		});
+
+		expect(
+			normalizeChatStructuredParts([
+				...parts,
+				{ type: "search_suggestions", provider: "google", renderedContent: "<div>legacy</div>" },
+			]),
+		).toEqual(parts);
+		expect(parts).toEqual([
+			{
+				sourceItems: [
+					{
+						citationIndexes: [1],
+						collectionLabel: "培养方案",
+						kind: "campus_document",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: "/docs/curriculum/curriculum_plan/computer-science/v/2026?hl=curriculum-root-001%2Ccurriculum-root-002#graduation-requirements",
+							label: "查看文档",
+						},
+						sectionTitle: "二、毕业要求",
+						snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+						title: "计算机类本科人才培养方案",
+						versionSlug: "2026",
+					},
+				],
+				type: "source_items",
+			},
+		]);
+	});
+
+	it("rejects a notice source whose citation href identifies another notice", () => {
+		expect(() =>
+			normalizeSourceItemsPart({
+				result: {
+					sources: [
+						{
+							citation_href: "/notices/54321",
+							citation_index: 1,
+							kind: "campus_notice",
+							notice_id: "12345",
+							title: "通知",
+						},
+					],
+				},
+				status: "completed",
+			}),
+		).toThrow("Execution source item 0 is invalid.");
+	});
+
+	it("drops persisted source items that do not use the current source contract", () => {
+		const parts = normalizeChatStructuredParts([
+			{
+				sourceItems: [
+					{
+						citationIndexes: [1],
+						legacyRouting: "ignored",
+						primaryAction: {
+							external: true,
+							href: "/docs/regulations/student_rules/student-handbook/v/2026#network-use",
+							label: "打开网页",
+						},
+						sectionTitle: "校园网络使用",
+						snippet: "学生应遵守校园网络使用规定。",
+						title: "学生手册",
+						versionSlug: "2026",
+					},
+				],
+				type: "source_items",
+			},
+		]);
+
+		expect(parts).toEqual([]);
+	});
+
+	it("drops persisted notice source cards whose href identifies another notice", () => {
+		const parts = normalizeChatStructuredParts([
+			{
+				sourceItems: [
+					{
+						citationIndexes: [1],
+						kind: "campus_notice",
+						noticeId: "12345",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: "/notices/54321",
+							label: "查看通知",
+						},
+						sectionTitle: "正文",
+						snippet: null,
+						title: "通知",
+					},
+				],
+				type: "source_items",
+			},
+		]);
+
+		expect(parts).toEqual([]);
+	});
+
+	it("drops non-document and malformed source references", () => {
+		expect(() =>
+			normalizeSourceItemsPart({
+				result: {
+					sources: [
+						{
+							kind: "campus_document",
+							section_ref: "https://muc.edu.cn/news/1#details",
+							title: "公开网页",
+						},
+					],
+				},
+				status: "completed",
+			}),
+		).toThrow("Execution source item 0 is invalid.");
+		const persistedParts = normalizeChatStructuredParts([
+			{
+				sourceItems: [
+					{
+						primaryAction: { href: "https://muc.edu.cn/news/1", label: "打开网页" },
+						title: "公开网页",
+					},
+				],
+				type: "source_items",
+			},
+		]);
+
+		expect(persistedParts).toEqual([]);
+	});
+
+	it("preserves citation order and merges duplicate source cards", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				sources: [
+					{
+						citation_index: 4,
+						kind: "campus_document",
+						root_unit_ids: ["root-4"],
+						section_ref: "/docs/regulations/student_rules/handbook/v/2026#rules",
+						section_title: "管理规定",
+						title: "学生手册",
+						version_slug: "2026",
+					},
+					{
+						citation_index: 1,
+						kind: "campus_document",
+						root_unit_ids: ["root-1"],
+						section_ref: "/docs/regulations/student_rules/handbook/v/2026#rules",
+						section_title: "管理规定",
+						title: "学生手册",
+						version_slug: "2026",
+					},
+				],
+			},
+			status: "completed",
+		});
+
+		expect(parts[0]).toMatchObject({
+			sourceItems: [
+				{
+					citationIndexes: [4, 1],
+					primaryAction: {
+						href: "/docs/regulations/student_rules/handbook/v/2026?hl=root-4%2Croot-1#rules",
+					},
+				},
+			],
+		});
+	});
+
+	it("keeps more than ten cited source cards", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				sources: Array.from({ length: 11 }, (_, offset) => {
+					const citationIndex = offset + 5;
+					return {
+						citation_index: citationIndex,
+						kind: "campus_document",
+						root_unit_ids: [`root-${citationIndex}`],
+						section_ref: `/docs/regulations/student_rules/handbook/v/2026#rules-${citationIndex}`,
+						section_title: `管理规定 ${citationIndex}`,
+						title: `学生手册 ${citationIndex}`,
+						version_slug: "2026",
+					};
+				}),
+			},
+			status: "completed",
+		});
+
+		expect(parts[0]).toMatchObject({
+			sourceItems: [
+				{ citationIndexes: [5] },
+				{ citationIndexes: [6] },
+				{ citationIndexes: [7] },
+				{ citationIndexes: [8] },
+				{ citationIndexes: [9] },
+				{ citationIndexes: [10] },
+				{ citationIndexes: [11] },
+				{ citationIndexes: [12] },
+				{ citationIndexes: [13] },
+				{ citationIndexes: [14] },
+				{ citationIndexes: [15] },
+			],
+		});
+		expect(normalizeChatStructuredParts(JSON.parse(JSON.stringify(parts)))).toEqual(parts);
+	});
+
+	it("projects Web sources with citation hrefs and preserves URL identity", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				sources: [
+					{
+						citation_href: "https://www.muc.edu.cn/contact?campus=main#mailing-address",
+						citation_index: 1,
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						title: "联系我们",
+						url: "https://www.muc.edu.cn/contact?campus=main",
+					},
+					{
+						citation_href: "https://www.muc.edu.cn/contact?campus=fengtai#address",
+						citation_index: 2,
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						title: "联系我们",
+						url: "https://www.muc.edu.cn/contact?campus=fengtai#address",
+					},
+					{
+						citation_href: "https://www.muc.edu.cn/contact?campus=main#address",
+						citation_index: 7,
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						title: "学校联系方式",
+						url: "https://www.muc.edu.cn/contact?campus=main",
+					},
+				],
+			},
+			status: "completed",
+		});
+
+		expect(
+			normalizeChatStructuredParts([
+				...parts,
+				{ type: "search_suggestions", provider: "google", renderedContent: "<div>legacy</div>" },
+			]),
+		).toEqual(parts);
+		expect(parts).toEqual([
+			{
+				sourceItems: [
+					{
+						citationIndexes: [1, 7],
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						primaryAction: {
+							disabledReason: null,
+							external: true,
+							href: "https://www.muc.edu.cn/contact?campus=main#mailing-address",
+							label: "打开网页",
+						},
+						snippet: null,
+						title: "联系我们",
+					},
+					{
+						citationIndexes: [2],
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						primaryAction: {
+							disabledReason: null,
+							external: true,
+							href: "https://www.muc.edu.cn/contact?campus=fengtai#address",
+							label: "打开网页",
+						},
+						snippet: null,
+						title: "联系我们",
+					},
+				],
+				type: "source_items",
+			},
+		]);
+	});
+
+	it.each([
+		[
+			"unsupported protocol",
+			{
+				citation_href: "ftp://www.muc.edu.cn/contact",
+				citation_index: 1,
+				hostname: "www.muc.edu.cn",
+				kind: "web_page",
+				title: "联系我们",
+				url: "ftp://www.muc.edu.cn/contact",
+			},
+		],
+		[
+			"URL credentials",
+			{
+				citation_href: "https://user:password@www.muc.edu.cn/contact",
+				citation_index: 1,
+				hostname: "www.muc.edu.cn",
+				kind: "web_page",
+				title: "联系我们",
+				url: "https://user:password@www.muc.edu.cn/contact",
+			},
+		],
+		[
+			"hostname mismatch",
+			{
+				citation_href: "https://www.muc.edu.cn/contact",
+				citation_index: 1,
+				hostname: "evil.example",
+				kind: "web_page",
+				title: "联系我们",
+				url: "https://www.muc.edu.cn/contact",
+			},
+		],
+	] as const)("rejects Web source with %s", (_name, source) => {
+		expect(() =>
+			normalizeSourceItemsPart({ result: { sources: [source] }, status: "completed" }),
+		).toThrow("Execution source item 0 is invalid.");
+	});
+
+	it.each([
+		["missing", undefined],
+		["zero", 0],
+		["negative", -1],
+		["fraction", 1.5],
+	] as const)("rejects invalid citation index: %s", (_name, citationIndex) => {
+		expect(() =>
+			normalizeSourceItemsPart({
+				result: {
+					sources: [
+						{
+							...(citationIndex === undefined ? {} : { citation_index: citationIndex }),
+							kind: "campus_document",
+							section_ref: "/docs/regulations/student_rules/handbook/v/2026#rules",
+							title: "学生手册",
+							version_slug: "2026",
+						},
+					],
+				},
+				status: "completed",
+			}),
+		).toThrow("Execution source item 0 is invalid.");
+	});
+
+	it("drops persisted source cards with duplicate citation indexes", () => {
+		expect(
+			normalizeChatStructuredParts([
+				{
+					sourceItems: [
+						{
+							citationIndexes: [1, 1],
+							kind: "campus_document",
+							primaryAction: {
+								external: false,
+								href: "/docs/regulations/student_rules/handbook/v/2026#rules",
+								label: "查看文档",
+							},
+							title: "学生手册",
+							versionSlug: "2026",
+						},
+					],
+					type: "source_items",
+				},
+			]),
+		).toEqual([]);
+	});
+});

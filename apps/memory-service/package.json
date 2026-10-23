@@ -1,0 +1,14 @@
+{
+	"name": "memory-service",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "bash scripts/dev.sh",
+		"dev:worker": "go run ./cmd/memory-worker",
+		"native:test": "go test ./...",
+		"native:vet": "go vet ./...",
+		"native:format": "gofmt -l .",
+		"build": "go build ./cmd/...",
+		"test:database-integration": "go test -v -tags=postgres_integration ./integration/postgres -count=1 -timeout=10m"
+	}
+}

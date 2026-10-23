@@ -1,0 +1,7 @@
+{
+	"portal_base_url": "https://my.muc.edu.cn",
+	"portal_page_url": "https://my.muc.edu.cn/page/11#/",
+	"site_id": "muc_internal_portal",
+	"source_home_url": "https://my.muc.edu.cn",
+	"sso_cookie_domain": ".muc.edu.cn"
+}

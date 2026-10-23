@@ -1,0 +1,24 @@
+{
+	"name": "@campus-agent/notice-database",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Shared PostgreSQL connection configuration for notice ingestion jobs.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
+	},
+	"dependencies": {
+		"pg": "^8.23.1"
+	},
+	"devDependencies": {
+		"@types/node": "^24.19.2",
+		"@types/pg": "^8.23.1",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	},
+	"license": "Apache-2.0"
+}

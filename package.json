@@ -1,0 +1,49 @@
+{
+	"name": "campus-agent-web-workspace",
+	"private": true,
+	"packageManager": "pnpm@11.27.0",
+	"engines": {
+		"node": ">=24 <25"
+	},
+	"scripts": {
+		"hooks:install": "node --experimental-strip-types scripts/hooks/install.mts",
+		"prepare": "node --experimental-strip-types scripts/hooks/install.mts",
+		"lint": "pnpm exec prek run --config .config/.pre-commit-config.yaml --all-files --stage pre-commit --skip staged-secrets --skip no-commit-to-branch --no-group validation",
+		"docs:check": "pnpm exec tsx scripts/docs/check-frontmatter.ts && pnpm exec tsx scripts/docs/check-notes-tree.ts && pnpm exec tsx scripts/docs/check-notes-format.ts && pnpm exec tsx scripts/docs/check-archived-agent-notes.ts && pnpm exec tsx scripts/docs/check-budgets.ts && pnpm exec tsx scripts/docs/check-links.ts && pnpm exec tsx scripts/docs/check-language.ts",
+		"test": "nix develop .#ci-full --command node --experimental-strip-types scripts/ci/evidence.mts --workspace test",
+		"check": "nix develop .#ci-full --command node --experimental-strip-types scripts/ci/evidence.mts --workspace check",
+		"verify": "nix develop .#ci-full --command node --experimental-strip-types scripts/ci/evidence.mts --workspace verify",
+		"dev": "pnpm exec tsx scripts/dev/cli.ts doctor --target core --scope startup && turbo run dev --env-mode=strict --filter=campus-web --filter=app-api --filter=model-config --filter=agent-control --filter=campus-search-service --filter=agent-runtime --filter=memory-service --filter=cluster-private-ingress",
+		"dev:init": "pnpm exec tsx scripts/dev/cli.ts init",
+		"dev:local": "pnpm exec tsx scripts/dev/cli.ts",
+		"dev:sync-notices": "pnpm exec tsx scripts/dev/product-data/notice-sync-cli.ts",
+		"dev:doctor": "pnpm exec tsx scripts/dev/cli.ts doctor",
+		"dev:instances": "pnpm exec tsx scripts/dev/cli.ts instances",
+		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy",
+		"dev:prune": "pnpm exec tsx scripts/dev/cli.ts prune",
+		"test:tooling": "node --experimental-strip-types scripts/ci/repository-test.mts",
+		"canonical-order:check": "node --experimental-strip-types scripts/ci/check-canonical-order.mts",
+		"typecheck": "node --experimental-strip-types scripts/ci/evidence.mts --workspace typecheck",
+		"build": "node --experimental-strip-types scripts/ci/evidence.mts --workspace build",
+		"build:check": "node --experimental-strip-types scripts/ci/evidence.mts --workspace build:check"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.15",
+		"@j178/prek": "0.5.6",
+		"@types/node": "^24.19.2",
+		"markdownlint-cli2": "^0.24.0",
+		"tsx": "^4.23.15",
+		"turbo": "2.11.9",
+		"typescript": "^7.0.2",
+		"yaml": "2.9.1"
+	},
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/MUC-WIKI/campus-agent.git"
+	},
+	"homepage": "https://github.com/MUC-WIKI/campus-agent#readme",
+	"bugs": {
+		"url": "https://github.com/MUC-WIKI/campus-agent/issues"
+	}
+}

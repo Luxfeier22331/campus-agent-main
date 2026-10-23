@@ -1,0 +1,11 @@
+docId: curriculum:统计学类本科人才培养方案
+readerKey: campus-docs/readers/sha256/83baafaa60c05d8f38f4072019d8bfbd7f175efee79771b91078ca4b332c715a/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/统计学类本科人才培养方案--统计学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0418-page-0418-block-mineru-block-0008-0008-map-01.png
+        path: course-maps/page-0418-page-0418-block-mineru-block-0008-0008-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/统计学类本科人才培养方案--统计学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:统计学类本科人才培养方案:8ef31ce4504f
+versionSlug: "2022"

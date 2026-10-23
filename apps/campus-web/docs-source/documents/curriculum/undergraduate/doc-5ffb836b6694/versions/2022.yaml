@@ -1,0 +1,13 @@
+docId: curriculum:电子信息类本科人才培养方案
+readerKey: campus-docs/readers/sha256/6b9d1ea81c41f99d9f4b1bfc4e42b7c304880b681a2647a857c1330934c7c5db/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/电子信息类本科人才培养方案--电子信息类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0476-page-0476-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0476-page-0476-block-mineru-block-0002-0002-map-01.png
+      - key: curriculum/documents/curriculum_plan/电子信息类本科人才培养方案--电子信息类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0477-page-0477-block-mineru-block-0001-0001-map-01.png
+        path: course-maps/page-0477-page-0477-block-mineru-block-0001-0001-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/电子信息类本科人才培养方案--电子信息类本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:电子信息类本科人才培养方案:21b389b51428
+versionSlug: "2022"

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)" />
+		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+		<script src="/theme-bootstrap.js"></script>
+		<style>
+			[data-app-boot] {
+				--boot-canvas: #f7f9f8;
+				--boot-skeleton: #e3e8e6;
+				position: fixed;
+				inset: 0;
+				box-sizing: border-box;
+				padding: 24px;
+				background: var(--boot-canvas);
+			}
+			[data-app-boot] > div {
+				width: min(100%, 768px);
+				margin: 0 auto;
+			}
+			[data-app-boot] i {
+				display: block;
+				height: 16px;
+				margin-top: 16px;
+				border-radius: 6px;
+				background: var(--boot-skeleton);
+			}
+			[data-app-boot] i:first-child {
+				width: 112px;
+				height: 32px;
+				margin-top: 0;
+			}
+			[data-app-boot] i:last-child {
+				width: 72%;
+			}
+			:root[data-theme="dark"] [data-app-boot] {
+				--boot-canvas: #0f1115;
+				--boot-skeleton: #242b37;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root:not([data-theme]) [data-app-boot] {
+					--boot-canvas: #0f1115;
+					--boot-skeleton: #242b37;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="root">
+			<div aria-busy="true" aria-label="正在加载页面" data-app-boot role="status">
+				<div aria-hidden="true"><i></i><i></i><i></i></div>
+			</div>
+		</div>
+		<script type="module" src="/src/main.tsx"></script>
+	</body>
+</html>

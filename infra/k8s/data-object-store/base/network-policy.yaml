@@ -1,0 +1,50 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-object-store-ingress
+  labels:
+    app.kubernetes.io/name: object-store
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: object-store
+      app.kubernetes.io/instance: rustfs
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-object-store-bootstrap-egress
+  labels:
+    app.kubernetes.io/name: object-store-bootstrap
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: object-store-bootstrap
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+              app.kubernetes.io/instance: rustfs
+      ports:
+        - protocol: TCP
+          port: 9000

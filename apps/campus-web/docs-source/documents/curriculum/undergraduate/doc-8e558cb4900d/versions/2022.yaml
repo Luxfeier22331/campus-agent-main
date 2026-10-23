@@ -1,0 +1,13 @@
+docId: curriculum:英语本科人才培养方案
+readerKey: campus-docs/readers/sha256/16def94afc4ccf8cd06e339e151c2f572030445e989b73611efd7fa81e49a520/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/英语本科人才培养方案--英语本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0207-page-0207-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0207-page-0207-block-mineru-block-0002-0002-map-01.png
+      - key: curriculum/documents/curriculum_plan/英语本科人才培养方案--英语本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0207-page-0207-block-mineru-block-0003-0003-map-01.png
+        path: course-maps/page-0207-page-0207-block-mineru-block-0003-0003-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/英语本科人才培养方案--英语本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:英语本科人才培养方案:e7262fd6c5ab
+versionSlug: "2022"

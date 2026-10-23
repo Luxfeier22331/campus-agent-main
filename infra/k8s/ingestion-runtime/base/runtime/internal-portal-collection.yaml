@@ -1,0 +1,328 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notice-sync
+  labels:
+    app.kubernetes.io/name: internal-portal-collection
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "*/15 * * * *"
+  timeZone: Asia/Shanghai
+  startingDeadlineSeconds: 300
+  failedJobsHistoryLimit: 1000
+  successfulJobsHistoryLimit: 1000
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    metadata:
+      labels:
+        campus-agent.muc.wiki/notice-operation: notice-sync
+        campus-agent.muc.wiki/notice-operation-family: collection
+    spec:
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 3600
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: internal-portal-collection
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: ingestion-runtime
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: collection
+              image: ghcr.io/muc-wiki/campus-agent/internal-portal-collection:replace-me
+              imagePullPolicy: IfNotPresent
+              command:
+                - /usr/bin/tini
+                - "--"
+                - node
+                - /workspace/jobs/internal-portal-collection/dist/collection-job.js
+              args:
+                - notice-sync
+              envFrom:
+                - configMapRef:
+                    name: campus-agent-database-config
+              env:
+                - name: DEPLOYMENT_ENVIRONMENT
+                  value: production
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: password
+                - name: OPS_WEB_INTERNAL_URL
+                  value: http://ops-web:5178
+                - name: OPS_WEB_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ops-web-internal-secrets
+                      key: OPS_WEB_INTERNAL_TOKEN
+                - name: OBJECT_STORE_BUCKET_SOURCE
+                  value: campus-agent-source
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_ACCESS_KEY
+                - name: OBJECT_STORE_SOURCE_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_SECRET_KEY
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: postgres-ca
+                  mountPath: /etc/campus-agent/postgres
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: postgres-ca
+              secret:
+                secretName: campus-agent-postgres-origin-server
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+            - name: tmp
+              emptyDir:
+                sizeLimit: 512Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notice-backfill
+  labels:
+    app.kubernetes.io/name: internal-portal-collection
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 3600
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: internal-portal-collection
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: ingestion-runtime
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: collection
+              image: ghcr.io/muc-wiki/campus-agent/internal-portal-collection:replace-me
+              imagePullPolicy: IfNotPresent
+              command:
+                - /usr/bin/tini
+                - "--"
+                - node
+                - /workspace/jobs/internal-portal-collection/dist/collection-job.js
+              args:
+                - notice-backfill
+              envFrom:
+                - configMapRef:
+                    name: campus-agent-database-config
+              env:
+                - name: DEPLOYMENT_ENVIRONMENT
+                  value: production
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: password
+                - name: OPS_WEB_INTERNAL_URL
+                  value: http://ops-web:5178
+                - name: OPS_WEB_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ops-web-internal-secrets
+                      key: OPS_WEB_INTERNAL_TOKEN
+                - name: OBJECT_STORE_BUCKET_SOURCE
+                  value: campus-agent-source
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_ACCESS_KEY
+                - name: OBJECT_STORE_SOURCE_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_SECRET_KEY
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: postgres-ca
+                  mountPath: /etc/campus-agent/postgres
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: postgres-ca
+              secret:
+                secretName: campus-agent-postgres-origin-server
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+            - name: tmp
+              emptyDir:
+                sizeLimit: 512Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: file-sync
+  labels:
+    app.kubernetes.io/name: internal-portal-collection
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 3600
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: internal-portal-collection
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: ingestion-runtime
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: collection
+              image: ghcr.io/muc-wiki/campus-agent/internal-portal-collection:replace-me
+              imagePullPolicy: IfNotPresent
+              command:
+                - /usr/bin/tini
+                - "--"
+                - node
+                - /workspace/jobs/internal-portal-collection/dist/collection-job.js
+              args:
+                - file-sync
+              env:
+                - name: OPS_WEB_INTERNAL_URL
+                  value: http://ops-web:5178
+                - name: OPS_WEB_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ops-web-internal-secrets
+                      key: OPS_WEB_INTERNAL_TOKEN
+                - name: OBJECT_STORE_BUCKET_SOURCE
+                  value: campus-agent-source
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_ACCESS_KEY
+                - name: OBJECT_STORE_SOURCE_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_SECRET_KEY
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 512Mi

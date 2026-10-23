@@ -1,0 +1,90 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-docs-reader.v3.schema.json",
+	"title": "校园文档阅读正文",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schemaVersion", "docId", "versionId", "elements", "supplements"],
+	"properties": {
+		"schemaVersion": { "const": "campus_docs_reader.v3" },
+		"docId": { "$ref": "#/$defs/NonEmptyString" },
+		"versionId": { "$ref": "#/$defs/NonEmptyString" },
+		"elements": { "type": "array", "items": { "$ref": "#/$defs/Element" } },
+		"supplements": { "type": "array", "items": { "$ref": "#/$defs/Supplement" } }
+	},
+	"$defs": {
+		"NonEmptyString": { "type": "string", "minLength": 1, "pattern": "\\S" },
+		"RelativePath": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+		},
+		"Supplement": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "path"],
+			"properties": {
+				"kind": { "const": "course_maps" },
+				"path": { "const": "course-maps.json" }
+			}
+		},
+		"Element": {
+			"oneOf": [
+				{ "$ref": "#/$defs/HeadingElement" },
+				{ "$ref": "#/$defs/TextElement" },
+				{ "$ref": "#/$defs/TableElement" }
+			]
+		},
+		"HeadingElement": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "anchor", "level", "rootUnitId", "text"],
+			"properties": {
+				"kind": { "const": "heading" },
+				"anchor": { "$ref": "#/$defs/NonEmptyString" },
+				"level": { "type": "integer", "minimum": 2, "maximum": 6 },
+				"rootUnitId": { "$ref": "#/$defs/NonEmptyString" },
+				"text": { "$ref": "#/$defs/NonEmptyString" }
+			}
+		},
+		"TextElement": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "rootUnitId", "text"],
+			"properties": {
+				"kind": { "enum": ["paragraph", "list", "blockquote"] },
+				"rootUnitId": { "$ref": "#/$defs/NonEmptyString" },
+				"text": { "$ref": "#/$defs/NonEmptyString" }
+			}
+		},
+		"TableElement": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "rootUnitId", "rows"],
+			"properties": {
+				"kind": { "const": "table" },
+				"rootUnitId": { "$ref": "#/$defs/NonEmptyString" },
+				"rows": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "array",
+						"minItems": 1,
+						"items": { "$ref": "#/$defs/TableCell" }
+					}
+				}
+			}
+		},
+		"TableCell": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["text", "header"],
+			"properties": {
+				"text": { "type": "string" },
+				"header": { "type": "boolean" },
+				"rowSpan": { "type": "integer", "minimum": 1 },
+				"colSpan": { "type": "integer", "minimum": 1 }
+			}
+		}
+	}
+}

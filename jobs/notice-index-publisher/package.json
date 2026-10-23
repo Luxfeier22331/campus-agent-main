@@ -1,0 +1,56 @@
+{
+	"name": "notice-index-publisher",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Notice RAG chunk and embedding artifact builder.",
+	"license": "Apache-2.0",
+	"type": "module",
+	"scripts": {
+		"build": "bash scripts/build.sh",
+		"build-chunks": "tsx src/cli.ts build-chunks",
+		"build-embeddings": "tsx src/cli.ts build-embeddings",
+		"import-embedding-cache-local": "tsx src/cli.ts import-embedding-cache",
+		"build-chunks-local": "node --env-file=.env.local --import=tsx src/cli/local-cli.ts",
+		"compare-chunks-local": "tsx src/cli/local-chunk-comparison-cli.ts",
+		"evaluate-embeddings-local": "node --env-file=../../.env --import=tsx src/cli/local-embedding-evaluation-cli.ts",
+		"generate-notice-questions-local": "node --env-file=../../.env --import=tsx src/cli/local-notice-question-generation-cli.ts",
+		"sample-embeddings-local": "node --env-file=../../.env --import=tsx src/cli/local-embedding-sample-cli.ts",
+		"review-chunks-local": "tsx src/cli/local-review-cli.ts",
+		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run --exclude 'test/**/*.database.integration.test.ts'"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1153.0",
+		"@campus-agent/embedding-runtime": "workspace:*",
+		"@campus-agent/notice-database": "workspace:*",
+		"@campus-agent/text-normalization": "workspace:*",
+		"campus-contracts": "workspace:*",
+		"jsdom": "^30.1.1",
+		"pg": "^8.23.1"
+	},
+	"devDependencies": {
+		"@testcontainers/postgresql": "12.2.1",
+		"@types/jsdom": "^30.0.0",
+		"@types/node": "^24.19.2",
+		"@types/pg": "^8.23.1",
+		"esbuild": "^0.28.2",
+		"testcontainers": "12.2.1",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	},
+	"exports": {
+		"./cleanup": "./src/cleanup.ts",
+		"./command": "./src/command.ts",
+		"./embedding": "./src/embedding.ts",
+		"./embedding-set": "./src/embedding-set.ts",
+		"./object-store": "./src/object-store.ts",
+		"./run-reader": "./src/run-reader.ts",
+		"./types": "./src/types.ts",
+		"./source": "./src/source.ts",
+		"./chunking/index": "./src/chunking/index.ts",
+		"./validation": "./src/validation.ts",
+		"./definitions": "./src/definitions.ts"
+	}
+}

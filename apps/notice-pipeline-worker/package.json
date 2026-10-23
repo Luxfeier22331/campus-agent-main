@@ -1,0 +1,41 @@
+{
+	"name": "notice-pipeline-worker",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"license": "Apache-2.0",
+	"scripts": {
+		"dev": "node --env-file-if-exists=.env.local --import=tsx src/worker.ts",
+		"start": "node --import=tsx src/worker.ts",
+		"schedule:init": "node --env-file-if-exists=.env.local --import=tsx src/schedule-cli.ts",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run",
+		"build": "node --import=tsx src/build.ts"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1153.0",
+		"@campus-agent/notice-database": "workspace:*",
+		"@temporalio/activity": "1.24.0",
+		"@temporalio/client": "1.24.0",
+		"@temporalio/common": "1.24.0",
+		"@temporalio/worker": "1.24.0",
+		"@temporalio/workflow": "1.24.0",
+		"content-disposition": "^3.0.0",
+		"dotenv": "^18.0.8",
+		"internal-portal-collection": "workspace:*",
+		"jsdom": "^30.1.3",
+		"mime-types": "^3.0.2",
+		"notice-classifier": "workspace:*",
+		"notice-publisher": "workspace:*",
+		"pg": "^8.23.1",
+		"tldts": "^7.4.18",
+		"tsx": "^4.23.15",
+		"undici": "^8.12.3"
+	},
+	"devDependencies": {
+		"@types/node": "^24.19.2",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5",
+		"esbuild": "^0.28.2"
+	}
+}

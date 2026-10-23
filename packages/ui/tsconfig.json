@@ -1,0 +1,27 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"jsx": "react-jsx",
+		"strict": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"moduleDetection": "force",
+		"noFallthroughCasesInSwitch": true,
+		"isolatedModules": true,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"verbatimModuleSyntax": true,
+		"erasableSyntaxOnly": true,
+		"types": ["vitest/globals", "@testing-library/jest-dom"],
+		"skipLibCheck": true,
+		"noEmit": true
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"]
+}

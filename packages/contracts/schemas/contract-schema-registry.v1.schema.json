@@ -1,0 +1,86 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/contract-schema-registry.v1.schema.json",
+	"title": "Campus Contract Schema Registry",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "updated", "entries"],
+	"properties": {
+		"schema_version": {
+			"const": "contract-schema-registry.v1"
+		},
+		"updated": {
+			"type": "string",
+			"minLength": 1
+		},
+		"entries": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"$ref": "#/$defs/RegistryEntry"
+			}
+		}
+	},
+	"$defs": {
+		"RegistryEntry": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id", "kind", "path", "owner", "status"],
+			"properties": {
+				"id": {
+					"type": "string",
+					"minLength": 1
+				},
+				"kind": {
+					"enum": ["openapi_wire", "json_artifact", "language_local", "legacy_helper"]
+				},
+				"path": {
+					"type": "string",
+					"minLength": 1
+				},
+				"owner": {
+					"type": "string",
+					"minLength": 1
+				},
+				"status": {
+					"enum": ["active", "legacy", "historical"]
+				},
+				"validates": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"fixture_groups": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/FixtureGroup"
+					}
+				},
+				"notes": {
+					"type": "string"
+				}
+			}
+		},
+		"FixtureGroup": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["path", "valid_glob", "invalid_glob"],
+			"properties": {
+				"path": {
+					"type": "string",
+					"minLength": 1
+				},
+				"valid_glob": {
+					"type": "string",
+					"minLength": 1
+				},
+				"invalid_glob": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		}
+	}
+}

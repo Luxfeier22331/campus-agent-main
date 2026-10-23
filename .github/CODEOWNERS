@@ -1,0 +1,16 @@
+# Default repository owner. CODEOWNERS expresses review responsibility; current
+# private-repo settings may still require manual enforcement.
+* @Linear27
+
+# Repository governance and automation
+/.github/ @Linear27
+/README.md @Linear27
+
+# Durable architecture, runtime and verification surfaces
+/docs/ @Linear27
+/apps/ @Linear27
+/packages/ @Linear27
+/jobs/ @Linear27
+/configs/ @Linear27
+/scripts/ @Linear27
+/tests/ @Linear27

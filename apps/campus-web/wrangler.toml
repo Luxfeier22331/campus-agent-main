@@ -1,0 +1,32 @@
+name = "campus-web"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+upload_source_maps = true
+[[services]]
+binding = "APP_API"
+service = "app-api"
+
+[env.local.vars]
+APP_API_BASE_URL = "http://127.0.0.1:27031"
+STATUS_WEB_PUBLIC_ORIGIN = "http://127.0.0.1:8788"
+
+[[env.local.services]]
+binding = "APP_API"
+service = "app-api-local"
+
+[env.staging.vars]
+APP_API_BASE_URL = "https://app-api.internal"
+
+[[env.staging.services]]
+binding = "APP_API"
+service = "app-api-staging"
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+html_handling = "drop-trailing-slash"
+not_found_handling = "404-page"
+run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/docs", "!/docs/*", "!/_docs/*", "!/@fs/*", "!/@id/*", "!/@react-refresh*", "!/@vite/*", "!/node_modules/*", "!/src/*" ]

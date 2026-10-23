@@ -1,0 +1,50 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"allowImportingTsExtensions": true,
+		"resolveJsonModule": true,
+		"jsx": "react-jsx",
+		"strict": true,
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"moduleDetection": "force",
+		"noFallthroughCasesInSwitch": true,
+		"isolatedModules": true,
+		"noUncheckedIndexedAccess": true,
+		"verbatimModuleSyntax": true,
+		"erasableSyntaxOnly": true,
+		"paths": {
+			"@/*": ["./src/*"]
+		},
+		"types": [
+			"node",
+			"@cloudflare/workers-types",
+			"vite/client",
+			"vitest/globals",
+			"@testing-library/jest-dom"
+		],
+		"skipLibCheck": true,
+		"noEmit": true,
+		"incremental": true,
+		"tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo"
+	},
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"test-support/**/*.ts",
+		"test/**/*.test.ts",
+		"test/**/*.test.tsx",
+		"vite.config.ts",
+		"vitest.config.mts",
+		"vitest.worker.config.mts"
+	],
+	"exclude": ["test/**/*.worker.test.ts"]
+}

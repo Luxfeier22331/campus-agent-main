@@ -1,0 +1,29 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"paths": {
+			"ajv/dist/*": ["./node_modules/ajv/dist/*"]
+		},
+		"allowImportingTsExtensions": true,
+		"strict": true,
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"moduleDetection": "force",
+		"noFallthroughCasesInSwitch": true,
+		"isolatedModules": true,
+		"noUncheckedIndexedAccess": true,
+		"verbatimModuleSyntax": true,
+		"erasableSyntaxOnly": true,
+		"types": ["node", "vitest/globals"],
+		"skipLibCheck": true,
+		"noEmit": true
+	},
+	"include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.mts"]
+}

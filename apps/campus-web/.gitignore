@@ -1,0 +1,4 @@
+/.generated/
+/playwright-report/
+/test-results/
+/.vitest/

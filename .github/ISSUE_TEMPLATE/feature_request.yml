@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose a focused product, contract, or implementation change
+type: Feature
+projects:
+  - MUC-WIKI/1
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Problem or goal
+      description: What user or system problem should this change solve?
+    validations:
+      required: true
+  - type: textarea
+    id: desired_behavior
+    attributes:
+      label: Desired outcome
+      description: What observable result should this change provide?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Add relevant constraints, examples, links, or prior decisions when they help explain the request.

@@ -1,0 +1,38 @@
+{
+	"name": "campus-docs-index-publisher",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Campus Web 文档当前版本的不可变 Qdrant 索引发布任务。",
+	"license": "Apache-2.0",
+	"type": "module",
+	"scripts": {
+		"build": "bash scripts/build.sh",
+		"build-chunks": "node --env-file=.env.local --import=tsx src/local-chunk-cli.ts",
+		"build-embeddings": "node --env-file=../../.env --import=tsx src/local-embedding-cli.ts",
+		"review-chunks-local": "node --env-file=.env.local --import=tsx src/local-chunk-governance-cli.ts",
+		"summarize-chunk-review-labels-local": "tsx src/local-chunk-review-labels-cli.ts",
+		"compare-chunks-local": "tsx src/local-chunk-comparison-cli.ts",
+		"evaluate-chunks-local": "node --env-file=../../.env --import=tsx src/local-chunk-embedding-evaluation-cli.ts",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1153.0",
+		"@campus-agent/embedding-runtime": "workspace:*",
+		"campus-contracts": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.19.2",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	},
+	"exports": {
+		"./indexing/source": "./src/indexing/source.ts",
+		"./indexing/chunks": "./src/indexing/chunks.ts",
+		"./indexing/content-digest": "./src/indexing/content-digest.ts",
+		"./definitions": "./src/definitions.ts",
+		"./chunk-validation": "./src/chunk-validation.ts"
+	}
+}

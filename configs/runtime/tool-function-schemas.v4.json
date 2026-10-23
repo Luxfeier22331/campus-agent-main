@@ -1,0 +1,49 @@
+{
+	"schema_version": "tool-function-schemas-v4",
+	"tools": [
+		{
+			"type": "function",
+			"name": "campus_search",
+			"description": "检索中央民族大学当前 Campus Web 文档与已发布通知中的校内事实、政策、办事流程和近期信息，返回供回答选择的候选结果。",
+			"strict": true,
+			"parameters": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"search_goal": {
+						"type": "string",
+						"description": "本次检索要确认的具体事实，用完整问题表述并保留学校、项目等必要上下文。首次检索时列出问题涉及的所有事实维度（如项目选项、申请条件、费用资助、合作院校），让单次检索尽量覆盖；补查时聚焦尚缺的信息。",
+						"minLength": 1,
+						"maxLength": 800
+					},
+					"search_query": {
+						"type": "string",
+						"description": "面向校内资料的检索表达。包含事实维度词（如申请条件、费用、资助、合作院校、流程、材料）和时间范围（如最新、2026）；多个维度用空格分隔。不需要重复学校名称。",
+						"minLength": 1,
+						"maxLength": 400
+					}
+				},
+				"required": ["search_query", "search_goal"]
+			}
+		},
+		{
+			"type": "function",
+			"name": "personal_memory_recall",
+			"description": "仅在有助于回答或消除当前问题歧义时，检索用户的私有个人记忆。",
+			"strict": true,
+			"parameters": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"query": {
+						"type": "string",
+						"description": "根据用户当前问题整理出的聚焦个人记忆查询。",
+						"minLength": 1,
+						"maxLength": 400
+					}
+				},
+				"required": ["query"]
+			}
+		}
+	]
+}

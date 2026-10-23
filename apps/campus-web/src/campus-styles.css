@@ -1,0 +1,266 @@
+@import "@campus-agent/ui/tokens.css";
+@import "@campus-agent/ui/theme.css";
+@import "@campus-agent/notices/content.css";
+@import "./design/tokens.css";
+@import "tw-shimmer";
+@source "../../../packages/ui/src";
+
+@theme inline {
+	--color-primary: var(--campus-action);
+	--color-primary-hover: var(--campus-action-hover);
+	--color-primary-pressed: var(--campus-action-pressed);
+	--color-primary-foreground: var(--campus-action-foreground);
+	--color-selected: var(--campus-selected-bg);
+	--color-selected-hover: var(--campus-selected-hover);
+	--color-selected-pressed: var(--campus-selected-pressed);
+	--color-selected-foreground: var(--campus-selected-foreground);
+	--color-link: var(--campus-link);
+	--color-link-hover: var(--campus-link-hover);
+	--color-border-selected: var(--campus-selected-border);
+	--color-ring: var(--campus-focus-ring);
+	--color-chat-accent: var(--chat-accent);
+	--color-chat-accent-hover: var(--chat-accent-hover);
+	--color-chat-accent-pressed: var(--chat-accent-pressed);
+	--color-chat-accent-foreground: var(--chat-accent-foreground);
+	--color-chat-accent-subtle: var(--chat-accent-subtle);
+	--color-chat-accent-subtle-hover: var(--chat-accent-subtle-hover);
+	--color-chat-accent-text: var(--chat-accent-text);
+	--color-chat-accent-border: var(--chat-accent-border);
+	--color-chat-message-user-bg: var(--chat-message-user-bg);
+	--color-chat-message-user-text: var(--chat-message-user-text);
+	--color-chat-message-user-meta: var(--chat-message-user-meta);
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+}
+
+:root {
+	--sidebar: var(--chat-sidebar-bg);
+	--sidebar-foreground: var(--sys-text-default);
+	--sidebar-primary: var(--campus-action);
+	--sidebar-primary-foreground: var(--campus-action-foreground);
+	--sidebar-accent: var(--sys-bg-muted);
+	--sidebar-accent-foreground: var(--sys-text-strong);
+	--sidebar-border: var(--chat-sidebar-border);
+	--sidebar-ring: var(--campus-focus-ring);
+}
+
+@layer base {
+	html:has(.campus-transport-page) {
+		scrollbar-gutter: stable;
+	}
+
+	:focus-visible {
+		outline-color: var(--campus-focus-ring);
+	}
+
+	::selection {
+		background: var(--campus-selected-bg);
+		color: var(--campus-selected-foreground);
+	}
+}
+
+.aui-user-message-content {
+	background: var(--chat-message-user-bg);
+	color: var(--chat-message-user-text);
+}
+
+.aui-composer-send,
+.aui-composer-cancel {
+	border-color: color-mix(in srgb, var(--chat-accent-foreground) 20%, transparent);
+	background: var(--chat-accent);
+	color: var(--chat-accent-foreground);
+}
+
+.aui-composer-send:hover,
+.aui-composer-cancel:hover {
+	background: var(--chat-accent-hover);
+}
+
+.aui-composer-send:active,
+.aui-composer-cancel:active {
+	background: var(--chat-accent-pressed);
+}
+
+.aui-thread-list-item[data-active] {
+	background: var(--campus-selected-bg);
+	color: var(--campus-selected-foreground);
+}
+
+.aui-thread-list-item[data-active]:hover {
+	background: var(--campus-selected-hover);
+}
+
+.aui-thread-history-scope[data-state="on"] {
+	background: var(--campus-selected-bg);
+	color: var(--campus-selected-foreground);
+}
+
+.aui-thread-history-scope[data-state="on"]:hover {
+	background: var(--campus-selected-hover);
+}
+
+.campus-map-marker {
+	display: grid;
+	width: 32px;
+	height: 32px;
+	place-items: center;
+	border: 2px solid var(--map-marker-border);
+	border-radius: 999px;
+	background: var(--map-marker);
+	box-shadow: var(--shadow-sm);
+	color: var(--map-marker-foreground);
+	cursor: pointer;
+	padding: 0;
+	transition:
+		box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+		transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.campus-map-marker > span {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	background: currentColor;
+}
+
+.campus-map-marker[data-variant="building"] {
+	background: var(--map-marker-building);
+}
+
+.campus-map-marker[data-variant="dining"] {
+	background: var(--map-marker-dining);
+}
+
+.campus-map-marker[data-variant="gate"] {
+	background: var(--map-marker-gate);
+}
+
+.campus-map-marker[data-variant="landmark"] {
+	background: var(--map-marker-landmark);
+	color: var(--map-marker-landmark-foreground);
+}
+
+.campus-map-marker[data-variant="service"] {
+	background: var(--map-marker-service);
+}
+
+.campus-map-marker[data-variant="transport"] {
+	background: var(--map-marker-transport);
+}
+
+.campus-map-marker[data-selected="true"] {
+	box-shadow:
+		0 0 0 2px var(--map-style-selection-halo),
+		0 0 0 5px var(--campus-selected-border),
+		var(--shadow-sm);
+	transform: scale(1.16);
+	z-index: 1;
+}
+
+.campus-map-marker:hover:not([data-selected="true"]) {
+	box-shadow:
+		0 0 0 2px var(--map-style-selection-halo),
+		0 0 0 5px var(--campus-selected-border),
+		var(--shadow-sm);
+	transform: scale(1.08);
+}
+
+.campus-map-marker:focus-visible {
+	outline: 3px solid var(--campus-focus-ring);
+	outline-offset: 4px;
+}
+
+.notice-category-badge {
+	border-color: var(--notice-category-badge-border);
+	background: var(--notice-category-badge-bg);
+	color: var(--notice-category-badge-text);
+}
+
+.notice-category-badge[data-notice-category-tone="blue"] {
+	--notice-category-badge-bg: var(--notice-category-blue-bg);
+	--notice-category-badge-border: var(--notice-category-blue-border);
+	--notice-category-badge-text: var(--notice-category-blue-text);
+}
+
+.notice-category-badge[data-notice-category-tone="green"] {
+	--notice-category-badge-bg: var(--notice-category-green-bg);
+	--notice-category-badge-border: var(--notice-category-green-border);
+	--notice-category-badge-text: var(--notice-category-green-text);
+}
+
+.notice-category-badge[data-notice-category-tone="orange"] {
+	--notice-category-badge-bg: var(--notice-category-orange-bg);
+	--notice-category-badge-border: var(--notice-category-orange-border);
+	--notice-category-badge-text: var(--notice-category-orange-text);
+}
+
+.notice-category-badge[data-notice-category-tone="rose"] {
+	--notice-category-badge-bg: var(--notice-category-rose-bg);
+	--notice-category-badge-border: var(--notice-category-rose-border);
+	--notice-category-badge-text: var(--notice-category-rose-text);
+}
+
+.notice-category-badge[data-notice-category-tone="slate"] {
+	--notice-category-badge-bg: var(--notice-category-slate-bg);
+	--notice-category-badge-border: var(--notice-category-slate-border);
+	--notice-category-badge-text: var(--notice-category-slate-text);
+}
+
+.notice-category-badge[data-notice-category-tone="teal"] {
+	--notice-category-badge-bg: var(--notice-category-teal-bg);
+	--notice-category-badge-border: var(--notice-category-teal-border);
+	--notice-category-badge-text: var(--notice-category-teal-text);
+}
+
+[data-surface="map-first"] .maplibregl-ctrl-top-right {
+	top: calc(0.75rem + var(--layout-campus-topnav-height));
+}
+
+@media (max-width: 959px) {
+	[data-surface="map-first"] .maplibregl-ctrl-top-right {
+		top: 133px;
+	}
+}
+
+:root {
+	--ui-page-title-size: var(--font-size-xl);
+}
+
+@media (min-width: 48rem) {
+	:root {
+		--ui-page-title-size: var(--font-size-2xl);
+	}
+}
+
+.campus-top-nav:not([data-variant="immersive"]) {
+	container: campus-top-nav / inline-size;
+}
+
+@container campus-top-nav (min-width: 64rem) {
+	.campus-top-nav-product-nav,
+	.campus-top-nav-theme,
+	.campus-top-nav-account,
+	.campus-top-nav-local-actions {
+		display: inline-flex;
+	}
+
+	.campus-top-nav-mobile-menu {
+		display: none;
+	}
+}
+
+@container campus-top-nav (width < 64rem) {
+	.campus-product-brand-expanded {
+		display: none;
+	}
+
+	.campus-product-brand-compact {
+		display: block;
+	}
+}

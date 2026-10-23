@@ -1,0 +1,384 @@
+import type { DiningMapDraft } from "@campus-agent/dining/domain";
+import type { DiningFloorplanBundleV1 } from "@campus-agent/dining/floorplans";
+import {
+	Alert,
+	Badge,
+	Button,
+	Card,
+	ConfirmDialog,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	Skeleton,
+	StateMessage,
+} from "@campus-agent/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useBlocker } from "@tanstack/react-router";
+import { History, RefreshCw, RotateCcw, Send } from "lucide-react";
+import { lazy, Suspense, useCallback, useState } from "react";
+import type { DiningReleaseSummary } from "../shared/dining-contract";
+import { DiningTaskNavigation } from "./dining-navigation";
+import { formatTimestamp } from "./format";
+import {
+	fetchDiningReleases,
+	fetchDiningState,
+	publishDiningDraft,
+	restoreDiningRelease,
+	saveDiningDraft,
+} from "./ops-api/dining";
+import { PageHeader } from "./ops-display";
+import { useConfirmCommand } from "./use-confirm-command";
+import "./dining-page.css";
+
+const loadDiningFloorplanEditor = () =>
+	import("./dining-studio/editor").then((module) => ({
+		default: module.DiningFloorplanEditor,
+	}));
+const DiningFloorplanEditor = lazy(loadDiningFloorplanEditor);
+
+export function DiningPage() {
+	const confirmCommand = useConfirmCommand();
+
+	const queryClient = useQueryClient();
+	const [unsavedCount, setUnsavedCount] = useState(0);
+	const [navigationWarningOpen, setNavigationWarningOpen] = useState(false);
+	const state = useQuery({
+		queryKey: ["dining", "state"],
+		queryFn: ({ signal }) => fetchDiningState({ signal }),
+	});
+	const releases = useQuery({
+		queryKey: ["dining", "releases"],
+		queryFn: ({ signal }) => fetchDiningReleases({ signal }),
+	});
+	const refresh = useCallback(async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: ["dining", "state"] }),
+			queryClient.invalidateQueries({ queryKey: ["dining", "releases"] }),
+		]);
+	}, [queryClient]);
+	const save = useMutation({
+		mutationFn: (input: { bundle: DiningFloorplanBundleV1; expectedRevision: number }) =>
+			saveDiningDraft(input),
+		onSuccess: (result) => {
+			queryClient.setQueryData(["dining", "state"], (current: typeof state.data) =>
+				current ? { ...current, draft: result.draft } : current,
+			);
+		},
+	});
+	const publish = useMutation({
+		mutationFn: publishDiningDraft,
+		onSuccess: refresh,
+	});
+	const restore = useMutation({
+		mutationFn: restoreDiningRelease,
+		onSuccess: async (result) => {
+			queryClient.setQueryData(["dining", "state"], {
+				currentRelease: result.release,
+				draft: result.draft,
+			});
+			await queryClient.invalidateQueries({ queryKey: ["dining", "releases"] });
+		},
+	});
+	const navigationBlocker = useBlocker({
+		disabled: unsavedCount === 0,
+		enableBeforeUnload: unsavedCount > 0,
+		shouldBlockFn: () => true,
+		withResolver: true,
+	});
+
+	if (!state.data && state.error) {
+		return (
+			<PageFailure
+				error={state.error}
+				onRetry={() => void Promise.all([state.refetch(), releases.refetch()])}
+			/>
+		);
+	}
+	if (!state.data) {
+		return <DiningPageLoading />;
+	}
+
+	const draft = state.data.draft;
+	const currentRelease = state.data.currentRelease;
+	const hasUnpublishedChanges = currentRelease?.snapshotHash !== draft.fingerprint;
+	const mutationError = save.error ?? publish.error ?? restore.error;
+
+	return (
+		<div className="dining-workspace mx-auto grid w-full min-w-0 max-w-[1600px] gap-5">
+			<DiningTaskNavigation />
+			<PageHeader
+				title="平面图维护"
+				description="编辑食堂窗口与楼层，保存草稿后发布到学生端。"
+				actions={
+					<div className="flex flex-wrap items-center justify-end gap-2">
+						<PublicationState
+							currentRelease={currentRelease}
+							draft={draft}
+							unsavedCount={unsavedCount}
+						/>
+						<Button
+							aria-label="刷新食堂地图"
+							disabled={state.isFetching || unsavedCount > 0}
+							onClick={() => void refresh()}
+							size="icon"
+							variant="ghost"
+						>
+							<RefreshCw className={`size-4 ${state.isFetching ? "animate-spin" : ""}`} />
+						</Button>
+						<ConfirmDialog
+							confirmLabel="发布"
+							confirmVariant="primary"
+							description="当前已保存草稿会成为学生端使用的地图，并创建一个不可变版本。"
+							{...confirmCommand("command", () => publish.mutateAsync(draft.revision))}
+							title="发布当前地图？"
+							trigger={
+								<Button
+									disabled={
+										unsavedCount > 0 ||
+										!hasUnpublishedChanges ||
+										publish.isPending ||
+										save.isPending
+									}
+								>
+									<Send className="size-4" />
+									发布
+								</Button>
+							}
+						/>
+					</div>
+				}
+			/>
+
+			{mutationError ? (
+				<Alert tone="danger" role="alert">
+					{errorMessage(mutationError)}
+				</Alert>
+			) : null}
+
+			<div className="dining-workspace-columns min-w-0">
+				<div className="dining-editor-container">
+					<Suspense fallback={<EditorLoading />}>
+						<DiningFloorplanEditor
+							draft={draft}
+							onSave={async (bundle, expectedRevision) => {
+								const result = await save.mutateAsync({ bundle, expectedRevision });
+								return result.draft;
+							}}
+							onUnsavedChange={setUnsavedCount}
+							saving={save.isPending}
+						/>
+					</Suspense>
+				</div>
+				<ReleaseHistory
+					currentReleaseId={releases.data?.currentReleaseId ?? currentRelease?.releaseId ?? null}
+					draftRevision={draft.revision}
+					error={releases.error}
+					loading={releases.isLoading}
+					onRestore={(releaseId) =>
+						restore.mutateAsync({ expectedRevision: draft.revision, releaseId })
+					}
+					onRetry={() => void releases.refetch()}
+					restoring={restore.isPending}
+					releases={releases.data?.releases ?? []}
+					unsavedCount={unsavedCount}
+				/>
+			</div>
+
+			<Dialog
+				onOpenChange={(open) => {
+					setNavigationWarningOpen(open);
+					if (!open && navigationBlocker.status === "blocked") {
+						navigationBlocker.reset();
+					}
+				}}
+				open={navigationWarningOpen || navigationBlocker.status === "blocked"}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>放弃未保存的地图修改？</DialogTitle>
+						<DialogDescription>离开页面会丢失当前画布中尚未保存的修改。</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							onClick={() => {
+								setNavigationWarningOpen(false);
+								if (navigationBlocker.status === "blocked") {
+									navigationBlocker.reset();
+								}
+							}}
+							variant="secondary"
+						>
+							继续编辑
+						</Button>
+						<Button
+							onClick={() => {
+								setNavigationWarningOpen(false);
+								if (navigationBlocker.status === "blocked") {
+									navigationBlocker.proceed();
+								}
+							}}
+							variant="destructive"
+						>
+							放弃并离开
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</div>
+	);
+}
+
+function PublicationState(props: {
+	currentRelease: DiningReleaseSummary | null;
+	draft: DiningMapDraft;
+	unsavedCount: number;
+}) {
+	if (props.unsavedCount > 0) {
+		return <Badge tone="warning">{props.unsavedCount} 张地图未保存</Badge>;
+	}
+	if (!props.currentRelease) {
+		return <Badge tone="neutral">尚未发布</Badge>;
+	}
+	return props.currentRelease.snapshotHash === props.draft.fingerprint ? (
+		<Badge tone="success">学生端已更新</Badge>
+	) : (
+		<Badge tone="warning">草稿待发布</Badge>
+	);
+}
+
+function ReleaseHistory(props: {
+	currentReleaseId: string | null;
+	draftRevision: number;
+	error: unknown;
+	loading: boolean;
+	onRestore: (releaseId: string) => Promise<unknown>;
+	onRetry: () => void;
+	releases: DiningReleaseSummary[];
+	restoring: boolean;
+	unsavedCount: number;
+}) {
+	const confirmCommand = useConfirmCommand();
+
+	return (
+		<aside aria-labelledby="dining-release-history" className="dining-release-history min-w-0">
+			<div className="mb-3 flex items-center gap-2">
+				<History className="size-4 text-muted-foreground" />
+				<h2 className="font-semibold" id="dining-release-history">
+					发布历史
+				</h2>
+			</div>
+			{props.loading ? (
+				<div aria-label="正在读取发布历史" className="grid gap-2" role="status">
+					{[0, 1, 2].map((item) => (
+						<Skeleton className="h-20 rounded-md" key={item} />
+					))}
+				</div>
+			) : props.error ? (
+				<Alert tone="danger" role="alert">
+					<p>{errorMessage(props.error)}</p>
+					<Button className="mt-3" onClick={props.onRetry} variant="secondary">
+						重试
+					</Button>
+				</Alert>
+			) : props.releases.length === 0 ? (
+				<StateMessage layout="inline" description={<>尚无发布版本。</>} />
+			) : (
+				<ol className="grid max-h-[690px] gap-2 overflow-y-auto pr-1">
+					{props.releases.map((release) => {
+						const current = release.releaseId === props.currentReleaseId;
+						return (
+							<li
+								className="rounded-md border border-border bg-background p-3"
+								key={release.releaseId}
+							>
+								<div className="flex items-start justify-between gap-2">
+									<div className="min-w-0">
+										<p className="font-medium text-sm">{formatReleaseKind(release)}</p>
+										<p className="mt-1 text-muted-foreground text-xs">
+											{formatTimestamp(release.createdAt)}
+										</p>
+									</div>
+									{current ? <Badge tone="success">当前</Badge> : null}
+								</div>
+								<p
+									className="mt-2 truncate font-mono text-muted-foreground text-xs"
+									title={release.releaseId}
+								>
+									{release.releaseId}
+								</p>
+								{current ? null : (
+									<ConfirmDialog
+										confirmLabel="恢复"
+										confirmVariant="primary"
+										description="该版本会成为新的地图草稿和学生端版本，并保留现有发布历史。"
+										{...confirmCommand(release.releaseId, () => props.onRestore(release.releaseId))}
+										title="恢复这个地图版本？"
+										trigger={
+											<Button
+												className="mt-3 w-full"
+												disabled={props.restoring || props.unsavedCount > 0}
+												variant="secondary"
+											>
+												<RotateCcw className="size-4" />
+												恢复
+											</Button>
+										}
+									/>
+								)}
+							</li>
+						);
+					})}
+				</ol>
+			)}
+		</aside>
+	);
+}
+
+function DiningPageLoading() {
+	return (
+		<div
+			aria-busy="true"
+			aria-label="正在读取食堂地图"
+			className="dining-workspace mx-auto grid w-full min-w-0 max-w-[1600px] gap-5"
+			role="status"
+		>
+			<Skeleton className="h-16 border-border border-b" />
+			<div className="dining-workspace-columns">
+				<Skeleton className="h-[620px] rounded-xl" />
+				<Skeleton className="h-80 rounded-md" />
+			</div>
+		</div>
+	);
+}
+
+function EditorLoading() {
+	return (
+		<Skeleton aria-label="正在加载地图编辑器" className="h-[620px] rounded-xl" role="status" />
+	);
+}
+
+function PageFailure(props: { error: unknown; onRetry: () => void }) {
+	return (
+		<Card className="mx-auto w-full max-w-2xl p-6">
+			<h1 className="font-semibold text-lg">食堂地图读取失败</h1>
+			<p className="mt-2 text-muted-foreground text-sm">{errorMessage(props.error)}</p>
+			<Button className="mt-4" onClick={props.onRetry} variant="secondary">
+				<RefreshCw className="size-4" />
+				重试
+			</Button>
+		</Card>
+	);
+}
+
+function formatReleaseKind(release: DiningReleaseSummary): string {
+	return release.kind === "restore"
+		? `恢复草稿第 ${release.draftRevision} 版`
+		: `发布草稿第 ${release.draftRevision} 版`;
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : "食堂地图请求失败，请重试。";
+}

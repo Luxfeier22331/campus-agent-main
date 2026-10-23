@@ -1,0 +1,538 @@
+name: pr
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    max-jobs = 1
+    cores = 2
+
+jobs:
+  repository-validation:
+    if: github.event.pull_request.draft == false
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+      packages: read
+    # Keep native validation on the same architecture as publication.
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04-arm"') }}
+    timeout-minutes: 30
+    outputs:
+      images: ${{ steps.plan.outputs.images }}
+      head: ${{ steps.plan.outputs.head }}
+      has_image_build: ${{ steps.plan.outputs.has_image_build }}
+    defaults:
+      run:
+        shell: nix develop .#ci-core --command bash -e {0}
+    steps:
+      - name: Checkout pull request merge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Nix
+        if: runner.environment != 'self-hosted'
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Configure hosted pnpm store
+        id: pnpm_cache
+        if: runner.environment != 'self-hosted'
+        run: |
+          echo CI_BODY_STARTED
+          echo "PNPM_CONFIG_STORE_DIR=${RUNNER_TEMP}/pnpm-store" >> "$GITHUB_ENV"
+          echo "path=${RUNNER_TEMP}/pnpm-store" >> "$GITHUB_OUTPUT"
+          echo "prefix=pnpm-v2-${RUNNER_OS}-${RUNNER_ARCH}-$(node --version)-$(pnpm --version)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm store
+        id: restore_pnpm
+        if: runner.environment != 'self-hosted'
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ steps.pnpm_cache.outputs.path }}
+          # The installation scope is known only after the validation plan is generated.
+          key: ${{ steps.pnpm_cache.outputs.prefix }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-scope-
+          restore-keys: |
+            ${{ steps.pnpm_cache.outputs.prefix }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-scope-
+            ${{ steps.pnpm_cache.outputs.prefix }}-
+
+      - name: Configure hosted Go caches
+        if: runner.environment != 'self-hosted'
+        shell: bash -e {0}
+        run: |
+          {
+            echo "GOCACHE=$RUNNER_TEMP/go-cache/build"
+            echo "GOMODCACHE=$RUNNER_TEMP/go-cache/mod"
+            echo "GOLANGCI_LINT_CACHE=$RUNNER_TEMP/go-cache/lint"
+          } >> "$GITHUB_ENV"
+
+      - name: Install validation dependencies
+        id: install_validation
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          set -euo pipefail
+          pnpm install --frozen-lockfile \
+            --filter campus-agent-web-workspace \
+            --filter 'campus-contracts...' \
+            --filter '@campus-agent/tooling...'
+
+      - name: Generate pull request validation plan
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          PNPM_CACHE_BASE: ${{ steps.pnpm_cache.outputs.prefix }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          set -euo pipefail
+          plan="$(node --experimental-strip-types scripts/ci/validation.mts \
+            --base "$BASE_SHA" \
+            --head "$MERGE_SHA" \
+            --repository "$GITHUB_REPOSITORY" --pull-request "$PR_NUMBER" \
+            --run-id "$GITHUB_RUN_ID" --branch "$HEAD_BRANCH")"
+          jq -e . <<< "$plan" >/dev/null
+          base="$(jq -r '.base' <<< "$plan")"
+          head="$(jq -r '.head' <<< "$plan")"
+          affected_packages="$(jq -c '.affectedPackages' <<< "$plan")"
+          light_surfaces="$(jq -c '.lightSurfaces' <<< "$plan")"
+          validation_profiles="$(jq -c '.validationProfiles' <<< "$plan")"
+          repository_groups="$(jq -c '.repositoryGroups' <<< "$plan")"
+          node_evidence_profiles="$(jq -c '[.validationProfiles[] | select(. == "affected-node")]' <<< "$plan")"
+          has_container_build="$(jq -r --arg profile container-build \
+            '.validationProfiles | index($profile) != null' <<< "$plan")"
+          has_image_build="$(jq -r --arg profile image-build \
+            '.validationProfiles | index($profile) != null' <<< "$plan")"
+          pnpm_install_scope="$(jq -c '
+            ["campus-agent-web-workspace", "campus-contracts...", "@campus-agent/tooling..."] +
+            (if (.validationProfiles | index("affected-node")) != null
+             then [.affectedPackages[] + "..."] else [] end) | unique
+          ' <<< "$plan")"
+          pnpm_scope_hash="$(printf '%s' "$pnpm_install_scope" | sha256sum | cut -d ' ' -f1)"
+          {
+            echo "base=$base"
+            echo "head=$head"
+            echo "affected_packages=$affected_packages"
+            echo "light_surfaces=$light_surfaces"
+            echo "validation_profiles=$validation_profiles"
+            echo "repository_groups=$repository_groups"
+            echo "node_evidence_profiles=$node_evidence_profiles"
+            echo "has_container_build=$has_container_build"
+            echo "has_image_build=$has_image_build"
+            echo "images=$(jq -c '.images' <<< "$plan")"
+            echo "pnpm_cache_key=${PNPM_CACHE_BASE}-scope-${pnpm_scope_hash}"
+          } >> "$GITHUB_OUTPUT"
+          jq . <<< "$plan"
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          jq . <<< "$plan" > "$RUNNER_TEMP/ci-evidence/plan.json"
+          printf 'CI_PLAN %s\n' "$(jq -c . <<< "$plan")"
+          {
+            echo '### Validation selection'
+            echo
+            jq -r '"Image comparison base: `\(.imageBase)`; previous successful run: \(.imageBaselineRunId // "none; full PR diff")."' <<< "$plan"
+            echo
+            echo '| Profile | Selected | Reason |'
+            echo '| --- | --- | --- |'
+            jq -r '.profileDecisions[] | "| \(.profile) | \(.selected) | \(.reason) |"' <<< "$plan"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore Go and lint caches
+        id: restore_go
+        if: >-
+          !cancelled() && runner.environment != 'self-hosted' &&
+          steps.plan.outcome == 'success' &&
+          contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native')
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/go-cache/build
+            ${{ runner.temp }}/go-cache/mod
+            ${{ runner.temp }}/go-cache/lint
+          # Cache entries are immutable: each source revision saves its new analysis.
+          key: go-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.work', 'go.work.sum', 'apps/*/go.mod', 'apps/*/go.sum', 'flake.lock', 'apps/*/.golangci.yml') }}-${{ github.sha }}
+          restore-keys: |
+            go-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.work', 'go.work.sum', 'apps/*/go.mod', 'apps/*/go.sum', 'flake.lock', 'apps/*/.golangci.yml') }}-
+
+      - name: Install static-check dependencies
+        id: install_static_dependencies
+        if: always()
+        continue-on-error: true
+        shell: bash -e {0}
+        run: |
+          echo CI_BODY_STARTED
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          # Evaluate each environment once before prek starts concurrent hooks.
+          nix print-dev-env .#ci-light > "$RUNNER_TEMP/ci-nix-light.sh"
+          nix print-dev-env .#ci-format > "$RUNNER_TEMP/ci-nix-format.sh"
+          nix print-dev-env .#ci-go > "$RUNNER_TEMP/ci-nix-go.sh"
+          bash -ec '. "$1"; uv sync --only-dev --no-install-workspace' -- "$RUNNER_TEMP/ci-nix-light.sh"
+          {
+            echo "CI_NIX_LIGHT_ENV=$RUNNER_TEMP/ci-nix-light.sh"
+            echo "CI_NIX_FORMAT_ENV=$RUNNER_TEMP/ci-nix-format.sh"
+            echo "CI_NIX_GO_ENV=$RUNNER_TEMP/ci-nix-go.sh"
+          } >> "$GITHUB_ENV"
+
+      - name: Lint repository
+        id: repository_lint
+        if: ${{ !cancelled() && steps.install_static_dependencies.outcome == 'success' && steps.plan.outcome == 'success' && fromJSON(steps.plan.outputs.repository_groups)[0] != null }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUST_LOG: prek=trace
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          started=$SECONDS
+          parent_pid=$BASHPID
+          heartbeat() {
+            local sleep_pid=""
+            trap 'kill "$sleep_pid" 2>/dev/null || true; wait "$sleep_pid" 2>/dev/null || true' EXIT TERM INT
+            while kill -0 "$parent_pid" 2>/dev/null; do
+              sleep 20 &
+              sleep_pid=$!
+              wait "$sleep_pid" || exit 0
+              echo "[lint] still running; elapsed $((SECONDS - started))s; hook progress is in the prek trace below"
+            done
+          }
+          heartbeat &
+          heartbeat_pid=$!
+          trap 'kill "$heartbeat_pid" 2>/dev/null || true; wait "$heartbeat_pid" 2>/dev/null || true' EXIT TERM INT
+          # prek owns file selection, hook concurrency, results and timing.
+          pnpm lint --verbose --log-file "$RUNNER_TEMP/ci-evidence/prek.log"
+
+      - name: Check repository documentation
+        id: repository_docs
+        if: ${{ !cancelled() && steps.repository_lint.outcome == 'success' && contains(fromJSON(steps.plan.outputs.repository_groups), 'docs') }}
+        continue-on-error: true
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          pnpm docs:check
+
+      - name: Test repository scripts
+        id: repository_test
+        env:
+          TURBO_CACHE: "local:rw,remote:rw"
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_TELEMETRY_DISABLED: "1"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+        if: ${{ !cancelled() && steps.repository_lint.outcome == 'success' && (!contains(fromJSON(steps.plan.outputs.repository_groups), 'docs') || steps.repository_docs.outcome == 'success') && steps.plan.outcome == 'success' && fromJSON(steps.plan.outputs.repository_groups)[0] != null }}
+        continue-on-error: true
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          pnpm test:tooling --groups="$(jq -r 'join(",")' <<< '${{ steps.plan.outputs.repository_groups }}')"
+
+      - name: Check executable contracts
+        id: contracts
+        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts')"
+        continue-on-error: true
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --check contracts
+
+      - name: Check canonical ordering
+        id: canonical_order
+        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order')"
+        continue-on-error: true
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --check canonical-order
+
+      - name: Lint GitHub Actions
+        id: github_actions
+        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')"
+        continue-on-error: true
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --check config
+
+      - name: Scan authored commits for secrets
+        id: secrets
+        if: always()
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          gitleaks git \
+            --redact \
+            --exit-code=1 \
+            --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"
+
+      - name: Install affected workspaces
+        id: install_affected
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
+        continue-on-error: true
+        env:
+          AFFECTED_PACKAGES: ${{ steps.plan.outputs.affected_packages }}
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          set -euo pipefail
+          jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and length > 0)' \
+            <<< "$AFFECTED_PACKAGES" >/dev/null
+          filters=()
+          while IFS= read -r package; do
+            filters+=(--filter "${package}...")
+          done < <(jq -r '.[]' <<< "$AFFECTED_PACKAGES")
+          pnpm install --frozen-lockfile "${filters[@]}"
+
+      - name: Save pnpm store
+        if: >-
+          !cancelled() && runner.environment != 'self-hosted' &&
+          steps.restore_pnpm.outputs.cache-matched-key != steps.plan.outputs.pnpm_cache_key &&
+          steps.install_validation.outcome == 'success' && steps.plan.outcome == 'success' &&
+          (
+            !contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') ||
+            steps.install_affected.outcome == 'success'
+          )
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ steps.pnpm_cache.outputs.path }}
+          key: ${{ steps.plan.outputs.pnpm_cache_key }}
+
+      - name: Run affected Node evidence
+        id: node_evidence
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.node_evidence_profiles != '[]' && steps.install_affected.outcome == 'success' &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success')
+        continue-on-error: true
+        env:
+          CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/node.jsonl
+          TURBO_CACHE: "local:rw,remote:rw"
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_TELEMETRY_DISABLED: "1"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          VALIDATION_PROFILES: ${{ steps.plan.outputs.node_evidence_profiles }}
+        shell: nix develop .#ci-core --command bash -e {0}
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --plan "$RUNNER_TEMP/ci-evidence/plan.json" --profiles "$VALIDATION_PROFILES" --repository "$GITHUB_REPOSITORY" --summary "$GITHUB_STEP_SUMMARY"
+      - name: Run container build contract evidence
+        id: container_build
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.has_container_build == 'true' &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success')
+        continue-on-error: true
+        env:
+          CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/container.jsonl
+          VALIDATION_PROFILES: '["container-build"]'
+        shell: nix develop .#ci-release --command bash -e {0}
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --profiles "$VALIDATION_PROFILES"
+      - name: Check affected native code
+        id: native_evidence
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native') &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'container-build') || steps.container_build.outcome == 'success')
+        continue-on-error: true
+        shell: nix develop .#ci-go --command bash -e {0}
+        env:
+          GO_CACHE_PRIMARY_KEY: ${{ steps.restore_go.outputs.cache-primary-key }}
+          GO_CACHE_MATCHED_KEY: ${{ steps.restore_go.outputs.cache-matched-key }}
+          GO_CACHE_HIT: ${{ steps.restore_go.outputs.cache-hit }}
+          GO_CACHE_RESTORE_OUTCOME: ${{ steps.restore_go.outcome }}
+          CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/native.jsonl
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          printf 'GO_CACHE action_outcome=%s exact_hit=%s primary=%s matched=%s\n' \
+            "$GO_CACHE_RESTORE_OUTCOME" "$GO_CACHE_HIT" "$GO_CACHE_PRIMARY_KEY" "$GO_CACHE_MATCHED_KEY"
+          go version
+          go env GOCACHE GOMODCACHE
+          golangci-lint cache status
+          node --experimental-strip-types scripts/ci/evidence.mts --plan "$RUNNER_TEMP/ci-evidence/plan.json" --profiles '["affected-native"]'
+      - name: Save Go and lint caches
+        if: >-
+          !cancelled() && steps.native_evidence.outcome == 'success' &&
+          steps.restore_go.outcome == 'success' && steps.restore_go.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/go-cache/build
+            ${{ runner.temp }}/go-cache/mod
+            ${{ runner.temp }}/go-cache/lint
+          key: ${{ steps.restore_go.outputs.cache-primary-key }}
+      - name: Verify unified database upgrade
+        id: schema_migration
+        if: >-
+          !cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'schema-migration') &&
+          (steps.repository_test.outcome == 'success' || fromJSON(steps.plan.outputs.repository_groups)[0] == null) &&
+          steps.secrets.outcome == 'success' &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts') || steps.contracts.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'canonical-order') || steps.canonical_order.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.light_surfaces), 'config') || steps.github_actions.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node') || steps.node_evidence.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'container-build') || steps.container_build.outcome == 'success') &&
+          (!contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native') || steps.native_evidence.outcome == 'success')
+        continue-on-error: true
+        shell: nix develop .#ci-release --command bash -e {0}
+        run: |
+          pnpm install --frozen-lockfile --filter campus-agent-schema...
+          node --experimental-strip-types scripts/ci/evidence.mts --profiles '["schema-migration"]'
+
+      - name: Summarize repository evidence
+        if: always()
+        shell: nix develop .#ci-core --command bash -e {0}
+        env:
+          RESULTS: >-
+            {
+              "plan":"${{ steps.plan.outcome }}",
+              "affected-node":"${{ steps.node_evidence.outcome }}",
+              "schema-migration":"${{ steps.schema_migration.outcome }}",
+              "container-build":"${{ steps.container_build.outcome }}",
+              "contracts":"${{ steps.contracts.outcome }}",
+              "canonical-order":"${{ steps.canonical_order.outcome }}",
+              "affected-native":"${{ steps.native_evidence.outcome }}",
+              "github-actions":"${{ steps.github_actions.outcome }}",
+              "install-affected":"${{ steps.install_affected.outcome }}",
+              "install-static-dependencies":"${{ steps.install_static_dependencies.outcome }}",
+              "repository-lint":"${{ steps.repository_lint.outcome }}",
+              "repository-docs":"${{ steps.repository_docs.outcome }}",
+              "repository-test":"${{ steps.repository_test.outcome }}",
+              "secrets":"${{ steps.secrets.outcome }}"
+            }
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          jq . <<< "$RESULTS" | tee "$RUNNER_TEMP/ci-evidence/outcomes.json"
+          printf 'CI_OUTCOMES %s\n' "$(jq -c . <<< "$RESULTS")"
+          {
+            echo '### Check outcomes'
+            echo
+            echo '| Check | Outcome |'
+            echo '| --- | --- |'
+            jq -r 'to_entries[] | "| \(.key) | \(.value) |"' <<< "$RESULTS"
+            echo
+            echo 'Repository stages follow the selected tooling groups; other skips follow validation selection or a failed prerequisite.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          node --experimental-strip-types scripts/ci/validation.mts \
+            --check-outcomes "$RUNNER_TEMP/ci-evidence/outcomes.json" \
+            --plan "$RUNNER_TEMP/ci-evidence/plan.json"
+
+      - name: Preserve failed check diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: ci-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  image-evidence-trusted:
+    needs: repository-validation
+    if: >-
+      !cancelled() && needs.repository-validation.result == 'success' &&
+      needs.repository-validation.outputs.has_image_build == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/pr-image-evidence.yml
+    with:
+      images: ${{ needs.repository-validation.outputs.images }}
+      source_sha: ${{ needs.repository-validation.outputs.head }}
+      cache_read: true
+
+  image-evidence-readonly:
+    needs: repository-validation
+    if: >-
+      !cancelled() && needs.repository-validation.result == 'success' &&
+      needs.repository-validation.outputs.has_image_build == 'true' &&
+      (
+        github.event.pull_request.head.repo.full_name != github.repository ||
+        github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]'
+      )
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/pr-image-evidence.yml
+    with:
+      images: ${{ needs.repository-validation.outputs.images }}
+      source_sha: ${{ needs.repository-validation.outputs.head }}
+      cache_read: false
+
+  repo-checks:
+    needs: [repository-validation, image-evidence-trusted, image-evidence-readonly]
+    if: always() && github.event.pull_request.draft == false
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Check all selected evidence
+        shell: bash -e {0}
+        env:
+          VALIDATION_RESULT: ${{ needs.repository-validation.result }}
+          IMAGE_SELECTED: ${{ needs.repository-validation.outputs.has_image_build }}
+          TRUSTED_RESULT: ${{ needs.image-evidence-trusted.result }}
+          READONLY_RESULT: ${{ needs.image-evidence-readonly.result }}
+        run: |
+          printf 'validation=%s images_selected=%s trusted=%s readonly=%s\n' \
+            "$VALIDATION_RESULT" "$IMAGE_SELECTED" "$TRUSTED_RESULT" "$READONLY_RESULT"
+          test "$VALIDATION_RESULT" = success
+          case "$IMAGE_SELECTED:$TRUSTED_RESULT:$READONLY_RESULT" in
+            false:skipped:skipped|true:success:skipped|true:skipped:success) ;;
+            *) echo "Selected evidence did not complete successfully." >&2; exit 1 ;;
+          esac

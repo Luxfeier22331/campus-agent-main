@@ -1,0 +1,59 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"source": {
+			"inputs": [
+				"package.json",
+				"src/**",
+				"schemas/**",
+				"assertions/**",
+				"assets/**",
+				"public/**",
+				"adapters/**/src/**",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"test/campus-docs/**"
+			]
+		},
+		"test:unit": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
+			]
+		},
+		"contracts:check": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/apps/app-api/src/modules/integration/generated/tool-execution-contract.ts",
+				"$TURBO_ROOT$/apps/agent-control/internal/contracts/tool_execution_contract.go",
+				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
+			]
+		},
+		"test:generators": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
+				"$TURBO_ROOT$/configs/runtime/**",
+				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/assertions/**",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**"
+			]
+		}
+	}
+}

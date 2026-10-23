@@ -1,0 +1,25 @@
+name: Bug report
+description: Report an observed problem
+type: Bug
+projects:
+  - MUC-WIKI/1
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is wrong, and what does it affect?
+    validations:
+      required: true
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context or reproduction
+      description: Add steps, environment, logs, screenshots, or links when they help explain the problem.

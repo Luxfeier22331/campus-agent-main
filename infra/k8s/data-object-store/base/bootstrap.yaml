@@ -1,0 +1,390 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: object-store-bootstrap
+  labels:
+    app.kubernetes.io/name: object-store
+    app.kubernetes.io/part-of: campus-agent
+data:
+  bootstrap.sh: |
+    #!/bin/sh
+    set -eu
+
+    until rc alias set object-store http://object-store:9000 "$OBJECT_STORE_ADMIN_ACCESS_KEY" "$OBJECT_STORE_ADMIN_SECRET_KEY"; do
+      sleep 2
+    done
+
+    rc mb --ignore-existing object-store/campus-agent-source
+    rc mb --ignore-existing object-store/campus-agent-derived
+    rc mb --ignore-existing object-store/campus-agent-postgres-backups
+
+    rc version enable object-store/campus-agent-source
+    rc version enable object-store/campus-agent-derived
+    rc version enable object-store/campus-agent-postgres-backups
+
+    rc ilm rule import object-store/campus-agent-source /bootstrap/source-lifecycle.json
+    rc ilm rule import object-store/campus-agent-derived /bootstrap/derived-lifecycle.json
+    rc anonymous set-json /bootstrap/derived-public-policy.json object-store/campus-agent-derived
+
+    rc admin policy create object-store campus-agent-source-rw /bootstrap/source-policy.json
+    rc admin policy create object-store campus-agent-derived-rw /bootstrap/derived-policy.json
+    rc admin policy create object-store campus-agent-derived-ro /bootstrap/derived-read-policy.json
+    rc admin policy create object-store campus-agent-source-ro /bootstrap/source-read-policy.json
+    rc admin policy create object-store campus-agent-postgres-backup-rw /bootstrap/postgres-backup-policy.json
+
+    rc admin user add object-store "$OBJECT_STORE_SOURCE_ACCESS_KEY" "$OBJECT_STORE_SOURCE_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_DERIVED_ACCESS_KEY" "$OBJECT_STORE_DERIVED_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY" "$OBJECT_STORE_DERIVED_READ_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY" "$OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY" "$OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_POSTGRES_BACKUP_ACCESS_KEY" "$OBJECT_STORE_POSTGRES_BACKUP_SECRET_KEY"
+    rc admin policy attach object-store campus-agent-source-rw --user "$OBJECT_STORE_SOURCE_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-derived-rw --user "$OBJECT_STORE_DERIVED_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-source-ro --user "$OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-postgres-backup-rw --user "$OBJECT_STORE_POSTGRES_BACKUP_ACCESS_KEY"
+  source-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketMultipartUploads"],
+          "Resource": ["arn:aws:s3:::campus-agent-source"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-source"],
+          "Condition": {"StringLike": {"s3:prefix": "internal_portal/notices/_state.json"}}
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:AbortMultipartUpload", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
+          "Resource": ["arn:aws:s3:::campus-agent-source/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObjectVersion", "s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-source/internal_portal/notices/_state.json"]
+        }
+      ]
+    }
+  derived-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketMultipartUploads"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": {
+            "StringLike": {"s3:prefix": "dining/submissions/*"}
+          }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:AbortMultipartUpload", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/dining/submissions/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": { "StringLike": { "s3:prefix": "notices/rag/chunk-runs/*" } }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/notices/rag/chunk-runs/*", "arn:aws:s3:::campus-agent-derived/notices/rag/chunk-data/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": { "StringLike": { "s3:prefix": "notices/rag/chunk-data/*" } }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": { "StringLike": { "s3:prefix": "notices/rag/embedding-data/*" } }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/notices/rag/embedding-data/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": { "StringLike": { "s3:prefix": "notices/rag/embedding-sets/*" } }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/notices/rag/embedding-sets/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucketVersions"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"],
+          "Condition": {
+            "StringLike": {
+              "s3:prefix": ["campus-docs/rag/chunk-data/*", "campus-docs/rag/chunk-sets/*", "campus-docs/rag/embedding-data/*", "campus-docs/rag/embedding-sets/*"]
+            }
+          }
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/campus-docs/rag/chunk-data/*", "arn:aws:s3:::campus-agent-derived/campus-docs/rag/chunk-sets/*", "arn:aws:s3:::campus-agent-derived/campus-docs/rag/embedding-data/*", "arn:aws:s3:::campus-agent-derived/campus-docs/rag/embedding-sets/*"]
+        }
+      ]
+    }
+  derived-read-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:GetObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/*"]
+        }
+      ]
+    }
+  source-read-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+          "Resource": ["arn:aws:s3:::campus-agent-source"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:GetObjectVersion"],
+          "Resource": ["arn:aws:s3:::campus-agent-source/*"]
+        }
+      ]
+    }
+  postgres-backup-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketVersions", "s3:ListBucketMultipartUploads"],
+          "Resource": ["arn:aws:s3:::campus-agent-postgres-backups"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
+          "Resource": ["arn:aws:s3:::campus-agent-postgres-backups/*"]
+        }
+      ]
+    }
+  source-lifecycle.json: |
+    {
+      "rules": [
+        {
+          "id": "temporary-attempts-30d",
+          "status": "Enabled",
+          "prefix": "attempts/",
+          "expiration": {"days": 30},
+          "noncurrentVersionExpiration": {"noncurrentDays": 1},
+          "abortIncompleteMultipartUploadDays": 7
+        },
+        {
+          "id": "temporary-ingestion-results-30d",
+          "status": "Enabled",
+          "prefix": "ingestion-results/",
+          "expiration": {"days": 30},
+          "noncurrentVersionExpiration": {"noncurrentDays": 1},
+          "abortIncompleteMultipartUploadDays": 7
+        },
+        {
+          "id": "temporary-ingestion-requests-30d",
+          "status": "Enabled",
+          "prefix": "ingestion-requests/",
+          "expiration": {"days": 30},
+          "noncurrentVersionExpiration": {"noncurrentDays": 1},
+          "abortIncompleteMultipartUploadDays": 7
+        }
+      ]
+    }
+  derived-lifecycle.json: |
+    {
+      "rules": [
+        {
+          "id": "temporary-ingestion-results-30d",
+          "status": "Enabled",
+          "prefix": "ingestion-results/",
+          "expiration": {"days": 30},
+          "noncurrentVersionExpiration": {"noncurrentDays": 1},
+          "abortIncompleteMultipartUploadDays": 7
+        }
+      ]
+    }
+  derived-public-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {"AWS": ["*"]},
+          "Action": ["s3:GetObject"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/dining/floorplans/*"]
+        }
+      ]
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: object-store-bootstrap
+  labels:
+    app.kubernetes.io/name: object-store-bootstrap
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 4
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: object-store-bootstrap
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          image: rustfs/rc:v0.1.30@sha256:1296510ec27800668d26a8bdca6251e587086187a9368c7b80134a169e8a3bb8
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/bootstrap/bootstrap.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          env:
+            - name: OBJECT_STORE_ADMIN_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_ADMIN_ACCESS_KEY
+            - name: OBJECT_STORE_ADMIN_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_ADMIN_SECRET_KEY
+            - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_SOURCE_ACCESS_KEY
+            - name: OBJECT_STORE_SOURCE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_SOURCE_SECRET_KEY
+            - name: OBJECT_STORE_DERIVED_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_ACCESS_KEY
+            - name: OBJECT_STORE_DERIVED_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_SECRET_KEY
+            - name: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+            - name: OBJECT_STORE_DERIVED_READ_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_READ_SECRET_KEY
+            - name: OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_HUMANS_SOURCE_ACCESS_KEY
+            - name: OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_HUMANS_SOURCE_SECRET_KEY
+            - name: OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_HUMANS_DERIVED_ACCESS_KEY
+            - name: OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_HUMANS_DERIVED_SECRET_KEY
+            - name: OBJECT_STORE_POSTGRES_BACKUP_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_POSTGRES_BACKUP_ACCESS_KEY
+            - name: OBJECT_STORE_POSTGRES_BACKUP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_POSTGRES_BACKUP_SECRET_KEY
+            - name: RC_CONFIG_DIR
+              value: /tmp/.rc
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /bootstrap
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: object-store-bootstrap
+            defaultMode: 0555
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi

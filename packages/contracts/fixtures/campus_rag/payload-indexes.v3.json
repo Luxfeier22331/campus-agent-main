@@ -1,0 +1,11 @@
+{
+	"schemaVersion": "campus_rag_point.v3",
+	"payloadIndexes": [
+		{ "field": "source_kind", "type": "keyword" },
+		{ "field": "version_slug", "type": "keyword" },
+		{ "field": "is_current", "type": "bool" },
+		{ "field": "corpus", "type": "keyword" },
+		{ "field": "applicable_from_admission_year", "type": "integer" },
+		{ "field": "applicable_to_admission_year", "type": "integer" }
+	]
+}

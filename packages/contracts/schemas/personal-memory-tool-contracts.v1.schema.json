@@ -1,0 +1,49 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json",
+	"title": "campus-agent personal memory tool contracts",
+	"$defs": {
+		"PersonalMemoryRecallPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["query"],
+			"properties": {
+				"query": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 400
+				}
+			}
+		},
+		"PersonalMemoryRecallResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["outcome", "memory_text"],
+			"properties": {
+				"outcome": {
+					"enum": ["matched", "no_match"]
+				},
+				"memory_text": {
+					"type": "string"
+				}
+			}
+		},
+		"PersonalMemoryRecallResponse": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["facts", "context_char_budget"],
+			"properties": {
+				"facts": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"context_char_budget": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		}
+	}
+}

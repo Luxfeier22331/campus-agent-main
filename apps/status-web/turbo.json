@@ -1,0 +1,37 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"test:browser": {
+			"cache": false,
+			"inputs": [
+				"browser.config.ts",
+				"e2e/**",
+				"package.json",
+				"public/**",
+				"src/**",
+				"tsconfig.json",
+				"wrangler*.toml"
+			]
+		},
+		"build": {
+			"inputs": [
+				"package.json",
+				"public/**",
+				"scripts/**",
+				"src/**",
+				"tsconfig.json",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/**",
+				"$TURBO_ROOT$/scripts/deploy/run-wrangler-command.ts",
+				"$TURBO_ROOT$/scripts/deploy/staging-release.mts",
+				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": ["dist/worker/**"],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		}
+	}
+}

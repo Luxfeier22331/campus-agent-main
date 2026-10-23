@@ -1,0 +1,80 @@
+name = "app-api"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+upload_source_maps = true
+[env.local]
+workers_dev = false
+preview_urls = false
+
+[env.local.vars]
+DEPLOYMENT_ENVIRONMENT = "development"
+AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"
+OBJECT_STORE_LOCAL_BASE_URL = "http://127.0.0.1:9000/campus-agent-derived/"
+AUTH_EMAIL_FROM = "Campus Agent <auth@example.com>"
+
+[env.local.images]
+binding = "DINING_IMAGES"
+remote = false
+
+[env.local.secrets]
+required = [
+  "BETTER_AUTH_SECRET",
+  "AUTH_TURNSTILE_SECRET_KEY",
+  "RESEND_API_KEY",
+  "OPS_WEB_INTERNAL_TOKEN",
+  "APP_API_INTERNAL_SHARED_SECRET",
+  "EDGE_INGRESS_SHARED_SECRET",
+  "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
+  "OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "OBJECT_STORE_DERIVED_SECRET_KEY",
+  "OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
+  "OBJECT_STORE_DERIVED_READ_SECRET_KEY",
+]
+
+[env.staging.vars]
+DEPLOYMENT_ENVIRONMENT = "staging"
+AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"
+CLUSTER_PRIVATE_ORIGIN = "http://cluster-private-ingress.campus-agent-staging.svc.cluster.local:8000"
+
+[env.staging.images]
+binding = "DINING_IMAGES"
+
+[env.staging.secrets]
+required = [
+  "BETTER_AUTH_SECRET",
+  "AUTH_TURNSTILE_SECRET_KEY",
+  "RESEND_API_KEY",
+  "OPS_WEB_INTERNAL_TOKEN",
+  "APP_API_INTERNAL_SHARED_SECRET",
+  "EDGE_INGRESS_SHARED_SECRET",
+  "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
+  "OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "OBJECT_STORE_DERIVED_SECRET_KEY",
+  "OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
+  "OBJECT_STORE_DERIVED_READ_SECRET_KEY",
+]
+
+[[env.staging.vpc_services]]
+binding = "CLUSTER_PRIVATE_API"
+service_id = "00000000-0000-0000-0000-000000000000"
+remote = true
+
+[[env.staging.vpc_services]]
+binding = "OBJECT_STORE_PRIVATE"
+service_id = "00000000-0000-0000-0000-000000000000"
+remote = true
+
+[[env.staging.hyperdrive]]
+binding = "APP_API_DB"
+id = "00000000-0000-0000-0000-000000000000"
+
+[[env.local.hyperdrive]]
+binding = "APP_API_DB"
+# Local development loads the actual connection string from
+# `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`.
+# This placeholder keeps the local-only binding explicit without freezing
+# a deployed Hyperdrive resource id in repo truth.
+id = "00000000-0000-0000-0000-000000000000"

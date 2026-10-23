@@ -1,0 +1,125 @@
+variable "IMAGE_REVISION" {
+  default = "local"
+}
+
+variable "NODE_VERSION" {
+  default = "24.22.1"
+}
+
+variable "IMAGE_SOURCE" {
+  default = "https://github.com/MUC-WIKI/campus-agent"
+}
+
+variable "VITE_TLDRAW_LICENSE_KEY" {
+  default = ""
+}
+
+group "default" {
+  targets = [
+    "document-ocr",
+    "agent-runtime",
+    "campus-agent-schema",
+	"retrieval-index",
+    "notice-pipeline-worker",
+    "agent-control",
+    "memory-service",
+    "cluster-private-ingress",
+    "campus-search-service",
+    "model-config",
+    "ops-web",
+  ]
+}
+
+group "heavy" {
+  targets = [
+    "ops-web",
+    "agent-control",
+    "memory-service",
+    "campus-search-service",
+    "model-config",
+  ]
+}
+
+group "standard" {
+  targets = [
+    "cluster-private-ingress",
+    "document-ocr",
+    "agent-runtime",
+    "campus-agent-schema",
+    "retrieval-index",
+    "notice-pipeline-worker",
+  ]
+}
+
+target "_common" {
+  context   = "."
+  platforms = ["linux/arm64"]
+  attest    = ["type=sbom"]
+  args = {
+    NODE_VERSION = NODE_VERSION
+  }
+  labels = {
+    "org.opencontainers.image.revision" = IMAGE_REVISION
+    "org.opencontainers.image.source"   = IMAGE_SOURCE
+  }
+}
+
+target "agent-runtime" {
+  inherits   = ["_common"]
+  dockerfile = "apps/agent-runtime/Dockerfile"
+}
+
+target "campus-agent-schema" {
+  inherits   = ["_common"]
+  dockerfile = "jobs/campus-agent-schema/Dockerfile"
+}
+
+
+target "retrieval-index" {
+  inherits   = ["_common"]
+  dockerfile = "jobs/retrieval-index/Dockerfile"
+}
+
+target "agent-control" {
+  inherits   = ["_common"]
+  dockerfile = "apps/agent-control/Dockerfile"
+}
+
+target "model-config" {
+  inherits   = ["_common"]
+  dockerfile = "apps/model-config/Dockerfile"
+}
+
+target "ops-web" {
+  inherits   = ["_common"]
+  dockerfile = "apps/ops-web/Dockerfile"
+  args = {
+    VITE_TLDRAW_LICENSE_KEY = VITE_TLDRAW_LICENSE_KEY
+  }
+}
+
+target "document-ocr" {
+  inherits = ["_common"]
+  dockerfile = "jobs/document-ocr/Dockerfile"
+}
+
+target "notice-pipeline-worker" {
+  inherits = ["_common"]
+  dockerfile = "apps/notice-pipeline-worker/Dockerfile"
+}
+
+
+target "campus-search-service" {
+  inherits = ["_common"]
+  dockerfile = "apps/campus-search/Dockerfile"
+}
+
+target "memory-service" {
+ inherits=["_common"]
+ dockerfile="apps/memory-service/Dockerfile"
+}
+
+target "cluster-private-ingress" {
+  inherits = ["_common"]
+  dockerfile = "apps/cluster-private-ingress/Dockerfile"
+}

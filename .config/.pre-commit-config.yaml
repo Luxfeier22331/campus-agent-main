@@ -1,0 +1,108 @@
+minimum_prek_version: 0.5.0
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+fail_fast: true
+
+repos:
+  - repo: builtin
+    hooks:
+      # Every change reaches main through a PR; Free private repositories have no branch protection.
+      - id: no-commit-to-branch
+        groups: [fast]
+        stages: [pre-commit]
+        args: [--branch, main]
+      - id: check-added-large-files
+        groups: [fast]
+        stages: [pre-commit]
+      - id: check-merge-conflict
+        groups: [fast]
+        stages: [pre-commit]
+      - id: check-json
+        groups: [fast]
+        stages: [pre-commit]
+      - id: check-toml
+        groups: [fast]
+        stages: [pre-commit]
+      - id: check-yaml
+        groups: [fast]
+        stages: [pre-commit]
+        args: [--allow-multiple-documents]
+
+  - repo: local
+    hooks:
+      - id: biome
+        name: Biome
+        groups: [fast]
+        # Biome already parallelizes internally; multiple batches reload the project.
+        require_serial: true
+        entry: pnpm --config.verify-deps-before-run=false exec biome check --no-errors-on-unmatched
+        language: system
+        files: '\.(?:[cm]?[jt]sx?|jsonc?|css|html)$'
+
+      - id: markdownlint
+        name: Markdownlint
+        groups: [language]
+        entry: pnpm --config.verify-deps-before-run=false exec markdownlint-cli2 --config .config/.markdownlint-cli2.jsonc --no-globs --
+        language: system
+        files: '\.md$'
+        exclude: '^(apps/campus-web/\.generated/|\.agents/notes/archived/)'
+
+      - id: ruff-check
+        name: Ruff lint
+        groups: [language]
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- ruff check
+        language: system
+        files: '\.py$'
+
+      - id: ruff-format
+        name: Ruff format
+        groups: [language]
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- ruff format --check
+        language: system
+        files: '\.py$'
+
+      - id: sqlfluff
+        name: SQLFluff
+        groups: [language]
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- sqlfluff lint
+        language: system
+        files: '\.sql$'
+
+      - id: yamllint
+        name: Yamllint
+        groups: [fast]
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- yamllint -c .config/.yamllint.yml
+        language: system
+        files: '\.ya?ml$'
+        exclude: '^pnpm-lock\.yaml$'
+
+      - id: shellcheck
+        name: ShellCheck
+        groups: [fast]
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- shellcheck -x -s bash
+        language: system
+        files: '\.sh$'
+
+      - id: go-format
+        name: Go format
+        groups: [language]
+        entry: bash -ec 'if [ -n "${CI_NIX_FORMAT_ENV:-}" ]; then . "$CI_NIX_FORMAT_ENV"; exec "$@"; fi; exec nix develop .#ci-format --command "$@"' -- golangci-lint fmt --diff
+        language: system
+        files: '\.go$'
+
+      - id: staged-secrets
+        name: Staged secret scan
+        groups: [secrets]
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- gitleaks git --pre-commit --redact --staged
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: affected-pre-commit
+        name: Affected pre-commit evidence
+        groups: [validation]
+        entry: node --experimental-strip-types scripts/ci/pre-commit.mts
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

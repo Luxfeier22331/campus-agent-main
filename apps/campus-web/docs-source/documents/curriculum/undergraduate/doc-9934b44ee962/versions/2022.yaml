@@ -1,0 +1,15 @@
+docId: curriculum:美术学类本科人才培养方案
+readerKey: campus-docs/readers/sha256/2532ebc61ab1c1c503158f93da488600f77404316ce16199fd4ae21ba06709ae/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/美术学类本科人才培养方案--美术学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0585-page-0585-block-mineru-block-0003-0003-map-01.png
+        path: course-maps/page-0585-page-0585-block-mineru-block-0003-0003-map-01.png
+      - key: curriculum/documents/curriculum_plan/美术学类本科人才培养方案--美术学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0585-page-0585-block-mineru-block-0005-0005-map-01.png
+        path: course-maps/page-0585-page-0585-block-mineru-block-0005-0005-map-01.png
+      - key: curriculum/documents/curriculum_plan/美术学类本科人才培养方案--美术学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0586-page-0586-block-mineru-block-0002-0002-map-01.png
+        path: course-maps/page-0586-page-0586-block-mineru-block-0002-0002-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/美术学类本科人才培养方案--美术学类本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:美术学类本科人才培养方案:d692414cac07
+versionSlug: "2022"

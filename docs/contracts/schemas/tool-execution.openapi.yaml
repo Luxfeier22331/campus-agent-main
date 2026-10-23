@@ -1,0 +1,933 @@
+openapi: 3.1.1
+info:
+  title: campus-agent tool execution contract
+  version: tool-execution-v7
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+x-campus-contract:
+  execution_contract_version: tool_execution_v7
+  response_contract: execution_finalization_response_v9
+  versioning_policy:
+    execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
+    response_contract: ExecutionFinalizationResponse wire contract changes must bump response_contract
+paths:
+  /internal/agent/runs:
+    post:
+      summary: Start a Temporal-backed execution run.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecutionRunCreateRequest"
+      responses:
+        "202":
+          description: The start command was durably accepted and the current run projection is returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionRunResponse"
+  /internal/agent/runs/{requestId}:
+    get:
+      summary: Read sanitized execution run projection.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Execution run projection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionRunResponse"
+  /internal/agent/runs/{requestId}/events:
+    get:
+      summary: Read sanitized execution run events after an optional sequence.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - name: after_sequence
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - name: wait_ms
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Execution run events.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - events
+                  - next_sequence
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExecutionRunEvent"
+                  next_sequence:
+                    type: integer
+                    minimum: 0
+  /internal/agent/runs/{requestId}/steps:
+    get:
+      summary: Read sanitized execution run step trajectory projection.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Execution run step trajectory projection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionRunStepTrajectory"
+  /internal/agent/runs/{requestId}/cancel:
+    post:
+      summary: Cancel a Temporal-backed execution run.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+      responses:
+        "202":
+          description: The cancellation intent was durably accepted and the current run projection is returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionRunResponse"
+  /api/internal/agent/runs/{requestId}/input:
+    get:
+      summary: Read the immutable execution input owned by app-api.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/ExecutionAuth"
+      responses:
+        "200":
+          description: The exact frozen JSON bytes whose SHA-256 is carried by run metadata.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionPayload"
+        "400":
+          $ref: "#/components/responses/AppApiErrorResponse"
+        "401":
+          $ref: "#/components/responses/AppApiErrorResponse"
+        "404":
+          $ref: "#/components/responses/AppApiErrorResponse"
+        "409":
+          $ref: "#/components/responses/AppApiErrorResponse"
+        "503":
+          $ref: "#/components/responses/AppApiErrorResponse"
+components:
+  responses:
+    AppApiErrorResponse:
+      description: An app-api error envelope.
+      headers:
+        Cache-Control:
+          schema:
+            const: no-store
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AppApiErrorEnvelope"
+  parameters:
+    RequestId:
+      name: requestId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ExecutionRequestId"
+    ExecutionAuth:
+      name: x-app-execution-auth
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+  schemas:
+    AppApiErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/AppApiError"
+    AppApiError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - retryable
+        - requestId
+        - details
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+        requestId:
+          oneOf:
+            - type: string
+            - type: "null"
+        details: {}
+    ExecutionRequestId:
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    ExecutionRunStatus:
+      type: string
+      enum:
+        - created
+        - queued
+        - admitted
+        - running
+        - streaming
+        - completed
+        - failed
+        - canceled
+        - expired
+    ExecutionRunCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - conversation_id
+        - request_id
+        - owner_user_id
+        - personal_memory_recall_allowed
+        - surface
+        - metadata
+      properties:
+        conversation_id:
+          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
+        owner_user_id:
+          type: string
+        personal_memory_recall_allowed:
+          type: boolean
+          description: Frozen personal memory availability derived from lifecycle and readiness; agent-control freezes admission, agent-runtime exposes recall by stage, and Memory enforces access.
+        surface:
+          type: string
+        runtime_versions:
+          $ref: "#/components/schemas/SafeObject"
+        metadata:
+          $ref: "#/components/schemas/ExecutionRunMetadata"
+    ExecutionRunMetadata:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_contract_version
+        - execution_input_ref
+        - execution_input_sha256
+      properties:
+        execution_contract_version:
+          const: tool_execution_v7
+        execution_input_ref:
+          type: string
+          pattern: "^app-api://execution-inputs/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        execution_input_sha256:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+    ExecutionRunResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - conversation_id
+        - request_id
+        - owner_user_id
+        - surface
+        - task_queue
+        - status
+      properties:
+        conversation_id:
+          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
+        owner_user_id:
+          type: string
+        surface:
+          type: string
+        task_queue:
+          type: string
+        status:
+          $ref: "#/components/schemas/ExecutionRunStatus"
+        terminal_reason:
+          type: string
+        fail_close_reason:
+          type: string
+        created_at:
+          type: string
+        queued_at:
+          type: string
+        admitted_at:
+          type: string
+        started_at:
+          type: string
+        streaming_started_at:
+          type: string
+        completed_at:
+          type: string
+        updated_at:
+          type: string
+        final_response_ref:
+          type: string
+    ExecutionRunEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - event_id
+        - request_id
+        - conversation_id
+        - event_type
+        - sequence
+        - occurred_at
+        - visibility
+        - payload_schema_version
+        - payload
+      properties:
+        event_id:
+          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
+        conversation_id:
+          type: string
+        event_type:
+          type: string
+        sequence:
+          type: integer
+        occurred_at:
+          type: string
+        visibility:
+          type: string
+        payload_schema_version:
+          type: string
+        payload:
+          $ref: "#/components/schemas/SafeObject"
+    ExecutionRunStepTrajectory:
+      type: object
+      additionalProperties: false
+      required:
+        - steps
+        - attempts
+        - results
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExecutionRunStep"
+        attempts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExecutionRunStepAttempt"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExecutionRunStepResult"
+    ExecutionRunStep:
+      type: object
+      additionalProperties: false
+      required:
+        - tool
+        - completed_at
+        - conversation_id
+        - parent_step_id
+        - payload_schema_version
+        - request_id
+        - sanitized_payload
+        - started_at
+        - status
+        - step_id
+        - step_kind
+        - task_queue
+        - updated_at
+        - worker_id
+      properties:
+        tool:
+          type: string
+        completed_at:
+          type: string
+        conversation_id:
+          type: string
+        parent_step_id:
+          type: string
+        payload_schema_version:
+          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
+        sanitized_payload:
+          $ref: "#/components/schemas/SafeObject"
+        started_at:
+          type: string
+        status:
+          type: string
+        step_id:
+          type: string
+        step_kind:
+          type: string
+        task_queue:
+          type: string
+        updated_at:
+          type: string
+        worker_id:
+          type: string
+    ExecutionRunStepAttempt:
+      type: object
+      additionalProperties: false
+      required:
+        - activity_attempt
+        - activity_id
+        - activity_type
+        - attempt
+        - attempt_id
+        - cached_input_tokens
+        - cancel_outcome
+        - completed_at
+        - duration_ms
+        - fail_close_reason
+        - input_tokens
+        - late_completion_outcome
+        - model_name
+        - model_provider
+        - output_tokens
+        - payload_schema_version
+        - provider_request_ref
+        - provider_response_id
+        - request_id
+        - sanitized_payload
+        - schedule_to_start_ms
+        - scheduled_at
+        - started_at
+        - status
+        - step_id
+        - task_queue
+        - temporal_run_id
+        - terminal_reason
+        - timeout_outcome
+        - updated_at
+        - worker_id
+        - workflow_id
+      properties:
+        activity_attempt:
+          type: integer
+          minimum: 0
+        activity_id:
+          type: string
+        activity_type:
+          type: string
+        attempt:
+          type: integer
+          minimum: 0
+        attempt_id:
+          type: string
+        cached_input_tokens:
+          type: integer
+          minimum: 0
+        cancel_outcome:
+          type: string
+        completed_at:
+          type: string
+        duration_ms:
+          type: integer
+          minimum: 0
+        fail_close_reason:
+          type: string
+        input_tokens:
+          type: integer
+          minimum: 0
+        late_completion_outcome:
+          type: string
+        model_name:
+          type: string
+        model_provider:
+          type: string
+        output_tokens:
+          type: integer
+          minimum: 0
+        payload_schema_version:
+          type: string
+        provider_request_ref:
+          type: string
+        provider_response_id:
+          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
+        sanitized_payload:
+          $ref: "#/components/schemas/SafeObject"
+        schedule_to_start_ms:
+          type: integer
+          minimum: 0
+        scheduled_at:
+          type: string
+        started_at:
+          type: string
+        status:
+          type: string
+        step_id:
+          type: string
+        task_queue:
+          type: string
+        temporal_run_id:
+          type: string
+        terminal_reason:
+          type: string
+        timeout_outcome:
+          type: string
+        updated_at:
+          type: string
+        worker_id:
+          type: string
+        workflow_id:
+          type: string
+    ExecutionRunStepResult:
+      type: object
+      additionalProperties: false
+      required:
+        - attempt_id
+        - created_at
+        - payload_schema_version
+        - projection_ref
+        - result_id
+        - result_kind
+        - request_id
+        - sanitized_payload
+        - status
+        - step_id
+      properties:
+        attempt_id:
+          type: string
+        created_at:
+          type: string
+        payload_schema_version:
+          type: string
+        projection_ref:
+          type: string
+        result_id:
+          type: string
+        result_kind:
+          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
+        sanitized_payload:
+          $ref: "#/components/schemas/SafeObject"
+        status:
+          type: string
+        step_id:
+          type: string
+    ToolID:
+      type: string
+      enum:
+        - campus_search
+        - personal_memory_recall
+    ModelVisibleToolName:
+      type: string
+      description: Current model-visible tool-name vocabulary; registered closed tools remain in ToolID only.
+      enum:
+        - campus_search
+        - personal_memory_recall
+    ExecutionStatus:
+      type: string
+      enum:
+        - completed
+        - error
+        - rejected
+        - approval_required
+        - cancelled
+    WorkflowMode:
+      type: string
+      enum:
+        - terminal
+        - single_step
+        - multi_step
+    AnswerArtifactKind:
+      type: string
+      enum:
+        - agent_final_output
+    SafeObject:
+      type: object
+      additionalProperties: true
+    ErrorInfo:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - retryable
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+    StageTiming:
+      type: object
+      additionalProperties: false
+      properties:
+        request.total_ms:
+          type: number
+          minimum: 0
+        execution.dispatch_ms:
+          type: number
+          minimum: 0
+        workflow.schedule_to_start_ms:
+          type: number
+          minimum: 0
+        stream.first_delta_persist_ms:
+          type: number
+          minimum: 0
+        stream.app_api_ttft_ms:
+          type: number
+          minimum: 0
+        stream.orchestration_overhead_ms:
+          type: number
+          minimum: 0
+        execution.admission_ms:
+          type: number
+          minimum: 0
+        memory.recall_ms:
+          type: number
+          minimum: 0
+        workflow.solve_ms:
+          type: number
+          minimum: 0
+        workflow.execute_step_ms:
+          type: number
+          minimum: 0
+        workflow.replan_ms:
+          type: number
+          minimum: 0
+        workflow.synthesize_ms:
+          type: number
+          minimum: 0
+        workflow.first_delta_ms:
+          type: number
+          minimum: 0
+        tool.total_ms:
+          type: number
+          minimum: 0
+        finalization.write_ms:
+          type: number
+          minimum: 0
+        projection.closeout_ms:
+          type: number
+          minimum: 0
+    ActorContext:
+      type: object
+      additionalProperties: true
+      properties:
+        user_id:
+          type: string
+        principal_id:
+          type: string
+        principal_type:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        departments:
+          type: array
+          items:
+            type: string
+    ConversationContextMessage:
+      type: object
+      additionalProperties: false
+      required:
+        - role
+        - message_id
+        - content
+        - created_at
+      properties:
+        role:
+          enum:
+            - user
+            - assistant
+        message_id:
+          type: string
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    ConversationContext:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - conversation_id
+        - user_message_id
+        - current_user_message
+        - recent_turns
+        - session_state
+      properties:
+        schema_version:
+          const: conversation_context.v1
+        conversation_id:
+          type: string
+        user_message_id:
+          type: string
+        parent_message_id:
+          oneOf:
+            - type: string
+            - type: "null"
+        current_user_message:
+          type: object
+          additionalProperties: false
+          required:
+            - role
+            - content
+            - created_at
+          properties:
+            role:
+              const: user
+            content:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+        recent_turns:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationContextMessage"
+        session_state:
+          $ref: "#/components/schemas/SafeObject"
+    ExecutionPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_contract_version
+        - response_contract
+        - user_goal
+        - conversation_id
+        - request_id
+        - context
+      properties:
+        execution_contract_version:
+          const: tool_execution_v7
+        response_contract:
+          const: execution_finalization_response_v9
+        user_goal:
+          type: string
+        conversation_id:
+          type: string
+        request_id:
+          type: string
+        tenant_id:
+          type: string
+        safety_identifier:
+          oneOf:
+            - type: string
+            - type: "null"
+        context:
+          $ref: "#/components/schemas/ExecutionRequestContext"
+    ExecutionRequestContext:
+      type: object
+      additionalProperties: true
+      properties:
+        conversation:
+          $ref: "#/components/schemas/ConversationContext"
+      not:
+        required:
+          - profile_memory
+    ModelUsage:
+      type: object
+      additionalProperties: false
+      required:
+        - input_tokens
+        - cached_input_tokens
+        - output_tokens
+        - total_tokens
+      properties:
+        input_tokens:
+          type: integer
+          minimum: 0
+        cached_input_tokens:
+          type: integer
+          minimum: 0
+        output_tokens:
+          type: integer
+          minimum: 0
+        total_tokens:
+          type: integer
+          minimum: 0
+    ExecutionFinalizationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - answer_text
+        - result
+        - error
+        - model_usage
+      properties:
+        status:
+          $ref: "#/components/schemas/ExecutionStatus"
+        answer_text:
+          type: string
+        result:
+          oneOf:
+            - $ref: "#/components/schemas/ExecutionFinalizationResult"
+            - type: "null"
+        error:
+          oneOf:
+            - $ref: "#/components/schemas/ErrorInfo"
+            - type: "null"
+        observability:
+          oneOf:
+            - $ref: "#/components/schemas/SafeObject"
+            - type: "null"
+        model_usage:
+          $ref: "#/components/schemas/ModelUsage"
+        stage_timing:
+          oneOf:
+            - $ref: "#/components/schemas/StageTiming"
+            - type: "null"
+    ExecutionFinalizationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - sources
+        - terminal_reason
+      properties:
+        sources:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/CampusDocumentSource"
+              - $ref: "#/components/schemas/CampusNoticeSource"
+              - $ref: "#/components/schemas/WebPageSource"
+        terminal_reason:
+          type: string
+    CampusDocumentSource:
+      type: object
+      additionalProperties: false
+      required:
+        - citation_href
+        - citation_index
+        - document_id
+        - evidence_ref
+        - kind
+        - root_unit_ids
+        - section_ref
+        - section_title
+        - snippet
+        - title
+        - version_id
+        - version_slug
+      properties:
+        citation_href:
+          type: string
+          minLength: 1
+        citation_index:
+          type: integer
+          minimum: 1
+        document_id:
+          type: string
+          minLength: 1
+        evidence_ref:
+          type: string
+          minLength: 1
+        kind:
+          const: campus_document
+        root_unit_ids:
+          type: array
+          items:
+            type: string
+        section_ref:
+          type: string
+          minLength: 1
+        section_title:
+          type: string
+        snippet:
+          type: string
+        title:
+          type: string
+          minLength: 1
+        version_id:
+          type: string
+          minLength: 1
+        version_slug:
+          type: string
+          minLength: 1
+    CampusNoticeSource:
+      type: object
+      additionalProperties: false
+      required:
+        - citation_href
+        - citation_index
+        - evidence_ref
+        - kind
+        - notice_id
+        - section_title
+        - snippet
+        - title
+      properties:
+        citation_href:
+          type: string
+          pattern: "^/notices/[A-Za-z0-9._~-]+$"
+        citation_index:
+          type: integer
+          minimum: 1
+        evidence_ref:
+          type: string
+          minLength: 1
+        kind:
+          const: campus_notice
+        notice_id:
+          type: string
+          minLength: 1
+        section_title:
+          type: string
+        snippet:
+          type: string
+        title:
+          type: string
+          minLength: 1
+    WebPageSource:
+      type: object
+      additionalProperties: false
+      required:
+        - citation_href
+        - citation_index
+        - hostname
+        - kind
+        - title
+        - url
+      properties:
+        citation_href:
+          type: string
+          format: uri
+        citation_index:
+          type: integer
+          minimum: 1
+        hostname:
+          type: string
+          minLength: 1
+        kind:
+          const: web_page
+        title:
+          type: string
+          minLength: 1
+        url:
+          type: string
+          format: uri

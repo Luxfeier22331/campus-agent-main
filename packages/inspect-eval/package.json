@@ -1,0 +1,7 @@
+{
+	"name": "inspect-eval",
+	"private": true,
+	"scripts": {
+		"test:eval": "uv run --package campus-inspect-eval python -m unittest discover -s tests -t . -q"
+	}
+}

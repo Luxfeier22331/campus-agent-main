@@ -1,0 +1,34 @@
+{
+	"status": "completed",
+	"answer_text": "示例奖学金按照现行评审办法执行。",
+	"error": null,
+	"model_usage": {
+		"input_tokens": 510,
+		"cached_input_tokens": 100,
+		"output_tokens": 110,
+		"total_tokens": 620
+	},
+	"result": {
+		"sources": [
+			{
+				"citation_href": "/docs/regulations/student_rules/national-scholarship/v/2026-current#principles",
+				"citation_index": 1,
+				"document_id": "student_rules/national-scholarship",
+				"evidence_ref": "evidence://national-scholarship-principles",
+				"kind": "campus_document",
+				"root_unit_ids": ["national-scholarship-principles"],
+				"section_ref": "/docs/regulations/student_rules/national-scholarship/v/2026#principles",
+				"section_title": "评审原则",
+				"snippet": "示例奖学金评审坚持公开、公平、公正的原则。",
+				"title": "示例学生奖学金评审办法",
+				"version_id": "version-national-scholarship-2026",
+				"version_slug": "2026"
+			}
+		],
+		"terminal_reason": "answer"
+	},
+	"observability": {
+		"agent_runtime": "openai_agents_sdk",
+		"terminal_reason": "answer"
+	}
+}

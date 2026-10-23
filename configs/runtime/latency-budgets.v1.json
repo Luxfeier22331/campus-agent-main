@@ -1,0 +1,86 @@
+{
+	"schema_version": "runtime-latency-budgets-v1",
+	"budget_version": "latency-budget-v1",
+	"rules": [
+		{
+			"field": "request.total_ms",
+			"warn_ms": 8000,
+			"critical_ms": 15000
+		},
+		{
+			"field": "execution.dispatch_ms",
+			"warn_ms": 250,
+			"critical_ms": 1000
+		},
+		{
+			"field": "workflow.schedule_to_start_ms",
+			"warn_ms": 500,
+			"critical_ms": 1500
+		},
+		{
+			"field": "stream.first_delta_persist_ms",
+			"warn_ms": 2500,
+			"critical_ms": 5000
+		},
+		{
+			"field": "stream.app_api_ttft_ms",
+			"warn_ms": 2500,
+			"critical_ms": 5000
+		},
+		{
+			"field": "stream.orchestration_overhead_ms",
+			"warn_ms": 750,
+			"critical_ms": 2000
+		},
+		{
+			"field": "execution.admission_ms",
+			"warn_ms": 500,
+			"critical_ms": 1500
+		},
+		{
+			"field": "memory.recall_ms",
+			"warn_ms": 800,
+			"critical_ms": 2000
+		},
+		{
+			"field": "workflow.solve_ms",
+			"warn_ms": 7000,
+			"critical_ms": 14000
+		},
+		{
+			"field": "workflow.execute_step_ms",
+			"warn_ms": 6000,
+			"critical_ms": 12000
+		},
+		{
+			"field": "workflow.replan_ms",
+			"warn_ms": 3000,
+			"critical_ms": 6000
+		},
+		{
+			"field": "workflow.synthesize_ms",
+			"warn_ms": 6000,
+			"critical_ms": 12000
+		},
+		{
+			"field": "workflow.first_delta_ms",
+			"warn_ms": 2000,
+			"critical_ms": 4500
+		},
+		{
+			"field": "tool.total_ms",
+			"warn_ms": 6000,
+			"critical_ms": 12000
+		},
+		{
+			"field": "finalization.write_ms",
+			"warn_ms": 500,
+			"critical_ms": 1500
+		},
+		{
+			"field": "projection.closeout_ms",
+			"warn_ms": 1000,
+			"critical_ms": 3000
+		}
+	]
+}

@@ -1,0 +1,48 @@
+{
+	"name": "internal-portal-collection",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "One-shot internal portal notice and file collection job.",
+	"scripts": {
+		"build": "esbuild adapters/internal-portal/src/collection-job.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/collection-job.js --external:@aws-sdk/client-s3 --external:content-disposition --external:dotenv --external:jsdom --external:mime-types --external:pg --external:tldts --external:undici && node ./dist/collection-job.js --help",
+		"auth:check": "tsx adapters/internal-portal/src/auth-cli.ts check",
+		"auth:pull": "tsx adapters/internal-portal/src/auth-cli.ts pull",
+		"collect": "tsx adapters/internal-portal/src/collection-cli.ts",
+		"state-versions": "tsx adapters/internal-portal/src/state-version-maintenance-cli.ts",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run -c vitest.fast.config.mts",
+		"migrate-notice-sources": "tsx adapters/internal-portal/src/notice-source-migration-cli.ts"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1153.0",
+		"@campus-agent/internal-portal-client": "workspace:*",
+		"@campus-agent/notice-database": "workspace:*",
+		"@campus-agent/notices": "workspace:*",
+		"campus-contracts": "workspace:*",
+		"content-disposition": "^3.0.0",
+		"dotenv": "^18.0.8",
+		"ingestion-contracts": "workspace:*",
+		"jsdom": "^30.1.3",
+		"mime-types": "^3.0.2",
+		"pg": "^8.23.1",
+		"tldts": "^7.4.18",
+		"undici": "^8.12.3"
+	},
+	"devDependencies": {
+		"@types/content-disposition": "^0.5.9",
+		"@types/mime-types": "^3.0.1",
+		"@types/node": "^24.19.2",
+		"@types/pg": "^8.23.1",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	},
+	"license": "Apache-2.0",
+	"exports": {
+		"./collection-command": "./adapters/internal-portal/src/collection-command.ts",
+		"./config": "./adapters/internal-portal/src/config.ts",
+		"./ops-web-credential-resolver": "./adapters/internal-portal/src/ops-web-credential-resolver.ts"
+	}
+}

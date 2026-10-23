@@ -1,0 +1,106 @@
+package adaptertest
+
+import (
+	"context"
+	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/execution"
+	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/finalization"
+	activityprojection "github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionapplication/projection"
+	"github.com/MUC-WIKI/campus-agent/apps/agent-control/internal/executionfailure"
+	"go.temporal.io/sdk/temporal"
+	"google.golang.org/protobuf/encoding/protojson"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+const temporalFailureSentinel = "postgres://user:secret@internal-db/runtime?token=sentinel"
+
+func assertTemporalFailureSanitized(
+	t *testing.T,
+	err error,
+	wantType string,
+	wantNonRetryable bool,
+) {
+	t.Helper()
+	var applicationError interface {
+		error
+		Type() string
+		NonRetryable() bool
+		HasDetails() bool
+	}
+	if !errors.As(err, &applicationError) {
+		t.Fatalf("error = %T %v, want Temporal ApplicationError", err, err)
+	}
+	if applicationError.Type() != wantType || applicationError.NonRetryable() != wantNonRetryable {
+		t.Fatalf(
+			"application error type=%q non_retryable=%t, want %q/%t",
+			applicationError.Type(),
+			applicationError.NonRetryable(),
+			wantType,
+			wantNonRetryable,
+		)
+	}
+	if applicationError.HasDetails() {
+		t.Fatal("application error must not carry diagnostic details")
+	}
+	failure := temporal.GetDefaultFailureConverter().ErrorToFailure(err)
+	encoded, marshalErr := protojson.Marshal(failure)
+	if marshalErr != nil {
+		t.Fatalf("marshal Temporal failure: %v", marshalErr)
+	}
+	if strings.Contains(string(encoded), temporalFailureSentinel) {
+		t.Fatalf("Temporal failure leaked sentinel: %s", encoded)
+	}
+	if failure.GetCause() != nil {
+		t.Fatalf("Temporal failure cause = %#v, want nil", failure.GetCause())
+	}
+}
+
+func TestTemporalApplicationErrorPersistsOnlyBoundedFailureEvidence(t *testing.T) {
+	err := executionfailure.SanitizedError(
+		"provider_unavailable",
+		errors.New(temporalFailureSentinel),
+		false,
+	)
+	assertTemporalFailureSanitized(t, err, "provider_unavailable", false)
+}
+
+func TestTemporalFailureTerminalReasonDistinguishesRuntimeAndProviderTimeouts(t *testing.T) {
+	if got := finalizationactivities.TemporalFailureTerminalReason(
+		activityprojection.StepFailureProjection{},
+		"agent_runtime_timeout",
+	); got != execution.DurableTerminalReasonRunTimeout {
+		t.Fatalf("runtime timeout terminal reason = %q, want run_timeout", got)
+	}
+	if got := finalizationactivities.TemporalFailureTerminalReason(
+		activityprojection.StepFailureProjection{},
+		"provider_timeout",
+	); got != execution.DurableTerminalReasonProviderUnavailable {
+		t.Fatalf("provider timeout terminal reason = %q, want provider_unavailable", got)
+	}
+}
+
+func TestProductCallbackRejectionDoesNotPersistResponseBody(t *testing.T) {
+	callback := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		response.WriteHeader(http.StatusConflict)
+		_, _ = response.Write([]byte(temporalFailureSentinel))
+	}))
+	defer callback.Close()
+	server := newAdapterForTest(config.Config{
+		ProductCallbackBaseURL:     callback.URL,
+		AppAPIInternalSharedSecret: "callback-secret",
+		ProductCallbackTimeoutMS:   1_000,
+	})
+
+	chatErr := server.WriteChatProductFinalization(
+		context.Background(),
+		execution.DurableRun{RequestID: "run-callback-sanitized"},
+		time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC),
+		map[string]any{"status": "error"},
+	)
+	assertTemporalFailureSanitized(t, chatErr, "product_callback_rejected", true)
+}

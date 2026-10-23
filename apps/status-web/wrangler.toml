@@ -1,0 +1,24 @@
+name = "status-web"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[env.local.vars]
+CAMPUS_WEB_PUBLIC_ORIGIN = "http://127.0.0.1:27014"
+DEPLOYMENT_ENVIRONMENT = "development"
+STATUS_CAMPUS_ORIGIN = "http://127.0.0.1:27014"
+STATUS_QA_ORIGIN = "http://127.0.0.1:27031"
+
+[env.staging.vars]
+DEPLOYMENT_ENVIRONMENT = "staging"
+
+[[env.staging.kv_namespaces]]
+binding = "STATUS_SNAPSHOT"
+id = "00000000000000000000000000000000"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/*"]

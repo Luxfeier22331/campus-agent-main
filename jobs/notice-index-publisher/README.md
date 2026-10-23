@@ -1,0 +1,225 @@
+# Notice Chunk、Embedding 与本地评测
+
+该包负责已发布站内通知的 Chunk Run、Embedding Set，以及本地结构验证、广泛抽样、问题生成和
+Embedding dense-retrieval 评测。集群任务把正式制品写入 derived bucket；本包不直接发布 Qdrant
+collection 或维护在线绑定，生产 serving 由 `jobs/retrieval-index` 统一完成。
+
+## 主链路
+
+```text
+已发布站内 notice 的 content_text + 当时已有的正文图片与 PDF 附件 OCR 文本
+  -> Chunk 数据
+  ├-> Notice Embedding Set -> Campus RAG unified publisher
+  └-> 本地 Chunk Run（含审查/诊断）-> 问题生成、抽样与评测
+```
+
+Chunk Run 是问题生成和 Embedding 评测的唯一正文输入；本地评测不是制品发布的前置步骤。
+
+## 集群制品链路
+
+集群使用两个默认暂停的 Job 模板，阶段之间只传递显式内容寻址 ID；完成后由统一 serving publisher
+与 Docs Embedding Set 组装当前 collection：
+
+```text
+notice-chunk-builder
+  -> notices/rag/chunk-data/sha256/<chunks-digest>/chunks.ndjson
+  -> NOTICE_CHUNKS=sha256:<chunks-digest>
+  -> notice-embedding-builder
+  -> notices/rag/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
+  -> notices/rag/embedding-sets/sha256/<set-id>/manifest.json
+  -> CAMPUS_NOTICE_EMBEDDING_SET
+  -> retrieval-index
+```
+
+`build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v10 实现并写入 Chunk
+数据。`build-embeddings` 只读取显式 chunks 摘要，从 Model Config 的 `campus_docs_embedding` 槽位读取完整
+连接；同一操作先按原文去重，每个唯一 `retrievalText` 计算一次摘要。已有且通过校验的线上 cache 会复用，
+缺失输入才调用 Provider；每个成功 batch 立即写入 cache，最终写入 `notice_embedding_set.v2`。
+该 manifest 直接引用 chunks 对象，不引用审查 Run。算法标签、validation 和 review 变化不会改变 serving
+身份；实际 Chunk 数据变化会产生新 set，并由统一 publisher 发布新 collection。两个手动阶段不自动串联，
+不维护 `latest` 指针，不写入 Qdrant 或通知数据库。统一 publisher 不连接 live Notices DB，也不重新 embedding。
+
+完整运行步骤见 [通知 Chunk 与 Embedding 制品](../../docs/runbooks/ingestion/notice-indexing.md)。
+
+## 构建 Chunk
+
+任务在只读 repeatable-read 快照中读取已发布站内通知，并按已发布图片顺序、页序追加当时已有的 OCR
+文本；每张图片按资产摘要匹配同通知 OCR 输入摘要，使用最新完成批次。PDF 附件的已完成 OCR 页文本
+同样按附件序、页序追加，正文图片与附件的 OCR 文本都先经共享 HTML 清洗（表格转为逻辑行、剥离图片
+引用）再进入分块。来源适配只读 `ocr.tasks` 与 `ocr.pages`，不调用 OCR 服务。
+无正文文本且无 OCR 文本时使用通知标题，因此纯图片通知也正常进入构建。外链通知不参与。
+
+OCR 成功、失败、未完成均不改变通知是否进入本次构建；稍后完成的识别文本由下一次构建读取。
+Chunk 和 Embedding 阶段只消费组装后的文本，不接收任务状态、不等待识别，不触发重识别。
+`content_text` / `content_html` 和公开通知 API 保持原合同；不读取图片或附件字节。
+OCR Markdown 中的图片引用不作为文本输入，文字和表格保留；具体边界见
+[正文图片独立消费](../../.agents/notes/implemented/feature/2026-10-02-notice-body-image-ocr.md)。
+
+```bash
+pnpm dev:init -- --target notice-index-publisher
+pnpm --dir jobs/notice-index-publisher build-chunks-local
+```
+
+当前使用 `notice_text_structure.v10`；[通知数据](../../docs/data/notices.md#检索分块与制品)维护分块、
+字段归属与正文边界，不在模块入口复制规则清单。
+
+本地 Chunk Run 写入：
+
+```text
+var/notices/chunking/sha256/<run-digest>/
+├── chunks.ndjson
+├── manifest.json
+├── review-samples.ndjson
+└── validation.json
+```
+
+本地 Chunk Run 使用 `notice_chunk_run.v2`，保留分块定义、review sample 和 validation 诊断；仍可读取 v1
+供已有本地评测使用。`chunkId` 是 `notice:<noticeId>:<chunkIndex>`，只表示该数据集内的位置；Embedding
+身份由模型 target 和文本摘要决定。每个 Chunk 保留来源通知的 RFC3339 UTC `releasedAt`，不把发布时间拼入
+`retrievalText`。builder 在同一次 repeatable-read 快照中生成 Chunk、review sample 和 validation 诊断。
+统一 publisher 使用 `retrievalText` 首行生成 Notice title，并由 `noticeId` 生成 `/notices/<noticeId>` citation，
+不读取 live Notices DB。
+
+## Chunk 抽样与验证
+
+```bash
+pnpm --dir jobs/notice-index-publisher review-chunks-local -- \
+  --chunk-run sha256:<chunk-run-id>
+```
+
+广泛抽样覆盖短块、长块、近上限块、层级结构、列表、同章节边界、时间/联系方式密集和随机对照，产物位于
+`var/notices/chunking/reviews/sha256/<chunk-run-id>/broad-sample-v2/`。自动候选信号只用于人工抽样定位，不是
+单独的 Chunk 变更流程。
+
+`notice_chunk_validation.v3` 在原有正文覆盖和章节边界检查之外，统计字段和值拆分、列表续行拆分、URL
+归属拆分、表格表头上下文缺失和超长表格行拆分。它们是当前 Chunk Run 的诊断数据，不是发布门禁。
+
+## 问题生成
+
+Broad review sample 中的通知由模型各生成两道单事实问题。每道问题都应由一个 Chunk 独立回答；标题和正文
+均来自 broad review 中与目标 Chunk Run 一致的 Chunk 数据。`notice_question_generation.v8` 让模型只返回
+`question`、`answer` 和一个 `chunk_ref`，本地代码直接把所选 Chunk 的完整 `content` 作为唯一 evidence，
+不再让模型生成正文行号或 evidence 范围。问题集合同的 `evidenceMode` 为 `selected-chunk-content`。
+
+```bash
+pnpm --dir jobs/notice-index-publisher generate-notice-questions-local -- \
+  --chunk-run sha256:<chunk-run-id>
+```
+
+问题集产物写入：
+
+```text
+var/notices/chunking/question-sets/sha256/<question-set-run>/
+├── manifest.json
+├── questions.ndjson
+├── targeted-questions.ndjson
+└── validation.json
+```
+
+当前问题生成暂不处理名单、公示人选、候选人、录取、获奖或入选结果中的具体人员/条目问题；名单通知仍可
+生成与通知主题、流程、要求或安排相关的问题。问题集是评测输入，不是人工 gold truth。
+
+## Embedding 抽样与 Recall 评测
+
+Embedding 使用 Chunk 的 `retrievalText`，问题使用固定 notice query instruction。Embedding 输入按文本
+SHA-256 和模型 target 缓存：
+
+```text
+var/notices/chunking/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
+```
+
+线上 Job 使用同样的内容寻址结构，但根路径为：
+
+```text
+notices/rag/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
+```
+
+重跑 Embedding Job 会先校验并复用已完成的 cache；中途失败时已经写入的 batch 保留，下一次只处理缺失
+输入。完成日志包含生成与复用数量：
+
+```json
+{"event":"result","embedding_count":12528,"generated_embedding_input_count":0,"reused_embedding_input_count":12528,"embedding_set":"sha256:<id>"}
+```
+
+如需把完整验证过的本地 cache 导入线上 derived bucket：
+
+```bash
+pnpm --dir jobs/notice-index-publisher import-embedding-cache-local -- \
+  --chunk-run sha256:<chunk-run-id> \
+  --model-target-sha256 <model-target-sha256> \
+  --cache-directory var/notices/chunking/embedding-cache/<model-target-sha256>/sha256
+```
+
+该命令会先拒绝缺失、额外或无效文件，再上传 cache，不调用 Embedding Provider。
+
+抽样验证：
+
+```bash
+pnpm --dir jobs/notice-index-publisher sample-embeddings-local -- \
+  --chunk-run sha256:<chunk-run-id>
+```
+
+完整 dense retrieval 评测：
+
+```bash
+pnpm --dir jobs/notice-index-publisher evaluate-embeddings-local -- \
+  --chunk-run sha256:<chunk-run-id> \
+  --questions var/notices/chunking/question-sets/sha256/<question-set-run>/questions.ndjson
+```
+
+评测产物写入 `var/notices/chunking/embedding-evaluations/sha256/<run-digest>/`，包括 metrics、Top 10
+ranking 和输入问题。Recall/MRR 只说明当前 Chunk 与共享 Embedding provider 的离线效果，不代表 Qdrant、
+collection 组装、reranker 或在线 RAG 回答效果。
+
+已有发布向量时可追加 `--embedding-set sha256:<id>`，复用完整向量而只生成问题 Embedding。
+先把该 set 的 manifest 和它引用的 embeddings 对象按原对象键导出到 worktree `var/`，把对应
+完整 Chunk Run（manifest、chunks、validation、review-samples）放到上述本地 chunking 目录。
+命令要求 set 的 chunks 数据摘要和 modelTargetSha256 与评测输入一致（旧 v1 set 比较 chunkRun）；缺失或错配直接报错，不静默
+重算整库。评测 manifest 记录显式 set，生成/复用数反映实际调用。
+使用固定问题、noticeId 和正文 evidence 分别看 Notice Recall、目标 Chunk Recall、答案证据
+Recall 和 MRR；缺少标签或正文锚点是无效样本，不计为零召回。分层指标同时查看 questionCount，
+singleChunkAnswerQuestionCount 为零时单块 Recall/MRR 及对比 delta 返回 null，表示不适用，不伪造 0 分。
+全量来源快照和评测产物保留在忽略的 var；本轮已确认边界样例和固定问题在
+`test/fixtures/` 维护，其他真实通知不随评测产物提交。线上单次候选数和 rerank score 不可当作 Recall。
+
+## 对比两次 Chunk 与 Embedding 结果
+
+先使用同一份 `questions.ndjson` 分别评测 baseline 和 candidate，再运行：
+
+```bash
+pnpm --dir jobs/notice-index-publisher compare-chunks-local -- \
+  --baseline-chunk-run sha256:<baseline-chunk-run> \
+  --candidate-chunk-run sha256:<candidate-chunk-run> \
+  --baseline-evaluation sha256:<baseline-evaluation-run> \
+  --candidate-evaluation sha256:<candidate-evaluation-run> \
+  --questions var/notices/chunking/question-sets/sha256/<question-set-run>/questions.ndjson
+```
+
+结果写入：
+
+```text
+var/notices/chunking/comparisons/sha256/<comparison-run>/comparison.json
+```
+
+对比文件包含 Chunk 数量、长度分布和 validation 诊断差异，文本证据 Recall/MRR 差异，以及每道问题的
+证据落块和 rank 变化。证据落块只按 `noticeId + evidence.text` 在两次 Chunk 产物中定位，不复用旧
+`chunkId`。该命令只产出离线对比数据，不设置阈值或阻断任何流程。
+
+v9 的历史选择与验证见
+[通知分块 v9 与完整证据发布](../../.agents/notes/implemented/architecture/2026-09-29-notice-chunk-v9.md)。
+策略选择、v6→v8 同题集对照、扩大问题集结果及已接受限制见
+[通知结构分块决策](../../.agents/notes/implemented/architecture/2026-08-31-notice-chunk-strategy.md)。
+这些历史记录不表示当前数据集、线上索引或生产效果。
+
+## 配置与验证命令
+
+Chunk 构建使用本包 `.env.local` 的通知数据库配置。问题生成只需要当前 worktree 根 `.env` 中的
+`LLM_BASE_URL`、`LLM_API_KEY` 和 `LLM_MODEL`；Embedding 评测只需要 `EMBEDDING_BASE_URL` 和
+`EMBEDDING_API_KEY`。集群 Chunk Job 使用现有通知数据库连接与 derived bucket 写入身份；集群
+Embedding Job 使用 derived bucket 写入身份和 `MODEL_CONFIG_URL`。
+
+```bash
+pnpm --dir jobs/notice-index-publisher typecheck
+pnpm test --filter=notice-index-publisher
+pnpm --dir jobs/notice-index-publisher build
+```

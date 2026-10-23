@@ -1,0 +1,38 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2022", "ES2025.RegExp", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"resolveJsonModule": true,
+		"allowImportingTsExtensions": true,
+		"jsx": "react-jsx",
+		"strict": true,
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"moduleDetection": "force",
+		"noFallthroughCasesInSwitch": true,
+		"isolatedModules": true,
+		"noUncheckedIndexedAccess": true,
+		"verbatimModuleSyntax": true,
+		"erasableSyntaxOnly": true,
+		"types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
+		"skipLibCheck": true,
+		"noEmit": true,
+		"incremental": true,
+		"tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo"
+	},
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"test/**/*.ts",
+		"test/**/*.tsx",
+		"browser.config.ts",
+		"vite.config.ts"
+	]
+}

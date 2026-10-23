@@ -1,0 +1,16 @@
+{
+	"status": "error",
+	"answer_text": "",
+	"model_usage": {
+		"input_tokens": 0,
+		"cached_input_tokens": 0,
+		"output_tokens": 0,
+		"total_tokens": 0
+	},
+	"result": null,
+	"error": {
+		"code": "execution_timeout",
+		"message": "Agent Control timed out.",
+		"retryable": true
+	}
+}

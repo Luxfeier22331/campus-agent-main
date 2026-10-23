@@ -1,0 +1,12 @@
+{
+	"conversation_id": "conv-contract-001",
+	"request_id": "req-contract-invalid-sha",
+	"owner_user_id": "user-contract-001",
+	"personal_memory_recall_allowed": false,
+	"surface": "web",
+	"metadata": {
+		"execution_contract_version": "tool_execution_v7",
+		"execution_input_ref": "app-api://execution-inputs/req-contract-invalid-sha",
+		"execution_input_sha256": "ABC123"
+	}
+}

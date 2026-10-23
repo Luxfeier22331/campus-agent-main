@@ -1,0 +1,144 @@
+{
+	"reasons": [
+		"missing_field",
+		"invalid_type",
+		"invalid_url",
+		"invalid_offset",
+		"span_out_of_bounds",
+		"span_text_mismatch",
+		"span_overlap",
+		"duplicate_evidence_id",
+		"source_index_conflict",
+		"duplicate_citation_index",
+		"invalid_marker",
+		"missing_evidence",
+		"invalid_source_identity",
+		"missing_source_reference",
+		"unsupported_source",
+		"web_search_without_citations",
+		"citations_without_web_search"
+	],
+	"cases": [
+		{
+			"name": "negative offset is observed, not normalized",
+			"valid": true,
+			"citation": {
+				"schema_version": 1,
+				"validation_stage": "provider_annotation",
+				"item_index": 0,
+				"start": -1,
+				"end": 6,
+				"text_length": 5,
+				"offset_unit": "utf16_code_unit"
+			}
+		},
+		{
+			"name": "zero marker",
+			"valid": true,
+			"citation": {
+				"schema_version": 1,
+				"validation_stage": "finalization",
+				"citation_index": 0,
+				"field": "answer"
+			}
+		},
+		{
+			"name": "mapping with unicode units",
+			"valid": true,
+			"citation": {
+				"schema_version": 1,
+				"validation_stage": "evidence_mapping",
+				"start": 1,
+				"end": 4,
+				"text_length": 3,
+				"offset_unit": "unicode_code_point"
+			}
+		},
+		{
+			"name": "version",
+			"valid": false,
+			"citation": {
+				"schema_version": 2,
+				"validation_stage": "provider_annotation",
+				"item_index": 0,
+				"start": -1,
+				"end": 6,
+				"text_length": 5,
+				"offset_unit": "utf16_code_unit"
+			}
+		},
+		{
+			"name": "unknown field",
+			"valid": false,
+			"citation": {
+				"schema_version": 1,
+				"validation_stage": "provider_annotation",
+				"item_index": 0,
+				"start": -1,
+				"end": 6,
+				"text_length": 5,
+				"offset_unit": "utf16_code_unit",
+				"raw_response": "not allowed"
+			}
+		},
+		{
+			"name": "missing stage",
+			"valid": false,
+			"citation": {
+				"schema_version": 1
+			}
+		},
+		{
+			"name": "negative item index",
+			"valid": false,
+			"citation": {
+				"schema_version": 1,
+				"validation_stage": "provider_annotation",
+				"item_index": -1,
+				"start": -1,
+				"end": 6,
+				"text_length": 5,
+				"offset_unit": "utf16_code_unit"
+			}
+		},
+		{
+			"name": "invalid unit",
+			"valid": false,
+			"citation": {
+				"schema_version": 1,
+				"validation_stage": "provider_annotation",
+				"item_index": 0,
+				"start": -1,
+				"end": 6,
+				"text_length": 5,
+				"offset_unit": "characters"
+			}
+		},
+		{
+			"name": "null position",
+			"valid": false,
+			"citation": {
+				"schema_version": 1,
+				"validation_stage": "provider_annotation",
+				"item_index": 0,
+				"start": null,
+				"end": 6,
+				"text_length": 5,
+				"offset_unit": "utf16_code_unit"
+			}
+		},
+		{
+			"name": "unsafe integer",
+			"valid": false,
+			"citation": {
+				"schema_version": 1,
+				"validation_stage": "provider_annotation",
+				"item_index": 0,
+				"start": -1,
+				"end": 9007199254740992,
+				"text_length": 5,
+				"offset_unit": "utf16_code_unit"
+			}
+		}
+	]
+}

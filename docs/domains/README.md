@@ -1,0 +1,19 @@
+---
+doc_type: index
+owner_boundary: docs/domains
+status: active
+---
+# 窄能力文档
+
+`docs/domains/` 只保存可以由一份人类文档完整说明的窄能力，不为宽领域建立转发 hub。
+
+- [place.md](./place.md)：地点目录与校园地图读取；制图与接入流程见
+  [校园地图制图流程](../runbooks/campus-map-authoring.md)；
+- [calendar.md](./calendar.md)：校历参考数据、通知关联和未开放边界；
+- [source-card.md](./source-card.md)：问答来源卡片、阅读器固定链接、锚点与高亮；
+- [groups.md](./groups.md)：同好群目录维护和学生端读取。
+- [transport.md](./transport.md)：通知中的交通班次来源声明与未上线边界。
+
+HTTP、数据结构、运行时和操作步骤仍由 `docs/contracts/`、`docs/data/`、
+`docs/architecture/` 和 `docs/runbooks/` 维护。一个窄能力文档能够讲清楚时，不再拆成入口、
+设计、状态和计划等多份文档。

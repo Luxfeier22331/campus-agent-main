@@ -1,0 +1,48 @@
+name: campus-agent-local-qdrant-tls
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.19.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "${QDRANT_HOST:-127.0.0.1}:${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_HOST:-127.0.0.1}:${QDRANT_GRPC_PORT:-6334}:6334"
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY}
+      QDRANT__SERVICE__READ_ONLY_API_KEY: ${QDRANT_READ_ONLY_API_KEY:?set QDRANT_READ_ONLY_API_KEY}
+      QDRANT__SERVICE__ENABLE_TLS: "true"
+      QDRANT__TLS__CERT: /qdrant/tls/server.crt
+      QDRANT__TLS__KEY: /qdrant/tls/server.key
+      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
+    volumes:
+      - ${QDRANT_STORAGE_DIR:-/srv/lib/campus-agent/qdrant/storage}:/qdrant/storage
+      - ${QDRANT_SNAPSHOTS_DIR:-/srv/backups/campus-agent/qdrant-snapshots/native}:/qdrant/snapshots
+      - ${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:/qdrant/tls:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'bash -lc ''timeout 2 bash -c "</dev/tcp/127.0.0.1/6333"'''
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      data-plane:
+        aliases:
+          - qdrant
+
+networks:
+  data-plane:
+    external: true
+    name: ${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}

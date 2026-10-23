@@ -1,0 +1,23 @@
+{
+	"name": "eval-langfuse",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Online Langfuse trace verification for campus-agent.",
+	"type": "module",
+	"bin": {
+		"campus-langfuse": "./src/cli.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
+	},
+	"dependencies": {
+		"@langfuse/client": "^5.14.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.19.2",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	},
+	"license": "Apache-2.0"
+}

@@ -1,0 +1,57 @@
+[
+	{
+		"name": "adjacent",
+		"text": "答案[1][2][3][5]；补充[2][8]",
+		"indexes": [1, 2, 3, 5, 2, 8]
+	},
+	{
+		"name": "grouped",
+		"text": "答案[1, 2, 1][5]",
+		"indexes": [1, 2, 5]
+	},
+	{
+		"name": "reference",
+		"text": "[1][ref]\n\n[ref]: https://example.com",
+		"indexes": []
+	},
+	{
+		"name": "undefined_reference",
+		"text": "[1][ref]",
+		"indexes": [1]
+	},
+	{
+		"name": "numeric_reference",
+		"text": "[1][2]\n\n[2]: https://example.com",
+		"indexes": []
+	},
+	{
+		"name": "code",
+		"text": "`[1]`\n\n    [2]\n\n````md\n```\n[3]\n```\n````\n\n[5]",
+		"indexes": [5]
+	},
+	{
+		"name": "escaped",
+		"text": "\\[1] \\\\[2] &#91;3] [5]",
+		"indexes": [2, 5]
+	},
+	{
+		"name": "links_images",
+		"text": "[1](https://example.com) ![2](a.png) [文本[3]](https://example.com) [5]",
+		"indexes": [5]
+	},
+	{
+		"name": "unicode_crlf",
+		"text": "😀中文[1][2]\r\n\r\n后文[3]",
+		"indexes": [1, 2, 3]
+	},
+	{
+		"name": "gfm",
+		"text": "| 内容 |\n| --- |\n| **资料[1]**、~~[2]~~ |\n\n- [x] 完成[3]",
+		"indexes": [1, 2, 3]
+	},
+	{
+		"name": "html",
+		"text": "<div>\n[1]\n</div>\n\n[2]",
+		"indexes": [2]
+	}
+]

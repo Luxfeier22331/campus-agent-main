@@ -1,0 +1,233 @@
+import {
+	Alert,
+	Badge,
+	Button,
+	Checkbox,
+	Disclosure,
+	DisclosureSummary,
+	Field,
+	Label,
+	StateMessage,
+} from "@campus-agent/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { taskOutcomeLabels, taskStatusLabels } from "../shared/task-stages";
+import type { OpsTask, TaskRun, TaskScheduleInput } from "../shared/tasks-contract";
+import { formatHumanDuration, formatTimestamp } from "./format";
+import { PageHeader } from "./ops-display";
+import { TaskStageSummary } from "./task-stage-summary";
+import { FilterSelect } from "./ui/filter-select";
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+	const response = await fetch(`/api/ops/tasks${path}`, init);
+	const result = await response.json();
+	if (!response.ok) {
+		throw new Error(result.message ?? result.error?.message ?? "任务请求失败");
+	}
+	return result as T;
+}
+function runStatusLabel(run: TaskRun) {
+	if (run.status !== "running") {
+		return taskStatusLabels[run.status] ?? run.status;
+	}
+	const active = run.stages?.filter((stage) => stage.outcome === "running") ?? [];
+	if (active.length > 0 && active.every((stage) => stage.activity?.state === "waiting")) {
+		return active.some((stage) => stage.activity?.lastFailure) ? "等待重试" : "排队中";
+	}
+	return "运行中";
+}
+export function TasksPage() {
+	const query = useQuery({
+		queryKey: ["ops-tasks"],
+		queryFn: ({ signal }) => request<{ tasks: OpsTask[] }>("", { signal }),
+		refetchInterval: (query) =>
+			query.state.data?.tasks.some((task) => task.running)
+				? 3000
+				: query.state.data?.tasks.some((task) => task.enabled)
+					? 30_000
+					: false,
+		refetchIntervalInBackground: false,
+	});
+	return (
+		<section>
+			<PageHeader
+				title="定时任务"
+				description="管理自动调度、手动执行和最近运行结果。暂停后，正在运行的任务会继续完成。"
+			/>
+			{query.error && (
+				<StateMessage
+					layout="inline"
+					tone="danger"
+					role="alert"
+					description={query.error.message}
+				/>
+			)}
+			{query.isPending && <StateMessage layout="inline" description={<>正在读取任务…</>} />}
+			{query.data?.tasks.length === 0 ? (
+				<StateMessage description="当前没有可管理的任务。" />
+			) : null}
+			<div className="grid items-start gap-5 xl:grid-cols-2">
+				{query.data?.tasks.map((task) => (
+					<TaskCard key={task.id} task={task} observedAt={query.dataUpdatedAt} />
+				))}
+			</div>
+		</section>
+	);
+}
+function TaskCard({ task, observedAt }: { task: OpsTask; observedAt: number }) {
+	const client = useQueryClient();
+	const [notice, setNotice] = useState("");
+	const [draft, setDraft] = useState<TaskScheduleInput | null>(null);
+	const value = draft ?? {
+		enabled: task.enabled ?? false,
+		intervalMinutes: ([15, 30, 60].includes(task.intervalMinutes ?? 0)
+			? task.intervalMinutes
+			: 60) as 15 | 30 | 60,
+	};
+	const save = useMutation({
+		mutationFn: (value: TaskScheduleInput) =>
+			request(`/${task.id}/schedule`, {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(value),
+			}),
+		onSuccess: async () => {
+			setDraft(null);
+			setNotice("调度设置已保存。");
+			await client.invalidateQueries({ queryKey: ["ops-tasks"] });
+		},
+	});
+	const run = useMutation({
+		mutationFn: () => request(`/${task.id}/runs`, { method: "POST" }),
+		onSuccess: async () => {
+			setNotice("运行任务已提交。");
+			await client.invalidateQueries({ queryKey: ["ops-tasks"] });
+		},
+	});
+	return (
+		<section
+			className={`min-w-0 space-y-4 rounded-lg border border-border bg-background p-4 sm:p-5 ${task.id === "notice-pipeline" ? "xl:col-span-2" : ""}`}
+			aria-label={task.label}
+		>
+			<h2 className="text-lg font-medium">{task.label}</h2>
+			<p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+				<Badge tone={task.enabled ? "success" : "neutral"}>
+					{task.enabled === null ? "调度状态未知" : task.enabled ? "自动运行已开启" : "已暂停"}
+				</Badge>
+				{task.running ? <Badge tone="info">有任务运行中</Badge> : null}·{" "}
+				{task.intervalMinutes ? `每 ${task.intervalMinutes} 分钟` : (task.schedule ?? "无可用周期")}
+			</p>
+			{task.error && (
+				<Alert tone="danger">
+					<p className="text-sm">无法读取{task.label}的调度或运行记录。</p>
+					<Disclosure className="mt-2 text-xs">
+						<DisclosureSummary>技术信息</DisclosureSummary>
+						<pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words">
+							{task.error}
+						</pre>
+					</Disclosure>
+				</Alert>
+			)}
+			{task.canSchedule && (
+				<form
+					className="flex flex-wrap items-end gap-3 border-y border-border py-3"
+					onSubmit={(event) => {
+						event.preventDefault();
+						save.mutate(value);
+					}}
+				>
+					<h3 className="w-full ui-section-title">调度设置</h3>
+					<Label className="flex min-h-11 items-center gap-2" htmlFor={`${task.id}-enabled`}>
+						<Checkbox
+							id={`${task.id}-enabled`}
+							checked={value.enabled}
+							onCheckedChange={(checked) => setDraft({ ...value, enabled: checked === true })}
+						/>{" "}
+						自动运行
+					</Label>
+					<Field label="周期">
+						<FilterSelect
+							id={`${task.id}-interval`}
+							value={String(value.intervalMinutes)}
+							onValueChange={(nextValue) =>
+								setDraft({ ...value, intervalMinutes: Number(nextValue) as 15 | 30 | 60 })
+							}
+							options={[15, 30, 60].map((n) => ({ value: String(n), label: `${n} 分钟` }))}
+						/>
+					</Field>
+					<Button type="submit" disabled={save.isPending || task.enabled === null}>
+						{save.isPending ? "保存中…" : "保存设置"}
+					</Button>
+				</form>
+			)}
+			{task.canRun && (
+				<Button
+					type="button"
+					variant="secondary"
+					disabled={task.running || run.isPending}
+					onClick={() => {
+						setNotice("");
+						run.mutate();
+					}}
+				>
+					立即运行一次
+				</Button>
+			)}
+			{(save.error || run.error) && (
+				<StateMessage
+					layout="inline"
+					tone="danger"
+					role="alert"
+					description={(save.error ?? run.error)?.message}
+				/>
+			)}
+			{notice ? <StateMessage layout="inline" role="status" description={notice} /> : null}
+			<h3 className="ui-section-title">最近运行</h3>
+			{task.runs.length === 0 ? (
+				<StateMessage layout="inline" description="暂无运行记录。" />
+			) : null}
+			{task.runs.map((item) => (
+				<section className="border-t border-border pt-3 text-sm" key={item.id}>
+					<p>
+						{formatTimestamp(item.startedAt)} · {runStatusLabel(item)} ·{" "}
+						{item.status === "running" || item.status === "pending"
+							? "结果待完成"
+							: `${task.runtime === "kubernetes" ? "执行结果" : "业务结果"}：${taskOutcomeLabels[item.outcome]}`}
+					</p>
+					<p className="mt-1 text-muted-foreground">
+						{item.completedAt ? `结束于 ${formatTimestamp(item.completedAt)} · ` : ""}
+						{item.status === "running" ? "本轮已耗时" : "耗时"}：
+						{formatHumanDuration(
+							item.startedAt && (item.completedAt || item.status === "running")
+								? (item.completedAt ? Date.parse(item.completedAt) : observedAt) -
+										Date.parse(item.startedAt)
+								: null,
+						)}
+					</p>
+					{item.status === "running" && !item.stages?.length ? (
+						<p className="mt-2 text-muted-foreground">当前阶段尚未提供。</p>
+					) : null}
+					<TaskStageSummary stages={item.stages} observedAt={observedAt} />
+					{item.error ? (
+						<StateMessage layout="inline" tone="danger" role="alert" description={item.error} />
+					) : null}
+					<Disclosure className="mt-2">
+						<DisclosureSummary className="text-muted-foreground">
+							技术信息 · {item.id.slice(0, 8)}
+						</DisclosureSummary>
+						<p className="break-all">运行 ID：{item.id}</p>
+						{item.workflowId ? <p className="break-all">Workflow：{item.workflowId}</p> : null}
+						{item.parentExecution ? (
+							<p className="break-all">
+								调度执行：{item.parentExecution.workflowId} / {item.parentExecution.runId}
+							</p>
+						) : null}
+						<pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">
+							{JSON.stringify(item.details, null, 2)}
+						</pre>
+					</Disclosure>
+				</section>
+			))}
+		</section>
+	);
+}

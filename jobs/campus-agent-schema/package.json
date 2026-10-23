@@ -1,0 +1,29 @@
+{
+	"name": "campus-agent-schema",
+	"version": "0.1.0",
+	"private": true,
+	"description": "One-shot unified PostgreSQL schema migration job.",
+	"license": "Apache-2.0",
+	"type": "module",
+	"scripts": {
+		"build": "esbuild ./src/cli.ts --bundle --packages=external --platform=node --format=esm --target=node24 --outfile=dist/cli.js",
+		"migrate": "tsx src/cli.ts migrate",
+		"new": "tsx src/cli.ts new",
+		"test:migration-integration": "tsx --test test/*.integration.ts",
+		"status": "tsx src/cli.ts status",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "tsx --test test/*.test.ts"
+	},
+	"dependencies": {
+		"drizzle-orm": "1.0.0-rc.4",
+		"pg": "^8.23.1"
+	},
+	"devDependencies": {
+		"@testcontainers/postgresql": "12.2.1",
+		"@types/node": "^24.19.2",
+		"@types/pg": "^8.23.1",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2"
+	}
+}

@@ -1,0 +1,232 @@
+{
+	"schema_version": "contract-schema-registry.v1",
+	"updated": "2026-08-16",
+	"entries": [
+		{
+			"id": "contract-schema-registry.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/contract-schema-registry.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["packages/contracts/schemas/contract-schema-registry.v1.json"],
+			"notes": "Machine-readable inventory for contract schema governance."
+		},
+		{
+			"id": "tool-execution.openapi",
+			"kind": "openapi_wire",
+			"path": "docs/contracts/schemas/tool-execution.openapi.yaml",
+			"owner": "docs/contracts",
+			"status": "active",
+			"notes": "Private app-api -> agent-control wire contract; generated TS/Go artifacts remain checked by pnpm --dir packages/contracts contracts:check."
+		},
+		{
+			"id": "email-access.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/email-access.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "App API 与 Ops Web 之间的邮箱准入管理合同。"
+		},
+		{
+			"id": "account-admin.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/account-admin.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "App API 与 Ops Web 之间的账号管理合同。"
+		},
+		{
+			"id": "internal-portal-descriptor.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/internal-portal-descriptor.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/sources/internal-portal.json"],
+			"notes": "多个应用共享的内部门户非敏感来源描述；凭据由各自运行时输入提供。"
+		},
+		{
+			"id": "campus-docs-source.v4",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-source.v4.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Campus Web 构建消费的主题、文档、版本、阅读正文、补充资产和旧路由来源清单。"
+		},
+		{
+			"id": "campus-docs-reader.v3",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-reader.v3.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Campus Web 直接渲染的唯一公开正文格式，按元素原始顺序保存。"
+		},
+		{
+			"id": "campus-docs-course-maps.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-course-maps.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Campus Web 构建时从课程地图来源资产生成的精简公开格式。"
+		},
+		{
+			"id": "campus-docs-site-index.v5",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-site-index.v5.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Campus Web 从固定来源清单派生的公开主题、目录、版本、内容寻址搜索入口和旧路由索引。"
+		},
+		{
+			"id": "campus-docs-search-index.v3",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-search-index.v3.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Campus Web 从当前版本阅读正文派生的浏览器搜索索引。"
+		},
+		{
+			"id": "runtime-tools.v6",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tools.v6.schema.json",
+			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Retired tool registry before search results and answer citations were separated."
+		},
+		{
+			"id": "runtime-tools.v8",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tools.v8.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/tools.v8.json"],
+			"notes": "Tool-native runtime registry consumed by agent-runtime and agent-control."
+		},
+		{
+			"id": "personal-memory-tool-contracts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/personal-memory-tool-contracts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Bounded model-facing personal memory recall request and result contract."
+		},
+		{
+			"id": "campus-search-tool-contracts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Retired Campus Docs search contract that labeled all retrieval hits as evidence."
+		},
+		{
+			"id": "campus-search-tool-contracts.v2",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v2.schema.json",
+			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Bounded model-facing Campus Docs search request and candidate result contract."
+		},
+		{
+			"id": "campus-search-tool-contracts.v3",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v3.schema.json",
+			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Campus Docs search contract with version identity separated from UI labels."
+		},
+		{
+			"id": "campus-search-tool-contracts.v4",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v4.schema.json",
+			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Unified Campus Docs and published Notices search contract with source-aware result branches."
+		},
+		{
+			"id": "campus-search-tool-contracts.v5",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v5.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Unified Campus Docs and published Notices search contract with notice publication timestamps."
+		},
+		{
+			"id": "runtime-tool-function-schemas.v3",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v3.schema.json",
+			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Retired model-facing function parameter schema artifact."
+		},
+		{
+			"id": "runtime-tool-function-schemas.v4",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v4.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/tool-function-schemas.v4.json"],
+			"notes": "Strict model-facing function parameter schema artifact."
+		},
+		{
+			"id": "runtime-latency-budgets.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-latency-budgets.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/latency-budgets.v1.json"],
+			"notes": "Repo-owned latency budget artifact consumed by app-api stage timing evaluation."
+		},
+		{
+			"id": "truncation-summary.v2",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/truncation-summary.v2.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/runtime_observability",
+					"valid_glob": "truncation-summary.v2.*.valid.json",
+					"invalid_glob": "truncation-summary.v2.*.invalid.json"
+				}
+			],
+			"notes": "Character-budget and count-only context truncation diagnostic without raw dropped content."
+		},
+		{
+			"id": "campus-groups-catalog.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-groups-catalog.v1.schema.json",
+			"owner": "app-api",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/campus_groups",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid-*.json"
+				}
+			],
+			"notes": "已发布校园同好群目录的公开读取合同。"
+		},
+		{
+			"id": "product-availability-snapshot.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/product-availability-snapshot.v1.schema.json",
+			"owner": "apps/status-web",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/product_availability",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid-*.json"
+				}
+			],
+			"notes": "status.muc.wiki 公共可用性快照和时间线合同，不包含事件或探测明细。"
+		},
+		{
+			"id": "agent-runtime-tool-catalog-zod",
+			"kind": "language_local",
+			"path": "apps/agent-runtime/src/tool-catalog.ts",
+			"owner": "apps/agent-runtime",
+			"status": "active",
+			"notes": "TypeScript/Zod boundary parser for the local agent runtime process."
+		}
+	]
+}

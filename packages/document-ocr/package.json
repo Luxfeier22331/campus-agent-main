@@ -1,0 +1,29 @@
+{
+	"name": "@campus-agent/document-ocr",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"test:database-integration": "vitest run test/store.integration.test.ts",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run --exclude 'test/**/*.integration.test.ts'"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1153.0",
+		"@jimp/core": "^1.6.1",
+		"@jimp/js-bmp": "^1.6.1",
+		"@jimp/js-gif": "^1.6.1",
+		"@jimp/js-png": "^1.6.1",
+		"@paddleocr/api-sdk": "0.2.3",
+		"pg": "^8.23.1"
+	},
+	"devDependencies": {
+		"@types/node": "^24.19.2",
+		"@types/pg": "^8.23.1",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	}
+}

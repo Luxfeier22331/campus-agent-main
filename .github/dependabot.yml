@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
+    groups:
+      github-actions-monthly:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"

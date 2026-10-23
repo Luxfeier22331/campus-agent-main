@@ -1,0 +1,97 @@
+x-host-gateway: &host-gateway
+  - host.docker.internal:host-gateway
+
+services:
+  hindsight-postgres:
+    image: pgvector/pgvector:pg18
+    restart: unless-stopped
+    shm_size: "128mb"
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      POSTGRES_DB: hindsight
+      POSTGRES_USER: hindsight
+      POSTGRES_PASSWORD: ${HINDSIGHT_POSTGRES_PASSWORD:?set HINDSIGHT_POSTGRES_PASSWORD}
+    volumes:
+      - hindsight-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - -q
+        - -d
+        - hindsight
+        - -U
+        - hindsight
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 180s
+    networks:
+      - execution-runtime
+
+  hindsight-api:
+    image: ${HINDSIGHT_API_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.9.1-slim}
+    command:
+      - hindsight-api
+    restart: unless-stopped
+    extra_hosts: *host-gateway
+    depends_on:
+      hindsight-postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:${HINDSIGHT_POSTGRES_PASSWORD:?set HINDSIGHT_POSTGRES_PASSWORD}@hindsight-postgres:5432/hindsight
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY:-}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL:-}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL:-Qwen3-Embedding-4B}
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: ${HINDSIGHT_API_EMBEDDINGS_PROVIDER:-openai}
+      HINDSIGHT_API_HOST: 0.0.0.0
+      HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_API_LLM_API_KEY:-}
+      HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_API_LLM_BASE_URL:-}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-gpt-4o-mini}
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}
+      HINDSIGHT_API_LLM_DEFAULT_HEADERS: ${HINDSIGHT_API_LLM_DEFAULT_HEADERS:-null}
+      HINDSIGHT_API_LLM_STRICT_SCHEMA: ${HINDSIGHT_API_LLM_STRICT_SCHEMA:-false}
+      HINDSIGHT_API_STORE_DOCUMENT_TEXT: ${HINDSIGHT_API_STORE_DOCUMENT_TEXT:-true}
+      HINDSIGHT_API_PORT: 8888
+      HINDSIGHT_API_RERANKER_PROVIDER: ${HINDSIGHT_API_RERANKER_PROVIDER:-rrf}
+      HINDSIGHT_API_RETAIN_EXTRACTION_MODE: ${HINDSIGHT_API_RETAIN_EXTRACTION_MODE:-concise}
+      HINDSIGHT_API_RETAIN_LLM_TIMEOUT: "300"
+      HINDSIGHT_API_ENABLE_OBSERVATIONS: ${HINDSIGHT_API_ENABLE_OBSERVATIONS:-true}
+      HINDSIGHT_API_ENABLE_AUTO_CONSOLIDATION: ${HINDSIGHT_API_ENABLE_AUTO_CONSOLIDATION:-true}
+      HINDSIGHT_API_ENABLE_OBSERVATION_HISTORY: ${HINDSIGHT_API_ENABLE_OBSERVATION_HISTORY:-true}
+      HINDSIGHT_API_OBSERVATION_HISTORY_MAX_ENTRIES: ${HINDSIGHT_API_OBSERVATION_HISTORY_MAX_ENTRIES:-50}
+      HINDSIGHT_API_CONSOLIDATION_RECONCILE_INTERVAL_SECONDS: ${HINDSIGHT_API_CONSOLIDATION_RECONCILE_INTERVAL_SECONDS:-300}
+      HINDSIGHT_API_TENANT_API_KEY: ${HINDSIGHT_API_TENANT_API_KEY:?set HINDSIGHT_API_TENANT_API_KEY}
+      HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 180s
+    ports:
+      - "${HINDSIGHT_API_HOST_PORT:-127.0.0.1:8888}:8888"
+    networks:
+      - execution-runtime
+
+networks:
+  execution-runtime:
+    driver: bridge
+
+volumes:
+  hindsight-postgres-data:

@@ -1,0 +1,13 @@
+docId: curriculum:公共管理类本科人才培养方案
+readerKey: campus-docs/readers/sha256/83b512a1a288bd162acfacd9cf2a14460e3d9a3ac5338915af51a7bfa02a81a6/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/公共管理类本科人才培养方案--公共管理类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0324-page-0324-block-mineru-block-0003-0003-map-01.png
+        path: course-maps/page-0324-page-0324-block-mineru-block-0003-0003-map-01.png
+      - key: curriculum/documents/curriculum_plan/公共管理类本科人才培养方案--公共管理类本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0324-page-0324-block-mineru-block-0005-0005-map-01.png
+        path: course-maps/page-0324-page-0324-block-mineru-block-0005-0005-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/公共管理类本科人才培养方案--公共管理类本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:公共管理类本科人才培养方案:afa91d8d8efd
+versionSlug: "2022"

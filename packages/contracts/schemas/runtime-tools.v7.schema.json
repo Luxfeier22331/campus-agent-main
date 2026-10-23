@@ -1,0 +1,57 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/runtime-tools.v7.schema.json",
+	"title": "campus-agent runtime tool registry",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "registry_version", "tools"],
+	"properties": {
+		"schema_version": { "const": "tool-registry-v7" },
+		"registry_version": { "type": "string", "minLength": 1 },
+		"tools": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Tool" } }
+	},
+	"$defs": {
+		"Tool": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"name",
+				"description",
+				"exposure",
+				"read_only",
+				"requires_approval",
+				"payload_schema_ref",
+				"result_schema_ref",
+				"handler",
+				"timeout_ms",
+				"result_projection_policy"
+			],
+			"properties": {
+				"name": { "type": "string", "minLength": 1 },
+				"description": { "type": "string", "minLength": 1 },
+				"exposure": { "enum": ["model_visible", "closed"] },
+				"read_only": { "const": true },
+				"requires_approval": { "const": false },
+				"payload_schema_ref": {
+					"type": "string",
+					"pattern": "^https://muc\\.wiki/campus-agent/schemas/[A-Za-z0-9.-]+\\.schema\\.json#/\\$defs/[A-Za-z0-9_]+$"
+				},
+				"result_schema_ref": {
+					"type": "string",
+					"pattern": "^https://muc\\.wiki/campus-agent/schemas/[A-Za-z0-9.-]+\\.schema\\.json#/\\$defs/[A-Za-z0-9_]+$"
+				},
+				"handler": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["type", "endpoint"],
+					"properties": {
+						"type": { "const": "execution_control_internal_query" },
+						"endpoint": { "type": "string", "pattern": "^/internal/" }
+					}
+				},
+				"timeout_ms": { "type": "integer", "minimum": 1 },
+				"result_projection_policy": { "const": "bounded_json" }
+			}
+		}
+	}
+}

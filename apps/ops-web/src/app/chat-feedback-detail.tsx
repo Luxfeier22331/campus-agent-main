@@ -1,0 +1,198 @@
+import {
+	ActionGroup,
+	Button,
+	Disclosure,
+	DisclosureSummary,
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+	StateMessage,
+} from "@campus-agent/ui";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { type ReactNode, useEffect, useRef } from "react";
+import { ChatAnswerBody, ChatAnswerSources } from "./chat-answer-content";
+import { feedbackReasonLabels, feedbackVoteLabel } from "./chat-feedback-query";
+import { formatTimestamp } from "./format";
+import { fetchChatFeedbackDetail } from "./ops-api/chat-feedback";
+import { OpsApiError } from "./ops-api/core";
+import { CopyableValue, ErrorState, InlineError } from "./ops-display";
+
+export function ChatFeedbackDetailDialog({
+	feedbackId,
+	onClose,
+	restoreFocus,
+	returnPath,
+	inline = false,
+	navigation,
+}: {
+	feedbackId: string | null;
+	onClose: () => void;
+	restoreFocus: () => void;
+	returnPath: string;
+	inline?: boolean;
+	navigation?: ReactNode;
+}) {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (feedbackId && scrollRef.current) {
+			scrollRef.current.scrollTop = 0;
+		}
+	}, [feedbackId]);
+	if (inline) {
+		return feedbackId ? (
+			<aside aria-label="回答反馈详情" className="sticky top-20 min-w-0 border-l pl-6">
+				<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+					<h2 className="font-semibold">回答反馈详情</h2>
+					<Button
+						variant="ghost"
+						onClick={() => {
+							onClose();
+							requestAnimationFrame(restoreFocus);
+						}}
+					>
+						关闭详情
+					</Button>
+				</div>
+				{navigation}
+				<div
+					ref={scrollRef}
+					data-scroll-restoration-id={`feedback-content-${feedbackId}`}
+					className="max-h-[calc(100dvh-12rem)] overflow-y-auto overscroll-contain pr-2"
+				>
+					<FeedbackDetail key={feedbackId} feedbackId={feedbackId} returnPath={returnPath} />
+				</div>
+			</aside>
+		) : null;
+	}
+
+	return (
+		<Sheet
+			open={feedbackId !== null}
+			onOpenChange={(open) => {
+				if (!open) {
+					onClose();
+				}
+			}}
+		>
+			<SheetContent
+				className="flex w-full max-w-none flex-col gap-4 overflow-hidden sm:max-w-none"
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					restoreFocus();
+				}}
+			>
+				<SheetHeader className="pr-10">
+					<SheetTitle>回答反馈详情</SheetTitle>
+					<SheetDescription>查看本条反馈对应的问题和回答。</SheetDescription>
+				</SheetHeader>
+				{navigation}
+				<div
+					ref={scrollRef}
+					data-scroll-restoration-id={`feedback-content-${feedbackId}`}
+					className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+				>
+					{feedbackId ? (
+						<FeedbackDetail key={feedbackId} feedbackId={feedbackId} returnPath={returnPath} />
+					) : null}
+				</div>
+			</SheetContent>
+		</Sheet>
+	);
+}
+
+function FeedbackDetail({ feedbackId, returnPath }: { feedbackId: string; returnPath: string }) {
+	const detail = useQuery({
+		queryKey: ["ops", "chat-feedback", "detail", feedbackId],
+		queryFn: ({ signal }) => fetchChatFeedbackDetail(feedbackId, signal),
+		staleTime: 0,
+	});
+	if (detail.error instanceof OpsApiError && detail.error.status === 404) {
+		return (
+			<StateMessage
+				layout="inline"
+				role="status"
+				description={<> 该反馈已不可用，可能已撤回或所属会话已删除。请刷新列表。 </>}
+			/>
+		);
+	}
+	if (!detail.data) {
+		return detail.isError ? (
+			<ErrorState
+				title="反馈详情读取失败"
+				error={detail.error}
+				onRetry={() => void detail.refetch()}
+			/>
+		) : (
+			<StateMessage layout="inline" role="status" description={<> 正在读取反馈详情… </>} />
+		);
+	}
+	const data = detail.data;
+	return (
+		<div className="min-w-0 space-y-5">
+			{detail.isError ? <InlineError title="反馈详情刷新失败" error={detail.error} /> : null}
+			<div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+				<span className="font-medium">{feedbackVoteLabel(data.vote)}</span>
+				<span className="text-muted-foreground">
+					最近反馈时间：{formatTimestamp(data.updatedAt)}（北京时间）
+				</span>
+			</div>
+			<p className="text-sm">
+				原因：
+				{data.reasonCodes.length > 0
+					? data.reasonCodes.map((reason) => feedbackReasonLabels[reason]).join("、")
+					: "未提供原因"}
+			</p>
+			<section className="min-w-0 space-y-2" aria-label="对应问题">
+				<h3 className="font-semibold">问题</h3>
+				<p className="whitespace-pre-wrap break-words leading-7">
+					{data.question?.text ?? "原问题不可用"}
+				</p>
+			</section>
+			<section className="min-w-0 space-y-2 break-words" aria-label="被评价回答">
+				<h3 className="font-semibold">回答</h3>
+				<ChatAnswerBody text={data.answer.text} kind="answer" sources={data.answer.sources} />
+				<ChatAnswerSources sources={data.answer.sources} />
+			</section>
+			<ActionGroup>
+				<Button asChild variant="secondary">
+					<Link
+						to="/conversations/$conversationId"
+						params={{ conversationId: data.conversationId }}
+						search={{ messageId: data.messageId, from: returnPath }}
+					>
+						查看所属会话
+					</Link>
+				</Button>
+				<Button asChild variant="secondary">
+					<Link
+						to="/requests/$requestId"
+						params={{ requestId: data.requestId }}
+						search={{ from: returnPath }}
+					>
+						查看对应请求
+					</Link>
+				</Button>
+			</ActionGroup>
+			<Disclosure className="border-t pt-4 text-sm">
+				<DisclosureSummary>关联标识</DisclosureSummary>
+				{[
+					["请求 ID", data.requestId],
+					["反馈 ID", data.feedbackId],
+					["回答消息 ID", data.messageId],
+					["问题消息 ID", data.question?.messageId],
+					["会话 ID", data.conversationId],
+				].map(([label, value]) =>
+					value ? (
+						<div className="min-w-0" key={label}>
+							<span className="text-muted-foreground">{label}：</span>
+							<CopyableValue label={label ?? "关联 ID"} value={value} />
+						</div>
+					) : null,
+				)}
+			</Disclosure>
+		</div>
+	);
+}

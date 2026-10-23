@@ -1,0 +1,11 @@
+docId: curriculum:经济学本科人才培养方案
+readerKey: campus-docs/readers/sha256/22436df26897cce57a1fb68c22ddb41a06e2b4916ca8bee390c66fff7e8a00f6/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/经济学本科人才培养方案--经济学本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0247-page-0247-block-mineru-block-0003-0003-map-01.png
+        path: course-maps/page-0247-page-0247-block-mineru-block-0003-0003-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/经济学本科人才培养方案--经济学本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:经济学本科人才培养方案:3c99f79b76bb
+versionSlug: "2022"

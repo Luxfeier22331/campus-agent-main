@@ -1,0 +1,64 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/runtime-latency-budgets.v1.schema.json",
+	"title": "campus-agent runtime latency budgets artifact",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "budget_version", "rules"],
+	"properties": {
+		"schema_version": {
+			"const": "runtime-latency-budgets-v1"
+		},
+		"budget_version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"rules": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"$ref": "#/$defs/LatencyBudgetRule"
+			}
+		}
+	},
+	"$defs": {
+		"StageTimingField": {
+			"enum": [
+				"request.total_ms",
+				"execution.dispatch_ms",
+				"workflow.schedule_to_start_ms",
+				"stream.first_delta_persist_ms",
+				"stream.app_api_ttft_ms",
+				"stream.orchestration_overhead_ms",
+				"execution.admission_ms",
+				"memory.recall_ms",
+				"workflow.solve_ms",
+				"workflow.execute_step_ms",
+				"workflow.replan_ms",
+				"workflow.synthesize_ms",
+				"workflow.first_delta_ms",
+				"tool.total_ms",
+				"finalization.write_ms",
+				"projection.closeout_ms"
+			]
+		},
+		"LatencyBudgetRule": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["field", "warn_ms", "critical_ms"],
+			"properties": {
+				"field": {
+					"$ref": "#/$defs/StageTimingField"
+				},
+				"warn_ms": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"critical_ms": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		}
+	}
+}

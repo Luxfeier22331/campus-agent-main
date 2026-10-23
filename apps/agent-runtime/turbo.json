@@ -1,0 +1,15 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"test:unit": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v4.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v8.json"
+			]
+		}
+	}
+}

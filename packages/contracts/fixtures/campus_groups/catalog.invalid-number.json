@@ -1,0 +1,19 @@
+{
+	"schemaVersion": "campus-groups-catalog.v1",
+	"sections": [
+		{
+			"id": "interest-groups",
+			"name": "同好群",
+			"groups": [
+				{
+					"id": "qq-bad",
+					"name": "群",
+					"qqGroupNumber": "12a",
+					"tags": [],
+					"summary": "",
+					"joinUrl": null
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,39 @@
+.dining-workspace {
+	container: dining-workspace / inline-size;
+}
+
+.dining-workspace-columns {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--space-5);
+}
+
+.dining-editor-container {
+	container: dining-editor / inline-size;
+	min-width: 0;
+}
+
+@container dining-workspace (min-width: 72rem) {
+	.dining-workspace-columns {
+		grid-template-columns: minmax(0, 1fr) 17rem;
+	}
+
+	.dining-release-history {
+		border-left: 1px solid var(--sys-border-subtle);
+		padding-left: var(--space-5);
+	}
+}
+
+.dining-release-history {
+	min-width: 0;
+}
+
+@container dining-workspace (min-width: 72rem) {
+	.dining-release-history {
+		position: sticky;
+		top: var(--ops-sticky-top);
+		align-self: start;
+		max-height: calc(100dvh - 6rem);
+		overflow-y: auto;
+	}
+}

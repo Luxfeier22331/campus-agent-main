@@ -1,0 +1,39 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-docs-search-index.v2.schema.json",
+	"title": "校园文档浏览器搜索索引",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schemaVersion", "entries"],
+	"properties": {
+		"schemaVersion": { "const": "campus_docs_search_index.v2" },
+		"entries": { "type": "array", "items": { "$ref": "#/$defs/SearchEntry" } }
+	},
+	"$defs": {
+		"NonEmptyString": { "type": "string", "minLength": 1, "pattern": "\\S" },
+		"SearchEntry": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"docId",
+				"sectionTitle",
+				"anchor",
+				"snippet",
+				"searchText",
+				"highlightRootUnitIds"
+			],
+			"properties": {
+				"docId": { "$ref": "#/$defs/NonEmptyString" },
+				"sectionTitle": { "$ref": "#/$defs/NonEmptyString" },
+				"anchor": { "$ref": "#/$defs/NonEmptyString" },
+				"snippet": { "$ref": "#/$defs/NonEmptyString" },
+				"searchText": { "$ref": "#/$defs/NonEmptyString" },
+				"highlightRootUnitIds": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/NonEmptyString" },
+					"uniqueItems": true
+				}
+			}
+		}
+	}
+}

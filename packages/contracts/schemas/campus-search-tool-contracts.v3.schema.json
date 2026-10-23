@@ -1,0 +1,63 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v3.schema.json",
+	"title": "campus-agent campus search tool contracts",
+	"$defs": {
+		"CampusSearchPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["search_query"],
+			"properties": {
+				"search_query": { "type": "string", "minLength": 1, "maxLength": 400 }
+			}
+		},
+		"CampusSearchResultItem": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"citation_index",
+				"result_ref",
+				"source_kind",
+				"document_id",
+				"title",
+				"section_ref",
+				"section_title",
+				"root_unit_ids",
+				"version_id",
+				"version_slug",
+				"text"
+			],
+			"properties": {
+				"citation_index": { "type": "integer", "minimum": 1, "maximum": 10 },
+				"result_ref": { "type": "string", "pattern": "^result://[a-f0-9]{64}$" },
+				"source_kind": { "const": "document" },
+				"document_id": { "type": "string", "minLength": 1 },
+				"title": { "type": "string", "minLength": 1 },
+				"section_ref": { "type": "string", "minLength": 1 },
+				"section_title": { "type": "string", "minLength": 1 },
+				"root_unit_ids": {
+					"type": "array",
+					"items": { "type": "string", "minLength": 1 },
+					"minItems": 1,
+					"uniqueItems": true
+				},
+				"version_id": { "type": "string", "minLength": 1 },
+				"version_slug": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+				"text": { "type": "string", "minLength": 1 }
+			}
+		},
+		"CampusSearchResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["outcome", "results"],
+			"properties": {
+				"outcome": { "enum": ["matched", "no_match"] },
+				"results": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/CampusSearchResultItem" },
+					"maxItems": 5
+				}
+			}
+		}
+	}
+}

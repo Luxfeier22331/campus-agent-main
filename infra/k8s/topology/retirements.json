@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "retirements": [
+    {
+      "id": "retrieval-index-jobs",
+      "operations": [
+        {
+          "action": "remove-image",
+          "path": "clusters/staging/overlays/campus-search/kustomization.yaml",
+          "image": "ghcr.io/muc-wiki/campus-agent/campus-docs-index-publisher"
+        },
+        {
+          "action": "remove-image",
+          "path": "clusters/staging/overlays/campus-search/kustomization.yaml",
+          "image": "ghcr.io/muc-wiki/campus-agent/campus-rag-index-publisher"
+        },
+        {
+          "action": "remove-image",
+          "path": "clusters/staging/overlays/notice-pipeline/kustomization.yaml",
+          "image": "ghcr.io/muc-wiki/campus-agent/notice-artifacts-worker"
+        }
+      ]
+    }
+  ]
+}

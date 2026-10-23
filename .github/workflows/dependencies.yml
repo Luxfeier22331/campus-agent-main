@@ -1,0 +1,42 @@
+name: dependencies
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "35 2 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependencies
+  cancel-in-progress: true
+
+env:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    max-jobs = 1
+    cores = 2
+
+jobs:
+  scan:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: nix develop .#ci-light --command bash -e {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        if: runner.environment != 'self-hosted'
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Scan dependency ecosystems
+        run: scripts/dependencies/scan.sh

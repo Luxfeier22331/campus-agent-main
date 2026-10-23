@@ -1,0 +1,501 @@
+import type { Hono } from "hono";
+import type { Env } from "../../config";
+import { AppApiRouteError, jsonResponse } from "../../http";
+import type { AppAuthResolutionInput } from "../../modules/auth";
+import { type ChatCommandStreamEvent, publicExecutionFailure } from "../../modules/runtime-command";
+import type { RuntimeRunEventProjection, RuntimeRunSummary } from "../../modules/runtime-run";
+import { requireSessionPrincipal } from "../principal";
+import { createRouteErrorCorrelation, readJsonRequestBody } from "../request-utils";
+import type { AppRequestScope } from "../types";
+
+function requireObjectBody(value: unknown): Record<string, unknown> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new AppApiRouteError({
+			code: "invalid_request",
+			message: "Expected a JSON object request body.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	return value as Record<string, unknown>;
+}
+
+function readRunCancelReason(body: Record<string, unknown>): string {
+	const reason = body.reason;
+	if (reason === "user_requested") {
+		return "user_requested";
+	}
+
+	throw new AppApiRouteError({
+		code: "invalid_request",
+		message: "reason must be user_requested.",
+		retryable: false,
+		status: 400,
+	});
+}
+
+function readAfterSequenceQuery(value: string | undefined): number | undefined {
+	if (value === undefined) {
+		return;
+	}
+	const trimmed = value.trim();
+	if (!trimmed) {
+		throw new AppApiRouteError({
+			code: "invalid_request",
+			message: "after_sequence must be a non-negative integer.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	const parsed = Number(trimmed);
+	if (!Number.isInteger(parsed) || parsed < 0) {
+		throw new AppApiRouteError({
+			code: "invalid_request",
+			message: "after_sequence must be a non-negative integer.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	return parsed;
+}
+
+function encodeSseMessage(input: { data: unknown; event: string }): Uint8Array {
+	return new TextEncoder().encode(`event: ${input.event}\ndata: ${JSON.stringify(input.data)}\n\n`);
+}
+
+function encodeSseComment(comment: string): Uint8Array {
+	return new TextEncoder().encode(`: ${comment}\n\n`);
+}
+
+function createRunEventsSseResponse(input: {
+	abortController: AbortController;
+	events: AsyncIterable<RuntimeRunEventProjection>;
+	run: RuntimeRunSummary;
+}): Response {
+	const iterator = input.events[Symbol.asyncIterator]();
+	let cancelled = false;
+	let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+	function clearHeartbeat() {
+		if (heartbeatInterval) {
+			clearInterval(heartbeatInterval);
+			heartbeatInterval = null;
+		}
+	}
+
+	const stream = new ReadableStream<Uint8Array>({
+		async cancel() {
+			cancelled = true;
+			clearHeartbeat();
+			input.abortController.abort();
+			await iterator.return?.();
+		},
+		async start(controller) {
+			let failed = false;
+			try {
+				controller.enqueue(encodeSseComment("keepalive"));
+				heartbeatInterval = setInterval(() => {
+					controller.enqueue(encodeSseComment("keepalive"));
+				}, 15_000);
+				while (!input.abortController.signal.aborted) {
+					const next = await iterator.next();
+					if (next.done) {
+						break;
+					}
+					const productEvent = toChatRunResumeStreamEvent({
+						event: next.value,
+						run: input.run,
+					});
+					if (productEvent) {
+						controller.enqueue(encodeSseMessage(productEvent));
+					}
+				}
+			} catch (error) {
+				if (!input.abortController.signal.aborted) {
+					failed = true;
+					controller.error(error);
+				}
+			} finally {
+				clearHeartbeat();
+				if (!(cancelled || failed)) {
+					controller.close();
+				}
+			}
+		},
+	});
+
+	return new Response(stream, {
+		headers: {
+			"cache-control": "no-store",
+			"content-type": "text/event-stream; charset=utf-8",
+			"x-accel-buffering": "no",
+			"x-request-id": input.run.requestId,
+		},
+		status: 200,
+	});
+}
+
+function getStringPayloadValue(payload: Record<string, unknown>, key: string): string | null {
+	const value = payload[key];
+	return typeof value === "string" && value.trim() ? value : null;
+}
+
+function getBooleanPayloadValue(payload: Record<string, unknown>, key: string): boolean | null {
+	const value = payload[key];
+	return typeof value === "boolean" ? value : null;
+}
+
+function getPayloadRecordValue(
+	payload: Record<string, unknown>,
+	key: string,
+): Record<string, unknown> | null {
+	const value = payload[key];
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null;
+}
+
+function toChatRunResumeStreamEvent(input: {
+	event: RuntimeRunEventProjection;
+	run: RuntimeRunSummary;
+}): ChatCommandStreamEvent | null {
+	const baseData = {
+		occurredAt: input.event.occurredAt,
+		requestId: input.event.requestId,
+		...(input.event.answerIndex === undefined
+			? { sequence: input.event.sequence }
+			: { answerIndex: input.event.answerIndex }),
+	};
+	if (input.event.eventType === "execution.queued") {
+		return {
+			data: {
+				...baseData,
+				status: "queued",
+			},
+			event: "execution.queued",
+		};
+	}
+	if (input.event.eventType === "execution.running") {
+		return {
+			data: {
+				...baseData,
+				status: getStringPayloadValue(input.event.payload, "status") ?? "running",
+			},
+			event: "execution.running",
+		};
+	}
+	if (input.event.eventType === "execution.phase") {
+		const phase = getStringPayloadValue(input.event.payload, "phase");
+		if (phase !== "preparing" && phase !== "generating" && phase !== "finalizing") {
+			return null;
+		}
+		return {
+			data: {
+				...baseData,
+				phase,
+				status: "running",
+			},
+			event: "execution.phase",
+		};
+	}
+	if (input.event.eventType === "answer.delta") {
+		const messageId = getStringPayloadValue(input.event.payload, "message_id");
+		const rawDelta = input.event.payload.delta;
+		const delta = typeof rawDelta === "string" && rawDelta.length > 0 ? rawDelta : null;
+		if (!messageId || delta === null) {
+			return null;
+		}
+		return {
+			data: {
+				...baseData,
+				delta,
+				messageId,
+				status: "streaming",
+			},
+			event: "answer.delta",
+		};
+	}
+	if (input.event.eventType === "request.completed") {
+		return {
+			data: {
+				...baseData,
+				status: "completed",
+			},
+			event: "request.completed",
+		};
+	}
+	if (input.event.eventType === "request.cancelled") {
+		return {
+			data: {
+				...baseData,
+				status: "cancelled",
+			},
+			event: "request.cancelled",
+		};
+	}
+	if (input.event.eventType === "request.failed") {
+		const terminalError = getPayloadRecordValue(input.event.payload, "error");
+		const retryable = terminalError ? getBooleanPayloadValue(terminalError, "retryable") : null;
+		if (retryable === null) {
+			throw new Error("request.failed error.retryable is required");
+		}
+		const errorCode =
+			(terminalError ? getStringPayloadValue(terminalError, "code") : null) ??
+			getStringPayloadValue(input.event.payload, "code") ??
+			"run_failed";
+		const failure = publicExecutionFailure({ errorCode, status: "error" });
+		return {
+			data: {
+				...baseData,
+				error: {
+					code: failure.errorCode,
+					message: failure.message,
+					retryable,
+				},
+				status: "failed",
+			},
+			event: "request.failed",
+		};
+	}
+	return null;
+}
+
+export const __chatRunRoutesTestables = {
+	toChatRunResumeStreamEvent,
+};
+
+export function registerChatRunRoutes(input: {
+	app: Hono<{ Bindings: Env }>;
+	createRequestScope: () => AppRequestScope;
+	env: Env;
+	getPrincipal: (
+		request: Request,
+		env: Env,
+		authInput: AppAuthResolutionInput,
+	) => Promise<import("../../modules/auth").ResolvedAppPrincipal | null>;
+	routeChatErrorResponse(
+		error: unknown,
+		routeErrorCorrelation: {
+			requestId: string;
+		},
+	): Response | null;
+}) {
+	input.app.get("/api/chat/requests/:requestId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const response = await scope.resolveRuntimeRunService().getStatus({
+				principal: resolved.principal,
+				requestId: c.req.param("requestId"),
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = input.routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.get("/api/chat/requests/:requestId/events", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const afterSequence = readAfterSequenceQuery(c.req.query("after_sequence"));
+			const response = await scope.resolveRuntimeRunService().listEvents({
+				...(afterSequence === undefined ? {} : { afterSequence }),
+				principal: resolved.principal,
+				requestId: c.req.param("requestId"),
+				signal: c.req.raw.signal,
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = input.routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.get("/api/chat/requests/:requestId/events/stream", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const runtimeRunService = scope.resolveRuntimeRunService();
+			const runStatus = await runtimeRunService.getStatus({
+				principal: resolved.principal,
+				requestId: c.req.param("requestId"),
+			});
+			const abortController = new AbortController();
+			const afterSequence = readAfterSequenceQuery(c.req.query("after_sequence"));
+			const afterAnswerIndex = readAfterSequenceQuery(c.req.query("after_answer_index"));
+			const events = runtimeRunService.subscribeEvents({
+				...(afterAnswerIndex === undefined ? {} : { afterAnswerIndex }),
+				...(afterSequence === undefined ? {} : { afterSequence }),
+				principal: resolved.principal,
+				requestId: c.req.param("requestId"),
+				signal: abortController.signal,
+			});
+			return createRunEventsSseResponse({
+				abortController,
+				events,
+				run: runStatus.run,
+			});
+		} catch (error) {
+			const response = input.routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.get("/api/chat/requests/:requestId/steps", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const response = await scope.resolveRuntimeRunService().listSteps({
+				principal: resolved.principal,
+				requestId: c.req.param("requestId"),
+			});
+			return jsonResponse(response);
+		} catch (error) {
+			const response = input.routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.post("/api/chat/requests/:requestId/cancel", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const routeErrorCorrelation = createRouteErrorCorrelation();
+		try {
+			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
+			const response = await scope.resolveRuntimeRunService().cancel({
+				principal: resolved.principal,
+				reason: readRunCancelReason(body),
+				requestId: c.req.param("requestId"),
+			});
+			return jsonResponse(response, { status: 202 });
+		} catch (error) {
+			const response = input.routeChatErrorResponse(error, routeErrorCorrelation);
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+
+	input.app.post("/api/chat/requests/:requestId/client-timing", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+		try {
+			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
+			const firstDeltaMs = body.firstDeltaMs;
+			const firstRenderMs = body.firstRenderMs;
+			if (
+				!(
+					typeof firstDeltaMs === "number" &&
+					Number.isFinite(firstDeltaMs) &&
+					firstDeltaMs >= 0 &&
+					typeof firstRenderMs === "number" &&
+					Number.isFinite(firstRenderMs) &&
+					firstRenderMs >= firstDeltaMs
+				)
+			) {
+				throw new AppApiRouteError({
+					code: "invalid_request",
+					message: "Client timing values are invalid.",
+					retryable: false,
+					status: 400,
+				});
+			}
+			const service = scope.resolveChatCommandService();
+			await scope
+				.resolveRuntimeRunService()
+				.getStatus({ principal: resolved.principal, requestId: c.req.param("requestId") });
+			if (!service.recordClientTiming) {
+				throw new AppApiRouteError({
+					code: "dependency_not_ready",
+					message: "Client timing is not configured.",
+					retryable: true,
+					status: 503,
+				});
+			}
+			await service.recordClientTiming({
+				requestId: c.req.param("requestId"),
+				firstDeltaMs,
+				firstRenderMs,
+			});
+			return new Response(null, { status: 204 });
+		} catch (error) {
+			const response = input.routeChatErrorResponse(error, createRouteErrorCorrelation());
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
+}

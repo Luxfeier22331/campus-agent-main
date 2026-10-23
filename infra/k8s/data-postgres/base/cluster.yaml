@@ -1,0 +1,50 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: campus-agent-postgres
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-202606221003-minimal-trixie@sha256:538f1b327b8dc7621a94aac79c9c3e5c50dfa29115a6c291e19372a5b876f415
+  managed:
+    roles:
+      - name: campus_docs_index_publisher
+        ensure: absent
+      - name: docs_publish
+        ensure: absent
+      - name: execution_provider_config_admin
+        ensure: absent
+      - name: execution_provider_config_reader
+        ensure: absent
+      - name: ingestion_control
+        ensure: absent
+  bootstrap:
+    initdb:
+      database: campus_agent
+      owner: campus_agent
+      secret:
+        name: campus-agent-postgres-campus-agent-owner
+  postgresql:
+    extensions:
+      - name: pgvector
+        image:
+          reference: ghcr.io/cloudnative-pg/pgvector:0.8.1-18-trixie
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: campus-agent-postgres-backup-store
+  storage:
+    size: 30Gi
+  resources:
+    requests:
+      cpu: 150m
+      memory: 512Mi
+    limits:
+      memory: 1536Mi
+  monitoring:
+    enablePodMonitor: false

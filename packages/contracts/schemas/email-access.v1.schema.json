@@ -1,0 +1,215 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"anyOf": [
+		{
+			"$ref": "#/$defs/createGrant"
+		},
+		{
+			"$ref": "#/$defs/grant"
+		},
+		{
+			"$ref": "#/$defs/grantPage"
+		},
+		{
+			"$ref": "#/$defs/error"
+		}
+	],
+	"$defs": {
+		"createGrant": {
+			"type": "object",
+			"properties": {
+				"accessExpiresAt": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"claimExpiresAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"email": {
+					"type": "string",
+					"maxLength": 320,
+					"format": "email",
+					"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+				},
+				"kind": {
+					"type": "string",
+					"enum": ["invitation", "test"]
+				}
+			},
+			"required": ["email", "kind"],
+			"additionalProperties": false
+		},
+		"grant": {
+			"type": "object",
+			"properties": {
+				"accessExpiresAt": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"claimExpiresAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"claimedAt": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"createdAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"createdBy": {
+					"type": "string"
+				},
+				"email": {
+					"type": "string",
+					"format": "email",
+					"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+				},
+				"environment": {
+					"type": "string",
+					"enum": ["development", "test", "staging", "production"]
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+				},
+				"kind": {
+					"type": "string",
+					"enum": ["invitation", "test"]
+				},
+				"lastInvitationSentAt": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"revokedAt": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"revokedBy": {
+					"type": ["string", "null"]
+				},
+				"state": {
+					"type": "string",
+					"enum": ["pending", "active", "revoked", "expired"]
+				},
+				"updatedAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"userId": {
+					"type": ["string", "null"]
+				}
+			},
+			"required": [
+				"accessExpiresAt",
+				"claimExpiresAt",
+				"claimedAt",
+				"createdAt",
+				"createdBy",
+				"email",
+				"environment",
+				"id",
+				"kind",
+				"lastInvitationSentAt",
+				"revokedAt",
+				"revokedBy",
+				"state",
+				"updatedAt",
+				"userId"
+			],
+			"additionalProperties": false
+		},
+		"grantPage": {
+			"type": "object",
+			"properties": {
+				"environment": {
+					"type": "string",
+					"enum": ["development", "test", "staging", "production"]
+				},
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/grant"
+					}
+				},
+				"nextCursor": {
+					"type": ["string", "null"]
+				}
+			},
+			"required": ["environment", "items", "nextCursor"],
+			"additionalProperties": false
+		},
+		"error": {
+			"type": "object",
+			"properties": {
+				"error": {
+					"type": "object",
+					"properties": {
+						"code": {
+							"type": "string"
+						},
+						"message": {
+							"type": "string"
+						},
+						"retryable": {
+							"type": "boolean"
+						}
+					},
+					"required": ["code", "message"],
+					"additionalProperties": false
+				}
+			},
+			"required": ["error"],
+			"additionalProperties": false
+		}
+	},
+	"$id": "https://campus-agent.local/schemas/email-access.v1.schema.json",
+	"title": "Email access administration contract"
+}

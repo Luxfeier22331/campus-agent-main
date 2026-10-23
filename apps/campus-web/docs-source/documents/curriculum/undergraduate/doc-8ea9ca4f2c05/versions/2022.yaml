@@ -1,0 +1,11 @@
+docId: curriculum:民族学本科人才培养方案
+readerKey: campus-docs/readers/sha256/d8c7267dc0ce36919fd709fcc6a6d0c5b94ab959311b11ab61a10da85b535d1e/reader.json
+supplements:
+  - assets:
+      - key: curriculum/documents/curriculum_plan/民族学本科人才培养方案--民族学本科人才培养方案/source-faithful/2022/reader-assets/course-maps/page-0075-page-0075-block-mineru-block-0003-0003-map-01.png
+        path: course-maps/page-0075-page-0075-block-mineru-block-0003-0003-map-01.png
+    kind: course_maps
+    objectKey: curriculum/documents/curriculum_plan/民族学本科人才培养方案--民族学本科人才培养方案/source-faithful/2022/reader-assets/course-maps.json
+    path: course-maps.json
+versionId: sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:民族学本科人才培养方案:3b71201f6af3
+versionSlug: "2022"

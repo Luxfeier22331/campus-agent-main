@@ -1,0 +1,13 @@
+go 1.26.0
+
+toolchain go1.26.9
+
+use (
+	./apps/agent-control
+	./apps/campus-search
+	./apps/cluster-private-ingress
+	./apps/memory-service
+	./apps/model-config
+	./packages/memory-api-go
+	./packages/search-api-go
+)

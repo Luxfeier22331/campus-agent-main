@@ -1,0 +1,79 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-campus-agent
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  databaseRoleReclaimPolicy: delete
+  cluster:
+    name: campus-agent-postgres
+  name: campus_agent
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-campus-agent-owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-temporal
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  databaseRoleReclaimPolicy: delete
+  cluster:
+    name: campus-agent-postgres
+  name: temporal
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-temporal-owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-hindsight
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  databaseRoleReclaimPolicy: delete
+  cluster:
+    name: campus-agent-postgres
+  name: hindsight
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-hindsight-owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-product-data-ro
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  databaseRoleReclaimPolicy: delete
+  cluster:
+    name: campus-agent-postgres
+  name: product_data_ro
+  login: true
+  passwordSecret:
+    name: pg-product-data-ro
+
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-memory
+  labels:
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  databaseRoleReclaimPolicy: delete
+  cluster:
+    name: campus-agent-postgres
+  name: memory_service
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-memory-owner

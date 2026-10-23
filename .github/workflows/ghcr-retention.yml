@@ -1,0 +1,108 @@
+name: ghcr-retention
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Generate a fresh retention plan and optionally apply it to GHCR
+        required: true
+        default: report
+        type: choice
+        options:
+          - report
+          - apply
+
+permissions:
+  contents: read
+
+env:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    max-jobs = 1
+    cores = 2
+
+concurrency:
+  group: ${{ (github.event_name == 'schedule' || inputs.mode == 'apply') && 'campus-agent-ghcr-mutation' || format('campus-agent-ghcr-report-{0}', github.run_id) }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  project-retention:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      statuses: read
+      packages: write
+    defaults:
+      run:
+        shell: nix develop .#ci-release --command bash -e {0}
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Nix
+        if: runner.environment != 'self-hosted'
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+      - name: Create GitOps read token
+        id: gitops-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        with:
+          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
+          owner: MUC-WIKI
+          repositories: campus-agent-gitops
+          permission-contents: read
+          permission-deployments: read
+      - name: Checkout GitOps references
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: MUC-WIKI/campus-agent-gitops
+          token: ${{ steps.gitops-token.outputs.token }}
+          path: gitops-retention
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install GitOps release tooling
+        shell: nix develop ./gitops-retention#ci-control --command bash -e {0}
+        run: pnpm --dir gitops-retention install --frozen-lockfile
+
+      - name: Login to GHCR for manifest inspection
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Plan and optionally apply project retention
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.gitops-token.outputs.token }}
+          RETENTION_MODE: ${{ github.event_name == 'schedule' && 'apply' || inputs.mode }}
+        run: |
+          node --experimental-strip-types scripts/release/ghcr-retention.mts \
+            --mode "$RETENTION_MODE" \
+            --gitops-root "$GITHUB_WORKSPACE/gitops-retention" \
+            --release-roots "$RUNNER_TEMP/release-roots.json" \
+            --output ghcr-retention.json --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload GHCR retention report
+        if: ${{ always() && hashFiles('ghcr-retention.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: ghcr-retention-report-${{ github.run_id }}
+          path: ghcr-retention.json
+          if-no-files-found: error
+          retention-days: 7

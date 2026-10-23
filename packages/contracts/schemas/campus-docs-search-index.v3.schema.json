@@ -1,0 +1,49 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-docs-search-index.v3.schema.json",
+	"title": "校园文档浏览器 FlexSearch 序列化搜索索引",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schemaVersion", "entries", "chunks"],
+	"properties": {
+		"schemaVersion": { "const": "campus_docs_search_index.v3" },
+		"entries": { "type": "array", "items": { "$ref": "#/$defs/SearchEntry" } },
+		"chunks": { "type": "array", "items": { "$ref": "#/$defs/IndexChunk" } }
+	},
+	"$defs": {
+		"NonEmptyString": { "type": "string", "minLength": 1, "pattern": "\\S" },
+		"SearchEntry": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"docId",
+				"sectionTitle",
+				"anchor",
+				"snippet",
+				"searchText",
+				"highlightRootUnitIds"
+			],
+			"properties": {
+				"docId": { "$ref": "#/$defs/NonEmptyString" },
+				"sectionTitle": { "$ref": "#/$defs/NonEmptyString" },
+				"anchor": { "$ref": "#/$defs/NonEmptyString" },
+				"snippet": { "$ref": "#/$defs/NonEmptyString" },
+				"searchText": { "type": "string" },
+				"highlightRootUnitIds": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/NonEmptyString" },
+					"uniqueItems": true
+				}
+			}
+		},
+		"IndexChunk": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["key", "data"],
+			"properties": {
+				"key": { "$ref": "#/$defs/NonEmptyString" },
+				"data": { "$ref": "#/$defs/NonEmptyString" }
+			}
+		}
+	}
+}

@@ -1,0 +1,29 @@
+{
+	"name": "document-ocr",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"scripts": {
+		"ocr": "tsx src/local-cli.ts",
+		"build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:pg --external:@aws-sdk/client-s3 --external:jsdom --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1153.0",
+		"@campus-agent/document-ocr": "workspace:*",
+		"@campus-agent/notice-database": "workspace:*",
+		"@campus-agent/notices": "workspace:*",
+		"jsdom": "^30.1.3",
+		"pg": "^8.23.1"
+	},
+	"devDependencies": {
+		"@types/jsdom": "^30.0.0",
+		"@types/node": "^24.19.2",
+		"@types/pg": "^8.23.1",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	}
+}

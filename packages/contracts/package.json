@@ -1,0 +1,44 @@
+{
+	"name": "campus-contracts",
+	"private": true,
+	"license": "Apache-2.0",
+	"type": "module",
+	"exports": {
+		"./ops-time": "./src/ops-time.ts",
+		"./canonical-order": "./src/canonical-order.ts",
+		"./chat-feedback": "./src/chat-feedback.ts",
+		"./account-admin": "./src/account-admin.ts",
+		"./auth": "./src/auth.ts",
+		"./campus-groups": "./src/campus-groups.ts",
+		"./campus-docs": "./src/campus-docs/index.ts",
+		"./campus-docs/fixture": "./test/campus-docs/index.ts",
+		"./campus-docs/node": "./src/campus-docs/node/index.ts",
+		"./email-access": "./src/email-access.ts",
+		"./internal-portal-credential": "./src/internal-portal-credential.ts",
+		"./notices": "./src/notices.ts",
+		"./product-availability": "./src/product-availability.ts",
+		"./chat-sources": "./src/chat-sources.ts",
+		"./chat-conversations": "./src/chat-conversations.ts",
+		"./citation-diagnostic": "./src/citation-diagnostic.ts",
+		"./agent-runtime-control": "./src/agent-runtime-control.ts",
+		"./environment-lanes": "./src/environment-lanes.ts"
+	},
+	"scripts": {
+		"generate": "pnpm exec tsx ./scripts/generate_contracts.ts",
+		"test:generators": "pnpm exec tsx ./scripts/check_contract_schemas.ts --self-test && pnpm exec tsx ./scripts/generate_contracts.ts --self-test",
+		"typecheck": "tsc --noEmit",
+		"test:unit": "vitest run",
+		"contracts:check": "pnpm exec tsx ./scripts/generate_contracts.ts --check && pnpm exec tsx ./scripts/check_contract_schemas.ts"
+	},
+	"dependencies": {
+		"ajv": "^8.20.0",
+		"zod": "^4.6.7"
+	},
+	"devDependencies": {
+		"@types/node": "^24.19.2",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5",
+		"yaml": "^2.9.1"
+	}
+}

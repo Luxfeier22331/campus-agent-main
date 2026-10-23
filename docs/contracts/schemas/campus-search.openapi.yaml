@@ -1,0 +1,265 @@
+openapi: 3.1.0
+info:
+  title: Campus Search Service
+  version: 1.0.0
+paths:
+  /v1/search:
+    post:
+      operationId: searchCampus
+      security:
+        - mcpClientBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Bounded search result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Invalid token
+        '429':
+          description: Caller concurrency limit exceeded
+        '503':
+          description: Current index or provider unavailable
+        '504':
+          description: Search timed out
+  /internal/v1/search:
+    post:
+      operationId: searchCampusInternal
+      security:
+        - retrievalInternalBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalSearchRequest'
+      responses:
+        '200':
+          description: Agent search result with collection identity and bounded diagnostics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalSearchResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalSearchErrorResponse'
+        '401':
+          description: Invalid internal token
+        '503':
+          description: Current index or provider unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalSearchErrorResponse'
+        '504':
+          description: Search timed out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalSearchErrorResponse'
+components:
+  securitySchemes:
+    mcpClientBearer:
+      type: http
+      scheme: bearer
+      description: Bearer token held by the MCP adapter for its upstream HTTP call.
+    retrievalInternalBearer:
+      type: http
+      scheme: bearer
+      description: Internal bearer token shared by agent-runtime and Campus Search.
+  schemas:
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 400
+        search_goal:
+          type: string
+          maxLength: 800
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      required: [outcome, results]
+      properties:
+        outcome:
+          type: string
+          enum: [matched, no_match]
+        results:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/SearchResult'
+    SearchResult:
+      type: object
+      additionalProperties: false
+      required: [source_kind, title, text, section_title]
+      properties:
+        source_kind:
+          type: string
+          enum: [document, notice]
+        title:
+          type: string
+        text:
+          type: string
+        section_title:
+          type: string
+        citation_href:
+          type: string
+          description: 文档使用 section_ref（含版本和章节锚点），通知使用通知来源路径。
+        notice_id:
+          type: string
+        document_id:
+          type: string
+        released_at:
+          type: string
+          format: date-time
+        section_ref:
+          type: string
+        version_id:
+          type: string
+        version_slug:
+          type: string
+        root_unit_ids:
+          type: array
+          items:
+            type: string
+    InternalSearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        search_goal:
+          type: string
+          maxLength: 2000
+        exclude_result_refs:
+          type: array
+          items:
+            type: string
+        result_limit:
+          type: integer
+          maximum: 5
+    InternalSearchErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+        diagnostics:
+          type: object
+          additionalProperties: true
+          required: [failedStage, failureDetail]
+          properties:
+            failedStage:
+              type: string
+            failureDetail:
+              type: string
+            phaseTimes:
+              $ref: '#/components/schemas/SearchPhaseTimes'
+    InternalSearchResponse:
+      type: object
+      additionalProperties: false
+      required: [outcome, results, collection]
+      properties:
+        outcome:
+          type: string
+          enum: [matched, no_match]
+        collection:
+          type: string
+          pattern: '^campus_docs_[a-f0-9]{64}$'
+        results:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/InternalSearchResult'
+        diagnostics:
+          type: object
+          additionalProperties: true
+          properties:
+            phaseTimes:
+              $ref: '#/components/schemas/SearchPhaseTimes'
+    SearchPhaseTimes:
+      type: object
+      description: 服务内已完成阶段的 UTC 时间；未完成或跳过的阶段不记录。
+      additionalProperties: false
+      properties:
+        index_loaded:
+          type: string
+          format: date-time
+        embedded:
+          type: string
+          format: date-time
+        retrieved:
+          type: string
+          format: date-time
+        reranked:
+          type: string
+          format: date-time
+        selected:
+          type: string
+          format: date-time
+    InternalSearchResult:
+      type: object
+      additionalProperties: false
+      required: [citation_index, result_ref, source_kind, title, section_title, text]
+      properties:
+        citation_index:
+          type: integer
+          minimum: 1
+        result_ref:
+          type: string
+        source_kind:
+          type: string
+          enum: [document, notice]
+        title:
+          type: string
+        section_title:
+          type: string
+        text:
+          type: string
+        citation_href:
+          type: string
+        notice_id:
+          type: string
+        document_id:
+          type: string
+        released_at:
+          type: string
+          format: date-time
+        section_ref:
+          type: string
+        root_unit_ids:
+          type: array
+          items:
+            type: string
+        version_id:
+          type: string
+        version_slug:
+          type: string

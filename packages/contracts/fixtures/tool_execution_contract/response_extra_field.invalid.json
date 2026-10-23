@@ -1,0 +1,13 @@
+{
+	"status": "completed",
+	"answer_text": "请假制度以学生手册当前版本为准。",
+	"model_usage": {
+		"input_tokens": 1,
+		"cached_input_tokens": 0,
+		"output_tokens": 1,
+		"total_tokens": 2
+	},
+	"result": null,
+	"error": null,
+	"legacy_target": "agent-control-core"
+}

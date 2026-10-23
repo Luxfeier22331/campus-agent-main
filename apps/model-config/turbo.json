@@ -1,0 +1,14 @@
+{
+	"extends": ["//"],
+	"tasks": {
+		"test:database-integration": {
+			"inputs": [
+				"go.mod",
+				"go.sum",
+				"internal/modelconfig/**",
+				"internal/httpapi/**",
+				"scripts/test-postgres-integration.sh"
+			]
+		}
+	}
+}

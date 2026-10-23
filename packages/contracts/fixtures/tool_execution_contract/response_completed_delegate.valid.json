@@ -1,0 +1,34 @@
+{
+	"status": "completed",
+	"answer_text": "请假制度以学生手册当前版本为准。",
+	"model_usage": {
+		"input_tokens": 420,
+		"cached_input_tokens": 120,
+		"output_tokens": 96,
+		"total_tokens": 516
+	},
+	"result": {
+		"sources": [
+			{
+				"citation_href": "/docs/regulations/student_rules/leave-policy/v/2026-current#process",
+				"citation_index": 1,
+				"document_id": "student_rules/leave-policy",
+				"evidence_ref": "evidence://leave-policy-process",
+				"kind": "campus_document",
+				"root_unit_ids": ["leave-policy-process"],
+				"section_ref": "/docs/regulations/student_rules/leave-policy/v/2026#process",
+				"section_title": "请假程序",
+				"snippet": "学生请假应按现行学生手册办理。",
+				"title": "学生请假管理规定",
+				"version_id": "version-leave-policy-2026",
+				"version_slug": "2026"
+			}
+		],
+		"terminal_reason": "answer"
+	},
+	"error": null,
+	"observability": {
+		"agent_runtime": "openai_agents_sdk",
+		"terminal_reason": "answer"
+	}
+}

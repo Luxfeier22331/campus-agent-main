@@ -1,0 +1,434 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"agentGuidance": false,
+	"futureFlags": {
+		"affectedUsingTaskInputs": true
+	},
+	"globalPassThroughEnv": ["GITHUB_REPOSITORY", "TURBO_SCM_BASE", "TURBO_SCM_HEAD", "WORKERS"],
+	"tasks": {
+		"build": {
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"!README.md",
+				"!**/README.md"
+			],
+			"outputs": ["dist/**", ".tanstack/**"],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"agent-runtime#build": {
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v4.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v8.json"
+			],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"ops-web#build": {
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/packages/internal-portal-client/package.json",
+				"$TURBO_ROOT$/packages/internal-portal-client/src/**",
+				"$TURBO_ROOT$/packages/ui/package.json",
+				"$TURBO_ROOT$/packages/ui/src/**",
+				"$TURBO_ROOT$/scripts/release/check-ops-web-artifact.mjs",
+				"$TURBO_ROOT$/packages/document-ocr/package.json",
+				"$TURBO_ROOT$/packages/document-ocr/src/**",
+				"$TURBO_ROOT$/packages/domains/notices/package.json",
+				"$TURBO_ROOT$/packages/domains/notices/src/**"
+			],
+			"outputs": ["dist/**", "dist-ops/**", "dist-server/**", ".tanstack/**"],
+			"dependsOn": [
+				"@campus-agent/dining#source",
+				"@campus-agent/document-ocr#source",
+				"@campus-agent/internal-portal-client#source",
+				"@campus-agent/notices#source",
+				"@campus-agent/transport#source",
+				"@campus-agent/ui#source",
+				"campus-contracts#source",
+				"ingestion-contracts#source",
+				"notice-publisher#source"
+			],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"campus-web#build": {
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/campus-docs/**",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-course-maps.v1.schema.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-reader.v3.schema.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-source.v4.schema.json"
+			],
+			"outputs": ["dist/**", ".tanstack/**"]
+		},
+		"typecheck": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": ["node_modules/.cache/*.tsbuildinfo"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"native:format": {
+			"outputLogs": "new-only",
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
+		},
+		"native:lint": {
+			"outputLogs": "new-only",
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
+		},
+		"native:test": {
+			"outputLogs": "new-only",
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
+		},
+		"test:eval": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/pyproject.toml",
+				"$TURBO_ROOT$/uv.lock"
+			],
+			"outputLogs": "new-only",
+			"outputs": []
+		},
+		"test:migration-integration": {
+			"cache": false
+		},
+		"test:database-integration": {
+			"cache": false
+		},
+		"test:browser": {
+			"cache": false
+		},
+		"test:e2e:full": {
+			"cache": false
+		},
+		"test:worker": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"campus-contracts#typecheck": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"package.json",
+				"schemas/**",
+				"scripts/**/*.ts",
+				"src/**/*.ts",
+				"test/**/*.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"eval-langfuse#typecheck": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only"
+		},
+		"ingestion-contracts#typecheck": {
+			"dependsOn": ["^source"],
+			"inputs": ["package.json", "schemas/**", "src/**/*.ts", "test/**/*.ts", "tsconfig.json"],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"ops-web#typecheck": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
+			],
+			"outputLogs": "new-only",
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"test:shared-db-integration": {
+			"cache": false
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true,
+			"passThroughEnv": [
+				"HTTP_PROXY",
+				"HTTPS_PROXY",
+				"NO_PROXY",
+				"QDRANT_READ_ONLY_API_KEY",
+				"QDRANT_TLS_CA_CERT_PATH",
+				"QDRANT_URL",
+				"XDG_STATE_HOME",
+				"HINDSIGHT_*",
+				"OTEL_*"
+			]
+		},
+		"document-ocr#build": {
+			"inputs": [
+				"package.json",
+				"src/**",
+				"scripts/**",
+				"adapters/**/src/**",
+				"schemas/**",
+				"assets/**",
+				"public/**",
+				"*.config.*",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*",
+				"$TURBO_ROOT$/packages/notice-database/package.json",
+				"$TURBO_ROOT$/packages/notice-database/src/**",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/notices.ts",
+				"$TURBO_ROOT$/packages/document-ocr/package.json",
+				"$TURBO_ROOT$/packages/document-ocr/src/**",
+				"$TURBO_ROOT$/packages/domains/notices/package.json",
+				"$TURBO_ROOT$/packages/domains/notices/src/**",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json"
+			],
+			"outputs": ["dist/**"],
+			"dependsOn": ["^source"],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"ocr": {
+			"cache": false
+		},
+		"source": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"package.json",
+				"src/**",
+				"schemas/**",
+				"assertions/**",
+				"assets/**",
+				"public/**",
+				"adapters/**/src/**",
+				"tsconfig*.json",
+				"!**/*.test.*",
+				"!**/*.spec.*"
+			],
+			"outputs": []
+		},
+		"test:node:fast": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:node:isolated": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:dom:fast": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"test:dom:isolated": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"env": ["CAMPUS_NODE_RUNTIME"],
+			"outputs": [],
+			"outputLogs": "new-only"
+		},
+		"notice-pipeline-worker#dev": {
+			"cache": false,
+			"persistent": true
+		},
+		"notice-pipeline-worker#schedule:init": {
+			"cache": false
+		},
+		"test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"native:vet": {
+			"outputLogs": "new-only",
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
+		},
+		"internal-portal-collection#test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/**"
+			],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"eval-langfuse#test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"ingestion-contracts#test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"assertions/**",
+				"package.json",
+				"schemas/**",
+				"src/**/*.ts",
+				"test/**/*.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"campus-agent-schema#test:unit": {
+			"dependsOn": ["^source"],
+			"inputs": [
+				"$TURBO_ROOT$/infra/k8s/**",
+				"$TURBO_ROOT$/docs/data/postgres-ownership.md",
+				"$TURBO_ROOT$/scripts/dev/lifecycle/database-roles.ts",
+				"migrations/**",
+				"package.json",
+				"src/**/*.ts",
+				"test/**/*.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "new-only",
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"test": {
+			"dependsOn": [
+				"test:unit",
+				"test:generators",
+				"test:node:fast",
+				"test:node:isolated",
+				"test:dom:fast",
+				"test:dom:isolated",
+				"test:worker",
+				"native:test",
+				"test:eval"
+			],
+			"inputs": [],
+			"outputs": []
+		},
+		"test:generators": {
+			"dependsOn": ["^source"],
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": [],
+			"env": ["CAMPUS_NODE_RUNTIME"]
+		},
+		"build:check": {
+			"dependsOn": ["build"],
+			"inputs": [],
+			"outputs": []
+		}
+	}
+}

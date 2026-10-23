@@ -1,0 +1,4 @@
+# Immutable pg_dump baseline; executed by the PostgreSQL migration integration suites.
+jobs/campus-agent-schema/migrations/20260827151741_0000_campus_agent_baseline/migration.sql
+# 0016 preserves the SQL bytes of the already-used S2 migration hash.
+jobs/campus-agent-schema/migrations/20260914000000_0016_dining_submissions/migration.sql

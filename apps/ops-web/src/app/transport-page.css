@@ -1,0 +1,36 @@
+.ops-transport-workspace {
+	container: ops-transport / inline-size;
+}
+
+.ops-transport-day {
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+
+.ops-transport-route-picker {
+	display: grid;
+}
+
+.ops-transport-route-list {
+	display: none;
+}
+
+@container ops-transport (min-width: 58rem) {
+	.ops-transport-route-picker {
+		display: none;
+	}
+
+	.ops-transport-route-list {
+		display: grid;
+	}
+
+	.ops-transport-columns {
+		grid-template-columns: 13rem minmax(0, 1fr);
+	}
+
+	.ops-transport-route-list {
+		position: sticky;
+		top: var(--ops-sticky-top);
+		max-height: calc(100dvh - 6rem);
+		overflow-y: auto;
+	}
+}

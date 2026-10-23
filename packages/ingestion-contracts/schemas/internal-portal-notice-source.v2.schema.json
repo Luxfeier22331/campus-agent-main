@@ -1,0 +1,84 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.muc.wiki/contracts/internal-portal-notice-source.v2.schema.json",
+	"title": "Internal portal notice source",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"notice_id",
+		"notice_type",
+		"organization_id",
+		"notice_title",
+		"notice_release_time",
+		"is_external",
+		"external_url",
+		"notice_content_html",
+		"attachments"
+	],
+	"properties": {
+		"schema_version": { "const": "internal_portal_notice_source.v2" },
+		"notice_id": { "$ref": "#/$defs/positiveSafeInteger" },
+		"notice_type": { "$ref": "#/$defs/positiveSafeInteger" },
+		"organization_id": { "$ref": "#/$defs/nullableText" },
+		"notice_title": { "type": "string", "minLength": 1 },
+		"notice_release_time": { "$ref": "#/$defs/nullableText" },
+		"is_external": { "type": "boolean" },
+		"external_url": {
+			"oneOf": [{ "type": "string", "format": "uri", "pattern": "^https?://" }, { "type": "null" }]
+		},
+		"notice_content_html": { "$ref": "#/$defs/nullableText" },
+		"attachments": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["notice_annex_id", "notice_annex_name", "notice_annex_path", "suffix", "type"],
+				"properties": {
+					"notice_annex_id": { "$ref": "#/$defs/nullableText" },
+					"notice_annex_name": { "$ref": "#/$defs/nullableText" },
+					"notice_annex_path": { "$ref": "#/$defs/nullableText" },
+					"suffix": { "$ref": "#/$defs/nullableText" },
+					"type": { "$ref": "#/$defs/nullableText" }
+				}
+			}
+		},
+		"resources": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["kind", "ordinal", "object_key", "content_type", "byte_size", "sha256"],
+				"properties": {
+					"kind": { "enum": ["images", "attachments"] },
+					"ordinal": { "type": "integer", "minimum": 0 },
+					"object_key": { "type": ["string", "null"] },
+					"content_type": { "type": ["string", "null"] },
+					"byte_size": { "type": ["integer", "null"], "minimum": 0 },
+					"sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+				}
+			}
+		}
+	},
+	"allOf": [
+		{
+			"if": { "properties": { "is_external": { "const": true } } },
+			"then": {
+				"properties": {
+					"external_url": { "type": "string", "format": "uri", "pattern": "^https?://" }
+				}
+			},
+			"else": { "properties": { "external_url": { "type": "null" } } }
+		}
+	],
+	"$defs": {
+		"positiveSafeInteger": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"nullableText": {
+			"oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+		}
+	}
+}

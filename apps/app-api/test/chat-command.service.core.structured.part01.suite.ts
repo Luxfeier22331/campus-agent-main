@@ -1,0 +1,96 @@
+import { expect, it, vi } from "vitest";
+
+import {
+	buildChatCommandService,
+	createCommandStore,
+	createConversationStore,
+	createDeterministicIdGenerator,
+	createExecutionRuntimeFromToolClient,
+	createPrincipal,
+	type FinalizeRequestWrite,
+} from "./chat-command.service.test-support";
+
+export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
+	it("preserves agent-control answer text and consumes finalized public sources", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-03-28T08:00:00.000Z"),
+			conversationStore,
+			store,
+			executionRuntime: createExecutionRuntimeFromToolClient({
+				execute: vi.fn().mockResolvedValue({
+					answerText: "第四学期有合同法、人格权法、侵权责任法。\n\n课程以培养方案原文为准。",
+					error: null,
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
+					result: {
+						sources: [
+							{
+								citation_index: 1,
+								document_id: "curriculum/law",
+								kind: "campus_document",
+								root_unit_ids: ["law-semester-four"],
+								section_ref: "/docs/curriculum/curriculum_plan/law/v/2026#semester-four",
+								section_title: "第四学期",
+								snippet: "第四学期课程包括合同法、人格权法和侵权责任法。",
+								title: "法学本科人才培养方案",
+								version_id: "version-law-2026",
+								version_slug: "2026",
+							},
+						],
+					},
+					status: "completed",
+				}),
+			}),
+		});
+
+		const response = await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "法学民族班培养方案里大二下有什么课",
+			},
+			principal: createPrincipal(),
+		});
+		const finalizedWrite = finalWrites[0] as FinalizeRequestWrite;
+
+		expect(finalizedWrite).toMatchObject({
+			assistantMessage: {
+				kind: "answer",
+			},
+			turnDispatch: {
+				status: "completed",
+			},
+		});
+		expect(finalizedWrite.assistantMessage.text).toBe(
+			"第四学期有合同法、人格权法、侵权责任法。\n\n课程以培养方案原文为准。",
+		);
+		expect(response.answer.result.kind).toBe("answer");
+		if (response.answer.result.kind !== "answer") {
+			throw new Error("expected completed answer result");
+		}
+		expect(response.answer.result.text).toBe(
+			"第四学期有合同法、人格权法、侵权责任法。\n\n课程以培养方案原文为准。",
+		);
+		expect(finalizedWrite.assistantMessage.structuredParts).toMatchObject([
+			{
+				sourceItems: [
+					{
+						citationIndexes: [1],
+						kind: "campus_document",
+						primaryAction: {
+							href: "/docs/curriculum/curriculum_plan/law/v/2026?hl=law-semester-four#semester-four",
+						},
+						title: "法学本科人才培养方案",
+					},
+				],
+				type: "source_items",
+			},
+		]);
+	});
+}

@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-runtime-worker
+  labels:
+    app.kubernetes.io/name: agent-runtime-worker
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-runtime-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-runtime-worker
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: agent-runtime
+      terminationGracePeriodSeconds: 390
+      containers:
+        - name: agent-runtime-worker
+          image: ghcr.io/muc-wiki/campus-agent/agent-runtime:replace-me
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: agent-runtime-config
+                  key: DEPLOYMENT_ENVIRONMENT
+            - name: DEPLOYMENT_RELEASE
+              valueFrom:
+                configMapKeyRef:
+                  name: agent-runtime-config
+                  key: DEPLOYMENT_RELEASE
+            - name: AGENT_CONTROL_RUNTIME_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: agent-control-runtime-secrets
+                  key: AGENT_CONTROL_RUNTIME_SHARED_SECRET
+            - name: MODEL_CONFIG_URL
+              value: http://model-config:8000
+            - name: MEMORY_SERVICE_BASE_URL
+              value: http://memory-service:8000
+            - name: MEMORY_INTERNAL_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: memory-service-secrets
+                  key: MEMORY_INTERNAL_SHARED_SECRET
+            - name: AGENT_CONTROL_BASE_URL
+              value: http://agent-control:8000
+            - name: AGENT_RUNTIME_TEMPORAL_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: agent-runtime-config
+                  key: AGENT_CONTROL_TEMPORAL_ADDRESS
+            - name: AGENT_RUNTIME_TEMPORAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: agent-runtime-config
+                  key: AGENT_CONTROL_TEMPORAL_NAMESPACE
+            - name: RETRIEVAL_BASE_URL
+              value: http://campus-search-service:8000
+            - name: RETRIEVAL_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: campus-search-service-secrets
+                  key: RETRIEVAL_INTERNAL_TOKEN
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sleep
+                  - '10'
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          command:
+            - node
+            - --network-family-autoselection-attempt-timeout=2000
+            - apps/agent-runtime/dist/worker.js
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-runtime-worker
+spec:
+  selector:
+    app.kubernetes.io/name: agent-runtime-worker
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

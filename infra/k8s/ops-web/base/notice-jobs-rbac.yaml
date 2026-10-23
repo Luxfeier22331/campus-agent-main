@@ -1,0 +1,39 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ops-web-notice-jobs
+  labels:
+    app.kubernetes.io/name: ops-web
+    app.kubernetes.io/part-of: campus-agent
+rules:
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    resourceNames: ["notice-sync", "notice-classifier", "notice-publisher"]
+    verbs: ["patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ops-web-notice-jobs
+  labels:
+    app.kubernetes.io/name: ops-web
+    app.kubernetes.io/part-of: campus-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ops-web-notice-jobs
+subjects:
+  - kind: ServiceAccount
+    name: ops-web

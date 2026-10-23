@@ -1,0 +1,17 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: campus-agent-postgres-agent-control
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: '-2'
+spec:
+  databaseRoleReclaimPolicy: delete
+  cluster:
+    name: campus-agent-postgres
+  name: agent_control
+  login: true
+  passwordSecret:
+    name: agent-control-read-model-secrets

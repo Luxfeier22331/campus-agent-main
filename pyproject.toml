@@ -1,0 +1,115 @@
+[project]
+name = "campus-agent-workspace"
+version = "0.1.0"
+description = "Monorepo for campus-agent v2."
+license = "Apache-2.0"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "ruff>=0.15.11",
+  "sqlfluff>=3.4.2",
+  "yamllint>=1.37.1",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+force-exclude = true
+extend-exclude = [
+  ".tmp",
+]
+
+[tool.ruff.lint]
+select = [
+  "E4",
+  "E7",
+  "E9",
+  "F",
+  "I",
+  "W",
+  "B017",
+  "B006",
+  "B007",
+  "B008",
+  "B012",
+  "B013",
+  "B014",
+  "B016",
+  "B011",
+  "B015",
+  "B018",
+  "B019",
+  "B020",
+  "B021",
+  "B022",
+  "B023",
+  "B024",
+  "B028",
+  "B031",
+  "B032",
+  "B039",
+  "C408",
+  "C409",
+  "C405",
+  "C416",
+  "C420",
+  "SIM108",
+  "SIM114",
+  "SIM117",
+  "SIM102",
+  "SIM103",
+  "SIM105",
+  "SIM113",
+  "SIM118",
+  "SIM210",
+  "SIM401",
+  "B009",
+  "B010",
+  "B904",
+  "B905",
+  "RET504",
+  "PIE808",
+  "PIE810",
+  "RUF046",
+  "RUF005",
+  "RUF007",
+  "RUF009",
+  "RUF010",
+  "RUF022",
+  "RUF034",
+  "RUF100",
+  "UP006",
+  "UP031",
+  "UP007",
+  "UP012",
+  "UP017",
+  "UP033",
+  "UP034",
+  "UP035",
+  "UP037",
+  "UP040",
+  "UP042",
+  "UP045",
+  "UP046",
+  "UP047",
+]
+
+[tool.sqlfluff.core]
+dialect = "postgres"
+max_line_length = 100
+rules = "LT01,LT02,LT03,LT04,LT05,LT06,LT07,LT08,LT09,LT10,CP01,CP02,CP03,CP04,CP05,AM01,AM02,AM03,AM04,AM05,AM06,ST01,ST02,ST03,ST04,ST05,ST06,ST07"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+  "packages/inspect-eval",
+]
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"

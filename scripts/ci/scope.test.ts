@@ -1,0 +1,296 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import {
+	type CommandResult,
+	type CommandRunner,
+	parseChangedFiles,
+	parseTurboTasks,
+	resolveAffectedScope,
+} from "./scope.mts";
+
+const BASE = "a".repeat(40);
+const HEAD = "b".repeat(40);
+const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
+const REPOSITORY_PACKAGE_MANAGER = (
+	JSON.parse(readFileSync(path.join(REPOSITORY_ROOT, "package.json"), "utf8")) as {
+		packageManager: string;
+	}
+).packageManager;
+
+function result(overrides: Partial<CommandResult> = {}): CommandResult {
+	return { status: 0, stderr: "", stdout: "", ...overrides };
+}
+
+function git(root: string, ...args: string[]): string {
+	return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+}
+
+function writeTurboFixture(root: string, outputLogs?: string): void {
+	const tasks = Object.fromEntries(
+		[
+			"build",
+			"build:check",
+			"test:generators",
+			"native:format",
+			"native:lint",
+			"native:test",
+			"native:vet",
+			"test:unit",
+			"test:worker",
+			"test:node:fast",
+			"test:node:isolated",
+			"test:dom:fast",
+			"test:dom:isolated",
+			"typecheck",
+		].map((taskName) => [
+			taskName,
+			{
+				inputs: ["$TURBO_DEFAULT$"],
+				outputs: [],
+				...(taskName === "test:unit" && outputLogs ? { outputLogs } : {}),
+			},
+		]),
+	);
+	writeFileSync(
+		path.join(root, "turbo.json"),
+		`${JSON.stringify(
+			{
+				$schema: "https://turborepo.com/schema.json",
+				futureFlags: { affectedUsingTaskInputs: true },
+				tasks,
+			},
+			null,
+			2,
+		)}\n`,
+	);
+}
+
+test("parses added, deleted, renamed, and copied paths from one structured diff", () => {
+	assert.deepEqual(
+		parseChangedFiles(
+			[
+				"A",
+				"added.ts",
+				"D",
+				"deleted.go",
+				"T",
+				"changed-type.sh",
+				"R100",
+				"old-name.ts",
+				"new-name.ts",
+				"C75",
+				"source.sh",
+				"copy.sh",
+				"",
+			].join("\0"),
+		),
+		[
+			"added.ts",
+			"changed-type.sh",
+			"copy.sh",
+			"deleted.go",
+			"new-name.ts",
+			"old-name.ts",
+			"source.sh",
+		],
+	);
+	assert.throws(() => parseChangedFiles("R100\0only-one-path\0"), /incomplete/u);
+});
+
+test("keeps only executable Turbo tasks and rejects malformed plans", () => {
+	assert.deepEqual(
+		parseTurboTasks(
+			JSON.stringify({
+				tasks: [
+					{ command: "tsc", package: "web", task: "typecheck" },
+					{ command: "<NONEXISTENT>", package: "native", task: "build" },
+					{ command: "go test", package: "control", task: "native:test" },
+				],
+			}),
+		),
+		[
+			{ package: "control", task: "native:test" },
+			{ package: "web", task: "typecheck" },
+		],
+	);
+	assert.throws(() => parseTurboTasks("not-json"), /invalid affected plan/u);
+});
+
+test("parses Turbo JSON after an informational prefix", () => {
+	assert.deepEqual(
+		parseTurboTasks(
+			[
+				"• turbo 2.10.10",
+				JSON.stringify({
+					tasks: [{ command: "vitest", package: "campus-web", task: "test:dom:fast" }],
+				}),
+			].join("\n"),
+		),
+		[{ package: "campus-web", task: "test:dom:fast" }],
+	);
+});
+
+test("validates ancestry, reads the diff once, and uses the lockfile Turbo", () => {
+	const calls: Array<{ command: string; args: string[]; base?: string; head?: string }> = [];
+	const runner: CommandRunner = (command, args, options) => {
+		calls.push({
+			command,
+			args,
+			base: options.env.TURBO_SCM_BASE,
+			head: options.env.TURBO_SCM_HEAD,
+		});
+		if (command === "pnpm") {
+			return result({
+				stdout: JSON.stringify({
+					tasks: [{ command: "vitest", package: "campus-web", task: "test:dom:fast" }],
+				}),
+			});
+		}
+		if (args[0] === "diff") {
+			return result({ stdout: "M\0apps/campus-web/src/app.tsx\0" });
+		}
+		return result();
+	};
+	assert.deepEqual(
+		resolveAffectedScope({ base: BASE, head: HEAD, repositoryRoot: "/repository" }, runner),
+		{
+			base: BASE,
+			changedFiles: ["apps/campus-web/src/app.tsx"],
+			head: HEAD,
+			tasks: [{ package: "campus-web", task: "test:dom:fast" }],
+		},
+	);
+	assert.equal(calls.filter(({ args }) => args[0] === "diff").length, 1);
+	const turbo = calls.find(({ command }) => command === "pnpm");
+	assert.deepEqual(turbo?.args.slice(0, 3), ["exec", "turbo", "run"]);
+	assert(turbo?.args.includes("native:test"));
+	assert(turbo?.args.includes("native:vet"));
+	assert(!turbo?.args.includes("dlx"));
+	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
+});
+
+test("real Turbo validates config-only and mixed source changes", (t) => {
+	const root = mkdtempSync(path.join(os.tmpdir(), "campus-agent-scope-test-"));
+	t.after(() => rmSync(root, { force: true, recursive: true }));
+	mkdirSync(path.join(root, "apps/web/src"), { recursive: true });
+	symlinkSync(path.join(REPOSITORY_ROOT, "node_modules"), path.join(root, "node_modules"), "dir");
+	writeFileSync(path.join(root, ".gitignore"), "node_modules\n");
+	writeFileSync(
+		path.join(root, "package.json"),
+		`${JSON.stringify({
+			name: "scope-fixture",
+			packageManager: REPOSITORY_PACKAGE_MANAGER,
+			private: true,
+			version: "99.88.77",
+		})}\n`,
+	);
+	writeFileSync(path.join(root, "pnpm-workspace.yaml"), 'packages:\n  - "apps/*"\n');
+	writeFileSync(
+		path.join(root, "pnpm-lock.yaml"),
+		"lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\nimporters:\n  .: {}\n  apps/web: {}\n",
+	);
+	writeFileSync(
+		path.join(root, "apps/web/package.json"),
+		`${JSON.stringify({ name: "scope-web", scripts: { "test:unit": "node --test" } })}\n`,
+	);
+	writeFileSync(path.join(root, "apps/web/src/app.ts"), "export const value = 1;\n");
+	writeTurboFixture(root);
+	git(root, "init", "--quiet");
+	git(root, "config", "user.email", "scope-test@example.invalid");
+	git(root, "config", "user.name", "Scope test");
+	git(root, "config", "commit.gpgSign", "false");
+	git(root, "add", ".");
+	git(root, "commit", "--quiet", "-m", "base");
+	const base = git(root, "rev-parse", "HEAD");
+
+	writeTurboFixture(root, "new-only");
+	git(root, "add", "turbo.json");
+	git(root, "commit", "--quiet", "-m", "config only");
+	const configOnly = git(root, "rev-parse", "HEAD");
+	assert(
+		resolveAffectedScope({ base, head: configOnly, repositoryRoot: root }).tasks.some(
+			(task) => task.package === "scope-web" && task.task === "test:unit",
+		),
+	);
+
+	git(root, "checkout", "--quiet", "--detach", base);
+	writeTurboFixture(root, "full");
+	writeFileSync(path.join(root, "apps/web/src/app.ts"), "export const value = 2;\n");
+	git(root, "add", ".");
+	git(root, "commit", "--quiet", "-m", "config and source");
+	const mixed = git(root, "rev-parse", "HEAD");
+	const scope = resolveAffectedScope({ base, head: mixed, repositoryRoot: root });
+	assert.deepEqual(scope.changedFiles, ["apps/web/src/app.ts", "turbo.json"]);
+	assert(scope.tasks.some((task) => task.package === "scope-web" && task.task === "test:unit"));
+});
+
+test("base equals head validates commits without diffing or running Turbo", () => {
+	const calls: string[] = [];
+	const scope = resolveAffectedScope(
+		{ base: BASE, head: BASE, repositoryRoot: "/repository" },
+		(command, args) => {
+			calls.push(`${command} ${args.join(" ")}`);
+			return result();
+		},
+	);
+	assert.deepEqual(scope.changedFiles, []);
+	assert.deepEqual(scope.tasks, []);
+	assert.equal(calls.length, 3);
+	assert(!calls.some((call) => call.startsWith("pnpm ") || call.includes(" diff ")));
+});
+
+test("rejects a base that is not an ancestor of head", () => {
+	assert.throws(
+		() =>
+			resolveAffectedScope(
+				{ base: BASE, head: HEAD, repositoryRoot: "/repository" },
+				(_command, args) => (args[0] === "merge-base" ? result({ status: 1 }) : result()),
+			),
+		/merge-base/u,
+	);
+});
+
+test("retains commandless public aggregates without retaining source transit nodes", () => {
+	assert.deepEqual(
+		parseTurboTasks(
+			JSON.stringify({
+				tasks: [
+					{
+						package: "web",
+						task: "test",
+						command: "<NONEXISTENT>",
+						dependencies: ["web#test:unit"],
+					},
+					{
+						package: "web",
+						task: "build:check",
+						command: "<NONEXISTENT>",
+						dependencies: ["web#build:fixture"],
+					},
+					{
+						package: "tooling",
+						task: "typecheck",
+						command: "<NONEXISTENT>",
+						dependencies: ["tooling#typecheck:notices"],
+					},
+					{
+						package: "web",
+						task: "source",
+						command: "<NONEXISTENT>",
+						dependencies: ["shared#source"],
+					},
+				],
+			}),
+		),
+		[
+			{ package: "tooling", task: "typecheck" },
+			{ package: "web", task: "build:check" },
+			{ package: "web", task: "test" },
+		],
+	);
+});

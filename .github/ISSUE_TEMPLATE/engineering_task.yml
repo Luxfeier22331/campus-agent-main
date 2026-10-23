@@ -1,0 +1,25 @@
+name: Engineering task
+description: Define focused maintenance, refactoring, testing, or infrastructure work
+type: Task
+projects:
+  - MUC-WIKI/1
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current problem
+      description: What verified engineering problem or constraint requires work?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Intended outcome
+      description: Describe the resulting behavior or engineering state.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Add relevant constraints, examples, links, or prior decisions when they help explain the task.
