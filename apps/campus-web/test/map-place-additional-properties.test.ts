@@ -28,6 +28,8 @@ describe("campus map place supplementary properties", () => {
 		const views = createMapPlaceViews([place]);
 
 		expect(views[0]?.detailRows).toContainEqual({ label: "楼层", value: "8层" });
+		expect(views[0]?.detailRows).not.toContainEqual({ label: "名称状态", value: "沿用参考名称" });
+		expect(views[0]?.detailRows).not.toContainEqual({ label: "核对说明", value: "具体楼名待核" });
 		expect(
 			filterMapPlaces(views, { campus: "丰台校区", category: "all", query: "具体楼名待核" }),
 		).toHaveLength(1);

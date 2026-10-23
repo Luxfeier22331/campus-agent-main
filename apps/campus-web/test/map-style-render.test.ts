@@ -74,6 +74,12 @@ describe("campus map style", () => {
 		expect(
 			JSON.stringify(style.layers?.find((layer) => layer.id === "campus-building")?.paint),
 		).toContain("#6688a8");
+		expect(
+			JSON.stringify(style.layers?.find((layer) => layer.id === "campus-building")?.paint),
+		).toContain("#c77963");
+		expect(
+			JSON.stringify(style.layers?.find((layer) => layer.id === "campus-building")?.paint),
+		).toContain("#8d4c3b");
 		expect(style.layers?.find((layer) => layer.id === "campus-sport-pattern")).toEqual(
 			expect.objectContaining({
 				paint: expect.objectContaining({ "fill-pattern": expect.any(Array) }),

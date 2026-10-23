@@ -156,9 +156,9 @@ export function createCampusMapStyle(
 				filter: ["==", ["get", "layer"], "building"],
 				id: "campus-building",
 				paint: {
-					"fill-color": createCategoryColorExpression(colors.buildingFill),
+					"fill-color": createBuildingFillExpression(colors.buildingFill),
 					"fill-opacity": 0.94,
-					"fill-outline-color": createCategoryColorExpression(colors.buildingOutline, true),
+					"fill-outline-color": createBuildingOutlineExpression(colors.buildingOutline),
 				},
 				source: profile.sourceId,
 				type: "fill",
@@ -465,12 +465,32 @@ function createCategoryColorExpression(fallback: string, outline = false): Expre
 	] as unknown as ExpressionSpecification;
 }
 
+function createBuildingFillExpression(fallback: string): ExpressionSpecification {
+	return [
+		"case",
+		["==", ["get", "category"], "体育场地"],
+		createSportSurfaceColorExpression("#4eae5b"),
+		createCategoryColorExpression(fallback),
+	] as unknown as ExpressionSpecification;
+}
+
+function createBuildingOutlineExpression(fallback: string): ExpressionSpecification {
+	return [
+		"case",
+		["==", ["get", "category"], "体育场地"],
+		createSportSurfaceOutlineExpression("#27703d"),
+		createCategoryColorExpression(fallback, true),
+	] as unknown as ExpressionSpecification;
+}
+
 function createSportSurfaceColorExpression(fallback: string): ExpressionSpecification {
 	return [
 		"match",
 		["get", "name"],
 		"田径场",
 		"#c77963",
+		"田径场内场",
+		"#4eae5b",
 		"篮球场",
 		"#76bfc9",
 		"排球场",
@@ -489,6 +509,8 @@ function createSportSurfaceOutlineExpression(fallback: string): ExpressionSpecif
 		["get", "name"],
 		"田径场",
 		"#8d4c3b",
+		"田径场内场",
+		"#27703d",
 		"篮球场",
 		"#337784",
 		"排球场",

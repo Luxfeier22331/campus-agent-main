@@ -38,11 +38,16 @@ export function MapPlacePopover({
 					<p className="mt-3 text-sm leading-6 text-[var(--sys-text-muted)]">
 						{place.place.description}
 					</p>
-					<div className="mt-3 space-y-2">
+					<div className="mt-3 space-y-1.5">
 						{place.detailRows.map((row) => (
-							<div className="grid grid-cols-[64px_1fr] gap-3 text-sm" key={row.label}>
-								<span className="text-[var(--sys-text-subtle)]">{row.label}</span>
-								<span className="text-[var(--sys-text-muted)]">{row.value}</span>
+							<div
+								className="grid grid-cols-[72px_1fr] items-baseline gap-x-3 gap-y-0.5 text-sm leading-6"
+								key={row.label}
+							>
+								<span className="text-xs text-[var(--sys-text-subtle)]">{row.label}</span>
+								<span className="min-w-0 break-words text-[var(--sys-text-muted)]">
+									{row.value}
+								</span>
 							</div>
 						))}
 					</div>
