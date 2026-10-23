@@ -1,6 +1,7 @@
 import type * as maplibregl from "maplibre-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+	CAMPUS_GATEHOUSE_SELECTED_LAYER_ID,
 	CAMPUS_HOVER_PLACE_FILL_LAYER_ID,
 	CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID,
 	CAMPUS_SELECTED_PLACE_FILL_LAYER_ID,
@@ -10,6 +11,7 @@ import {
 	createCampusMapFeatureFilter,
 	createCampusMapPatternImage,
 	createCampusMapStyle,
+	selectGatehouseFeatureRefs,
 } from "@/features/map/campus-map-style";
 import {
 	createFeatureRefKey,
@@ -326,7 +328,13 @@ export function useCampusMapRuntime(input: CampusMapRuntimeInput) {
 		map.setFilter(CAMPUS_SELECTED_PLACE_FILL_LAYER_ID, filter);
 		map.setFilter(CAMPUS_SELECTED_PLACE_HALO_LAYER_ID, filter);
 		map.setFilter(CAMPUS_SELECTED_PLACE_OUTLINE_LAYER_ID, filter);
-		map.setFilter("campus-gatehouse-selected", filter);
+		// The gatehouse highlight is a circle layer. Feeding it every selected
+		// feature turns each vertex of a tapped building polygon into a dot, so
+		// it only ever receives the gatehouse refs.
+		map.setFilter(
+			CAMPUS_GATEHOUSE_SELECTED_LAYER_ID,
+			createCampusMapFeatureFilter(selectGatehouseFeatureRefs(input.selected?.featureRefs ?? [])),
+		);
 	}, [input.selected, input.selectedCampusProfile, mapLoaded]);
 
 	useEffect(() => {

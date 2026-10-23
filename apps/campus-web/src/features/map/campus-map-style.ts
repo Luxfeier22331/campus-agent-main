@@ -4,13 +4,15 @@ import type { CampusMapFeatureRef, CampusMapManifest } from "./model";
 export const CAMPUS_SELECTED_PLACE_FILL_LAYER_ID = "campus-place-selected-fill";
 export const CAMPUS_SELECTED_PLACE_HALO_LAYER_ID = "campus-place-selected-halo";
 export const CAMPUS_SELECTED_PLACE_OUTLINE_LAYER_ID = "campus-place-selected-outline";
+export const CAMPUS_GATEHOUSE_SELECTED_LAYER_ID = "campus-gatehouse-selected";
 export const CAMPUS_HOVER_PLACE_FILL_LAYER_ID = "campus-place-hover-fill";
 export const CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID = "campus-place-hover-outline";
 export const EMPTY_CAMPUS_MAP_FEATURE_FILTER: ExpressionSpecification = ["==", ["get", "fid"], -1];
+const GATEHOUSE_FIDS = [57, 60] as const;
 const GATEHOUSE_MARKER_FILTER = [
 	"all",
 	["==", ["get", "layer"], "building"],
-	["in", ["get", "fid"], ["literal", [57, 60]]],
+	["in", ["get", "fid"], ["literal", [...GATEHOUSE_FIDS]]],
 ] as unknown as FilterSpecification;
 const BUILDING_LABEL_FILTER = [
 	"all",
@@ -186,7 +188,7 @@ export function createCampusMapStyle(
 			},
 			{
 				filter: EMPTY_CAMPUS_MAP_FEATURE_FILTER,
-				id: "campus-gatehouse-selected",
+				id: CAMPUS_GATEHOUSE_SELECTED_LAYER_ID,
 				paint: {
 					"circle-color": colors.selectionFill,
 					"circle-radius": 9,
@@ -379,6 +381,23 @@ export function createCampusMapFeatureFilter(
 	}
 
 	return ["any", ...featureRefs.map(createSingleFeatureFilter)];
+}
+
+/**
+ * Narrows selection refs to the gatehouse point features. The gatehouse
+ * highlight is a circle layer, and a circle layer paints one circle per vertex
+ * of a polygon, so handing it any polygon — including the `green` polygons that
+ * share fid 57/60 with the gatehouse points — rings the tapped building with
+ * dots.
+ */
+export function selectGatehouseFeatureRefs(
+	featureRefs: CampusMapFeatureRef[],
+): CampusMapFeatureRef[] {
+	return featureRefs.filter(
+		(featureRef) =>
+			featureRef.layer === "building" &&
+			(GATEHOUSE_FIDS as readonly number[]).includes(featureRef.fid),
+	);
 }
 
 function createSingleFeatureFilter(featureRef: CampusMapFeatureRef): ExpressionSpecification {

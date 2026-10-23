@@ -4,6 +4,7 @@ import {
 	createCampusMapProfilesFromManifest,
 	createCampusMapStyle,
 	getCampusMapProfile,
+	selectGatehouseFeatureRefs,
 } from "../src/features/map/campus-map-style";
 import { INTERACTIVE_CAMPUS_MAP_LAYER_IDS } from "../src/features/map/feature-selection";
 
@@ -23,6 +24,29 @@ describe("campus map style", () => {
 			["all", ["==", ["get", "layer"], "building"], ["==", ["get", "fid"], 101]],
 			["all", ["==", ["get", "layer"], "sport"], ["==", ["get", "fid"], 202]],
 		]);
+	});
+
+	it("keeps the gatehouse highlight off ordinary selected features", () => {
+		// The highlight is a circle layer, and a circle layer paints one circle
+		// per vertex, so a tapped polygon comes out ringed with dots unless only
+		// the gatehouse point refs reach it.
+		expect(
+			selectGatehouseFeatureRefs([
+				{ fid: 57, layer: "building", sourceId: "fengtai-campus" },
+				{ fid: 60, layer: "building", sourceId: "fengtai-campus" },
+			]),
+		).toEqual([
+			{ fid: 57, layer: "building", sourceId: "fengtai-campus" },
+			{ fid: 60, layer: "building", sourceId: "fengtai-campus" },
+		]);
+		expect(
+			selectGatehouseFeatureRefs([
+				{ fid: 66, layer: "building", sourceId: "fengtai-campus" },
+				{ fid: 57, layer: "sport", sourceId: "fengtai-campus" },
+				{ fid: 60, layer: "boundary", sourceId: "fengtai-campus" },
+			]),
+		).toEqual([]);
+		expect(selectGatehouseFeatureRefs([])).toEqual([]);
 	});
 
 	it("keeps campus building labels local to the MapLibre style", () => {
