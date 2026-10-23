@@ -41,13 +41,13 @@ jobs:
           persist-credentials: false
       - name: Install Nix
         if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24  # v31.11.1
+        uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702  # v31.11.2
         with:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
       - name: Setup Docker Buildx
         if: runner.environment != 'self-hosted'
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
         with:
           driver: docker-container
           cache-binary: false
@@ -93,7 +93,7 @@ jobs:
         run: node --experimental-strip-types scripts/release/source-candidate.mts publish
       - name: Upload candidate output
         if: steps.plan.outputs.publish == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: source-release
           path: ${{ runner.temp }}/source-candidate/source-release.json
@@ -102,7 +102,7 @@ jobs:
       - name: Create GitOps dispatch token
         if: steps.plan.outputs.publish == 'true'
         id: gitops-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
         with:
           client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
           private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
