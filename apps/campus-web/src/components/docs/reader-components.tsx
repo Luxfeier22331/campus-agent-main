@@ -10,8 +10,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@campus-agent/ui";
-import { compareDocsVersionSlugs, formatDocsVersionLabel } from "campus-contracts/campus-docs";
-import { CircleAlert, History, Link as LinkIcon } from "lucide-react";
+import {
+	compareDocsVersionSlugs,
+	type DocsVersionDetails,
+	formatDocsVersionLabel,
+} from "campus-contracts/campus-docs";
+import { CircleAlert, ExternalLink, History, Link as LinkIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	createContext,
@@ -84,7 +88,14 @@ export function ReaderDocument({
 		}
 	}, [locationHref]);
 
+	const locationRead = locationState !== EMPTY_READER_STATE;
+	const initialLocation = useRef(true);
 	useEffect(() => {
+		if (!locationRead) {
+			return;
+		}
+		const opening = initialLocation.current;
+		initialLocation.current = false;
 		if (!locationState.anchor) {
 			return;
 		}
@@ -95,9 +106,10 @@ export function ReaderDocument({
 		if (!target.hasAttribute("tabindex")) {
 			target.tabIndex = -1;
 		}
-		target.scrollIntoView?.({ block: "start" });
+		// Opening a link lands on the anchor directly; later in-page jumps follow the smooth root scroll.
+		target.scrollIntoView?.({ behavior: opening ? "instant" : "auto", block: "start" });
 		target.focus({ preventScroll: true });
-	}, [locationState.anchor]);
+	}, [locationRead, locationState.anchor]);
 
 	const context = useMemo<ReaderContextValue>(
 		() => ({ locationState, permalinkRootUnitIds }),
@@ -246,11 +258,13 @@ export function ReaderPermalink({
 
 export function ReaderDocumentMeta({
 	collectionLabel,
+	details,
 	onVersionNavigate,
 	versionSlug,
 	versions,
 }: {
 	collectionLabel: string | null;
+	details?: DocsVersionDetails | null;
 	onVersionNavigate?: (href: string) => void;
 	versionSlug: string;
 	versions?: ReaderVersion[];
@@ -289,75 +303,113 @@ export function ReaderDocumentMeta({
 			data-docs-reader-meta="true"
 			data-docs-version-slug={versionSlug}
 		>
-			{!hasMultipleVersions || collectionLabel !== null ? (
-				<p className="document-meta-summary">
-					{hasMultipleVersions ? null : <span>{versionLabel}</span>}
-					{collectionLabel === null ? null : <span>{collectionLabel}</span>}
-				</p>
-			) : null}
-			{isLatest && !hasMultipleVersions ? null : (
-				<div className="document-meta-controls">
-					{isLatest ? null : (
-						<p
-							aria-label="正在阅读历史版本，请以当前版为准。"
-							className="docs-version-history-warning"
-							role="status"
-							title="正在阅读历史版本，请以当前版为准。"
+			<div className="document-meta-summary">
+				{collectionLabel === null ? null : <span>{collectionLabel}</span>}
+				{hasMultipleVersions ? (
+					<span className="docs-version-switcher">
+						<Select
+							items={resolvedVersions.map((version) => ({
+								value: version.versionSlug,
+								label: formatDocsVersionLabel(version.versionSlug),
+							}))}
+							name="docs-version"
+							onValueChange={selectVersion}
+							value={versionSlug}
 						>
-							<CircleAlert aria-hidden="true" />
-							历史版本
-						</p>
-					)}
-					{!isLatest && latestVersion ? (
-						<a
-							className="docs-version-current-link"
-							href={latestVersion.canonicalUrl}
-							onClick={(event) => {
-								if (
-									onVersionNavigate &&
-									event.button === 0 &&
-									!event.metaKey &&
-									!event.ctrlKey &&
-									!event.shiftKey &&
-									!event.altKey
-								) {
-									event.preventDefault();
-									onVersionNavigate(latestVersion.canonicalUrl);
-								}
-							}}
-						>
-							查看当前版
-						</a>
-					) : null}
-					{hasMultipleVersions ? (
-						<div className="docs-version-switcher">
-							<Select
-								items={resolvedVersions.map((version) => ({
-									value: version.versionSlug,
-									label: formatDocsVersionLabel(version.versionSlug),
-								}))}
-								name="docs-version"
-								onValueChange={selectVersion}
-								value={versionSlug}
+							<SelectTrigger
+								aria-label="选择文档版本"
+								className="docs-version-trigger min-h-11 gap-1.5 px-2.5 py-1 text-sm sm:min-h-8 md:text-sm"
 							>
-								<SelectTrigger aria-label="选择文档版本" className="docs-version-trigger">
-									<History aria-hidden="true" />
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent className="docs-version-menu">
-									{resolvedVersions.map((version) => (
-										<SelectItem key={version.versionSlug} value={version.versionSlug}>
-											{formatDocsVersionLabel(version.versionSlug)}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-					) : null}
+								<History aria-hidden="true" />
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent className="docs-version-menu">
+								{resolvedVersions.map((version) => (
+									<SelectItem key={version.versionSlug} value={version.versionSlug}>
+										{formatDocsVersionLabel(version.versionSlug)}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</span>
+				) : (
+					<span>{versionLabel}</span>
+				)}
+			</div>
+			{isLatest || !latestVersion ? null : (
+				<div
+					aria-label="正在阅读历史版本，请以当前版为准。"
+					className="docs-version-history-notice"
+					role="status"
+				>
+					<CircleAlert aria-hidden="true" />
+					<p>
+						正在阅读历史版本 {versionLabel}，当前版为{" "}
+						{formatDocsVersionLabel(latestVersion.versionSlug)}。
+					</p>
+					<a
+						className="docs-version-current-link"
+						href={latestVersion.canonicalUrl}
+						onClick={(event) => {
+							if (
+								onVersionNavigate &&
+								event.button === 0 &&
+								!event.metaKey &&
+								!event.ctrlKey &&
+								!event.shiftKey &&
+								!event.altKey
+							) {
+								event.preventDefault();
+								onVersionNavigate(latestVersion.canonicalUrl);
+							}
+						}}
+					>
+						查看当前版
+					</a>
 				</div>
 			)}
+			{details ? <ReaderDocumentDetails details={details} /> : null}
 		</section>
 	);
+}
+
+function ReaderDocumentDetails({ details }: { details: DocsVersionDetails }) {
+	return (
+		<dl className="document-meta-details">
+			{details.documentNumber ? (
+				<div>
+					<dt>文号</dt>
+					<dd>{details.documentNumber}</dd>
+				</div>
+			) : null}
+			{details.effectiveDate ? (
+				<div>
+					<dt>施行</dt>
+					<dd>
+						<time dateTime={details.effectiveDate}>
+							{formatDocsDetailDate(details.effectiveDate)}
+						</time>
+					</dd>
+				</div>
+			) : null}
+			{details.source ? (
+				<div>
+					<dt>原文</dt>
+					<dd>
+						<a href={details.source.url} rel="noopener noreferrer" target="_blank">
+							{details.source.name}
+							<ExternalLink aria-hidden="true" className="document-meta-source-icon" />
+						</a>
+					</dd>
+				</div>
+			) : null}
+		</dl>
+	);
+}
+
+function formatDocsDetailDate(value: string): string {
+	const [year, month, day] = value.split("-");
+	return `${year} 年 ${Number(month)} 月 ${Number(day)} 日`;
 }
 
 export function ReaderTable({ rows }: { rows: ReaderTableCell[][] }) {

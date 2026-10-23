@@ -99,12 +99,37 @@ describe("declarative docs reader components", () => {
 
 		expect(
 			screen.getByRole("status", { name: "正在阅读历史版本，请以当前版为准。" }),
-		).toHaveTextContent("历史版本");
+		).toHaveTextContent("正在阅读历史版本 2025 年版，当前版为 2026 年版。查看当前版");
 		const versionSelector = screen.getByRole("combobox", { name: "选择文档版本" });
 		expect(versionSelector).toHaveTextContent("2025 年版");
 		const metadata = screen.getByLabelText("文档信息与版本");
 		expect(metadata).toHaveTextContent("学生手册");
 		expect(metadata.querySelector("details")).toBeNull();
+	});
+
+	it("renders version details only when the version declares them", () => {
+		const { rerender } = render(
+			<ReaderDocumentMeta
+				collectionLabel={null}
+				details={{
+					documentNumber: "民大校发〔2025〕141号",
+					effectiveDate: "2025-09-01",
+					source: { name: "学校信息公开网", url: "https://xxgk.muc.edu.cn/info/1198/4051.htm" },
+				}}
+				versionSlug="2025"
+			/>,
+		);
+		const metadata = screen.getByLabelText("文档信息与版本");
+		expect(metadata).toHaveTextContent("文号民大校发〔2025〕141号");
+		expect(metadata.querySelector("time")).toHaveAttribute("dateTime", "2025-09-01");
+		expect(metadata).toHaveTextContent("施行2025 年 9 月 1 日");
+		const source = screen.getByRole("link", { name: "学校信息公开网" });
+		expect(source).toHaveAttribute("href", "https://xxgk.muc.edu.cn/info/1198/4051.htm");
+		expect(source).toHaveAttribute("target", "_blank");
+		expect(source).toHaveAttribute("rel", "noopener noreferrer");
+
+		rerender(<ReaderDocumentMeta collectionLabel={null} details={null} versionSlug="2025" />);
+		expect(screen.getByLabelText("文档信息与版本").querySelector("dl")).toBeNull();
 	});
 
 	it("links to the newest version and preserves modified native link clicks", () => {

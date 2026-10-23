@@ -1,5 +1,9 @@
+details:
+  source:
+    name: 教务处网站
+    url: https://jw.muc.edu.cn/info/1008/3412.htm
 docId: institutional_regulation:muc:中央民族大学本科课程临时调-停-课管理办法:384d75f2cd91
-readerKey: campus-docs/readers/sha256/087f33f02e708763a8aaa1ff70f7d5ee0a6dd479ed2828e8deaf664f38181dc7/reader.json
+readerKey: campus-docs/readers/sha256/d52bfc4d3f1e6a6c09f05c7fad180f0f5ca24d2e41c73c78a649211336700bca/reader.json
 supplements: []
 versionId: sha256:f0c06bc135670f1969788c274e0753a695f1f158cf13257cd8f0ab771a3de005:effective-undated:revision-none
 versionSlug: "2025"

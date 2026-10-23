@@ -7,7 +7,11 @@ import {
 	documentPath,
 } from "../src/features/docs/data-source";
 import { parseDocsReaderPayload } from "../src/features/docs/model";
-import { parseDocsSearchIndex, parseDocsSiteIndex } from "../src/features/docs/site-index";
+import {
+	type DocsSiteIndex,
+	parseDocsSearchIndex,
+	parseDocsSiteIndex,
+} from "../src/features/docs/site-index";
 
 afterEach(() => {
 	document.body.innerHTML = "";
@@ -159,6 +163,7 @@ describe("native docs data source", () => {
 				routeSlug: "student-attendance",
 			}),
 		).resolves.toMatchObject({
+			details: { documentNumber: "民大校发〔2026〕1号", effectiveDate: "2026-09-01" },
 			docId: "doc-public",
 			reader: { docId: "doc-public", versionId: "version-public" },
 			versionSlug: "2026",
@@ -322,7 +327,7 @@ describe("native docs data source", () => {
 	});
 });
 
-function createSiteIndex() {
+function createSiteIndex(): DocsSiteIndex {
 	return {
 		collections: [
 			{
@@ -340,6 +345,7 @@ function createSiteIndex() {
 						versions: [
 							{
 								canonicalUrl: "/docs/regulations/student_rules/student-attendance",
+								details: { documentNumber: "民大校发〔2026〕1号", effectiveDate: "2026-09-01" },
 								readerUrl: "/_docs/student-attendance/reader.json",
 								versionId: "version-public",
 								versionSlug: "2026",
@@ -387,6 +393,7 @@ function createDocumentBootstrap(siteIndex = createSiteIndex()) {
 		corpus: "regulations",
 		courseMaps: [],
 		description: "学生考勤管理规定的校园文档阅读页。",
+		details: null,
 		docId: "doc-public",
 		documentSlug: "student-attendance",
 		kind: "document" as const,

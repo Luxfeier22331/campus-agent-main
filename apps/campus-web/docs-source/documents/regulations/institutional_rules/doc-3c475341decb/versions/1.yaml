@@ -1,5 +1,9 @@
+details:
+  source:
+    name: 学校信息公开网
+    url: https://xxgk.muc.edu.cn/info/1290/5761.htm
 docId: official_web_regulation:b36c29284c2b8bef
-readerKey: campus-docs/readers/sha256/bb3a7284c0878e3ce355d0bb8c949de44a8ef3db5d0a0b6fc31cd1444bbf825b/reader.json
+readerKey: campus-docs/readers/sha256/f4db5716c09f1febb6b82f5461fd61ff34382560225081cd4fab06658bdddd8e/reader.json
 supplements: []
 versionId: owregver:f0d0d1ffd2cee45065b86dd5e079b98f9d2d5a93
 versionSlug: "1"

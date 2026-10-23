@@ -121,6 +121,10 @@ export function createDocsRouter(
 		defaultPendingMs: 100,
 		defaultPreload: "intent",
 		scrollRestoration: typeof document !== "undefined",
+		// The reader owns anchor scrolling. The docs root scrolls smoothly for in-page anchors, so
+		// route changes and restores jump explicitly.
+		defaultHashScrollIntoView: false,
+		scrollRestorationBehavior: "instant",
 		...(input.history ? { history: input.history } : {}),
 		routeTree,
 	});

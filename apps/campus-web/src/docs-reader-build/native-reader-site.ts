@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { compareDocsVersionSlugs } from "campus-contracts/campus-docs";
+import { compareDocsVersionSlugs, type DocsVersionDetails } from "campus-contracts/campus-docs";
 import { compareCanonicalStrings } from "campus-contracts/canonical-order";
 import {
 	buildReaderDescription,
@@ -46,6 +46,7 @@ export interface NativeDocsCatalogRoute {
 	collectionLabel: string;
 	corpus: string;
 	description: string;
+	details?: DocsVersionDetails;
 	docId: string;
 	documentSlug: string;
 	readerUrl: string;
@@ -96,6 +97,7 @@ export async function writeNativeReaderSite(input: {
 			collectionLabel: collection.displayName,
 			corpus: entry.corpus,
 			description: buildReaderDescription(reader, entry.title),
+			...(entry.details ? { details: entry.details } : {}),
 			docId: entry.docId,
 			documentSlug: entry.documentSlug,
 			readerUrl: publicReaderUrl(entry),
@@ -195,6 +197,7 @@ function buildSiteDocument(entries: RoutedPublishedReaderManifestEntry[]): DocsS
 		.map(
 			(entry): DocsSiteVersion => ({
 				canonicalUrl: buildReaderCanonicalUrl(entry, latest.versionId),
+				...(entry.details ? { details: entry.details } : {}),
 				readerUrl: publicReaderUrl(entry),
 				versionId: entry.versionId,
 				versionSlug: entry.versionSlug,

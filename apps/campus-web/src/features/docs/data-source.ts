@@ -1,3 +1,4 @@
+import type { DocsVersionDetails } from "campus-contracts/campus-docs";
 import {
 	buildReaderDescription,
 	type DocsCourseMap,
@@ -39,6 +40,7 @@ export interface DocsDocumentRouteData {
 	corpus: string;
 	courseMaps: DocsCourseMap[];
 	description: string;
+	details: DocsVersionDetails | null;
 	docId: string;
 	documentSlug: string;
 	kind: "document";
@@ -149,6 +151,7 @@ export function createBrowserDocsDataSource(): DocsDataSource {
 				corpus: collection.corpus,
 				courseMaps: content.courseMaps,
 				description: buildReaderDescription(content.reader, document.title),
+				details: version.details ?? null,
 				docId: document.docId,
 				documentSlug: document.documentSlug,
 				kind: "document",

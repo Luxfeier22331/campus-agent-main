@@ -46,7 +46,19 @@ export interface DocsSupplement {
 	path: "course-maps.json";
 }
 
+export interface DocsVersionSourceLink {
+	name: string;
+	url: string;
+}
+
+export interface DocsVersionDetails {
+	documentNumber?: string;
+	effectiveDate?: string;
+	source?: DocsVersionSourceLink;
+}
+
 export interface DocsSourceVersion {
+	details?: DocsVersionDetails;
 	docId: string;
 	reader: ObjectRef;
 	supplements: DocsSupplement[];

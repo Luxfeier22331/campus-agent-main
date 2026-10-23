@@ -52,6 +52,7 @@ export function createBuildDocsDataSource(input: {
 				corpus: route.corpus,
 				courseMaps: [],
 				description: route.description,
+				details: route.details ?? null,
 				docId: route.docId,
 				documentSlug: route.documentSlug,
 				kind: "document",

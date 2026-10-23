@@ -156,6 +156,11 @@ const DOCS_DOCUMENT: DocsDocumentRouteData = {
 	corpus: "regulations",
 	courseMaps: [],
 	description: "图书馆开放时间",
+	details: {
+		documentNumber: "民大校发〔2025〕141号",
+		effectiveDate: "2025-09-01",
+		source: { name: "学校信息公开网", url: "https://xxgk.muc.edu.cn/" },
+	},
 	docId: "library-hours",
 	documentSlug: "library-hours",
 	kind: "document",
@@ -175,6 +180,90 @@ const DOCS_DOCUMENT: DocsDocumentRouteData = {
 	],
 };
 
+const DOCS_VERSIONS = [
+	{ canonicalUrl: "/docs/regulations/student-rules/library-hours/v/2024", versionSlug: "2024" },
+	{ canonicalUrl: "/docs/regulations/student-rules/library-hours", versionSlug: "2026" },
+];
+
+// Each variant changes only the header inputs, so the header layouts can be compared side by side.
+const DOCS_DOCUMENT_VARIANTS: readonly {
+	id: string;
+	label: string;
+	data: Partial<DocsDocumentRouteData>;
+}[] = [
+	{ data: {}, id: "article", label: "文号、施行与原文" },
+	{ data: { details: null }, id: "no-details", label: "无出处信息" },
+	{
+		data: { details: { source: { name: "教务处网站", url: "https://jw.muc.edu.cn/" } } },
+		id: "source-only",
+		label: "仅原文",
+	},
+	{
+		data: { details: { documentNumber: "民大校发〔2025〕141号" } },
+		id: "number-only",
+		label: "仅文号",
+	},
+	{
+		data: {
+			details: {
+				documentNumber: "民大校发〔2024〕132号",
+				source: { name: "教务处网站", url: "https://jw.muc.edu.cn/" },
+			},
+		},
+		id: "number-and-source",
+		label: "文号与原文",
+	},
+	{ data: { versions: DOCS_VERSIONS }, id: "multiple-versions", label: "多版本当前版" },
+	{
+		data: {
+			canonicalUrl: "/docs/regulations/student-rules/library-hours/v/2024",
+			details: { documentNumber: "民大校发〔2024〕5号", effectiveDate: "2024-03-01" },
+			versionSlug: "2024",
+			versions: DOCS_VERSIONS,
+		},
+		id: "historical-version",
+		label: "历史版本",
+	},
+	{
+		data: { topicLabel: "学生服务" },
+		id: "same-topic-and-collection",
+		label: "主题与集合同名",
+	},
+	{
+		data: {
+			details: {
+				documentNumber: "民大校发〔2025〕141号",
+				source: { name: "教务处网站", url: "https://jw.muc.edu.cn/" },
+			},
+			reader: {
+				...DOCS_READER,
+				elements: [
+					{ kind: "paragraph", rootUnitId: "document-number", text: "民大校发〔2025〕141号" },
+					...DOCS_READER.elements,
+				],
+			},
+		},
+		id: "repeated-number",
+		label: "正文首行重复文号",
+	},
+	{
+		data: {
+			details: {
+				documentNumber: "民大党发〔2025〕24号、民大校发〔2025〕141号",
+				effectiveDate: "2025-12-31",
+				source: {
+					name: "中央民族大学研究生院（研究生工作部）网站",
+					url: "https://grs.muc.edu.cn/",
+				},
+			},
+			title: "中央民族大学招募选拔“中国青年志愿者扶贫接力计划研究生支教团”成员规定",
+			versions: DOCS_VERSIONS,
+		},
+		id: "long-values",
+		label: "长标题与长值",
+	},
+];
+
 function SearchExample({ query = "" }: { query?: string }) {
 	return (
 		<StyleDevRouter>
@@ -191,14 +280,11 @@ function SearchExample({ query = "" }: { query?: string }) {
 	);
 }
 
-function DocsRouteExample({ kind }: { kind: "article" | "directory" }) {
+function DocsRouteExample({ data }: { data: DocsDirectoryRouteData | DocsDocumentRouteData }) {
 	return (
 		<StyleDevRouter>
 			<div className="style-dev-docs-page-example">
-				<DocsPage
-					data={kind === "directory" ? DOCS_DIRECTORY : DOCS_DOCUMENT}
-					renderMetadata={false}
-				/>
+				<DocsPage data={data} renderMetadata={false} />
 			</div>
 		</StyleDevRouter>
 	);
@@ -218,12 +304,12 @@ export const DOCS_ENTRIES: readonly StyleDevStory[] = [
 	{
 		defaultVariant: "article",
 		variants: [
-			{ id: "directory", label: "目录", render: () => <DocsRouteExample kind="directory" /> },
-			{
-				id: "article",
-				label: "正文",
-				render: () => <DocsRouteExample kind="article" />,
-			},
+			{ id: "directory", label: "目录", render: () => <DocsRouteExample data={DOCS_DIRECTORY} /> },
+			...DOCS_DOCUMENT_VARIANTS.map(({ data, id, label }) => ({
+				id,
+				label,
+				render: () => <DocsRouteExample data={{ ...DOCS_DOCUMENT, ...data }} />,
+			})),
 		],
 		group: "文档",
 		id: "style-dev-docs-page",

@@ -108,6 +108,27 @@ describe("Docs Git declarations", () => {
 		).toBe(true);
 	});
 
+	it("carries optional version details into the compiled source", async () => {
+		const f = fixture();
+		const details = {
+			documentNumber: "民大校发〔2025〕141号",
+			effectiveDate: "2025-09-01",
+			source: { name: "学校信息公开网", url: "https://xxgk.muc.edu.cn/info/1198/4051.htm" },
+		};
+		editYaml(f.versionPath, (value) => {
+			value.details = details;
+		});
+		const compiled = await compileDocsSourceDeclarations({ root: f.root, client: f.store });
+		expect(
+			compiled.source.versions.find((item) => item.versionId === f.version.versionId)?.details,
+		).toEqual(details);
+		expect(
+			compiled.compiled.manifest.entries.find((item) => item.versionId === f.version.versionId)
+				?.details,
+		).toEqual(details);
+		expect(compiled.source.versions.filter((item) => item.details !== undefined)).toHaveLength(1);
+	});
+
 	it.each([
 		[
 			"unknown fields",
@@ -160,6 +181,38 @@ describe("Docs Git declarations", () => {
 					value.readerKey = "../reader.json";
 				}),
 			/safe relative object key/,
+		],
+		[
+			"empty version details",
+			(f: ReturnType<typeof fixture>) =>
+				editYaml(f.versionPath, (value) => {
+					value.details = {};
+				}),
+			/details must not be empty/,
+		],
+		[
+			"unknown version detail",
+			(f: ReturnType<typeof fixture>) =>
+				editYaml(f.versionPath, (value) => {
+					value.details = { issuer: "教务处" };
+				}),
+			/unknown field: issuer/,
+		],
+		[
+			"invalid effective date",
+			(f: ReturnType<typeof fixture>) =>
+				editYaml(f.versionPath, (value) => {
+					value.details = { effectiveDate: "2025-02-30" };
+				}),
+			/YYYY-MM-DD date/,
+		],
+		[
+			"non-https source link",
+			(f: ReturnType<typeof fixture>) =>
+				editYaml(f.versionPath, (value) => {
+					value.details = { source: { name: "官网", url: "http://xxgk.muc.edu.cn/" } };
+				}),
+			/https URL/,
 		],
 		[
 			"invalid version",

@@ -107,6 +107,7 @@ export async function compileDocsSource(input: {
 			return {
 				collection: document.collection,
 				corpus: document.corpus,
+				...(version.details ? { details: version.details } : {}),
 				docId: document.docId,
 				documentSlug: document.documentSlug,
 				reader: version.reader,

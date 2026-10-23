@@ -1,4 +1,4 @@
-import { parseDocsVersionOrder } from "campus-contracts/campus-docs";
+import { type DocsVersionDetails, parseDocsVersionOrder } from "campus-contracts/campus-docs";
 import { isDocsDocumentPath } from "./docs-redirects";
 
 export const DOCS_SITE_INDEX_SCHEMA = "campus_docs_site_index.v5" as const;
@@ -12,6 +12,7 @@ const DOCS_COLLECTION_ORDER = new Map<string, number>([
 
 export interface DocsSiteVersion {
 	canonicalUrl: string;
+	details?: DocsVersionDetails;
 	readerUrl: string;
 	versionId: string;
 	versionSlug: string;
@@ -271,10 +272,31 @@ function parseVersion(value: unknown): DocsSiteVersion {
 	const record = requiredRecord(value, "docs site version");
 	return {
 		canonicalUrl: requiredDocsPath(record.canonicalUrl, "version canonicalUrl"),
+		...(record.details === undefined ? {} : { details: parseVersionDetails(record.details) }),
 		readerUrl: requiredLocalPath(record.readerUrl, "readerUrl"),
 		versionId: requiredString(record.versionId, "versionId"),
 		versionSlug: requiredVersionSlug(record.versionSlug),
 	};
+}
+
+function parseVersionDetails(value: unknown): DocsVersionDetails {
+	const record = requiredRecord(value, "docs site version details");
+	const details: DocsVersionDetails = {};
+	if (record.documentNumber !== undefined) {
+		details.documentNumber = requiredString(record.documentNumber, "documentNumber");
+	}
+	if (record.effectiveDate !== undefined) {
+		details.effectiveDate = requiredString(record.effectiveDate, "effectiveDate");
+	}
+	if (record.source !== undefined) {
+		const source = requiredRecord(record.source, "docs site version source");
+		const url = requiredString(source.url, "source url");
+		if (!url.startsWith("https://")) {
+			throw new Error("source url must be an https URL");
+		}
+		details.source = { name: requiredString(source.name, "source name"), url };
+	}
+	return details;
 }
 
 function requiredVersionSlug(value: unknown): string {

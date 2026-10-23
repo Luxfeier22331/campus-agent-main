@@ -86,7 +86,7 @@ test.describe("campus web static docs browser boundary", () => {
 		);
 		await expect(
 			page.getByRole("status", { name: "正在阅读历史版本，请以当前版为准。" }),
-		).toHaveText("历史版本");
+		).toContainText("正在阅读历史版本");
 	});
 
 	test("fails closed for missing docs reader pages instead of serving the app shell", async ({

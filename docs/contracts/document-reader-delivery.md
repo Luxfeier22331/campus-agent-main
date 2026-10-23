@@ -15,10 +15,10 @@ status: active
 
 现行格式由以下 schema 定义：
 
-- `campus-docs-source.v4.schema.json`：主题、文档、版本、旧正文路由、reader 和补充资产来源；
+- `campus-docs-source.v4.schema.json`：主题、文档、版本及其可选出处信息、旧正文路由、reader 和补充资产来源；
 - `campus-docs-reader.v3.schema.json`：Campus Web 唯一接受的正文格式；
 - `campus-docs-course-maps.v1.schema.json`：Campus Web 构建生成的课程图公开格式；
-- `campus-docs-site-index.v5.schema.json`：构建派生的公开主题、集合、版本、搜索入口和旧正文路由；
+- `campus-docs-site-index.v5.schema.json`：构建派生的公开主题、集合、版本及其出处信息、搜索入口和旧正文路由；
 - `campus-docs-search-index.v3.schema.json`：构建从当前版本正文派生的 FlexSearch 序列化搜索索引和结果元数据。
 
 字段和校验规则以 schema 与实现为准。旧发布清单、当前版本指针、数据库投影和旧站点索引不是兼容
@@ -72,6 +72,10 @@ Docs/Notice 制品；这两条链路都不属于本合同定义的静态产物�
 表示一个列表项，保留来源中的编号文字。Campus Web 不再额外生成项目符号。来源整理流程不能把多个
 明确编号的项目折叠在一个只有单换行的 `paragraph` 中，也不能保留 `migrated-heading-*` 迁移占位
 元素或用多行 pipe 文本代替 `table`。
+
+按“第X条”组织的规章，条文一律是 `paragraph` 或 `list`，即使条文只有一个短标题；`heading`
+只用于“第X章”“第X节”等章节层级，以及条文之外的附件和表样。条文范围内的“（一）”等分项同样不作为
+`heading`。这样同一文档的条文显示和右侧目录保持一致。
 
 `table` 的单元格按行提供；应用 `rowSpan` 和 `colSpan` 后，每行必须占据相同且连续的逻辑列。
 跨度不得相互重叠或超过表格行数，有意留空必须提供 `text: ""` 的显式单元格或正确跨度。来源整理

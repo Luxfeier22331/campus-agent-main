@@ -36,6 +36,7 @@ describe("docs page metadata", () => {
 			corpus: collection.corpus,
 			courseMaps: [],
 			description: "学生应按时参加教学活动。",
+			details: null,
 			docId: document.docId,
 			documentSlug: document.documentSlug,
 			kind: "document",

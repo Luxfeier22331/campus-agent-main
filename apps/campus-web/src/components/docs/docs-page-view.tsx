@@ -20,26 +20,22 @@ export function DocsPage({
 	return (
 		<>
 			{renderMetadata ? <CampusPageMetadataHead metadata={metadata} /> : null}
-			<DocsPageTransition
-				key={
-					routeData.kind === "directory"
-						? "/docs"
-						: `${routeData.canonicalUrl}:${routeData.versionSlug}`
-				}
-			>
-				{routeData.kind === "directory" ? (
+			{routeData.kind === "directory" ? (
+				<DocsPageTransition key="/docs">
 					<DocsStartPage data={routeData} />
-				) : (
-					<div className="docs-document-view">
-						<DocsBreadcrumbs items={buildDocumentBreadcrumbs(routeData)} />
+				</DocsPageTransition>
+			) : (
+				<div className="docs-document-view">
+					<DocsBreadcrumbs items={buildDocumentBreadcrumbs(routeData)} />
+					<DocsPageTransition key={`${routeData.canonicalUrl}:${routeData.versionSlug}`}>
 						<DocsDocumentArticle
 							data={routeData}
 							key={routeData.canonicalUrl}
 							locationHref={location.href}
 						/>
-					</div>
-				)}
-			</DocsPageTransition>
+					</DocsPageTransition>
+				</div>
+			)}
 		</>
 	);
 }

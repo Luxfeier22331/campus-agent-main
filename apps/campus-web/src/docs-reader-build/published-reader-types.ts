@@ -1,3 +1,5 @@
+import type { DocsVersionDetails } from "campus-contracts/campus-docs";
+
 export interface PublishedObjectRef {
 	byteSize: number;
 	key: string;
@@ -63,6 +65,7 @@ export interface PublishedReaderSupplement {
 export interface PublishedReaderManifestEntry {
 	collection: string;
 	corpus: string;
+	details?: DocsVersionDetails;
 	docId: string;
 	documentSlug: string;
 	reader: PublishedObjectRef;

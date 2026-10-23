@@ -17,6 +17,10 @@
 		"NonEmptyString": { "type": "string", "minLength": 1, "pattern": "\\S" },
 		"Sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
 		"VersionSlug": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+		"IsoDate": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+		},
 		"RelativePath": {
 			"type": "string",
 			"minLength": 1,
@@ -77,7 +81,27 @@
 				"docId": { "$ref": "#/$defs/NonEmptyString" },
 				"versionSlug": { "$ref": "#/$defs/VersionSlug" },
 				"reader": { "$ref": "#/$defs/ObjectRef" },
-				"supplements": { "type": "array", "items": { "$ref": "#/$defs/Supplement" } }
+				"supplements": { "type": "array", "items": { "$ref": "#/$defs/Supplement" } },
+				"details": { "$ref": "#/$defs/VersionDetails" }
+			}
+		},
+		"VersionDetails": {
+			"type": "object",
+			"additionalProperties": false,
+			"minProperties": 1,
+			"properties": {
+				"documentNumber": { "$ref": "#/$defs/NonEmptyString" },
+				"effectiveDate": { "$ref": "#/$defs/IsoDate" },
+				"source": { "$ref": "#/$defs/VersionSourceLink" }
+			}
+		},
+		"VersionSourceLink": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "url"],
+			"properties": {
+				"name": { "$ref": "#/$defs/NonEmptyString" },
+				"url": { "type": "string", "pattern": "^https://[^\\s/?#]+(?:/[^\\s]*)?$" }
 			}
 		},
 		"Supplement": {

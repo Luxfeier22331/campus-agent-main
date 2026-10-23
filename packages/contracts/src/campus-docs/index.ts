@@ -37,6 +37,8 @@ export type {
 	DocsSupplement,
 	DocsSupplementAsset,
 	DocsTopic,
+	DocsVersionDetails,
+	DocsVersionSourceLink,
 	ObjectRef,
 } from "./types.ts";
 export {

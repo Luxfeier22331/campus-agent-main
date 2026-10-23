@@ -7,6 +7,7 @@ import type {
 	DocsSourceManifest,
 	DocsSourceVersion,
 	DocsSupplement,
+	DocsVersionDetails,
 	ObjectRef,
 } from "campus-contracts/campus-docs";
 import {
@@ -35,6 +36,7 @@ export interface DocsVersionDeclarationSupplement {
 }
 
 export interface DocsVersionDeclaration {
+	details?: DocsVersionDetails;
 	docId: string;
 	readerKey: string;
 	supplements: DocsVersionDeclarationSupplement[];
@@ -155,6 +157,7 @@ async function materializeVersions(
 	};
 	for (const version of versions) {
 		result.push({
+			...(version.details ? { details: version.details } : {}),
 			docId: version.docId,
 			reader: await readRef(version.readerKey),
 			supplements: await Promise.all(
@@ -207,6 +210,7 @@ export function writeDocsSourceDeclarations(input: {
 
 function declarationVersion(version: DocsSourceVersion): DocsVersionDeclaration {
 	return {
+		...(version.details ? { details: version.details } : {}),
 		docId: version.docId,
 		readerKey: version.reader.key,
 		supplements: version.supplements.map((supplement) => ({
@@ -312,17 +316,17 @@ function parseRedirect(value: unknown, label: string): DocsRedirect {
 }
 
 function parseVersion(value: unknown, label: string): DocsVersionDeclaration {
-	const record = recordOf(value, label, [
-		"docId",
-		"readerKey",
-		"supplements",
-		"versionId",
-		"versionSlug",
-	]);
+	const record = recordOf(
+		value,
+		label,
+		["docId", "readerKey", "supplements", "versionId", "versionSlug"],
+		["details"],
+	);
 	if (!Array.isArray(record.supplements)) {
 		throw new Error(`${label}.supplements must be an array`);
 	}
 	const version = {
+		...("details" in record ? { details: parseDetails(record.details, `${label}.details`) } : {}),
 		docId: stringOf(record.docId, `${label}.docId`),
 		readerKey: objectKeyOf(record.readerKey, `${label}.readerKey`),
 		supplements: record.supplements.map((item, index) =>
@@ -342,6 +346,28 @@ function parseVersion(value: unknown, label: string): DocsVersionDeclaration {
 		throw new Error(`${label} contains duplicate or reserved supplement paths`);
 	}
 	return version;
+}
+
+function parseDetails(value: unknown, label: string): DocsVersionDetails {
+	const record = recordOf(value, label, [], ["documentNumber", "effectiveDate", "source"]);
+	if (Object.keys(record).length === 0) {
+		throw new Error(`${label} must not be empty`);
+	}
+	const details: DocsVersionDetails = {};
+	if ("documentNumber" in record) {
+		details.documentNumber = stringOf(record.documentNumber, `${label}.documentNumber`);
+	}
+	if ("effectiveDate" in record) {
+		details.effectiveDate = isoDateOf(record.effectiveDate, `${label}.effectiveDate`);
+	}
+	if ("source" in record) {
+		const source = recordOf(record.source, `${label}.source`, ["name", "url"]);
+		details.source = {
+			name: stringOf(source.name, `${label}.source.name`),
+			url: httpsUrlOf(source.url, `${label}.source.url`),
+		};
+	}
+	return details;
 }
 
 function parseSupplement(value: unknown, label: string): DocsVersionDeclarationSupplement {
@@ -366,12 +392,17 @@ function parseSupplement(value: unknown, label: string): DocsVersionDeclarationS
 	};
 }
 
-function recordOf(value: unknown, label: string, keys: string[]): Record<string, unknown> {
+function recordOf(
+	value: unknown,
+	label: string,
+	keys: string[],
+	optionalKeys: string[] = [],
+): Record<string, unknown> {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		throw new Error(`${label} must be an object`);
 	}
 	const record = value as Record<string, unknown>;
-	const expected = new Set(keys);
+	const expected = new Set([...keys, ...optionalKeys]);
 	for (const key of Object.keys(record)) {
 		if (!expected.has(key)) {
 			throw new Error(`${label} contains unknown field: ${key}`);
@@ -397,6 +428,33 @@ function nullableString(value: unknown, label: string): string | null {
 		return null;
 	}
 	return stringOf(value, label);
+}
+
+function isoDateOf(value: unknown, label: string): string {
+	const date = stringOf(value, label);
+	const parsed = new Date(`${date}T00:00:00Z`);
+	if (
+		!/^\d{4}-\d{2}-\d{2}$/u.test(date) ||
+		Number.isNaN(parsed.getTime()) ||
+		parsed.toISOString().slice(0, 10) !== date
+	) {
+		throw new Error(`${label} must be a YYYY-MM-DD date`);
+	}
+	return date;
+}
+
+function httpsUrlOf(value: unknown, label: string): string {
+	const url = stringOf(value, label);
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		throw new Error(`${label} must be an https URL`);
+	}
+	if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.href !== url) {
+		throw new Error(`${label} must be a normalized https URL`);
+	}
+	return url;
 }
 
 function integerOf(value: unknown, label: string): number {

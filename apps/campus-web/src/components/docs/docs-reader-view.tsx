@@ -38,6 +38,7 @@ export function DocsDocumentArticle({
 	const reader = data.reader;
 	const permalinkRootUnitIds = buildPermalinkRootUnitIds(reader);
 	const courseMapsByTarget = groupCourseMaps(data.courseMaps);
+	const elements = withoutRepeatedDocumentNumber(reader.elements, data.details?.documentNumber);
 	return (
 		<ReaderDocument
 			as="article"
@@ -55,13 +56,14 @@ export function DocsDocumentArticle({
 							? data.collectionLabel
 							: null
 					}
+					details={data.details}
 					onVersionNavigate={(href) => void navigate({ to: href as never })}
 					versionSlug={data.versionSlug}
 					versions={data.versions}
 				/>
 			</header>
 			<div className="docs-document-body">
-				{withStableKeys(reader.elements, elementKey).map(({ item: element, key }) => (
+				{withStableKeys(elements, elementKey).map(({ item: element, key }) => (
 					<DocsReaderElementView
 						courseMaps={courseMapsByTarget.get(element.rootUnitId) ?? []}
 						element={element}
@@ -72,6 +74,31 @@ export function DocsDocumentArticle({
 			<DocsDocumentNavigation data={data} />
 		</ReaderDocument>
 	);
+}
+
+// The header shows the document number, so drop the same line from the top of the body.
+function withoutRepeatedDocumentNumber(
+	elements: DocsReaderElement[],
+	documentNumber: string | undefined,
+): DocsReaderElement[] {
+	if (!documentNumber) {
+		return elements;
+	}
+	const index = elements
+		.slice(0, 3)
+		.findIndex(
+			(item) =>
+				item.kind === "paragraph" &&
+				item.text.trimStart().split("\n")[0]?.trim() === documentNumber,
+		);
+	const element = elements[index];
+	if (element?.kind !== "paragraph") {
+		return elements;
+	}
+	const rest = element.text.trimStart().split("\n").slice(1).join("\n").trim();
+	return rest
+		? elements.map((item, itemIndex) => (itemIndex === index ? { ...element, text: rest } : item))
+		: elements.filter((_, itemIndex) => itemIndex !== index);
 }
 
 function DocsDocumentNavigation({ data }: { data: DocsDocumentRouteData }) {
@@ -289,7 +316,25 @@ function renderTextBlock(block: Exclude<DocsReaderBlock, { kind: "table" }>): Re
 		);
 	}
 	return withStableKeys(block.text.split(/\n{2,}/u), (paragraph) => paragraph).map(
-		({ item: paragraph, key }) => <p key={`${block.rootUnitId}:${key}`}>{paragraph}</p>,
+		({ item: paragraph, key }) => (
+			<p key={`${block.rootUnitId}:${key}`}>{renderArticleParagraph(paragraph)}</p>
+		),
+	);
+}
+
+const ARTICLE_LABEL_PATTERN = /^(第[一二三四五六七八九十百零〇两\d]+条)[\s　]*/u;
+
+// Regulation articles are paragraphs; their leading number is set apart so articles can be scanned.
+function renderArticleParagraph(paragraph: string): ReactNode {
+	const match = paragraph.match(ARTICLE_LABEL_PATTERN);
+	if (!match?.[1]) {
+		return paragraph;
+	}
+	return (
+		<>
+			<span className="docs-reader-article-label">{match[1]}</span>{" "}
+			{paragraph.slice(match[0].length)}
+		</>
 	);
 }
 

@@ -10,19 +10,24 @@ const attendanceRootUnitId = attendance.rootUnitIds.body;
 const courseMapRootUnitId = attendance.rootUnitIds.courseMap;
 
 test.describe("docs reader experience", () => {
-	test("animates committed content with design tokens without replaying on anchors", async ({
+	test("animates in-app navigations with design tokens without replaying on anchors", async ({
 		page,
 	}) => {
 		await page.emulateMedia({ reducedMotion: "no-preference" });
 		await page.goto(historicalReaderPath, { waitUntil: "domcontentloaded" });
 		await waitForDocsHydration(page);
+		const content = page.locator(".docs-page-transition");
+		// The prerendered page is already visible, so the first commit does not enter again.
+		expect(await content.evaluate((element) => element.getAnimations().length)).toBe(0);
 		// Extend the token so the real animation remains observable after navigation.
 		await page.addStyleTag({
 			content: ".docs-page-transition { --motion-duration-standard: 5s; }",
 		});
 		await page.getByRole("link", { name: "查看当前版" }).click();
 		await expect(page).toHaveURL(publicReaderPath);
-		const content = page.locator(".docs-page-transition");
+		// Breadcrumbs stay in place; only the document below them enters.
+		await expect(page.locator(".docs-document-view > nav[aria-label='面包屑']")).toHaveCount(1);
+		await expect(content.getByRole("navigation", { name: "面包屑" })).toHaveCount(0);
 		const animations = await content.evaluate((element) =>
 			element.getAnimations().map((animation) => {
 				const effect = animation.effect as KeyframeEffect;
@@ -104,7 +109,7 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL(publicReaderPath, "https://campus.muc.wiki").toString(),
+			new URL(publicReaderPath, "https://chat.muc.wiki").toString(),
 		);
 	});
 
@@ -116,7 +121,7 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			`https://campus.muc.wiki${publicReaderPath}`,
+			`https://chat.muc.wiki${publicReaderPath}`,
 		);
 	});
 
@@ -132,7 +137,7 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			`https://campus.muc.wiki${publicReaderPath}`,
+			`https://chat.muc.wiki${publicReaderPath}`,
 		);
 	});
 
@@ -494,7 +499,7 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			"https://campus.muc.wiki/docs",
+			"https://chat.muc.wiki/docs",
 		);
 
 		const directory = page.getByRole("navigation", { name: "文档目录" });
@@ -511,7 +516,7 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL(publicReaderPath, "https://campus.muc.wiki").toString(),
+			new URL(publicReaderPath, "https://chat.muc.wiki").toString(),
 		);
 
 		await page.goBack();
@@ -522,7 +527,7 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			"https://campus.muc.wiki/docs",
+			"https://chat.muc.wiki/docs",
 		);
 
 		await page.goForward();
@@ -533,7 +538,7 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL(publicReaderPath, "https://campus.muc.wiki").toString(),
+			new URL(publicReaderPath, "https://chat.muc.wiki").toString(),
 		);
 	});
 
@@ -593,7 +598,7 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			`https://campus.muc.wiki${historicalReaderPath}`,
+			`https://chat.muc.wiki${historicalReaderPath}`,
 		);
 		expect(documentRequests).toEqual([]);
 		const metadata = page.locator(".document-meta-summary");
@@ -603,16 +608,12 @@ test.describe("docs reader experience", () => {
 		const historyStatus = page.getByRole("status", {
 			name: "正在阅读历史版本，请以当前版为准。",
 		});
-		await expect(historyStatus).toHaveText("历史版本");
-		const metaRowCenters = await Promise.all(
-			[metadata, historyStatus, page.getByRole("combobox", { name: "选择文档版本" })].map(
-				async (locator) => {
-					const box = await locator.boundingBox();
-					return (box?.y ?? 0) + (box?.height ?? 0) / 2;
-				},
-			),
+		await expect(historyStatus).toContainText("正在阅读历史版本");
+		await expect(historyStatus.getByRole("link", { name: "查看当前版" })).toHaveAttribute(
+			"href",
+			publicReaderPath,
 		);
-		expect(Math.max(...metaRowCenters) - Math.min(...metaRowCenters)).toBeLessThanOrEqual(1);
+		await expect(metadata.getByRole("combobox", { name: "选择文档版本" })).toHaveText(/2025 年版/u);
 		await expect(page.locator(`[data-root-unit-id="${attendanceRootUnitId}"]`)).not.toHaveClass(
 			/docs-reader-highlight/u,
 		);
@@ -651,11 +652,11 @@ test.describe("docs reader experience", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			`https://campus.muc.wiki${historicalReaderPath}`,
+			`https://chat.muc.wiki${historicalReaderPath}`,
 		);
 		await expect(
 			page.getByRole("status", { name: "正在阅读历史版本，请以当前版为准。" }),
-		).toHaveText("历史版本");
+		).toContainText("正在阅读历史版本");
 	});
 
 	test("keeps reader controls and compact tables usable on mobile", async ({ page }) => {
@@ -897,7 +898,7 @@ test.describe("docs reader without JavaScript", () => {
 		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			`https://campus.muc.wiki${publicReaderPath}`,
+			`https://chat.muc.wiki${publicReaderPath}`,
 		);
 	});
 });

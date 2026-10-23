@@ -72,6 +72,7 @@ export function createPublishedReaderFixture(
 		anchor: publicReaderAnchor,
 		courseMapParentKind: input.publicCourseMapParentKind ?? "heading",
 		docId: input.publicReaderDocId ?? "doc_public",
+		documentNumber: "民大校发〔2026〕1号",
 		includeSupplement: !input.omitPublicReaderSupplement,
 		rootUnitId: publicReaderRootUnitId,
 		sectionTitle: input.publicSectionTitle ?? "文档正文",
@@ -82,6 +83,7 @@ export function createPublishedReaderFixture(
 		bodyText: "2025 版测试正文：学生应按历史规定参加教学活动。",
 		courseMapParentKind: input.publicCourseMapParentKind ?? "heading",
 		docId: "doc_public",
+		documentNumber: "民大校发〔2025〕1号",
 		includeSupplement: true,
 		rootUnitId: publicReaderRootUnitId,
 		sectionTitle: input.publicSectionTitle ?? "文档正文",
@@ -154,6 +156,11 @@ export function createPublishedReaderFixture(
 			{
 				collection: publicCollection,
 				corpus: publicCorpus,
+				details: {
+					documentNumber: "民大校发〔2026〕1号",
+					effectiveDate: "2026-09-01",
+					source: { name: "学校信息公开网", url: "https://xxgk.muc.edu.cn/info/1/1.htm" },
+				},
 				docId: "doc_public",
 				documentSlug: publicDocumentSlug,
 				reader: publicReaderRef,
@@ -217,6 +224,7 @@ export function createPublishedReaderFixture(
 			).values(),
 		],
 		versions: manifest.entries.map((entry) => ({
+			...(entry.details ? { details: entry.details } : {}),
 			docId: entry.docId,
 			versionId: entry.versionId,
 			versionSlug: entry.versionSlug,
@@ -266,6 +274,7 @@ function buildPublicReader(input: {
 	bodyText?: string;
 	courseMapParentKind: "heading" | "paragraph";
 	docId: string;
+	documentNumber?: string;
 	includeSupplement: boolean;
 	rootUnitId: string;
 	sectionTitle: string;
@@ -319,6 +328,15 @@ function buildPublicReader(input: {
 	return JSON.stringify({
 		docId: input.docId,
 		elements: [
+			...(input.documentNumber
+				? [
+						{
+							kind: "paragraph",
+							rootUnitId: "document-number",
+							text: `${input.documentNumber}\n为规范学生考勤，制定本规定。`,
+						},
+					]
+				: []),
 			{
 				anchor: input.anchor,
 				kind: "heading",

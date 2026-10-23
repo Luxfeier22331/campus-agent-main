@@ -1,12 +1,18 @@
 import { animate } from "motion/mini";
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+
+// The first page is already visible when the browser takes over; only later in-app
+// navigations enter with motion.
+let initialPageCommitted = false;
 
 export function DocsPageTransition({ children }: { children: ReactNode }) {
 	const ref = useRef<HTMLDivElement>(null);
+	const [animateOnMount] = useState(() => initialPageCommitted);
 
 	useLayoutEffect(() => {
+		initialPageCommitted = true;
 		const element = ref.current;
-		if (!element || typeof element.animate !== "function") {
+		if (!(animateOnMount && element) || typeof element.animate !== "function") {
 			return;
 		}
 		const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -28,7 +34,6 @@ export function DocsPageTransition({ children }: { children: ReactNode }) {
 			return;
 		}
 
-		// Keep prerendered content visible; only enhance the committed page in the browser.
 		const animation = animate(
 			element,
 			{ opacity: [0, 1], transform: ["translateY(6px)", "none"] },
@@ -44,7 +49,7 @@ export function DocsPageTransition({ children }: { children: ReactNode }) {
 			reducedMotion.removeEventListener("change", cancelForReducedMotion);
 			animation.cancel();
 		};
-	}, []);
+	}, [animateOnMount]);
 
 	return (
 		<div className="docs-page-transition" ref={ref}>

@@ -13,7 +13,17 @@ import {
 } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
 import { ArrowUp, ChevronDown, List, ListTree, Search, UserRound } from "lucide-react";
-import { lazy, type ReactNode, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+	lazy,
+	type ReactNode,
+	Suspense,
+	useEffect,
+	useId,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { CampusTopNav } from "@/components/navigation/campus-top-nav";
 import { buildDocsNavigationGroups, type DocsSiteIndex } from "@/features/docs/site-index";
 import type { DocsOutlineItem } from "./docs-reader-view";
@@ -229,28 +239,26 @@ export function DocsTree({
 										<ChevronDown aria-hidden="true" />
 									</Button>
 								</div>
-								{expanded ? (
-									<div id={contentId}>
-										<ul>
-											{section.documents.map((document) => {
-												const active = isDocumentPathActive(activePath, document);
-												return (
-													<li key={document.canonicalUrl}>
-														<Link
-															activeOptions={{ exact: true }}
-															aria-current={active ? "page" : undefined}
-															onClick={onNavigate}
-															ref={active ? activeDocumentRef : undefined}
-															to={document.canonicalUrl as never}
-														>
-															{document.title}
-														</Link>
-													</li>
-												);
-											})}
-										</ul>
-									</div>
-								) : null}
+								<DocsTreeGroupPanel expanded={expanded} id={contentId}>
+									<ul>
+										{section.documents.map((document) => {
+											const active = isDocumentPathActive(activePath, document);
+											return (
+												<li key={document.canonicalUrl}>
+													<Link
+														activeOptions={{ exact: true }}
+														aria-current={active ? "page" : undefined}
+														onClick={onNavigate}
+														ref={active ? activeDocumentRef : undefined}
+														to={document.canonicalUrl as never}
+													>
+														{document.title}
+													</Link>
+												</li>
+											);
+										})}
+									</ul>
+								</DocsTreeGroupPanel>
 							</section>
 						);
 					})}
@@ -388,6 +396,66 @@ function isDocumentPathActive(activePath: string, document: { canonicalUrl: stri
 	return (
 		activePath === document.canonicalUrl || activePath.startsWith(`${document.canonicalUrl}/v/`)
 	);
+}
+
+// Collapsed groups are not rendered; a group mounts on open and unmounts after its close transition.
+function DocsTreeGroupPanel({
+	children,
+	expanded,
+	id,
+}: {
+	children: ReactNode;
+	expanded: boolean;
+	id: string;
+}) {
+	const ref = useRef<HTMLDivElement>(null);
+	const [mounted, setMounted] = useState(expanded);
+	const [open, setOpen] = useState(expanded);
+	if (expanded && !mounted) {
+		setMounted(true);
+	}
+
+	useLayoutEffect(() => {
+		if (expanded === open) {
+			return;
+		}
+		if (expanded) {
+			// Lay out the collapsed panel first so opening transitions from zero height.
+			ref.current?.getBoundingClientRect();
+		}
+		setOpen(expanded);
+	}, [expanded, open]);
+
+	useEffect(() => {
+		if (!open && mounted && !(ref.current && hasRunningTransition(ref.current))) {
+			setMounted(false);
+		}
+	}, [mounted, open]);
+
+	if (!mounted) {
+		return null;
+	}
+	return (
+		<div
+			className="docs-tree-group-panel"
+			data-expanded={open ? "true" : "false"}
+			id={id}
+			onTransitionEnd={(event) => {
+				if (event.target === event.currentTarget && !open) {
+					setMounted(false);
+				}
+			}}
+			ref={ref}
+		>
+			{children}
+		</div>
+	);
+}
+
+function hasRunningTransition(element: Element): boolean {
+	return getComputedStyle(element)
+		.transitionDuration.split(",")
+		.some((duration) => Number.parseFloat(duration) > 0);
 }
 
 function safeDomId(value: string): string {

@@ -1,5 +1,10 @@
+details:
+  documentNumber: 民大校发（2025）134号
+  source:
+    name: 教务处网站
+    url: https://jw.muc.edu.cn/info/1008/2952.htm
 docId: institutional_regulation:muc:中央民族大学本科生专业调整实施办法:eb3f2445780f
-readerKey: campus-docs/readers/sha256/e29d48d93e22683d712098d97166e98b2d15bec2663f4f533b23fe460608ffdd/reader.json
+readerKey: campus-docs/readers/sha256/23ac2dc38382920a613edaea1d5d496541ad2bf14b043a9496d8f8cf3cdb7679/reader.json
 supplements: []
 versionId: sha256:81b0c885b1d2aea9a231165299c0be0a1463506f8a19c5c84ffea5a98397fdaf:effective-undated:revision-none
 versionSlug: "2025"

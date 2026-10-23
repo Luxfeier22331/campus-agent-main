@@ -5,7 +5,9 @@
 
 - `collections.yaml`、`topics.yaml`、`redirects.yaml` 分别保存集合、主题和旧正文重定向。
 - `documents/<corpus>/<collection>/<routeSlug>/document.yaml` 保存 `docId`、`documentSlug`、标题和归属。
-- 同目录的 `versions/<versionSlug>.yaml` 保存完整 `versionId`、`docId`、`versionSlug`、`readerKey` 与 `supplements`。
+- 同目录的 `versions/<versionSlug>.yaml` 保存完整 `versionId`、`docId`、`versionSlug`、`readerKey` 与 `supplements`，
+  可选 `details` 登记本版本的 `documentNumber`、`effectiveDate`（`YYYY-MM-DD`）和 `source`（`name`、`https` 的 `url`）；
+  登记规则见[阅读器数据模型](../../../docs/data/document-reader.md)。
 - 补充数据登记 `kind`、公开 `path`、来源 `objectKey`，图片登记 `assets[].key` 和公开 `assets[].path`。
 
 目录沿用现有公开路由 slug，不从文件名重建文档或版本 ID；非 ASCII 文档短名使用现有路由生成规则。

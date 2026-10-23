@@ -112,6 +112,7 @@ function createDocsDataSource(
 				corpus: collection.corpus,
 				courseMaps: [],
 				description: "测试文档。",
+				details: null,
 				docId: document.docId,
 				documentSlug: document.documentSlug,
 				kind: "document",

@@ -210,6 +210,17 @@ describe("campus-web published reader sync", () => {
 		expect(publicHtml).toContain("查看大图");
 		expect(publicHtml).toContain("&lt;img src=x onerror=alert(1)&gt;");
 		expect(publicHtml).toContain('name="docs-version"');
+		const publicBody =
+			publicHtml.split('<div class="docs-document-body">')[1]?.split("<template")[0] ?? "";
+		expect(publicHtml).toContain("<dd>民大校发〔2026〕1号</dd>");
+		expect(publicBody).toContain("学生应按时参加教学活动");
+		expect(publicBody).not.toContain("民大校发〔2026〕1号");
+		expect(publicBody).toContain("为规范学生考勤，制定本规定。");
+		expect(historicalHtml).toContain('data-root-unit-id="document-number"');
+		expect(publicHtml).toContain('<time dateTime="2026-09-01">2026 年 9 月 1 日</time>');
+		expect(publicHtml).toContain('href="https://xxgk.muc.edu.cn/info/1/1.htm"');
+		expect(historicalHtml).not.toContain('class="document-meta-details"');
+		expect(secondaryHtml).not.toContain('class="document-meta-details"');
 		expect(publicHtml).toContain(
 			'<link rel="canonical" href="https://chat.muc.wiki/docs/regulations/student_rules/student-attendance"',
 		);
