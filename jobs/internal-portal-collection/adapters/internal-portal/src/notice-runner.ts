@@ -263,6 +263,10 @@ function toReviewCandidate(record: NoticeCandidateRecord): NoticeCandidate {
 	};
 }
 
+function sameNoticeContent(left: InternalPortalNoticeSource, right: InternalPortalNoticeSource): boolean {
+	return noticeSourceRef(left, []) === noticeSourceRef(right, []);
+}
+
 function noticeListMetadataChanged(existing: InternalPortalNoticeSource, candidate: NoticeCandidate): boolean {
 	return existing.notice_type !== candidate.noticeType ||
 		existing.organization_id !== (candidate.item.organization_id ?? null) ||
@@ -365,6 +369,8 @@ export async function backfillInternalPortalNotices(
 	const updated = await saveState(
 		input,
 		{
+			...(current?.recentReviewedAt ? { recentReviewedAt: current.recentReviewedAt } : {}),
+			...(current?.fullReviewedAt ? { fullReviewedAt: current.fullReviewedAt } : {}),
 			coveredFrom: processedRange.from,
 			coveredUntil: completeCurrent?.coveredUntil ?? processedRange.to,
 			updatedAt: current?.updatedAt ?? "",
@@ -684,6 +690,11 @@ async function writeCandidates(
 			const existing = await input.sourceStore.get(candidate.noticeId, sourceRef);
 			const needsRefresh = candidate.refresh === true || !existing || noticeListMetadataChanged(existing, candidate);
 			let source = needsRefresh ? await buildNoticeSource(input, candidate) : existing!;
+			// Review re-fetches details; an unchanged snapshot keeps its resource refs.
+			const reuseResources = !!existing && (!needsRefresh || sameNoticeContent(existing, source));
+			if (needsRefresh && reuseResources && existing.resources) {
+				source = { ...source, resources: existing.resources };
+			}
 			candidatesProcessed += 1;
 			emitProgress(input, {
 				phase: "processing",
@@ -704,7 +715,7 @@ async function writeCandidates(
 			const resourceResult = await ensureNoticeResources({
 				apiContext: input.apiContext,
 				dryRun: false,
-				refresh: needsRefresh,
+				refresh: !reuseResources,
 				notices: [source],
 				objectStore: input.objectStore,
 				portalHost: input.portalHost,

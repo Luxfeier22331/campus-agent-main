@@ -64,6 +64,8 @@ internal_portal/notices/_state.json
 
 `notice-rescan --from F --to T` 显式补查已有维护区间内的遗漏，区间仍为半开区间；不修改维护边界。
 sync、backfill、rescan 和周期复核都可刷新已有通知详情；无变化时复用同一快照引用。
+刷新后的详情与已有快照除资源外一致时，沿用已有资源引用并以 HEAD 检查对象存在；详情变化时才重新下载附件和图片。
+backfill 只扩展下界，保留周期复核时间戳。
 `noticesAdded` 统计本轮新登记的通知，sync 的 `upToDate=true` 只表示本轮没有新增，不宣称历史绝无遗漏。
 
 门户列表的 `end_date` 是闭区间参数，适配器把内部排他上界转换为前一天；详情中的门户发布时间会再次按

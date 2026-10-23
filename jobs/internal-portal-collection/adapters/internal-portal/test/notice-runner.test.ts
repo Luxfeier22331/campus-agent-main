@@ -1237,6 +1237,36 @@ describe("notice runner maintenance ranges", () => {
 		);
 	});
 
+	it("keeps periodic review timestamps when extending the range backwards", async () => {
+		const reviewedAt = "2026-08-24T00:00:00.000Z";
+		const stateStore = new MemoryStateStore(
+			state({
+				coveredFrom: "2026-08-01",
+				coveredUntil: "2026-08-27",
+				recentReviewedAt: reviewedAt,
+				fullReviewedAt: reviewedAt,
+			}),
+		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string; endDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-26 09:00")], 1)
+				: page([notice(200, 5, "2026-07-15 09:00")], 1),
+		);
+
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({ fetchNoticePage, stateStore }),
+			startDate: "2026-07-01",
+		});
+
+		expect(result.failures).toEqual([]);
+		expect(result.state).toMatchObject({
+			coveredFrom: "2026-07-01",
+			coveredUntil: "2026-08-27",
+			recentReviewedAt: reviewedAt,
+			fullReviewedAt: reviewedAt,
+		});
+	});
+
 	it("validates explicit calendar dates", () => {
 		expect(parseNoticeStartDate("2026-02-28")).toBe("2026-02-28");
 		expect(() => parseNoticeStartDate("2026-02-29")).toThrow("valid calendar date");
@@ -1679,25 +1709,22 @@ describe("notice collection I/O", () => {
 		expect(f.fetchNoticeDetail).not.toHaveBeenCalled();
 	});
 
-	it("merges incremental and full review candidates and detects same-URL byte changes once", async () => {
+	it("merges incremental and full review candidates and reuses resources of unchanged snapshots", async () => {
 		const f = ioFixture();
 		const previousRefs = [...f.refs.values()];
 		const result = await syncInternalPortalNotices({ ...f.input, enablePeriodicReview: true });
 		expect(result).toMatchObject({
 			noticesProcessed: 2,
-			noticesUpdated: 2,
+			noticesUnchanged: 2,
+			objectsReused: 2,
 			failures: [],
-			resources: { attachmentsDownloaded: 2 },
+			resources: { attachmentsDownloaded: 0 },
 		});
 		expect(f.fetchNoticeDetail).toHaveBeenCalledTimes(2);
-		expect(f.download).toHaveBeenCalledTimes(2);
-		expect(f.stream).toHaveBeenCalledTimes(2);
-		expect(f.get).toHaveBeenCalledTimes(2); // Only old sources; no discarded legacy resource GETs.
-		expect(f.put).toHaveBeenCalledTimes(2);
-		expect([...f.refs.values()]).not.toEqual(previousRefs);
-		expect(
-			f.query.mock.calls.filter(([sql]) => sql.startsWith("INSERT INTO notices.notices")),
-		).toHaveLength(2);
+		expect(f.download).not.toHaveBeenCalled();
+		expect(f.head).toHaveBeenCalledTimes(2);
+		expect(f.put).not.toHaveBeenCalled();
+		expect([...f.refs.values()]).toEqual(previousRefs);
 		expect(result.state).toMatchObject({ recentReviewedAt: now, fullReviewedAt: now });
 	});
 
