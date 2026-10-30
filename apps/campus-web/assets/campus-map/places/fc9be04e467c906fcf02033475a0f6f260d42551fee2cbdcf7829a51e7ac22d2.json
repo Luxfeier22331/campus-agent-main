@@ -1,0 +1,3701 @@
+{
+	"campus": {
+		"defaultCenter": [
+			116.2145,
+			39.8798
+		],
+		"id": "muc-campuses",
+		"name": "中央民族大学校区"
+	},
+	"places": [
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "海淀校区图书馆，位于校园西南侧，靠近理工楼和民族博物馆。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3120537,
+						39.9472156
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "library",
+					"title": "图书馆"
+				},
+				"type": "Feature"
+			},
+			"id": "library",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:library"
+			],
+			"tags": [
+				"学习",
+				"自习",
+				"借阅"
+			],
+			"title": "图书馆"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "理工楼位于海淀校区南侧教学区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3132037,
+						39.9473297
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "science-engineering-building",
+					"title": "理工楼"
+				},
+				"type": "Feature"
+			},
+			"id": "science-engineering-building",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:science-engineering-building"
+			],
+			"tags": [
+				"上课",
+				"教学",
+				"理工"
+			],
+			"title": "理工楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "gate",
+			"description": "西校门位于海淀校区西侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3089,
+						39.95175
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "gate",
+					"placeId": "haidian-west-gate",
+					"title": "西校门"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-west-gate",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-west-gate"
+			],
+			"tags": [
+				"出入口",
+				"交通"
+			],
+			"title": "西校门"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "gate",
+			"description": "东小门位于海淀校区东侧，靠近中关村南大街。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3184,
+						39.95185
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "gate",
+					"placeId": "haidian-east-small-gate",
+					"title": "东小门"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-east-small-gate",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-east-small-gate"
+			],
+			"tags": [
+				"出入口",
+				"交通"
+			],
+			"title": "东小门"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "gate",
+			"description": "北门位于海淀校区北侧，靠近魏公街。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3141,
+						39.95425
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "gate",
+					"placeId": "haidian-north-gate",
+					"title": "北门"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-north-gate",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-north-gate"
+			],
+			"tags": [
+				"出入口",
+				"交通"
+			],
+			"title": "北门"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "23号教职工公寓位于海淀校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.30975,
+						39.9509
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-staff-apartment-23",
+					"title": "23号教职工公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-staff-apartment-23",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-staff-apartment-23"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "23号教职工公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "20号教学楼位于海淀校区西侧教学区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31025,
+						39.9502
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-teaching-building-20",
+					"title": "20号教学楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-teaching-building-20",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-teaching-building-20"
+			],
+			"tags": [
+				"教学",
+				"上课"
+			],
+			"title": "20号教学楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "18号教学楼位于海淀校区西侧教学区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31025,
+						39.94975
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-teaching-building-18",
+					"title": "18号教学楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-teaching-building-18",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-teaching-building-18"
+			],
+			"tags": [
+				"教学",
+				"上课"
+			],
+			"title": "18号教学楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "21号教学楼位于海淀校区西南侧，靠近图书馆。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.30965,
+						39.94835
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-teaching-building-21",
+					"title": "21号教学楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-teaching-building-21",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-teaching-building-21"
+			],
+			"tags": [
+				"教学",
+				"上课"
+			],
+			"title": "21号教学楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "15号教职工公寓位于海淀校区中西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31215,
+						39.94975
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-staff-apartment-15",
+					"title": "15号教职工公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-staff-apartment-15",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-staff-apartment-15"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "15号教职工公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "14号教职工公寓位于海淀校区中西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31225,
+						39.95015
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-staff-apartment-14",
+					"title": "14号教职工公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-staff-apartment-14",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-staff-apartment-14"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "14号教职工公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "16号教学楼位于海淀校区西侧教学区，靠近篮球场和美术馆。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31195,
+						39.94922
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-teaching-building-16",
+					"title": "16号教学楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-teaching-building-16",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-teaching-building-16"
+			],
+			"tags": [
+				"教学",
+				"上课"
+			],
+			"title": "16号教学楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "篮球场位于海淀校区西侧，靠近16号教学楼和美术馆。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31165,
+						39.94978
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "haidian-basketball-court",
+					"title": "篮球场"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-basketball-court",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-basketball-court"
+			],
+			"tags": [
+				"运动",
+				"篮球"
+			],
+			"title": "篮球场"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "美术馆位于海淀校区西侧，靠近篮球场和16号教学楼。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31192,
+						39.94955
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "haidian-art-museum",
+					"title": "美术馆"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-art-museum",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-art-museum"
+			],
+			"tags": [
+				"展览",
+				"美术",
+				"地标"
+			],
+			"title": "美术馆"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "文华楼位于海淀校区中部教学区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31345,
+						39.94985
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "wenhua-building",
+					"title": "文华楼"
+				},
+				"type": "Feature"
+			},
+			"id": "wenhua-building",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:wenhua-building"
+			],
+			"tags": [
+				"教学",
+				"上课"
+			],
+			"title": "文华楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "10号教学楼位于海淀校区中部，靠近大礼堂。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3139,
+						39.94955
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-teaching-building-10",
+					"title": "10号教学楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-teaching-building-10",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-teaching-building-10"
+			],
+			"tags": [
+				"教学",
+				"上课"
+			],
+			"title": "10号教学楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "大礼堂位于海淀校区中部，靠近10号教学楼和轮滑场地。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31423,
+						39.94947
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "auditorium",
+					"title": "大礼堂"
+				},
+				"type": "Feature"
+			},
+			"id": "auditorium",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:auditorium"
+			],
+			"tags": [
+				"活动",
+				"地标"
+			],
+			"title": "大礼堂"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "学生5号公寓位于海淀校区北侧学生生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31165,
+						39.95175
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-student-apartment-5",
+					"title": "学生5号公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-student-apartment-5",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-student-apartment-5"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "学生5号公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "学生4号公寓位于海淀校区北侧学生生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3117,
+						39.9511
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-student-apartment-4",
+					"title": "学生4号公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-student-apartment-4",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-student-apartment-4"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "学生4号公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "4号公寓楼位于海淀校区东中部生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3156,
+						39.95075
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-apartment-building-4",
+					"title": "4号公寓楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-apartment-building-4",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-apartment-building-4"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "4号公寓楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "学生1号公寓位于海淀校区中北侧学生生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3132,
+						39.9513
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-student-apartment-1",
+					"title": "学生1号公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-student-apartment-1",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-student-apartment-1"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "学生1号公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "学生2号公寓位于海淀校区中部学生生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3135,
+						39.9507
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-student-apartment-2",
+					"title": "学生2号公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-student-apartment-2",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-student-apartment-2"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "学生2号公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "学生6号公寓位于海淀校区东北侧学生生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3154,
+						39.9518
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-student-apartment-6",
+					"title": "学生6号公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-student-apartment-6",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-student-apartment-6"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "学生6号公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "学生7号公寓位于海淀校区东北侧学生生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3162,
+						39.95125
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-student-apartment-7",
+					"title": "学生7号公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-student-apartment-7",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-student-apartment-7"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "学生7号公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "学生8号公寓位于海淀校区东侧学生生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3157,
+						39.95045
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-student-apartment-8",
+					"title": "学生8号公寓"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-student-apartment-8",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-student-apartment-8"
+			],
+			"tags": [
+				"公寓",
+				"生活"
+			],
+			"title": "学生8号公寓"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "社科民族研究所（6号办公楼）位于海淀校区东中部办公区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3152,
+						39.95035
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-social-science-ethnic-institute",
+					"title": "社科民族研究所（6号办公楼）"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-social-science-ethnic-institute",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-social-science-ethnic-institute"
+			],
+			"tags": [
+				"办公",
+				"科研"
+			],
+			"title": "社科民族研究所（6号办公楼）"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "轮滑场地位于海淀校区中部，靠近大礼堂和网球场。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3146,
+						39.95005
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "haidian-roller-skating-ground",
+					"title": "轮滑场地"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-roller-skating-ground",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-roller-skating-ground"
+			],
+			"tags": [
+				"运动",
+				"轮滑"
+			],
+			"title": "轮滑场地"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "网球场位于海淀校区中东部运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3156,
+						39.94995
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "haidian-tennis-court",
+					"title": "网球场"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-tennis-court",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-tennis-court"
+			],
+			"tags": [
+				"运动",
+				"网球"
+			],
+			"title": "网球场"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "1号办公楼位于海淀校区南侧办公区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31385,
+						39.94705
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-office-building-1",
+					"title": "1号办公楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-office-building-1",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-office-building-1"
+			],
+			"tags": [
+				"办公"
+			],
+			"title": "1号办公楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "2号办公楼位于海淀校区南侧办公区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31505,
+						39.94698
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-office-building-2",
+					"title": "2号办公楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-office-building-2",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-office-building-2"
+			],
+			"tags": [
+				"办公"
+			],
+			"title": "2号办公楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "3号办公楼位于海淀校区东南侧办公区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3161,
+						39.94885
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-office-building-3",
+					"title": "3号办公楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-office-building-3",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-office-building-3"
+			],
+			"tags": [
+				"办公"
+			],
+			"title": "3号办公楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "中慧楼（音乐厅）位于海淀校区东南侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3168,
+						39.94825
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "zhonghui-building",
+					"title": "中慧楼（音乐厅）"
+				},
+				"type": "Feature"
+			},
+			"id": "zhonghui-building",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:zhonghui-building"
+			],
+			"tags": [
+				"教学",
+				"音乐厅"
+			],
+			"title": "中慧楼（音乐厅）"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "南睿楼位于海淀校区南侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31655,
+						39.94766
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "nanrui-building",
+					"title": "南睿楼"
+				},
+				"type": "Feature"
+			},
+			"id": "nanrui-building",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:nanrui-building"
+			],
+			"tags": [
+				"教学",
+				"办公"
+			],
+			"title": "南睿楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "北智楼位于海淀校区东侧，靠近运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31625,
+						39.9497
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-north-wisdom-building",
+					"title": "北智楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-north-wisdom-building",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-north-wisdom-building"
+			],
+			"tags": [
+				"教学",
+				"办公"
+			],
+			"title": "北智楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "北综合楼位于海淀校区东侧，靠近运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31665,
+						39.9497
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-north-complex-building",
+					"title": "北综合楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-north-complex-building",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-north-complex-building"
+			],
+			"tags": [
+				"综合楼",
+				"办公"
+			],
+			"title": "北综合楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "南综合楼位于海淀校区东南侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3171,
+						39.94675
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-south-complex-building",
+					"title": "南综合楼"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-south-complex-building",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-south-complex-building"
+			],
+			"tags": [
+				"综合楼",
+				"办公"
+			],
+			"title": "南综合楼"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "田径场/足球场位于海淀校区东侧运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31645,
+						39.95055
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "haidian-track-football-field",
+					"title": "田径场/足球场"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-track-football-field",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-track-football-field"
+			],
+			"tags": [
+				"运动",
+				"田径",
+				"足球"
+			],
+			"title": "田径场/足球场"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "排球场位于海淀校区东侧运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31635,
+						39.94925
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "haidian-volleyball-court",
+					"title": "排球场"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-volleyball-court",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-volleyball-court"
+			],
+			"tags": [
+				"运动",
+				"排球"
+			],
+			"title": "排球场"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "逸夫体育馆位于海淀校区北侧，靠近食堂和学生公寓区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31555,
+						39.9534
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "shaw-gymnasium",
+					"title": "逸夫体育馆"
+				},
+				"type": "Feature"
+			},
+			"id": "shaw-gymnasium",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:shaw-gymnasium"
+			],
+			"tags": [
+				"运动",
+				"体育馆"
+			],
+			"title": "逸夫体育馆"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "service",
+			"description": "海淀校区学生事务相关服务点，靠近主教学区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3152,
+						39.94855
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "service",
+					"placeId": "student-service",
+					"title": "学生事务中心"
+				},
+				"type": "Feature"
+			},
+			"id": "student-service",
+			"sourceRefs": [
+				"campus-map:projection:student-service"
+			],
+			"tags": [
+				"办事",
+				"咨询"
+			],
+			"title": "学生事务中心"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "gate",
+			"description": "海淀校区东侧出入口，靠近中关村南大街。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31835,
+						39.94735
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "gate",
+					"placeId": "east-gate",
+					"title": "东大门"
+				},
+				"type": "Feature"
+			},
+			"id": "east-gate",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:east-gate"
+			],
+			"tags": [
+				"出入口",
+				"交通"
+			],
+			"title": "东大门"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "民族博物馆位于海淀校区西侧，靠近图书馆和教学楼区域。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31115,
+						39.94885
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "ethnic-museum",
+					"title": "民族博物馆"
+				},
+				"type": "Feature"
+			},
+			"id": "ethnic-museum",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:ethnic-museum"
+			],
+			"tags": [
+				"展览",
+				"参观",
+				"地标"
+			],
+			"title": "民族博物馆"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "transport",
+			"description": "魏公村地铁站位于海淀校区东北侧，适合作为到校接驳点。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.32324,
+						39.95792
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "transport",
+					"placeId": "weigongcun-subway",
+					"title": "魏公村地铁站"
+				},
+				"type": "Feature"
+			},
+			"id": "weigongcun-subway",
+			"sourceRefs": [
+				"campus-map:projection:weigongcun-subway"
+			],
+			"tags": [
+				"地铁",
+				"通勤"
+			],
+			"title": "魏公村地铁站"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "service",
+			"description": "校医院位于海淀校区西北侧，靠近学生公寓和食堂区域。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3125467,
+						39.9513664
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "service",
+					"placeId": "haidian-hospital",
+					"title": "校医院"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-hospital",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-hospital"
+			],
+			"tags": [
+				"医疗",
+				"门诊"
+			],
+			"title": "校医院"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "landmark",
+			"description": "民族剧院位于海淀校区南侧文化活动区域。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31435,
+						39.94785
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "ethnic-theater",
+					"title": "民族剧院"
+				},
+				"type": "Feature"
+			},
+			"id": "ethnic-theater",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:ethnic-theater"
+			],
+			"tags": [
+				"演出",
+				"地标"
+			],
+			"title": "民族剧院"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "gate",
+			"description": "海淀校区南侧出入口。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.31505,
+						39.94672
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "gate",
+					"placeId": "haidian-south-gate",
+					"title": "南门"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-south-gate",
+			"sourceRefs": [
+				"campus-map:private-source:official-map",
+				"campus-map:private-source:haidian-map-image",
+				"campus-map:projection:haidian-south-gate"
+			],
+			"tags": [
+				"出入口",
+				"交通"
+			],
+			"title": "南门"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "海淀校区食堂区域，具体窗口和楼层以食堂地图为准。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3144,
+						39.9512
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-canteen-1",
+					"title": "海淀一食堂"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-canteen-1",
+			"sourceRefs": [
+				"campus-map:projection:haidian-canteen-1"
+			],
+			"tags": [
+				"食堂",
+				"生活",
+				"海淀"
+			],
+			"title": "海淀一食堂"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "海淀校区食堂区域，具体窗口和楼层以食堂地图为准。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3133,
+						39.9522
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-canteen-2",
+					"title": "海淀二食堂"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-canteen-2",
+			"sourceRefs": [
+				"campus-map:projection:haidian-canteen-2"
+			],
+			"tags": [
+				"食堂",
+				"生活",
+				"海淀"
+			],
+			"title": "海淀二食堂"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "海淀校区食堂区域，具体窗口和楼层以食堂地图为准。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3143,
+						39.9534
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-canteen-3",
+					"title": "海淀三食堂"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-canteen-3",
+			"sourceRefs": [
+				"campus-map:projection:haidian-canteen-3"
+			],
+			"tags": [
+				"食堂",
+				"生活",
+				"海淀"
+			],
+			"title": "海淀三食堂"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "海淀校区食堂区域，具体窗口和楼层以食堂地图为准。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3157,
+						39.9522
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-canteen-4",
+					"title": "海淀四食堂"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-canteen-4",
+			"sourceRefs": [
+				"campus-map:projection:haidian-canteen-4"
+			],
+			"tags": [
+				"食堂",
+				"生活",
+				"海淀"
+			],
+			"title": "海淀四食堂"
+		},
+		{
+			"accessNote": null,
+			"campus": "海淀校区",
+			"category": "building",
+			"description": "海淀校区食堂区域，具体窗口和楼层以食堂地图为准。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.3135,
+						39.9532
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "haidian-canteen-5",
+					"title": "海淀五食堂"
+				},
+				"type": "Feature"
+			},
+			"id": "haidian-canteen-5",
+			"sourceRefs": [
+				"campus-map:projection:haidian-canteen-5"
+			],
+			"tags": [
+				"食堂",
+				"生活",
+				"海淀"
+			],
+			"title": "海淀五食堂"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "2层"
+				},
+				{
+					"label": "地图分类",
+					"value": "餐饮"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "丰台校区荟贤食堂，设一层和二层。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10859555,
+						39.80931605
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-huixian-canteen",
+					"title": "荟贤食堂"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-huixian-canteen",
+			"mapFeatureRefs": [
+				{
+					"fid": 41,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-huixian-canteen"
+			],
+			"tags": [
+				"食堂",
+				"生活",
+				"丰台"
+			],
+			"title": "荟贤食堂"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "餐饮"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "丰台校区聚雅食堂，设一层和二层。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.108483,
+						39.8104219
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-juya-canteen",
+					"title": "聚雅食堂"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-juya-canteen",
+			"mapFeatureRefs": [
+				{
+					"fid": 40,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-juya-canteen"
+			],
+			"tags": [
+				"食堂",
+				"生活",
+				"丰台"
+			],
+			"title": "聚雅食堂"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "5层"
+				},
+				{
+					"label": "地图分类",
+					"value": "公共文化"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "丰台校区图书馆，位于校区北侧学习区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11299427,
+						39.81212831
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-library",
+					"title": "图书馆"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-library",
+			"mapFeatureRefs": [
+				{
+					"fid": 49,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-library"
+			],
+			"tags": [
+				"学习",
+				"自习",
+				"借阅",
+				"丰台"
+			],
+			"title": "图书馆"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "2层"
+				},
+				{
+					"label": "地图分类",
+					"value": "医疗服务"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "service",
+			"description": "丰台校区校医院，位于校区南侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10771574,
+						39.80672638
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "service",
+					"placeId": "fengtai-hospital",
+					"title": "校医院"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-hospital",
+			"mapFeatureRefs": [
+				{
+					"fid": 23,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-hospital"
+			],
+			"tags": [
+				"医疗",
+				"门诊",
+				"丰台"
+			],
+			"title": "校医院"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "公共文化"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "丰台校区大学生活动中心，位于校区中部生活服务区域。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11074239,
+						39.80933773
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-student-activity-center",
+					"title": "大学生活动中心"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-student-activity-center",
+			"mapFeatureRefs": [
+				{
+					"fid": 47,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-student-activity-center"
+			],
+			"tags": [
+				"活动",
+				"学生服务",
+				"丰台"
+			],
+			"title": "大学生活动中心"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "丰台校区综合楼，位于校区南侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11264512,
+						39.80841759
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-comprehensive-building",
+					"title": "综合楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-comprehensive-building",
+			"mapFeatureRefs": [
+				{
+					"fid": 59,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-comprehensive-building"
+			],
+			"tags": [
+				"综合楼",
+				"丰台"
+			],
+			"title": "综合楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "4层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "致远楼位于丰台校区东北侧教学区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11506213,
+						39.81206215
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-zhiyuan-building",
+					"title": "致远楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-zhiyuan-building",
+			"mapFeatureRefs": [
+				{
+					"fid": 50,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-zhiyuan-building"
+			],
+			"tags": [
+				"教学",
+				"丰台"
+			],
+			"title": "致远楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "4层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "博文楼位于丰台校区东侧教学区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11519845,
+						39.81125338
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-bowen-building",
+					"title": "博文楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-bowen-building",
+			"mapFeatureRefs": [
+				{
+					"fid": 51,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-bowen-building"
+			],
+			"tags": [
+				"教学",
+				"丰台"
+			],
+			"title": "博文楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "5层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "用户核对"
+				},
+				{
+					"label": "名称来源",
+					"value": "用户审核 / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "用户确认名称为“崇理楼”；按用户提供的高德截图人工参照南北分栋，使用原有 WGS84 顶点去除跨间隙连接带，未复制高德坐标。 北侧保留原轮廓中的共美厅附属部分，未另行推定共美厅边界。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "明德楼位于丰台校区东南侧、崇理楼北侧；共美厅附属部分保留在北侧建筑轮廓内。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11385,
+						39.80992
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-mingde-chongli-building",
+					"title": "明德楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-mingde-chongli-building",
+			"mapFeatureRefs": [
+				{
+					"fid": 56,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-mingde-chongli-building"
+			],
+			"tags": [
+				"教学",
+				"丰台"
+			],
+			"title": "明德楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "用户核对"
+				},
+				{
+					"label": "名称来源",
+					"value": "用户审核 / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "用户确认名称为“崇理楼”；按用户提供的高德截图人工参照南北分栋，使用原有 WGS84 顶点去除跨间隙连接带，未复制高德坐标。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "崇理楼位于丰台校区东南侧、明德楼南侧，与明德楼分开显示。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11385,
+						39.8095
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-chongli-building",
+					"title": "崇理楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-chongli-building",
+			"mapFeatureRefs": [
+				{
+					"fid": 67,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-chongli-building"
+			],
+			"tags": [
+				"教学",
+				"丰台"
+			],
+			"title": "崇理楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "8层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "教师公寓区位于丰台校区西北侧和北侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.108,
+						39.81225
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-teacher-apartment-zone",
+					"title": "教师公寓区"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-teacher-apartment-zone",
+			"mapFeatureRefs": [
+				{
+					"fid": 1,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 2,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 3,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 4,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 24,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 25,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 26,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 27,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 28,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 29,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 30,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 31,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 32,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 33,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 34,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 35,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 36,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 37,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 38,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 39,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-teacher-apartment-zone"
+			],
+			"tags": [
+				"公寓",
+				"生活",
+				"丰台"
+			],
+			"title": "教师公寓区"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "博雅楼位于丰台校区东侧教学区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.1139987,
+						39.81129792
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-boya-building",
+					"title": "博雅楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-boya-building",
+			"mapFeatureRefs": [
+				{
+					"fid": 6,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-boya-building"
+			],
+			"tags": [
+				"教学",
+				"丰台"
+			],
+			"title": "博雅楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "5层"
+				},
+				{
+					"label": "地图分类",
+					"value": "公共文化"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "日新楼与咖啡厅位于丰台校区中东部。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11217045,
+						39.80980446
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-rixin-building-cafe",
+					"title": "日新楼与咖啡厅"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-rixin-building-cafe",
+			"mapFeatureRefs": [
+				{
+					"fid": 48,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-rixin-building-cafe"
+			],
+			"tags": [
+				"学习",
+				"咖啡",
+				"丰台"
+			],
+			"title": "日新楼与咖啡厅"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "2层"
+				},
+				{
+					"label": "地图分类",
+					"value": "商业服务"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "service",
+			"description": "商业区位于丰台校区西南侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10599203,
+						39.80936525
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "service",
+					"placeId": "fengtai-commercial-zone",
+					"title": "商业区"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-commercial-zone",
+			"mapFeatureRefs": [
+				{
+					"fid": 11,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 12,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-commercial-zone"
+			],
+			"tags": [
+				"商业",
+				"生活",
+				"丰台"
+			],
+			"title": "商业区"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "2层、1层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "service",
+			"description": "女生浴室位于丰台校区西南侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10705164,
+						39.80931028
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "service",
+					"placeId": "fengtai-women-bathhouse",
+					"title": "女生浴室"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-women-bathhouse",
+			"mapFeatureRefs": [
+				{
+					"fid": 19,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 20,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-women-bathhouse"
+			],
+			"tags": [
+				"浴室",
+				"生活",
+				"丰台"
+			],
+			"title": "女生浴室"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "3层"
+				},
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "智慧中心位于丰台校区中北侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11200086,
+						39.81164646
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-wisdom-center",
+					"title": "智慧中心"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-wisdom-center",
+			"mapFeatureRefs": [
+				{
+					"fid": 5,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-wisdom-center"
+			],
+			"tags": [
+				"学习",
+				"丰台"
+			],
+			"title": "智慧中心"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园一号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10618303,
+						39.81067803
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-1",
+					"title": "静园一号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-1",
+			"mapFeatureRefs": [
+				{
+					"fid": 9,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-1"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园一号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园二号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10726898,
+						39.81049298
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-2",
+					"title": "静园二号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-2",
+			"mapFeatureRefs": [
+				{
+					"fid": 22,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-2"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园二号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园三号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10604724,
+						39.81012656
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-3",
+					"title": "静园三号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-3",
+			"mapFeatureRefs": [
+				{
+					"fid": 8,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-3"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园三号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园四号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10718656,
+						39.80969036
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-4",
+					"title": "静园四号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-4",
+			"mapFeatureRefs": [
+				{
+					"fid": 21,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-4"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园四号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园五号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10606823,
+						39.8096247
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-5",
+					"title": "静园五号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-5",
+			"mapFeatureRefs": [
+				{
+					"fid": 10,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-5"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园五号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园六号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10696123,
+						39.80887375
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-6",
+					"title": "静园六号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-6",
+			"mapFeatureRefs": [
+				{
+					"fid": 18,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-6"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园六号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园七号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10602302,
+						39.80895092
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-7",
+					"title": "静园七号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-7",
+			"mapFeatureRefs": [
+				{
+					"fid": 13,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-7"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园七号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园八号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10698609,
+						39.80801328
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-8",
+					"title": "静园八号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-8",
+			"mapFeatureRefs": [
+				{
+					"fid": 17,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-8"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园八号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园九号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10583952,
+						39.80824191
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-9",
+					"title": "静园九号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-9",
+			"mapFeatureRefs": [
+				{
+					"fid": 15,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-9"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园九号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "6层"
+				},
+				{
+					"label": "地图分类",
+					"value": "住宿生活"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "静园十号楼位于丰台校区西侧生活区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10577941,
+						39.80770751
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-jingyuan-building-10",
+					"title": "静园十号楼"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-jingyuan-building-10",
+			"mapFeatureRefs": [
+				{
+					"fid": 16,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-jingyuan-building-10"
+			],
+			"tags": [
+				"宿舍",
+				"生活",
+				"静园",
+				"丰台"
+			],
+			"title": "静园十号楼"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "1层"
+				},
+				{
+					"label": "地图分类",
+					"value": "出入口安保"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "南门门卫标记合并原相邻的两处门卫建筑，位置取两处中点。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "gate",
+			"description": "丰台校区南门，位于校区南侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11303405,
+						39.80722115
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "gate",
+					"placeId": "fengtai-main-gate",
+					"title": "丰台南门"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-main-gate",
+			"mapFeatureRefs": [
+				{
+					"fid": 60,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-main-gate"
+			],
+			"tags": [
+				"出入口",
+				"丰台"
+			],
+			"title": "丰台南门"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "楼层",
+					"value": "1层"
+				},
+				{
+					"label": "地图分类",
+					"value": "出入口安保"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "北门门卫标记合并原相邻的两处门卫建筑，位置取两处中点。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "gate",
+			"description": "丰台校区北门，位于校区北侧。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.1134235,
+						39.8135096
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "gate",
+					"placeId": "fengtai-north-gate",
+					"title": "丰台北门"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-north-gate",
+			"mapFeatureRefs": [
+				{
+					"fid": 57,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-north-gate"
+			],
+			"tags": [
+				"出入口",
+				"丰台"
+			],
+			"title": "丰台北门"
+		},
+		{
+			"accessNote": null,
+			"additionalProperties": [
+				{
+					"label": "地图分类",
+					"value": "体育场地"
+				},
+				{
+					"label": "名称状态",
+					"value": "沿用参考名称"
+				},
+				{
+					"label": "名称来源",
+					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "与同 FID 的参考记录对应；教师公寓等集合名称未补造逐栋楼号。"
+				}
+			],
+			"campus": "丰台校区",
+			"category": "landmark",
+			"description": "田径场位于丰台校区南侧运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10855328,
+						39.80787223
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "fengtai-track-field",
+					"title": "田径场"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-track-field",
+			"mapFeatureRefs": [
+				{
+					"fid": 63,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-track-field"
+			],
+			"tags": [
+				"运动",
+				"田径",
+				"丰台"
+			],
+			"title": "田径场"
+		},
+		{
+			"accessNote": null,
+			"campus": "丰台校区",
+			"category": "landmark",
+			"description": "篮球场位于丰台校区南侧运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10950564,
+						39.80796978
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "fengtai-basketball-court",
+					"title": "篮球场"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-basketball-court",
+			"mapFeatureRefs": [
+				{
+					"fid": 2,
+					"layer": "sport",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-basketball-court"
+			],
+			"tags": [
+				"运动",
+				"篮球",
+				"丰台"
+			],
+			"title": "篮球场"
+		},
+		{
+			"accessNote": null,
+			"campus": "丰台校区",
+			"category": "landmark",
+			"description": "排球场位于丰台校区南侧运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.10944692,
+						39.80787089
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "fengtai-volleyball-court",
+					"title": "排球场"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-volleyball-court",
+			"mapFeatureRefs": [
+				{
+					"fid": 3,
+					"layer": "sport",
+					"sourceId": "fengtai-campus"
+				},
+				{
+					"fid": 4,
+					"layer": "sport",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-volleyball-court"
+			],
+			"tags": [
+				"运动",
+				"排球",
+				"丰台"
+			],
+			"title": "排球场"
+		},
+		{
+			"accessNote": null,
+			"campus": "丰台校区",
+			"category": "landmark",
+			"description": "网球场位于丰台校区南侧运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11061528,
+						39.80833822
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "fengtai-tennis-court",
+					"title": "网球场"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-tennis-court",
+			"mapFeatureRefs": [
+				{
+					"fid": 6,
+					"layer": "sport",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-tennis-court"
+			],
+			"tags": [
+				"运动",
+				"网球",
+				"丰台"
+			],
+			"title": "网球场"
+		},
+		{
+			"accessNote": null,
+			"campus": "丰台校区",
+			"category": "landmark",
+			"description": "气膜馆位于丰台校区南侧运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.1105551,
+						39.80740844
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "fengtai-air-dome",
+					"title": "气膜馆"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-air-dome",
+			"mapFeatureRefs": [
+				{
+					"fid": 5,
+					"layer": "sport",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-air-dome"
+			],
+			"tags": [
+				"运动",
+				"体育馆",
+				"丰台"
+			],
+			"title": "气膜馆"
+		},
+		{
+			"accessNote": null,
+			"campus": "丰台校区",
+			"category": "landmark",
+			"description": "足球场位于丰台校区南侧运动区。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.11148134,
+						39.80745864
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "landmark",
+					"placeId": "fengtai-football-field",
+					"title": "足球场"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-football-field",
+			"mapFeatureRefs": [
+				{
+					"fid": 7,
+					"layer": "sport",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-football-field"
+			],
+			"tags": [
+				"运动",
+				"足球",
+				"丰台"
+			],
+			"title": "足球场"
+		},
+		{
+			"accessNote": null,
+			"campus": "丰台校区",
+			"category": "transport",
+			"description": "丰台校区通勤接驳点。",
+			"geojson": {
+				"geometry": {
+					"coordinates": [
+						116.1130193,
+						39.813499125
+					],
+					"type": "Point"
+				},
+				"properties": {
+					"category": "transport",
+					"placeId": "fengtai-shuttle-stop",
+					"title": "丰台校区接驳点"
+				},
+				"type": "Feature"
+			},
+			"id": "fengtai-shuttle-stop",
+			"sourceRefs": [
+				"campus-map:projection:fengtai-shuttle-stop"
+			],
+			"tags": [
+				"通勤",
+				"丰台"
+			],
+			"title": "丰台校区接驳点"
+		}
+	]
+}

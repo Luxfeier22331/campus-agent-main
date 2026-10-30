@@ -193,7 +193,16 @@ describe("campus map feature interactions", () => {
 				[172, 232],
 				[188, 248],
 			],
-			{ layers: ["campus-building", "campus-building-labels", "campus-sport"] },
+			{
+				layers: [
+					"campus-building",
+					"campus-building-labels",
+					"campus-gatehouse-markers",
+					"campus-north-gatehouse-label",
+					"campus-south-gatehouse-label",
+					"campus-sport",
+				],
+			},
 		);
 		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
 			"all",
@@ -235,7 +244,16 @@ describe("campus map feature interactions", () => {
 				[132, 252],
 				[148, 268],
 			],
-			{ layers: ["campus-building", "campus-building-labels", "campus-sport"] },
+			{
+				layers: [
+					"campus-building",
+					"campus-building-labels",
+					"campus-gatehouse-markers",
+					"campus-north-gatehouse-label",
+					"campus-south-gatehouse-label",
+					"campus-sport",
+				],
+			},
 		);
 		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-outline", [
 			"all",

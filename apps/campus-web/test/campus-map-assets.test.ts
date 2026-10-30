@@ -41,6 +41,51 @@ interface PlacesDocument {
 }
 
 describe("campus map static contract", () => {
+	it("separates Mingde and Chongli with independent names, geometry and place links", async () => {
+		const curated = JSON.parse(
+			await readFile(
+				new URL("../data/campus-map/curated/fengtai.geojson", import.meta.url),
+				"utf8",
+			),
+		) as {
+			features: Array<{
+				geometry: { coordinates: number[][][]; type: string };
+				properties: { fid: number; layer: string; name?: string };
+			}>;
+		};
+		const places = JSON.parse(
+			await readFile(new URL("../data/campus-map/places.source.json", import.meta.url), "utf8"),
+		) as PlacesDocument;
+		const north = curated.features.find((feature) => feature.properties.name === "明德楼");
+		const south = curated.features.find((feature) => feature.properties.name === "崇理楼");
+		expect(north?.properties.fid).toBe(56);
+		expect(south?.properties.fid).toBe(67);
+		expect(north?.geometry.type).toBe("Polygon");
+		expect(south?.geometry.type).toBe("Polygon");
+		const northRing = north?.geometry.coordinates[0] ?? [];
+		const southRing = south?.geometry.coordinates[0] ?? [];
+		expect(northRing.length).toBeGreaterThan(3);
+		expect(southRing.length).toBeGreaterThan(3);
+		expect(northRing[0]).toEqual(northRing.at(-1));
+		expect(southRing[0]).toEqual(southRing.at(-1));
+		expect(Math.min(...northRing.map((point) => point[1] ?? 0))).toBeGreaterThan(
+			Math.max(...southRing.map((point) => point[1] ?? 0)),
+		);
+		expect(JSON.stringify(curated)).not.toContain("崇礼");
+		expect(JSON.stringify(places)).not.toContain("崇礼");
+		for (const [name, fid] of [
+			["明德楼", 56],
+			["崇理楼", 67],
+		] as const) {
+			const matches = places.places.filter((place) => place.title === name);
+			expect(matches).toHaveLength(1);
+			expect(matches[0]?.mapFeatureRefs).toEqual([
+				{ fid, layer: "building", sourceId: "fengtai-campus" },
+			]);
+			expect(matches[0]?.geojson.properties.title).toBe(name);
+		}
+	});
+
 	it("validates the checked-in release with the owner generator", () => {
 		expect(() =>
 			validateCampusMapRelease({

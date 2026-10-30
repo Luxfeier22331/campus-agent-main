@@ -2115,20 +2115,20 @@
 			"accessNote": null,
 			"campus": "丰台校区",
 			"category": "building",
-			"description": "明德楼、崇礼楼与共美厅位于丰台校区东南侧。",
+			"description": "明德楼位于丰台校区东南侧、崇理楼北侧；共美厅附属部分保留在北侧建筑轮廓内。",
 			"geojson": {
 				"type": "Feature",
 				"geometry": {
 					"type": "Point",
 					"coordinates": [
-						116.11401955,
-						39.8098871
+						116.11385,
+						39.80992
 					]
 				},
 				"properties": {
 					"category": "building",
 					"placeId": "fengtai-mingde-chongli-building",
-					"title": "明德楼、崇礼楼与共美厅"
+					"title": "明德楼"
 				}
 			},
 			"id": "fengtai-mingde-chongli-building",
@@ -2144,10 +2144,9 @@
 			],
 			"tags": [
 				"教学",
-				"活动",
 				"丰台"
 			],
-			"title": "明德楼、崇礼楼与共美厅",
+			"title": "明德楼",
 			"additionalProperties": [
 				{
 					"label": "楼层",
@@ -2155,19 +2154,74 @@
 				},
 				{
 					"label": "地图分类",
-					"value": "综合/待核"
+					"value": "教学科研"
 				},
 				{
 					"label": "名称状态",
-					"value": "沿用参考名称"
+					"value": "用户核对"
 				},
 				{
 					"label": "名称来源",
-					"value": "campus-agent-main 丰台 curated GeoJSON / 原始 GeoPackage"
+					"value": "用户审核 / 原始 GeoPackage"
 				},
 				{
 					"label": "核对说明",
-					"value": "沿用原始复合体名称；官方图局部 OCR 出现“崇理楼”，与参考中的“崇礼楼”存在异文，待人工核实，不擅自更名。"
+					"value": "用户确认名称为“崇理楼”；按用户提供的高德截图人工参照南北分栋，使用原有 WGS84 顶点去除跨间隙连接带，未复制高德坐标。 北侧保留原轮廓中的共美厅附属部分，未另行推定共美厅边界。"
+				}
+			]
+		},
+		{
+			"accessNote": null,
+			"campus": "丰台校区",
+			"category": "building",
+			"description": "崇理楼位于丰台校区东南侧、明德楼南侧，与明德楼分开显示。",
+			"geojson": {
+				"type": "Feature",
+				"geometry": {
+					"type": "Point",
+					"coordinates": [
+						116.11385,
+						39.8095
+					]
+				},
+				"properties": {
+					"category": "building",
+					"placeId": "fengtai-chongli-building",
+					"title": "崇理楼"
+				}
+			},
+			"id": "fengtai-chongli-building",
+			"mapFeatureRefs": [
+				{
+					"fid": 67,
+					"layer": "building",
+					"sourceId": "fengtai-campus"
+				}
+			],
+			"sourceRefs": [
+				"campus-map:projection:fengtai-chongli-building"
+			],
+			"tags": [
+				"教学",
+				"丰台"
+			],
+			"title": "崇理楼",
+			"additionalProperties": [
+				{
+					"label": "地图分类",
+					"value": "教学科研"
+				},
+				{
+					"label": "名称状态",
+					"value": "用户核对"
+				},
+				{
+					"label": "名称来源",
+					"value": "用户审核 / 原始 GeoPackage"
+				},
+				{
+					"label": "核对说明",
+					"value": "用户确认名称为“崇理楼”；按用户提供的高德截图人工参照南北分栋，使用原有 WGS84 顶点去除跨间隙连接带，未复制高德坐标。"
 				}
 			]
 		},

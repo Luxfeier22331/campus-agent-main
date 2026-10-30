@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import { CAMPUS_CONFIG, type CampusId } from "./map-model.ts";
 import { normalizeCampusMapAssets, validateCampusMapRelease } from "./map-release.ts";
 import { updateCampusMapSnapshot } from "./map-snapshot.ts";
@@ -62,7 +63,7 @@ export function parseCampusMapCommandArgs(argv: string[]): {
 async function main(): Promise<void> {
 	const args = parseCampusMapCommandArgs(process.argv.slice(2));
 	if (args.mode === "normalize") {
-		console.log(JSON.stringify(normalizeCampusMapAssets(), null, "\t"));
+		console.log(JSON.stringify(normalizeCampusMapAssets({ campus: args.campus }), null, "\t"));
 		return;
 	}
 	if (args.mode === "validate") {
@@ -74,7 +75,7 @@ async function main(): Promise<void> {
 	console.log(`updated campus map snapshot: ${args.campus}`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
 	main().catch((error) => {
 		console.error(error instanceof Error ? error.stack || error.message : String(error));
 		process.exit(1);
