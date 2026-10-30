@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { execFileSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,6 +18,14 @@ const dataRoot = fileURLToPath(new URL("../data/campus-map/", import.meta.url));
 const assetRoot = fileURLToPath(new URL("../assets/campus-map/", import.meta.url));
 
 describe("campus map generator", () => {
+	it("runs validation from a native filesystem entry path", () => {
+		const entry = fileURLToPath(new URL("../scripts/campus-map/generate.ts", import.meta.url));
+		const output = execFileSync(process.execPath, ["--import", "tsx", entry, "--validate"], {
+			encoding: "utf8",
+		});
+		expect(output).toContain("campus map assets valid");
+	});
+
 	it("parses one snapshot campus and rejects the retired update mode", () => {
 		expect(parseCampusMapCommandArgs(["--snapshot-update", "--campus=fengtai"])).toEqual({
 			campus: "fengtai",
